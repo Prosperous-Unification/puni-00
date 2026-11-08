@@ -57,6 +57,11 @@ scale this is the main way capacity leaks.
 - `claim-leases`: which claims carry a lease, renewal, expiry, release reasons, revocation,
   the sweep, the reads.
 
+### Modified Capabilities
+
+- `http-endpoint-port`: a stray query or body on any endpoint is refused with a declared 4xx,
+  never a 5xx (found through the heartbeat; eleven other endpoints answered 500).
+
 ## Domain Terms
 
 Claim lease (in `CONTEXT.md`).

@@ -14,7 +14,7 @@ const EVENT: ProjectEvent = { type: 'tree_replaced', workItems: [] };
 
 /** A push client that records what it was handed, borrowed from `gateway-broadcaster.test.ts`'s own fixture. */
 function fakePush() {
-  const pushed: { subscription: string; seq: number }[] = [];
+  const pushed: { subscription: string; seq?: number }[] = [];
   const client: PushTransport = {
     push(payload) {
       pushed.push({ subscription: payload.subscription, seq: payload.seq });

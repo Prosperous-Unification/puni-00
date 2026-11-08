@@ -1,5 +1,14 @@
 # Registry maintenance installation and recovery
 
+**Source staging — 2026-11-08:** Registry lifecycle libraries and manual provisioning
+sources are retained for future coordinated activation. Supported publish, copy,
+Compose and Kubernetes commands keep current-main routing and legacy persisted
+writer versions; they do not select managed adapters. Explicit managed helpers
+require trusted enrollment. Historical installed receipts below do not establish
+current readiness. Managed procedures remain attended future operations; this
+source merge performs no installation, adoption or production action. Full native,
+provider, storage, backup, isolation, recovery and delivery acceptance stays open.
+
 These units are staged, disabled examples for the shared registry authority. Activation
 requires the completed provider-budget admission and installed recovery drill. The
 current `registry-backup-admission.ts` deliberately refuses with

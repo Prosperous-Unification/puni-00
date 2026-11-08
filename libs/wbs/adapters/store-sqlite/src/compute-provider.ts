@@ -1,3 +1,4 @@
+import { resourceRuntimeHostJobUse } from '@wbs/contracts';
 import {
   type AuditedAct,
   type CapacityReports,
@@ -5,6 +6,7 @@ import {
   type ComputeProviderDraft,
   type ComputeProviderPatch,
   type ComputeProviderSummary,
+  type HostJobReading,
   type MachineCredentialActorRefusal,
   type ResourceProviderReading,
 } from '@wbs/core';
@@ -18,7 +20,7 @@ import {
   PERSON_KINDS,
   type PersonKind,
 } from '@wbs/domain';
-import { and, asc, count, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -34,6 +36,7 @@ import {
   resource,
   resourceCapacityReport,
   type ResourceCapacityReportRow,
+  resourceHostJobRecord,
   resourceOrganization,
 } from './schema';
 
@@ -60,7 +63,7 @@ function administering(
 }
 
 /** @throws on a kind outside {@link COMPUTE_PROVIDER_KINDS}, which the table's CHECK refuses. */
-function kindOf(row: ComputeProviderRow): ComputeProviderKind {
+function kindOf(row: Pick<ComputeProviderRow, 'id' | 'kind'>): ComputeProviderKind {
   const known: readonly string[] = COMPUTE_PROVIDER_KINDS;
   if (!known.includes(row.kind)) throw new Error(`compute provider ${row.id} has a malformed kind`);
   // Narrowed by the membership test above, which is the boundary this is.
@@ -138,10 +141,21 @@ function reportOf(row: ResourceCapacityReportRow): CapacityReport {
     reportedBy: row.reportedByPersonId,
     reportedAt: row.reportedAt,
   };
+  // The table's CHECK keeps the reserved pair together; a lone half is broken trusted state.
+  if ((row.reservedUnits === null) !== (row.reservedDimension === null))
+    throw new Error(`capacity report of resource ${row.resourceId} is malformed`);
   if (row.outcome === 'measured' && row.capacityUnits !== null && row.usageUnits !== null)
     return {
       ...common,
-      outcome: { kind: 'measured', capacityUnits: row.capacityUnits, usageUnits: row.usageUnits },
+      outcome: {
+        kind: 'measured',
+        capacityUnits: row.capacityUnits,
+        usageUnits: row.usageUnits,
+        // Absent, not null, for a report sent without it: the pre-change answer byte for byte.
+        ...(row.reservedUnits === null || row.reservedDimension === null
+          ? {}
+          : { reservedUnits: row.reservedUnits, reservedDimension: row.reservedDimension }),
+      },
     };
   if (row.outcome === 'unreachable' && row.reason !== null)
     return { ...common, outcome: { kind: 'unreachable', reason: row.reason } };
@@ -295,6 +309,14 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
       // and delete` in `compute-provider.controller.db.test.ts` renamed B's
       // instance (200); watched 2026-10-22.
       if (row === undefined) return 'unknown_provider';
+      // Proof: the late-cause request test observed deletion 204 before pending acknowledgments joined this predicate (2026-10-25).
+      const outstanding = tx.all<{
+        id: string;
+        name: string;
+      }>(sql`SELECT DISTINCT json_extract(snapshot,'$.resourceId') AS id,json_extract(snapshot,'$.resourceName') AS name FROM resource_use
+        WHERE organization_id=${organizationId} AND json_extract(snapshot,'$.providerId')=${id} AND json_extract(snapshot,'$.source')='runtime' AND (state!='release_verified' OR json_extract(snapshot,'$.pendingCleanupRequest')=1)`);
+      // Proof: disabling this guard allowed cascading deletion in the unresolved-runtime-use controller test (2026-10-25).
+      if (outstanding.length > 0) return { kind: 'in_use', resources: outstanding } as const;
       const fulfilled = tx
         .select({ id: resource.id, name: resourceOrganization.name })
         .from(resource)
@@ -382,6 +404,10 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
         outcome: report.outcome.kind,
         capacityUnits: report.outcome.kind === 'measured' ? report.outcome.capacityUnits : null,
         usageUnits: report.outcome.kind === 'measured' ? report.outcome.usageUnits : null,
+        reservedUnits:
+          report.outcome.kind === 'measured' ? (report.outcome.reservedUnits ?? null) : null,
+        reservedDimension:
+          report.outcome.kind === 'measured' ? (report.outcome.reservedDimension ?? null) : null,
         reason: report.outcome.kind === 'unreachable' ? report.outcome.reason : null,
         reportedByPersonId: report.reportedBy,
         reportedAt: report.reportedAt,
@@ -410,8 +436,14 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
           .map((row) => [row.resourceId, reportOf(row)] as const),
       );
       for (const row of tx
-        .select({ id: resource.id, providerId: resource.providerId })
+        .select({
+          id: resource.id,
+          providerId: resource.providerId,
+          kind: computeProvider.kind,
+          name: computeProvider.name,
+        })
         .from(resource)
+        .leftJoin(computeProvider, eq(computeProvider.id, resource.providerId))
         .where(inArray(resource.id, [...resourceIds]))
         .all()) {
         const report = reports.get(row.id) ?? null;
@@ -419,11 +451,78 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
         // it, so one naming another instance is malformed trusted state.
         if (report !== null && report.providerId !== row.providerId)
           throw new Error(`capacity report of resource ${row.id} names another instance`);
-        readings.set(row.id, { providerId: row.providerId, report });
+        readings.set(row.id, {
+          provider: providerOf(row),
+          report,
+          hostJobs: row.providerId === null ? [] : hostJobsOf(tx, row.providerId),
+        });
       }
       return readings;
     });
   }
+}
+
+/**
+ * The host jobs the authority bound to `providerId` published and has not
+ * returned (`dash-host-jobs` J10), oldest registration first.
+ *
+ * @throws when a stored declaration is not a host job use: ingestion stored it
+ * after the contract accepted it, so anything else is broken trusted state.
+ */
+function hostJobsOf(
+  tx: Pick<SQLiteBunDatabase, 'select'>,
+  providerId: string,
+): readonly HostJobReading[] {
+  return tx
+    .select({ useId: resourceHostJobRecord.useId, declaration: resourceHostJobRecord.declaration })
+    .from(resourceHostJobRecord)
+    .where(
+      and(
+        eq(resourceHostJobRecord.providerId, providerId),
+        eq(resourceHostJobRecord.state, 'registered'),
+      ),
+    )
+    .orderBy(asc(resourceHostJobRecord.registeredAt), asc(resourceHostJobRecord.useId))
+    .all()
+    .map((row) => {
+      const use = resourceRuntimeHostJobUse.assert(JSON.parse(row.declaration));
+      return {
+        useId: row.useId,
+        label: use.label,
+        type: use.type,
+        host: use.host,
+        reservations: use.reservations,
+      };
+    });
+}
+
+/**
+ * The instance a resource row names, off its left join.
+ *
+ * @throws when the reference names no instance: removal clears every
+ * reference in its transaction (`cascade`), so a dangling one is broken
+ * trusted state; and as {@link kindOf} on a malformed kind.
+ */
+function providerOf(row: {
+  id: string;
+  providerId: string | null;
+  kind: ComputeProviderRow['kind'] | null;
+  name: string | null;
+}): ResourceProviderReading['provider'] {
+  if (row.providerId === null) return null;
+  // Proof: answering null here, `answers 500 on a reference naming no
+  // instance` (compute-provider.controller.db.test.ts) failed: the store
+  // resolved; watched 2026-10-25.
+  if (row.kind === null || row.name === null)
+    throw new Error(`resource ${row.id} names provider ${row.providerId}, which is not registered`);
+  // Proof: with `row.kind` returned unchecked, `answers 500 on an instance
+  // of a malformed kind` failed: the store resolved with `vm` (the route's
+  // response contract alone still answered 500); watched 2026-10-25.
+  return {
+    id: row.providerId,
+    kind: kindOf({ id: row.providerId, kind: row.kind }),
+    name: row.name,
+  };
 }
 
 /** One {@link ComputeProviderRepository} serving both ports, as be-01 composes them. */

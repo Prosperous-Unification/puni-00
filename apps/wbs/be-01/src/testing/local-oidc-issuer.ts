@@ -54,6 +54,11 @@ export class LocalIssuer {
     return signWith(this.key, { iss: this.url, ...claims });
   }
 
+  /** {@link sign}, declaring `typ` in the protected header (ID-JAG, `at+jwt`, `JWT`). */
+  signTyped(claims: JWTPayload, typ: string): Promise<string> {
+    return signWith(this.key, { iss: this.url, ...claims }, typ);
+  }
+
   answer(path: string): Response {
     if (path === '/.well-known/openid-configuration') {
       this.discoveryFetches += 1;
@@ -70,10 +75,10 @@ export class LocalIssuer {
   }
 }
 
-async function signWith(key: PublishedKey, claims: JWTPayload): Promise<string> {
+async function signWith(key: PublishedKey, claims: JWTPayload, typ?: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({ iat: now, exp: now + 300, ...claims })
-    .setProtectedHeader({ alg: 'RS256', kid: key.kid })
+    .setProtectedHeader({ alg: 'RS256', kid: key.kid, ...(typ === undefined ? {} : { typ }) })
     .sign(key.privateKey);
 }
 

@@ -164,6 +164,14 @@
    * against it. `plan-table-review.spec.ts` measures both on the band.
    */
   --quiet-ink: oklch(0.5 0.046 257.417);
+  /*
+   * A **Claim chip**'s ink (`claim-chip.tsx`): a violet no status, reading or
+   * band wears, so a chip beside an assignee is not read as either. Its tint
+   * is the ink at 12% over whatever the cell paints, so it follows the band
+   * and the hover without a token per surface.
+   */
+  --claim-ink: oklch(0.47 0.15 292);
+  --claim-tint: color-mix(in oklab, var(--claim-ink) 12%, transparent);
 }
 
 .dark {
@@ -181,6 +189,8 @@
   /* The dark palette's muted ink already clears the dark band; only the placeholders'
      0.7 opacity took it under (4.16:1). */
   --quiet-ink: oklch(0.704 0.04 256.788);
+  --claim-ink: oklch(0.78 0.12 292);
+  --claim-tint: color-mix(in oklab, var(--claim-ink) 16%, transparent);
 
   /*
    * **Nothing re-points a `--grid-*` token here, and that is a rule rather than
@@ -1174,6 +1184,22 @@
   [data-grid] td[data-column='name'] [data-has-notes] textarea[data-name-input],
   [data-grid] td[data-column='name'] [data-has-notes] [data-cell-rendered] {
     padding-right: 24px;
+  }
+
+  /*
+   * Room for a subtree claim's chip (`claim-chip.tsx`'s NAME_CLAIM_PX, 78px,
+   * plus the 3px it stands from the edge and 1px of air), and beside the notes
+   * marker's 24px when the row has notes too. Only on a claimed row: an
+   * unclaimed plan's names wrap exactly where they did.
+   */
+  [data-grid] td[data-column='name'] [data-subtree-claim] textarea[data-name-input],
+  [data-grid] td[data-column='name'] [data-subtree-claim] [data-cell-rendered] {
+    padding-right: 82px;
+  }
+
+  [data-grid] td[data-column='name'] [data-has-notes][data-subtree-claim] textarea[data-name-input],
+  [data-grid] td[data-column='name'] [data-has-notes][data-subtree-claim] [data-cell-rendered] {
+    padding-right: 103px;
   }
 
   /*

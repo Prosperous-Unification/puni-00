@@ -93,7 +93,7 @@ async function seeded() {
       stores.attempts.listByProject('p'),
       stores.directory.assignmentsInProject('p'),
       stores.typedDependencies.listByProject('p'),
-      stores.journal.entriesFor('p', 'owner'),
+      stores.journal.entriesFor({ projectId: 'p', userId: 'owner', personId: null }),
       stores.planEvents.listFor('p', {}),
       stores.stepParallels.listByProject('p'),
     ]);

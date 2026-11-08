@@ -28,6 +28,12 @@ export const renewClaimLeases = defineEndpointShape({
     },
   ],
   refusals: [
+    // The heartbeat reads no input: a body or query string is refused, never ignored.
+    // Proof: without it, a raw agent's `-d '{}'` heartbeat answered 500 `Internal Server
+    // Error` (thrown and logged: `no declared validation refusal`) in
+    // claim-lease.controller.db.test.ts `refuses a heartbeat carrying a body or a query
+    // as a typed 400` (watched 2026-10-24).
+    { status: 400, schema: responseSchema(type({ error: "'invalid_body' | 'invalid_query'" })) },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     {
       status: 403,
@@ -40,6 +46,6 @@ export const renewClaimLeases = defineEndpointShape({
   ],
   document: {
     summary:
-      'Renew every claim lease of the calling agent (API key, trusted-issuer token or MCP consent): a claim an agent takes for itself is released by the coordinator 15 minutes after its last write unless renewed. Any committed command batch renews too; call this while idle, at most every few minutes. Answers the leases in force and the earliest expiry (epoch milliseconds). A session is refused not_pinned.',
+      'Renew every claim lease of the calling agent (API key, trusted-issuer token or MCP consent): a claim an agent takes for itself is released by the coordinator 15 minutes after its last write unless renewed. Any committed command batch renews too; call this while idle, at most every few minutes. Answers the leases in force and the earliest expiry (epoch milliseconds). A session is refused not_pinned. Send no request body (not even {}) and no query string: either is refused 400 invalid_body or invalid_query and renews nothing.',
   },
 });

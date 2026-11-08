@@ -1,78 +1,7 @@
 import { expect, it } from 'bun:test';
 
-import { runSwaps, type SwapRunDeps } from './swap';
-
-it('protects the whole Compose run inside its lock before the first tier and promotes after complete verification', async () => {
-  const calls: string[] = [];
-  const deps: SwapRunDeps = {
-    withLock: async (_path, work) => {
-      calls.push('lock');
-      const completed = await work();
-      calls.push('unlock');
-      return completed;
-    },
-    observe: () =>
-      Promise.resolve({
-        routedColor: 'blue',
-        runningColors: ['blue'],
-        recordedColor: 'blue',
-        phase: 'committed',
-      }),
-    execute: (plan) => {
-      calls.push(plan.tier);
-      return Promise.resolve();
-    },
-    protectImages: () => {
-      calls.push('protect');
-      return Promise.resolve({
-        preserveState: (state) => state,
-        complete: () => {
-          calls.push('verified-promote');
-          return Promise.resolve(undefined);
-        },
-      });
-    },
-  };
-  await runSwaps(['be', 'gw', 'fe'], { be: 'be', gw: 'gw', fe: 'fe' }, 'sha', deps);
-  expect(calls).toEqual(['lock', 'protect', 'be', 'gw', 'fe', 'verified-promote', 'unlock']);
-});
-it('retains the full Compose protection after the third tier fails', async () => {
-  const calls: string[] = [];
-  const deps: SwapRunDeps = {
-    withLock: (_path, work) => work(),
-    observe: () =>
-      Promise.resolve({
-        routedColor: 'blue',
-        runningColors: ['blue'],
-        recordedColor: 'blue',
-        phase: 'committed',
-      }),
-    execute: (plan) => {
-      calls.push(plan.tier);
-      return plan.tier === 'fe'
-        ? Promise.reject(new Error('third tier failed'))
-        : Promise.resolve();
-    },
-    protectImages: () => {
-      calls.push('protect-four-images-and-outgoing');
-      return Promise.resolve({
-        preserveState: (state) => state,
-        complete: () => {
-          calls.push('promote');
-          return Promise.resolve(undefined);
-        },
-      });
-    },
-  };
-  await expectRejection(
-    runSwaps(['be', 'gw', 'fe'], { be: 'be', gw: 'gw', fe: 'fe' }, 'sha', deps),
-    'third tier failed',
-  );
-  expect(calls).toEqual(['protect-four-images-and-outgoing', 'be', 'gw', 'fe']);
-});
-
 import { ROOT } from './lib/docker';
-import { parseStateJson } from './lib/state';
+import { parseRegistryTierState } from './lib/registry-state';
 import { type ComposeRegistryPorts, prepareComposeImages } from './registry-compose';
 
 function composeFixture() {
@@ -176,7 +105,7 @@ function composeFixture() {
     ports,
     calls,
     images: images('2'),
-    read: () => parseStateJson(bytes),
+    read: () => parseRegistryTierState(bytes),
     setCurrent: () => {
       current = images('2');
     },
@@ -341,8 +270,7 @@ it('resumes a protected partial first-install without mistaking its started tier
 import type { RegistryAuthority } from '@tools/registry-publication';
 
 import { verifyComposeRecovery } from './registry-compose';
-import { runSwapCli } from './swap';
-it('routes attended recovery CLI through existing unresolved protection without any authority transition', async () => {
+it('verifies dormant recovery ownership without any authority transition', async () => {
   const originalArgs = [...process.argv];
   try {
     for (const fault of [
@@ -427,39 +355,19 @@ it('routes attended recovery CLI through existing unresolved protection without 
           commands.push(request);
           return { state } as Awaited<ReturnType<RegistryAuthority>>;
         });
-      process.argv.splice(
-        0,
-        process.argv.length,
-        'bun',
-        'swap.js',
-        'be',
-        '--check-backend-recovery',
-        `--previous-image=${previous}`,
-        `--image-be=${candidate}`,
-        '--database-path=/owned/fixture.db',
-      );
-      const run = () =>
-        runSwapCli({
-          preflight: () => Promise.resolve(),
-          lock: async (_path, work) => {
-            locked = true;
-            try {
-              return await work();
-            } finally {
-              locked = false;
-            }
-          },
-          authorize: (previous, candidate) =>
-            verifyComposeRecovery(previous, candidate, {
-              select: () => Promise.resolve(enrollment),
-              read: () => Promise.resolve(JSON.stringify(owner)),
-              authority: () => authority,
-            }),
-          probe: () => {
-            probes++;
-            return Promise.resolve();
-          },
-        });
+      const run = async () => {
+        locked = true;
+        try {
+          await verifyComposeRecovery(previous, candidate, {
+            select: () => Promise.resolve(enrollment),
+            read: () => Promise.resolve(JSON.stringify(owner)),
+            authority: () => authority,
+          });
+          probes++;
+        } finally {
+          locked = false;
+        }
+      };
       if (fault === 'none') {
         await run();
         expect(probes).toBe(1);

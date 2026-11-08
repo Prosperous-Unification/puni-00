@@ -16,8 +16,13 @@ import { type } from 'arktype';
 
 import { writeAtomic } from './lib/atomic';
 import { assertDigestPinnedRef, CURRENT_ENV, EDGE_CONTAINER, ROOT } from './lib/docker';
-import { parseComposeRegistry } from './lib/registry-state';
-import { parseStateJson, renderStateJson, type Tier, type TierState } from './lib/state';
+import {
+  parseComposeRegistry,
+  parseRegistryTierState,
+  type RegistryTierState,
+  renderRegistryTierState,
+} from './lib/registry-state';
+import { type Tier } from './lib/state';
 import { pinComposeSmoke, runComposeSmoke } from './registry-compose-smoke';
 import { type ComposeObservation, readComposeSource } from './registry-compose-source';
 import { DockerHost } from './registry-docker-consumers';
@@ -25,7 +30,7 @@ import { DockerHost } from './registry-docker-consumers';
 export interface ComposeRegistrySession {
   readonly skip?: boolean;
   complete(): Promise<RegistryPromotionReceipt | undefined>;
-  preserveState(state: TierState): TierState;
+  preserveState(state: RegistryTierState): RegistryTierState;
 }
 export interface ComposeRegistryPorts {
   select: typeof readDeploymentEnrollment;
@@ -128,7 +133,7 @@ export async function prepareComposeImages(
     throw new Error('Managed Compose requires all configured be,gw,fe consumers');
   for (const tier of tiers) assertDigestPinnedRef(images[tier], tier);
   const path = `${ROOT}/state/be.json`;
-  let owner = parseStateJson(await ports.read(path));
+  let owner = parseRegistryTierState(await ports.read(path));
   let registry = parseComposeRegistry(owner.registry, path);
   if (
     registry.history.registryId !== enrollment.registryId ||
@@ -192,7 +197,7 @@ export async function prepareComposeImages(
     },
   };
   owner = { ...owner, registry };
-  await ports.write(path, renderStateJson(owner));
+  await ports.write(path, renderRegistryTierState(owner));
   const preserved = () => registry;
   return {
     skip:
@@ -233,11 +238,11 @@ export async function prepareComposeImages(
           phase: 'promoted',
         },
       };
-      owner = parseStateJson(await ports.read(path));
-      await ports.write(path, renderStateJson({ ...owner, registry }));
+      owner = parseRegistryTierState(await ports.read(path));
+      await ports.write(path, renderRegistryTierState({ ...owner, registry }));
       if (
         JSON.stringify(
-          parseComposeRegistry(parseStateJson(await ports.read(path)).registry, path),
+          parseComposeRegistry(parseRegistryTierState(await ports.read(path)).registry, path),
         ) !== JSON.stringify(registry)
       )
         throw new Error('Compose history persistence readback differs');
@@ -265,7 +270,10 @@ export async function verifyComposeRecovery(
   const enrollment = await ports.select([previous, candidate], target);
   if (enrollment === undefined) return;
   const path = `${ROOT}/state/be.json`;
-  const registry = parseComposeRegistry(parseStateJson(await ports.read(path)).registry, path);
+  const registry = parseComposeRegistry(
+    parseRegistryTierState(await ports.read(path)).registry,
+    path,
+  );
   if (
     enrollment.target !== target ||
     registry.history.registryId !== enrollment.registryId ||

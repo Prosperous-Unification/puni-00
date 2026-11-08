@@ -51,6 +51,53 @@ export interface PlanEventFilter {
    * to refuse a name against.
    */
   kinds?: readonly string[];
+  /**
+   * Widens a non-empty {@link kinds} list with the `batch` events whose stored
+   * `after` holds, at any depth, an object whose `do` names one of these
+   * commands: a claim or release run beside other commands in one batch is
+   * recorded as one `batch` event (`WorkItemService.recordCollected`), and the
+   * claim history read must find it before {@link limit} cuts the list.
+   * Ignored when `kinds` is omitted or empty, which already keeps every kind.
+   */
+  batchesHolding?: readonly string[];
+  /**
+   * At most this many of the newest events that pass the other filters.
+   * Omitted is every event: the plan history read has no limit, the claim
+   * history read always passes one. A store throws for anything but a whole
+   * number of at least 1, rather than reading `-1` as "no limit" (SQLite) or
+   * as "all but one" (`Array.slice`).
+   */
+  limit?: number;
+}
+
+/**
+ * Whether `value` holds, at any depth, an object whose `do` names one of
+ * `commands`: the memory twin of SQLite's `json_tree` predicate for
+ * {@link PlanEventFilter.batchesHolding}. Every key named `do` counts,
+ * wherever it sits, as `json_tree` visits every node; a string that merely
+ * mentions `add_claims` does not.
+ */
+export function holdsCommand(value: unknown, commands: readonly string[]): boolean {
+  // Proof: with a text match on the serialised value in front of this walk,
+  // `planEvents.listFor:batches-limit` (conformance) kept the batch whose
+  // rename merely mentions `add_claims`; watched 2026-10-24.
+  if (Array.isArray(value)) return value.some((each) => holdsCommand(each, commands));
+  if (typeof value !== 'object' || value === null) return false;
+  return Object.entries(value).some(
+    ([key, each]) =>
+      (key === 'do' && typeof each === 'string' && commands.includes(each)) ||
+      holdsCommand(each, commands),
+  );
+}
+
+/**
+ * Checks a {@link PlanEventFilter.limit} before a store applies it.
+ *
+ * @throws for a limit that is not a whole number of at least 1.
+ */
+export function checkPlanEventLimit(limit: number | undefined): void {
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1))
+    throw new Error(`a plan event limit must be a whole number of at least 1: ${String(limit)}`);
 }
 
 /**

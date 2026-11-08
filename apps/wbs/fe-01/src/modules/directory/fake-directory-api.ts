@@ -114,6 +114,7 @@ export function fakeDirectoryApi(): DirectoryApi & RecordedDirectory {
         ...KAT,
         ...(patch.name === undefined ? {} : { name: patch.name }),
         ...(patch.kind === undefined ? {} : { kind: patch.kind }),
+        ...(patch.accountId === undefined ? {} : { accountId: patch.accountId }),
         teamIds: patch.teamIds === undefined ? [...KAT.teamIds] : [...patch.teamIds],
       };
       return Promise.resolve<DirectoryWrite<PersonView>>({ ok: true, entry });

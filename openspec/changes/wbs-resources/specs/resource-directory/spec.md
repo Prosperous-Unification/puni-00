@@ -8,6 +8,13 @@ The directory SHALL hold resources, each with a name unique in the directory, a 
 refusal shapes as teams. Deleting a resource that any demand, capacity or occupancy names
 SHALL be refused `in_use` with the counts unless `cascade` is given, in which case demands,
 capacities and occupancies of that resource are removed in the same transaction.
+Under organization access `deleteResource` SHALL be refused `forbidden` (403, naming the
+command's index and kind) for a caller who is neither an organization admin nor a
+super-admin, before the resource is looked up and on every route that carries directory
+commands (`POST /api/directory/commands` and a project's `POST /api/projects/:id/commands`);
+a viewer's batch stays refused whole. A machine credential or an MCP consent caller SHALL be
+refused whatever its account's role, since each acts as at most a member. `createResource` and
+`patchResource` stay open to every role that may write.
 
 #### Scenario: A host's RAM is declared
 
@@ -19,6 +26,14 @@ capacities and occupancies of that resource are removed in the same transaction.
 
 - **WHEN** a resource is named by two demands and `deleteResource` is applied without cascade
 - **THEN** the command is refused `in_use` naming 2 demands, 0 capacities, 0 occupancies
+
+#### Scenario: Only an admin deletes a resource
+
+- **WHEN** a member of the organization applies `deleteResource { cascade: true }` to a
+  resource a demand names, through the directory commands or a project's commands
+- **THEN** the command is refused `forbidden` and the resource and its demand remain; an
+  admin's or a super-admin's same command removes both, and the member may still create and
+  patch resources
 
 ### Requirement: A project states how many units of a resource its plan may use
 
@@ -69,3 +84,82 @@ inherited down the tree. When a leaf gains its first child by `createWorkItem`, 
 
 - **WHEN** a plan with resources, capacities and demands is exported and imported
 - **THEN** every demand, capacity and resource is present after import with the same units
+
+### Requirement: The plan read names each work item's demands
+
+The project tree read (`GET /api/projects/:id/work-items`) SHALL carry `demands`, every demand
+of the project's work items as `{ workItemId, resourceId, units }` in work-item then
+resource-id order, and `demandedResources`, one `{ id, name, kind, unitLabel }` per resource a
+demand names under the caller's directory names. Both SHALL be present exactly when the project
+states a demand and absent otherwise, so a plan stating none keeps its payload shape. A shared
+read SHALL take both from the same snapshot as its schedule. The plan export and the plan
+document SHALL NOT carry them; they keep their own file-local `demands` and resources.
+
+#### Scenario: A row says what it consumes
+
+- **WHEN** two leaves each demand 1 unit of the exclusive resource `staging`
+- **THEN** the tree read lists both demands and names `staging` once in `demandedResources`,
+  with its kind and unit label, on the isolated and the shared read alike
+
+#### Scenario: A plan stating no demand
+
+- **WHEN** no work item of the project states a demand
+- **THEN** the tree read carries neither `demands` nor `demandedResources`
+
+### Requirement: fe-01 manages resources and states demands
+
+fe-01 SHALL let a planner manage the directory's resources and a leaf's demands without the
+API. The project settings' Resources section SHALL add a resource (name, kind, unit label),
+rename it or change its unit label, remove it, and state or clear this project's capacity of
+it; a removal refused `in_use` SHALL be said with the counts of demands, capacities and claims
+holding it, and removing it with them SHALL need a second, explicit confirm (`cascade`). A
+leaf's Resources cell (a column hidden by default) and the row menu's `Resources…` SHALL open a
+panel listing every resource with this work item's units, an exclusive one as needed or not,
+and saving SHALL send every changed demand as one batch, so the plan's Undo takes the edit back
+whole. A parent SHALL be offered no demand edit. Loading, an empty directory, a failed read
+and every refusal (a role that may not write included) SHALL be rendered in place: beside the
+resource row whose write caused it, or above the Add form for an Add. A refused capacity SHALL
+leave the box showing the declared number; one not sent (not a whole number, or another write in
+flight) SHALL keep what was typed. The section SHALL read the role off
+`GET /api/organization/active` on each read and after any `forbidden` write, and offer only
+what that role may send. Remove SHALL be offered only to an organization admin or super-admin,
+and to every caller without organizations; a member gets no Remove and is told only an admin
+may remove a resource. Stating and adopting a capacity follow the role, not the providers list.
+A viewer SHALL be offered no write at all (no capacity box, Adopt, Edit, Add or Remove) and is
+told the role can read the resources but not change them. A role read naming another
+organization, or refused for lost access, offers no write and says why (reload, sign in
+again); a failed role read offers no write, says so, and offers reading it again only when that
+can help, saying so when it fails again. These sentences stand above the list. The compute
+providers list SHALL be requested only once the role read names an admin or super-admin. A
+`forbidden` removal still arriving, on the plain delete or the cascade, SHALL be said in place
+and close its confirm.
+
+#### Scenario: A demand set from the table is undone in one step
+
+- **WHEN** a planner sets `RAM` to 8 and ticks `staging` on leaf `020` and saves
+- **THEN** one `setDemand` batch is sent, the cell reads `RAM 8 GiB · staging`, and one Undo
+  restores the previous demands
+
+#### Scenario: A member is offered no Remove
+
+- **WHEN** a member opens the Resources section of a project
+- **THEN** each resource row offers Edit and no Remove, the section says only an organization
+  admin can remove a resource, and the Add form is shown
+
+#### Scenario: A viewer is offered nothing to change
+
+- **WHEN** a viewer opens the Resources section of a project
+- **THEN** each row shows its declared number with no capacity box, Edit or Remove, no Add form
+  is shown, the section says the role can read the resources but not change them, and no
+  compute providers list is requested
+
+#### Scenario: A refused capacity is said beside its row
+
+- **WHEN** a member states 3 for a resource declared 4 and be-01 refuses it
+- **THEN** the refusal is said in that resource's row and its box shows 4 again
+
+#### Scenario: A demanded resource is removed only on confirm
+
+- **WHEN** a planner removes a resource two demands still name
+- **THEN** the section says it is used by 2 demands, offers `Remove with them`, and removes
+  nothing until that is chosen

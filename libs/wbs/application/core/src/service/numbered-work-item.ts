@@ -1,4 +1,4 @@
-import type { ChargedEstimate } from '@wbs/domain';
+import type { BudgetReading, ChargedEstimate, MixedRateCards, MoneyBasis } from '@wbs/domain';
 import type {
   Attempt,
   BlockageRoot,
@@ -100,6 +100,44 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * scheduling function. R6's rule, one table over.
    */
   measures: Record<string, Record<string, number>>;
+  /**
+   * The three-point estimates in measures other than time, by definition key
+   * and step (`wbs-measure-budgets` D3): the trio summed up the tree, whether
+   * every trio in it is single-point, the expected measure (the project's
+   * PERT weights, rounded by the measure's scale per node) and, where a fact
+   * in the same measure sits beside it in {@link measures}, the variance.
+   *
+   * **Absent rather than `{}`** when the row holds no measure estimate, so a
+   * plan holding none answers exactly the bytes it did before measure
+   * estimates existed. A key, and a step under it, is absent when nobody
+   * estimated it. Reported and never planned with (D2).
+   */
+  measureEstimates?: Record<string, Record<string, MeasureEstimateReading>>;
+  /**
+   * The row's budgets by definition key (`wbs-measure-budgets` D5, design
+   * D39): stated, or derived from the pessimistic points (D38), each with what
+   * remains after the subtree's facts and holds and whether the facts crossed
+   * the cap. **Absent rather than `{}`** when the row has none, so a plan
+   * without trios or budgets answers the bytes it did before budgets existed.
+   * `holdPerAttempt` is present exactly where the budget states a hold (D60).
+   */
+  budgets?: Record<string, Omit<BudgetReading, 'spent'>>;
+  /**
+   * The money keys whose figures in this row's subtree are priced under two
+   * or more bases, per kind, with the first two (design D44). Facts and trios
+   * fold apart: a key mixing facts is absent from {@link measures} (and its
+   * budget from {@link budgets}), a key mixing trios from
+   * {@link measureEstimates} (and a derived budget). Absent when no key mixes.
+   */
+  mixedRateCards?: Record<string, RateCardMixes>;
+  /**
+   * The one priced basis a money key's figures in this row's subtree are in,
+   * per kind (`wbs-measure-budgets` D49): what the row's sums in
+   * {@link measures}, {@link measureEstimates} and {@link budgets} are priced
+   * with. A kind mixing bases is in {@link mixedRateCards} instead; one whose
+   * figures carry no basis is absent. Absent when no key has one.
+   */
+  moneyBases?: Record<string, RowMoneyBases>;
   /** The work items this one waits for, as written — either end may be a parent. */
   dependsOn: string[];
   /**
@@ -176,4 +214,30 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   blockages?: Record<string, { blockedAt: number }>;
   /** Exact informational roots for each leaf node; absent on a parent. */
   blockageCauses?: Record<string, readonly BlockageRoot[]>;
+}
+
+/**
+ * One node's or subtree's estimate in one measure as the row read answers it:
+ * the summed trio and its single-point flag, the expected measure and, only
+ * when a fact sits beside it, the variance (fact minus expected).
+ */
+export interface MeasureEstimateReading {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+  singlePoint: boolean;
+  expected: number;
+  variance?: number;
+}
+
+/** A money key's one basis per kind, facts and trios apart (design D44, D49). */
+export interface RowMoneyBases {
+  facts?: MoneyBasis;
+  estimates?: MoneyBasis;
+}
+
+/** One money key's mixes on one row, per kind; a kind that does not mix is absent. */
+export interface RateCardMixes {
+  facts?: MixedRateCards;
+  estimates?: MixedRateCards;
 }

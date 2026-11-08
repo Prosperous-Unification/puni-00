@@ -13,11 +13,15 @@ const EVENT: ProjectEvent = { type: 'tree_replaced', workItems: [] };
 
 /** A push client that records what it was handed, or refuses everything. */
 function fakePush(mode: 'accepts' | 'refuses' = 'accepts') {
-  const pushed: { subscription: string; seq: number }[] = [];
+  const pushed: { subscription: string; seq?: number; message?: unknown }[] = [];
   const client = {
-    push(payload: { subscription: string; seq: number }) {
+    push(payload: { subscription: string; seq?: number; message: unknown }) {
       if (mode === 'refuses') return Promise.reject(new Error('gateway down'));
-      pushed.push({ subscription: payload.subscription, seq: payload.seq });
+      pushed.push(
+        payload.seq === undefined
+          ? { subscription: payload.subscription, message: payload.message }
+          : { subscription: payload.subscription, seq: payload.seq },
+      );
       return Promise.resolve({ delivered: 1 });
     },
   } satisfies PushTransport;
@@ -107,5 +111,29 @@ describe('GatewayBroadcaster', () => {
     expect(await bufferOnly.replay({ 'project:p-1': 0 })).toEqual({
       'project:p-1': { status: 'replaying', events: [{ seq: 1, message: EVENT }] },
     });
+  });
+
+  // `wbs-claim-display` C21: a transient announcement is pushed live with no
+  // sequence, and neither the durable log nor the replay buffer holds it.
+  it('pushes a transient event unsequenced, recording and buffering nothing', async () => {
+    const { broadcaster, log, buffer, pushed } = bootstrap();
+    await broadcaster.publish('p-1', EVENT);
+    await broadcaster.publish('p-1', { type: 'claims_changed' });
+    await broadcaster.publish('p-1', EVENT);
+
+    expect(pushed).toEqual([
+      { subscription: 'project:p-1', seq: 0 },
+      { subscription: 'project:p-1', message: { type: 'claims_changed' } },
+      { subscription: 'project:p-1', seq: 1 },
+    ]);
+    expect(await log.latestSeq('project:p-1')).toBe(1);
+    expect(buffer.since('project:p-1', -1).map(({ seq }) => seq)).toEqual([0, 1]);
+  });
+
+  it('reports a refused transient push and does not throw', async () => {
+    const { broadcaster, log, failures } = bootstrap('refuses');
+    await broadcaster.publish('p-1', { type: 'claims_changed' });
+    expect(failures).toEqual(['project:p-1']);
+    expect(await log.latestSeq('project:p-1')).toBe(-1);
   });
 });

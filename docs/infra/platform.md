@@ -1,5 +1,14 @@
 # Platform reconciliation
 
+**Source staging — 2026-11-08:** Registry lifecycle libraries and manual provisioning
+sources are retained for future coordinated activation. Supported publish, copy,
+Compose and Kubernetes commands keep current-main routing and legacy persisted
+writer versions; they do not select managed adapters. Explicit managed helpers
+require trusted enrollment. Historical installed receipts below do not establish
+current readiness. Managed procedures remain attended future operations; this
+source merge performs no installation, adoption or production action. Full native,
+provider, storage, backup, isolation, recovery and delivery acceptance stays open.
+
 Operator commands and what has been tested: [infrastructure operator guide](README.md).
 
 Ansible installs k3s and bootstraps Flux. Flux then owns every long-lived
@@ -293,6 +302,40 @@ log body, and writes the `logs-puni.otel-<environment>` data stream. Its
 stores extra dynamic attributes unindexed. Alert routes and recipients come from
 the `alertmanager-puni` Secret; `Watchdog` is the dead-man signal.
 Store-specific backups and restores are in [recovery](recovery.md).
+
+### Before advancing the pinned revision
+
+Production Flux follows `puni_platform_revision` in
+`infra/ansible/playbooks/platform.yml`, so merging observability parity deploys
+nothing by itself. The first `platform.yml` run pinned past it does three things
+the operator must prepare for; the `observability` Kustomization waits 20 min
+with pruning and `alerts` depends on it, so a missing prerequisite stops alert
+reconciliation.
+
+- The signal collector, gateway and metrics pods from
+  `infra/platform/observability/base` mount nine `source: operator` Secrets
+  from `infra/platform/secrets/platform-production/externally-provided.json`
+  that nothing in the repository creates: `signal-collector-tls`,
+  `signal-gateway-tls`, `signal-client-trust`, `signal-collector-client`,
+  `signal-gateway-trust`, `signal-metrics-writer`, `signal-metrics-tls`,
+  `signal-metrics-write-auth` and `signal-metrics-query-auth`, all in
+  `observability`. Create them before the run or the pods stay
+  `ContainerCreating` until the wait expires. Their shape is in
+  [OTLP mTLS](otlp-mtls.md) and the
+  [controller ownership note](research/2026-10-26-observability-controller-ownership.md).
+- `infra/platform/observability/base/coexistence.json` records the
+  observability node at 15602 MiB with a steady-state request of 12198 MiB
+  and a migration-overlap request of 17830 MiB, `admitted: false` with a
+  2228 MiB shortfall. `validatePlatform` emits that verdict and does not
+  enforce it; the [read-only preflight](observability-preflight.md) does. Size
+  the node or stage the overlap before the run.
+- `infra/platform/observability/elastic/base/elasticsearch.yaml` adds the
+  `prepare-s3-trust` init container, a pod security context and the
+  `jvm.options.d/s3.options` mount, and restricts keystore `secureSettings` to
+  `s3.client.default.access_key` and `s3.client.default.secret_key`. ECK rolls
+  the single Elasticsearch node once (ingest pauses while the collector queue
+  absorbs it), and the production `elastic-s3-credentials` Secret must carry
+  exactly those two keys.
 
 ### Failure reports
 

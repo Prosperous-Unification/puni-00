@@ -43,8 +43,21 @@ function metadataServer(
           token_endpoint: `${origin}/mcp/oauth/token`,
           registration_endpoint: `${origin}/mcp/oauth/register`,
           jwks_uri: `${origin}/mcp/oauth/jwks`,
+          grant_types_supported:
+            authorizationCapabilities === 'browser-only'
+              ? ['authorization_code', 'refresh_token']
+              : [
+                  'authorization_code',
+                  'refresh_token',
+                  'client_credentials',
+                  'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                ],
           token_endpoint_auth_methods_supported:
-            authorizationCapabilities === 'wrong' ? ['client_secret_basic'] : ['none'],
+            authorizationCapabilities === 'wrong'
+              ? ['client_secret_basic']
+              : authorizationCapabilities === 'browser-only'
+                ? ['none']
+                : ['none', 'client_secret_basic', 'client_secret_post'],
           code_challenge_methods_supported:
             authorizationCapabilities === 'wrong' ? ['plain'] : ['S256'],
         });
@@ -169,5 +182,14 @@ describe('dev MCP deployment probe', () => {
     const result = await runProbe(`http://127.0.0.1:${String(server.port)}`);
     expect(result.exitCode).not.toBe(0);
     expect(result.output).toContain('token_endpoint_auth_methods_supported');
+  });
+
+  // Proof: with the probe's expected grant types and auth methods back at the pre-#751
+  // browser-only values, this exited 0 and the exact-metadata case exited 1; watched 2026-10-27.
+  it('rejects a dev mcp-01 that offers no machine grants', async () => {
+    const server = metadataServer('correct', 'correct', 0, 'browser-only');
+    const result = await runProbe(`http://127.0.0.1:${String(server.port)}`);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.output).toContain('grant_types_supported');
   });
 });

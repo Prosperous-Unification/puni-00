@@ -4,13 +4,15 @@ import {
   type JournalEntry,
   type NewJournalEntry,
   type PlanEvent,
+  type UndoStack,
 } from '@wbs/core';
 
 /**
  * The undo stack in an array, for tests whose subject is not SQLite.
  *
  * It keeps every rule the real store's callers depend on — a per-pair `seq`,
- * the redo branch cleared by a forward command, the depth prune, and the
+ * one stack per {@link UndoStack} with a null person matching only null, the
+ * redo branch cleared by a forward command, the depth prune by rank, and the
  * ordering each half of the stack is read in — because a fixture laxer than
  * production lets a test pass against behaviour that does not exist.
  *
@@ -49,22 +51,34 @@ export function inMemoryCommandJournal(
   readonly events: PlanEvent[];
 } {
   const { entries, events } = tables;
-  const mine = (projectId: string, userId: string): JournalEntry[] =>
-    entries.filter((each) => each.projectId === projectId && each.userId === userId);
+  const mine = (stack: UndoStack): JournalEntry[] =>
+    entries.filter(
+      (each) =>
+        each.projectId === stack.projectId &&
+        each.userId === stack.userId &&
+        each.personId === stack.personId,
+    );
 
   return {
     entries,
     events,
     append(entry: NewJournalEntry, event: PlanEvent) {
-      for (const undone of mine(entry.projectId, entry.userId).filter((each) => each.undone)) {
+      for (const undone of mine(entry).filter((each) => each.undone)) {
         entries.splice(entries.indexOf(undone), 1);
       }
-      const group = mine(entry.projectId, entry.userId);
-      const seq = group.reduce((highest, each) => Math.max(highest, each.seq), 0) + 1;
+      // The pair's number, shared by the account's stacks, as the real store's.
+      const pair = entries.filter(
+        (each) => each.projectId === entry.projectId && each.userId === entry.userId,
+      );
+      const seq = pair.reduce((highest, each) => Math.max(highest, each.seq), 0) + 1;
       entries.push({ ...entry, seq, undone: false });
-      for (const old of mine(entry.projectId, entry.userId).filter(
-        (each) => each.seq < seq - (JOURNAL_DEPTH - 1),
-      )) {
+      // By rank within the stack: the account's other stacks leave gaps in `seq`.
+      // Proof: pruning by `seq - 49`, the memory certification's
+      // `journal.append:acting-person-stacks` failed (74 pass, 1 fail), as it
+      // did with the person dropped from `mine` and with `flip` searching every
+      // entry; watched 2026-10-26.
+      const newestFirst = mine(entry).sort((a, b) => b.seq - a.seq);
+      for (const old of newestFirst.slice(JOURNAL_DEPTH)) {
         entries.splice(entries.indexOf(old), 1);
       }
       events.push(event);
@@ -79,12 +93,12 @@ export function inMemoryCommandJournal(
       afterHistoryInsert([event.id]);
       return Promise.resolve();
     },
-    entriesFor(projectId, userId) {
-      return Promise.resolve(mine(projectId, userId).sort((a, b) => a.seq - b.seq));
+    entriesFor(stack) {
+      return Promise.resolve(mine(stack).sort((a, b) => a.seq - b.seq));
     },
-    flip(id, undone, preconditions) {
-      const found = entries.find((each) => each.id === id);
-      if (found === undefined) throw new Error(`no journal entry ${id}`);
+    flip(stack, id, undone, preconditions) {
+      const found = mine(stack).find((each) => each.id === id);
+      if (found === undefined) throw new Error(`no journal entry ${id} on that undo stack`);
       found.undone = undone;
       found.preconditions = preconditions;
       return Promise.resolve();
@@ -101,8 +115,8 @@ export function inMemoryCommandJournal(
       entries.splice(entries.indexOf(found), 1);
       return Promise.resolve();
     },
-    stateOf(projectId, userId) {
-      const group = mine(projectId, userId);
+    stateOf(stack) {
+      const group = mine(stack);
       return Promise.resolve({
         undoable: group.some((each) => !each.undone),
         redoable: group.some((each) => each.undone),

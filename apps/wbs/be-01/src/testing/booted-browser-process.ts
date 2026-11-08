@@ -139,19 +139,39 @@ export class BootedBrowserProcess {
   }
 
   organization(id: string): void {
-    this.sqlite.run('INSERT INTO organization (id, name, created_at) VALUES (?, ?, 1)', [id, id]);
+    insertOrganization(this.sqlite, id);
   }
 
   member(organizationId: string, username: string, role: string): void {
-    this.sqlite.run(
-      'INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, ?, 1)',
-      [organizationId, this.userId(username), role],
-    );
+    insertMembership(this.sqlite, organizationId, this.userId(username), role);
   }
 
   activate(): void {
-    this.sqlite.run(
-      "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
-    );
+    activateOrganizations(this.sqlite);
   }
+}
+
+/** Inserts organization `id`, named after itself, as a second process would. */
+export function insertOrganization(sqlite: ReturnType<typeof openDatabase>, id: string): void {
+  sqlite.run('INSERT INTO organization (id, name, created_at) VALUES (?, ?, 1)', [id, id]);
+}
+
+/** Makes account `userId` a member of `organizationId` with `role`. */
+export function insertMembership(
+  sqlite: ReturnType<typeof openDatabase>,
+  organizationId: string,
+  userId: string,
+  role: string,
+): void {
+  sqlite.run(
+    'INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, ?, 1)',
+    [organizationId, userId, role],
+  );
+}
+
+/** Commits the organization activation marker. */
+export function activateOrganizations(sqlite: ReturnType<typeof openDatabase>): void {
+  sqlite.run(
+    "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+  );
 }

@@ -10,14 +10,16 @@ export default defineConfig({
   webServer: [
     {
       cwd: process.cwd(),
-      command: 'bun apps/wbs/be-01/src/testing/organization-browser-server.ts',
-      url: 'http://localhost:7300/health',
+      command: 'bun apps/wbs/be-01/src/testing/organization-browser-server.ts --port 7300',
+      // The fixture listens on IPv4 loopback only, and `localhost` may resolve to ::1 first,
+      // so the health check and Vite's proxy name 127.0.0.1.
+      url: 'http://127.0.0.1:7300/health',
       reuseExistingServer: false,
       timeout: 60_000,
     },
     {
       command:
-        'VITE_BE_URL=http://localhost:7300 VITE_GW_URL=http://localhost:7301 bunx vite --host localhost --port 7400 --strictPort',
+        'VITE_BE_URL=http://127.0.0.1:7300 VITE_GW_URL=http://localhost:7301 bunx vite --host localhost --port 7400 --strictPort',
       cwd: `${process.cwd()}/apps/wbs/fe-01`,
       url: 'http://localhost:7400',
       reuseExistingServer: false,

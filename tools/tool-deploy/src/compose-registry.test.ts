@@ -1,8 +1,8 @@
 import { envLayout } from '@tools/env';
 import { expect, it } from 'bun:test';
 
+import type { ComposeRegistryPlan } from './compose-registry';
 import { selectComposeDeployment, verifyComposeCompletion } from './compose-registry';
-import type { DeployPlan } from './deploy';
 const image = `registry.test/wbs-be-01@sha256:${'a'.repeat(64)}`;
 const enrollment = {
   registryId: 'proof',
@@ -31,14 +31,9 @@ const receipt = {
   promotion: { operationId: 'swap', candidate: 'candidate', at: '2026-10-25T12:00:00.000Z' },
 };
 it('local managed Compose refuses subsets and consumes exactly one authority-verified remote completion', async () => {
-  const plan: DeployPlan = {
+  const plan: ComposeRegistryPlan = {
     tiers: ['be'],
     images: { be: image },
-    steps: [],
-    commands: [],
-    preflightCommands: [],
-    dryRun: false,
-    host: 'host',
     layout: envLayout('prod'),
   };
   await expectRejection(

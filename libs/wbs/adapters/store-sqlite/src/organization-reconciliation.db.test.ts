@@ -197,6 +197,10 @@ const INJECTIONS: Record<OwnershipConflictKind, readonly [string, string]> = {
     "INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at) VALUES ('w2-a', 'st-b', 'token_actual', 1, 1)",
     'w2-a/st-b/token_actual',
   ],
+  measure_estimate_step: [
+    "INSERT INTO measure_estimate (work_item_id, step_id, measure_key, optimistic, realistic, pessimistic) VALUES ('w2-a', 'st-b', 'tokens', 1, 2, 3)",
+    'w2-a/st-b/tokens',
+  ],
   person_team: [
     "INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-a', 'tm-b')",
     'pe-a/tm-b',

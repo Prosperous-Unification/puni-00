@@ -10,6 +10,7 @@ import {
   changeSavedPlanCaptureTypedDependencies,
   CLAIM_IN_USE,
   completeSubtreeCopy,
+  CONFORMANCE_MEASURE_ORGANIZATIONS,
   createFaultControl,
   defineFault,
   DELEGATED_CLAIMS,
@@ -24,10 +25,11 @@ import {
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
+  isMeasureDefinitionCase,
+  isMeasureFactCase,
   LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
-  PINNED_CREDENTIAL,
   printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -35,9 +37,11 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedMeasureFactCase,
   seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
+  SHARED_OCCUPANCY_OWNERSHIP,
   sourceConformanceRegistrations,
   type SourceDeclaration,
   type SourceReaders,
@@ -45,6 +49,10 @@ import {
   subtreeSeedRecords,
   TARGETED_ORDER_WORK_ITEM_IDS,
 } from '@wbs/conformance';
+import {
+  runtimeCommandConformance,
+  runtimeRecordConformance,
+} from '@wbs/conformance/runtime-command-conformance';
 import type {
   CommandJournalStore,
   JournalEntry,
@@ -95,7 +103,11 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   routeJournalEventToIndependent(eventId: string): PlanEvent;
   storeDependencyById(dependency: StoredDependency): void;
   ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
-  pinCredential: ReturnType<typeof openMemorySourceFixture>['pinCredential'];
+  addOrganization: ReturnType<typeof openMemorySourceFixture>['addOrganization'];
+  ownProjectInOrganization: ReturnType<typeof openMemorySourceFixture>['ownProjectInOrganization'];
+  ownResourceInOrganization: ReturnType<
+    typeof openMemorySourceFixture
+  >['ownResourceInOrganization'];
   endLeasesOf: ReturnType<typeof openMemorySourceFixture>['endLeasesOf'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
@@ -168,8 +180,14 @@ function conformanceMemorySource(
     ) => {
       fixture.ownPersonInOrganization(personId, organizationId, memberIds);
     },
-    pinCredential: (issuer: string, subject: string, personId: string) => {
-      fixture.pinCredential(issuer, subject, personId);
+    addOrganization: (organizationId: string, options: { legacy: boolean }) => {
+      fixture.addOrganization(organizationId, options);
+    },
+    ownProjectInOrganization: (projectId: string, organizationId: string) => {
+      fixture.ownProjectInOrganization(projectId, organizationId);
+    },
+    ownResourceInOrganization: (resourceId: string, organizationId: string) => {
+      fixture.ownResourceInOrganization(resourceId, organizationId);
     },
     endLeasesOf: (personId: string, at: number) => fixture.endLeasesOf(personId, at),
     insertSubtree: (copy: SubtreeCopy, stamp: WriteStamp) =>
@@ -207,6 +225,8 @@ function readersOf(source: MemorySource): SourceReaders {
     estimates: source.stores.estimates,
     actuals: source.stores.actuals,
     measures: source.stores.measures,
+    measureEstimates: source.stores.measureEstimates,
+    budgets: source.stores.budgets,
     progress: source.stores.progress,
     dependencies: source.stores.dependencies,
     typedDependencies: source.stores.typedDependencies,
@@ -387,21 +407,28 @@ async function openMemoryCase<Family extends ExistingFamily>(
         DETERMINISTIC_SEED.ownerIds[0],
       ]);
     }
+    if (isMeasureDefinitionCase(caseId) || isMeasureFactCase(caseId)) {
+      seeded.addOrganization(CONFORMANCE_MEASURE_ORGANIZATIONS.legacy, { legacy: true });
+      seeded.addOrganization(CONFORMANCE_MEASURE_ORGANIZATIONS.other, { legacy: false });
+    }
+    if (isMeasureFactCase(caseId)) {
+      seeded.ownProjectInOrganization(
+        DETERMINISTIC_SEED.projectIds[0],
+        CONFORMANCE_MEASURE_ORGANIZATIONS.legacy,
+      );
+      await seedMeasureFactCase(seeded.stores, caseId, DETERMINISTIC_SEED);
+    }
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);
     if (caseId === 'directory.removePerson:delegated-claims')
       await seeded.stores.claims.add([...DELEGATED_CLAIMS], [], DETERMINISTIC_SEED.stamps[0], []);
-    if (caseId === 'directory.removePerson:pinned-credential') {
-      const { personId, issuer, subject } = PINNED_CREDENTIAL;
-      const added = await seeded.stores.directory.addPerson(
-        { id: personId, name: 'Pinned person', kind: 'agent' },
-        [],
-        DETERMINISTIC_SEED.stamps[0],
-      );
-      if (!added.ok) throw new Error('the pinned person was refused');
-      seeded.pinCredential(issuer, subject, personId);
-    }
     await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
+    if ((SHARED_OCCUPANCY_OWNERSHIP.caseIds as readonly string[]).includes(caseId)) {
+      const { organizationId, otherOrganizationId, resourceId } = SHARED_OCCUPANCY_OWNERSHIP;
+      seeded.ownProjectInOrganization(DETERMINISTIC_SEED.projectIds[0], organizationId);
+      seeded.ownProjectInOrganization(DETERMINISTIC_SEED.projectIds[1], otherOrganizationId);
+      seeded.ownResourceInOrganization(resourceId, organizationId);
+    }
   });
   if (family === 'subtrees') {
     return {
@@ -858,12 +885,12 @@ function transactionalJournal(source: MemorySource): CommandJournalStore {
   return {
     append: (entry, event) => commit((journal) => journal.append(entry, event)),
     appendEvent: (event) => commit((journal) => journal.appendEvent(event)),
-    entriesFor: (projectId, userId) => source.stores.journal.entriesFor(projectId, userId),
-    flip: (id, undone, preconditions) =>
-      commit((journal) => journal.flip(id, undone, preconditions)),
+    entriesFor: (stack) => source.stores.journal.entriesFor(stack),
+    flip: (stack, id, undone, preconditions) =>
+      commit((journal) => journal.flip(stack, id, undone, preconditions)),
     restamp: (id, preconditions) => commit((journal) => journal.restamp(id, preconditions)),
     discard: (id) => commit((journal) => journal.discard(id)),
-    stateOf: (projectId, userId) => source.stores.journal.stateOf(projectId, userId),
+    stateOf: (stack) => source.stores.journal.stateOf(stack),
   };
 }
 
@@ -938,10 +965,13 @@ const openers: ExistingStoreOpeners = {
   estimates: (caseId) => openMemoryCase('estimates', caseId),
   actuals: (caseId) => openMemoryCase('actuals', caseId),
   measures: (caseId) => openMemoryCase('measures', caseId),
+  measureEstimates: (caseId) => openMemoryCase('measureEstimates', caseId),
+  budgets: (caseId) => openMemoryCase('budgets', caseId),
   progress: (caseId) => openMemoryCase('progress', caseId),
   attempts: (caseId) => openMemoryCase('attempts', caseId),
   blockages: (caseId) => openMemoryCase('blockages', caseId),
   stepParallels: (caseId) => openMemoryCase('stepParallels', caseId),
+  runtimeCommands: (caseId) => openMemoryCase('runtimeCommands', caseId),
   claims: (caseId) => openMemoryCase('claims', caseId),
   demands: (caseId) => openMemoryCase('demands', caseId),
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
@@ -1084,10 +1114,13 @@ const declaration: SourceDeclaration = {
     estimates: { kind: 'offered', gaps: [unknownStepGap], open: openers.estimates },
     actuals: { kind: 'offered', gaps: [actualUnknownStepGap], open: openers.actuals },
     measures: { kind: 'offered', gaps: [measureUnknownStepGap], open: openers.measures },
+    measureEstimates: { kind: 'offered', gaps: [], open: openers.measureEstimates },
+    budgets: { kind: 'offered', gaps: [], open: openers.budgets },
     progress: { kind: 'offered', gaps: [progressUnknownStepGap], open: openers.progress },
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
     stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
+    runtimeCommands: { kind: 'offered', gaps: [], open: openers.runtimeCommands },
     claims: { kind: 'offered', gaps: [], open: openers.claims },
     demands: { kind: 'offered', gaps: [], open: openers.demands },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
@@ -1170,6 +1203,7 @@ function emptyMissingCapture(): PlanInputReads {
       optimizationEnabled: false,
       solutionRef: null,
       timezone: 'UTC',
+      budgetFactor: 1,
     },
     steps: [],
     workItems: [],
@@ -1179,6 +1213,8 @@ function emptyMissingCapture(): PlanInputReads {
     stepBlockages: [],
     stepParallels: [],
     measures: [],
+    measureEstimates: [],
+    budgets: [],
     dependencies: [],
     typedDependencies: [],
     assignments: [],
@@ -2427,6 +2463,7 @@ function task52JournalEntry(
     id,
     projectId,
     userId,
+    personId: null,
     seq: isPeer ? 2 : 1,
     kind: 'rename',
     payload: { label: `Rename ${id}`, forward: { type: 'rename', name: `After ${id}` } },
@@ -2465,12 +2502,12 @@ function task52FlipHistory(): [PlanEvent[], PlanEvent[]] {
 async function readTask52FlipState(source: MemorySource) {
   return {
     entries: await Promise.all([
-      source.journal.entriesFor('project-a', 'owner-a'),
-      source.journal.entriesFor('project-b', 'owner-b'),
+      source.journal.entriesFor({ projectId: 'project-a', userId: 'owner-a', personId: null }),
+      source.journal.entriesFor({ projectId: 'project-b', userId: 'owner-b', personId: null }),
     ]),
     states: await Promise.all([
-      source.journal.stateOf('project-a', 'owner-a'),
-      source.journal.stateOf('project-b', 'owner-b'),
+      source.journal.stateOf({ projectId: 'project-a', userId: 'owner-a', personId: null }),
+      source.journal.stateOf({ projectId: 'project-b', userId: 'owner-b', personId: null }),
     ]),
     history: await Promise.all([
       source.stores.planEvents.listFor('project-a', {}),
@@ -2487,11 +2524,13 @@ const journalRetainedPreconditionsFault = defineFault({
     return {
       ...source,
       journal: replaceMethod(source.journal, 'flip', (flip) => {
-        return async (id, undone, preconditions) => {
-          if (!control.isArmed() || id !== 'flip-target') return flip(id, undone, preconditions);
+        return async (stack, id, undone, preconditions) => {
+          if (!control.isArmed() || id !== 'flip-target')
+            return flip(stack, id, undone, preconditions);
           // Proof: forwarding the supplied preconditions changed all four focused
           // memory fault outcomes from `observed` to `assertion-passed`.
           await flip(
+            stack,
             id,
             undone,
             structuredClone({ expected: { 'work-a-one': 11 }, from: { 'work-a-one': 10 } }),
@@ -2517,6 +2556,13 @@ const journalRetainedPreconditionsFault = defineFault({
   },
 });
 
+/** The stack `flip-target` sits on in `journal.flip:preconditions`. */
+const FLIP_TARGET_STACK = {
+  projectId: DETERMINISTIC_SEED.projectIds[0],
+  userId: DETERMINISTIC_SEED.ownerIds[0],
+  personId: null,
+};
+
 const journalRestampFlipsFault = defineFault({
   id: 'break:journal.flip:preconditions:journal-restamp-flips',
   caseId: 'journal.flip:preconditions',
@@ -2530,7 +2576,7 @@ const journalRestampFlipsFault = defineFault({
           if (!control.isArmed() || id !== 'flip-target') return restamp(id, preconditions);
           // Proof: delegating to restamp preserved `undone: true` and changed the
           // four-fault reversal to four `assertion-passed` outcomes.
-          await flip(id, false, structuredClone(preconditions));
+          await flip(FLIP_TARGET_STACK, id, false, structuredClone(preconditions));
           // Proof: removing this complete-effect guard changed the no-op
           // restamp negative from `phase-failed` to `observed`.
           expect(await readTask52FlipState(source)).toEqual({
@@ -2609,6 +2655,7 @@ function task52HistoryEntry(
     id: journalId,
     projectId,
     userId,
+    personId: null,
     seq,
     kind,
     payload: { label: `History ${eventId}`, forward: { type: kind, workItemId } },
@@ -2641,8 +2688,8 @@ async function readTask52HistoryState(source: MemorySource) {
     projectAEvents: await source.stores.planEvents.listFor('project-a', {}),
     projectBEvents: await source.stores.planEvents.listFor('project-b', {}),
     journals: await Promise.all([
-      source.journal.entriesFor('project-a', 'owner-a'),
-      source.journal.entriesFor('project-b', 'owner-b'),
+      source.journal.entriesFor({ projectId: 'project-a', userId: 'owner-a', personId: null }),
+      source.journal.entriesFor({ projectId: 'project-b', userId: 'owner-b', personId: null }),
     ]),
   };
 }
@@ -2727,7 +2774,13 @@ const journalIndependentHistoryFault = defineFault({
         const moved = source.routeJournalEventToIndependent(event.id);
         expect(moved).toEqual(event);
         expect(await source.independentJournalHistoryFor()).toEqual([event]);
-        expect(await source.journal.entriesFor(entry.projectId, entry.userId)).toContainEqual({
+        expect(
+          await source.journal.entriesFor({
+            projectId: entry.projectId,
+            userId: entry.userId,
+            personId: null,
+          }),
+        ).toContainEqual({
           ...entry,
           seq: 2,
           undone: false,
@@ -2751,7 +2804,13 @@ const journalLateOutsideFault = defineFault({
       journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
         await append(entry, event);
         if (entry.id !== 'atomic-late-target') return;
-        expect(await source.journal.entriesFor(entry.projectId, entry.userId)).toContainEqual({
+        expect(
+          await source.journal.entriesFor({
+            projectId: entry.projectId,
+            userId: entry.userId,
+            personId: null,
+          }),
+        ).toContainEqual({
           ...entry,
           seq: 3,
           undone: false,
@@ -2788,9 +2847,21 @@ function commitJournalWithoutLateHistory(
       probe.attempts += 1;
       source.routeJournalEventToIndependent(event.id);
       probe.entries = await Promise.all([
-        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[0], DETERMINISTIC_SEED.ownerIds[0]),
-        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[0], DETERMINISTIC_SEED.ownerIds[1]),
-        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[1], DETERMINISTIC_SEED.ownerIds[1]),
+        source.journal.entriesFor({
+          projectId: DETERMINISTIC_SEED.projectIds[0],
+          userId: DETERMINISTIC_SEED.ownerIds[0],
+          personId: null,
+        }),
+        source.journal.entriesFor({
+          projectId: DETERMINISTIC_SEED.projectIds[0],
+          userId: DETERMINISTIC_SEED.ownerIds[1],
+          personId: null,
+        }),
+        source.journal.entriesFor({
+          projectId: DETERMINISTIC_SEED.projectIds[1],
+          userId: DETERMINISTIC_SEED.ownerIds[1],
+          personId: null,
+        }),
       ]);
       probe.history = await Promise.all(
         DETERMINISTIC_SEED.projectIds.map((projectId) =>
@@ -2813,6 +2884,7 @@ function expectedAtomicEntry(
     id,
     projectId,
     userId,
+    personId: null,
     seq,
     kind: 'rename',
     payload: { label: `Rename ${id}`, forward: { type: 'rename', name: `After ${id}` } },
@@ -2881,6 +2953,7 @@ function expectedActorBRedo() {
     id: 'redo-b',
     projectId: DETERMINISTIC_SEED.projectIds[0],
     userId: DETERMINISTIC_SEED.ownerIds[1],
+    personId: null,
     seq: 1,
     kind: 'rename' as const,
     payload: { label: 'Rename redo-b', forward: { type: 'rename', name: 'After redo-b' } },
@@ -2902,10 +2975,11 @@ const journalBroadRedoFault = defineFault({
         await append(entry, event);
         if (entry.id !== 'redo-a-replacement') return;
         expect(
-          await source.journal.entriesFor(
-            DETERMINISTIC_SEED.projectIds[0],
-            DETERMINISTIC_SEED.ownerIds[1],
-          ),
+          await source.journal.entriesFor({
+            projectId: DETERMINISTIC_SEED.projectIds[0],
+            userId: DETERMINISTIC_SEED.ownerIds[1],
+            personId: null,
+          }),
         ).toEqual([expectedActorBRedo()]);
         await source.journal.discard('redo-b');
         control.reach('journal.append:account-redo-depth:all-redo');
@@ -4385,10 +4459,13 @@ async function proveFault(
         estimates: (caseId) => takeFixture('estimates', caseId),
         actuals: (caseId) => takeFixture('actuals', caseId),
         measures: (caseId) => takeFixture('measures', caseId),
+        measureEstimates: (caseId) => takeFixture('measureEstimates', caseId),
+        budgets: (caseId) => takeFixture('budgets', caseId),
         progress: (caseId) => takeFixture('progress', caseId),
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),
         stepParallels: (caseId) => takeFixture('stepParallels', caseId),
+        runtimeCommands: (caseId) => takeFixture('runtimeCommands', caseId),
         claims: (caseId) => takeFixture('claims', caseId),
         demands: (caseId) => takeFixture('demands', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
@@ -4523,11 +4600,15 @@ interface Task52FlipWindowProbe extends MemoryLifecycleProbe {
 function omitTask52Flip(source: MemorySource, probe: Task52FlipWindowProbe): MemorySource {
   return {
     ...source,
-    journal: replaceMethod(source.journal, 'flip', (flip) => async (id, undone, preconditions) => {
-      if (id !== 'flip-target') return flip(id, undone, preconditions);
-      probe.attempts += 1;
-      probe.state = await readTask52FlipState(source);
-    }),
+    journal: replaceMethod(
+      source.journal,
+      'flip',
+      (flip) => async (stack, id, undone, preconditions) => {
+        if (id !== 'flip-target') return flip(stack, id, undone, preconditions);
+        probe.attempts += 1;
+        probe.state = await readTask52FlipState(source);
+      },
+    ),
     async close() {
       probe.closeCalls += 1;
       await source.close();
@@ -4617,9 +4698,9 @@ function omitTask52RestampEffect(source: MemorySource, probe: Task52FlipWindowPr
   return {
     ...source,
     journal: replaceMethod(source.journal, 'flip', (flip) => {
-      return async (id, undone, preconditions) => {
+      return async (stack, id, undone, preconditions) => {
         if (id !== 'flip-target' || undone) {
-          return flip(id, undone, preconditions);
+          return flip(stack, id, undone, preconditions);
         }
         probe.attempts += 1;
         probe.state = await readTask52FlipState(source);
@@ -4689,9 +4770,21 @@ function rejectJournalBeforeAppend(
       if (entry.id !== 'atomic-late-target') return append(entry, event);
       probe.attempts += 1;
       probe.entries = await Promise.all([
-        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[0], DETERMINISTIC_SEED.ownerIds[0]),
-        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[0], DETERMINISTIC_SEED.ownerIds[1]),
-        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[1], DETERMINISTIC_SEED.ownerIds[1]),
+        source.journal.entriesFor({
+          projectId: DETERMINISTIC_SEED.projectIds[0],
+          userId: DETERMINISTIC_SEED.ownerIds[0],
+          personId: null,
+        }),
+        source.journal.entriesFor({
+          projectId: DETERMINISTIC_SEED.projectIds[0],
+          userId: DETERMINISTIC_SEED.ownerIds[1],
+          personId: null,
+        }),
+        source.journal.entriesFor({
+          projectId: DETERMINISTIC_SEED.projectIds[1],
+          userId: DETERMINISTIC_SEED.ownerIds[1],
+          personId: null,
+        }),
       ]);
       probe.history = await Promise.all(
         DETERMINISTIC_SEED.projectIds.map((projectId) =>
@@ -4713,10 +4806,14 @@ function skipActorBRedo(
 ): MemorySource {
   return {
     ...source,
-    journal: replaceMethod(source.journal, 'flip', (flip) => async (id, undone, preconditions) => {
-      if (id !== 'redo-b') return flip(id, undone, preconditions);
-      probe.attempts += 1;
-    }),
+    journal: replaceMethod(
+      source.journal,
+      'flip',
+      (flip) => async (stack, id, undone, preconditions) => {
+        if (id !== 'redo-b') return flip(stack, id, undone, preconditions);
+        probe.attempts += 1;
+      },
+    ),
     async close() {
       probe.closeCalls += 1;
       await source.close();
@@ -8237,4 +8334,13 @@ describe('memory existing source conformance', () => {
       { attempts: 1, closeCalls: 1, state: expectedTask61CollateralState() },
     ]);
   });
+});
+
+describe('permanent runtime storage conformance', () => {
+  const open = () => {
+    const { source } = openMemorySourceFixture();
+    return Promise.resolve({ source, close: () => source.close() });
+  };
+  runtimeCommandConformance(open);
+  runtimeRecordConformance(open);
 });

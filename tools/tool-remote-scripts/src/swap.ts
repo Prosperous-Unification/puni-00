@@ -20,7 +20,6 @@ import type { BigIntStats } from 'node:fs';
 import { realpath, stat, unlink } from 'node:fs/promises';
 
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@tools/compose';
-import type { RegistryPromotionReceipt } from '@tools/registry-publication';
 import { Database } from 'bun:sqlite';
 
 import { writeAtomic } from './lib/atomic';
@@ -90,6 +89,7 @@ import { type RunDocker, runDockerBefore, runDockerCli } from './lib/docker-dead
 import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
 import { withLock } from './lib/lock';
+import { assertMcpSurfaceReady, parseAcceptBreaking } from './lib/mcp-preflight';
 import {
   type MigrationSetCapture,
   type MigrationSetIdentity,
@@ -115,11 +115,6 @@ import {
   type WriterIntent,
   writeWriterBarrier,
 } from './lib/writer-barrier';
-import {
-  type ComposeRegistrySession,
-  prepareComposeImages,
-  verifyComposeRecovery,
-} from './registry-compose';
 
 // No REGISTRY here, deliberately. The publish address arrives as part of
 // `--image`, which is `release.json`'s `image` field passed through verbatim
@@ -1451,6 +1446,7 @@ export async function execute(
   sha: string,
   io: SwapExecutionIo = PRODUCTION_SWAP_IO,
   activateStepBlockage = false,
+  acceptBreaking: readonly string[] = [],
 ): Promise<void> {
   const { tier, from, to } = plan;
   // Proof: omitted the tier guard; the non-backend activation plan reached preflight instead of its named refusal.
@@ -1719,6 +1715,24 @@ export async function execute(
           };
           break;
         }
+        case 'mcp-preflight':
+          if (backendPrepared === null || writerIntent === null)
+            throw new Error('MCP preflight lacks the prepared candidate');
+          // While the outgoing colour still serves: a refusal here stops nothing.
+          await assertMcpSurfaceReady(
+            {
+              image,
+              root: ROOT,
+              databasePath: backendPrepared.databasePath,
+              envFiles: tierEnvFiles('be'),
+              acceptBreaking,
+            },
+            io.sh,
+            (line) => {
+              console.log(`[swap-${tier}] ${line}`);
+            },
+          );
+          break;
         case 'record-writer-stop':
           if (writerIntent === null) throw new Error('backend stop intent lacks preflight');
           // Proof: omitting persistence failed the exact-ID stop fixture before candidate start (ENOENT).
@@ -2273,13 +2287,7 @@ export function parseTierList(raw: string): Tier[] {
 export interface SwapRunDeps {
   withLock: <T>(lockPath: string, fn: () => Promise<T>) => Promise<T>;
   observe: (tier: Tier) => Promise<Observed>;
-  execute: (
-    plan: SwapPlan,
-    image: string,
-    sha: string,
-    registry?: ComposeRegistrySession,
-  ) => Promise<void>;
-  protectImages?: typeof prepareComposeImages;
+  execute: (plan: SwapPlan, image: string, sha: string) => Promise<void>;
 }
 
 /**
@@ -2301,20 +2309,17 @@ export async function runSwaps(
   images: Partial<Record<Tier, string>>,
   sha: string,
   deps: SwapRunDeps,
-): Promise<RegistryPromotionReceipt | undefined> {
-  return deps.withLock(`${ROOT}/state/deploy.lock`, async () => {
-    // Proof: removing admission failed protect-before-first-tier in registry-compose.test.
-    const registry = await (deps.protectImages ?? prepareComposeImages)(tiers, images, sha);
-    for (const tier of registry?.skip === true ? [] : tiers) {
+): Promise<void> {
+  await deps.withLock(`${ROOT}/state/deploy.lock`, async () => {
+    for (const tier of tiers) {
       const image = images[tier];
       if (image === undefined) {
         throw new Error(`no --image-${tier}= given for tier "${tier}"`);
       }
       const plan = planSwap(tier, await deps.observe(tier));
       console.log(describePlan(tier, plan));
-      await deps.execute(plan, image, sha, registry);
+      await deps.execute(plan, image, sha);
     }
-    return registry?.complete();
   });
 }
 
@@ -2324,7 +2329,8 @@ function describePlan(tier: Tier, plan: SwapPlan): string {
 
 const USAGE =
   'usage: swap <tier[,tier...]> --image-<tier>=<registry/name@sha256:…> --sha=<git-sha> ' +
-  '[--execute|--preflight] [--activate-step-blockage (be --execute only)]';
+  '[--execute|--preflight] [--activate-step-blockage (be --execute only)] ' +
+  '[--accept-breaking=<id,id> (be only)]';
 
 /**
  * Per-tier images. One invocation carries the whole run (see runSwaps), so
@@ -2342,22 +2348,7 @@ function imagesFor(tiers: Tier[]): { tier: Tier; image: string }[] {
   });
 }
 
-export interface RecoveryDiagnosticPorts {
-  preflight: typeof preflightRegistry;
-  lock: typeof withLock;
-  authorize: typeof verifyComposeRecovery;
-  probe: (previous: string, candidate: string, databasePath: string) => Promise<void>;
-}
-/** Actual CLI router; recovery ports isolate observations and effects in disposable proofs. */
-export async function runSwapCli(
-  recovery: RecoveryDiagnosticPorts = {
-    preflight: preflightRegistry,
-    lock: withLock,
-    authorize: verifyComposeRecovery,
-    probe: (previous, candidate, path) =>
-      checkBackendRecovery(previous, candidate, path, sh, realpath),
-  },
-): Promise<void> {
+async function main(): Promise<void> {
   const tiers = parseTierList(process.argv[2] ?? '');
   const activateStepBlockage = process.argv.includes('--activate-step-blockage');
   // Proof: omitted invocation admission; all five incompatible CLI combinations lost the named refusal.
@@ -2370,18 +2361,21 @@ export async function runSwapCli(
       process.argv.includes('--check-backend-recovery'))
   )
     throw new Error('--activate-step-blockage requires only be with --execute');
+  const acceptBreaking = parseAcceptBreaking(argOf('accept-breaking'));
+  // Proof: with this refusal removed, `refuses gw --accept-breaking=ti-legacy`
+  // (swap-mcp-preflight.db.test.ts) went on to plan and failed reading Caddy; watched 2026-10-28.
+  if (acceptBreaking.length > 0 && !tiers.includes('be'))
+    throw new Error(`--accept-breaking names audiences only a be swap checks. ${USAGE}`);
 
   if (process.argv.includes('--check-backend-recovery')) {
     if (tiers.length !== 1 || tiers[0] !== 'be')
       throw new Error('backend recovery proof requires only be');
     const previous = argOf('previous-image');
     const candidate = argOf('image-be');
-    await recovery.preflight(assertDigestPinnedRef(previous, 'be'));
-    await recovery.preflight(assertDigestPinnedRef(candidate, 'be'));
-    await recovery.lock(`${ROOT}/state/deploy.lock`, async () => {
-      // Proof: removing this CLI boundary let missing/terminal recovery bindings reach a probe effect.
-      await recovery.authorize(previous, candidate);
-      await recovery.probe(previous, candidate, argOf('database-path'));
+    await preflightRegistry(assertDigestPinnedRef(previous, 'be'));
+    await preflightRegistry(assertDigestPinnedRef(candidate, 'be'));
+    await withLock(`${ROOT}/state/deploy.lock`, async () => {
+      await checkBackendRecovery(previous, candidate, argOf('database-path'), sh, realpath);
     });
     console.log(
       '[swap-be] recovery vocabulary proof passed; writers remain stopped; interruption markers retained',
@@ -2429,33 +2423,16 @@ export async function runSwapCli(
   // otherwise execute a plan derived from state that is no longer current,
   // and its stale `commit` step would silently overwrite the sha the other
   // process actually deployed.
-  const completion = await runSwaps(tiers, images, sha, {
+  await runSwaps(tiers, images, sha, {
     withLock,
     observe,
-    execute: (plan, pinned, commit, registry) =>
-      execute(
-        plan,
-        pinned,
-        commit,
-        {
-          ...PRODUCTION_SWAP_IO,
-          writeAtomic: (path, contents, mode) =>
-            writeAtomic(
-              path,
-              registry !== undefined && path === `${ROOT}/state/be.json`
-                ? renderStateJson(registry.preserveState(parseStateJson(contents)))
-                : contents,
-              mode,
-            ),
-        },
-        activateStepBlockage,
-      ),
+    execute: (plan, pinned, commit) =>
+      execute(plan, pinned, commit, PRODUCTION_SWAP_IO, activateStepBlockage, acceptBreaking),
   });
-  if (completion !== undefined) console.log(`PUNI_REGISTRY_COMPOSE ${JSON.stringify(completion)}`);
 }
 
 if (import.meta.main) {
-  runSwapCli().catch((e: unknown) => {
+  main().catch((e: unknown) => {
     console.error('[swap] failed:', e instanceof Error ? e.message : String(e));
     process.exit(1);
   });

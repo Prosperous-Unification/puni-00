@@ -226,6 +226,7 @@ export function createDirectory(
 
     setPersonKind: (id, kind) => api.patchPerson(id, { kind }),
     setPersonTeams: (id, teamIds) => api.patchPerson(id, { teamIds }),
+    setPersonAccount: (id, accountId) => api.patchPerson(id, { accountId }),
     setTeamServices: (id, serviceIds) => api.patchTeam(id, { serviceIds }),
   };
 }

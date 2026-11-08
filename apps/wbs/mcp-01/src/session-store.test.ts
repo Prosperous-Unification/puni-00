@@ -102,6 +102,7 @@ describe('McpSessionStore', () => {
         now + 60_000,
         now + 120_000,
         now,
+        now,
       ).outcome,
     ).toBe('ok');
     expect(
@@ -112,6 +113,7 @@ describe('McpSessionStore', () => {
         'session-3',
         now + 60_000,
         now + 120_000,
+        now,
         now,
       ).outcome,
     ).toBe('reuse');
@@ -133,6 +135,7 @@ describe('McpSessionStore', () => {
         now + 60_000,
         now + 120_000,
         now,
+        now,
       ).outcome,
     ).toBe('ok');
     expect(
@@ -143,6 +146,7 @@ describe('McpSessionStore', () => {
         'session-3',
         now + 60_000,
         now + 120_000,
+        now,
         now,
       ).outcome,
     ).toBe('invalid');
@@ -170,6 +174,7 @@ describe('McpSessionStore', () => {
         'session-2',
         now + 60_000,
         now + 120_000,
+        now,
         now,
       ),
     ).toThrow(/authenticated decryption/);

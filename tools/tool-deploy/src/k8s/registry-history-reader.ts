@@ -10,13 +10,10 @@ import {
 } from '@tools/registry-publication';
 import { type } from 'arktype';
 
-import {
-  parseFirstStartGenesis,
-  parseFirstStartRequest,
-  parseFirstStartState,
-} from './first-start';
-import { parseJournal, parseReleaseInheritance } from './journal';
+import { parseFirstStartRequest } from './first-start';
 import { sha256Of } from './migration-capture';
+import { parseFirstStartGenesis, parseRegistryFirstStartState } from './registry-first-start';
+import { parseRegistryJournal, parseReleaseInheritance } from './registry-journal';
 
 const Input = type({
   firstStartPath: type('string > 0').narrow(isAbsolute),
@@ -43,7 +40,7 @@ export async function readReleaseHistory(input: unknown) {
     const envelope = type({ requestBytes: 'string > 0' })(raw);
     if (envelope instanceof type.errors) throw new Error('First-start history has no request');
     const request = parseFirstStartRequest(JSON.parse(envelope.requestBytes) as unknown);
-    const first = parseFirstStartState(raw, request, configuration.firstStartPath);
+    const first = parseRegistryFirstStartState(raw, request, configuration.firstStartPath);
     history = parseRegistryHistory(first.registryHistory, configuration.firstStartPath);
     if (first.registry === null || first.registry === undefined)
       throw new Error('Managed history has no operation binding');
@@ -61,7 +58,7 @@ export async function readReleaseHistory(input: unknown) {
       let current: RegistryHistory;
       if (inherited !== undefined) current = inherited;
       else {
-        const release = parseJournal(first.registryTransfer.destination, destination.text);
+        const release = parseRegistryJournal(first.registryTransfer.destination, destination.text);
         current = parseRegistryHistory(release.registryHistory, first.registryTransfer.destination);
         if (release.registry === null || release.registry === undefined)
           throw new Error('Transferred managed release has no binding');

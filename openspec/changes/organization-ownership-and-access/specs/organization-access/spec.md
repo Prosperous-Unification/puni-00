@@ -255,10 +255,13 @@ WBS SHALL enforce the role matrix below against current membership; Auth0 groups
 | ----------------------------------------------------------------- | ------ | ------------ | ------------ | ----------- |
 | Read organization resources                                       | Yes    | Yes          | Yes          | Yes         |
 | Create/edit ordinary resources                                    | No     | Yes          | Yes          | Yes         |
+| Delete a directory resource; define measures (R8a, D70)           | No     | No           | Yes          | Yes         |
 | Edit restricted project                                           | No     | Creator only | Creator only | Yes         |
 | Invite viewer/member; approve/deny requests; remove viewer/member | No     | No           | Yes          | Yes         |
 | Grant/revoke admin; remove admin                                  | No     | No           | No           | Yes         |
 | Manage verified domains; transfer ownership; delete organization  | No     | No           | No           | Yes         |
+
+R8a is `wbs-resources` design R8a and D70 is `wbs-measure-budgets` design D70.
 
 #### Scenario: Admin tries to promote an admin
 

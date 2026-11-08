@@ -105,12 +105,6 @@ export interface DirectoryUsage {
   projects: UsedProject[];
   members: { id: string; name: string }[];
   /**
-   * The linked credentials pinned to the person being removed, which a
-   * confirmed removal revokes ({@link DirectoryUsageRows.pinnedCredentials});
-   * 0 for every other entry.
-   */
-  pinnedCredentials: number;
-  /**
    * The unrevoked machine credentials of the person being removed or rebound
    * ({@link DirectoryUsageRows.machineCredentials}); 0 for every other entry.
    */
@@ -183,7 +177,6 @@ function usageFrom(
   return {
     projects,
     members: rows.members.map((each) => ({ id: each.id, name: each.name })),
-    pinnedCredentials: rows.pinnedCredentials,
     machineCredentials: rows.machineCredentials,
   };
 }
@@ -462,8 +455,11 @@ export interface ResourceUsageCounts {
   demands: number;
   capacities: number;
   occupancies: number;
+  outstandingUses?: number;
   /** The provider instance the resource names, or null (`compute-providers` P3). */
   providerId: string | null;
+  /** The directory capacity a confirmed removal drops with it, or null (`wbs-shared-occupancy` S8). */
+  directoryCapacity: number | null;
 }
 
 /**
@@ -490,7 +486,9 @@ export function directoryUsageOfResource(rows: ResourceUsageRows): {
       demands: rows.demands.length,
       capacities: rows.capacities.length,
       occupancies: rows.occupancies,
+      ...(rows.outstandingUses === undefined ? {} : { outstandingUses: rows.outstandingUses }),
       providerId: rows.providerId,
+      directoryCapacity: rows.directoryCapacity,
     },
   };
 }

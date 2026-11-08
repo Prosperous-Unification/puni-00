@@ -494,7 +494,7 @@ describe('assigning from a folded step’s cell with @', () => {
       expect(assigneeShown('step-dev')).toBe('· GR');
     });
     expect(await api.listPeople()).toEqual([
-      { id: 'person1', kind: 'person', name: 'Grace', teamIds: [] },
+      { id: 'person1', kind: 'person', name: 'Grace', teamIds: [], accountId: null },
     ]);
 
     // A bare `@` offers to take them off again — first, so Enter on it is the

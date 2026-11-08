@@ -44,7 +44,7 @@ import type { TypedDependency } from '../typed-dependency';
  */
 export interface CanonicalPlanInput {
   /** Bumped whenever this field list changes; the body carries it. */
-  readonly schemaVersion: 8;
+  readonly schemaVersion: 9;
   readonly project: CanonicalProject;
   /** Sorted by `id`. */
   readonly workItems: readonly CanonicalWorkItem[];
@@ -58,6 +58,14 @@ export interface CanonicalPlanInput {
   readonly stepParallels: readonly StoredStepParallel[];
   /** Sorted by `workItemId`, then `stepId`, then `metric`. */
   readonly measures: readonly CanonicalMeasure[];
+  /**
+   * Trios in measures other than time, but for the single-point tokens trios,
+   * which are the `token_estimate` rows of {@link measures} (`wbs-measure-budgets`
+   * D28). Sorted by `workItemId`, then `stepId`, then `key`. Schema 9.
+   */
+  readonly measureEstimates: readonly CanonicalMeasureEstimate[];
+  /** Stated budgets; derived ones are computed. Sorted by `workItemId`, then `key`. Schema 9. */
+  readonly budgets: readonly CanonicalBudget[];
   /** Sorted by `predecessorId`, then `successorId`. */
   readonly dependencies: readonly CanonicalDependency[];
   /** Relationship IDs and endpoint identities, sorted by `id`. */
@@ -111,6 +119,13 @@ export interface CanonicalProject {
    * an earlier body upgrades as `UTC`, the zone every project had before.
    */
   readonly timezone: string;
+  /**
+   * What a derived budget multiplies the pessimistic point by
+   * (`wbs-measure-budgets` D38): a setting, compared under `settings`, read by
+   * no engine. Schema 9; an earlier body upgrades as 1, every project's factor
+   * before budgets.
+   */
+  readonly budgetFactor: number;
 }
 
 export interface CanonicalWorkItem {
@@ -256,6 +271,33 @@ export interface CanonicalMeasure {
   readonly stepId: string;
   readonly metric: string;
   readonly value: number | null;
+  /**
+   * The basis a money fact was priced under (`wbs-measure-budgets` D43), both
+   * null when it carries none. Schema 9; an earlier body upgrades as null.
+   */
+  readonly currency: string | null;
+  readonly rateCardDigest: string | null;
+}
+
+/** One three-point estimate in a measure other than time, with its money basis (schema 9). */
+export interface CanonicalMeasureEstimate {
+  readonly workItemId: string;
+  readonly stepId: string;
+  readonly key: string;
+  readonly optimistic: number;
+  readonly realistic: number;
+  readonly pessimistic: number;
+  readonly currency: string | null;
+  readonly rateCardDigest: string | null;
+}
+
+/** One stated budget of a work item in a measure (schema 9). */
+export interface CanonicalBudget {
+  readonly workItemId: string;
+  readonly key: string;
+  readonly cap: number;
+  readonly policy: 'strict' | 'advisory';
+  readonly holdPerAttempt: number | null;
 }
 
 export interface CanonicalDependency {
@@ -346,6 +388,8 @@ export interface PlanInputRows {
   /** Sparse authored maxima; absence inherits, including after historical upgrades. */
   readonly stepParallels: readonly StoredStepParallel[];
   readonly measures: readonly CanonicalMeasure[];
+  readonly measureEstimates: readonly CanonicalMeasureEstimate[];
+  readonly budgets: readonly CanonicalBudget[];
   readonly dependencies: readonly CanonicalDependency[];
   readonly typedDependencies: readonly TypedDependency[];
   readonly assignments: readonly CanonicalAssignment[];
@@ -364,7 +408,7 @@ export interface PlanInputRows {
 }
 
 /** The one version this module writes. Stored bodies carry it; readers check it. */
-export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 8 as const;
+export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 9 as const;
 
 const byString =
   <T>(...keys: readonly ((row: T) => string)[]) =>
@@ -427,6 +471,7 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       pertWeightRealistic: values.project.pertWeightRealistic,
       pertWeightPessimistic: values.project.pertWeightPessimistic,
       timezone: values.project.timezone,
+      budgetFactor: values.project.budgetFactor,
     },
     workItems: sorted(
       values.workItems,
@@ -520,6 +565,41 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       stepId: row.stepId,
       metric: row.metric,
       value: row.value,
+      currency: row.currency,
+      rateCardDigest: row.rateCardDigest,
+    })),
+    // Proof: with either collection written empty, `captures every measure
+    // estimate, budget, basis and the factor, and compares a change in each`
+    // (saved-plan-input.test.ts) missed the change; watched 2026-10-23.
+    measureEstimates: sorted(
+      values.measureEstimates,
+      byString(
+        (row) => row.workItemId,
+        (row) => row.stepId,
+        (row) => row.key,
+      ),
+    ).map((row) => ({
+      workItemId: row.workItemId,
+      stepId: row.stepId,
+      key: row.key,
+      optimistic: row.optimistic,
+      realistic: row.realistic,
+      pessimistic: row.pessimistic,
+      currency: row.currency,
+      rateCardDigest: row.rateCardDigest,
+    })),
+    budgets: sorted(
+      values.budgets,
+      byString(
+        (row) => row.workItemId,
+        (row) => row.key,
+      ),
+    ).map((row) => ({
+      workItemId: row.workItemId,
+      key: row.key,
+      cap: row.cap,
+      policy: row.policy,
+      holdPerAttempt: row.holdPerAttempt,
     })),
     dependencies: sorted(
       values.dependencies,

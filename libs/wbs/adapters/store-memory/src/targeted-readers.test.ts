@@ -165,21 +165,21 @@ describe('targeted memory readers reject malformed trusted state', () => {
       { workItemId: ROW_A, stepId: STEP_A, state: 'broken', statedAt: 1 } as never,
       STAMP,
     );
-    await stores.measures.set(
-      // This test crosses the trusted-state boundary with a deliberately malformed stored value.
-      { workItemId: ROW_A, stepId: STEP_A, metric: 'broken', value: 1, recordedAt: 1 } as never,
-      STAMP,
-    );
+    // A metric no organization defines no longer reaches the table: since
+    // `wbs-measure-budgets` slice 2 the write refuses it, as SQLite's does.
+    expect(
+      stores.measures.set(
+        { workItemId: ROW_A, stepId: STEP_A, metric: 'broken', value: 1, recordedAt: 1 },
+        STAMP,
+      ),
+    ).rejects.toThrow(/is not defined by the organization/);
 
-    // Proof: without the four family validators these malformed stored values all resolved.
+    // Proof: without the three family validators these malformed stored values all resolved.
     expect(stores.estimates.listByWorkItems(PROJECT_A, [ROW_A])).rejects.toThrow(
       /invalid day value/,
     );
     expect(stores.actuals.listByWorkItems(PROJECT_A, [ROW_A])).rejects.toThrow(/invalid day value/);
     expect(stores.progress.listByWorkItems(PROJECT_A, [ROW_A])).rejects.toThrow(/invalid state/);
-    expect(stores.measures.listByWorkItems(PROJECT_A, [ROW_A])).rejects.toThrow(/invalid metric/);
-    // This test crosses the trusted-state boundary to remove the malformed composite key.
-    await stores.measures.remove(ROW_A, STEP_A, 'broken' as never, STAMP);
 
     await stores.actuals.set(
       { workItemId: ROW_A, stepId: STEP_A, days: 1, recordedAt: Number.POSITIVE_INFINITY },

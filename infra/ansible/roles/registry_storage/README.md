@@ -1,5 +1,14 @@
 # Bounded registry storage
 
+**Source staging — 2026-11-08:** Registry lifecycle libraries and manual provisioning
+sources are retained for future coordinated activation. Supported publish, copy,
+Compose and Kubernetes commands keep current-main routing and legacy persisted
+writer versions; they do not select managed adapters. Explicit managed helpers
+require trusted enrollment. Historical installed receipts below do not establish
+current readiness. Managed procedures remain attended future operations; this
+source merge performs no installation, adoption or production action. Full native,
+provider, storage, backup, isolation, recovery and delivery acceptance stays open.
+
 The explicitly tagged `registry_storage` role provisions two retained ext4
 filesystems, 50 GiB and 1 GiB by default. It does not migrate the existing PVC.
 Enrollment requires `puni_registry_storage_enrolled=true`, sufficient root reserve,

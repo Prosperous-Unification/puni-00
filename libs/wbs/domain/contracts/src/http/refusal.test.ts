@@ -168,11 +168,21 @@ export function refusalTypeCases() {
     error: 'dependency_unavailable',
     status: 'schema_missing',
     commit: null,
+    bootCommit: null,
   });
+  // Proof: with `bootCommit` struck from `RefusalDetail`, the literal above
+  // failed wbs-contracts:typecheck with TS2353 (2026-10-27).
+  // @ts-expect-error Health detail keeps the commit its process booted with.
+  expectTypeOf<Refusal>({ error: 'dependency_unavailable', status: 'migrating', commit: null });
   // @ts-expect-error Health detail keeps its commit metadata.
   expectTypeOf<Refusal>({ error: 'dependency_unavailable', status: 'migrating' });
   // @ts-expect-error Healthy status cannot appear in a dependency refusal.
-  expectTypeOf<Refusal>({ error: 'dependency_unavailable', status: 'ok', commit: null });
+  expectTypeOf<Refusal>({
+    error: 'dependency_unavailable',
+    status: 'ok',
+    commit: null,
+    bootCommit: null,
+  });
   // @ts-expect-error No-detail is absence, never arbitrary text or an open object.
   expectTypeOf<RefusalDetail['invalid_json']>('anything');
   expectTypeOf<Refusal>({ error: 'invalid_oidc_callback' });
@@ -291,4 +301,61 @@ export function sparseCommandRefusalTypes() {
   };
   // @ts-expect-error A printable node identifier does not replace a concrete pair.
   expectTypeOf<CommandRefusal>(printableNodes);
+}
+
+/** Both public refusal types retain the two money bases, including unpriced figures. */
+export function assertMixedRateCardRefusalTypes() {
+  expectTypeOf<CommandRefusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    bases: [
+      { currency: 'USD', rateCardDigest: 'card-a' },
+      { currency: 'USD', rateCardDigest: 'card-b' },
+    ],
+  });
+  expectTypeOf<Refusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    bases: [null, { currency: 'USD', rateCardDigest: 'card-b' }],
+  });
+  expectTypeOf<CommandRefusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    bases: [{ currency: 'USD', rateCardDigest: 'card-a' }, null],
+  });
+  // @ts-expect-error A command mix refusal must name both bases.
+  expectTypeOf<CommandRefusal>({ error: 'mixed_rate_cards', at: 0, kind: 'deleteWorkItem' });
+  // @ts-expect-error The global envelope must also retain the bases.
+  expectTypeOf<Refusal>({ error: 'mixed_rate_cards', at: 0, kind: 'deleteWorkItem' });
+  expectTypeOf<CommandRefusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    // @ts-expect-error One basis cannot describe a mix.
+    bases: [null],
+  });
+  // @ts-expect-error A mix names exactly two bases.
+  expectTypeOf<Refusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    bases: [null, null, null],
+  });
+  expectTypeOf<CommandRefusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    // @ts-expect-error A priced basis must include its rate card digest.
+    bases: [{ currency: 'USD' }, null],
+  });
+  // @ts-expect-error A priced basis must include its currency.
+  expectTypeOf<Refusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    bases: [null, { rateCardDigest: 'card-b' }],
+  });
 }

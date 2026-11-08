@@ -1,4 +1,75 @@
+## Fault classification can match source context instead of the failure
+
+A nonzero test exit does not identify which assertion failed. During the 2026-10-27
+boot-cleanup campaign on Bun 1.4.4, the first C8 driver searched the entire output for
+`integration removed DB before actual acquisition/disposal`. Bun printed that text in
+source context near the failing line, but the emitted failure was
+`AssertionError: Missing expected rejection.` The driver initially credited the fault for
+the wrong reason. Audit revoked that credit and preserved the original matrix and logs.
+
+The focused replacement adds a post-hold child-liveness assertion on the actual contained
+integration path and classifies emitted assertion messages, rather than arbitrary source
+text. It observed `AssertionError: integration exited before actual acquisition/disposal completed`
+with exit 1, then restored exact bytes and mode. This proves the named inner-disposal
+consumption check; the outer process supervisor remains an independent containment backstop.
+Evidence is retained in `turn-dispatch-tasks/task-2-fix-1-20261027/proofs{,-v2}` under the
+ignored SDD workspace; the [verification record](../../openspec/changes/twilight-agentic-workflows/verify.md)
+records the bounded acceptance. Never credit an expected phrase merely because it appears
+in source context, a test title or another diagnostic.
+
 # R5 incident catalogue
+
+## Bun throw assertions can accept a returned Error
+
+Observed on2026-10-27 with Bun1.4.4 (38afee6c8):
+`expect(() => new Error('returned')).toThrow()` passed even though its callback
+returned an Error without throwing. The test exited0 with1pass. The equivalent
+`throws(() => new Error('returned'))` from `node:assert/strict`, run by Bun,
+exited1 with `AssertionError: Missing expected exception`. A control callback
+that actually threw satisfied that strict assertion and exited0.
+
+This masked a real new constructor-validation negative: removing TurnDispatchError's
+top intent codec left the malformed version/claim cases green under the Bun matcher.
+Changing the oracle to strict `throws` made those same removed-guard cases fail;
+the separate inherited request snapshot still rejected malformed requests. No inherited
+guard was removed to strengthen the new proof. A successful constructor returning an
+Error must not satisfy a test requiring construction to throw.
+
+The finite three-file probe ran `bun test <probe.test.ts> --timeout=3000` once per
+variant, retaining source/output hashes and actual exits0/1/0 in
+`/tmp/puni-bun-returned-error-matcher-20261027/receipt.json`. The intentionally failing
+strict-return probe is evidence of the oracle distinction, not a product failure.
+Original surviving production trials remain separate from the final proof batch.
+The [dispatch verification record](../../openspec/changes/twilight-agentic-workflows/verify.md)
+records final scoped acceptance. This observation establishes that installed Bun version's
+behavior for these callbacks; it does not certify other versions or assert a matcher
+contract on their behalf.
+
+## Bun SQLite whole-script errors can be masked
+
+Observed on 2026-10-22 with Bun1.4.2 (744846f84): Database.run executed CREATE TABLE
+with a CHECK, a violating INSERT and DROP TABLE as one script, returned normally
+and left no table. The intermediate failure did not protect subsequent DDL. A
+single violating INSERT threw with no suffix or just a semicolon, but returned
+normally when followed by semicolon and newline. Initial RunStore down negatives
+therefore failed; an exit0 from that caller did not establish guarded rollback.
+
+The [runtime authority format](../../openspec/changes/twilight-agentic-workflows/runtime-authority-design.md#physical-format-and-providers)
+uses complete trimmed statements: bootstrap/reference stop at their first SQL
+error, and the raw down caller must prevalidate the complete installed format and
+execute trimmed breakpoint blocks in an explicit transaction, rolling back and
+rethrowing on error. A raw SQL count/use guard does not independently authenticate
+the full format. Whole-script invocation is outside this supported down contract.
+
+Observed faults removed the actual down guard (used pin reached deletion without
+throwing), replaced bootstrap with the actual valid whole-script migration (an
+intermediate CHECK left a published target) and replaced reference execution with
+whole-script SQL (an incomplete reference was accepted). Exact restoration passed
+each selected test. Malformed SQL/module-setup trials and masked variants remain
+recorded without proof claims. Commands, failed trials and supported-caller limits
+are in the [verification record](../../openspec/changes/twilight-agentic-workflows/verify.md#durable-runtime-authority-implementation-candidate-2026-10-22).
+
+## Preserved historical catalogue
 
 Every payload below is preserved byte-for-byte from `AGENTS.md` at `7ab67cb0b6d843eca87f587124c0f3c0fbd35e67`.
 The stable anchors and source markers sit outside those historical payloads.
@@ -40,6 +111,7 @@ incidents; those IDs deliberately share one preserved payload anchor.
 | R5-28    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
 | R5-29    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
 | R5-30    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
+| R5-31    | none — see [R5-31](#an-applied-role-can-report-success-over-a-lock-out)                          |
 
 ## Bun forced recursive removal can leave its root
 
@@ -83,6 +155,24 @@ Restoring the three-attempt guard passed that same test (one pass, zero failures
 The earlier `=== 1` mutation demonstrated premature refusal only; it did not prove
 the upper bound. Both the adjacent production comment and this record retain the
 weakened-bound observation instead. Runtime code is unchanged by this correction.
+
+## An applied role can report success over a lock-out
+
+**R5-31**, observed 2026-11-04 on h2puni (H2-A7). The `gate_host` task "Install the exact gate
+authorized keys" wrote `content: |` with `{{ puni_gate_authorized_keys | join('\n') }}`. The `\n`
+stayed backslash-n, so five keys became one line and sshd let in only the first caller. Nothing
+in the role read the file back, so no step of an apply could fail on it; h4claw, with one key,
+had passed every apply. The pre-apply backup,
+restored by hand as root, was the only recovery.
+
+The role now renders a template to a staged file and compares its `ssh-keygen -lf` fingerprint
+count with the list's length before the file replaces the live one; validate repeats the count on
+the live file. In the controller-image evaluator (`infra/ansible/tests/gate-host-assertions.py`,
+E11 to E13) the reinstated form was refused at the staged count with `holds 1 keys, but
+puni_gate_authorized_keys lists 3` and the previous live file intact; with the condition removed
+it passed. A task that names an exact result is a
+claim until a read-only probe of that result can fail
+([verify.md](../../openspec/changes/dash-host-jobs/verify.md)).
 
 ## Checks kept without a reachable negative
 

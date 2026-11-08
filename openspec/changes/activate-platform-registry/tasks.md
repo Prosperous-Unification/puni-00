@@ -18,3 +18,10 @@
 
 - [x] 4.1 Run focused tests, fault proofs, lint, typecheck, relevant infrastructure checks, OpenSpec validation and the canonical host gate on the final implementation SHA; obtain independent review and resolve material findings before completion.
 - [x] 4.2 Record commands, outcomes, revisions, rollback commands and operational limits in verify.md and the registry runbook; link from the platform documentation. Leave product migration unchecked in the original k3s-platform roadmap.
+
+## Source integration note — 2026-11-08
+
+The 2026-10-24 authorization and activation receipts above are historical evidence.
+The current bound-registry-storage revision stages source only, preserves supported
+legacy delivery routing and neither repeats activation nor establishes current
+installed readiness. It grants no new production action.

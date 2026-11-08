@@ -66,17 +66,48 @@ every resource, which now includes claims.
 
 **C4. The renew route publishes `claims_changed`.** After its turn commits, once for each
 project in which it moved at least one lease; a type-only event, so the announcement collector
-deduplicates it. A batch's own renewal rides the batch's `tree_replaced`. A revocation is not
+deduplicates it. A batch's own renewal rides the batch's `tree_replaced` in its own project and
+announces the others (C19). A revocation is not
 announced: the admin revoke asks the sweep for an immediate tick whose release announces the
 tree; a consent revocation waits up to one 30 s tick, during which the chip reads its old
 expiry (accepted). `OptimizerTriggerBroadcaster` SHALL NOT schedule optimization for it.
 Rejected: polling the claims read on a timer (a minute of drift either way, and a second
 refresh path the coordinator does not own).
 
+**C19. A batch's renewal announces the projects it moved.** An agent's committed batch renews
+its leases in every project, not only the batch's own. After the batch commits, each project
+whose lease moved receives one `claims_changed` through the batch's announcement collector,
+except the batch's own project when the batch changed a row: that batch announces the tree
+(`tree_replaced`, or `plan_unavailable` under an unavailable optimized engine), and
+`tree_replaced` refreshes the claims. A batch that changed no row (empty, directory-only)
+announces no tree, so its own project receives `claims_changed` too. A refused or rolled-back
+batch announces nothing, and a batch within the renewal resolution moves nothing and announces
+nothing. Without it, a viewer of project B watches a live agent's lease count down to releasing
+while the agent works in A. Rejected: announcing the batch's own project always (a second
+refresh of claims the tree event already causes). Residual: a dirty batch whose tree answers
+`plan_unavailable` refreshes the tree only; its own project's claims wait for the next
+heartbeat or tree change.
+
+**C21. `claims_changed` is transient.** It is pushed live to the project's subscribers and
+nowhere recorded: no `event_log` row, no replay-buffer entry, no sequence number consumed. The
+claims read is a complete snapshot, so replaying the announcement is worth nothing, and N
+agents' heartbeats would otherwise evict durable events from the replay window
+(`ReplayOrchestrator`'s `DEFAULT_MAX_EVENTS`, 32). be-01's internal push carries no `seq` for
+it, and gw-01 forwards the frame to the sockets without one. The client contract: a frame
+with no `seq` is a hint to reread the resource its type names. It never advances, reads or
+resets the client's resume point, and no `seen` follows it. Because a missed transient frame
+is never replayed, a client rereads claims whenever its stream synchronises: on every
+`resume_ack`, on `resume_denied`, and on a first subscribe. Push failures are reported and
+swallowed, as a durable push's are. Rejected: coalescing to one durable event per project per
+30 s (still evicts at swarm scale, and still a timer the coordinator does not own).
+
 **C5. fe-01 learns `claims_changed` before be-01 says it.** An fe-01 that does not know the
 event treats it as unknown and refreshes every resource, which at swarm scale is one full plan
 read per heartbeat per viewer. The slice that narrows it lands and deploys before the slice
-that publishes it.
+that publishes it. Under C21 an fe-01 that predates slice 2 drops the unsequenced
+frame (its stream reads only sequenced frames) instead of refreshing everything; the order
+stands so that viewers get the refresh at all. gw-01 must also deploy before be-01 sends it,
+since an older gw-01 refuses a push without `seq` (400, reported and swallowed by be-01).
 
 **C6. The lease clock is the server's.** On install the coordinator records `readAt` beside
 `performance.now()`; remaining time is `leaseExpiresAt − (readAt + elapsed)`. Shown in whole
@@ -123,12 +154,16 @@ same state. The Claims sheet renders the failure in place. Never the Error Bound
 **C13. Release history is a projection, not a history view.** `GET
 /api/projects/:id/claim-history?limit=` (`getApiProjectsByIdClaim-history`) answers the
 project's `claim` and `release` plan events newest first, `limit` 1 to 100, default 50, no
-cursor. The Claims sheet shows it under the claims held now. Rejected: fe-01 reading the raw
+cursor. The Claims sheet shows it under the claims held now. A claim or release run beside other commands in
+one batch is one `batch` plan event; the store keeps such a batch when its stored command holds
+`add_claims` or `remove_claims` at any depth (`PlanEventFilter.batchesHolding`, `json_tree` on
+SQLite, no migration), and each such step is listed as its own entry with the batch's `eventId`
+and an `act` index (review of #706, S1-1). Rejected: fe-01 reading the raw
 history (its `after` is opaque, it has no limit, and a claim's label does not name the holder);
 deferring it (a reaped chip would vanish with no reason anywhere on screen, the gap leases 2.1
 was meant to close).
 
-**C14. A history row's shape.** `{ eventId, at, kind, reason, claims[] }`; `reason` is
+**C14. A history row's shape.** `{ eventId, act, at, kind, reason, claims[] }`; `reason` is
 `claimed` for a claim, `released` for a release command, and the stored `reason`
 (`lease_expired`, `credential_revoked`) for a reap; each claim names `claimId`, `workItemId`,
 `stepId`, `holder { personId, name | null }`, `runId`, and `item { number, numberIsFrozen,
@@ -136,12 +171,64 @@ name } | null`. `null` means deleted since: history outlives people and rows. Th
 is decoded with the journal's own decoder; an entry it cannot decode is corrupt trusted state
 and throws. Undo and redo entries are not listed: the claims held now are the current answer.
 
-**C15. No control.** Release stays an MCP or batch command, admin-bypassed as D5 of
-`wbs-team-claims` says. A release button is a follow-up with its own refusal design.
+**C15. No control in the Claims sheet.** Amended 2026-10-27 by C23: the row menu claims and
+releases for the signed-in account's own person. The sheet stays a reading surface, and nobody
+releases another holder's claim from fe-01; the admin bypass of `wbs-team-claims` D5 stays an MCP
+or batch command.
+
+**C22. Distinct marks, per plan.** `assignInitials` over the people **one plan prints** — every
+row's assignees and assumed assignee (`(unknown)` for an id the directory lacks) and every claim
+holder — keeps each uncontested `initialsOf`; of a colliding group the shortest name (then
+code-unit order) keeps it and each other takes the first free of: its first letter with each later
+word's first letter, with each later letter, then with 2, 3, …. Still two characters, because
+`ASSIGNEE_SLOT_PX` and `CLAIM_SLOT_PX` hold two capitals (F-034); a mark depends on the set of
+names, not their order. Amended by the review of PR #763 (B1): first scoped to the whole
+organization directory, a namesake added anywhere changed a mark in every plan, and the seeded
+`Walter White` of `plan-table-review.spec.ts` read `WE`. Per plan, a collision is local and on
+screen; a mark moves only when somebody this plan prints shares its initials. Rejected: `CCW`
+(overflows the slot), `CC1`/`CC2` (both lose the plain mark although one name owns it). The
+Gantt bars keep `initialsOf`.
+
+**C23. Claim from the row menu.** The account is `session.userId`; its person is the one directory
+person of kind `person` whose `accountId` names it (the people read already carries the
+binding; no new read). Agents bound to the account are not the account. The ⋯ offers `Claim`
+right after the status entries, or `Release my claim` where that person holds a step or subtree
+claim drawn on the row; on a parent whose subtree claim has claims delegated under it, `Release
+my claim and N under it` and the success toast `Released your claim and N under it.`, N counted
+over the claims read at any depth, because be-01 releases them with it (`wbs-team-claims` D8,
+review of PR #763 S2). Claim sends `claimWorkItem { workItemId, personId }` (every step not
+done; the subtree on a parent) and Release `releaseWorkItem` for the same person; both reread
+tree and claims. A session claim carries no lease (`claimLeaseExpiry` leases only an agent's own
+credential), so the chip shows no time (C10). Refusals are the writer's toast: `already_claimed`,
+`inside_subtree_claim` and `overlaps_subtree_claim` name their holders and runs, and
+`resources_exhausted` names each short resource with asked, free and holders, from the body.
+`ProjectPage` requires the account id; a table drawn without one offers no claim item.
+
+**C24. A Claim that cannot be taken says why.** No bound person, several bound persons, or a
+person row without `accountId` draws `Claim` refused (`aria-disabled`, its reason as the item's
+fact) pointing at the Directory binding an organization admin makes (C25); a done row reads
+`Done — there is nothing left to claim`. Never hidden.
+
+**C25. Binding in the Directory.** Each person row of the Directory, in an organization, says
+whom the person is bound to. An admin or super-admin reads the members once and gets a picker of
+them with `Not bound`, and `Bind <name>` (`Unbind <name>` for `Not bound` on a bound person),
+enabled only for a change; it sends `patchPerson { accountId }`, null to unbind, through the
+directory's own write, and the row redraws from the reread. A member or viewer may not list the
+members, so reads it as `Bound to your account`, `Bound to another account` or `Not bound to an
+account`; a row without `accountId` says the server does not say. Refusals worded: `forbidden`
+(only an organization admin binds), `unknown_account` (no longer a member); a refused members
+read is drawn with Retry. Review of PR #763, S1: until this, C24's reason pointed at a control
+fe-01 did not have.
 
 **C16. Where the sheet opens.** A `Claims` toolbar button with the held count (no count at
 zero), and an entry in the phone `Plan actions` sheet. Held claims are grouped by holder, then
 run, each row with number, name, step or "subtree", lease text and since; recent history below.
+Amended in slice 9 (review of #710): the button is drawn once a claims read in this table has
+listed a claim since the project was opened, and while the sheet is open. A never-claimed plan's
+toolbar is therefore what it was (Goals; `project-settings.spec.ts` pins a fresh project's 1280px
+toolbar with no margin left), and a plan whose last claim was reaped keeps a count-less button,
+so the reason it went stays reachable (C13). Not offered: a project opened after its last claim
+went, whose history is then read through MCP.
 
 **C17. Phone cards carry the same chips**, beside a card's step assignee and in its header for
 a subtree claim.
@@ -169,6 +256,9 @@ used.)
   interval between the first read and the socket's registration, in which an announcement could
   be pushed and lost. It cannot be skipped cheaply, because the first read always starts before
   the socket registers. The cost is one small read per page load.
+- **A missed transient push is not replayed** (C21): a client whose socket drops between
+  heartbeats rereads claims on resume, and a client that stays connected but misses a push
+  (gw-01 unreachable) reads stale lease times until the next one.
 - **A consent revocation is up to one tick stale** on screen (C4).
 - **Two moments on one screen** (C11): a chip may lag its row by one read.
 - **An undone claim stays in the history list** as claimed (C14); the held list is the truth.

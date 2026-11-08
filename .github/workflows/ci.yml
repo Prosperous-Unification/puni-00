@@ -312,7 +312,10 @@ jobs:
     name: gate workspace
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    # Keep pinned Python 3.14.4 on its supported Ubuntu 24.04 image.
+    # Proof: workspace job 124617218173 failed setup-python on 26.04;
+    # job 124582747681 installed 3.14.4 and passed on 24.04.
+    runs-on: ubuntu-24.04
     # The original 20-minute box expired after the ordinary Nx phase and during Tool Wiki.
     # Forty-five minutes then expired too: run 35337661318 (2026-09-18, every project affected and
     # the packed package suite in scope) spent 44m48s through the solver image smoke and was
@@ -325,9 +328,12 @@ jobs:
     # 26m35s in the full-mode run 36473105834 (Nx step 22m21s; docs/findings/ci-gate-duration.md),
     # and sixty leaves more than double that. Run 38858776285 (PR #535, f6f867ec, 2026-10-16)
     # then spent 55m05s in Nx and was canceled in Gate head pinning at 07:01:03 UTC.
-    # Restore a finite ninety-minute allowance; remaining checks still require hosted proof.
-    # Evidence: openspec/changes/workspace-gate-time-budget/verify.md.
-    timeout-minutes: 90
+    # Ninety then expired twice in run 40959508633 (PR #787, b3b594da, 2026-10-30):
+    # attempt 1 was canceled in solver smoke after Nx passed; attempt 2 was canceled in lint
+    # after test/typecheck/build passed in 80m32s. Both annotations report a 1h30m0s maximum.
+    # Choose a finite 120-minute allowance; remaining checks still require hosted proof.
+    # Evidence: openspec/changes/workspace-gate-time-budget/verify.md#120-minute-repair-local-evidence.
+    timeout-minutes: 120
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since
@@ -357,7 +363,7 @@ jobs:
           cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
 
       # `nx run-many -t build` shellchecks the deploy scripts and is no longer
-      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # allowed to skip itself when shellcheck is absent. The 24.04 image ships
       # it, but assert rather than discovering the absence as a green build
       # that checked nothing.
       - name: Assert shellcheck present
@@ -365,6 +371,12 @@ jobs:
 
       - name: Install
         run: bun install --frozen-lockfile
+
+      # Fleet's default source suite compiles owned pthread fixtures and uses local user namespaces.
+      # Proof: deleting package installation, profile rendering/loading or namespace probing failed actual-step toolchain-pins tests.
+      - name: Provision registry source fixtures
+        if: ${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'tool-fleet') }}
+        run: bash bin/registry-source-test-prerequisites.sh
 
       - name: Install solver dependencies
         run: python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock
@@ -596,6 +608,12 @@ jobs:
       - name: Gate head pinning
         run: bash bin/h2puni-gate.test.sh
 
+      # The hourly refresh of an enrolled gate host's launcher checkout (dash-host-jobs 6.9): it
+      # must refuse to move the checkout while a job runs from it, and nothing else runs it
+      # before a host's timer does.
+      - name: Gate launcher refresh
+        run: bash bin/gate-launcher-refresh.test.sh
+
       # `bin/dev.sh` and the port preflight it calls. This is the dev image's
       # CMD (`deploy/dev-src/Dockerfile`), so a guard rotting here breaks the
       # dev deployment and not only somebody's terminal — and until 2026-09-12
@@ -809,9 +827,9 @@ jobs:
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.twilight == 'run' }}
     runs-on: ubuntu-latest
-    # Run 39330836237 spent 49m25s in Nx; the packed suite separately took 4m45s in
-    # run 39330011791. Seventy-five minutes accommodates both phases and runner variation.
-    timeout-minutes: 75
+    # Run 41544558083 exhausted 75 minutes while Dash was still completing tests;
+    # 120 minutes is a bounded allowance, not evidence that every phase completes.
+    timeout-minutes: 120
     steps:
       # Full history for parity with the workspace shard: the suites read git state and ran
       # against a depth-0 clone in the single job these came from.
@@ -825,6 +843,21 @@ jobs:
 
       - name: Install
         run: bun install --frozen-lockfile
+
+      # Dash's real process fixtures require UID mapping and an isolated procfs before Nx starts.
+      # Proof: toolchain-pins.test.ts failed with this step absent, late or unscoped, with a
+      # wrong executable/missing probe, and with either loader/probe failure ignored (2026-10-25).
+      - name: Provision unshare for Dash resource tests
+        if: ${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-dash') }}
+        run: |
+          set -euo pipefail
+          # Ubuntu restricts user namespaces through AppArmor. Admit this executable only;
+          # preserve the host-wide restriction and run the probe/tests as the runner account.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile unshare /usr/bin/unshare flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/unshare > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/unshare
+          unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace true
 
       # The same log, annotation and exit-status contract as the workspace shard's Nx step,
       # whose note explains each part. The workspace shard excludes `twilight-dash`, so its lint

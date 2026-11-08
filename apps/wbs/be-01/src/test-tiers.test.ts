@@ -37,12 +37,14 @@ const SRC = new URL('.', import.meta.url).pathname;
  * over it.
  * `openScimWorld` also opens a database: it opens an `OrganizationHarness` for the
  * SCIM suites.
+ * `openSpaceDatabase` migrates and opens SQLite for the space and runtime controller suites.
  */
 // Proof: 2026-10-13, omitting openComposedWith failed `names a suite
 // `.db.test.ts` when it opens a database, and only then` for the mounted
 // organization-context suite, despite its real migrated SQLite harness.
+// Proof: removing openSpaceDatabase reported the actual runtime-state/write/claim database suites as misfiled.
 const OPENS_A_DATABASE =
-  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed(With)?)?|BootedBrowserProcess\.open|openScimWorld)\b/;
+  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed(With)?)?|BootedBrowserProcess\.open|openScimWorld|openSpaceDatabase)\b/;
 
 /** Every `*.test.ts` under `src`, as a path relative to it. */
 function suites(dir = SRC, prefix = ''): string[] {

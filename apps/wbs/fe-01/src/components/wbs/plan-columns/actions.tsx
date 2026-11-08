@@ -1,4 +1,5 @@
 import { ActionsMenu } from '../actions-menu';
+import { claimActions } from '../claim-offer';
 import type { PlanLive } from '../plan-live';
 import { statusActions } from '../status-cell';
 import { column } from './column';
@@ -28,8 +29,8 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
         actions={[
           // The status entries first — every settable status the row does not
           // read and whose write would change something, in the menu order
-          // (`statusOffersOf`) — then Add child, Move under… and Duplicate,
-          // then Unfreeze where it applies, and Delete last in the destructive
+          // (`statusOffersOf`) — then Add child, Move under…, Duplicate and
+          // Measures…, then Unfreeze where it applies, and Delete last in the destructive
           // tint (Dany, 2026-09-13: "Set status * … Duplicate … Delete in the
           // end"). `Done` and `In progress` ask for their days through the
           // completion prompt exactly as the cell does. The status word is
@@ -37,6 +38,19 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
           // status is said one way everywhere.
           ...statusActions(live.current.statusOffers(row.original), (status) => {
             live.current.chooseStatus(row.original.id, status);
+          }),
+          // Claim or Release my claim for the signed-in account's person, after
+          // the statuses because it is also about who is doing the work
+          // (`wbs-claim-display` 11.2); a Claim it cannot take says why.
+          // Proof: handing `claimActions` null here failed six cases of
+          // plan-claim-actions.test.tsx; watched 2026-10-27.
+          ...claimActions(row.original.readings.claimOffer, {
+            claim: (personId) => {
+              live.current.claimRow(row.original.id, personId);
+            },
+            release: (personId, delegated) => {
+              live.current.releaseRow(row.original.id, personId, delegated);
+            },
           }),
           {
             id: 'add-child',
@@ -66,6 +80,29 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
               void live.current.duplicateRow(row.original.id);
             },
           },
+          {
+            id: 'measures',
+            // Estimates, facts and budgets per measure: a panel and not a
+            // cell, because one row holds five measures' worth of them.
+            label: 'Measures…',
+            run: () => {
+              live.current.openMeasures(row.original.id);
+            },
+          },
+          // What the leaf holds while it runs (`wbs-resources` 1.5): the
+          // Resources cell's panel, here too because the column starts hidden
+          // and a phone has no table. A parent's demand charges nothing.
+          ...(row.subRows.length > 0
+            ? []
+            : [
+                {
+                  id: 'resources',
+                  label: 'Resources…',
+                  run: () => {
+                    live.current.openDemands(row.original.id);
+                  },
+                },
+              ]),
           ...(row.original.frozenNumber === null
             ? []
             : [

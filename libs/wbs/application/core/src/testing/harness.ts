@@ -1,11 +1,16 @@
 import { inMemoryActuals } from '@wbs/store-memory/actual-fixture';
 import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
+import { inMemoryBudgets } from '@wbs/store-memory/budget-fixture';
 import { inMemoryCapacity } from '@wbs/store-memory/capacity-fixture';
 import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
 import { inMemoryDependencies } from '@wbs/store-memory/dependency-fixture';
 import { inMemoryDirectory, memoryDirectoryTables } from '@wbs/store-memory/directory-fixture';
 import { inMemoryEstimates } from '@wbs/store-memory/estimate-fixture';
-import { inMemoryMeasures } from '@wbs/store-memory/measure-fixture';
+import {
+  inMemoryMeasureEstimates,
+  memoryMeasureEstimateTable,
+} from '@wbs/store-memory/measure-estimate-fixture';
+import { inMemoryMeasures, memoryMeasureTable } from '@wbs/store-memory/measure-fixture';
 import { inMemoryWorkItems } from '@wbs/store-memory/memory-work-item-fixture';
 import { inMemoryPriorityBands } from '@wbs/store-memory/priority-band-fixture';
 import { inMemoryProgress } from '@wbs/store-memory/progress-fixture';
@@ -75,6 +80,8 @@ export interface InMemoryPlan {
       | 'estimates'
       | 'actuals'
       | 'measures'
+      | 'measureEstimates'
+      | 'budgets'
       | 'progress'
       | 'attempts'
       | 'blockages'
@@ -135,7 +142,17 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
   });
   const estimates = overrides.estimates ?? inMemoryEstimates(workItems);
   const actuals = overrides.actuals ?? inMemoryActuals(workItems);
-  const measures = overrides.measures ?? inMemoryMeasures(workItems);
+  // One measure table under both stores, so a legacy token estimate reads as
+  // a single-point tokens trio, as in `bindStores`.
+  const measureTable = memoryMeasureTable();
+  const measureEstimateTable = memoryMeasureEstimateTable();
+  const measures =
+    overrides.measures ??
+    inMemoryMeasures(workItems, measureTable, undefined, undefined, measureEstimateTable);
+  const measureEstimates =
+    overrides.measureEstimates ??
+    inMemoryMeasureEstimates(workItems, measureTable, measureEstimateTable);
+  const budgets = overrides.budgets ?? inMemoryBudgets(workItems);
   const progress = overrides.progress ?? inMemoryProgress(workItems);
   const attempts = overrides.attempts ?? inMemoryAttempts(workItems);
   const dependencies = overrides.dependencies ?? inMemoryDependencies([], undefined, workItems);
@@ -200,6 +217,8 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     estimates,
     actuals,
     measures,
+    measureEstimates,
+    budgets,
     progress,
     attempts,
     blockages,

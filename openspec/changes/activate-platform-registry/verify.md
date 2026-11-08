@@ -99,3 +99,10 @@ The final read-only custody audit re-read the host receipts: the deployed runner
 The Docker restore drill initially used an invalid nested readonly environment variable; Distribution2.8 requires the whole JSON readonly section. The restored target directory also needed ownership matching the container. These were corrected only in disposable drill setup, then the complete proof passed. Initial private formatting failures and the final review findings are likewise resolved; they are not counted as passing runs before correction.
 
 The activation requirements and their live/fault proofs are complete. Public publication awaits explicit user approval because of automatic review’s public-disclosure block. Delta sync/archive and product migration were not performed. Offline recovery custody, Dagger engine migration and external alert delivery retain the explicit limits recorded above.
+
+## Source integration note — 2026-11-08
+
+The 2026-10-24 authorization and activation receipts above are historical evidence.
+The current bound-registry-storage revision stages source only, preserves supported
+legacy delivery routing and neither repeats activation nor establishes current
+installed readiness. It grants no new production action.

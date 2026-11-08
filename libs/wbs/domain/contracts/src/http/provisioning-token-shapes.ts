@@ -40,6 +40,7 @@ export const listProvisioningTokens = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/provisioning-tokens',
   operationId: 'getApiOrganizationProvisioningTokens',
+  humanOnly: true,
   policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
@@ -68,6 +69,7 @@ export const issueProvisioningToken = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/provisioning-tokens',
   operationId: 'postApiOrganizationProvisioningTokens',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   responses: [
     {
@@ -96,6 +98,7 @@ export const rotateProvisioningToken = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/provisioning-tokens/:id/rotate',
   operationId: 'postApiOrganizationProvisioningTokensByIdRotate',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [
@@ -108,7 +111,15 @@ export const rotateProvisioningToken = defineEndpointShape({
     },
   ],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    // Proof: with this file's stray-input codes undeclared, be-01's audit `answers every
+    // request-boundary failure the mount can raise with a declared 4xx` listed
+    // the provisioning-token rotate and revoke `invalid_body` (watched 2026-10-24); it guards each widened 400 here.
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     unauthenticated,
     organizationRefusal,
     organizationContextRefusal,
@@ -125,11 +136,17 @@ export const revokeProvisioningToken = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/provisioning-tokens/:id',
   operationId: 'deleteApiOrganizationProvisioningTokensById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     unauthenticated,
     organizationRefusal,
     organizationContextRefusal,

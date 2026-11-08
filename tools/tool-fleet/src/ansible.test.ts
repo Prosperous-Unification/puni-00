@@ -623,6 +623,201 @@ describe('the Ansible host and k3s contract', () => {
     );
   });
 
+  // Proof: deleting bubblewrap and busybox separately from the actual apt task
+  // failed this consumer; no synthetic replacement package list is used.
+  it('installs both system sandbox tools required by canonical gates', async () => {
+    const tasks = parse(
+      await readFile(
+        join(import.meta.dir, '../../../infra/ansible/roles/gate_host/tasks/main.yml'),
+        'utf8',
+      ),
+    ) as { name: string; 'ansible.builtin.apt'?: { name?: string[] } }[];
+    const prerequisites = tasks.find(({ name }) => name === 'Install gate prerequisites');
+    expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('bubblewrap');
+    expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('busybox');
+    expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('gcc');
+    expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('libc6-dev');
+  });
+
+  // H2-A7 (2026-11-04): `content: |` with `join('\\n')` wrote h2puni's five keys as one line and
+  // locked out every caller but the first; the evaluator's E11 to E13 render both forms. The keys
+  // are staged and counted before they replace the live file, so a bad render never reaches it.
+  // Proof: restoring that copy task failed the staging expectation, moving the install above the
+  // staged count failed the order expectation, and dropping the count condition failed the last.
+  it('stages the authorized keys, counts them, then installs them', async () => {
+    const role = join(import.meta.dir, '../../../infra/ansible/roles/gate_host');
+    interface Task {
+      name: string;
+      changed_when?: boolean;
+      register?: string;
+      vars?: Record<string, string>;
+      'ansible.builtin.import_tasks'?: string;
+      'ansible.builtin.copy'?: Record<string, unknown>;
+      'ansible.builtin.template'?: Record<string, string>;
+      'ansible.builtin.file'?: Record<string, string>;
+      'ansible.builtin.command'?: { argv: string[] };
+      'ansible.builtin.assert'?: { that: string[] };
+    }
+    const tasks = parse(await readFile(join(role, 'tasks/main.yml'), 'utf8')) as Task[];
+    const staged = '{{ puni_gate_home }}/.ssh/authorized_keys.staged';
+    const names = tasks.map(({ name }) => name);
+    const first = names.indexOf('Stage the exact gate authorized keys');
+    expect(names.slice(first, first + 4)).toEqual([
+      'Stage the exact gate authorized keys',
+      'Count the staged gate authorized keys',
+      'Install the exact gate authorized keys',
+      'Remove the staged gate authorized keys',
+    ]);
+    const [stage, count, install, remove] = tasks.slice(first, first + 4);
+    expect(stage['ansible.builtin.template']).toEqual({
+      src: 'authorized_keys.j2',
+      dest: staged,
+      owner: '{{ puni_gate_user }}',
+      group: '{{ puni_gate_user }}',
+      mode: '0600',
+    });
+    expect(count['ansible.builtin.import_tasks']).toBe('authorized-keys-count.yml');
+    expect(count.vars).toEqual({ puni_gate_keys_file: staged });
+    expect(install['ansible.builtin.copy']).toEqual({
+      src: staged,
+      dest: '{{ puni_gate_home }}/.ssh/authorized_keys',
+      remote_src: true,
+      owner: '{{ puni_gate_user }}',
+      group: '{{ puni_gate_user }}',
+      mode: '0600',
+    });
+    expect(remove['ansible.builtin.file']).toEqual({ path: staged, state: 'absent' });
+    expect(await readFile(join(role, 'templates/authorized_keys.j2'), 'utf8')).toBe(
+      '{% for key in puni_gate_authorized_keys %}{{ key }}\n{% endfor %}\n',
+    );
+    // h2puni's own mode; the role had widened it to 0755 on apply 1.
+    expect(
+      tasks.find(({ name }) => name === 'Create the heavy-lock directory')?.[
+        'ansible.builtin.file'
+      ]?.['mode'],
+    ).toBe('0700');
+    const validate = parse(await readFile(join(role, 'tasks/validate.yml'), 'utf8')) as Task[];
+    const live = validate.find(({ name }) => name === 'Count the live gate authorized keys');
+    expect(live?.['ansible.builtin.import_tasks']).toBe('authorized-keys-count.yml');
+    expect(live?.vars).toEqual({
+      puni_gate_keys_file: '{{ puni_gate_home }}/.ssh/authorized_keys',
+    });
+    const counted = parse(
+      await readFile(join(role, 'tasks/authorized-keys-count.yml'), 'utf8'),
+    ) as Task[];
+    expect(counted[0]?.['ansible.builtin.command']?.argv).toEqual([
+      'ssh-keygen',
+      '-lf',
+      '{{ puni_gate_keys_file }}',
+    ]);
+    expect(counted[0]?.register).toBe('puni_gate_keys_probe');
+    expect(counted[0]?.changed_when).toBe(false);
+    expect(counted[1]?.['ansible.builtin.assert']?.that).toEqual([
+      'puni_gate_keys_probe.stdout_lines | length == puni_gate_authorized_keys | length',
+    ]);
+  });
+
+  it('requires system resolutions and both literal BusyBox paths in gate validation', async () => {
+    const tasks = parse(
+      await readFile(
+        join(import.meta.dir, '../../../infra/ansible/roles/gate_host/tasks/validate.yml'),
+        'utf8',
+      ),
+    ) as {
+      name: string;
+      become_user?: string;
+      changed_when?: boolean;
+      'ansible.builtin.command'?: { argv: string[] };
+      'ansible.builtin.assert'?: { that: string[] };
+    }[];
+    expect(
+      tasks.find(({ name }) => name === 'Require system sandbox tools')?.['ansible.builtin.assert']
+        ?.that,
+    ).toEqual([
+      "puni_gate_sandbox_probe.stdout_lines[0] == '/usr/bin/bwrap'",
+      "puni_gate_sandbox_probe.stdout_lines[1] is match('^bubblewrap [0-9]')",
+      "puni_gate_sandbox_probe.stdout_lines[2] == '/usr/bin/busybox'",
+    ]);
+    for (const path of ['/bin/busybox', '/usr/bin/busybox']) {
+      const probe = tasks.find((task) => task['ansible.builtin.command']?.argv[0] === path);
+      expect(probe?.['ansible.builtin.command']?.argv).toEqual([path, 'true']);
+      expect(probe?.become_user).toBe('{{ puni_gate_user }}');
+      expect(probe?.changed_when).toBe(false);
+    }
+  });
+
+  // This executes the unchanged parsed command with controlled PATH binaries.
+  // Healthy output proves shell propagation, not the separate system-path assert.
+  for (const fault of [
+    'healthy',
+    'bwrap-missing',
+    'bwrap-nonexecutable',
+    'bwrap-failed',
+    'busybox-missing',
+    'busybox-nonexecutable',
+    'busybox-failed',
+  ] as const) {
+    it(`propagates ${fault} from the exact gate sandbox PATH probe`, async () => {
+      const tasks = parse(
+        await readFile(
+          join(import.meta.dir, '../../../infra/ansible/roles/gate_host/tasks/validate.yml'),
+          'utf8',
+        ),
+      ) as {
+        name: string;
+        become_user?: string;
+        changed_when?: boolean;
+        'ansible.builtin.command'?: { argv: string[] };
+      }[];
+      const probe = tasks.find(
+        ({ name }) => name === 'Resolve sandbox tools the way a remote gate does',
+      );
+      const argv = probe?.['ansible.builtin.command']?.argv;
+      expect(argv).toBeDefined();
+      if (argv === undefined) throw Error('Required gate sandbox probe absent');
+      expect(probe?.become_user).toBe('{{ puni_gate_user }}');
+      expect(probe?.changed_when).toBe(false);
+      const home = await mkdtemp(join(tmpdir(), 'gate-sandbox-probe-'));
+      try {
+        const bin = join(home, 'bin');
+        await mkdir(bin);
+        await writeFile(join(home, '.bashrc'), 'export PATH="$PROBE_BIN"\n');
+        const log = join(home, 'probes');
+        for (const tool of ['bwrap', 'busybox']) {
+          if (fault === `${tool}-missing`) continue;
+          const path = join(bin, tool);
+          await writeFile(
+            path,
+            `#!/bin/sh\nprintf '%s\\n' '${tool}' >> "$PROBE_LOG"\n${fault === `${tool}-failed` ? 'exit 74' : tool === 'bwrap' ? "printf 'bubblewrap 0.0.0\\n'" : 'exit 0'}\n`,
+          );
+          await chmod(path, fault === `${tool}-nonexecutable` ? 0o600 : 0o700);
+        }
+        const execution = Bun.spawnSync(argv, {
+          env: { ...process.env, HOME: home, PROBE_BIN: bin, PROBE_LOG: log },
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: 5000,
+        });
+        if (fault === 'healthy') {
+          expect(execution.exitCode).toBe(0);
+          expect(execution.stdout.toString().trim().split('\n')).toEqual([
+            join(bin, 'bwrap'),
+            'bubblewrap 0.0.0',
+            join(bin, 'busybox'),
+          ]);
+          expect(await readFile(log, 'utf8')).toBe('bwrap\nbusybox\n');
+        } else {
+          expect(execution.exitCode).not.toBe(0);
+          if (fault.endsWith('-failed')) expect(execution.exitCode).toBe(74);
+          if (fault.startsWith('bwrap-'))
+            expect(execution.stdout.toString()).not.toContain(join(bin, 'busybox'));
+        }
+      } finally {
+        await rm(home, { recursive: true });
+      }
+    });
+  }
+
   it('configures a gate host whose lock and toolchain match the gate scripts', async () => {
     const root = join(import.meta.dir, '../../..');
     const defaults = parse(
@@ -645,10 +840,130 @@ describe('the Ansible host and k3s contract', () => {
     // Linux path stayed /home/puni1/...); it takes no override, so the home is the only route.
     expect(linuxLock).toBe(`${defaults['puni_gate_home']}/.cache/wbs-heavy-work.lock`);
     expect(defaults['puni_gate_user']).toBe('puni1');
-    expect(Object.keys(inventory.all.children['gate_hosts']?.hosts ?? {})).toEqual(['h4claw']);
+    expect(Object.keys(inventory.all.children['gate_hosts']?.hosts ?? {})).toEqual([
+      'h4claw',
+      'h2puni',
+    ]);
     expect(Object.keys(inventory.all.children['k3s_bootstrap_servers']?.hosts ?? {})).toEqual([
       'h4claw',
     ]);
+    // The sudo exception is opt-in per host and only h2puni carries it (gate-hosts.md, step 0).
+    // Proof: setting the default to true, and adding the flag to h4claw, each failed this.
+    expect(defaults['puni_gate_account_may_sudo']).toBe<boolean>(false);
+    expect(
+      Object.entries(inventory.all.children['gate_hosts']?.hosts ?? {})
+        .filter(
+          ([, host]) =>
+            (host as Record<string, unknown> | null)?.['puni_gate_account_may_sudo'] === true,
+        )
+        .map(([name]) => name),
+    ).toEqual(['h2puni']);
+    // Only h2puni launches from a second checkout: its dev poller runs solver-image-publish from
+    // ~/wbs-dev/src, which `ops pool switch-mode concurrent` must verify (gate-hosts.md, step 0).
+    // Proof: dropping ~/wbs-dev/src from h2puni's list, and giving h4claw the same list, each
+    // failed this.
+    const poolDefaults: Record<string, unknown> = defaults;
+    expect(poolDefaults['puni_gate_pool_launcher_checkouts']).toEqual([
+      '{{ puni_gate_launcher_checkout }}',
+    ]);
+    expect(
+      Object.fromEntries(
+        Object.entries(inventory.all.children['gate_hosts']?.hosts ?? {}).map(([name, host]) => [
+          name,
+          (host as Record<string, unknown> | null)?.['puni_gate_pool_launcher_checkouts'],
+        ]),
+      ),
+    ).toEqual({
+      h4claw: undefined,
+      h2puni: ['/home/puni1/puni-00-gate-launcher', '/home/puni1/wbs-dev/src'],
+    });
+    // The second token unit beside the Dagger one, created and read by the same looped tasks.
+    // Proof: dropping `docker_build` from the exclusive units, and the loop from either task,
+    // each failed this.
+    expect(poolDefaults['puni_gate_pool_exclusive_units']).toEqual({
+      gate_tree: ['{{ puni_gate_checkout }}', '{{ puni_gate_second_checkout }}'],
+      dagger_engine: ['{{ puni_gate_pool_dagger_unit }}'],
+      docker_build: ['{{ puni_gate_pool_docker_build_unit }}'],
+    });
+    expect(defaults['puni_gate_pool_docker_build_unit']).toBe(
+      '{{ puni_gate_pool_units_root }}/docker_build',
+    );
+    expect(poolDefaults['puni_gate_pool_token_units']).toEqual([
+      '{{ puni_gate_pool_dagger_unit }}',
+      '{{ puni_gate_pool_docker_build_unit }}',
+    ]);
+    const tokenTasks = await Promise.all(
+      (
+        [
+          ['host-pool.yml', 'Create the token units'],
+          ['validate.yml', 'Read the token units'],
+        ] as const
+      ).map(async ([file, name]) => {
+        const roleTasks = parse(
+          await readFile(join(root, 'infra/ansible/roles/gate_host/tasks', file), 'utf8'),
+        ) as {
+          name: string;
+          loop?: string;
+          when?: string;
+          'ansible.builtin.command'?: { argv: string[] };
+        }[];
+        const found = roleTasks.find((candidate) => candidate.name === name);
+        return [found?.loop, found?.['ansible.builtin.command']?.argv.at(-1), found?.when];
+      }),
+    );
+    expect(tokenTasks).toEqual([
+      ['{{ puni_gate_pool_token_units }}', '{{ item }}', undefined],
+      ['{{ puni_gate_pool_token_units }}', '{{ item }}', undefined],
+    ]);
+    // The configuration enrolls the host, so only an enrolled host gets it (S6C-A2).
+    // Proof: removing that task's `when` failed this (`Received: undefined`).
+    const poolTasks = parse(
+      await readFile(join(root, 'infra/ansible/roles/gate_host/tasks/host-pool.yml'), 'utf8'),
+    ) as { name: string; when?: string }[];
+    expect(
+      poolTasks.find((candidate) => candidate.name === 'Write the host pool configuration')?.when,
+    ).toBe('puni_gate_host_pool_enroll');
+    // The launcher refresh pair (dash-host-jobs 6.9) is installed on every gate host, like the
+    // other Dash units, and only its timer is enabled, and only where the host is enrolled.
+    // Proof: dropping either refresh unit from the install loop, the timer from the enable loop,
+    // or the enable task's `when`, each failed this (verify.md Slice 6d, 6d-F8).
+    const unitTasks = Object.fromEntries(
+      (poolTasks as { name: string; when?: string; loop?: string[] }[])
+        .filter((candidate) =>
+          [
+            'Install the Dash user units',
+            'Enable the Dash user units on an enrolled host',
+          ].includes(candidate.name),
+        )
+        .map((candidate) => [candidate.name, { loop: candidate.loop, when: candidate.when }]),
+    );
+    expect(unitTasks).toEqual({
+      'Install the Dash user units': {
+        loop: [
+          'dash-resources-watch.service',
+          'dash-job-audit.service',
+          'dash-job-audit.timer',
+          'gate-launcher-refresh.service',
+          'gate-launcher-refresh.timer',
+        ],
+        when: undefined,
+      },
+      'Enable the Dash user units on an enrolled host': {
+        loop: [
+          'dash-resources-watch.service',
+          'dash-job-audit.timer',
+          'gate-launcher-refresh.timer',
+        ],
+        when: 'puni_gate_host_pool_enroll',
+      },
+    });
+    const poolTemplate = await readFile(
+      join(root, 'infra/ansible/roles/gate_host/templates/host-pool.json.j2'),
+      'utf8',
+    );
+    expect(poolTemplate).toContain(
+      '"launcherCheckouts": {{ puni_gate_pool_launcher_checkouts | to_json }}',
+    );
     // The non-interactive SSH shell a remote gate runs in stops at the guard, so the pinned PATH
     // has to precede it. Proof: moving the PATH line below the guard failed (351 not < 309).
     expect(bashrc.indexOf('export PATH=')).toBeGreaterThan(-1);

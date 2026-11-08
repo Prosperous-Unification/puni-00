@@ -1,0 +1,60 @@
+{
+  "roles": [
+    {
+      "name": "lab-raw-repair.py",
+      "bytes": 115650,
+      "allocatedBytes": 118784,
+      "baselineBytes": 114265,
+      "unchanged": false,
+      "sha256": "b68f9e7409da4a4b71b3a131b6da0dcb2cce976d4f512f8b2bd8d34b86e4ac67"
+    },
+    {
+      "name": "lab-raw-preparation.py",
+      "bytes": 55284,
+      "allocatedBytes": 57344,
+      "baselineBytes": 55284,
+      "unchanged": true,
+      "sha256": "3e78d2ea8aecced76bd82ea07fb006ce99a1b2212fec15fb805a8e8f7b27e8e8"
+    },
+    {
+      "name": "lab-repair-worker.py",
+      "bytes": 94255,
+      "allocatedBytes": 98304,
+      "baselineBytes": 88773,
+      "unchanged": false,
+      "sha256": "4735a0a4276ebde32a99c17b81942453013c01cf7b041cc6bbf9f30a37b9b482"
+    },
+    {
+      "name": "lab-seed-preparation.py",
+      "bytes": 53199,
+      "allocatedBytes": 53248,
+      "baselineBytes": 53199,
+      "unchanged": true,
+      "sha256": "a226b0fb582fb41636d04e83c5e7e1a54640811cd16cee465341835aa7c24c88"
+    },
+    {
+      "name": "lab-guest-preparation.py",
+      "bytes": 80680,
+      "allocatedBytes": 81920,
+      "baselineBytes": 80680,
+      "unchanged": true,
+      "sha256": "6d180f9c1d2cd116ef314215a75c88774789d29daa882f81fbbf06a2e9263f2c"
+    },
+    {
+      "name": "lab-raw-allocation.py",
+      "bytes": 15534,
+      "allocatedBytes": 16384,
+      "baselineBytes": 15534,
+      "unchanged": true,
+      "sha256": "be25ffe1740848c2dad861d87f42123a1a1664c8ffc0df6aa0a3062cf4d13ea8"
+    }
+  ],
+  "totalBytes": 414602,
+  "roundedRoleBytes": 425984,
+  "baselineBytes": 407735,
+  "perRoleLimit": 131072,
+  "aggregateLimit": 786432,
+  "K": 33554432,
+  "surplus": 5537792,
+  "historicalControlSha256": "92c5011dac4c803c2f1e241f069f454d94c27ebdb17f9f5b199b5f7e6dd7ab7c"
+}

@@ -49,6 +49,8 @@ test('every scenario row names at least one capture or test', () => {
     'Bot check refused',
     'Lost or missing claim',
     'Cancelled sign-in',
+    'Versioned start',
+    'Selectable answers',
     'Operator inbox',
   ]);
   for (const row of rows) expect(row[2]?.match(/`[^`]+:[^`]+`/g)?.length ?? 0).toBeGreaterThan(0);

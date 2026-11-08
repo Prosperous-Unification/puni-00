@@ -127,6 +127,8 @@ const ROW_KEYS: Readonly<Record<string, readonly string[] | undefined>> = {
   stepBlockages: ['workItemId', 'stepId'],
   stepParallels: ['workItemId', 'stepId'],
   measures: ['workItemId', 'stepId', 'metric'],
+  measureEstimates: ['workItemId', 'stepId', 'key'],
+  budgets: ['workItemId', 'key'],
   dependencies: ['predecessorId', 'successorId'],
   typedDependencies: ['id'],
   assignments: ['workItemId', 'stepId', 'personId'],
@@ -197,6 +199,10 @@ const FIELD_CATEGORIES: Readonly<
 const COLLECTION_CATEGORIES: Readonly<Record<string, PlanDiffCategory | undefined>> = {
   project: 'settings',
   measures: 'measures',
+  // A trio or a budget in any measure other than time reads as a measure
+  // change (`wbs-measure-budgets` design D66); the factor is a setting.
+  measureEstimates: 'measures',
+  budgets: 'measures',
   stepBlockages: 'progress',
   stepParallels: 'capacity',
   dependencies: 'dependencies',

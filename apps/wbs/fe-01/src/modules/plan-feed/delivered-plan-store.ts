@@ -1,4 +1,4 @@
-import type { DirectoryRead, RefreshResource } from '@/lib/plan-refresh';
+import type { DirectoryRead, InstalledClaims, RefreshResource } from '@/lib/plan-refresh';
 import type { CalendarMarkerView, PlanRead, StepView } from '@/lib/wbs-api';
 import { createChannel } from '@/modules/channel';
 import type { Store } from '@/modules/store';
@@ -35,6 +35,11 @@ export interface DeliveredPlan {
    */
   readonly steps: StepView[];
   readonly markers: readonly CalendarMarkerView[];
+  /**
+   * The newest installed claims read, or null before the first: claims are
+   * optional (`wbs-claim-display` C12), so null draws no chips.
+   */
+  readonly claims: InstalledClaims | null;
   readonly connected: boolean;
 }
 
@@ -46,7 +51,7 @@ export interface DeliveredPlan {
  * changes no member leaves the snapshot the same object and tells nobody; a
  * write that changes one replaces the snapshot once and tells every listener
  * once, after the replacement. "Changes" is decided per member: by identity for
- * the tree, the directory and the markers (each delivery of them is a new
+ * the tree, the directory, the markers and the claims (each delivery of them is a new
  * generation); by content for the steps (id and name, in order) and for the
  * stale list; by the identity of the **cause** for the tree failure, because
  * the feed builds a fresh wrapper around the same cause on every publication;
@@ -77,6 +82,7 @@ function nothingDelivered(): DeliveredPlan {
     tree: null,
     steps: [],
     markers: [],
+    claims: null,
     connected: true,
   };
 }
@@ -149,16 +155,21 @@ export function createDeliveredPlan(): DeliveredPlanStore {
             // false`.
             [...delivery.steps];
       const markers = delivery.markers ?? current.markers;
+      // Proof: on 2026-10-24, `current.claims` here (the delivery ignored) failed `folds every
+      // publication exactly as the model does, and changes only when it must` after 1 run on
+      // `deliverLater #0: a new snapshot exactly when something changed: expected false to be true`.
+      const claims = delivery.claims ?? current.claims;
       if (
         staleResources === current.staleResources &&
         treeFailure === current.treeFailure &&
         directory === current.directory &&
         tree === current.tree &&
         steps === current.steps &&
-        markers === current.markers
+        markers === current.markers &&
+        claims === current.claims
       )
         return;
-      replace({ ...current, staleResources, treeFailure, directory, tree, steps, markers });
+      replace({ ...current, staleResources, treeFailure, directory, tree, steps, markers, claims });
     },
     reportConnection: (connected) => {
       if (connected === current.connected) return;

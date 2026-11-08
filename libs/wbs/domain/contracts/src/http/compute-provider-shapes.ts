@@ -4,7 +4,8 @@ import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
-const providerKind = "'ssh_host' | 'docker' | 'kubernetes' | 'puni_pool'";
+/** The four instance kinds (`compute-providers` P1), as every provider shape spells them. */
+export const providerKind = "'ssh_host' | 'docker' | 'kubernetes' | 'puni_pool'";
 
 /**
  * One provider instance as listed (`compute-providers` P2): its kind, its name
@@ -54,6 +55,7 @@ export const listComputeProviders = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/compute-providers',
   operationId: 'getApiOrganizationCompute-providers',
+  humanOnly: true,
   policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
@@ -75,6 +77,7 @@ export const registerComputeProvider = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/compute-providers',
   operationId: 'postApiOrganizationCompute-providers',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(
     type({ kind: providerKind, name: '0 < string <= 80', locator: '0 < string <= 256' }),
@@ -93,6 +96,7 @@ export const updateComputeProvider = defineEndpointShape({
   method: 'PATCH',
   path: '/api/organization/compute-providers/:id',
   operationId: 'patchApiOrganizationCompute-providersById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   body: requestSchema(type({ 'name?': '0 < string <= 80', 'locator?': '0 < string <= 256' })),
@@ -115,6 +119,7 @@ export const removeComputeProvider = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/compute-providers/:id',
   operationId: 'deleteApiOrganizationCompute-providersById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   query: requestSchema(type({ 'cascade?': "'true'" })),
@@ -145,7 +150,13 @@ export const capacityReport = type({
   providerId: 'string',
   observedAt: 'number',
   cadenceSeconds: 'number',
-  outcome: type({ kind: "'measured'", capacityUnits: 'number', usageUnits: 'number' }).or({
+  outcome: type({
+    kind: "'measured'",
+    capacityUnits: 'number',
+    usageUnits: 'number',
+    'reservedUnits?': 'number',
+    'reservedDimension?': 'string',
+  }).or({
     kind: "'unreachable'",
     reason: 'string',
   }),
@@ -154,6 +165,8 @@ export const capacityReport = type({
 });
 
 const units = '0 <= number.integer <= 1000000000';
+/** A host pool dimension (`cpuCores`, `memoryGib`, `tmpDiskGib`) or an exclusive id (`gate_tree`). */
+const reservedDimension = /^(?:cpuCores|memoryGib|tmpDiskGib|[a-z][a-z0-9_]{0,63})$/;
 
 /**
  * Stores the latest capacity report of one resource (`compute-providers` P5,
@@ -166,6 +179,11 @@ const units = '0 <= number.integer <= 1000000000';
  * answers the stored report; a newer `observedAt` replaces it; anything else
  * is `report_superseded` with the stored instant. `observedAt` is epoch
  * milliseconds at most five minutes ahead of WBS (`observedAt_in_future`).
+ * A measured outcome may carry `reservedUnits` beside `usageUnits`
+ * (`dash-host-jobs` J10): what the host pool's ledger reserves, kept apart from
+ * what the adapter measured, with `reservedDimension` naming the host pool
+ * dimension they count (both or neither, else `invalid_body`); a body without
+ * them is stored and answered as before.
  * Never audited, never a planning input.
  */
 export const putCapacityReport = defineEndpointShape({
@@ -178,7 +196,13 @@ export const putCapacityReport = defineEndpointShape({
     type({
       observedAt: 'number.integer >= 0',
       cadenceSeconds: '30 <= number.integer <= 86400',
-      outcome: type({ kind: "'measured'", capacityUnits: units, usageUnits: units }).or({
+      outcome: type({
+        kind: "'measured'",
+        capacityUnits: units,
+        usageUnits: units,
+        'reservedUnits?': units,
+        'reservedDimension?': reservedDimension,
+      }).or({
         kind: "'unreachable'",
         reason: '0 < string <= 200',
       }),

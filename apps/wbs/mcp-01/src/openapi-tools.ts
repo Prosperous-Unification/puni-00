@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { documentFromShapes, httpShapes } from '@wbs/contracts';
+import { documentFromShapes, documentPathOf, type EndpointShape, httpShapes } from '@wbs/contracts';
 
 /**
  * Derives MCP inputs from generated shared descriptors, never a hand-listed tool table.
@@ -75,7 +75,9 @@ export interface OpenApiDocument {
 }
 
 /**
- * D1's required exclusion classes, as one named set.
+ * D1's required exclusion classes, as one named set: the paths that are no tool by what they
+ * are, not by who may use them. Administration is tagged `humanOnly` on its shape instead
+ * ({@link humanOnlyOperationsOf}, `wbs-mcp-agent-surface` M8).
  *
  * `/api/auth/*` would make this a credential factory; `/internal/*` is gw-01's
  * surface behind a different secret; smoke carries no plan. Browser
@@ -89,46 +91,38 @@ export const EXCLUDED_PATHS: readonly string[] = [
   '/api/auth/*',
   '/internal/*',
   '/api/smoke/echo',
-  // Proof: removing either path independently made the production-document
-  // exclusion test expose its GET or POST tool (0/1 for each mutation).
-  '/api/organization/memberships',
   // Proof: removing this path exposed getApiOrganizationActive and failed
   // the generated current-context discovery exclusion; watched 2026-10-13.
   '/api/organization/active',
-  // A provisioning token is a credential, so issuing one is a credential
-  // factory exactly as `/api/auth/*` is (`organization-scim`).
-  // Proof: removing either entry made `keeps provisioning-token
-  // administration out of the generated MCP tools` expose its tools (0/1 for
-  // each, watched 2026-10-12).
-  '/api/organization/provisioning-tokens',
-  '/api/organization/provisioning-tokens/*',
-  // A machine credential is a credential for the same reason, and be-01
-  // refuses every delegation on these routes (`wbs-machine-credentials` A12,
-  // A23), so as tools they could only ever answer `insufficient_scope`.
-  // Proof: removing either entry made `keeps machine credential
-  // administration out of the generated MCP tools` expose its tools; watched
-  // 2026-10-22.
-  '/api/organization/machine-credentials',
-  '/api/organization/machine-credentials/*',
-  // A trusted issuer admits machines for every person of its organization,
-  // and be-01 refuses every delegation on these routes as well.
-  // Proof: removing either entry made `keeps trusted issuer administration
-  // out of the generated MCP tools` expose its tools; watched 2026-10-22.
-  '/api/organization/trusted-issuers',
-  '/api/organization/trusted-issuers/*',
-  // A provider instance admits capacity reports every project sees, and
-  // be-01 refuses every delegation on its administration routes
-  // (`compute-providers` P2); a capacity report is accepted from a machine
-  // credential alone (P6), so an MCP session could only meet
-  // `not_an_agent_principal`.
-  // Proof: removing the two administration entries made `keeps compute
-  // provider administration and capacity reports out of the generated MCP
-  // tools` expose its four tools, and removing the report entry exposed the
-  // `putApiCompute-providers…` tool; watched 2026-10-22.
-  '/api/organization/compute-providers',
-  '/api/organization/compute-providers/*',
-  '/api/compute-providers/*',
 ];
+
+/** One operation a `humanOnly` shape declares, as the document names it. */
+export interface HumanOnlyOperation {
+  readonly method: HttpMethod;
+  readonly path: string;
+  readonly operationId: string;
+}
+
+/** The operations of the `humanOnly` shapes in `shapes`, in the document's spelling. */
+export function humanOnlyOperationsOf(shapes: readonly EndpointShape[]): HumanOnlyOperation[] {
+  return shapes
+    .filter((shape) => shape.humanOnly === true)
+    .map((shape) => ({
+      method: methodOf(shape.method),
+      path: documentPathOf(shape.path),
+      operationId: shape.operationId,
+    }));
+}
+
+/** The production policy: every `humanOnly` shape of the shared table. */
+export const HUMAN_ONLY_OPERATIONS: readonly HumanOnlyOperation[] =
+  humanOnlyOperationsOf(httpShapes);
+
+function methodOf(method: EndpointShape['method']): HttpMethod {
+  const lower = method.toLowerCase();
+  if (!isMethod(lower)) throw new Error(`${method} is not an HTTP method mcp-01 derives`);
+  return lower;
+}
 
 /** What the MCP protocol accepts as a tool name; `operationId` must already fit. */
 const TOOL_NAME = /^[a-zA-Z0-9_-]{1,128}$/;
@@ -152,8 +146,9 @@ const exclusionFor = (path: string): string | undefined =>
 /** Whether this path of the document becomes no tool. */
 export const isExcluded = (path: string): boolean => exclusionFor(path) !== undefined;
 
-const isMethod = (key: string): key is HttpMethod =>
-  (HTTP_METHODS as readonly string[]).includes(key);
+function isMethod(key: string): key is HttpMethod {
+  return (HTTP_METHODS as readonly string[]).includes(key);
+}
 
 const joinProse = (...parts: (string | undefined)[]): string =>
   parts
@@ -270,18 +265,22 @@ function toTool(method: HttpMethod, path: string, operation: OpenApiOperation): 
 /**
  * Every operation in the document that is not excluded, as a tool.
  *
- * @throws if an entry in {@link EXCLUDED_PATHS} matches nothing in the
- * document. An exclusion that has stopped matching is a route that has moved,
+ * @throws if an entry in {@link EXCLUDED_PATHS}, or an operation in `humanOnly`
+ * (by default every `humanOnly` shape, M8), matches nothing in the document. An exclusion that has stopped matching is a route that has moved,
  * and the failure it hides — the list excluding less than it reads, a renamed
  * `/internal/*` reappearing as a callable tool — is silent everywhere else.
  */
-export function toolsFromDocument(document: OpenApiDocument): DerivedTool[] {
+export function toolsFromDocument(
+  document: OpenApiDocument,
+  humanOnly: readonly HumanOnlyOperation[] = HUMAN_ONLY_OPERATIONS,
+): DerivedTool[] {
   const paths = document.paths;
   if (paths === undefined || Object.keys(paths).length === 0) {
     throw new Error('the OpenAPI document has no paths, so no tools can be derived from it.');
   }
 
   const matched = new Set<string>();
+  const humanOnlyMatched = new Set<HumanOnlyOperation>();
   const tools: DerivedTool[] = [];
   const seen = new Map<string, string>();
 
@@ -292,6 +291,17 @@ export function toolsFromDocument(document: OpenApiDocument): DerivedTool[] {
       const pattern = exclusionFor(path);
       if (pattern !== undefined) {
         matched.add(pattern);
+        continue;
+      }
+      // Proof: with this skip removed, `emits no tool for any of D1’s three exclusion classes`
+      // (openapi-tools.test.ts) found getApiOrganizationMemberships as a tool, and deriving the
+      // generated document threw at POST /api/organization/machine-credentials, whose body is
+      // no JSON object; watched 2026-10-28.
+      const administration = humanOnly.find(
+        (operation) => operation.method === key && operation.path === path,
+      );
+      if (administration !== undefined) {
+        humanOnlyMatched.add(administration);
         continue;
       }
       const tool = toTool(key, path, operation);
@@ -311,6 +321,17 @@ export function toolsFromDocument(document: OpenApiDocument): DerivedTool[] {
   if (stale.length > 0) {
     throw new Error(
       `the exclusion list names ${stale.map((pattern) => `"${pattern}"`).join(', ')}, which the document no longer contains. A route that moved must be re-excluded under its new path, or dropped from the list deliberately — see design.md D1.`,
+    );
+  }
+
+  const unmatched = humanOnly.filter((operation) => !humanOnlyMatched.has(operation));
+  // A tag that matches nothing protects nothing: the route it meant may be served under
+  // another path or method, as a tool.
+  // Proof: with this guard removed, `refuses to start when a humanOnly shape matches no
+  // operation` (openapi-tools.test.ts) returned tools instead of throwing; watched 2026-10-28.
+  if (unmatched.length > 0) {
+    throw new Error(
+      `the humanOnly shapes ${unmatched.map((operation) => `${operation.method.toUpperCase()} ${operation.path} (${operation.operationId})`).join(', ')} match no operation of the document, so mcp-01 cannot show they are no tool (wbs-mcp-agent-surface M8).`,
     );
   }
 

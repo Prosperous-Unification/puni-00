@@ -42,3 +42,14 @@ binding manifests and referenced versions. Reconcile ownership, surviving worker
 uncertain effects before retry. S7a's safe compatibility runtime precedes deployment and
 real dogfood; S7b adds the required type-specific DAG integration. Storage ports specify
 atomic semantics; adapter schemas and migration mechanisms remain implementation details.
+
+## G2 decision history, 2026-10-25
+
+The earlier WBS-only direction, restored by PR 749, withdrew RunStore and ArtifactStore and
+placed all run facts in WBS. The owner's later comparison selected durable execution facts
+and receipt-based reconciliation in [ADR 0061](0061-execution-facts-survive-coordinator-restart.md),
+superseding that withdrawal. WBS retains scheduling, claims, business attempts, progress and
+measures; semantic execution/artifact ports retain the facts needed to reconcile sessions,
+effects and WBS acceptance. Scheduling is rebuilt from WBS and accepted execution facts,
+without persisting the walk. ADR 0061 accepts this recovery foundation, not this proposed
+SDK decision as a whole or incomplete S7a implementation and recovery proofs.

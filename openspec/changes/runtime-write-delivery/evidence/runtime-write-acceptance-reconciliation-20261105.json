@@ -1,0 +1,676 @@
+{
+  "schema": 1,
+  "scope": "Additive reconciliation of the three named proof gaps. Original historical reports remain immutable; current release acceptance remains pending.",
+  "originalReport": {
+    "path": "/home/df/wd/puni/puni-00/.superpowers/sdd/agentic-resume-20261104/runtime-scenario-proof-reconciliation.json",
+    "sha256": "9a4bf91e612b166d544845d514d0fdec1982185e67bf237ecacb935ba446924e",
+    "requirements": 9,
+    "scenarios": 26,
+    "historicalObservations": 468,
+    "ownerHashCheckpointMatches": 200,
+    "reconstructedSameCaseLaterGreens": 16,
+    "helperBindingLimits": 373
+  },
+  "source": {
+    "commit": "178d1a7bc90fe296b2e2e359e41f60c40f3a6896",
+    "productionSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+    "contractSha256": "aaec194cd1b0cb853802a90ed052402f39610306f0554881b3fbcbc2bdb75dab",
+    "productionChanges": "three Proof comments; executable production unchanged"
+  },
+  "controls": [
+    {
+      "id": "C01",
+      "closes": "delivery-cancel-before-renewal",
+      "scenarioIds": ["S10", "S26"],
+      "status": "observed on both actual memory and SQLite providers; independently reviewed",
+      "classification": "lease/phase ordering; inherited later cancellation and client preflight remain installed",
+      "observation": "Pre-aborted original durable stage performs zero renewals when guarded. Removing only the first cancellation return renews the actual lease and makes takeover at the original expiry owner_busy on both providers. This replaces the missing early-check observation without claiming a held-stage cut or guard-alone network safety.",
+      "records": [
+        {
+          "phase": "early",
+          "receiptPath": "/home/df/.codex/worktrees/9a53/puni-00/.superpowers/sdd/runtime-write-acceptance-tasks/task1-evidence-v2/early/runner.receipt.json",
+          "receiptSha256": "496251220392f04829034532ab9709aef83b3574c38def52d5cf8f692b6763f3",
+          "nativeChild": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/deliver-outcome.test.ts",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/deliver-outcome.db.test.ts",
+              "--test-name-pattern",
+              "write dispatch.*pre-aborted outcome"
+            ],
+            "pid": 923881,
+            "exitCode": 1,
+            "signalCode": null,
+            "stdout": "test.stdout.log",
+            "stderr": "test.stderr.log",
+            "stdoutSha256": "e71e9dad74e17568a372f36697ed69d313655ab3ce77d5a32e6c2d7e4710fdca",
+            "stderrSha256": "abf39985cd0919d034ff13b9a63b1ffa1b609faab34db52bca80861480600e84",
+            "regularExclusiveFiles": true
+          },
+          "source": {
+            "beforeSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "executedSha256": "60db52d10200c239833f6502a56f6c1729422b407e47aab27aba2bb5f28e7906",
+            "restoredSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "contractSha256": "aaec194cd1b0cb853802a90ed052402f39610306f0554881b3fbcbc2bdb75dab",
+            "mutation": true
+          },
+          "counts": {
+            "pass": 0,
+            "fail": 2,
+            "filtered": 49
+          }
+        },
+        {
+          "phase": "early-restored",
+          "receiptPath": "/home/df/.codex/worktrees/9a53/puni-00/.superpowers/sdd/runtime-write-acceptance-tasks/task1-evidence-v2/early-restored/runner.receipt.json",
+          "receiptSha256": "e6ff96e0171a05bb95075d7e28af294a0c9386fef90a87d297aa4f77d33ca42b",
+          "nativeChild": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/deliver-outcome.test.ts",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/deliver-outcome.db.test.ts",
+              "--test-name-pattern",
+              "write dispatch.*pre-aborted outcome"
+            ],
+            "pid": 924293,
+            "exitCode": 0,
+            "signalCode": null,
+            "stdout": "test.stdout.log",
+            "stderr": "test.stderr.log",
+            "stdoutSha256": "25070d2c1a353c9807e2b374e9a7441798189ca3ec63d817ff7811bd51d7172f",
+            "stderrSha256": "89f86bc6ac93fac1d5bd8af285ef2fa62e532602c5b9c67bfa12ba245fd0eeb6",
+            "regularExclusiveFiles": true
+          },
+          "source": {
+            "beforeSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "executedSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "restoredSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "contractSha256": "aaec194cd1b0cb853802a90ed052402f39610306f0554881b3fbcbc2bdb75dab",
+            "mutation": false
+          },
+          "counts": {
+            "pass": 2,
+            "fail": 0,
+            "filtered": 49
+          }
+        }
+      ]
+    },
+    {
+      "id": "C02",
+      "closes": "delivery-cancel-after-renewal",
+      "scenarioIds": ["S10", "S26"],
+      "status": "observed on both actual memory and SQLite providers; independently reviewed",
+      "classification": "client-entry/phase ordering; inherited aborted-signal preflight still prevents transport",
+      "observation": "Abort while the actual provider renewal acknowledgement is held; release/drain it. Guarded delivery remains pending/cancelled_before_dispatch with original outcome/obligation/capacity and no acceptance/POST. Removing only the second cancellation return enters the real validated client once and produces cancelled/unconfirmed instead of cancelled_before_dispatch.",
+      "records": [
+        {
+          "phase": "late",
+          "receiptPath": "/home/df/.codex/worktrees/9a53/puni-00/.superpowers/sdd/runtime-write-acceptance-tasks/task1-evidence-v2/late/runner.receipt.json",
+          "receiptSha256": "15fd22f6d9ff78ccbd89431644f5c0a862c7604410d0de8f715c1dec9f487a85",
+          "nativeChild": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/deliver-outcome.test.ts",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/deliver-outcome.db.test.ts",
+              "--test-name-pattern",
+              "write dispatch.*abort during held renewal"
+            ],
+            "pid": 925067,
+            "exitCode": 1,
+            "signalCode": null,
+            "stdout": "test.stdout.log",
+            "stderr": "test.stderr.log",
+            "stdoutSha256": "1e51067b0b9446885182ee70056e8cabf8164ae5ae3cc262d16d30b133d4c242",
+            "stderrSha256": "706e77d901abddcc67f71684d9f02058be547c8be84eb941a00cf19c981ccee4",
+            "regularExclusiveFiles": true
+          },
+          "source": {
+            "beforeSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "executedSha256": "5e88212a70c5d9bf0561866a2af1ed92af438e78e7f8fac513f0f8ec52a9b4b0",
+            "restoredSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "contractSha256": "aaec194cd1b0cb853802a90ed052402f39610306f0554881b3fbcbc2bdb75dab",
+            "mutation": true
+          },
+          "counts": {
+            "pass": 0,
+            "fail": 2,
+            "filtered": 49
+          }
+        },
+        {
+          "phase": "late-restored",
+          "receiptPath": "/home/df/.codex/worktrees/9a53/puni-00/.superpowers/sdd/runtime-write-acceptance-tasks/task1-evidence-v2/late-restored/runner.receipt.json",
+          "receiptSha256": "4685017c106171cfb68fe8f14e9a22ba6e9269fcf5638c3d724ff51f640eee9b",
+          "nativeChild": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/deliver-outcome.test.ts",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/deliver-outcome.db.test.ts",
+              "--test-name-pattern",
+              "write dispatch.*abort during held renewal"
+            ],
+            "pid": 925509,
+            "exitCode": 0,
+            "signalCode": null,
+            "stdout": "test.stdout.log",
+            "stderr": "test.stderr.log",
+            "stdoutSha256": "f1f4ee754bd1490f4e9fe8a335a28cf9675a81eb43d436a4e7324695f10e84c8",
+            "stderrSha256": "3f44bdedbfdb1cf8ed0aac2a8fbbcd0d9e35275918b03f6d80036a2e25e0a23e",
+            "regularExclusiveFiles": true
+          },
+          "source": {
+            "beforeSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "executedSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "restoredSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "contractSha256": "aaec194cd1b0cb853802a90ed052402f39610306f0554881b3fbcbc2bdb75dab",
+            "mutation": false
+          },
+          "counts": {
+            "pass": 2,
+            "fail": 0,
+            "filtered": 49
+          }
+        }
+      ]
+    },
+    {
+      "id": "C03",
+      "closes": "held-verification-winner",
+      "scenarioIds": ["S04", "S26"],
+      "status": "observed on both actual memory and SQLite providers; independently reviewed",
+      "classification": "actual-provider immutable acknowledgement and duplicate sender election",
+      "observation": "First caller waits in a real retained-artifact read; identical peer stages and accepts. Released first caller receives the complete immutable original pending-stage acknowledgement while current state is terminal. Disabling only the duplicate-election condition with && false produces a second applyRuntimeCommands POST after original acknowledgement identity succeeds.",
+      "records": [
+        {
+          "phase": "duplicate",
+          "receiptPath": "/home/df/.codex/worktrees/9a53/puni-00/.superpowers/sdd/runtime-write-acceptance-tasks/task1-evidence-v2/duplicate/runner.receipt.json",
+          "receiptSha256": "8bc4cc4b936211a88ee77143d22bc58af8bfb6f75f93ac12b1ec855d0cf7b5a7",
+          "nativeChild": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/deliver-outcome.test.ts",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/deliver-outcome.db.test.ts",
+              "--test-name-pattern",
+              "write dispatch.*held verification duplicate"
+            ],
+            "pid": 926001,
+            "exitCode": 1,
+            "signalCode": null,
+            "stdout": "test.stdout.log",
+            "stderr": "test.stderr.log",
+            "stdoutSha256": "18726e58e8f5b0ca2bf05b8730a246871e1c850bd2ef969a6671b0eb05b88696",
+            "stderrSha256": "a27642ba92de964d064f31756150dafec79905073fc1e4431aaa984635c5778c",
+            "regularExclusiveFiles": true
+          },
+          "source": {
+            "beforeSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "executedSha256": "2ed7a8171cac896c79fc241590f6a488b2b22c07f50e89b77cc151342872d6fe",
+            "restoredSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "contractSha256": "aaec194cd1b0cb853802a90ed052402f39610306f0554881b3fbcbc2bdb75dab",
+            "mutation": true
+          },
+          "counts": {
+            "pass": 0,
+            "fail": 2,
+            "filtered": 49
+          }
+        },
+        {
+          "phase": "duplicate-restored",
+          "receiptPath": "/home/df/.codex/worktrees/9a53/puni-00/.superpowers/sdd/runtime-write-acceptance-tasks/task1-evidence-v2/duplicate-restored/runner.receipt.json",
+          "receiptSha256": "764f3ca77a39ae0fe635da882ba9d2237e8459e7d02fb731d1d535f091d4ce71",
+          "nativeChild": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/deliver-outcome.test.ts",
+              "./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/deliver-outcome.db.test.ts",
+              "--test-name-pattern",
+              "write dispatch.*held verification duplicate"
+            ],
+            "pid": 926471,
+            "exitCode": 0,
+            "signalCode": null,
+            "stdout": "test.stdout.log",
+            "stderr": "test.stderr.log",
+            "stdoutSha256": "1b6f5187d30579363d915af05ab04e0429ee984f84667848b1862ff2cc3b9651",
+            "stderrSha256": "451529b07315d7036764c1a19c4b040a61d86f80ae038dfdc2d38fa0eea122a1",
+            "regularExclusiveFiles": true
+          },
+          "source": {
+            "beforeSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "executedSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "restoredSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+            "contractSha256": "aaec194cd1b0cb853802a90ed052402f39610306f0554881b3fbcbc2bdb75dab",
+            "mutation": false
+          },
+          "counts": {
+            "pass": 2,
+            "fail": 0,
+            "filtered": 49
+          }
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "S01",
+      "requirement": 1,
+      "name": "Late staging failure rolls back every consequence",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S02",
+      "requirement": 1,
+      "name": "Valid staging releases only the local reservation",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S03",
+      "requirement": 1,
+      "name": "Fresh authority and target conflicts preserve state",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S04",
+      "requirement": 2,
+      "name": "Another sender wins during a held verification read",
+      "originalStatus": "missing exact scenario",
+      "currentStatus": "named proof gap resolved by reviewed supplemental actual-provider controls; historical scope limits retained",
+      "supplementalControls": ["C03"]
+    },
+    {
+      "id": "S05",
+      "requirement": 2,
+      "name": "Delayed replay does not return today's attempt",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S06",
+      "requirement": 2,
+      "name": "Mutable caller values cannot change retained work",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S07",
+      "requirement": 2,
+      "name": "A permitted lexical ID match remains recoverable",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S08",
+      "requirement": 3,
+      "name": "A lost sender reply does not repeat an effect",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S09",
+      "requirement": 3,
+      "name": "A crash before POST remains conservatively pending",
+      "originalStatus": "proved within process-crash scope",
+      "currentStatus": "proved within process-crash scope",
+      "supplementalControls": []
+    },
+    {
+      "id": "S10",
+      "requirement": 3,
+      "name": "Aborted delivery retains durable completion",
+      "originalStatus": "partial: missing live-abort cut and two R5 observations",
+      "currentStatus": "named proof gap resolved by reviewed supplemental actual-provider controls; historical scope limits retained",
+      "supplementalControls": ["C01", "C02"]
+    },
+    {
+      "id": "S11",
+      "requirement": 4,
+      "name": "Malformed or mismatched accepted bytes cannot close work",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S12",
+      "requirement": 4,
+      "name": "Late closure failure preserves the pending bundle",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S13",
+      "requirement": 4,
+      "name": "Another local acceptance identity cannot borrow a winner",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S14",
+      "requirement": 5,
+      "name": "Accepted write recovery closes both histories atomically",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S15",
+      "requirement": 5,
+      "name": "Fenced nonacceptance remains unsendable",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S16",
+      "requirement": 5,
+      "name": "Bounded contention preserves unresolved work",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S17",
+      "requirement": 6,
+      "name": "Coherent projection cannot hide missing provenance",
+      "originalStatus": "proved within asserted corruption matrix",
+      "currentStatus": "proved within asserted corruption matrix",
+      "supplementalControls": []
+    },
+    {
+      "id": "S18",
+      "requirement": 6,
+      "name": "Historical generic outboxes stay local facts",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S19",
+      "requirement": 7,
+      "name": "A downgrade wins between inspection and authoritative admission",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S20",
+      "requirement": 7,
+      "name": "Supported non-WAL state retains safe admission",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S21",
+      "requirement": 7,
+      "name": "Genuine populated predecessor round-trips while unused",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S22",
+      "requirement": 7,
+      "name": "Used successor cannot discard write history",
+      "originalStatus": "proved",
+      "currentStatus": "proved",
+      "supplementalControls": []
+    },
+    {
+      "id": "S23",
+      "requirement": 7,
+      "name": "Old writer crosses the migration boundary",
+      "originalStatus": "proved within retained real-process protocols",
+      "currentStatus": "proved within retained real-process protocols",
+      "supplementalControls": []
+    },
+    {
+      "id": "S24",
+      "requirement": 8,
+      "name": "The design maps admission to PostgreSQL transaction locks",
+      "originalStatus": "proved design only; executable adapter inapplicable",
+      "currentStatus": "proved design only; executable adapter inapplicable",
+      "supplementalControls": []
+    },
+    {
+      "id": "S25",
+      "requirement": 9,
+      "name": "Real crash cuts distinguish committed bundles",
+      "originalStatus": "proved within owned SIGKILL scope",
+      "currentStatus": "proved within owned SIGKILL scope",
+      "supplementalControls": []
+    },
+    {
+      "id": "S26",
+      "requirement": 9,
+      "name": "Bypassed guard makes the named negative fail",
+      "originalStatus": "incomplete for all-new-check quantifier",
+      "currentStatus": "named proof gap resolved by reviewed supplemental actual-provider controls; historical scope limits retained",
+      "supplementalControls": ["C01", "C02", "C03"]
+    }
+  ],
+  "requirementStatus": [
+    {
+      "id": "R1",
+      "name": "Completion and request stage together",
+      "status": "proved within bounded semantic/proof scope",
+      "scenarioIds": ["S01", "S02", "S03"]
+    },
+    {
+      "id": "R2",
+      "name": "Replay preserves original identities",
+      "status": "original named proof gaps resolved within bounded semantic/proof scope; current complete source acceptance pending",
+      "scenarioIds": ["S04", "S05", "S06", "S07"]
+    },
+    {
+      "id": "R3",
+      "name": "Initial delivery follows durable election",
+      "status": "original named proof gaps resolved within bounded semantic/proof scope; current complete source acceptance pending",
+      "scenarioIds": ["S08", "S09", "S10"]
+    },
+    {
+      "id": "R4",
+      "name": "Verified acceptance closes one obligation",
+      "status": "proved within bounded semantic/proof scope",
+      "scenarioIds": ["S11", "S12", "S13"]
+    },
+    {
+      "id": "R5",
+      "name": "Write recovery preserves the bounded fence protocol",
+      "status": "proved within bounded semantic/proof scope",
+      "scenarioIds": ["S14", "S15", "S16"]
+    },
+    {
+      "id": "R6",
+      "name": "Complete history reconstructs write facts",
+      "status": "proved within bounded semantic/proof scope",
+      "scenarioIds": ["S17", "S18"]
+    },
+    {
+      "id": "R7",
+      "name": "Storage upgrade preserves genuine format5",
+      "status": "proved within bounded semantic/proof scope",
+      "scenarioIds": ["S19", "S20", "S21", "S22", "S23"]
+    },
+    {
+      "id": "R8",
+      "name": "Storage admission is feasible on PostgreSQL",
+      "status": "proved design feasibility only",
+      "scenarioIds": ["S24"]
+    },
+    {
+      "id": "R9",
+      "name": "Both providers prove the same behavior",
+      "status": "original named proof gaps resolved within bounded semantic/proof scope; current complete source acceptance pending",
+      "scenarioIds": ["S25", "S26"]
+    }
+  ],
+  "coveringGreen": {
+    "phase": "final",
+    "counts": {
+      "pass": 40,
+      "fail": 0,
+      "filtered": 11
+    },
+    "launcherArgv": [
+      "bun",
+      "/home/df/.codex/worktrees/9a53/puni-00/.superpowers/sdd/runtime-write-acceptance-tasks/task1-evidence-v2/launcher-v2.ts",
+      "final"
+    ],
+    "runnerArgv": [
+      "/home/df/.bun/bin/bun",
+      "/home/df/.codex/worktrees/9a53/puni-00/.superpowers/sdd/runtime-write-acceptance-tasks/task1-evidence-v2/runner-v2.ts",
+      "final",
+      "/home/df/.codex/worktrees/9a53/puni-00/.superpowers/sdd/runtime-write-acceptance-tasks/task1-evidence-v2/final"
+    ],
+    "testArgv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "./apps/twilight-structure/twilight-dash/cli/src/runs/deliver-outcome.test.ts",
+      "./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/deliver-outcome.db.test.ts",
+      "--test-name-pattern",
+      "write dispatch"
+    ],
+    "testExit": 0,
+    "testSignal": null,
+    "source": {
+      "beforeSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+      "executedSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+      "restoredSha256": "5ee3644b21626826f2421d85a5fbc5ad3ff7747891618b12616728dbe563477b",
+      "contractSha256": "aaec194cd1b0cb853802a90ed052402f39610306f0554881b3fbcbc2bdb75dab",
+      "mutation": false
+    },
+    "closedRoots": [
+      "/tmp/write-dispatch-VlluNy",
+      "/tmp/write-dispatch-nOxoiu",
+      "/tmp/write-dispatch-W57kXL",
+      "/tmp/write-dispatch-UufT1d",
+      "/tmp/write-dispatch-JKd29I",
+      "/tmp/write-dispatch-GIofsp",
+      "/tmp/write-dispatch-CrBFxH",
+      "/tmp/write-dispatch-LqDGrs",
+      "/tmp/write-dispatch-jHh5HV",
+      "/tmp/write-dispatch-E6FR0T",
+      "/tmp/write-dispatch-seRZzg",
+      "/tmp/write-dispatch-i3Pz8I",
+      "/tmp/write-dispatch-IJ3y4n",
+      "/tmp/write-dispatch-c5o8kF",
+      "/tmp/write-dispatch-oq18th",
+      "/tmp/write-dispatch-9MeMtA",
+      "/tmp/write-dispatch-oamepC",
+      "/tmp/write-dispatch-1gLTWu",
+      "/tmp/write-dispatch-NYd0SP",
+      "/tmp/write-dispatch-sVFuhn"
+    ],
+    "streams": [
+      {
+        "name": "test.stdout.log",
+        "bytes": 59308,
+        "device": 66307,
+        "inode": 20187151,
+        "mode": 33060,
+        "sha256": "2067731d3130d4ef061a7b52343fe612d0187385b6a14be250f7383722c4cca7"
+      },
+      {
+        "name": "test.stderr.log",
+        "bytes": 4592,
+        "device": 66307,
+        "inode": 20187152,
+        "mode": 33060,
+        "sha256": "8f3de2bac983be8fd40ff2d0bc42ac6f0c09600439b919fbcfe52aa93541f4d7"
+      },
+      {
+        "name": "launcher.stdout.log",
+        "bytes": 3284,
+        "device": 66307,
+        "inode": 20187144,
+        "mode": 33060,
+        "sha256": "ed0b7d0d845339d55747c96eb0fe1ff8c6fa11f78d205e4c86bd0d5dbb0db458"
+      },
+      {
+        "name": "launcher.stderr.log",
+        "bytes": 0,
+        "device": 66307,
+        "inode": 20187145,
+        "mode": 33060,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "cleanup": {
+    "oldManifestEntriesPreserved": 81,
+    "oldEvidenceFilesIncludingManifest": 82,
+    "oldClosedAbsentSqliteRoots": 66,
+    "v2ManifestEntries": 131,
+    "v2EvidenceFilesIncludingManifest": 132,
+    "newClosedAbsentSqliteRoots": 26,
+    "scope": "92 owned roots from this repair campaign only; historical uncertain native constructors/failed workers remain unknown"
+  },
+  "review": {
+    "priorSourcePaths": 167,
+    "compositionEntries": 38,
+    "reconciledPaths": 187,
+    "scope": "bounded prior-task/whole-branch reuse plus focused composition/later deltas; no exhaustive fresh 187-file review",
+    "reports": [
+      "runtime-prior-review-source-report.md",
+      "runtime-prior-review-source-matrix.json",
+      "runtime-prior-review-source-paths.md",
+      "runtime-review-coverage-closure.md",
+      "runtime-race-task-review.md"
+    ]
+  },
+  "pending": [
+    "Full current RunStore cohort",
+    "Final whole-branch publication review",
+    "Current cohesive packet normal commit/push and exact remote readback",
+    "Current source-specific hosted CI and canonical gate",
+    "Live WBS current-status update by controller"
+  ],
+  "exclusions": [
+    "No full foundation/S0/S7a acceptance",
+    "No PostgreSQL protocol adoption or executable adapter conformance",
+    "No remaining adapter/second durable provider/transfer/physical continuation completion",
+    "No operator migration or production deployment"
+  ],
+  "publicationRepair": {
+    "findings": [
+      "P1 original review dependency completeness",
+      "P2 exact test delta and duplicate-condition wording"
+    ],
+    "dependencyGraph": {
+      "graphPath": "/home/df/wd/puni/puni-00/.superpowers/sdd/agentic-resume-20261104/runtime-publication-task2-dependency-closure-v2.json",
+      "resolvedDependencies": 3040,
+      "verifiedArchiveEntries": 470,
+      "archiveIndexes": 12,
+      "compositionImages": 76,
+      "declaredAliases": 586,
+      "embeddedMembers": 1516,
+      "embeddedSecretScan": {
+        "files": 1516,
+        "findings": []
+      },
+      "unresolvedRequiredDependencies": []
+    },
+    "scope": "Roundtrip integrity and required-dependency completeness are separate checks; historical unavailable helper/raw-log limits remain explicit."
+  }
+}

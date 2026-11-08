@@ -18,6 +18,7 @@ import { rowsChanged } from './changes';
 import { messagesOf } from './constraint';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
+import { signalAttemptResourceUses } from './resource-use';
 import { bumpWorkItems } from './revision';
 import { step, stepNodeAttempt, stepNodeAttemptIssued, stepProgress, workItem } from './schema';
 
@@ -274,6 +275,7 @@ export class StepNodeAttemptRepository implements StepNodeAttemptStore {
           })
           .where(and(node, eq(stepNodeAttempt.attemptNumber, running.attemptNumber)))
           .run();
+        signalAttemptResourceUses(tx, running, stamp.at, stamp.by);
         bumpWorkItems(tx, [end.workItemId], stamp);
         return { ok: true, prior, attempt: storedAttemptOf(ended) };
       });

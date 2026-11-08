@@ -2247,15 +2247,23 @@ test.describe('the table, measured by a browser', () => {
     await page.keyboard.press('ArrowDown');
 
     await expect(page.getByRole('menu')).toBeVisible();
-    // The statuses first, Add child, Move under…, Duplicate, Delete last — the
-    // order `status-from-the-menu` settled with `add-child-and-quiet-expansion`'s
-    // two items after the status, the six a silent row is offered since
-    // `add-work-item-statuses`; the walk wraps at either end.
+    // The statuses first, Add child, Move under…, Duplicate, Measures…, Delete
+    // last — the order `status-from-the-menu` settled with
+    // `add-child-and-quiet-expansion`'s two items after the status, the six a
+    // silent row is offered since `add-work-item-statuses`, and
+    // `wbs-measure-budgets` D57's panel after Duplicate: it opens a dialog and
+    // writes nothing, so it ends the run of edits and Delete stays last, alone
+    // in the destructive tint. The walk wraps at either end.
     for (const status of ['Draft', 'Ready', 'In progress', 'On hold', 'Blocked']) {
       expect(await focusedText()).toBe(`Set status to ${status}`);
       await page.keyboard.press('ArrowDown');
     }
     expect(await focusedText()).toBe('Set status to Done');
+    await page.keyboard.press('ArrowDown');
+    // `wbs-claim-display` 11.2: Claim after the statuses. The local stack's
+    // account is bound to nobody, so it is drawn refused, and a refused item
+    // still takes the focus so its reason is read out.
+    expect(await focusedText()).toBe('Claim');
     await page.keyboard.press('ArrowDown');
     expect(await focusedText()).toBe('Add child');
     await page.keyboard.press('ArrowDown');
@@ -2263,9 +2271,14 @@ test.describe('the table, measured by a browser', () => {
     await page.keyboard.press('ArrowDown');
     expect(await focusedText()).toBe('Duplicate');
     await page.keyboard.press('ArrowDown');
+    expect(await focusedText()).toBe('Measures…');
+    await page.keyboard.press('ArrowDown');
+    // A leaf's Resources… (`wbs-resources` 1.5), after Measures… for its reason.
+    expect(await focusedText()).toBe('Resources…');
+    await page.keyboard.press('ArrowDown');
     expect(await focusedText()).toBe('Delete');
     await page.keyboard.press('ArrowUp');
-    expect(await focusedText()).toBe('Duplicate');
+    expect(await focusedText()).toBe('Resources…');
 
     // Escape closes and hands the focus back to the button it opened from.
     await page.keyboard.press('Escape');
@@ -2305,9 +2318,9 @@ test.describe('the table, measured by a browser', () => {
     // copy's Name, which the table asks for once be-01 has taken the copy.
     await actions.focus();
     await page.keyboard.press('Enter');
-    // Down past the six status entries, Add child and Move under… to
+    // Down past the six status entries, Claim, Add child and Move under… to
     // Duplicate, then take it.
-    for (let step = 0; step < 8; step += 1) await page.keyboard.press('ArrowDown');
+    for (let step = 0; step < 9; step += 1) await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     await expect(page.getByLabel('Name of 020')).toHaveValue(
       'Survey the existing warehouse racking and photograph every aisle end (copy)',

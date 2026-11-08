@@ -94,7 +94,7 @@ describe('fileJournal', () => {
 
   it('rejects a newer schema', () => {
     const path = join(directory(), 'release.json');
-    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 5 }));
+    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 4 }));
     expect(() => fileJournal(path).read()).toThrow('unsupported schema version');
   });
 
@@ -132,25 +132,4 @@ describe('fileJournal', () => {
     chmodSync(path, 0o000);
     expect(() => fileJournal(path).read()).toThrow('is unreadable');
   });
-});
-
-it('refuses a schema4 journal with missing or foreign registry binding', () => {
-  const path = join(directory(), 'managed.json');
-  for (const registry of [
-    undefined,
-    {
-      registryId: 'proof',
-      operationId: 'foreign',
-      references: [{ repository: 'wbs/backend', digest }],
-    },
-  ]) {
-    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 4, registry }));
-    expect(() => fileJournal(path).read()).toThrow('registry binding');
-  }
-});
-
-it('refuses oversized owner journal bytes before parsing history', () => {
-  const path = join(directory(), 'release.json');
-  writeFileSync(path, JSON.stringify(record()) + ' '.repeat(4 * 1024 ** 2));
-  expect(() => fileJournal(path).read()).toThrow('unreadable');
 });

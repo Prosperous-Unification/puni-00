@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import type { DirectoryRead, RefreshResource } from '@/lib/plan-refresh';
+import type { DirectoryRead, InstalledClaims, RefreshResource } from '@/lib/plan-refresh';
 import type { CalendarMarkerView, PlanRead, StepView } from '@/lib/wbs-api';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 
@@ -23,6 +23,7 @@ interface Pool {
   readonly trees: readonly { readonly value: PlanRead; readonly generation: number }[];
   readonly directories: readonly DirectoryRead[];
   readonly markers: readonly (readonly CalendarMarkerView[])[];
+  readonly claims: readonly InstalledClaims[];
   readonly causes: readonly Error[];
 }
 
@@ -35,6 +36,7 @@ interface DeliverySpec {
   /** Step names, always ids `s0`, `s1`…; a fresh array every time it is delivered. */
   readonly steps: readonly string[] | null;
   readonly markers: number | null;
+  readonly claims: number | null;
 }
 
 type Behaviour = 'read' | 'relay' | 'leave';
@@ -73,6 +75,7 @@ interface PlanModel {
   /** The model's own copy of the steps' ids and names. */
   steps: StepView[];
   markers: readonly CalendarMarkerView[] | null;
+  claims: InstalledClaims | null;
   connected: boolean;
   /** How many times the snapshot must have been replaced so far. */
   changes: number;
@@ -127,6 +130,7 @@ function toDelivery(world: PlanWorld, spec: DeliverySpec): PlanFeedDelivery {
     tree: at(world.pool.trees, spec.tree),
     steps,
     markers: at(world.pool.markers, spec.markers),
+    claims: at(world.pool.claims, spec.claims),
   };
 }
 
@@ -178,6 +182,10 @@ function fold(model: PlanModel, delivery: PlanFeedDelivery): void {
     model.markers = delivery.markers;
     changed = true;
   }
+  if (delivery.claims !== null && delivery.claims !== model.claims) {
+    model.claims = delivery.claims;
+    changed = true;
+  }
   if (changed) model.changes += 1;
   else reached.unchangedDelivery += 1;
 }
@@ -195,6 +203,7 @@ function assertSnapshot(model: PlanModel, world: PlanWorld, snapshot: DeliveredP
   ).toBe(false);
   if (model.markers === null) expect(snapshot.markers, `${what}: markers`).toEqual([]);
   else expect(snapshot.markers, `${what}: markers`).toBe(model.markers);
+  expect(snapshot.claims, `${what}: claims`).toBe(model.claims);
   expect(snapshot.connected, `${what}: connected`).toBe(model.connected);
 }
 
@@ -309,6 +318,7 @@ class Redeliver implements PlanCommand {
       tree: model.tree,
       steps,
       markers: model.markers,
+      claims: model.claims,
     };
     write(
       world,
@@ -449,6 +459,7 @@ const specArb: fc.Arbitrary<DeliverySpec> = fc.record({
     nil: null,
   }),
   markers: indexArb,
+  claims: indexArb,
 });
 
 const commandsArb = fc.commands<PlanModel, PlanWorld, false>(
@@ -480,6 +491,7 @@ async function buildPool(): Promise<Pool> {
     trees: [1, 2, 3].map((generation) => ({ value: { ...read }, generation })),
     directories: [directory(), directory(), directory()],
     markers: [[], [], []],
+    claims: [1, 2, 3].map((readAt) => ({ readAt, installedAt: readAt, claims: [] })),
     causes: [new Error('forbidden'), new Error('unavailable'), new Error('gone')],
   };
 }
@@ -504,6 +516,7 @@ describe('the delivered plan, against a reference model', () => {
           tree: null,
           steps: [],
           markers: null,
+          claims: null,
           connected: true,
           changes: 0,
           stepChanges: 0,

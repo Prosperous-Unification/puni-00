@@ -1,6 +1,24 @@
 import type { ImportRefusal, Refusal, RefusalStatus } from './refusal';
 import type { SchemaShape } from './schema-shape';
 
+/**
+ * The identity requirements a trusted process meets with a service secret
+ * rather than a person: `internal` is gw-01's and the tools' `x-internal-auth`;
+ * `mcp-internal` is mcp-01's on `/internal/mcp/*`, its dedicated secret or,
+ * until the cutover's second release, `x-internal-auth`; `mcp-dedicated`
+ * accepts the dedicated secret alone (`wbs-mcp-agent-surface` M14).
+ */
+export const SERVICE_IDENTITY_REQUIREMENTS = ['internal', 'mcp-internal', 'mcp-dedicated'] as const;
+
+export type ServiceIdentityRequirement = (typeof SERVICE_IDENTITY_REQUIREMENTS)[number];
+
+/** Whether a requirement is met by a service secret, yielding an internal principal. */
+export function isServiceIdentityRequirement(
+  requirement: string,
+): requirement is ServiceIdentityRequirement {
+  return (SERVICE_IDENTITY_REQUIREMENTS as readonly string[]).includes(requirement);
+}
+
 export type RequestPolicy =
   | { kind: 'organization-resource'; operation: 'read' | 'mutation' }
   | { kind: 'organization-control' }
@@ -11,7 +29,7 @@ export type RequestPolicy =
         | 'signed-in'
         | 'read-scope'
         | 'write-scope'
-        | 'internal'
+        | ServiceIdentityRequirement
         | 'gateway-delegation'
         | 'gateway-browser';
     };
@@ -86,6 +104,13 @@ export interface EndpointShape {
   defaultResponseHeaders?: readonly (readonly [string, string])[];
   /** `description` is the OpenAPI operation's longer text, emitted only when given. */
   document: { summary: string; description?: string };
+  /**
+   * Administration a person does in the browser: never an MCP tool, for any principal
+   * (`wbs-mcp-agent-surface` M8). mcp-01 reads the tag from the shared shape table and refuses
+   * to start when a tagged shape matches no operation of the document it serves. be-01 ignores
+   * it: the route is authorized by its `policies` alone.
+   */
+  humanOnly?: true;
 }
 
 /**
@@ -121,7 +146,10 @@ type IsLiteralPath<Path extends string> = string extends Path
  * fixtures report TS2578; the type boundary is backed by the adapter's erased-table check.
  */
 type CompatibleIdentity<S extends EndpointShape> =
-  Extract<S['policies'][number], { kind: 'identity'; require: 'internal' }> extends never
+  Extract<
+    S['policies'][number],
+    { kind: 'identity'; require: ServiceIdentityRequirement }
+  > extends never
     ? unknown
     : Extract<
           S['policies'][number],

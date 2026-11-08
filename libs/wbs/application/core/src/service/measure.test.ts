@@ -149,7 +149,7 @@ describe('recording the figures that are not days', () => {
     ]);
   });
 
-  it('refuses a metric this release does not keep, as unknown_metric, and writes nothing', async () => {
+  it('refuses a metric this release does not keep, as unknown_measure, and writes nothing', async () => {
     // The one refusal the actual pair does not have. 404 and not 400: the path
     // names a unit, and this release keeps no such unit — see `WorkItemRefusal`.
     const strip = await add('Strip');
@@ -159,7 +159,7 @@ describe('recording the figures that are not days', () => {
     // arrives — it is what arrives.
     const refused = await service.setMeasure(strip, OWNER, DEV, 'tokens_estimate', 12_000);
 
-    expect(refused).toEqual({ ok: false, reason: 'unknown_metric' });
+    expect(refused).toEqual({ ok: false, reason: 'unknown_measure' });
     expect(await measures.listByProject(projectId)).toEqual([]);
     expect(journal.events.map((each) => each.kind)).toEqual(['create']);
   });
@@ -170,9 +170,9 @@ describe('recording the figures that are not days', () => {
     // and answering "done" would confirm it.
     const strip = await add('Strip');
 
-    const refused = await service.clearMeasure(strip, OWNER, DEV, 'hours');
+    const refused = await service.clearMeasure(strip, OWNER, DEV, 'story_points');
 
-    expect(refused).toEqual({ ok: false, reason: 'unknown_metric' });
+    expect(refused).toEqual({ ok: false, reason: 'unknown_measure' });
   });
 
   it('refuses a figure on a work item that has children', async () => {

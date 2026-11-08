@@ -349,6 +349,28 @@ it('runs activated organization acceptance only under its dedicated browser conf
   }
 });
 
+/**
+ * The organization fixture listens on IPv4 loopback only (issue #717), so
+ * its health check and Vite's proxy must name 127.0.0.1: `localhost` passes
+ * where it resolves to 127.0.0.1 first and times out where ::1 comes first.
+ *
+ * Proof: reverting both URLs to `localhost:7300` failed this case; watched
+ * 2026-10-25.
+ */
+it('reaches the loopback-only organization fixture by its IPv4 address', async () => {
+  vi.spyOn(process, 'cwd').mockReturnValue(repoRoot);
+  try {
+    const [fixture, frontend] = serversOf(await loadOrganizationConfig());
+    expect(fixture.command).toBe(
+      'bun apps/wbs/be-01/src/testing/organization-browser-server.ts --port 7300',
+    );
+    expect(fixture.url).toBe('http://127.0.0.1:7300/health');
+    expect(frontend.command).toContain('VITE_BE_URL=http://127.0.0.1:7300 ');
+  } finally {
+    vi.restoreAllMocks();
+  }
+});
+
 describe('the Performance browser selection', () => {
   afterEach(() => {
     vi.restoreAllMocks();

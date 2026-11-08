@@ -3,7 +3,7 @@ import type { ExpandedState } from '@tanstack/react-table';
 /**
  * The facts about one work item a filter is allowed to ask about — R10 §9's
  * Q8 seven, the tag dimension, and the service dimension with its two signals.
- * Ten, and nothing else.
+ * With the type and a leaf's resources, twelve, and nothing else.
  *
  * **Every one of them is already on the wire**, and that is why this interface
  * is a description rather than a fetch: the whole tree is client-side, so
@@ -70,6 +70,14 @@ export interface RowFacets {
    */
   typeIds: readonly string[];
   /**
+   * The resources this row's work item demands (`wbs-resources` task 3.4):
+   * a **leaf's own** demands, and nothing on a parent. Not an effective
+   * reading for {@link typeIds}' reason, a second time: a demand is never
+   * inherited, and a parent's stored one charges nothing (the Resources
+   * cell shows it muted), so finding it would match a row no engine counts.
+   */
+  resourceIds: readonly string[];
+  /**
    * Whether the teams doing this row's work own the service it delivers —
    * `builtByNonOwner` over the effective reading of both, against the
    * directory's ownership map.
@@ -107,7 +115,7 @@ export interface NarrowableRow {
 }
 
 /**
- * What is being asked of the plan: a typed name, and any of ten facets.
+ * What is being asked of the plan: a typed name, and any of twelve facets.
  *
  * **Within one facet the chosen values are OR** — two teams ticked is "either
  * of these teams", which is what a list of checkboxes means anywhere else.
@@ -135,6 +143,8 @@ export interface FilterCriteria {
   serviceIds: readonly string[];
   /** Type ids — the vocabulary is global, so an id means the same thing on every plan. */
   typeIds: readonly string[];
+  /** Resource ids — the directory's, so an id means the same thing on every plan of it. */
+  resourceIds: readonly string[];
   /**
    * Only rows built by a team that does not own the service they deliver.
    *
@@ -155,11 +165,11 @@ export interface FilterCriteria {
   critical: boolean;
 }
 
-/** The ten criteria that are not the typed name, which have one control between them. */
+/** The twelve criteria that are not the typed name, which have one control between them. */
 export type FacetCriteria = Omit<FilterCriteria, 'query'>;
 
 /**
- * No facet ticked — the ten that are not the typed name.
+ * No facet ticked — the twelve that are not the typed name.
  *
  * Its own constant because the Find box is its own state in `wbs-table.tsx`
  * (Escape empties it, and it is the one criterion with a control of its own),
@@ -171,6 +181,7 @@ export const NO_FACETS: FacetCriteria = {
   tagIds: [],
   serviceIds: [],
   typeIds: [],
+  resourceIds: [],
   builtByNonOwner: false,
   assignedOutsideTeam: false,
   assigneeIds: [],
@@ -211,6 +222,7 @@ function anyFacetChosen(criteria: FilterCriteria): boolean {
     criteria.tagIds.length > 0 ||
     criteria.serviceIds.length > 0 ||
     criteria.typeIds.length > 0 ||
+    criteria.resourceIds.length > 0 ||
     criteria.builtByNonOwner ||
     criteria.assignedOutsideTeam ||
     criteria.assigneeIds.length > 0 ||
@@ -248,6 +260,7 @@ export interface FilterLabels {
   tagName: (tagId: string) => string;
   serviceName: (serviceId: string) => string;
   typeName: (typeId: string) => string;
+  resourceName: (resourceId: string) => string;
   personName: (personId: string) => string;
   stepName: (stepId: string) => string;
 }
@@ -288,6 +301,7 @@ export function filterWords(criteria: FilterCriteria, labels: FilterLabels): str
   // the three beside it, so folding it in would say something neither the
   // control nor the predicate means.
   chosen('type', criteria.typeIds, labels.typeName);
+  chosen('resource', criteria.resourceIds, labels.resourceName);
   chosen('assignee', criteria.assigneeIds, labels.personName);
   // The bands travel as their labels rather than as ids — what the ladder calls
   // the rung is what the control offers and what a reader recognises.
@@ -401,6 +415,10 @@ export function narrowTree(
     // the three above, that is the whole reading rather than half of one. There
     // is no inheritance to lose a child to here.
     carriesAnyChosen(criteria.typeIds, row.facets.typeIds) &&
+    // A leaf's own demands; see {@link RowFacets.resourceIds}.
+    // Proof: this line removed, the three narrowing cases of `the resource
+    // facet narrows like every other facet` failed; watched 2026-10-25.
+    carriesAnyChosen(criteria.resourceIds, row.facets.resourceIds) &&
     carriesAnyChosen(criteria.assigneeIds, row.facets.assigneeIds) &&
     carriesAnyChosen(
       criteria.priorityBands,

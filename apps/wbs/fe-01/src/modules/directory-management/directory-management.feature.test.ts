@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 
-import type { DirectoryUsage } from '@/lib/wbs-api';
+import { directoryRefusalSentence, type DirectoryUsage } from '@/lib/wbs-api';
 import { createDirectory } from '@/modules/directory/directory.resource';
 import { fakeDirectoryApi, KAT, PLATFORM } from '@/modules/directory/fake-directory-api';
 
@@ -219,4 +219,51 @@ test('a second refusal against a confirmed cascade is raised, not confirmed', as
 
   expect(gone.ran()).toBe(0);
   expect(management.snapshot().problem).not.toBeNull();
+});
+
+test('binds a person to an account, and unbinds them with null (wbs-claim-display 11.5)', async () => {
+  const api = fakeDirectoryApi();
+  const management = over(api);
+  await management.read();
+
+  management.bindAccount({ ...KAT, accountId: null }, 'account-kat');
+  await management.settled();
+  management.bindAccount({ ...KAT, accountId: 'account-kat' }, null);
+  await management.settled();
+
+  expect(api.personPatches).toEqual([
+    { id: KAT.id, patch: { accountId: 'account-kat' } },
+    { id: KAT.id, patch: { accountId: null } },
+  ]);
+});
+
+test('sends nothing when the person is already bound there', async () => {
+  // Proof: dropping the equality guard failed on `expected [ { id: 'p1', …(1) } ]
+  // to deeply equal []`; watched 2026-10-27.
+  const api = fakeDirectoryApi();
+  const management = over(api);
+  await management.read();
+
+  management.bindAccount({ ...KAT, accountId: 'account-kat' }, 'account-kat');
+  await management.settled();
+
+  expect(api.personPatches).toEqual([]);
+});
+
+test('words a binding be-01 refuses', async () => {
+  // Proof: with the two DIRECTORY_REFUSALS entries struck, this read `The
+  // directory could not be changed (unknown_account).`; watched 2026-10-27.
+  const api = fakeDirectoryApi();
+  api.patchPerson = () => Promise.reject(new Error('unknown_account'));
+  const management = over(api);
+  await management.read();
+
+  management.bindAccount({ ...KAT, accountId: null }, 'account-gone');
+  await management.settled();
+
+  const problem = management.snapshot().problem;
+  expect(problem).not.toBeNull();
+  expect(problem === null ? '' : directoryRefusalSentence(problem)).toBe(
+    'That account is no longer a member of this organization. Nothing was bound.',
+  );
 });

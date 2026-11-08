@@ -92,7 +92,7 @@ state.fenced = false;
 state.fenceReason = null;
 state.maintenanceVerified = true;
 await writeFile(join(journal, 'journal.json'), JSON.stringify(state), { mode: 0o600 });
-const stored = new Map<string, Uint8Array>();
+const stored = new Map<string, Uint8Array<ArrayBuffer>>();
 let bodies = 0;
 const uuid = '00000000-0000-4000-8000-000000000001';
 const server = Bun.serve({

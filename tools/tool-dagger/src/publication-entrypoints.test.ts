@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { scratchAsync } from '@tools/test-scratch';
 import { expect, it } from 'bun:test';
 
-it('publish wrapper carries managed enrollment and tier selection through the heavy lock', async () => {
+it('publish wrapper propagates environment and tier selection through the heavy lock', async () => {
   const directory = await scratchAsync('publication-wrapper-');
   try {
     await mkdir(join(directory, 'bin'));
@@ -12,10 +12,13 @@ it('publish wrapper carries managed enrollment and tier selection through the he
       new URL('../../../bin/publish-release.sh', import.meta.url),
       join(directory, 'bin/publish-release.sh'),
     );
+    await copyFile(
+      new URL('../../../bin/publish-release-payload.sh', import.meta.url),
+      join(directory, 'bin/publish-release-payload.sh'),
+    );
     await writeFile(
-      join(directory, 'bin/with-heavy-lock.sh'),
-      '#!/bin/sh\nset -eu\ntest "$1" = --\nshift\nprintf "LOCKED\\n"\nexec "$@"\n',
-      { mode: 0o755 },
+      join(directory, 'bin/heavy-lock-lib.sh'),
+      'run_heavy_job() { test "$HEAVY_LOCK_JOB_TYPE" = release-build; test "$1" = --; shift; printf "LOCKED\\n"; "$@"; }\n',
     );
     await writeFile(
       join(directory, 'bin/bun'),
@@ -71,4 +74,35 @@ it('every existing tier publish entrypoint reports a plan without a publication 
     expect(child.stdout.toString()).toContain('only computes a bundle plan');
     expect(child.stdout.toString()).toContain('tool-dagger:publish-all');
   }
+});
+
+it('publishes the legacy release record without lifecycle installation', async () => {
+  const child = Bun.spawn(
+    [process.execPath, new URL('./legacy-publication.fixture.ts', import.meta.url).pathname],
+    {
+      cwd: new URL('../../../', import.meta.url).pathname,
+      env: {
+        ...process.env,
+        REGISTRY: 'registry.test',
+        REGISTRY_PASS: 'fixture',
+        REGISTRY_PUBLICATION_ENROLLMENT: '/absent-legacy-publication',
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+  const [code, output, diagnostic] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  expect({ code, diagnostic }).toEqual({ code: 0, diagnostic: '' });
+  expect(JSON.parse(output)).toEqual({
+    be: {
+      sha: 'legacy',
+      digest: `sha256:${'a'.repeat(64)}`,
+      ref: 'registry.test/wbs-be-01:legacy',
+      image: `registry.test/wbs-be-01@sha256:${'a'.repeat(64)}`,
+    },
+  });
 });

@@ -41,11 +41,16 @@ const Enrollment = type({
 });
 export type ManagedRegistry = typeof Enrollment.infer;
 
-/** Root-owned regular enrollment is read from the same no-follow descriptor that was checked. */
+/** Refuse non-regular enrollment without waiting for a writer; validate root ownership on the same no-follow descriptor. */
 export async function readTrustedEnrollment(path: string): Promise<unknown> {
   if (!isAbsolute(path) || (await realpath(path)) !== path)
     throw new Error('Enrollment path is not canonical');
-  const descriptor = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  // Proof: canonical FIFO test reached entered-parser then timed out when O_NONBLOCK was removed;
+  // nonblocking open reaches file-type refusal, never invalid enrollment admission.
+  const descriptor = await open(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
   try {
     const status = await descriptor.stat();
     if (

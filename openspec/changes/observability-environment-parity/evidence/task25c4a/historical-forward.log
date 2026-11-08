@@ -1,0 +1,52 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-creation.test.ts:
+464 | it('Task37 closes effective evidence through forward acceptance', () => {
+465 |   expect(closeCreation(effectiveClosure(), 'forward').containers).toHaveLength(1);
+466 | });
+467 | it('Task37 historical closure supports teardown but refuses forward acceptance', () => {
+468 |   expect(closeCreation(closure(), 'teardown').containers).toHaveLength(1);
+469 |   expect(() => closeCreation(closure(), 'forward')).toThrow();
+                                                          ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  containers: [
+    {
+      id: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      name: "registry",
+      image: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      configuredImage: "registry@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      networkIds: [ "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" ],
+      mounts: [
+        {
+          kind: "volume",
+          name: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          driver: "local",
+          source: "/var/lib/docker/volumes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/_data",
+          destination: "/var/lib/registry",
+          rw: true,
+        }
+      ],
+    }
+  ],
+  volumes: [
+    {
+      name: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      driver: "local",
+      mountpoint: "/var/lib/docker/volumes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/_data",
+      createdAt: "2026-10-27T00:00:00Z",
+      consumers: [ "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" ],
+    }
+  ],
+}
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.test.ts:469:53)
+(fail) Task37 historical closure supports teardown but refuses forward acceptance [2.78ms]
+
+ 0 pass
+ 46 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [166.00ms]

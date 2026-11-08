@@ -178,6 +178,16 @@ export function computeProviderRoutes(
         // A machine principal always carries its credential's organization
         // as a direct context, so legacy access is unreachable here.
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+        // `reservedUnits` mean nothing without the dimension they count (`dash-host-jobs` J10).
+        // Proof: without this check, `refuses reserved units without their dimension, and
+        // either alone, invalid_body` (compute-provider.controller.db.test.ts) did not answer
+        // 400 invalid_body (2026-11-02).
+        if (
+          body.outcome.kind === 'measured' &&
+          (body.outcome.reservedUnits === undefined) !==
+            (body.outcome.reservedDimension === undefined)
+        )
+          return invalidBody;
         const decision = await reports.put({
           organizationId: resolved.access.scope.organizationId,
           personId: authentication.personId,
@@ -233,7 +243,7 @@ type ResourcesRead = Extract<HttpReply<typeof readProjectResources>, { ok: true 
 export interface PlannedResources {
   resources: readonly Omit<
     ResourcesRead['resources'][number],
-    'providerId' | 'report' | 'measurement'
+    'providerId' | 'provider' | 'report' | 'measurement'
   >[];
   capacities: ResourcesRead['capacities'];
   demands: ResourcesRead['demands'];
@@ -242,11 +252,14 @@ export interface PlannedResources {
 /**
  * Adds each resource's provider reference, latest report and declared-versus-
  * measured comparison to the project resources read (`compute-providers` P3,
- * P7). The planned read is taken as it was: nothing here feeds back into it.
- * A resource with no instance gets `providerId: null` and nothing else.
+ * P7), the instance's kind and name for every reader (task 5.3), and the
+ * unreturned host jobs of its authority (`dash-host-jobs` J10). The
+ * planned read is taken as it was: nothing here feeds back into it. A resource
+ * with no instance gets `providerId: null` and nothing else.
  *
  * @throws when a listed resource has no reading: the reports store reads the
- * same rows the directory listed.
+ * same rows the directory listed; and as {@link CapacityReports.readingsOf}
+ * on a dangling reference or a malformed instance.
  */
 export async function withProviderReadings(
   planned: PlannedResources,
@@ -259,12 +272,23 @@ export async function withProviderReadings(
     resources: planned.resources.map((each) => {
       const reading = readings.get(each.id);
       if (reading === undefined) throw new Error(`resource ${each.id} has no provider reading`);
-      if (reading.providerId === null) return { ...each, providerId: null };
+      if (reading.provider === null) return { ...each, providerId: null };
+      const { id, kind, name } = reading.provider;
       return {
         ...each,
-        providerId: reading.providerId,
+        providerId: id,
+        provider: { kind, name },
         ...(reading.report === null ? {} : { report: reportWire(reading.report) }),
         measurement: compareCapacity(declared.get(each.id) ?? null, reading.report, now),
+        // Absent when there is none, so a read without host jobs is the pre-change one.
+        ...(reading.hostJobs.length === 0
+          ? {}
+          : {
+              hostJobs: reading.hostJobs.map((job) => ({
+                ...job,
+                reservations: job.reservations.map((entry) => ({ ...entry })),
+              })),
+            }),
       };
     }),
     capacities: planned.capacities,

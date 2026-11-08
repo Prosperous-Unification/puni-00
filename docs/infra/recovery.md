@@ -5,14 +5,15 @@ Operator commands and what has been tested: [infrastructure operator guide](READ
 Each store has its own consistent path. A filesystem copy of a live database
 never replaces its application-consistent snapshot.
 
-| Store                  | Path                                                                                                                                      | Schedule      | Retention                                                                                                   |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------- |
-| WBS SQLite             | `sqlite-backup` CronJob: `VACUUM INTO`, verify, versioned S3                                                                              | hourly at :17 | noncurrent versions expire after 30 d; current objects are kept                                             |
-| h2puni Compose SQLite  | h1claw `sqlite-backup.service` (claire repo): `VACUUM INTO` on h2puni, pull, verify, rclone crypt to `puni-01/backups/sqlite/generations` | hourly at :17 | local 4 sets; remote 48 h hourly, 60 d daily, 52 w weekly (`sqlite-backup-remote-prune.timer`, daily 04:47) |
-| Elasticsearch logs     | SLM `puni-daily` to repository `puni-snapshots`                                                                                           | daily 01:30   | 365 d, at least 7, at most 400                                                                              |
-| etcd (k3s state)       | k3s `etcd-snapshot` to S3, configured by the `backup` role                                                                                | `0 */6 * * *` | 28 snapshots per server                                                                                     |
-| Other PVCs (registry)  | Velero file-system backup with Kopia                                                                                                      | daily 02:00   | 720 h                                                                                                       |
-| Platform configuration | Git plus the recovery secrets below                                                                                                       | every commit  | Git history                                                                                                 |
+| Store                          | Path                                                                                                                                                                                                                         | Schedule      | Retention                                                                                                                                                                                                                                                                                                        |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WBS SQLite                     | `sqlite-backup` CronJob: `VACUUM INTO`, verify, versioned S3                                                                                                                                                                 | hourly at :17 | noncurrent versions expire after 30 d; current objects are kept                                                                                                                                                                                                                                                  |
+| h2puni Compose SQLite + config | h1claw `sqlite-backup.service` (claire repo): `VACUUM INTO` on h2puni for the four databases plus a tarball of state, compose, Caddy sites and env files; pull, verify, rclone crypt to `puni-01/backups/sqlite/generations` | hourly at :17 | local 4 sets; remote 48 h hourly, 60 d daily, 52 w weekly (`sqlite-backup-remote-prune.timer`, daily 04:47); restored and verified weekly (`sqlite-backup-restore-drill.timer`, Sun 05:47); freshness, remote age, retention and drill records alerted to WhatsApp every 15 min (`backup-freshness-alert.timer`) |
+| h3mon MLflow SQLite            | h1claw `sqlite-backup-mlflow.service` (claire repo): `sudo python3` `VACUUM INTO` out of the root-owned Docker volume on h3mon, pull, verify, rclone crypt to `puni-01/backups/sqlite/mlflow`                                | daily 02:37   | local 2 sets; same remote policy, drill and alert as the h2puni set                                                                                                                                                                                                                                              |
+| Elasticsearch logs             | SLM `puni-daily` to repository `puni-snapshots`                                                                                                                                                                              | daily 01:30   | 365 d, at least 7, at most 400                                                                                                                                                                                                                                                                                   |
+| etcd (k3s state)               | k3s `etcd-snapshot` to S3, configured by the `backup` role                                                                                                                                                                   | `0 */6 * * *` | 28 snapshots per server                                                                                                                                                                                                                                                                                          |
+| Other PVCs (registry)          | Velero file-system backup with Kopia                                                                                                                                                                                         | daily 02:00   | 720 h                                                                                                                                                                                                                                                                                                            |
+| Platform configuration         | Git plus the recovery secrets below                                                                                                                                                                                          | every commit  | Git history                                                                                                                                                                                                                                                                                                      |
 
 ## Recovery secrets
 
@@ -42,8 +43,8 @@ machine that never saw the original and compare fingerprints.
 Every backup bucket has versioning and one lifecycle rule: noncurrent versions
 expire after 30 days. Current objects are pruned only by each tool's own
 retention (SLM, Velero TTL, the k3s snapshot count). The SQLite prefixes
-(`sqlite/<database>/` from the k3s runner and `backups/sqlite/generations`
-from h1claw) are pruned daily at 04:47 UTC by h1claw's
+(`sqlite/<database>/` from the k3s runner, `backups/sqlite/generations` and
+`backups/sqlite/mlflow` from h1claw) are pruned daily at 04:47 UTC by h1claw's
 `sqlite-backup-remote-prune.timer` (claire repo): every stamp for 48 h, the
 last of each UTC day for 60 days, the last of each UTC week for 52 weeks, with
 snapshot and report expiring together and the newest report always kept. The local rehearsal
@@ -287,6 +288,35 @@ use `imagePullPolicy: Never`; a successful archive import alone does not prove
 digest resolution. Production uses provider object storage and excludes this
 local server.
 
+Strict `creation-v1` non-app labs require an explicit prebuilt archive; they never
+select `dist/` implicitly or start Buildx during bootstrap:
+
+```sh
+bunx nx run tool-fleet:lab -- up --profile platform --worktree-root /abs/worktrees \
+  --resource-evidence creation-v1 --object-store-archive /abs/prebuilt/object-store.oci
+```
+
+Before the first Docker resource creation, `captureObjectStoreArchive` accepts only the
+bounded locked simple-ustar OCI layout, verifies actual manifest/config/layer hashes and
+sizes, linux/amd64 and OCI/Docker import selectors, and retains a private exclusive copy.
+The source build/toolchain locks must match the selected Git commit. Tar directory entries
+use exactly `blobs/` and `blobs/sha256/`; duplicate or alternate path spellings, unsupported
+headers/types and unreferenced blobs refuse. No archive is extracted onto the host.
+
+Bootstrap resolves each node from its in-progress creator receipt, rechecks its daemon,
+name, image and network, then streams rehashed retained bytes to that full container ID.
+Source-image and digest-alias targets are still verified in `k8s.io`. Original-path edits
+cannot substitute imported bytes. Retained `object-store/archive.json` and attempt inputs
+keep archive and Git identities separate; neither grants cleanup authority. Ordinary labs
+retain their explicit build behavior, and app labs require no object-store artifact.
+
+The archive receipt records retained/buffer/metadata bytes and leaves verification heap,
+import overhead and unpack demand unknown. Preserve the platform floor and complete the
+full cold-start evaluator's host/filesystem/per-node content-store/unpack/runtime budget
+before admitting the observability rehearsal. Artifact verification does not prove a live
+import or Kubernetes/Flux/service acceptance. [Task21 evidence](../../openspec/changes/observability-environment-parity/verify.md#task21--verified-prebuilt-object-store-handoff)
+records the actual copy control and the remaining limits.
+
 `bunx nx run tool-fleet:health -- --cluster <id> --kubeconfig <k> --kubectl <path>` is
 read-only (any kubectl verb but `get` throws) and exits 1 on a critical finding. Rules: target
 marker, node Ready, etcd voter, newest ready `s3://` etcd snapshot within 7 h (node-local `file://` snapshots do not count), Flux objects Ready (suspended
@@ -362,13 +392,15 @@ Hetzner volume outlives its server.
 
 RPO by store:
 
-| Store                | RPO                                      | Observed                                              |
-| -------------------- | ---------------------------------------- | ----------------------------------------------------- |
-| etcd                 | snapshot interval, 6 h                   | on-demand snapshot held all state written before it   |
-| WBS SQLite (S3)      | backup interval, 1 h                     | a row written 90 s after the backup was not restored  |
-| WBS SQLite (volume)  | 0 when the volume survives and is fenced | the rebound volume held that row                      |
-| Elasticsearch        | ingest delay; SLM daily for off-cluster  | the rebound volume held the injected event            |
-| Registry, other PVCs | Velero daily, or 0 on a rebound volume   | image pulled by digest; Velero restore also completed |
+| Store                          | RPO                                      | Observed                                                                                  |
+| ------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------- |
+| etcd                           | snapshot interval, 6 h                   | on-demand snapshot held all state written before it                                       |
+| WBS SQLite (S3)                | backup interval, 1 h                     | a row written 90 s after the backup was not restored                                      |
+| WBS SQLite (volume)            | 0 when the volume survives and is fenced | the rebound volume held that row                                                          |
+| Elasticsearch                  | ingest delay; SLM daily for off-cluster  | the rebound volume held the injected event                                                |
+| Registry, other PVCs           | Velero daily, or 0 on a rebound volume   | image pulled by digest; Velero restore also completed                                     |
+| h2puni Compose SQLite + config | backup interval, 1 h                     | weekly drill restores the newest set from the bucket; 2026-10-25: 987 MB verified in 56 s |
+| h3mon MLflow SQLite            | backup interval, 24 h                    | same drill; 2026-10-25: 701 MB verified in 41 s                                           |
 
 ## Residual single points of failure
 

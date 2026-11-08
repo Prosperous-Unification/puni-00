@@ -121,7 +121,7 @@ async function copyBlob(
  * against its digest before upload, and the target's reported manifest digest
  * must equal the source's. Any mismatch throws.
  */
-async function copyLegacyImage(
+export async function copyImage(
   source: RegistryEndpoint,
   target: RegistryEndpoint,
   repository: string,
@@ -143,8 +143,7 @@ async function copyLegacyImage(
   let uploadedBlobs = 0;
   if (indexTypes.has(mediaType)) {
     for (const child of descriptorsOf(manifest, 'manifests')) {
-      uploadedBlobs += (await copyLegacyImage(source, target, repository, child.digest))
-        .uploadedBlobs;
+      uploadedBlobs += (await copyImage(source, target, repository, child.digest)).uploadedBlobs;
     }
   } else {
     const config: unknown =
@@ -310,7 +309,7 @@ export async function copyImages(
   if (enrollment === undefined) {
     const copied = [];
     for (const image of images)
-      copied.push(await copyLegacyImage(source, target, image.repository, image.reference));
+      copied.push(await copyImage(source, target, image.repository, image.reference));
     return copied;
   }
   const repositories = images.map((image) => image.repository);
@@ -351,19 +350,6 @@ export async function copyImages(
   } finally {
     await rm(directory, { recursive: true });
   }
-}
-
-/** Single-image compatibility entrypoint; managed multi-tier enrollment still requires its entire bundle. */
-export async function copyImage(
-  source: RegistryEndpoint,
-  target: RegistryEndpoint,
-  repository: string,
-  reference: string,
-  select: typeof readPublicationEnrollment = readPublicationEnrollment,
-) {
-  const copied = (await copyImages(source, target, [{ repository, reference }], select)).at(0);
-  if (copied === undefined) throw new Error('Image copy omitted its receipt');
-  return copied;
 }
 
 /**
@@ -514,15 +500,15 @@ if (import.meta.main) {
     caPath === undefined ? undefined : await readFile(caPath, 'utf8'),
   );
   const source = endpointFromEnv('SOURCE', sourceUrl, undefined);
-  const references = images.map((image) => {
+  for (const image of images) {
     const separator = image.lastIndexOf(':');
     if (separator <= 0) throw new Error(`${image} must be repository:tag`);
-    return { repository: image.slice(0, separator), reference: image.slice(separator + 1) };
-  });
-  const copied = await copyImages(source, target, references);
-  for (const [index, image] of images.entries()) {
-    const receipt = copied.at(index);
-    if (receipt === undefined) throw new Error('Image copy omitted its receipt');
-    console.log(JSON.stringify({ image, ...receipt }));
+    const copied = await copyImage(
+      source,
+      target,
+      image.slice(0, separator),
+      image.slice(separator + 1),
+    );
+    console.log(JSON.stringify({ image, ...copied }));
   }
 }

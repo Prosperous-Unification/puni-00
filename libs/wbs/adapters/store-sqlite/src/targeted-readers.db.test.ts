@@ -11,12 +11,14 @@ import { ActualRepository } from './actual';
 import { openDatabase, openDrizzle } from './db';
 import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
+import { MeasureEstimateRepository } from './measure-estimate';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkItemBudgetRepository } from './work-item-budget';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const OWNER = 'targeted-owner';
@@ -315,6 +317,64 @@ describe('targeted SQLite readers reject malformed stored state', () => {
 
     // Proof: without the reader check a constraint-bypassing metric projected as typed state.
     expect(measures.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(/invalid metric/);
+  });
+
+  it('rejects a stored budget policy outside the two after constraint-bypassing corruption', () => {
+    corrupt(
+      [
+        `INSERT INTO work_item_budget (work_item_id, measure_key, cap, policy) VALUES ('${ROW}', 'tokens', 10, 'firm')`,
+      ],
+      true,
+    );
+    expect(
+      new WorkItemBudgetRepository(openDrizzle(path), OPEN).listByProject(PROJECT),
+    ).rejects.toThrow(`budget ${ROW}/tokens holds policy firm`);
+  });
+
+  it('rejects a stored figure carrying half a money basis after constraint-bypassing corruption', async () => {
+    await seedSatellites();
+    corrupt(
+      [
+        `UPDATE step_measure SET currency = 'USD' WHERE work_item_id = '${ROW}'`,
+        `UPDATE measure_estimate SET rate_card_digest = 'sha256:a' WHERE work_item_id = '${ROW}'`,
+      ],
+      true,
+    );
+    const half = 'a stored money figure carries half a basis';
+    expect(measures.listByProject(PROJECT)).rejects.toThrow(half);
+    expect(measures.listByWorkItems(PROJECT, [ROW])).rejects.toThrow(half);
+    expect(
+      new MeasureEstimateRepository(openDrizzle(path), OPEN).listByProject(PROJECT),
+    ).rejects.toThrow(half);
+  });
+
+  it('rejects a stored fact naming neither a metric nor a definition after constraint-bypassing corruption', async () => {
+    await seedSatellites();
+    corrupt(
+      [`UPDATE step_measure SET metric = NULL, measure_id = NULL WHERE work_item_id = '${ROW}'`],
+      true,
+    );
+    expect(measures.listByProject(PROJECT)).rejects.toThrow(
+      `measure ${ROW}/${STEP} names no metric and no definition`,
+    );
+  });
+
+  it('refuses to write a single-point trio that is not an equal tokens trio, writing nothing', async () => {
+    const trios = new MeasureEstimateRepository(openDrizzle(path), OPEN);
+    const trio = {
+      workItemId: ROW,
+      stepId: STEP,
+      key: 'tokens',
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 3,
+      singlePoint: true,
+    };
+    expect(trios.set(trio, STAMP)).rejects.toThrow(
+      `measure estimate ${ROW}/${STEP}/tokens is not a single point`,
+    );
+    expect(await trios.listByProject(PROJECT)).toEqual([]);
+    expect(await measures.listByProject(PROJECT)).toEqual([]);
   });
 
   it('rejects non-finite numeric values and timestamps SQLite can store', async () => {

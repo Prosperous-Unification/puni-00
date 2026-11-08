@@ -1,10 +1,14 @@
 export * from './auth-methods';
 export * from './commands/definitions';
 export * from './errors';
+export * from './http/agent-pool-shapes';
 export * from './http/auth-oidc-shapes';
 export * from './http/auth-password-shapes';
+export * from './http/auth-reset-shapes';
+export * from './http/budget-headroom-shapes';
 export * from './http/calendar-marker-shapes';
 export * from './http/capacity-mode-shapes';
+export * from './http/claim-history-shapes';
 export * from './http/claim-lease-shapes';
 export * from './http/client';
 export * from './http/client-error';
@@ -24,6 +28,7 @@ export * from './http/invitation-shapes';
 export * from './http/join-request-shapes';
 export * from './http/machine-credential-shapes';
 export * from './http/mcp-delegation-shapes';
+export * from './http/measure-shapes';
 export * from './http/onboarding-shapes';
 export * from './http/organization-limits-shapes';
 export * from './http/organization-shapes';
@@ -36,7 +41,10 @@ export * from './http/project-response';
 export * from './http/project-shapes';
 export * from './http/provisioning-token-shapes';
 export * from './http/refusal';
+export * from './http/resource-runtime-shapes';
 export * from './http/resource-shapes';
+export * from './http/resource-use-shapes';
+export * from './http/runtime-command-shapes';
 export * from './http/saved-plan-shapes';
 export * from './http/schema-shape';
 export * from './http/session-policy-shapes';
@@ -54,6 +62,19 @@ export * from './http/work-item-response';
 export * from './http/work-item-shapes';
 export * from './internal';
 export * from './logger';
+export * from './mcp-authorization-server';
 export * from './oidc-identity';
+export * from './plan-command-values';
 export * from './principal';
+export * from './runtime-command-values';
+export { matchesRuntimeClaim, matchesRuntimeReceipt, matchesRuntimeScope } from './runtime-receipt';
+export {
+  canonicalRuntimeRequest,
+  parseCanonicalRuntimeRequest,
+  parseRuntimeAuthorityRequest,
+  parseRuntimeClaimRequest,
+  parseRuntimeLookup,
+  parseRuntimeStateRequest,
+  parseRuntimeWriteRequest,
+} from './runtime-request';
 export * from './ws';

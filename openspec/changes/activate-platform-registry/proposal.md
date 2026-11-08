@@ -38,3 +38,10 @@ None. Endpoint transport and activation staging are reversible deployment choice
 ## Impact
 
 Infrastructure Ansible roles/playbooks, private fleet encrypted resources, registry operations runbook and verification evidence. Existing applications remain on their current registries.
+
+## Source integration note — 2026-11-08
+
+The 2026-10-24 authorization and activation receipts above are historical evidence.
+The current bound-registry-storage revision stages source only, preserves supported
+legacy delivery routing and neither repeats activation nor establishes current
+installed readiness. It grants no new production action.

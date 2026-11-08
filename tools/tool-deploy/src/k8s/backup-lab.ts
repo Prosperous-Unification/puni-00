@@ -221,6 +221,12 @@ function trustedJob(
   };
 }
 
+const s3TrustEnv = [
+  { name: 'S3_TRUST_MODE', value: 'system-roots-plus-ca' },
+  { name: 'NODE_EXTRA_CA_CERTS', value: '/s3-trust/ca.crt' },
+];
+const s3Mount = { name: 's3-trust', mountPath: '/s3-trust', readOnly: true };
+const s3Volume = { name: 's3-trust', secret: { secretName: 'sqlite-backup-s3' } };
 const s3Env = ['endpoint', 'bucket', 'region', 'access-key-id', 'secret-access-key'].map((key) => ({
   name: {
     endpoint: 'S3_ENDPOINT',
@@ -309,14 +315,14 @@ async function runVerification(name: string, prefix?: string, failure?: string):
 /** Fault injector used only against the disposable lab's versioned object store. */
 export const VERIFICATION_FAULT_SCRIPT = String.raw`
     const { S3Client } = require('bun');
-    const { createS3Store } = require('/runner/backup-sqlite.ts');
+    const { createS3Store, requireS3Trust } = require('/runner/backup-sqlite.ts');
     function requireEnv(name) {
       const value = process.env[name];
       if (value === undefined || value === '') throw new Error(name + ' must be set');
       return value;
     }
     const store = createS3Store(new S3Client({
-      endpoint: requireEnv('S3_ENDPOINT'), bucket: requireEnv('S3_BUCKET'),
+      endpoint: requireS3Trust(process.env), bucket: requireEnv('S3_BUCKET'),
       region: requireEnv('S3_REGION'), accessKeyId: requireEnv('AWS_ACCESS_KEY_ID'),
       secretAccessKey: requireEnv('AWS_SECRET_ACCESS_KEY'), virtualHostedStyle: false,
     }));
@@ -360,9 +366,10 @@ async function writeVerificationFault(
           { name: 'PUNI_PREFIX', value: prefix },
           { name: 'PUNI_FAULT', value: fault },
           ...s3Env,
+          ...s3TrustEnv,
         ],
-        [{ name: 'runner', mountPath: '/runner', readOnly: true }],
-        [{ name: 'runner', configMap: { name: 'sqlite-backup-runner' } }],
+        [s3Mount, { name: 'runner', mountPath: '/runner', readOnly: true }],
+        [s3Volume, { name: 'runner', configMap: { name: 'sqlite-backup-runner' } }],
       ),
     ),
   );
@@ -427,6 +434,32 @@ async function main(): Promise<void> {
       `--from-literal=MINIO_ROOT_USER=${LAB_S3.user}`,
       `--from-literal=MINIO_ROOT_PASSWORD=${LAB_S3.password}`,
     ]);
+    const identityDirectory = join(state, 'backup-tls');
+    await sh(['bun', join(ROOT, 'tools/tool-fleet/src/backup-identity.ts'), state]);
+    const backupIdentity = {
+      ca: join(identityDirectory, 'ca.crt'),
+      certificate: join(identityDirectory, 'tls.crt'),
+      key: join(identityDirectory, 'tls.key'),
+    };
+    await k([
+      '-n',
+      'puni-backup',
+      'create',
+      'secret',
+      'generic',
+      'object-store-ca',
+      `--from-file=ca.crt=${backupIdentity.ca}`,
+    ]);
+    await k([
+      '-n',
+      'puni-backup',
+      'create',
+      'secret',
+      'tls',
+      'object-store-tls',
+      `--cert=${backupIdentity.certificate}`,
+      `--key=${backupIdentity.key}`,
+    ]);
     await k(['apply', '-f', join(ROOT, 'infra/platform/backup/local/object-store.yaml')]);
     await k([
       '-n',
@@ -443,8 +476,9 @@ async function main(): Promise<void> {
       'secret',
       'generic',
       'sqlite-backup-s3',
-      '--from-literal=endpoint=http://object-store.puni-backup.svc:9000',
+      '--from-literal=endpoint=https://object-store.puni-backup.svc:9000',
       '--from-literal=bucket=puni-sqlite',
+      `--from-file=ca.crt=${backupIdentity.ca}`,
       '--from-literal=region=us-east-1',
       `--from-literal=access-key-id=${LAB_S3.user}`,
       `--from-literal=secret-access-key=${LAB_S3.password}`,
@@ -609,10 +643,12 @@ async function main(): Promise<void> {
       }),
     );
     const restoreVolumes = [
+      s3Volume,
       { name: 'restore', persistentVolumeClaim: { claimName: 'wbs-data-restore' } },
       { name: 'runner', configMap: { name: 'sqlite-backup-runner' } },
     ];
     const restoreMounts = [
+      s3Mount,
       { name: 'restore', mountPath: '/restore' },
       { name: 'runner', mountPath: '/runner', readOnly: true },
     ];
@@ -628,6 +664,7 @@ async function main(): Promise<void> {
             { name: 'RESTORE_REPORT_SHA256', value: reportSha256 },
             { name: 'RESTORE_TARGET_PATH', value: '/restore/wbs.sqlite' },
             ...s3Env,
+            ...s3TrustEnv,
           ],
           restoreMounts,
           restoreVolumes,

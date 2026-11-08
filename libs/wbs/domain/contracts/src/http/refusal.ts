@@ -1,4 +1,5 @@
 import type { PlanCommandKind } from '../commands/definitions';
+import type { mixedBases } from './work-item-response';
 
 /**
  * Modeled HTTP failures; status/code pairing is narrowed by each endpoint shape.
@@ -26,6 +27,10 @@ export type ParserRefusalCode =
   | 'externalRefs_entry_name_is_too_long'
   | 'invalid_actual'
   | 'invalid_measure'
+  /** A `setBudget` cap or hold that is not a number at or above 0, or a policy outside the two. */
+  | 'invalid_budget'
+  /** A `rateCardDigest` that is not text of 1 to 128 characters. */
+  | 'rateCardDigest_must_be_1_to_128_characters'
   | 'invalid_progress'
   /** An `endAttempt` outcome outside `ATTEMPT_OUTCOMES`. */
   | 'invalid_outcome'
@@ -57,7 +62,7 @@ export type ParserRefusalCode =
   | 'band_default_must_be_inside_its_own_band'
   | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId' | 'providerId'}_must_be_id_or_null`
   | `${'name' | 'notes' | 'kind' | 'personKind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
-  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef'}_must_be_an_id`
+  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef' | 'measureId' | 'measureRef'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
   | `${'teamIds' | 'teamRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_at_most_10`
   | `${'tagIds' | 'tagRefs'}_must_be_at_most_50`
@@ -96,7 +101,19 @@ export type ParserRefusalCode =
   | 'units_required'
   | 'units_must_be_a_whole_number_from_0'
   | 'units_must_be_at_most_1000000000'
-  | 'unitLabel_must_be_at_most_40_characters';
+  | 'unitLabel_must_be_at_most_40_characters'
+  // Measure definitions (`wbs-measure-budgets` D1): a key that is not a
+  // lowercase slug, a unit that is not short text, a kind or scale outside its
+  // vocabulary, a flag that is not a boolean, an order outside its bound, and a
+  // currency not shaped like an ISO 4217 code.
+  | 'key_must_be_a_measure_key'
+  | 'unit_must_be_text'
+  | 'unit_must_be_at_most_40_characters'
+  | 'measureKind_must_be_duration_count_or_money'
+  | 'scale_must_be_integer_or_real'
+  | `${'threePoint' | 'showByDefault' | 'schedulesWork'}_must_be_true_or_false`
+  | 'order_must_be_a_whole_number_from_0_to_1000000'
+  | 'currency_must_be_three_capital_letters';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -137,6 +154,24 @@ export type CommandRefusalCode =
   | 'minutes_not_integer'
   | 'minutes_above_max'
   | 'rolled_up'
+  /** `setMeasure` or `clearMeasure` on a derived measure (`agent_minutes`). */
+  | 'derived_measure'
+  /** `setMeasure` or `clearMeasure` in the scheduling measure; its fact is `setActual`'s days. */
+  | 'scheduling_measure_fact'
+  /** A fraction in a measure whose scale is `integer`. */
+  | 'scale_mismatch'
+  /** `setMeasureEstimate` or `clearMeasureEstimate` in the scheduling measure; its trio is `setEstimate`'s. */
+  | 'scheduling_measure_estimate'
+  /** `setMeasureEstimate` on a definition whose `threePoint` is false (`hours`, `agent_minutes`). */
+  | 'three_point_forbidden'
+  /** `setBudget` or `clearBudget` in the scheduling measure (`wbs-measure-budgets` D35). */
+  | 'scheduling_measure_budget'
+  /** A money fact or trio written without a rate card digest. */
+  | 'rate_card_required'
+  /** A rate card digest on a measure that is not money. */
+  | 'rate_card_forbidden'
+  /** A sum that would add money figures priced under two bases; `bases` names both. */
+  | 'mixed_rate_cards'
   | 'has_children'
   | 'ancestor'
   /** A typed dependency resolving a step node onto itself. */
@@ -149,7 +184,10 @@ export type CommandRefusalCode =
   | 'unsupported_relationship_type'
   | 'too_large'
   | 'unknown_step'
+  /** Retired by `wbs-measure-budgets` slice 2; an outgoing be-01 still answers it mid-swap. */
   | 'unknown_metric'
+  /** A metric naming no measure definition of the project's organization. */
+  | 'unknown_measure'
   | 'unknown_person'
   /** `patchPerson.accountId` naming no account that is a member of the person's organization. */
   | 'unknown_account'
@@ -197,8 +235,19 @@ export type CommandRefusalCode =
   | 'taken'
   | 'in_use'
   // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`), in the spec's order.
+  /**
+   * Naming no person from a request that acts as its account, which has no
+   * agent person to stand for (`wbs-claim-own-person`).
+   */
+  | 'person_required'
   | 'person_not_bound'
   | 'credential_not_for_person'
+  /**
+   * A machine grant with an opted-in run (`wbs-mcp-agent-surface` M15) claims
+   * for its own person under another `runId`, or releases its person's claims
+   * held only under other runs.
+   */
+  | 'run_mismatch'
   | 'parent_claim_unknown'
   | 'parent_claim_foreign'
   | 'parent_claim_not_ancestor'
@@ -239,7 +288,30 @@ export type CommandRefusalCode =
    * organization's cap on the sum over its projects (`wbs-organization-limits`
    * L2, L9); names the resource, cap, the other projects' units and the asked.
    */
-  | 'capacity_limit';
+  | 'capacity_limit'
+  /**
+   * `startAttempt` past a strict budget of the work item or an ancestor
+   * (`wbs-measure-budgets` D69): nothing remains, this attempt's hold would
+   * take it below zero, or a rate-card mix blocks it (`blocked`, `remaining`
+   * null). Names the budget's work item, measure, remainder and hold.
+   */
+  | 'budget_exhausted'
+  /**
+   * A measure definition write under legacy access while no organization is
+   * marked legacy: definitions belong to an organization (`wbs-measure-budgets`).
+   */
+  | 'organization_required'
+  // Measure definitions (`wbs-measure-budgets` D1, D2), each a 409 naming what
+  // the organization's own definitions refuse.
+  | 'measure_key_taken'
+  | 'measure_key_immutable'
+  | 'measure_shape_immutable'
+  | 'second_scheduling_measure'
+  | 'scheduling_measure_fixed'
+  | 'currency_required'
+  | 'currency_forbidden'
+  | 'unit_required'
+  | 'measure_in_use';
 
 /** What a refused capacity statement names: the resource, the cap, the others' units and the asked. */
 export interface CapacityLimitRefusalDetail {
@@ -247,6 +319,19 @@ export interface CapacityLimitRefusalDetail {
   cap: number;
   declared: number;
   asked: number;
+}
+
+/**
+ * What `budget_exhausted` names (`wbs-measure-budgets` D69): the work item
+ * stating the strict budget, its measure key, what remained before the
+ * refused start (null when `blocked`) and what the start would have held.
+ */
+export interface BudgetExhaustedRefusalDetail {
+  workItemId: string;
+  measure: string;
+  remaining: number | null;
+  hold: number;
+  blocked: boolean;
 }
 
 /** What a refused claim names: the organization's cap on bound claims and how many it holds. */
@@ -272,6 +357,8 @@ export interface ClaimRefusalHolder {
 
 /** One holder `resources_exhausted` names: a claimant and run on one leaf. */
 export interface OccupancyRefusalHolder {
+  /** A holder in another project of the organization names it (`wbs-shared-occupancy` S5). */
+  projectId?: string;
   personId: string;
   name: string;
   runId: string | null;
@@ -288,6 +375,11 @@ export interface ResourceShortageDetail {
   asked: number;
   free: number;
   holders: OccupancyRefusalHolder[];
+  /**
+   * The check that bound it (`wbs-shared-occupancy` S3): present only for a
+   * resource with a stated directory capacity; absent, the project's.
+   */
+  scope?: 'project' | 'organization';
 }
 
 /**
@@ -317,12 +409,19 @@ export interface ResourceUsageCounts {
   demands: number;
   capacities: number;
   occupancies: number;
+  outstandingUses?: number;
   /**
    * The provider instance the resource names, whose reference and report a
    * confirmed removal takes with it (`compute-providers` P3), or null.
    * Optional on the wire: an outgoing be-01 mid-swap names none.
    */
   providerId?: string | null;
+  /**
+   * The resource's stated directory capacity, which a confirmed removal drops
+   * with it (`wbs-shared-occupancy` S8), or null. Optional on the wire: an
+   * outgoing be-01 mid-swap names none.
+   */
+  directoryCapacity?: number | null;
 }
 
 /** Both affected-project and directory-member lists are present, including when empty. */
@@ -334,14 +433,9 @@ export interface DirectoryUsage {
   }[];
   members: { id: string; name: string }[];
   /**
-   * Linked credentials pinned to the person, revoked by a confirmed removal.
-   * Optional on the wire: an outgoing be-01 mid-swap counts no pins.
-   */
-  pinnedCredentials?: number;
-  /**
    * Unrevoked machine credentials of the person, revoked by a confirmed
-   * removal and refusing an unbind or rebind. Optional on the wire: an
-   * outgoing be-01 mid-swap counts none.
+   * removal and refusing an unbind or rebind; 0 for a team. Optional on the
+   * wire: a be-01 older than `wbs-machine-credentials` slice 2 omits it.
    */
   machineCredentials?: number;
 }
@@ -434,10 +528,18 @@ export type CommandRefusalDetail = {
                                 ? ClaimLimitRefusalDetail
                                 : C extends 'capacity_limit'
                                   ? CapacityLimitRefusalDetail
-                                  : Record<never, never>);
+                                  : C extends 'budget_exhausted'
+                                    ? BudgetExhaustedRefusalDetail
+                                    : // Proof (type boundary only): omitting this arm produced TS2353 for bases
+                                      // and TS2578 for missing-bases negatives in assertMixedRateCardRefusalTypes.
+                                      C extends 'mixed_rate_cards'
+                                      ? { bases: typeof mixedBases.infer }
+                                      : Record<never, never>);
 };
 
 type BareRefusalCode =
+  | 'conflict'
+  | 'resource_tracking_unavailable'
   // Proof: omission failed the closed-registry compiler case with TS2345 (mutation-registry.txt, 2026-10-17).
   | 'unsupported_step_parallelism'
   | 'step_blockage_inactive'
@@ -487,6 +589,24 @@ type BareRefusalCode =
   | 'invalid_origin'
   | 'unauthorized'
   /**
+   * mcp-01's dedicated service secret was missing or wrong, on `/internal/mcp/*`
+   * or beside a machine grant (`wbs-mcp-agent-surface` M3, M14): a deployment
+   * fault mcp-01 reports, never a user's refusal.
+   */
+  | 'internal_unauthorized'
+  /**
+   * A `wbs_mk_` key or another issuer's JWT presented to `/api`
+   * (`wbs-mcp-agent-surface` M9): machines call WBS through `/mcp`, which the
+   * refusal's `endpoint` names. Refused before any read.
+   */
+  | 'machine_bearer_not_accepted'
+  /** A machine grant whose `kid` names no configured grant key (M3): mcp-01 re-fetches. */
+  | 'unknown_grant_key'
+  /** A workload assertion whose `typ` is neither absent nor `JWT` (M2). */
+  | 'unsupported_assertion_type'
+  /** Machine grants are issued only after organization activation (M5). */
+  | 'not_activated'
+  /**
    * A verified machine token (no groups claim) whose `(issuer, subject)` no
    * account is linked to (`wbs-team-claims` D6b): refused before any account
    * is minted. Also a `wbs_mk_` API key that is malformed or that no live
@@ -500,6 +620,8 @@ type BareRefusalCode =
   | 'unsupported_format'
   | 'bad_start_date'
   | 'bad_pert_weights'
+  /** A project budget factor that is not finite, above 0 and at most 1000. */
+  | 'bad_budget_factor'
   | 'optimizer_unavailable'
   /** Another of the organization's projects holds the requested solution slug. */
   | 'solution_taken'
@@ -537,10 +659,9 @@ type BareRefusalCode =
   // A project reach change or a step removal that would close a step-node
   // dependency cycle. Outside a batch, so it carries no command position.
   | 'dependency_cycle'
-  // Spaces (`add-spaces`): legacy access with no legacy organization to own a
-  // space; a space name the organization already holds; a project already in
-  // the space; a write addressed to the virtual All projects.
-  | 'organization_required'
+  // Spaces (`add-spaces`): a space name the organization already holds; a
+  // project already in the space; a write addressed to the virtual All
+  // projects. `organization_required` is a shared command code below.
   | 'name_taken'
   | 'already_in_space'
   | 'virtual_space'
@@ -567,6 +688,18 @@ type BareRefusalCode =
   // Provisioning tokens (`organization-scim`): two tokens already live
   // (`sso_connection_unproven` above also refuses a token).
   | 'token_limit'
+  | 'runtime_scope_unavailable'
+  | 'runtime_generation_conflict'
+  | 'runtime_authority_stale'
+  | 'runtime_revision_conflict'
+  | 'runtime_claim_mismatch'
+  | 'runtime_claim_unmanaged'
+  | 'runtime_attempt_bound'
+  | 'runtime_command_conflict'
+  | 'runtime_ledger_mismatch'
+  | 'runtime_receipt_not_found'
+  | 'runtime_command_target_mismatch'
+  | 'runtime_command_not_supported'
   // Machine credentials (`wbs-machine-credentials`): an agent person bound to
   // an account that is no member; a second rotation inside the window; a
   // rotation of a credential whose secret its issuer rotates.
@@ -588,11 +721,21 @@ type BareRefusalCode =
   // organization at its trusted issuer cap.
   | 'audience_taken'
   | 'trusted_issuer_limit'
+  // `wbs-mcp-agent-surface` M2: an audience that is not WBS's authorization
+  // server or under it after a `/`.
+  | 'audience_not_wbs'
+  // Agent pools (`wbs-mcp-agent-surface` M7): a pool person removed while a
+  // re-key minted its keys; a re-key of a pool past its expiry with no new
+  // one. `persons_not_removed` carries detail, below.
+  | 'pool_changed'
+  | 'pool_expired'
   // Delivery observation (`track-work-delivery`): every provider read slot
   // stayed taken for the bounded wait.
   | 'delivery_busy';
 
 type SharedCommandCode =
+  | 'person_not_bound'
+  | 'credential_not_for_person'
   | 'not_found'
   | 'forbidden'
   | 'name_required'
@@ -605,7 +748,7 @@ type SharedCommandCode =
   | 'unknown_person'
   | 'agent_person_limit'
   | 'capacity_limit'
-  | 'person_not_bound'
+  | 'organization_required'
   | 'unknown_provider';
 
 /**
@@ -616,7 +759,7 @@ type SharedCommandCode =
  * Approved translations preserve statuses: bodiless callback 400 becomes
  * invalid_oidc_callback; callback/refresh 401 becomes invalid_oidc_session;
  * unresolved OIDC account 409 becomes oidc_identity_conflict. Health 503 becomes
- * dependency_unavailable and retains status/commit. Malformed JSON 400 becomes
+ * dependency_unavailable and retains status/commit/bootCommit. Malformed JSON 400 becomes
  * invalid_json; freeform smoke/internal validation 400 becomes invalid_body
  * (existing invalid_body 422 arms stay 422). Cookies, logs and timing stay local
  * to their endpoint; RefusalStatus does not infer a status from a code.
@@ -641,8 +784,14 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     agent_person_limit: LimitRefusalDetail | CommandRefusalDetail['agent_person_limit'];
     /** Without a command position from the plan import; with one from a batch. */
     capacity_limit: CapacityLimitRefusalDetail | CommandRefusalDetail['capacity_limit'];
+    /**
+     * Legacy access with no legacy organization: bare from a space, rank or
+     * capacity-mode route; with its command context from a measure batch.
+     */
+    organization_required: undefined | CommandContext;
     /** Naming the person from a machine credential create; with its command context from a batch. */
-    person_not_bound: { personId: string } | CommandRefusalDetail['person_not_bound'];
+    person_not_bound: undefined | { personId: string } | CommandRefusalDetail['person_not_bound'];
+    credential_not_for_person: undefined | CommandRefusalDetail['credential_not_for_person'];
     /**
      * Also a trusted issuer that unrevoked machine credentials name
      * (`wbs-machine-credentials` A16), and a provider instance resources name
@@ -669,6 +818,12 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     provider_mismatch: { providerId: string | null };
     /** A capacity report not newer than the stored one, naming the stored instant. */
     report_superseded: { storedObservedAt: number };
+    /**
+     * A revoked agent pool whose persons' removal the directory batch refused
+     * (`wbs-mcp-agent-surface` M7): the pool, and how many keys the revocation
+     * ended before the refusal.
+     */
+    persons_not_removed: { poolId: string; revokedCredentials: number };
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.
@@ -706,6 +861,7 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     dependency_unavailable: {
       status: 'migrating' | 'database_unreachable' | 'schema_missing';
       commit: string | null;
+      bootCommit: string | null;
     };
     /** Enforced SSO refused this credential in this organization only (`organization-sso`). */
     sso_required: { organizationId: string; login: string; link: true };

@@ -12,12 +12,14 @@ import { readPreconditions } from '@wbs/core/service/compensating';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -126,6 +128,8 @@ beforeEach(() => {
       estimates,
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
+      measureEstimates: new MeasureEstimateRepository(db, OPEN),
+      budgets: new WorkItemBudgetRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),
@@ -183,6 +187,8 @@ beforeEach(() => {
           estimates: scope.stores.estimates,
           actuals: scope.stores.actuals,
           measures: scope.stores.measures,
+          measureEstimates: scope.stores.measureEstimates,
+          budgets: scope.stores.budgets,
           progress: scope.stores.progress,
           attempts: scope.stores.attempts,
           blockages: scope.stores.blockages,
@@ -467,7 +473,9 @@ for (const refreshRevisions of [false, true]) {
     // Proof: bypassing applyRestore shape validation made the refreshed-evidence
     // case receive 500 instead of 409; watched 2026-10-14.
     if (refreshRevisions) {
-      const entry = (await journal.entriesFor(plan.projectId, plan.userId)).at(-1);
+      const entry = (
+        await journal.entriesFor({ projectId: plan.projectId, userId: plan.userId, personId: null })
+      ).at(-1);
       if (entry === undefined) throw new Error('delete journal entry missing');
       const preconditions = readPreconditions(entry.preconditions);
       const rows = await workItems.listByProject(plan.projectId);

@@ -95,10 +95,34 @@ export interface ComputeProviderAdministration {
   >;
 }
 
-/** What the resources read shows of one resource's provider: its reference and latest report. */
+/**
+ * One host job a resource authority published and has not returned
+ * (`dash-host-jobs` J10): the name its host pool admitted it under and what it
+ * reserves per dimension. Shown beside a report's `reservedUnits`, never planned with.
+ */
+export interface HostJobReading {
+  readonly useId: string;
+  readonly label: string;
+  readonly type: string;
+  readonly host: string;
+  readonly reservations: readonly { readonly dimension: string; readonly units: number }[];
+}
+
+/**
+ * What the resources read shows of one resource's provider: the instance that
+ * fulfils it, named by kind and name (never its locator, which only the
+ * admin-only instances list carries), or null; its latest report; and the
+ * unreturned host jobs of the authority bound to that instance, oldest
+ * registration first (empty without an instance or an authority).
+ */
 export interface ResourceProviderReading {
-  readonly providerId: string | null;
+  readonly provider: {
+    readonly id: string;
+    readonly kind: ComputeProviderKind;
+    readonly name: string;
+  } | null;
   readonly report: CapacityReport | null;
+  readonly hostJobs: readonly HostJobReading[];
 }
 
 /**
@@ -118,7 +142,13 @@ export interface CapacityReports {
    * the credential that named it was just admitted).
    */
   put(request: CapacityReportRequest): Promise<CapacityReportDecision>;
-  /** The provider reference and latest report of each of `resourceIds`; an id nothing holds is absent. */
+  /**
+   * The provider reference and latest report of each of `resourceIds`; an id nothing holds is absent.
+   *
+   * @throws when a reference names no instance or an instance has a kind
+   * outside the four, or a report names another instance than its resource:
+   * each is broken trusted state.
+   */
   readingsOf(resourceIds: readonly string[]): Promise<ReadonlyMap<string, ResourceProviderReading>>;
 }
 
@@ -141,7 +171,9 @@ export const NO_COMPUTE_PROVIDERS: {
     put: () => Promise.resolve({ kind: 'refused', refusal: { kind: 'unknown_provider' } } as const),
     readingsOf: (resourceIds) =>
       Promise.resolve(
-        new Map(resourceIds.map((id) => [id, { providerId: null, report: null }] as const)),
+        new Map(
+          resourceIds.map((id) => [id, { provider: null, report: null, hostJobs: [] }] as const),
+        ),
       ),
   },
 };

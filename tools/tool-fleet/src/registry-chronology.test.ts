@@ -496,3 +496,29 @@ for (const [name, before, after, at] of [
     expect((await read(proof)).state).toEqual(proof.journal);
   });
 }
+
+test('chronology canonical publication refuses future expanded-year evidence without mutation', async () => {
+  const proof = await createPublishedJournal();
+  proof.journal.publicationEvidence = [
+    {
+      operationId,
+      declaredAt: expanded,
+      contents: [
+        {
+          repository: 'proof/app',
+          digest,
+          size: 100,
+          mediaType: 'application/vnd.oci.image.manifest.v1+json',
+          isManifest: true,
+          dependencies: [],
+        },
+      ],
+      writes: [{ repository: 'proof/app', digest, uploadId: null, phase: 'stored', at: expanded }],
+    },
+  ];
+  await store(proof);
+  const bytes = await readFile(join(proof.directory, 'journal.json'), 'utf8');
+  const refused = await requireRejection(read(proof));
+  expect(refused.throwCause).toThrow('Invalid publication evidence chronology');
+  expect(await readFile(join(proof.directory, 'journal.json'), 'utf8')).toBe(bytes);
+});

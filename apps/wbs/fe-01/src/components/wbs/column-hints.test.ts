@@ -158,3 +158,12 @@ describe('the hints say what changing the column does to the plan', () => {
     expect(hint).not.toContain('built the same way');
   });
 });
+
+describe('measure column hints (wbs-measure-budgets D7)', () => {
+  it('explains each facet of any measure, and refuses a facet nobody wrote', () => {
+    expect(hintFor('measure-tokens-estimate', ON_CALENDAR)).toMatch(/PERT weights/);
+    expect(hintFor('measure-cost-fact', ON_CALENDAR)).toMatch(/not zero/);
+    expect(hintFor('measure-gpu_minutes-variance', OFF_CALENDAR)).toMatch(/Recorded less expected/);
+    expect(() => hintFor('measure-tokens-total', ON_CALENDAR)).toThrow(UnexplainedColumnError);
+  });
+});

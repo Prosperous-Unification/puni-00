@@ -171,13 +171,13 @@ function workspace(
       delete configured.targets?.['test']?.inputs;
     write(
       root,
-      `modules/${name}/project.json`,
+      `${configured.root}/project.json`,
       JSON.stringify({
         ...configured,
         implicitDependencies: name === 'middle' ? ['core'] : name === 'consumer' ? ['middle'] : [],
       }),
     );
-    write(root, `modules/${name}/source.ts`, 'export const first = 1;\n');
+    write(root, `${configured.root}/source.ts`, 'export const first = 1;\n');
   }
   write(root, 'docs/plans/report.md', 'Original report\n');
   write(root, 'runtime.config.json', '{}\n');
@@ -988,4 +988,55 @@ describe('runtime subprocess evidence boundary', () => {
   ])('refuses malformed output %s instead of approving omitted suites', (content) => {
     expect(() => parseRuntimeSelection(content)).toThrow();
   });
+});
+
+// Proof: S1–S5 remove each consumed input family; this selection test rejects each omission.
+describe('real runtime-dispatch input selection', () => {
+  it.each([
+    'apps/twilight-structure/twilight-dash/cli/src/runs/dispatch-turn.ts',
+    'apps/twilight-structure/twilight-dash/cli/src/bridge/runtime-client.ts',
+    'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-dispatch-worker.ts',
+    'apps/twilight-structure/twilight-dash/cli/src/runs/testing/fixtures.ts',
+    'apps/twilight-structure/twilight-dash/cli/src/agents/activity-executor.ts',
+    'apps/twilight-structure/twilight-dash/cli/src/clock.ts',
+    'apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-binding.ts',
+  ])(
+    'selects the actual boot consumer from committed declarations for %s',
+    (path) => {
+      const configured: ProjectGraph = { nodes: {}, dependencies: {}, externalNodes: {} };
+      for (const projectPath of [
+        'apps/wbs/be-01/project.json',
+        'apps/twilight-structure/twilight-dash/cli/project.json',
+        'apps/twilight-structure/twilight-burokrat/cli/project.json',
+      ]) {
+        const declaration = JSON.parse(
+          readFileSync(join(ROOT, projectPath), 'utf8'),
+        ) as ProjectGraphProjectNode['data'] & { name: string };
+        const test = declaration.targets?.['test'];
+        if (test === undefined)
+          throw new Error('consumed project has no test target: ' + projectPath);
+        configured.nodes[declaration.name] = {
+          name: declaration.name,
+          type: 'app',
+          data: {
+            root: dirname(projectPath),
+            sourceRoot: declaration.sourceRoot,
+            targets: { test },
+          },
+        };
+        configured.dependencies[declaration.name] = [];
+      }
+      const history = workspace(path, 'modify', configured, {
+        [path]: 'export const consumed = 1;\n',
+      });
+      const invocation = invoke(history);
+      expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+      const selected = parseRuntimeSelection(invocation.stdout.toString());
+      expect(selected.projects).toContain('wbs-be-01');
+      expect(selected.projects).toContain('twilight-dash');
+      if (path.includes('twilight-burokrat'))
+        expect(selected.projects).toContain('twilight-burokrat');
+    },
+    30000,
+  );
 });

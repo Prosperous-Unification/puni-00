@@ -1,3 +1,4 @@
+import type { TrustedIssuerVerdict } from '@wbs/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { base64url, exportJWK, generateKeyPair, type JWTPayload, SignJWT } from 'jose';
 
@@ -82,7 +83,13 @@ function verifier(options: Partial<ConstructorParameters<typeof TrustedIssuerKey
   return { keys, verify, reports };
 }
 
-const VERIFIED = { kind: 'verified', subject: 'repo:acme/wbs' } as const;
+/** A verified verdict for the default subject, whatever `exp` its token carried. */
+const VERIFIED: TrustedIssuerVerdict = {
+  kind: 'verified',
+  subject: 'repo:acme/wbs',
+  // An asymmetric matcher stands in for the number: any `exp` matches.
+  expiresAt: expect.any(Number) as number,
+};
 const INVALID = { kind: 'invalid' } as const;
 const UNAVAILABLE = { kind: 'key_set_unavailable' } as const;
 
@@ -164,7 +171,11 @@ describe('TrustedIssuerKeySets', () => {
     expect(await verify(await sign({ exp: undefined }))).toEqual(INVALID);
     expect(await verify(await sign({ exp: now + 10 * 365 * 24 * 60 * 60 }))).toEqual(INVALID);
     expect(await verify(await sign({ exp: now + 61 * 60 }))).toEqual(INVALID);
-    expect(await verify(await sign({ exp: now + 59 * 60 }))).toEqual(VERIFIED);
+    // The verified `exp` is carried out: it caps a machine grant issued for it.
+    expect(await verify(await sign({ exp: now + 59 * 60 }))).toEqual({
+      ...VERIFIED,
+      expiresAt: now + 59 * 60,
+    });
   });
 
   // Proof: with the status check removed from `fetchKeySet`, the `erring`

@@ -1,0 +1,21 @@
+{
+  "base": "6a374c83a2de65097248f73bf1b7e488329465ff",
+  "files": {
+    "infra/versions/toolchain.json": "5fa350e57fca1228287d101f41c8156f3845cb262f690cc29eb743bb3c31d31e",
+    "tools/tool-fleet/src/contracts.test.ts": "da098974885e30181f33823602e1d71af1b21624932c369464efb5033b8f9a16",
+    "tools/tool-fleet/src/contracts.ts": "00fc464cc93e4fa2cf6a2873c6784e718232a4dc2c53b92afc7839f62e58d5f3",
+    "tools/tool-fleet/src/creation-resources.ts": "a8c9e0c79f85f138a3ebae4305380f026400939d4874985afbab47f9003bc133",
+    "tools/tool-fleet/src/k3d-creation.test.ts": "0896fd6cac44c78c895071f64506f7a54b37459a8c69e78b1c95da9bb21d7087",
+    "tools/tool-fleet/src/k3d-creation.ts": "5fca72c218efc84b28356501f4cc311a9d848edba28a1e53f006c88777c22417",
+    "tools/tool-fleet/src/k3d-lab.ts": "27ea7cb28042482cce59daa60e87c4f8a5ba77d335e108ad3b7f5728357bba21",
+    "tools/tool-fleet/src/k3d-resource-caller.test.ts": "593355013b68cca9da097e94e63fc29043a7c378079c798e64b22f995e2c44c0",
+    "tools/tool-fleet/src/k3d-resource-runtime.test.ts": "0be0dcd0959fa2af589e0cd968619bebea617a5fe70dc2e540f606393926364f",
+    "tools/tool-fleet/src/k3d-resource-runtime.ts": "62ddc89313b77694182fee579698c7d37253a4d22aaa136ee52348866bb9c34f",
+    "tools/tool-fleet/src/observability-rehearsal-obligations.test.ts": "86ab39d8c561625ce5d364a40489d62422c9237a315fe99ed8978fba2ae2b803",
+    "tools/tool-fleet/src/observability-rehearsal-obligations.ts": "d92348fe7937e5b8307f627a5da7fab555c885c3db421a3f40c990b35af2ef91",
+    "tools/tool-fleet/src/k3d-helper-images.ts": "1916231f66ed767d5743bfa3dcac55bf534987b04c6a10c17c70ca2dd1350149",
+    "tools/tool-fleet/src/k3d-helper-images.test.ts": "10ee64fdb4774c7f1df5bf7876d20f9cf8552e121a8d1d21e94920425322656d",
+    "tools/tool-fleet/src/k3d-helper-images.fixture.test.ts": "1e382ec68ea79c69fecae6179b63bf1efeb733bc91bfc705b1a39c47d89ddb38",
+    "tools/tool-fleet/src/fixtures/k3d-creation-v1.json": "db977f285b4397a9e8a9b55844f7d2c88a193e787dd3e245f333d16270ef46a4"
+  }
+}

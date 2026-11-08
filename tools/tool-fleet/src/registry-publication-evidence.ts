@@ -105,7 +105,10 @@ export function validateRegistryDeclaration(
   return contents;
 }
 
-/** Validate persisted ownership without inventing missing legacy declarations or treating write intent as completion. */
+/** Validate persisted ownership without inventing missing legacy declarations or treating write intent as completion.
+ * Journal schemas validate all timestamps as finite canonical ISO instants before either caller reaches this boundary;
+ * numeric comparisons preserve accepted expanded years and original stored strings.
+ */
 export function validateRegistryPublicationEvidence(
   evidence: RegistryPublicationEvidence,
   references: readonly { repository: string; digest: string }[],
@@ -113,8 +116,9 @@ export function validateRegistryPublicationEvidence(
   updatedAt: string,
 ): void {
   validateRegistryDeclaration(evidence.contents, references);
+  // Proof: bypassing this chronological bound admits future expanded-year evidence through canonical journal read.
   if (
-    evidence.declaredAt > receipt.at ||
+    Date.parse(evidence.declaredAt) > Date.parse(receipt.at) ||
     new Set(evidence.writes.map(key)).size !== evidence.writes.length
   )
     throw new Error('Invalid publication evidence chronology or duplicate write');
@@ -126,11 +130,12 @@ export function validateRegistryPublicationEvidence(
   for (const write of evidence.writes) {
     const declared = evidence.contents.find((content) => key(content) === key(write));
     // Proof: blob-as-manifest, manifest-as-blob and undeclared writes fail this persisted-state boundary in registry-publication-evidence.test.ts; dropped Boolean grouping admits them.
+    // Proof: independently removing each chronological bound admits its write-before-declaration, write-after-journal, or write-after-completed-receipt negative.
     if (
       declared?.isManifest !== (write.uploadId === null) ||
-      write.at < evidence.declaredAt ||
-      write.at > updatedAt ||
-      (receipt.state !== 'unfinished' && write.at > receipt.at)
+      Date.parse(write.at) < Date.parse(evidence.declaredAt) ||
+      Date.parse(write.at) > Date.parse(updatedAt) ||
+      (receipt.state !== 'unfinished' && Date.parse(write.at) > Date.parse(receipt.at))
     )
       throw new Error('Publication write lacks exact declared ownership');
   }

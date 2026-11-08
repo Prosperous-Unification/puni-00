@@ -12,8 +12,9 @@ import {
 import { type } from 'arktype';
 import { parseDocument } from 'yaml';
 
+import { parseRegistryTierState } from './lib/registry-state';
 import { routedColorFromAdminConfig } from './lib/site';
-import { parseStateJson, type Tier } from './lib/state';
+import { type Tier } from './lib/state';
 import { isPhase } from './lib/state';
 import { DockerHost, DockerScope, scanDockerConsumers } from './registry-docker-consumers';
 
@@ -184,7 +185,7 @@ export async function readComposeSource(
             phases[tier] = phase;
             hasReleaseEvidence = true;
           } else {
-            const state = parseStateJson(source.text);
+            const state = parseRegistryTierState(source.text);
             if (state.tier !== tier) throw new Error('Foreign Compose tier state');
             if (state.lastDeployedSha !== null) hasReleaseEvidence = true;
           }

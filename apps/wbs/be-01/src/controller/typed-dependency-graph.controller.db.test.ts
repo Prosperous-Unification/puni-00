@@ -13,11 +13,13 @@ import { readPreconditions } from '@wbs/core/service/compensating';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint, RelationshipType } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -143,6 +145,8 @@ beforeEach(() => {
       estimates,
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
+      measureEstimates: new MeasureEstimateRepository(db, OPEN),
+      budgets: new WorkItemBudgetRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),
@@ -414,7 +418,9 @@ describe('graph-changing writes on a legacy-only project', () => {
       // receive 200 instead of 409; watched 2026-10-14.
       if (refreshRevisions) {
         // Refresh only revision evidence so the independent graph guard is reached.
-        const entry = (await journal.entriesFor(at.projectId, at.userId)).at(-1);
+        const entry = (
+          await journal.entriesFor({ projectId: at.projectId, userId: at.userId, personId: null })
+        ).at(-1);
         if (entry === undefined) throw new Error('move journal entry missing');
         const preconditions = readPreconditions(entry.preconditions);
         const rows = await workItems.listByProject(at.projectId);

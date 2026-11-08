@@ -79,10 +79,13 @@ describe('the closed case manifest', () => {
       'estimates',
       'actuals',
       'measures',
+      'measureEstimates',
+      'budgets',
       'progress',
       'attempts',
       'blockages',
       'stepParallels',
+      'runtimeCommands',
       'claims',
       'demands',
       'dependencies',
@@ -92,6 +95,7 @@ describe('the closed case manifest', () => {
       'savedPlans',
       'savedPlanCapture',
     ]);
+    expect(CASE_MANIFEST.runtimeCommands).toEqual(['runtimeCommands.write:permanent-history']);
     expect(CASE_MANIFEST.stepParallels).toEqual(['stepParallels.set:sparse-replace-remove']);
     expect(CASE_MANIFEST.blockages).toEqual(['blockages.set:read-remove']);
     expect(CASE_MANIFEST.claims).toEqual([
@@ -102,7 +106,9 @@ describe('the closed case manifest', () => {
       'claims.lease:write-renew-expire',
       'claims.observeProject:legacy-observation',
       'claims.lease:revoked-instant-read',
+      'claims.lease:run-scoped',
       'claims.occupancy:hold-read-cascade',
+      'claims.occupancy:organization-scope',
     ]);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({
       common: ['history.batch:independent-commit', 'history.batch:independent-rollback'],

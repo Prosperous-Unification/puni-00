@@ -1,4 +1,4 @@
-import { InternalPushRequest } from '@wbs/contracts';
+import { InternalPushRequest, wsData, wsTransient } from '@wbs/contracts';
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
@@ -24,11 +24,14 @@ export const internalController = (deps: InternalDeps) =>
     try {
       const req = parseOrThrow(InternalPushRequest, body);
       const sockets = deps.subs.socketsFor(req.subscription);
-      const payload = JSON.stringify({
-        subscription: req.subscription,
-        seq: req.seq,
-        message: req.message,
-      });
+      // A push without `seq` is a transient announcement (`wbs-claim-display`
+      // C21) and goes out as its own frame, with no sequence;
+      // `delivers an unsequenced push without a sequence`
+      // (fan-out.integration.test.ts) reads it.
+      const payload =
+        req.seq === undefined
+          ? wsTransient(req.subscription, req.message)
+          : wsData(req.subscription, req.seq, req.message);
       for (const s of sockets) s.send(payload);
       deps.metrics.fanOut(sockets.size);
       set.status = 202;

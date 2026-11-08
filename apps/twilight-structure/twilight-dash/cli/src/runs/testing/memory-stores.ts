@@ -1,0 +1,1290 @@
+import { randomUUID } from 'node:crypto';
+
+import { parseOrThrow, type } from '@shared/validation';
+
+import type { WallClock } from '../../clock';
+import {
+  referenceArtifact,
+  snapshotArtifactContent,
+  verifyArtifactContent,
+} from '../artifact-integrity';
+import type { ArtifactStore } from '../artifact-store';
+import {
+  decodeClaimAcceptCommand,
+  decodeClaimStageCommand,
+  decodeScopedAttemptGuard,
+  decodeTurnStageCommand,
+} from '../execution-codecs';
+import {
+  permitsMutation,
+  planAdmission,
+  planManifestRetention,
+  planRunCreation,
+} from '../plan-admission';
+import { planClaimAcceptance, planClaimStage, planTurnStage } from '../plan-claims';
+import {
+  type AttemptChange,
+  planExecution,
+  type RecordedExecution,
+  replayExecution,
+} from '../plan-execution';
+import { planOutcome, type RecordedCompletion } from '../plan-outcome';
+import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
+import { planReceipt, type RecordedReceipt, replayReceipt } from '../plan-receipt';
+import {
+  isActiveRecoveryAttempt,
+  planRecoveryBegin,
+  planRecoveryFence,
+  planRecoveryObservation,
+  planRecoveryResolution,
+  replayRecoveryResolution,
+} from '../plan-recovery';
+import type { RecoveryBarrier, RecoveryCatalog } from '../plan-recovery-history';
+import {
+  auditRuntimeCatalog,
+  inspectRuntimeScope,
+  planRuntimeAcceptance,
+  planRuntimePin,
+  planRuntimeStage,
+  type RuntimeCatalog,
+  type RuntimeScopeRecord,
+} from '../plan-runtime';
+import {
+  planConsumption,
+  planDecision,
+  type RecordedConsumption,
+  replayConsumption,
+  replayDecision,
+} from '../plan-signals';
+import { planWriteAcceptance, planWriteStage, type WriteFacts } from '../plan-writes';
+import { decodeCurrentAttempt } from '../record-codecs';
+import { decisionId, decodeAttempt, decodeDecision, decodeReceipt } from '../record-codecs';
+import {
+  addInteger,
+  assertInteger,
+  decodeAdmission,
+  decodeArtifactRef,
+  decodeAttemptGuard,
+  decodeCompletion,
+  decodeExecutionCommand,
+  decodeManifest,
+  decodeOwnership,
+  decodeRun,
+  decodeRunGuard,
+  equalRecords,
+  manifestDigest,
+  organizationId,
+  ownerId,
+  runId,
+  storeId,
+} from '../record-codecs';
+import type { ScopedAttemptGuard } from '../records';
+import type { Decision } from '../records';
+import type {
+  Admission,
+  ArtifactRef,
+  Attempt,
+  Manifest,
+  Ownership,
+  OwnershipStatus,
+  Run,
+} from '../records';
+import {
+  decodeRecoveryBeginCall,
+  decodeRecoveryFenceCall,
+  decodeRecoveryObservationCall,
+  decodeRecoveryResolveCall,
+} from '../recovery-codecs';
+import type { RecoveryHistory } from '../recovery-records';
+import type { RunStore, StoreReply } from '../run-store';
+import {
+  decodeRuntimeAcceptanceInput,
+  decodeRuntimeGuard,
+  decodeRuntimePin,
+  decodeRuntimeScope,
+  runtimeScopeKey,
+} from '../runtime-codecs';
+import type { RuntimeAcceptance, RuntimeIntent } from '../runtime-records';
+import { validateHistory } from '../validate-history';
+import { decodeWriteAcceptCommand, decodeWriteStageCommand } from '../write-codecs';
+import type { RecordedWrite, WriteObligation, WriteReceipt } from '../write-records';
+
+export interface MemoryOptions {
+  readonly organizationId: OwnershipStatus['organizationId'];
+  readonly capacity: number;
+  readonly leaseMilliseconds: number;
+  readonly clock: WallClock;
+}
+
+/** Explicit test bootstrap. Synchronous planning and publication contain no await, so concurrent public calls observe an atomic view. */
+export function createMemoryStores(options: MemoryOptions): {
+  runs: RunStore;
+  artifacts: ArtifactStore;
+  ownership: OwnershipStatus;
+  close(): Promise<void>;
+} {
+  const organization = organizationId(options.organizationId);
+  const capacity = options.capacity;
+  const leaseMilliseconds = options.leaseMilliseconds;
+  assertInteger(capacity, 1);
+  assertInteger(leaseMilliseconds, 1);
+  // Proof: removing clock-shape validation failed the bootstrap prerequisite test on omitted and malformed clocks.
+  parseOrThrow(type({ read: 'Function' }), options.clock);
+  const clock = options.clock;
+  let lastObservedAt = clock.read();
+  assertInteger(lastObservedAt);
+  let status: OwnershipStatus = {
+    storeId: storeId(randomUUID()),
+    organizationId: organization,
+    epoch: 0,
+    owner: null,
+  };
+  let isClosed = false;
+  let reserved = 0;
+  let runtimeScopes = new Map<string, RuntimeScopeRecord>();
+  let runtimeIntents = new Map<string, RuntimeIntent>();
+  let runtimeAcceptances = new Map<string, RuntimeAcceptance>();
+  let recoveries = new Map<string, RecoveryHistory>();
+  let recoveryBarriers = new Map<string, RecoveryBarrier>();
+  let activeRecoveries = new Map<string, RecoveryCatalog['active'][number]>();
+  let recoveryCounts: RecoveryCatalog['counts'] = {
+    journals: 0,
+    fences: 0,
+    observations: 0,
+    closures: 0,
+    barriers: 0,
+    active: 0,
+  };
+  let runtimeCounts = { scopes: 0, intents: 0, acceptances: 0 };
+  function readRuntimeCatalog(): RuntimeCatalog {
+    if (
+      // Proof: F50 ignored a dropped memory pin with a retained count; 'memory count audit' failed and exact restoration passed.
+      runtimeScopes.size !== runtimeCounts.scopes ||
+      runtimeIntents.size !== runtimeCounts.intents ||
+      runtimeAcceptances.size !== runtimeCounts.acceptances
+    )
+      throw new Error('corrupt memory runtime counts');
+    const catalog = structuredClone({
+      recovery: {
+        histories: [...recoveries.values()],
+        barriers: [...recoveryBarriers.values()],
+        active: [...activeRecoveries.values()],
+        counts: recoveryCounts,
+      },
+      scopes: [...runtimeScopes.values()],
+      intents: [...runtimeIntents.values()],
+      acceptances: [...runtimeAcceptances.values()],
+    });
+    auditRuntimeCatalog(catalog, status);
+    return catalog;
+  }
+  function advanceRuntime(scope: Parameters<typeof runtimeScopeKey>[0], revision: number): void {
+    const key = runtimeScopeKey(scope);
+    const retained = runtimeScopes.get(key);
+    if (retained === undefined) throw new Error('runtime scope is not pinned');
+    runtimeScopes.set(key, { ...retained, revision });
+  }
+  let writes = new Map<string, RecordedWrite>();
+  let obligations = new Map<string, WriteObligation>();
+  let writeReceipts = new Map<string, WriteReceipt>();
+  let writeCounts = { records: 0, obligations: 0, receipts: 0 };
+  const decisions = new Map<string, Decision>();
+  const consumptions = new Map<string, RecordedConsumption>();
+  const receipts = new Map<string, RecordedReceipt>();
+  const completions = new Map<string, RecordedCompletion>();
+  let executions = new Map<string, RecordedExecution>();
+  const blobs = new Map<string, { reference: ArtifactRef; content: Uint8Array }>();
+  const manifests = new Map<Manifest['digest'], Manifest>();
+  let runs = new Map<Run['runId'], Run>();
+  const initialRuns = new Map<Run['runId'], Run>();
+  let attempts = new Map<Attempt['attemptId'], Attempt>();
+  const admissions = new Map<Admission['attemptId'], Admission>();
+
+  function readHistoryCatalog() {
+    if (
+      writes.size !== writeCounts.records ||
+      obligations.size !== writeCounts.obligations ||
+      writeReceipts.size !== writeCounts.receipts
+    )
+      throw new Error('corrupt memory write counts');
+    const held = [...attempts.values()]
+      .filter((attempt) => attempt.holdsCapacity)
+      .map((attempt) => attempt.attemptId);
+    if (held.length !== reserved) throw new Error('corrupt memory reservation count');
+    return structuredClone({
+      ownership: status,
+      runtime: readRuntimeCatalog(),
+      manifests: [...manifests.values()],
+      runs: [...runs.values()].map((run) => {
+        const initial = initialRuns.get(run.runId);
+        if (initial === undefined) throw new Error('run initial identity does not exist');
+        return { run, initial };
+      }),
+      attempts: [...attempts.values()].map((attempt) => {
+        const admission = admissions.get(attempt.attemptId);
+        if (admission === undefined) throw new Error('admission identity does not exist');
+        return { attempt, admission };
+      }),
+      executions: [...executions.values()],
+      consumptions: [...consumptions.values()],
+      completions: [...completions.values()],
+      receipts: [...receipts.values()],
+      decisions: [...decisions.values()],
+      reservations: held,
+      capacity,
+      writes: [...writes.values()],
+      obligations: [...obligations.values()],
+      writeReceipts: [...writeReceipts.values()],
+    });
+  }
+  function auditHistory() {
+    return validateHistory(readHistoryCatalog());
+  }
+  function assertOpen(): void {
+    // Proof: bypassing this lifecycle fence failed the bootstrap/closed-store test on all seven public operations.
+    if (isClosed) throw new Error('run store is closed');
+  }
+  function observeClock(): number {
+    assertOpen();
+    const observedAt = clock.read();
+    assertClock(observedAt, lastObservedAt);
+    return observedAt;
+  }
+  function readManifest(digest: Manifest['digest']): Manifest {
+    const manifest = manifests.get(digest);
+    // Proof: removing this absence diagnostic failed the trusted missing-records test instead of reporting missing retained content.
+    if (manifest === undefined) throw new Error('manifest does not exist');
+    return decodeManifest(structuredClone(manifest));
+  }
+  function readRun(identity: Run['runId']): Run {
+    auditHistory();
+    const run = runs.get(identity);
+    // Proof: removing this absence diagnostic failed the trusted missing-records test instead of reporting a missing run.
+    if (run === undefined) throw new Error('run does not exist');
+    return decodeRun(structuredClone(run));
+  }
+  function readAuthority(requested: Ownership, observedAt: number) {
+    return { current: structuredClone(status.owner), requested, observedAt, lastObservedAt };
+  }
+  function finishReply<T>(reply: StoreReply<T>, observedAt: number): StoreReply<T> {
+    // Proof: persisting only applied observations let renewal at 1049 follow owner_busy at
+    // 1050; `refused ownership acquisition persists the greatest clock observation` resolved.
+    lastObservedAt = observedAt;
+    // Proof: replacing provider cloning with identity operations failed `caller mutation cannot change retained manifests, runs, attempts or returned snapshots`.
+    return structuredClone(reply);
+  }
+  function publishOwnership(
+    reply: StoreReply<Ownership>,
+    observedAt: number,
+  ): StoreReply<Ownership> {
+    if (reply.kind !== 'refused') {
+      status = { ...status, epoch: reply.value.epoch, owner: structuredClone(reply.value) };
+    }
+    return finishReply(reply, observedAt);
+  }
+  function applyChange(run: Run, previous: Attempt, change: AttemptChange): void {
+    // Proof: bypassing release only settled memory enforcement failed 'memory execution > unknown effects and takeover retain capacity until determinate quiescence'.
+    // Proof: bypassing release settled memory enforcement failed 'memory execution > unknown effects and takeover retain capacity until determinate quiescence'.
+    if (previous.holdsCapacity && !change.attempt.holdsCapacity) reserved -= 1;
+    // Proof: injecting memory capacity reacquisition bypass failed `memory decisions > decisions retain complete identity and consume only the exact wait once` at its explicit assertion.
+    if (!previous.holdsCapacity && change.attempt.holdsCapacity) reserved += 1;
+    attempts.set(change.attempt.attemptId, structuredClone(change.attempt));
+    runs.set(run.runId, { ...run, revision: change.runRevision });
+  }
+  function requireAttempt(identity: Attempt['attemptId']): Attempt {
+    const attempt = attempts.get(identity);
+    // Proof: injecting testing missing attempt bypass failed `memory signal edges > missing named attempts throw before inbox or receipt mutation` at its explicit assertion.
+    if (attempt === undefined) throw new Error('attempt does not exist');
+    // Proof: T6H01 actual resolver-produced hold made fresh execution throw in strict Attempt2 decoding; current-row dispatch restores typed refusal.
+    return decodeCurrentAttempt(structuredClone(attempt));
+  }
+  function writeFacts(guard: ScopedAttemptGuard): WriteFacts {
+    const catalog = readHistoryCatalog();
+    const run = readRun(guard.runId);
+    const attempt = requireAttempt(guard.attemptId);
+    const scope = inspectRuntimeScope(catalog.runtime, guard.scope, status);
+    if (scope.kind !== 'pinned') throw new Error('runtime scope is not pinned');
+    return {
+      run,
+      attempt,
+      manifest: readManifest(run.manifestDigest),
+      ownership: status,
+      scope,
+      runtime: catalog.runtime,
+      executions: catalog.executions.filter(
+        (entry) => entry.reply.attempt.attemptId === guard.attemptId,
+      ),
+      submissions: catalog.executions,
+      // Proof: legacy-memory-global-write-facts broke “memory writes > second actual write target independently refuses a global local identity collision”; exact source hash restored.
+      writes: catalog.writes,
+      obligations: catalog.obligations,
+    };
+  }
+  const port: RunStore = {
+    async stageWrite(inputGuard, inputCommand) {
+      // Proof: T2 memory-stage-snapshot-{guard,command} independently used caller references; the real clock-mutation contract lost its original applied command. Exact restoration passed source hashes.
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: T2 memory-stage-current-owner removed this gate; expired original replay lost owner_stale. Exact source restoration was observed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const guard = decodeScopedAttemptGuard(guardSnapshot);
+      const command = decodeWriteStageCommand(commandSnapshot);
+      const facts = writeFacts(guard);
+      // Proof: T2 memory-stage-submitted-{run,attempt,scope} independently replaced one submitted cut with today’s value; its real stale-cut assertion observed applied instead of revision_conflict.
+      const planned = planWriteStage(facts, guard, command);
+      if (planned.kind === 'refused') return finishReply(planned, observedAt);
+      if (planned.kind === 'duplicate')
+        return finishReply({ kind: 'duplicate', value: planned.value.ack }, observedAt);
+      const change = planned.value;
+      const intents = new Map(runtimeIntents).set(
+        change.intent.commandId,
+        structuredClone(change.intent),
+      );
+      const scopes = new Map(runtimeScopes).set(runtimeScopeKey(guard.scope), {
+        pin: structuredClone(facts.scope.pin),
+        revision: change.intent.stagedRevision,
+      });
+      const attemptRows = new Map(attempts).set(
+        change.ack.attempt.attemptId,
+        structuredClone(change.ack.attempt),
+      );
+      const runRows = new Map(runs).set(facts.run.runId, {
+        ...facts.run,
+        revision: change.runRevision,
+      });
+      const writeRows = new Map(writes).set(command.commandId, structuredClone(change.record));
+      const pending = new Map(obligations).set(
+        command.commandId,
+        structuredClone(change.obligation),
+      );
+      const counts = { ...runtimeCounts, intents: addInteger(runtimeCounts.intents, 1) };
+      const retainedCounts = {
+        ...writeCounts,
+        records: addInteger(writeCounts.records, 1),
+        obligations: addInteger(writeCounts.obligations, 1),
+      };
+      const held = reserved - (facts.attempt.holdsCapacity ? 1 : 0);
+      const response = structuredClone({ kind: 'applied' as const, value: change.ack });
+      // Proof: T2 memory stage journal/reply clone faults rejected with the original cause and retained the exact readable run, execution and scope predecessor after all preparation moved before publication.
+      // Proof: T2 publication-memory-stage independently omitted every assignment below except the refusal clock; the actual coupled-bundle assertion failed. Scope omission also exposed the current-catalog bound gap, then failed after that audit was fixed. All source restorations matched.
+      runtimeIntents = intents;
+      runtimeScopes = scopes;
+      attempts = attemptRows;
+      // Proof: publication-memory-stage-runs broke “memory writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+      runs = runRows;
+      writes = writeRows;
+      obligations = pending;
+      // Proof: publication-memory-stage-runtimeCounts broke “memory writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+      runtimeCounts = counts;
+      writeCounts = retainedCounts;
+      reserved = held;
+      lastObservedAt = observedAt;
+      return await Promise.resolve(response);
+    },
+    async recordWriteAcceptance(inputGuard, inputCommand) {
+      // Proof: T2 memory-accept-snapshot-{guard,command} independently used caller references; the real clock-mutation contract lost its original applied command. Exact restoration passed source hashes.
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: T2 memory-accept-current-owner removed this gate; expired original replay lost owner_stale. Exact source restoration was observed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const guard = decodeScopedAttemptGuard(guardSnapshot);
+      const command = decodeWriteAcceptCommand(commandSnapshot);
+      const facts = writeFacts(guard);
+      // Proof: T2 memory-accept-submitted-{run,attempt,scope} independently replaced one submitted cut with today’s value; its real stale-cut assertion observed applied instead of revision_conflict.
+      const planned = planWriteAcceptance(facts, guard, command);
+      if (planned.kind === 'refused') return finishReply(planned, observedAt);
+      if (planned.kind === 'duplicate')
+        return finishReply({ kind: 'duplicate', value: planned.value.ack }, observedAt);
+      const change = planned.value;
+      const acceptances = new Map(runtimeAcceptances).set(
+        change.acceptance.commandId,
+        structuredClone(change.acceptance),
+      );
+      const scopes = new Map(runtimeScopes).set(runtimeScopeKey(guard.scope), {
+        pin: structuredClone(facts.scope.pin),
+        revision: change.acceptance.acceptedRevision,
+      });
+      const attemptRows = new Map(attempts).set(
+        change.ack.attempt.attemptId,
+        structuredClone(change.ack.attempt),
+      );
+      const runRows = new Map(runs).set(facts.run.runId, {
+        ...facts.run,
+        revision: change.runRevision,
+      });
+      const writeRows = new Map(writes).set(command.commandId, structuredClone(change.record));
+      const receipts = new Map(writeReceipts).set(
+        change.obligationKey,
+        structuredClone(change.receipt),
+      );
+      const pending = new Map(
+        [...obligations].filter(([identity]) => identity !== change.obligationKey),
+      );
+      const counts = { ...runtimeCounts, acceptances: addInteger(runtimeCounts.acceptances, 1) };
+      const retainedCounts = {
+        records: addInteger(writeCounts.records, 1),
+        obligations: writeCounts.obligations - 1,
+        receipts: addInteger(writeCounts.receipts, 1),
+      };
+      const response = structuredClone({ kind: 'applied' as const, value: change.ack });
+      // Proof: T2 memory acceptance journal/reply clone faults rejected with the original cause and retained the exact readable pending obligation and all three original views before publication.
+      // Proof: T2 publication-memory-accept independently omitted every assignment below except the refusal clock; the actual coupled-bundle assertion failed. The original scope omission was an observed false-green until current-catalog bounds were enforced. All source restorations matched.
+      runtimeAcceptances = acceptances;
+      runtimeScopes = scopes;
+      attempts = attemptRows;
+      // Proof: publication-memory-accept-runs broke “memory writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+      runs = runRows;
+      writes = writeRows;
+      obligations = pending;
+      // Proof: publication-memory-accept-writeReceipts broke “memory writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+      writeReceipts = receipts;
+      runtimeCounts = counts;
+      writeCounts = retainedCounts;
+      lastObservedAt = observedAt;
+      return await Promise.resolve(response);
+    },
+    async resolveRecovery(input) {
+      // Proof: T6M01 using caller input let clock/queue mutation change the submitted closure and reject its original valid input. Restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      const observedAt = observeClock();
+      // Proof: T6M02 removing only this new current-owner gate replayed an expired owner closure. Restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const catalog = readHistoryCatalog();
+      // Proof: T6M03 omitting this complete audit replayed despite unrelated retained run revision drift. Restoration passed.
+      validateHistory(catalog);
+      // Proof: T6M04 omitting typed decoding admitted schemaVersion2 receipt values. Restoration passed.
+      const call = decodeRecoveryResolveCall(snapshot);
+      const replay = replayRecoveryResolution(catalog, call);
+      if (replay !== undefined) return finishReply(replay, observedAt);
+      const reply = planRecoveryResolution(catalog, call);
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      const plan = structuredClone(reply.value);
+      const scopes = new Map(runtimeScopes);
+      const acceptances = new Map(runtimeAcceptances);
+      const journals = new Map(recoveries);
+      const barriers = new Map(recoveryBarriers);
+      const active = new Map(plan.active.map((entry) => [runtimeScopeKey(entry.scope), entry]));
+      const executionRows = new Map(executions);
+      const writeRows = new Map(writes);
+      const obligationRows = new Map(obligations);
+      const receiptRows = new Map(writeReceipts);
+      const runRows = new Map(runs);
+      const attemptRows = new Map(attempts);
+      const key = runtimeScopeKey(call.guard.scope);
+      const scope = scopes.get(key);
+      if (scope === undefined) throw new Error('planned recovery scope does not exist');
+      scopes.set(key, { ...scope, revision: plan.closure.scopeAfter });
+      if (plan.originalAcceptance !== null)
+        acceptances.set(plan.originalAcceptance.commandId, plan.originalAcceptance);
+      if (plan.originalExecution !== null)
+        executionRows.set(plan.originalExecution.command.commandId, plan.originalExecution);
+      if (plan.attempt !== null) attemptRows.set(plan.attempt.attemptId, plan.attempt);
+      if (plan.run !== null) runRows.set(plan.run.runId, plan.run);
+      if (plan.originalWrite !== null) {
+        writeRows.set(plan.originalWrite.record.command.commandId, plan.originalWrite.record);
+        receiptRows.set(plan.originalWrite.receipt.stageCommandId, plan.originalWrite.receipt);
+        obligationRows.delete(plan.originalWrite.obligationKey);
+      }
+      if (plan.obligation !== null)
+        obligationRows.set(plan.obligation.stageCommandId, plan.obligation);
+      journals.set(call.recoveryId, plan.history);
+      barriers.set(call.recoveryId, plan.barrier);
+      const counts = {
+        ...runtimeCounts,
+        acceptances: addInteger(
+          runtimeCounts.acceptances,
+          plan.originalAcceptance === null ? 0 : 1,
+        ),
+      };
+      const nextWriteCounts = {
+        records: writeRows.size,
+        obligations: obligationRows.size,
+        receipts: receiptRows.size,
+      };
+      const response = structuredClone({ kind: 'applied' as const, value: plan.closure });
+      // Proof: T6M06 publishing scope before reply preparation left a corrupt current revision after the real clone dependency failed; exact predecessor read failed. Restoration passed.
+      // All fallible preparation precedes this synchronous publication boundary.
+      // Proof: M04 omitting count publication made actual memory history reject the coupled closure. Exact restoration passed.
+      writeCounts = nextWriteCounts;
+      // Proof: M01 omitting the write journal publication left corrupt write counts after accepted recovery. Exact restoration passed.
+      writes = writeRows;
+      // Proof: M02 omitting obligation publication left inconsistent settlement in accepted/nonaccepted recovery. Exact restoration passed.
+      obligations = obligationRows;
+      // Proof: M03 omitting receipt publication left corrupt write settlement/counts. Exact restoration passed.
+      writeReceipts = receiptRows;
+      runtimeScopes = scopes;
+      runtimeAcceptances = acceptances;
+      executions = executionRows;
+      attempts = attemptRows;
+      runs = runRows;
+      recoveries = journals;
+      recoveryBarriers = barriers;
+      activeRecoveries = active;
+      runtimeCounts = counts;
+      recoveryCounts = plan.counts;
+      lastObservedAt = observedAt;
+      return await Promise.resolve(response);
+    },
+
+    async recordRecoveryFence(input) {
+      // Proof: T5M01 using caller input instead of its snapshot let clock mutation change the retained reply. Exact restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      const observedAt = observeClock();
+      // Proof: T5M02 removing current ownership fencing replayed an expired-owner observation. Exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const catalog = readHistoryCatalog();
+      // Proof: T5M03 omitting the complete audit replayed despite unrelated retained run drift. Exact restoration passed.
+      validateHistory(catalog);
+      // Proof: T5M04 omitting typed decoding admitted a schemaVersion2 receipt. Exact restoration passed.
+      const call = decodeRecoveryObservationCall(snapshot);
+      const reply = planRecoveryObservation(catalog, call);
+      if (reply.kind === 'applied') {
+        const history = catalog.runtime.recovery.histories.find(
+          (entry) => entry.intent.recoveryId === call.recoveryId,
+        );
+        if (history === undefined) throw new Error('planned recovery journal does not exist');
+        const next = structuredClone({
+          ...history,
+          revision: reply.value.observedRevision,
+          observations: [...history.observations, reply.value],
+        });
+        const counts = {
+          ...recoveryCounts,
+          observations: addInteger(recoveryCounts.observations, 1),
+        };
+        // Proof: T5M05 omitting journal publication left count mismatch and broke exact replay. Exact restoration passed.
+        recoveries.set(call.recoveryId, next);
+        recoveryCounts = counts;
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async stageRecoveryFence(input) {
+      // Proof: T4M01 using caller input instead of its snapshot let the clock mutation alter the requested ordinal. Exact restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      const observedAt = observeClock();
+      // Proof: T4M02 removing the current-owner gate replayed an expired-owner fence. Exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const catalog = readHistoryCatalog();
+      // Proof: T4M04 omitting this complete audit replayed despite actual unrelated retained run-revision drift. Exact restoration passed.
+      validateHistory(catalog);
+      // Proof: T4M03 omitting trusted decoding admitted a version2 fence. Exact restoration passed.
+      const call = decodeRecoveryFenceCall(snapshot);
+      const reply = planRecoveryFence(catalog, call);
+      if (reply.kind === 'applied') {
+        const history = recoveries.get(call.recoveryId);
+        if (history === undefined) throw new Error('planned recovery journal does not exist');
+        const next = structuredClone({
+          ...history,
+          revision: reply.value.stagedRevision,
+          fences: [...history.fences, reply.value],
+        });
+        const counts = { ...recoveryCounts, fences: addInteger(recoveryCounts.fences, 1) };
+        // Proof: T4M05 omitting the journal update left the incremented count inconsistent and broke the next replay. Exact restoration passed.
+        recoveries.set(call.recoveryId, next);
+        recoveryCounts = counts;
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async beginRecovery(input) {
+      // Proof: T3BCMCLOCK replacing the snapshot with caller input retained mutation performed by the real clock dependency; exact restoration passed.
+      const snapshot = structuredClone(input);
+      // Proof: T3BORDERM moving target decoding ahead of this owner boundary threw ValidationError instead of owner_stale; exact restoration passed.
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      const observedAt = observeClock();
+      // Proof: T3B1M removed only this new dependency; the expired-owner begin test observed an applied journal; exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const catalog = readHistoryCatalog();
+      validateHistory(catalog);
+      const call = decodeRecoveryBeginCall(snapshot);
+      const reply = planRecoveryBegin(catalog, call);
+      if (reply.kind === 'applied') {
+        recoveries.set(reply.value.intent.recoveryId, structuredClone(reply.value));
+        activeRecoveries.set(
+          runtimeScopeKey(call.guard.scope),
+          structuredClone({ scope: call.guard.scope, recoveryId: reply.value.intent.recoveryId }),
+        );
+        recoveryCounts = {
+          ...recoveryCounts,
+          journals: addInteger(recoveryCounts.journals, 1),
+          active: addInteger(recoveryCounts.active, 1),
+        };
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async pinRuntimeScope(requested, input) {
+      const ownership = decodeOwnership(structuredClone(requested));
+      const snapshot = structuredClone(input);
+      const observedAt = observeClock();
+      // Proof: F48 bypassed the memory pin owner gate; 'owner fencing precedes corrupt or absent' failed and exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const pin = decodeRuntimePin(snapshot);
+      const reply = planRuntimePin(readRuntimeCatalog(), pin, organization);
+      if (reply.kind === 'applied') {
+        runtimeScopes.set(runtimeScopeKey(pin.scope), structuredClone({ pin, revision: 0 }));
+        runtimeCounts.scopes = addInteger(runtimeCounts.scopes, 1);
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async readRuntimeScope(input) {
+      assertOpen();
+      auditHistory();
+      const snapshot = inspectRuntimeScope(readRuntimeCatalog(), decodeRuntimeScope(input), status);
+      return await Promise.resolve(structuredClone(snapshot));
+    },
+    async stageRuntimeRequest(inputGuard, canonicalRequest) {
+      const snapshot = structuredClone(inputGuard);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(snapshot.ownership);
+      // Proof: F32 bypassed the memory staging owner gate; 'owner fencing precedes corrupt or absent' failed and exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const guard = decodeRuntimeGuard(snapshot);
+      const reply = planRuntimeStage(readRuntimeCatalog(), guard, canonicalRequest, status);
+      if (reply.kind === 'applied') {
+        runtimeIntents.set(reply.value.commandId, structuredClone(reply.value));
+        runtimeCounts.intents = addInteger(runtimeCounts.intents, 1);
+        advanceRuntime(guard.scope, reply.value.stagedRevision);
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async recordRuntimeAcceptance(inputGuard, input) {
+      const snapshotGuard = structuredClone(inputGuard);
+      const snapshotInput = structuredClone(input);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(snapshotGuard.ownership);
+      // Proof: F49 bypassed the memory acceptance owner gate; 'owner fencing precedes corrupt or absent' failed and exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const guard = decodeRuntimeGuard(snapshotGuard);
+      const accepted = decodeRuntimeAcceptanceInput(snapshotInput);
+      const reply = planRuntimeAcceptance(readRuntimeCatalog(), guard, accepted, status);
+      if (reply.kind === 'applied') {
+        runtimeAcceptances.set(reply.value.commandId, structuredClone(reply.value));
+        runtimeCounts.acceptances = addInteger(runtimeCounts.acceptances, 1);
+        advanceRuntime(guard.scope, reply.value.acceptedRevision);
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async acquireOwnership(identity, expectedEpoch) {
+      const observedAt = observeClock();
+      auditHistory();
+      return await Promise.resolve(
+        publishOwnership(
+          planOwnership(
+            structuredClone(status),
+            ownerId(identity),
+            expectedEpoch,
+            observedAt,
+            lastObservedAt,
+            leaseMilliseconds,
+          ),
+          observedAt,
+        ),
+      );
+    },
+    async renewOwnership(requested) {
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(structuredClone(requested));
+      // Proof: removing the null-owner renewal refusal made the unowned-bootstrap test throw.
+      if (status.owner === null)
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      // Proof: F09 removed this audit; the matching 'audits lost execution history after owner fencing' negative resolved despite a missing execution. Exact restoration passed.
+      auditHistory();
+      return await Promise.resolve(
+        publishOwnership(
+          planRenewal(
+            structuredClone(status.owner),
+            ownership,
+            observedAt,
+            lastObservedAt,
+            leaseMilliseconds,
+          ),
+          observedAt,
+        ),
+      );
+    },
+    async retainManifest(requested, input) {
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(structuredClone(requested));
+      const manifest = structuredClone(input);
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      // Proof: F10 removed this audit; the matching 'audits lost execution history after owner fencing' negative resolved despite a missing execution. Exact restoration passed.
+      auditHistory();
+      const reply = planManifestRetention(
+        readAuthority(ownership, observedAt),
+        manifest,
+        structuredClone(manifests.get(manifest.digest)),
+      );
+      if (reply.kind === 'applied') {
+        manifests.set(reply.value.digest, structuredClone(reply.value));
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async readManifest(digest) {
+      assertOpen();
+      auditHistory();
+      return await Promise.resolve(readManifest(manifestDigest(digest)));
+    },
+    async createRun(requested, input) {
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(structuredClone(requested));
+      const run = decodeRun(structuredClone(input));
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      // Proof: F11 removed this audit; the matching 'audits lost execution history after owner fencing' negative resolved despite a missing execution. Exact restoration passed.
+      auditHistory();
+      const reply = planRunCreation(
+        readAuthority(ownership, observedAt),
+        run,
+        structuredClone(initialRuns.get(run.runId)),
+        structuredClone(runs.get(run.runId)),
+        structuredClone(manifests.get(run.manifestDigest)),
+      );
+      if (reply.kind === 'applied') {
+        runs.set(run.runId, structuredClone(reply.value));
+        initialRuns.set(run.runId, structuredClone(reply.value));
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async readRun(identity) {
+      assertOpen();
+      const run = readRun(runId(identity));
+      return await Promise.resolve(
+        structuredClone({
+          version: 4,
+          writeObligations: [...obligations.values()].filter(
+            (entry) => writes.get(entry.stageCommandId)?.runId === run.runId,
+          ),
+          writeReceipts: [...writeReceipts.values()].filter(
+            (entry) => writes.get(entry.stageCommandId)?.runId === run.runId,
+          ),
+          run,
+          recoveries: readRuntimeCatalog().recovery.histories.flatMap((history) =>
+            history.intent.target.kind !== 'authority' &&
+            history.intent.target.runId === run.runId &&
+            history.closure !== null
+              ? [history.closure]
+              : [],
+          ),
+          attempts: [...attempts.values()]
+            .map(decodeCurrentAttempt)
+            .filter((attempt) => attempt.identity.runId === run.runId),
+          pendingIntents: [...completions.values()]
+            .filter(
+              (entry) =>
+                entry.completion.intent.claim.runId === run.runId &&
+                !receipts.has(entry.completion.intent.commandId),
+            )
+            .map((entry) => entry.completion.intent),
+          receipts: [...receipts.values()]
+            .filter((entry) => entry.reply.identity.runId === run.runId)
+            .map((entry) => entry.receipt),
+          decisions: [...decisions.values()].filter(
+            (decision) => requireAttempt(decision.attemptId).identity.runId === run.runId,
+          ),
+          consumedDecisionIds: [...consumptions.values()]
+            .filter((entry) => entry.reply.identity.runId === run.runId)
+            .map((entry) => entry.decisionId),
+          capacity: { limit: capacity, reserved },
+        }),
+      );
+    },
+    async receiveDecision(inputOwner, inputDecision) {
+      const ownership = decodeOwnership(structuredClone(inputOwner));
+      const decision = decodeDecision(structuredClone(inputDecision));
+      const observedAt = observeClock();
+      // Proof: injecting testing receiveDecision owner bypass failed `memory signal edges > new inbox identities require current wait and legal correlation choice` at its explicit assertion.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const replay = replayDecision(decisions.get(decision.decisionId), decision);
+      if (replay !== undefined) return finishReply(replay, observedAt);
+      const attempt = requireAttempt(decision.attemptId);
+      const run = readRun(attempt.identity.runId);
+      const reply = planDecision(attempt, decision);
+      if (reply.kind === 'applied') {
+        const revision = addInteger(run.revision, 1);
+        decisions.set(decision.decisionId, structuredClone(decision));
+        runs.set(run.runId, { ...run, revision });
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async consumeDecision(inputGuard, inputId) {
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      const identity = decisionId(inputId);
+      const observedAt = observeClock();
+      // Proof: injecting testing consumeDecision owner bypass failed `memory decisions > old consumption preserves its original reply through later waits and owner takeover` at its explicit assertion.
+      if (!permitsMutation(readAuthority(guard.ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const replay = replayConsumption(consumptions.get(identity), guard);
+      if (replay !== undefined) return finishReply(replay, observedAt);
+      const decision = decisions.get(identity);
+      // Proof: injecting testing missing decision bypass failed `memory signal edges > new inbox identities require current wait and legal correlation choice` at its explicit assertion.
+      if (decision === undefined) throw new Error('decision does not exist');
+      const run = readRun(guard.runId);
+      const attempt = requireAttempt(guard.attemptId);
+      const reply = planConsumption({ run, attempt }, guard, decision, {
+        limit: capacity,
+        reserved,
+      });
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      applyChange(run, attempt, reply.value);
+      consumptions.set(
+        identity,
+        structuredClone({
+          decisionId: identity,
+          wait: reply.value.wait,
+          reply: decodeAttempt(reply.value.attempt),
+        }),
+      );
+      return await Promise.resolve(
+        finishReply({ kind: reply.kind, value: reply.value.attempt }, observedAt),
+      );
+    },
+    async reconcileReceipt(inputGuard, inputReceipt) {
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      const receipt = decodeReceipt(structuredClone(inputReceipt));
+      const observedAt = observeClock();
+      // Proof: injecting testing reconcileReceipt owner bypass failed `memory signal edges > historical receipt retries refuse changed evidence or authority and expired owner` at its explicit assertion.
+      if (!permitsMutation(readAuthority(guard.ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const replay = replayReceipt(receipts.get(receipt.commandId), guard, receipt);
+      if (replay !== undefined) return finishReply(replay, observedAt);
+      const run = readRun(guard.runId);
+      const attempt = requireAttempt(guard.attemptId);
+      const reply = planReceipt(
+        { run, attempt },
+        guard,
+        receipt,
+        completions.get(
+          attempt.state.kind === 'outcome_pending_progress'
+            ? attempt.state.commandId
+            : receipt.commandId,
+        )?.completion.intent,
+      );
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      applyChange(run, attempt, reply.value);
+      receipts.set(
+        receipt.commandId,
+        structuredClone({ receipt, reply: decodeAttempt(reply.value.attempt) }),
+      );
+      return await Promise.resolve(
+        finishReply({ kind: reply.kind, value: reply.value.attempt }, observedAt),
+      );
+    },
+    async commitOutcome(inputGuard, inputCompletion) {
+      const observedAt = observeClock();
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      const completion = decodeCompletion(structuredClone(inputCompletion));
+      const authority = readAuthority(guard.ownership, observedAt);
+      // Proof: bypassing commitOutcome owner memory enforcement failed 'memory execution edges > unresolved and recovery preserve the exact running locator and held reservation'.
+      if (!permitsMutation(authority))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const run = readRun(guard.runId);
+      const attempt = attempts.get(guard.attemptId);
+      // Proof: bypassing commitOutcome missing attempt memory enforcement failed 'memory execution edges > successful effects cannot retry and missing attempts throw without mutations'.
+      if (attempt === undefined) throw new Error('attempt does not exist');
+      const previous =
+        completions.get(completion.intent.commandId) ??
+        [...completions.values()].find((entry) => entry.attemptId === attempt.attemptId);
+      const reply = planOutcome(
+        { run, attempt: structuredClone(attempt), previous: structuredClone(previous) },
+        guard,
+        completion,
+      );
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      if (reply.kind === 'applied') {
+        applyChange(run, attempt, reply.value);
+        completions.set(
+          completion.intent.commandId,
+          structuredClone({
+            version: 1,
+            attemptId: attempt.attemptId,
+            completion,
+            reply: decodeAttempt(reply.value.attempt),
+          }),
+        );
+      }
+      return await Promise.resolve(
+        finishReply({ kind: reply.kind, value: reply.value.attempt }, observedAt),
+      );
+    },
+    async readExecutionHistory(inputRun, inputAttempt) {
+      assertOpen();
+      const history = auditHistory().find(
+        (entry) => entry.run.runId === inputRun && entry.attempt.attemptId === inputAttempt,
+      );
+      if (history === undefined) throw new Error('attempt does not exist');
+      return await Promise.resolve(structuredClone(history));
+    },
+    async recordExecution(inputGuard, inputCommand) {
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const guard = decodeAttemptGuard(guardSnapshot);
+      const command = decodeExecutionCommand(commandSnapshot);
+      // Proof: legacy-memory-recordExecution broke “memory writes independent fresh legacy submission excludes write local ID and accepts unrelated wire label”; exact source hash restored.
+      if ([...writes.values()].some((entry) => entry.command.commandId === command.commandId))
+        return finishReply({ kind: 'refused', reason: 'identity_conflict' }, observedAt);
+      // Proof: T3NMEX withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+      const replay = replayExecution(
+        executions.get(command.commandId),
+        guard,
+        command,
+        readRuntimeCatalog().recovery,
+      );
+      if (replay !== undefined) {
+        if (replay.kind === 'refused') return finishReply(replay, observedAt);
+        if (replay.value.reply.kind !== 'execution')
+          throw new Error('execution replay family differs');
+        return finishReply({ kind: 'duplicate', value: replay.value.reply.attempt }, observedAt);
+      }
+      const run = readRun(guard.runId);
+      const attempt = requireAttempt(guard.attemptId);
+      // Proof: T3I3M removed this interlock; public reattachment applied and changed the active claiming checkpoint. Exact restoration passed.
+      if (
+        isActiveRecoveryAttempt(readRuntimeCatalog(), attempt.attemptId) &&
+        command.fact.kind !== 'recovery_required' &&
+        command.fact.kind !== 'unresolved'
+      )
+        return finishReply({ kind: 'refused', reason: 'state_conflict' }, observedAt);
+      const reply = planExecution(
+        {
+          run,
+          attempt,
+          manifest: readManifest(run.manifestDigest),
+          ownership: status,
+          executions: [...executions.values()],
+        },
+        guard,
+        command.fact,
+      );
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      applyChange(run, attempt, reply.value);
+      executions.set(
+        command.commandId,
+        structuredClone({
+          version: 1,
+          command,
+          context: null,
+          reply: { version: 1, kind: 'execution', attempt: reply.value.attempt },
+        }),
+      );
+      return await Promise.resolve(
+        finishReply({ kind: 'applied', value: reply.value.attempt }, observedAt),
+      );
+    },
+    async stageClaim(inputGuard, inputCommand) {
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: Task2 F69 removed this owner fence; 'stage_claim fences expired owner before fresh publication' received applied instead of owner_stale. Exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      // Proof: Task2 F79 removed this call; 'memory coupled stage_claim audits missing opened history before duplicate replay' resolved instead of rejecting. Fresh-route F75 remained masked by readRun's audit; exact replay restoration passed.
+      auditHistory();
+      const guard = decodeScopedAttemptGuard(guardSnapshot);
+      const command = decodeClaimStageCommand(commandSnapshot);
+      // Proof: legacy-memory-stageClaim broke “memory writes each fresh legacy coupled submission excludes an audited write local while its unrelated identity applies”; exact source hash restored.
+      if ([...writes.values()].some((entry) => entry.command.commandId === command.commandId))
+        return finishReply({ kind: 'refused', reason: 'identity_conflict' }, observedAt);
+      // Proof: T3NMCS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+      const replay = replayExecution(
+        executions.get(command.commandId),
+        guard,
+        command,
+        readRuntimeCatalog().recovery,
+      );
+      if (replay !== undefined) {
+        if (replay.kind === 'refused') return finishReply(replay, observedAt);
+        if (replay.value.reply.kind !== 'claim_staged')
+          throw new Error('coupled replay family differs');
+        return finishReply({ kind: 'duplicate', value: replay.value.reply }, observedAt);
+      }
+      const run = readRun(guard.runId);
+      const attempt = requireAttempt(guard.attemptId);
+      const runtime = readRuntimeCatalog();
+      const scope = inspectRuntimeScope(runtime, guard.scope, status);
+      if (scope.kind !== 'pinned') throw new Error('runtime scope is not pinned');
+      const reply = planClaimStage(
+        {
+          run,
+          attempt,
+          manifest: readManifest(run.manifestDigest),
+          ownership: status,
+          executions: [...executions.values()],
+          runtime,
+          scope,
+        },
+        guard,
+        command,
+      );
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      const ack = reply.value.ack;
+      runtimeIntents.set(ack.intent.commandId, structuredClone(ack.intent));
+      runtimeCounts.intents = addInteger(runtimeCounts.intents, 1);
+      advanceRuntime(guard.scope, ack.intent.stagedRevision);
+      applyChange(run, attempt, { attempt: ack.attempt, runRevision: reply.value.runRevision });
+      executions.set(
+        command.commandId,
+        structuredClone({
+          version: 1,
+          command,
+          context: { version: 1, scopeRevision: scope.revision },
+          reply: ack,
+        }),
+      );
+      return await Promise.resolve(finishReply({ kind: 'applied', value: ack }, observedAt));
+    },
+    async recordClaimAcceptance(inputGuard, inputCommand) {
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: Task2 F70 removed this owner fence; 'accept_claim fences expired owner before fresh publication' received applied instead of owner_stale. Exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      // Proof: Task2 F80 removed this call; 'memory coupled accept_claim audits missing opened history before duplicate replay' resolved instead of rejecting. Fresh-route F76 remained masked by readRun's audit; exact replay restoration passed.
+      auditHistory();
+      const guard = decodeScopedAttemptGuard(guardSnapshot);
+      const command = decodeClaimAcceptCommand(commandSnapshot);
+      // Proof: legacy-memory-recordClaimAcceptance broke “memory writes each fresh legacy coupled submission excludes an audited write local while its unrelated identity applies”; exact source hash restored.
+      if ([...writes.values()].some((entry) => entry.command.commandId === command.commandId))
+        return finishReply({ kind: 'refused', reason: 'identity_conflict' }, observedAt);
+      // Proof: T3NMCA withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+      const replay = replayExecution(
+        executions.get(command.commandId),
+        guard,
+        command,
+        readRuntimeCatalog().recovery,
+      );
+      if (replay !== undefined) {
+        if (replay.kind === 'refused') return finishReply(replay, observedAt);
+        if (replay.value.reply.kind !== 'claim_accepted')
+          throw new Error('coupled replay family differs');
+        return finishReply({ kind: 'duplicate', value: replay.value.reply }, observedAt);
+      }
+      const run = readRun(guard.runId);
+      const attempt = requireAttempt(guard.attemptId);
+      const runtime = readRuntimeCatalog();
+      const scope = inspectRuntimeScope(runtime, guard.scope, status);
+      if (scope.kind !== 'pinned') throw new Error('runtime scope is not pinned');
+      const reply = planClaimAcceptance(
+        {
+          run,
+          attempt,
+          manifest: readManifest(run.manifestDigest),
+          ownership: status,
+          executions: [...executions.values()],
+          runtime,
+          scope,
+        },
+        guard,
+        command,
+      );
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      const ack = reply.value.ack;
+      runtimeAcceptances.set(ack.acceptance.commandId, structuredClone(ack.acceptance));
+      runtimeCounts.acceptances = addInteger(runtimeCounts.acceptances, 1);
+      advanceRuntime(guard.scope, ack.acceptance.acceptedRevision);
+      applyChange(run, attempt, { attempt: ack.attempt, runRevision: reply.value.runRevision });
+      executions.set(
+        command.commandId,
+        structuredClone({
+          version: 1,
+          command,
+          context: { version: 1, scopeRevision: scope.revision },
+          reply: ack,
+        }),
+      );
+      return await Promise.resolve(finishReply({ kind: 'applied', value: ack }, observedAt));
+    },
+    async stageTurn(inputGuard, inputCommand) {
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: Task2 F71 removed this owner fence; 'stage_turn fences expired owner before fresh publication' received applied instead of owner_stale. Exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      // Proof: Task2 F81 removed this call; 'memory coupled stage_turn audits missing opened history before duplicate replay' resolved instead of rejecting. Fresh-route F77 remained masked by readRun's audit; exact replay restoration passed.
+      auditHistory();
+      const guard = decodeScopedAttemptGuard(guardSnapshot);
+      const command = decodeTurnStageCommand(commandSnapshot);
+      // Proof: legacy-memory-stageTurn broke “memory writes each fresh legacy coupled submission excludes an audited write local while its unrelated identity applies”; exact source hash restored.
+      if ([...writes.values()].some((entry) => entry.command.commandId === command.commandId))
+        return finishReply({ kind: 'refused', reason: 'identity_conflict' }, observedAt);
+      // Proof: T3NMTS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+      const replay = replayExecution(
+        executions.get(command.commandId),
+        guard,
+        command,
+        readRuntimeCatalog().recovery,
+      );
+      if (replay !== undefined) {
+        if (replay.kind === 'refused') return finishReply(replay, observedAt);
+        if (replay.value.reply.kind !== 'turn_staged')
+          throw new Error('coupled replay family differs');
+        return finishReply({ kind: 'duplicate', value: replay.value.reply }, observedAt);
+      }
+      const run = readRun(guard.runId);
+      const attempt = requireAttempt(guard.attemptId);
+      const runtime = readRuntimeCatalog();
+      const scope = inspectRuntimeScope(runtime, guard.scope, status);
+      if (scope.kind !== 'pinned') throw new Error('runtime scope is not pinned');
+      const reply = planTurnStage(
+        {
+          run,
+          attempt,
+          manifest: readManifest(run.manifestDigest),
+          ownership: status,
+          executions: [...executions.values()],
+          runtime,
+          scope,
+        },
+        guard,
+        command,
+      );
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      const ack = reply.value.ack;
+
+      applyChange(run, attempt, { attempt: ack.attempt, runRevision: reply.value.runRevision });
+      executions.set(
+        command.commandId,
+        structuredClone({
+          version: 1,
+          command,
+          context: { version: 1, scopeRevision: scope.revision },
+          reply: ack,
+        }),
+      );
+      return await Promise.resolve(finishReply({ kind: 'applied', value: ack }, observedAt));
+    },
+    async admitAttempt(inputGuard, inputAdmission) {
+      const observedAt = observeClock();
+      const guard = decodeRunGuard(structuredClone(inputGuard));
+      const admission = decodeAdmission(structuredClone(inputAdmission));
+      // Proof: reading before this fence made `stale authority refuses before reading an
+      // absent target run` throw `run does not exist` instead of refusing owner_stale.
+      if (status.owner === null || !permitsMutation(readAuthority(guard.ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const run = readRun(guard.runId);
+      const reply = planAdmission(
+        structuredClone({
+          ownership: status.owner,
+          observedAt,
+          lastObservedAt,
+          capacity: { limit: capacity, reserved },
+          run,
+          manifest: readManifest(run.manifestDigest),
+          attempts: [...attempts.values()]
+            // Proof: T6H02 actual resolver-produced hold made unrelated admission throw in the all-row scan; current-row dispatch preserves capacity and admission.
+            .map(decodeCurrentAttempt)
+            .filter(
+              (attempt) =>
+                attempt.attemptId === admission.attemptId ||
+                (attempt.identity.runId === run.runId &&
+                  attempt.identity.occurrenceId === admission.identity.occurrenceId),
+            ),
+          admissions: [...admissions.values()].filter(
+            (record) =>
+              record.attemptId === admission.attemptId ||
+              (record.identity.runId === run.runId &&
+                record.identity.occurrenceId === admission.identity.occurrenceId),
+          ),
+        }),
+        guard,
+        admission,
+      );
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      if (reply.kind === 'applied') {
+        attempts.set(reply.value.attempt.attemptId, structuredClone(reply.value.attempt));
+        admissions.set(admission.attemptId, structuredClone(admission));
+        runs.set(run.runId, { ...run, revision: reply.value.runRevision });
+        if (reply.value.reserveSlot) reserved += 1;
+      }
+      return await Promise.resolve(
+        finishReply({ kind: reply.kind, value: reply.value.attempt }, observedAt),
+      );
+    },
+  };
+  const artifacts: ArtifactStore = {
+    async retainArtifact(input, mediaType) {
+      assertOpen();
+      const content = snapshotArtifactContent(input);
+      const reference = referenceArtifact(content, mediaType);
+      const existing = blobs.get(reference.digest);
+      if (existing !== undefined) {
+        verifyArtifactContent(existing.content, existing.reference);
+        // Proof: bypassing artifact retain metadata memory enforcement failed 'memory artifacts > retains immutable bytes and refuses metadata collisions'.
+        if (!equalRecords(reference, existing.reference))
+          return await Promise.resolve({ kind: 'refused', reason: 'metadata_conflict' });
+        return await Promise.resolve({
+          kind: 'retained',
+          reference: structuredClone(existing.reference),
+        });
+      }
+      blobs.set(reference.digest, { reference: structuredClone(reference), content });
+      const retained = blobs.get(reference.digest);
+      // Proof: bypassing artifact readback memory enforcement failed 'memory retention requires readback after a failed map write'.
+      if (retained === undefined) throw new Error('artifact does not exist after retention');
+      verifyArtifactContent(retained.content, retained.reference);
+      return await Promise.resolve({
+        kind: 'retained',
+        reference: structuredClone(retained.reference),
+      });
+    },
+    async readArtifact(input) {
+      assertOpen();
+      const reference = decodeArtifactRef(structuredClone(input));
+      const retained = blobs.get(reference.digest);
+      // Proof: bypassing artifact missing memory enforcement failed 'memory artifacts > retains immutable bytes and refuses metadata collisions'.
+      if (retained === undefined) throw new Error('artifact does not exist');
+      verifyArtifactContent(retained.content, retained.reference);
+      // Proof: bypassing artifact read metadata memory enforcement failed 'memory artifacts > retains immutable bytes and refuses metadata collisions'.
+      if (!equalRecords(reference, retained.reference))
+        throw new Error('artifact metadata differs');
+      return await Promise.resolve(new Uint8Array(retained.content));
+    },
+  };
+  return {
+    runs: port,
+    artifacts,
+    ownership: structuredClone(status),
+    /** Fences both ports immediately; repeated calls observe successful completion. */
+    close(): Promise<void> {
+      isClosed = true;
+      // Proof: M1 removed this Promise return; the public memory lifecycle test failed MEMORY-LIFECYCLE-01. Exact restoration passed.
+      return Promise.resolve();
+    },
+  };
+}

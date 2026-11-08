@@ -21,6 +21,7 @@ export const listOrganizationDomains = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/domains',
   operationId: 'getApiOrganizationDomains',
+  humanOnly: true,
   policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
@@ -54,6 +55,7 @@ export const createDomainChallenge = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/domains/challenges',
   operationId: 'postApiOrganizationDomainsChallenges',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(type({ domain: 'string' })),
   responses: [
@@ -75,9 +77,14 @@ export const createDomainChallenge = defineEndpointShape({
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,
+    // Proof: with this file's stray-input codes undeclared, be-01's audit `answers every
+    // request-boundary failure the mount can raise with a declared 4xx` listed
+    // `postApiOrganizationDomainsChallenges invalid_query` and the verify, rotate and release `invalid_body` (watched 2026-10-24); it guards each widened 400 here.
     {
       status: 400,
-      schema: responseSchema(type({ error: "'invalid_json' | 'invalid_body' | 'invalid_domain'" })),
+      schema: responseSchema(
+        type({ error: "'invalid_json' | 'invalid_body' | 'invalid_query' | 'invalid_domain'" }),
+      ),
     },
     {
       status: 403,
@@ -95,6 +102,7 @@ export const verifyDomainClaim = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/domains/:id/verify',
   operationId: 'postApiOrganizationDomainsByIdVerify',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [
@@ -105,7 +113,12 @@ export const verifyDomainClaim = defineEndpointShape({
     },
   ],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,
@@ -129,6 +142,7 @@ export const rotateDomainProof = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/domains/:id/rotate',
   operationId: 'postApiOrganizationDomainsByIdRotate',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [
@@ -147,7 +161,12 @@ export const rotateDomainProof = defineEndpointShape({
     },
   ],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,
@@ -167,11 +186,17 @@ export const releaseDomainClaim = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/domains/:id',
   operationId: 'deleteApiOrganizationDomainsById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,

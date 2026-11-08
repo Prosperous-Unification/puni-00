@@ -9,11 +9,13 @@ import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -133,6 +135,8 @@ beforeEach(() => {
       estimates,
       actuals,
       measures,
+      measureEstimates: new MeasureEstimateRepository(db, OPEN),
+      budgets: new WorkItemBudgetRepository(db, OPEN),
       progress: progressStore,
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),
@@ -555,10 +559,9 @@ describe('patchWorkItem with a name and its notes at once', () => {
     await patchItem(token, projectId, strip, { notes: 'measure twice' });
     // The stack as the composite edit finds it: the row's creation and the
     // note written under it, both this account's.
-    expect((await journal.entriesFor(projectId, userId)).map((each) => each.kind)).toEqual([
-      'create',
-      'patch',
-    ]);
+    expect(
+      (await journal.entriesFor({ projectId, userId, personId: null })).map((each) => each.kind),
+    ).toEqual(['create', 'patch']);
 
     // Both fields, one gesture, one command — what `commitNameCell` sends when
     // somebody rewrites a line and the note under it before leaving the cell.
@@ -573,11 +576,9 @@ describe('patchWorkItem with a name and its notes at once', () => {
     // Received + 1`, the extra `"patch"`), and with this assertion taken out
     // it failed further down on `Expected: "Strip" / Received: "Strip the
     // wiring"`: one undo, one field, one Cmd+Z short. Watched, 2026-08-08.
-    expect((await journal.entriesFor(projectId, userId)).map((each) => each.kind)).toEqual([
-      'create',
-      'patch',
-      'patch',
-    ]);
+    expect(
+      (await journal.entriesFor({ projectId, userId, personId: null })).map((each) => each.kind),
+    ).toEqual(['create', 'patch', 'patch']);
 
     const undone = await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' });
     expect(undone.status).toBe(200);

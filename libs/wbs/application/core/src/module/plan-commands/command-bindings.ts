@@ -63,6 +63,11 @@ export class CommandContext {
      * session: what `claimWorkItem` reads the credential pin of (D6).
      */
     readonly credential: CredentialPin | null,
+    /**
+     * The person the request acts as (`actingPersonOf`): a machine or consent
+     * credential's own agent person, null for an account acting as itself.
+     */
+    private readonly actingPersonId: string | null,
   ) {
     // Proof: removing registry-scope admission let a directory batch unfreeze a real plan row
     // and commit its preceding tag instead of refusing `project_required` at index 1.
@@ -93,6 +98,20 @@ export class CommandContext {
     const found = this.id(given, ref);
     if (found === null) this.refuse({ reason: 'missing_id' });
     return found;
+  }
+
+  /**
+   * The person a `claimWorkItem` or `releaseWorkItem` names, else the person
+   * the request acts as, so an agent claims for itself without naming its own
+   * id. A request acting as its account has no such person and must name one:
+   * refused `person_required`, never defaulted to someone.
+   */
+  claimant(given: string | undefined, ref: string | undefined): string {
+    // Proof: without the acting-person default an API key's claim naming no
+    // person answered 400 person_required; defaulting to the actor id made a
+    // session's answer 404 unknown_person (claim-own-person.controller.db.test.ts
+    // and claim-command.test.ts); watched 2026-10-26.
+    return this.id(given, ref) ?? this.actingPersonId ?? this.refuse({ reason: 'person_required' });
   }
 
   ids(given: readonly string[] | undefined, named: readonly string[] | undefined): string[] {
@@ -162,6 +181,11 @@ export class CommandContext {
         // Proof: with holders replaced by [], `refuses the ninth claim on 32 GB
         // naming the eight holders` (resource-occupancy.db.test.ts) named
         // nobody; watched 2026-10-20.
+        // `scope` is carried where the decision said it, only for a resource
+        // with a directory capacity (`wbs-shared-occupancy` S3).
+        // Proof: with `scope` left out of both, `refuses B’s 16 GB while A
+        // holds the directory’s 16, naming the organization`
+        // (shared-occupancy.db.test.ts) failed on both stores; watched 2026-10-25.
         return this.refuse({
           reason: outcome.reason,
           detail: {
@@ -169,6 +193,7 @@ export class CommandContext {
             asked: outcome.asked,
             free: outcome.free,
             holders: outcome.holders.map((holder) => ({ ...holder })),
+            ...(outcome.scope === undefined ? {} : { scope: outcome.scope }),
             // Proof: with this list cut to its first entry, `names both
             // resources a claim is short of` (resource-occupancy.db.test.ts)
             // failed on both stores (0 pass, 2 fail); watched 2026-10-23.
@@ -177,6 +202,7 @@ export class CommandContext {
               asked: short.asked,
               free: short.free,
               holders: short.holders.map((holder) => ({ ...holder })),
+              ...(short.scope === undefined ? {} : { scope: short.scope }),
             })),
           },
         });
@@ -191,6 +217,7 @@ export class CommandContext {
       case 'resources_on_subtree':
       case 'person_not_bound':
       case 'credential_not_for_person':
+      case 'run_mismatch':
       case 'parent_claim_unknown':
       case 'parent_claim_foreign':
       case 'parent_claim_not_ancestor':
@@ -236,6 +263,15 @@ export class CommandContext {
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
+    if (outcome.reason === 'mixed_rate_cards') {
+      // Proof: with this guard bypassed (the plain refusal below), `refuses a
+      // last-child delete whose hand-up would add two rate cards, naming both`
+      // (budget-command.test.ts) named no digests; watched 2026-10-23.
+      if (!('bases' in outcome) || outcome.bases === undefined)
+        throw new Error('A rate card refusal requires both bases');
+      const [first, second] = outcome.bases;
+      return this.refuse({ reason: outcome.reason, detail: { bases: [first, second] } });
+    }
     if (outcome.reason === 'agent_person_limit') {
       return this.refuse({
         reason: outcome.reason,
@@ -254,6 +290,21 @@ export class CommandContext {
           cap: outcome.cap,
           declared: outcome.declared,
           asked: outcome.asked,
+        },
+      });
+    }
+    if (outcome.reason === 'budget_exhausted') {
+      // Proof: with `remaining` replaced by 0 here, `refuses the second start
+      // of a strict 500 holding 300, naming the budget`
+      // (budget-admission.controller.db.test.ts) named remaining 0; watched 2026-10-24.
+      return this.refuse({
+        reason: outcome.reason,
+        detail: {
+          workItemId: outcome.workItemId,
+          measure: outcome.measure,
+          remaining: outcome.remaining,
+          hold: outcome.hold,
+          blocked: outcome.blocked,
         },
       });
     }
@@ -543,6 +594,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           command.stepId,
           command.metric,
           command.value,
+          command.rateCardDigest,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -554,6 +606,51 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.actorId,
           command.stepId,
           command.metric,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setMeasureEstimate: async (command, context) => {
+      context.value(
+        await workItems.setMeasureEstimate(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          command.measure,
+          command.estimate,
+          command.rateCardDigest,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setBudget: async (command, context) => {
+      context.value(
+        await workItems.setBudget(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.measure,
+          { cap: command.cap, policy: command.policy, holdPerAttempt: command.holdPerAttempt },
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    clearBudget: async (command, context) => {
+      context.value(
+        await workItems.clearBudget(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.measure,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    clearMeasureEstimate: async (command, context) => {
+      context.value(
+        await workItems.clearMeasureEstimate(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          command.measure,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -570,7 +667,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       return { ...context.plain(), kind: command.kind };
     },
     assignSubtree: async (command, context) => {
-      context.value(
+      const assigned = context.value(
         await workItems.assignSubtree(
           context.required(command.workItemId, command.workItemRef),
           context.actorId,
@@ -578,7 +675,11 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.id(command.personId, command.personRef),
         ),
       );
-      return { ...context.plain(), kind: command.kind };
+      return {
+        ...context.plain(),
+        kind: command.kind,
+        reassignedClaimedSteps: assigned.reassignedClaimedSteps,
+      };
     },
     claimWorkItem: async (command, context) => {
       const claimed = context.claimValue(
@@ -586,7 +687,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.required(command.workItemId, command.workItemRef),
           context.actorId,
           {
-            personId: context.required(command.personId, command.personRef),
+            personId: context.claimant(command.personId, command.personRef),
             stepIds: command.steps ?? null,
             runId: command.runId ?? null,
             parentClaimId: command.parentClaim ?? null,
@@ -612,7 +713,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.required(command.workItemId, command.workItemRef),
           context.actorId,
           {
-            personId: context.required(command.personId, command.personRef),
+            personId: context.claimant(command.personId, command.personRef),
             stepIds: command.steps ?? null,
           },
           context.access,
@@ -902,6 +1003,65 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         ),
       );
       return { ...context.plain(), kind: command.kind, entity: resource };
+    },
+    createMeasure: async (command, context) => {
+      context.assertRefAvailable(command.ref);
+      const measure = context.value(
+        await directory.measures.addWithin(
+          context.actorId,
+          {
+            key: command.key,
+            name: command.name,
+            unit: command.unit,
+            kind: command.measureKind,
+            scale: command.scale,
+            ...(command.threePoint === undefined ? {} : { threePoint: command.threePoint }),
+            ...(command.showByDefault === undefined
+              ? {}
+              : { showByDefault: command.showByDefault }),
+            ...(command.schedulesWork === undefined
+              ? {}
+              : { schedulesWork: command.schedulesWork }),
+            ...(command.order === undefined ? {} : { order: command.order }),
+            ...(command.currency === undefined ? {} : { currency: command.currency }),
+          },
+          context.access,
+        ),
+      );
+      return { ...context.mint(command.ref, measure.id), kind: command.kind, entity: measure };
+    },
+    patchMeasure: async (command, context) => {
+      const measure = context.value(
+        await directory.measures.patchWithin(
+          context.required(command.measureId, command.measureRef),
+          context.actorId,
+          command.patch,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind, entity: measure };
+    },
+    deleteMeasure: async (command, context) => {
+      context.value(
+        await directory.measures.removeWithin(
+          context.required(command.measureId, command.measureRef),
+          context.actorId,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setDirectoryCapacity: async (command, context) => {
+      context.value(
+        await directory.setDirectoryCapacityWithin(
+          context.required(command.resourceId, command.resourceRef),
+          context.actorId,
+          command.units,
+          command.confirm ?? false,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
     },
     deleteResource: async (command, context) => {
       context.accept(

@@ -56,7 +56,16 @@
             "value": "tests"
           }
         ],
-        "exclude": []
+        "exclude": [
+          {
+            "kind": "segment",
+            "value": "fixtures"
+          },
+          {
+            "kind": "segment",
+            "value": "__fixtures__"
+          }
+        ]
       },
       {
         "contentClass": "generated",
@@ -487,6 +496,150 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-physical-store-design-20261105.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-physical-store-publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/postgres-physical-store-publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-20261101.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-release-delta-20261101.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-release-delta-20261101.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-20261103.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-release-delta-20261103.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/adapter-sdk-release-delta-20261103.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-component-integration-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-index-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/packet-manifest.json",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/packet-manifest.json; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-observer-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-observer-publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/postgres-observer-publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-operation-order.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-operation-order.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/postgres-operation-order.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-parallel-fixture-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-parallel-fixture-publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/postgres-parallel-fixture-publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-review-cleanup-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-session-20261104.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-session-publication.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/postgres-session-publication.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/workflow-postgres-provider/evidence/provider-acceptance-inventory-v3.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/workflow-postgres-provider/evidence/provider-acceptance-inventory-v3.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/workflow-postgres-provider/evidence/provider-acceptance-inventory-v3.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "apps/website/be-01/src/assets/country/dbip-country-lite-2026-11.mmdb.gz",
+        "format": "application/gzip",
+        "consumer": "apps/website/be-01/src/country-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "DB-IP IP to Country Lite monthly MMDB release: https://db-ip.com/db/download/ip-to-country-lite (2026-11); preserve the unchanged provider archive and follow docs/website/country-database.md."
+        }
+      },
+      {
+        "path": "openspec/changes/burokrat-workflow-binding-validation/evidence/validator-proofs.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/burokrat-workflow-binding-validation/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/burokrat-workflow-binding-validation/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/twilight-agentic-workflows/evidence/runtime-sql-recovered-history.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/twilight-agentic-workflows/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/twilight-agentic-workflows/evidence/runtime-sql-six-proofs.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/twilight-agentic-workflows/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/twilight-agentic-workflows/evidence/runtime-principal-cap.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/twilight-agentic-workflows/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
         "path": "apps/twilight-structure/twilight-dash/cli/fixtures/activation/pre-relocation-activation.tar",
         "format": "application/x-tar",
         "consumer": "apps/twilight-structure/twilight-dash/cli/src/activation/rollback.db.test.ts",
@@ -642,7 +795,7 @@
       {
         "path": "infra/platform/charts/eck-elasticsearch-0.20.0.tgz",
         "format": "application/gzip",
-        "consumer": "infra/platform/observability/elastic/local/elasticsearch.yaml",
+        "consumer": "infra/platform/observability/elastic/base/elasticsearch.yaml",
         "regenerationAuthority": {
           "kind": "source",
           "path": "infra/versions/toolchain.json"
@@ -4741,6 +4894,168 @@
         "regenerationAuthority": {
           "kind": "external",
           "authority": "Historical execution recorded in openspec/changes/set-step-node-parallelism/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-column-chooser.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-panel-at-cap-tiny-cost.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-panel-empty.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-panel-forms.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-panel-mixed.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-panel-strict-advisory.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-table-tokens-cost.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/interaction-toggle-estimate-variance.webm",
+        "format": "video/webm",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-cards.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-column-chooser.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-panel-at-cap-tiny-cost.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-panel-empty.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-panel-forms.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-panel-mixed.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-panel-strict-advisory.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/twilight-agentic-workflows/evidence/current-main-integration-20261025.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/twilight-agentic-workflows/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/twilight-agentic-workflows/evidence/i2-guard-preserving-proofs-20261025.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/twilight-agentic-workflows/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/twilight-agentic-workflows/evidence/r2-review-gate-checkpoint-20261030.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/twilight-agentic-workflows/recovery-verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/recovery-verify.md; rerunning its commands produces a new receipt."
         }
       }
     ],

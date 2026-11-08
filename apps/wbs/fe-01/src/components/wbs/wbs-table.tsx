@@ -17,8 +17,12 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import type { DemandStatement } from '@/lib/wbs-api';
+
 import { type CellCards, createCellCards } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
+import { claimantOf, claimOfferOf, releaseWords } from './claim-offer';
+import { ClaimsSheet, useClaimsOffered } from './claims-sheet';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
 import { createDepLights, type DepLights } from './dep-light-store';
@@ -29,8 +33,11 @@ import { ExternalRefsModal } from './external-refs-modal';
 import { GanttFaultBoundary } from './gantt-fault';
 import { appliedGanttHeight, DAY_PX, GanttPanel, isoToday } from './gantt-panel';
 import { KeyboardCheatSheet } from './keyboard-cheat-sheet';
+import { useLeaseClock, useLeaseTicker } from './lease-clock';
 import { didLand } from './live-editing';
 import { logicalGrid } from './logical-grid';
+import { MeasurePanel, type MeasureWrites } from './measure-panel';
+import { shownDefinitions } from './measure-reading';
 import { formatDestination, moveUnderCandidates, MoveUnderPicker } from './move-under-picker';
 import { OptimizationCue } from './optimization-cue';
 import { PlanCards } from './plan-cards';
@@ -50,13 +57,14 @@ import { indexById } from './plan-indexes';
 import { usePlanInteractionScope } from './plan-interaction-scope';
 import type { PlanLiveValues } from './plan-live';
 import { showDay } from './plan-number-format';
-import { failureText } from './plan-refusal';
+import { failureText, refusalSentence } from './plan-refusal';
 import { attachRowReadings, type EstimateReadings, type PlanRenderRow } from './plan-render-rows';
 import { useRendererForViewport } from './plan-renderer';
 import { PlanToolbar } from './plan-toolbar';
 import { PlanToolbarSheet } from './plan-toolbar-sheet';
 import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { rememberGanttDayPx, rememberGanttLabels } from './remembered-layout';
+import { DemandPanel, type DemandWriteOutcome, demandWriteOutcome } from './resource-demand-panel';
 import { statusOffersOf, type StatusRow } from './status-offers';
 import { blockageLabelsOf } from './step-blockage';
 import { stepNodeReadingsOf } from './step-reading';
@@ -86,6 +94,8 @@ import {
   useEstimateDraftState,
   useEstimateMentions,
 } from './use-estimate-drafts';
+import { useMeasureDefinitions } from './use-measure-definitions';
+import { planInitialsOf, usePlanClaims } from './use-plan-claims';
 import { usePlanDependencies } from './use-plan-dependencies';
 import { usePlanFields } from './use-plan-fields';
 import { usePlanFilter, usePlanFilterState } from './use-plan-filter';
@@ -675,6 +685,7 @@ export function WbsTable({
   planImport,
   toastApi: toastApiOverride,
   savedPlansShelf,
+  viewerAccountId,
 }: WbsTableProps) {
   const interaction = usePlanInteractionScope();
   const isPlanActive = useCallback(() => interaction?.isPlanActive() ?? true, [interaction]);
@@ -698,6 +709,7 @@ export function WbsTable({
     claimsMayBeStale,
     treeFailureText,
     markers,
+    claims,
     busy,
     busyWrites,
     refusals,
@@ -804,7 +816,24 @@ export function WbsTable({
     offeredColumns,
     toggleColumn,
     toggleStep,
+    measureToggles,
+    toggleMeasure,
+    forgetMeasureToggles,
+    isTimeShown,
+    toggleTime,
   } = useColumnSet({ projectId, steps });
+  const measureDefinitions = useMeasureDefinitions(commands, projectId);
+  /**
+   * The definitions whose columns this reader has on the table: none until
+   * the definitions are read, and none before organization activation.
+   */
+  const shownMeasures = useMemo(
+    () =>
+      measureDefinitions.kind === 'ready'
+        ? shownDefinitions(measureDefinitions.measures, measureToggles)
+        : [],
+    [measureDefinitions, measureToggles],
+  );
   usePlanLayoutSwap({
     widthProject,
     projectId,
@@ -836,10 +865,16 @@ export function WbsTable({
   } | null>(null);
   /** The row the Move under… picker is open over, by id, for `completionFor`'s reason. */
   const [moveUnderFor, setMoveUnderFor] = useState<string | null>(null);
+  /** The row whose Measures panel is open, by id, for `refsEditing`'s reason. */
+  const [measuresFor, setMeasuresFor] = useState<string | null>(null);
+  /** The leaf whose Resources panel is open, by id, for `refsEditing`'s reason. */
+  const [demandsFor, setDemandsFor] = useState<string | null>(null);
   useEffect(() => {
     if (planActive) return;
     setCheatSheetOpen(false);
     setMoveUnderFor(null);
+    setMeasuresFor(null);
+    setDemandsFor(null);
     setCompletionFor(null);
     setRefsEditing(null);
     setOpenMenuRowId(null);
@@ -1125,6 +1160,19 @@ export function WbsTable({
     () => (moveUnderFor === null ? null : (flat.find((row) => row.id === moveUnderFor) ?? null)),
     [flat, moveUnderFor],
   );
+  const measuresRow = useMemo(
+    () => (measuresFor === null ? null : (flat.find((row) => row.id === measuresFor) ?? null)),
+    [flat, measuresFor],
+  );
+  // Null once the row is gone or has gained a child: a parent's demand charges
+  // nothing, so its panel is a surface that simply is not there.
+  const demandsRow = useMemo(
+    () =>
+      demandsFor === null
+        ? null
+        : (flat.find((row) => row.id === demandsFor && row.subRows.length === 0) ?? null),
+    [flat, demandsFor],
+  );
   const {
     namedInTheTree,
     effectiveTeams,
@@ -1169,6 +1217,7 @@ export function WbsTable({
     facetTeams,
     facetTags,
     facetServices,
+    facetResources,
     facetPeople,
     facetBands,
     facetSteps,
@@ -1226,6 +1275,10 @@ export function WbsTable({
       resetTargetHiddenColumnIds,
       hasAnyExternalRefs,
       hiddenColumnIds,
+      measureColumns: {
+        answered: Object.keys(measureToggles).length > 0,
+        forget: forgetMeasureToggles,
+      },
     });
   const {
     planForExport,
@@ -1442,6 +1495,56 @@ export function WbsTable({
       createPersonFor,
     });
   const { hasSchedule, spanOf } = usePlanSchedule({ scheduleError });
+  /** Who this account claims as (C23), or null for a table drawn for no account. */
+  const claimant = useMemo(
+    () => (viewerAccountId === undefined ? null : claimantOf(people, viewerAccountId)),
+    [people, viewerAccountId],
+  );
+  /**
+   * A human claim or release from the row menu (`wbs-claim-display` 11.2):
+   * one command naming the bound person, which a session sends with no lease.
+   * It moves claims and, for a claim, the leaf's progress, so both are read
+   * again; a refusal is the writer's toast, worded by `claimRefusalSentence`.
+   *
+   * Proof: `perform(['tree'], …)` here made `offers Claim after the statuses,
+   * and claims for the bound person` fail on `expected to have a length of 2
+   * but got +0` (no chip drawn); watched 2026-10-27.
+   */
+  const claimRow = useCallback(
+    (rowId: string, personId: string) => {
+      void run((write) =>
+        write.perform(['tree', 'claims'], () => commands.claimWorkItem(rowId, personId)),
+      );
+    },
+    [commands, run],
+  );
+  /**
+   * Releases the person's claims on the row and says what went, the delegated
+   * claims be-01 releases with a subtree claim included (review of PR #763, S2).
+   *
+   * Proof: the toast saying only `Released your claim.` whatever `delegated`
+   * says made `says how many delegated claims Release takes with it` fail on
+   * `expected [ 'Released your claim.' ] to include 'Released your claim and 2
+   * under it.'`; watched 2026-10-27.
+   */
+  const releaseRow = useCallback(
+    (rowId: string, personId: string, delegated: number) => {
+      void (async () => {
+        const outcome = await run((write) =>
+          write.perform(['tree', 'claims'], () => commands.releaseWorkItem(rowId, personId)),
+        );
+        if (!didLand(outcome)) return;
+        pushToast({ kind: 'info', text: `Released ${releaseWords(delegated)}.` });
+      })();
+    },
+    [commands, run, pushToast],
+  );
+  /** One mark per person the plan prints (C22), shared by the assignee slot and every chip. */
+  const initials = useMemo(
+    // `flat`: every row of the tree, nested ones included, whatever is collapsed.
+    () => planInitialsOf(flat, indexById(people), claims),
+    [flat, people, claims],
+  );
   const { nonOwnerNoteOf, assigneeOn, anyAssigneeOn } = usePlanAssignments({
     effectiveTeams,
     teams,
@@ -1449,6 +1552,17 @@ export function WbsTable({
     services,
     people,
     flat,
+    initials,
+  });
+  /** The plan's one lease clock (C6), which every chip reads; no chip owns a timer. */
+  const leaseClock = useLeaseClock();
+  const { stepClaimOn, subtreeClaimOn, anyClaimOn, claimsOn, leaseDeadlineOn } = usePlanClaims({
+    claims,
+    rows: flat,
+    steps,
+    zone: chartRead.timezone,
+    leaseClock,
+    initials,
   });
 
   /**
@@ -1535,11 +1649,13 @@ export function WbsTable({
         if (hiddenColumnIds.includes(step.id)) continue;
         const doing = assigneeOn(row, step.id);
         const anyAssignee = anyAssigneeOn(step.id);
+        const claim = stepClaimOn(row.id, step.id);
         const node = stepNodeReadingsOf(row, step.id, peopleById, chartRead.timezone, causeLabels);
         if (unfoldedSteps.includes(step.id)) {
           estimateReadings.set(step.id, {
             layout: 'unfolded',
             anyAssignee,
+            claim,
             doing,
             estimateValues: {
               optimistic: estimateValue(row, step.id, 'optimistic'),
@@ -1554,6 +1670,8 @@ export function WbsTable({
         estimateReadings.set(step.id, {
           layout: 'folded',
           anyAssignee,
+          anyClaim: anyClaimOn(step.id),
+          claim,
           combinedProblem: combinedProblem(row, step.id),
           combinedValue: combinedValue(row, step.id),
           doing,
@@ -1597,6 +1715,15 @@ export function WbsTable({
           nodesByRow === null
             ? null
             : (nodesByRow.get(row.id) ?? new Map<string, NonNullable<typeof stepNodes>[number]>()),
+        // Its own row's subtree claim only (C8). Proof: falling back to the
+        // parent's made `sits in its own row’s Name cell and on no leaf under
+        // it` fail on `expected [ 'CL14m' ] to deeply equal []`; watched
+        // 2026-10-24.
+        subtreeClaim: subtreeClaimOn(row.id),
+        claimOffer:
+          claimant === null
+            ? null
+            : claimOfferOf(claimant, claimsOn(row.id), row.status === 'done'),
         hasSchedule: hasSchedule(),
         finish: span.finish,
         nonOwnerNote: nonOwnerNoteOf(row),
@@ -1615,8 +1742,11 @@ export function WbsTable({
     return { rowsWithReadings: rows, spanByRow: spans };
   }, [
     anyAssigneeOn,
+    anyClaimOn,
     assigneeOn,
     busy,
+    claimant,
+    claimsOn,
     causeLabels,
     chartRead.timezone,
     combinedProblem,
@@ -1646,7 +1776,9 @@ export function WbsTable({
     services,
     spanOf,
     startDate,
+    stepClaimOn,
     steps,
+    subtreeClaimOn,
     tags,
     teams,
     trioProblemFor,
@@ -1682,6 +1814,10 @@ export function WbsTable({
     duplicateRow,
     addChild,
     openMoveUnder: setMoveUnderFor,
+    openMeasures: setMeasuresFor,
+    openDemands: setDemandsFor,
+    claimRow,
+    releaseRow,
     deleteRow,
     commitNameCell,
     onKeyDown,
@@ -1749,8 +1885,77 @@ export function WbsTable({
     toggleStep,
   };
 
+  /**
+   * The Measures panel's writes for one row, each one plan command through
+   * the same `run` every edit goes through — so a refusal is toasted, the
+   * plan reread and the gesture counted as any other — answering the
+   * refusal's sentence for the panel to show beside its control.
+   *
+   * Proof: with the catch below answering null, `shows a refusal beside the
+   * control that asked, in plan-refusal words` (measure-panel.test.tsx) found
+   * no alert in the panel.
+   */
+  const measureWrites = (rowId: string): MeasureWrites => {
+    const send = async (request: () => Promise<void>): Promise<string | null> => {
+      let sentence: string | null = null;
+      await run(async (write) => {
+        try {
+          await write.perform(['tree'], request);
+        } catch (thrown: unknown) {
+          sentence = refusalSentence(thrown);
+          throw thrown;
+        }
+      });
+      return sentence;
+    };
+    return {
+      setEstimate: (stepId, measure, estimate, digest) =>
+        send(() => commands.setMeasureEstimate(rowId, stepId, measure, estimate, digest)),
+      clearEstimate: (stepId, measure) =>
+        send(() => commands.clearMeasureEstimate(rowId, stepId, measure)),
+      setFact: (stepId, measure, value, digest) =>
+        send(() => commands.setMeasure(rowId, stepId, measure, value, digest)),
+      clearFact: (stepId, measure) => send(() => commands.clearMeasure(rowId, stepId, measure)),
+      setBudget: (measure, budget) => send(() => commands.setBudget(rowId, measure, budget)),
+      clearBudget: (measure) => send(() => commands.clearBudget(rowId, measure)),
+    };
+  };
   const live = useRef(liveNow);
   live.current = liveNow;
+
+  /** The directory's resources for an open Resources panel, read once per opening. */
+  const readResources = useCallback(() => commands.readResources(), [commands]);
+  /**
+   * A Resources panel's save: one `setDemand` batch through the same `run` as
+   * every edit, so it is one journal entry the plan's Undo takes back whole.
+   * A refusal of the request is the panel's to say, beside the box it names,
+   * and is not handed on to the writer's toast; a failure that says the screen
+   * is behind is rethrown for the writer to toast and reread
+   * ({@link demandWriteOutcome}).
+   *
+   * Proof: with the catch below rethrowing every refusal, `says a refused save
+   * once, in place, naming the box` (resource-demand-panel.test.tsx) found the
+   * refusal toasted as well; with it answering `landed`, `says a refused save
+   * in place and stays open` found no alert; both watched 2026-10-25.
+   */
+  const writeDemands = async (
+    statements: readonly DemandStatement[],
+  ): Promise<DemandWriteOutcome> => {
+    // A holder the closure writes: a `let` would read as never reassigned here.
+    const answer: { refused: DemandWriteOutcome | null } = { refused: null };
+    const ran = await run(async (write) => {
+      try {
+        await write.perform(['tree'], () => commands.setDemands(statements));
+      } catch (thrown: unknown) {
+        const outcome = demandWriteOutcome(thrown, statements);
+        if (outcome.kind === 'reported') throw thrown;
+        answer.refused = outcome;
+      }
+    });
+    if (answer.refused !== null) return answer.refused;
+    // A gesture the writer refused (its own toast, or the reader left) did not land.
+    return ran === 'refused' ? { kind: 'reported' } : { kind: 'landed' };
+  };
 
   // Keyed on the rule's values, not on the read's object identities: every
   // tree read hands over a fresh `pertWeights`, and a new rule each read would
@@ -1765,12 +1970,12 @@ export function WbsTable({
     [estimateMethod, optimistic, realistic, pessimistic, chartRead.estimateRounding],
   );
   const columns = useMemo(
-    () => createPlanColumns(steps, unfoldedSteps, hiddenColumnIds, live, rule),
+    () => createPlanColumns(steps, unfoldedSteps, hiddenColumnIds, live, rule, shownMeasures),
     // PlanLiveValues declares the structural inputs allowed to replace cells.
     // Proof: adding workItems here failed plan-read-and-write.test.tsx’s
     // `does not take the focus or the half-typed value` at the focus assertion:
     // activeElement was body instead of the Name cell (2026-09-06).
-    [steps, unfoldedSteps, hiddenColumnIds, rule],
+    [steps, unfoldedSteps, hiddenColumnIds, rule, shownMeasures],
   );
 
   const table = useTable({
@@ -1824,6 +2029,20 @@ export function WbsTable({
     [rowModel, search.visibleIds],
   );
   const shownRowIds = useMemo(() => shownRows.map((row) => row.original.id), [shownRows]);
+  /**
+   * When the plan's one lease ticker may stop: the latest lease end among the
+   * claims drawn on screen — rows the collapse and the filter leave, step
+   * columns not hidden (C6). The cards draw the same rows.
+   */
+  const leaseDeadline = useMemo(
+    () =>
+      leaseDeadlineOn(
+        new Set(shownRowIds),
+        new Set(steps.filter((step) => !hiddenColumnIds.includes(step.id)).map((step) => step.id)),
+      ),
+    [leaseDeadlineOn, shownRowIds, steps, hiddenColumnIds],
+  );
+  useLeaseTicker(leaseClock, leaseDeadline);
 
   const committedLogicalCells = useMemo(
     () =>
@@ -2320,6 +2539,7 @@ export function WbsTable({
       Reset layout
     </Button>
   );
+  const claimsOffered = useClaimsOffered(projectId, claims);
   const toolbarControls = (
     <PlanToolbar
       // Its urgent Find value belongs to one project. Proof: this key removed,
@@ -2359,6 +2579,7 @@ export function WbsTable({
       facetTeams={facetTeams}
       facetTags={facetTags}
       facetServices={facetServices}
+      facetResources={facetResources}
       facetPeople={facetPeople}
       facetBands={facetBands}
       facetSteps={facetSteps}
@@ -2370,6 +2591,13 @@ export function WbsTable({
       setStoredHiddenColumns={setStoredHiddenColumns}
       offeredColumns={offeredColumns}
       toggleColumn={toggleColumn}
+      measureChooser={{
+        state: measureDefinitions,
+        toggles: measureToggles,
+        onToggle: toggleMeasure,
+        timeShown: isTimeShown,
+        onToggleTime: toggleTime,
+      }}
       shownRows={shownRows}
       search={search}
       gaps={gaps}
@@ -2398,6 +2626,18 @@ export function WbsTable({
       // beside the start date and the method it records. Above `md` the shelf
       // is in the app header and the sheet is not rendered at all.
       sheetExtras={{ view: sheetResetLayout, schedule: savedPlansShelf }}
+      claimsSheet={
+        <ClaimsSheet
+          claims={claims}
+          claimsMayBeStale={claimsMayBeStale}
+          treeGeneration={chartRead.generation}
+          readHistory={commands.readClaimHistory}
+          steps={steps}
+          zone={chartRead.timezone}
+          leaseClock={leaseClock}
+          offered={claimsOffered}
+        />
+      }
     />
   );
 
@@ -2679,6 +2919,8 @@ export function WbsTable({
               leaveEstimate={leaveFoldedCell}
               mentionOptions={mentionOptions}
               assigneeOn={assigneeOn}
+              stepClaimOn={(row, stepId) => stepClaimOn(row.id, stepId)}
+              subtreeClaimOn={(row) => subtreeClaimOn(row.id)}
               attemptsOn={(row, stepId) =>
                 stepNodeReadingsOf(row, stepId, peopleById, chartRead.timezone, causeLabels)
               }
@@ -2840,6 +3082,8 @@ export function WbsTable({
                   void addChild(row);
                 },
                 moveUnder: setMoveUnderFor,
+                measures: setMeasuresFor,
+                resources: setDemandsFor,
                 unfreeze: (rowId) => {
                   void run((write) =>
                     write.perform(['tree'], () => commands.unfreezeWorkItem(rowId)),
@@ -2850,6 +3094,16 @@ export function WbsTable({
                 },
                 chooseStatus,
                 statusOffers,
+                ...(claimant === null
+                  ? {}
+                  : {
+                      claims: {
+                        offerOf: (row) =>
+                          claimOfferOf(claimant, claimsOn(row.id), row.status === 'done'),
+                        claim: claimRow,
+                        release: releaseRow,
+                      },
+                    }),
               }}
             />
           ) : (
@@ -3337,6 +3591,27 @@ export function WbsTable({
           onChoose={(parentId) => {
             setMoveUnderFor(null);
             void moveUnder(moveUnderRow, parentId);
+          }}
+        />
+      )}
+      {planActive && measuresRow !== null && (
+        <MeasurePanel
+          row={measuresRow}
+          steps={steps}
+          state={measureDefinitions}
+          writes={measureWrites(measuresRow.id)}
+          onOpenChange={(open) => {
+            if (!open) setMeasuresFor(null);
+          }}
+        />
+      )}
+      {planActive && demandsRow !== null && (
+        <DemandPanel
+          row={demandsRow}
+          read={readResources}
+          write={writeDemands}
+          onOpenChange={(open) => {
+            if (!open) setDemandsFor(null);
           }}
         />
       )}

@@ -7,7 +7,7 @@ import { afterEach, expect, test } from 'bun:test';
 
 import type { ConversationAdmissionRequest, ConversationPricing } from './conversation-store';
 import { websiteMigrations } from './migration-catalogue';
-import { WebsiteStore } from './store';
+import { eraseSubjectContent, fenceSubject, WebsiteStore } from './store';
 import { seedLegacyAccount } from './testing/legacy-account-fixture';
 
 const directories: string[] = [];
@@ -241,7 +241,10 @@ test('admission replays, conflicts, refuses in-flight and orders the initial ope
   expect(store.completeConversationOperation(first.id, 'Who uses it?', 900, day, false)).toBe(true);
   expect(store.admitConversationOperation(initial)).toEqual({
     kind: 'completed',
+    replyVersion: null,
+    replyFailure: null,
     reply: 'Who uses it?',
+    promptVersion: 'puni-sales-v1',
   });
   expect(
     store.admitConversationOperation({ ...initial, bodyHash: 'hash:changed description' }),
@@ -341,7 +344,13 @@ test('a closed provider admits no new conversation or operation but still replay
     store.admitConversationOperation(
       ask('claim-1', 'key-claim-1-1', 'message 1', { initial: true, pricing: closed }),
     ),
-  ).toEqual({ kind: 'completed', reply: 'reply 1' });
+  ).toEqual({
+    kind: 'completed',
+    reply: 'reply 1',
+    replyVersion: null,
+    replyFailure: null,
+    promptVersion: 'puni-sales-v1',
+  });
   expect(
     store.admitConversationOperation(ask('claim-1', 'new-key-1', 'More', { pricing: closed })),
   ).toEqual({ kind: 'provider_unavailable' });
@@ -966,3 +975,198 @@ test('every store on one database derives the same daily source salt and drops o
   blue.close();
   green.close();
 });
+
+test('scoping initial identity and opening are bound before any reservation', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  store.createDraft(
+    'scoping-draft',
+    'Persisted opening',
+    'scoping-claim',
+    day,
+    day + 60_000,
+    'source-a',
+    { version: 1, startingChoice: 'launch', startConversation: true },
+  );
+  let prices = 0;
+  const pricing: ConversationPricing = {
+    kind: 'paid',
+    price: () => {
+      prices++;
+      return 1000;
+    },
+  };
+  for (const fields of [
+    { idempotencyKey: 'forged-initial', message: 'Persisted opening' },
+    { idempotencyKey: 'initial:scoping-draft', message: 'Forged browser opening' },
+  ]) {
+    expect(
+      store.admitConversationOperation(
+        ask('scoping-claim', fields.idempotencyKey, fields.message, {
+          initial: true,
+          automatic: true,
+          pricing,
+        }),
+      ),
+    ).toEqual({ kind: 'invalid_initial' });
+  }
+  expect(prices).toBe(0);
+  expect(rows(databasePath, 'SELECT id FROM conversation_operation')).toEqual([]);
+  expect(rows(databasePath, 'SELECT id FROM conversation')).toEqual([]);
+  store.close();
+});
+
+for (const exhaustion of ['turns', 'conversation_spend'] as const)
+  test(`scoping completed replay precedes ${exhaustion} exhaustion without pricing or ledger writes`, () => {
+    const databasePath = databaseFile();
+    const store = new WebsiteStore(databasePath);
+    store.createDraft(
+      'replay-draft',
+      'Persisted opening',
+      'replay-claim',
+      day,
+      day + 60_000,
+      'source-a',
+      { version: 1, startingChoice: 'launch', startConversation: true },
+    );
+    let prices = 0;
+    const pricing: ConversationPricing = {
+      kind: 'paid',
+      price: () => {
+        prices++;
+        return 1000;
+      },
+    };
+    const initial = ask('replay-claim', 'initial:replay-draft', 'Persisted opening', {
+      initial: true,
+      automatic: true,
+      pricing,
+    });
+    const first = started(store, initial);
+    expect(store.completeConversationOperation(first, 'Initial reply', 500, day, false)).toBe(true);
+    const database = new Database(databasePath);
+    database.run("UPDATE draft_scoping SET question_id = 'launch-purpose', revision = 1");
+    const selection = ask('replay-claim', 'selected-replay-key', 'Buy or book', {
+      pricing,
+      answer: { selected: { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 } },
+    });
+    const second = started(store, selection);
+    expect(store.completeConversationOperation(second, 'Selected reply', 500, day + 1, false)).toBe(
+      true,
+    );
+    database.run("UPDATE draft_scoping SET question_id = 'launch-stage', revision = 2");
+    if (exhaustion === 'turns')
+      for (let turn = 3; turn <= 8; turn++)
+        converse(store, 'replay-claim', turn, {
+          pricing,
+          answer: { message: `message ${String(turn)}` },
+        });
+    const refusal = store.admitConversationOperation(
+      ask('replay-claim', 'exhaustion-key', 'One more', {
+        answer: { message: 'One more' },
+        pricing:
+          exhaustion === 'turns'
+            ? pricing
+            : {
+                kind: 'paid',
+                price: () => {
+                  prices++;
+                  return 150000;
+                },
+              },
+      }),
+    );
+    expect(refusal).toEqual({ kind: 'exhausted', reason: exhaustion });
+    const pricesBeforeReplay = prices;
+    const ledger = database.query('SELECT * FROM conversation_operation ORDER BY rowid').all();
+    const turns = store.listConversationTurns(store.findConversation('replay-draft')?.id ?? '');
+    const state = store.findDraft('replay-claim', day);
+    expect(store.admitConversationOperation(initial)).toEqual({
+      kind: 'completed',
+      replyVersion: null,
+      replyFailure: null,
+      reply: 'Initial reply',
+      promptVersion: 'puni-sales-v1',
+    });
+    expect(store.admitConversationOperation(selection)).toEqual({
+      kind: 'completed',
+      replyVersion: null,
+      replyFailure: null,
+      reply: 'Selected reply',
+      promptVersion: 'puni-sales-v1',
+    });
+    expect(
+      store.admitConversationOperation({ ...initial, bodyHash: 'changed-initial-body' }),
+    ).toEqual({ kind: 'conflict' });
+    expect(
+      store.admitConversationOperation({
+        ...selection,
+        message: 'Not sure',
+        bodyHash: 'changed-selection-body',
+        answer: { selected: { questionId: 'launch-stage', answerId: 'not-sure', revision: 2 } },
+      }),
+    ).toEqual({ kind: 'conflict' });
+    expect(
+      store.admitConversationOperation(
+        ask('replay-claim', 'after-exhaustion-key', 'Fresh attempt', {
+          pricing,
+          answer: { message: 'Fresh attempt' },
+        }),
+      ),
+    ).toEqual({ kind: 'exhausted', reason: exhaustion });
+    expect(prices).toBe(pricesBeforeReplay);
+    expect(database.query('SELECT * FROM conversation_operation ORDER BY rowid').all()).toEqual(
+      ledger,
+    );
+    expect(store.listConversationTurns(store.findConversation('replay-draft')?.id ?? '')).toEqual(
+      turns,
+    );
+    expect(store.findDraft('replay-claim', day)).toEqual(state);
+    database.run('UPDATE intake_draft SET expires_at = 1');
+    expect(store.admitConversationOperation(initial)).toEqual({ kind: 'draft_unavailable' });
+    database
+      .query('UPDATE intake_draft SET expires_at = ?, consumed_at = ?')
+      .run(day + 60_000, day);
+    expect(store.admitConversationOperation(selection)).toEqual({ kind: 'draft_unavailable' });
+    database.run(
+      "INSERT INTO proposal_submission (id, draft_id, email, brief, receipt, status, created_at, updated_at) VALUES ('erased-proposal', 'replay-draft', 'owner@example.test', 'Brief', 'receipt', 'submitted', 10, 10); INSERT INTO retention_subject (subject_kind, subject_id, resolution, anchor_at, deadline_at, anchor_source) VALUES ('proposal_submission', 'erased-proposal', 'anchored', 10, 100, 'draft')",
+    );
+    fenceSubject(database, { kind: 'proposal_submission', id: 'erased-proposal' });
+    database
+      .transaction(() =>
+        eraseSubjectContent(
+          database,
+          { kind: 'proposal_submission', id: 'erased-proposal' },
+          1,
+          day,
+        ),
+      )
+      .immediate();
+    expect(store.admitConversationOperation(initial)).toEqual({ kind: 'draft_unavailable' });
+    expect(store.admitConversationOperation(selection)).toEqual({ kind: 'draft_unavailable' });
+    expect(prices).toBe(pricesBeforeReplay);
+    database.close();
+    store.close();
+  });
+
+for (const exhaustion of ['turns', 'conversation_spend'] as const)
+  test(`legacy completed replay retains ${exhaustion} exhaustion refusal`, () => {
+    const path = databaseFile();
+    const store = new WebsiteStore(path);
+    store.createDraft('legacy-replay', 'Opening', 'legacy-claim', day, day + 60000, 'source-a');
+    for (let turn = 1; turn <= (exhaustion === 'turns' ? 8 : 2); turn++)
+      converse(store, 'legacy-claim', turn);
+    expect(
+      store.admitConversationOperation(
+        ask('legacy-claim', 'exhaustion-key', 'More', {
+          pricing: paid(exhaustion === 'turns' ? 1000 : 150000),
+        }),
+      ),
+    ).toEqual({ kind: 'exhausted', reason: exhaustion });
+    expect(
+      store.admitConversationOperation(
+        ask('legacy-claim', 'key-legacy-claim-1', 'message 1', { initial: true }),
+      ),
+    ).toEqual({ kind: 'exhausted', reason: exhaustion });
+    store.close();
+  });

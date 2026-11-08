@@ -1,4 +1,10 @@
-import { canonicalisePlanInput, planInputRowsOf, sliceKey } from '@wbs/domain';
+import {
+  canonicalisePlanInput,
+  diffPlans,
+  planInputRowsOf,
+  type PlanSide,
+  sliceKey,
+} from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import {
@@ -33,6 +39,7 @@ const reads = {
     optimizationEnabled: false,
     solutionRef: { slug: 'shed', url: 'https://shed' },
     timezone: 'UTC',
+    budgetFactor: 1,
     revision: 12,
     createdAt: 1_756_000_000,
   },
@@ -104,6 +111,8 @@ const reads = {
   measures: [
     { workItemId: 'w1', stepId: 's1', metric: 'tokens', value: 1200, recordedAt: 1_756_000_300 },
   ],
+  measureEstimates: [],
+  budgets: [],
   dependencies: [{ id: 'd1', projectId: 'p1', predecessorId: 'w1', successorId: 'w1' }],
   typedDependencies: [],
   assignments: [{ workItemId: 'w1', stepId: 's1', personId: 'per-1' }],
@@ -302,6 +311,7 @@ describe('planInputRowsOf', () => {
       pertWeightRealistic: 4,
       pertWeightPessimistic: 1,
       timezone: 'UTC',
+      budgetFactor: 1,
     });
   });
 
@@ -513,5 +523,122 @@ it('preserves sparse explicit parallel policy through the authored capture fold'
   expect(folded.stepParallels).toEqual([{ workItemId: 'w1', stepId: 's1', maxParallel: 1 }]);
   expect(canonicalisePlanInput(folded).stepParallels).toEqual([
     { workItemId: 'w1', stepId: 's1', maxParallel: 1 },
+  ]);
+});
+
+it('captures every measure estimate, budget, basis and the factor, and compares a change in each', () => {
+  const card = { currency: 'USD', rateCardDigest: 'sha256:a' };
+  const measured = {
+    ...reads,
+    project: { ...reads.project, budgetFactor: 1.5 },
+    measures: [
+      ...reads.measures,
+      { workItemId: 'w1', stepId: 's1', metric: 'token_estimate', value: 400, recordedAt: 1 },
+      { workItemId: 'w1', stepId: 's2', metric: 'cost', value: 9, recordedAt: 2, basis: card },
+    ],
+    measureEstimates: [
+      // The legacy token estimate's own single-point trio: captured as the measure above.
+      {
+        workItemId: 'w1',
+        stepId: 's1',
+        key: 'tokens',
+        optimistic: 400,
+        realistic: 400,
+        pessimistic: 400,
+        singlePoint: true,
+      },
+      {
+        workItemId: 'w1',
+        stepId: 's2',
+        key: 'cost',
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 4,
+        singlePoint: false,
+        basis: card,
+      },
+    ],
+    budgets: [
+      { workItemId: 'w1', key: 'tokens', cap: 5000, policy: 'strict', holdPerAttempt: 300 },
+    ],
+  } as unknown as PlanInputReads;
+  const input = canonicalisePlanInput(planInputRowsOf(measured));
+  expect({
+    factor: input.project.budgetFactor,
+    cost: input.measures.find(({ metric }) => metric === 'cost'),
+    trios: input.measureEstimates,
+    budgets: input.budgets,
+  }).toEqual({
+    factor: 1.5,
+    cost: {
+      workItemId: 'w1',
+      stepId: 's2',
+      metric: 'cost',
+      value: 9,
+      currency: 'USD',
+      rateCardDigest: 'sha256:a',
+    },
+    trios: [
+      {
+        workItemId: 'w1',
+        stepId: 's2',
+        key: 'cost',
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 4,
+        currency: 'USD',
+        rateCardDigest: 'sha256:a',
+      },
+    ],
+    budgets: [
+      { workItemId: 'w1', key: 'tokens', cap: 5000, policy: 'strict', holdPerAttempt: 300 },
+    ],
+  });
+  const side = (changed: PlanInputReads): PlanSide => ({
+    input: canonicalisePlanInput(planInputRowsOf(changed)),
+    schedule: { present: false, absentReason: 'pending' },
+  });
+  const changes: [string, PlanInputReads][] = [
+    ['settings', { ...measured, project: { ...measured.project, budgetFactor: 2 } }],
+    [
+      'measures',
+      {
+        ...measured,
+        measureEstimates: measured.measureEstimates.map((trio) =>
+          trio.singlePoint ? trio : { ...trio, pessimistic: 8 },
+        ),
+      },
+    ],
+    [
+      'measures',
+      {
+        ...measured,
+        budgets: measured.budgets.map((budget) => ({ ...budget, policy: 'advisory' })),
+      },
+    ],
+    [
+      'measures',
+      {
+        ...measured,
+        measures: measured.measures.map((fact) =>
+          fact.basis === undefined
+            ? fact
+            : { ...fact, basis: { currency: 'USD', rateCardDigest: 'sha256:b' } },
+        ),
+      },
+    ],
+  ];
+  expect(
+    changes.map(([, changed]) =>
+      diffPlans(side(measured), side(changed)).input.map(({ category, path }) => ({
+        category,
+        path,
+      })),
+    ),
+  ).toEqual([
+    [{ category: 'settings', path: 'project.budgetFactor' }],
+    [{ category: 'measures', path: 'measureEstimates[w1:s2:cost].pessimistic' }],
+    [{ category: 'measures', path: 'budgets[w1:tokens].policy' }],
+    [{ category: 'measures', path: 'measures[w1:s2:cost].rateCardDigest' }],
   ]);
 });

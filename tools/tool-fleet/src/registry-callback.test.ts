@@ -131,3 +131,15 @@ test('cluster fixture reader keeps a synchronous lookup failure as exact Promise
   const pending: unknown = Reflect.apply(proof.read, undefined, ['management', selected]);
   expect((await requireRejection(pending)).cause).toBe(cause);
 });
+
+test('backup admission remains closed before a storage effect', async () => {
+  let stored = false;
+  const admission: unknown = Reflect.apply(admitRegistryBackup, undefined, []);
+  const refusal = await requireRejection(
+    Promise.resolve(admission).then(() => {
+      stored = true;
+    }),
+  );
+  expect(refusal.cause).toMatchObject({ code: 'backup-budget-unavailable' });
+  expect(stored).toBe(false);
+});

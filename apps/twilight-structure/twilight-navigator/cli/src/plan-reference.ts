@@ -11,7 +11,7 @@ import {
 } from '@twilight-burokrat/contracts';
 import { type PlanDocument, planDocument } from '@wbs/contracts';
 
-import type { FlagValues } from './cli';
+import type { NavigatorRequest } from './cli-parser';
 import {
   createExclusiveFiles,
   decodeRequiredText,
@@ -19,24 +19,17 @@ import {
   readRequiredBytes,
 } from './required-file';
 
-/** The flags of `twin plan-reference`, each required once. */
-export const PLAN_REFERENCE_FLAGS = [
-  '--export',
-  '--repository',
-  '--change',
-  '--planning-commit',
-  '--source-base',
-  '--requirements',
-  '--output',
-] as const;
-
-type PlanReferenceFlag = (typeof PLAN_REFERENCE_FLAGS)[number];
-
 /** Explicit supported wire versions; a future WBS bump requires contract review here. */
-const NAVIGATOR_PLAN_DOCUMENT_VERSIONS = [7, 8, 9, 10] as const;
+const NAVIGATOR_PLAN_DOCUMENT_VERSIONS = [7, 8, 9, 10, 11] as const;
 
 const EXPORT_ROLE = 'plan export';
 const REQUIREMENTS_ROLE = 'requirements file';
+
+/** What version 11 adds beside the factor (`wbs-measure-budgets` D63); older files carry none. */
+const MEASURE_KEYS = ['measureDefinitions', 'measureFacts', 'measureEstimates', 'budgets'] as const;
+
+/** The settings of a file before version 11: no budget factor, which reads as 1. */
+const settingsBeforeVersion11 = planDocument.get('settings').omit('budgetFactor');
 
 const PlanDocumentHeader = type({
   document: { format: "'wbs-plan'", version: 'number.integer' },
@@ -51,14 +44,17 @@ const PlanDocumentHeader = type({
 const HistoricalPlanDocument = planDocument
   .omit(
     'document',
+    'settings',
     'steps',
     'workItems',
     'stepBlockages',
     'resourceCapacities',
     'demands',
     'directory',
+    ...MEASURE_KEYS,
   )
   .and({
+    settings: settingsBeforeVersion11,
     directory: planDocument.get('directory').omit('resources'),
     document: {
       format: "'wbs-plan'",
@@ -76,8 +72,17 @@ const HistoricalPlanDocument = planDocument
 // Proof: ignoring deep unknown keys made both current-export unknown-key tests exit 0.
 // Injecting a workday default before this decode made the missing-unit test exit 0 (2026-10-13).
 const Version8PlanDocument = planDocument
-  .omit('document', 'stepBlockages', 'resourceCapacities', 'demands', 'directory')
+  .omit(
+    'document',
+    'settings',
+    'stepBlockages',
+    'resourceCapacities',
+    'demands',
+    'directory',
+    ...MEASURE_KEYS,
+  )
   .and({
+    settings: settingsBeforeVersion11,
     document: { format: "'wbs-plan'", version: '8', exportedAt: 'string' },
     directory: planDocument.get('directory').omit('resources'),
   })
@@ -93,17 +98,32 @@ const Version8PlanDocument = planDocument
 // Proof: reading v9 through the v10 schema refused both v9 positives on the absent resource
 // lists (plan-reference.test.ts, 2026-10-20).
 const Version9PlanDocument = planDocument
-  .omit('document', 'resourceCapacities', 'demands', 'directory')
+  .omit('document', 'settings', 'resourceCapacities', 'demands', 'directory', ...MEASURE_KEYS)
   .and({
+    settings: settingsBeforeVersion11,
     document: { format: "'wbs-plan'", version: '9', exportedAt: 'string' },
     directory: planDocument.get('directory').omit('resources'),
   })
   .onDeepUndeclaredKey('reject');
 
-/** Strict current external wire shape, without historical defaults or discarded keys. */
+/**
+ * Navigator's v10 wire contract: the current document without the measures and
+ * budget factor version 11 added (`wbs-measure-budgets` D63).
+ */
 // Proof: removing deep rejection accepted `refuses v10 unknown nested key` through
 // plan-reference.test.ts production dispatch (2026-10-20).
-const Version10PlanDocument = planDocument.onDeepUndeclaredKey('reject');
+const Version10PlanDocument = planDocument
+  .omit('document', 'settings', ...MEASURE_KEYS)
+  .and({
+    document: { format: "'wbs-plan'", version: '10', exportedAt: 'string' },
+    settings: settingsBeforeVersion11,
+  })
+  .onDeepUndeclaredKey('reject');
+
+/** Strict current external wire shape, without historical defaults or discarded keys. */
+// Proof: removing deep rejection accepted `refuses v11 unknown nested key` through
+// plan-reference.test.ts production dispatch (2026-10-24).
+const Version11PlanDocument = planDocument.onDeepUndeclaredKey('reject');
 
 /**
  * Checks only direct archival facts at Navigator's external export boundary. Retained facts
@@ -134,12 +154,19 @@ function validateBlockageFacts(document: PlanDocument): void {
 
 interface DecodedPlanExport {
   document: PlanDocument;
-  wireVersion: 7 | 8 | 9 | 10;
+  wireVersion: NavigatorPlanDocumentVersion;
 }
+
+type NavigatorPlanDocumentVersion = (typeof NAVIGATOR_PLAN_DOCUMENT_VERSIONS)[number];
 
 /** The resource facts a document before version 10 carries: none. */
 function noResourceFacts(): Pick<PlanDocument, 'resourceCapacities' | 'demands'> {
   return { resourceCapacities: [], demands: [] };
+}
+
+/** The measures a document before version 11 carries: none (`wbs-measure-budgets` D63). */
+function noMeasures(): Pick<PlanDocument, (typeof MEASURE_KEYS)[number]> {
+  return { measureDefinitions: [], measureFacts: [], measureEstimates: [], budgets: [] };
 }
 
 function sha256Hex(bytes: Uint8Array): string {
@@ -162,28 +189,48 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
   // failed the historical future-version refusal diagnostic (plan-reference.test.ts, 2026-10-13).
   // Proof: restoring the v7/v8 pin broke both v9 positives; bypassing the guard broke the v10
   // refusal diagnostic in plan-reference.test.ts (2026-10-15).
+  // Proof: with 11 dropped from this guard and the list, `reads a v11 export carrying
+  // measures, deriving the same tasks as v10` and the three v11 refusals exited on
+  // "has version 11" (38 pass, 6 fail, plan-reference.test.ts); watched 2026-10-24.
   if (
     header.document.version !== 7 &&
     header.document.version !== 8 &&
     header.document.version !== 9 &&
-    header.document.version !== 10
+    header.document.version !== 10 &&
+    header.document.version !== 11
   ) {
     throw new Error(
       `${EXPORT_ROLE} ${path} has version ${String(header.document.version)}; twin reads versions ${NAVIGATOR_PLAN_DOCUMENT_VERSIONS.join(' and ')} only`,
     );
   }
   try {
+    // Proof: with version 11 parsed through the v10 shape, `reads a v11 export
+    // carrying measures, deriving the same tasks as v10` (plan-reference.test.ts)
+    // exited 1 as malformed (43 pass, 1 fail); watched 2026-10-24.
+    if (header.document.version === 11) {
+      const document = parseOrThrow(Version11PlanDocument, parsed);
+      validateBlockageFacts(document);
+      return { document, wireVersion: 11 };
+    }
     if (header.document.version === 10) {
       const document = parseOrThrow(Version10PlanDocument, parsed);
-      validateBlockageFacts(document);
-      return { document, wireVersion: 10 };
+      const current: PlanDocument = {
+        ...document,
+        ...noMeasures(),
+        document: { ...document.document, version: 11 },
+        settings: { ...document.settings, budgetFactor: 1 },
+      };
+      validateBlockageFacts(current);
+      return { document: current, wireVersion: 10 };
     }
     if (header.document.version === 9) {
       const document = parseOrThrow(Version9PlanDocument, parsed);
       const current: PlanDocument = {
         ...document,
         ...noResourceFacts(),
-        document: { ...document.document, version: 10 },
+        ...noMeasures(),
+        document: { ...document.document, version: 11 },
+        settings: { ...document.settings, budgetFactor: 1 },
         directory: { ...document.directory, resources: [] },
       };
       validateBlockageFacts(current);
@@ -195,7 +242,9 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
         document: {
           ...document,
           ...noResourceFacts(),
-          document: { ...document.document, version: 10 },
+          ...noMeasures(),
+          document: { ...document.document, version: 11 },
+          settings: { ...document.settings, budgetFactor: 1 },
           directory: { ...document.directory, resources: [] },
           stepBlockages: [],
         },
@@ -208,7 +257,9 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
       document: {
         ...document,
         ...noResourceFacts(),
-        document: { ...document.document, version: 10 },
+        ...noMeasures(),
+        document: { ...document.document, version: 11 },
+        settings: { ...document.settings, budgetFactor: 1 },
         directory: { ...document.directory, resources: [] },
         stepBlockages: [],
         steps: document.steps.map((step) => ({ ...step, estimateUnit: 'workdays' })),
@@ -226,7 +277,10 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
  * @throws when a parent, an estimate's step or a step code is missing or repeated, since the
  * export would then not describe one tree.
  */
-export function derivePlanTasks(document: PlanDocument, wireVersion: 7 | 8 | 9 | 10): PlanTasks {
+export function derivePlanTasks(
+  document: PlanDocument,
+  wireVersion: NavigatorPlanDocumentVersion,
+): PlanTasks {
   const steps = [...document.steps]
     .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
     .map((step) => ({
@@ -318,9 +372,11 @@ function prettyJson(value: unknown): string {
  * directory and returns the plan reference's digest. Every input is read and validated, and
  * the record is decoded through Burokrat, before the first output file is created.
  */
-export async function runPlanReference(request: FlagValues<PlanReferenceFlag>): Promise<string> {
-  const exportPath = request('--export');
-  const requirementsPath = request('--requirements');
+export async function runPlanReference(
+  request: NavigatorRequest<'plan-reference'>,
+): Promise<string> {
+  const exportPath = request.export;
+  const requirementsPath = request.requirements;
   const exportBytes = await readRequiredBytes(exportPath, EXPORT_ROLE);
   const requirementsBytes = await readRequiredBytes(requirementsPath, REQUIREMENTS_ROLE);
   // Proof: removing this decode failed `refuses a missing, unreadable or malformed requirements
@@ -330,11 +386,11 @@ export async function runPlanReference(request: FlagValues<PlanReferenceFlag>): 
   const tasks = derivePlanTasks(document, wireVersion);
 
   const planRef: PlanRef = {
-    repository: request('--repository'),
+    repository: request.repository,
     plan: document.project.id,
-    change: request('--change'),
-    planningCommit: request('--planning-commit'),
-    sourceBaseCommit: request('--source-base'),
+    change: request.change,
+    planningCommit: request.planningCommit,
+    sourceBaseCommit: request.sourceBase,
     requirementsDigest: sha256Hex(requirementsBytes),
   };
   const body = {
@@ -352,8 +408,8 @@ export async function runPlanReference(request: FlagValues<PlanReferenceFlag>): 
   const record = parseOrThrow(PlanReferenceRecord, { ...body, referenceDigest: digestOf(body) });
 
   await createExclusiveFiles([
-    { path: join(request('--output'), 'tasks.json'), text: prettyJson(tasks) },
-    { path: join(request('--output'), 'plan-reference.json'), text: prettyJson(record) },
+    { path: join(request.output, 'tasks.json'), text: prettyJson(tasks) },
+    { path: join(request.output, 'plan-reference.json'), text: prettyJson(record) },
   ]);
   return record.referenceDigest;
 }

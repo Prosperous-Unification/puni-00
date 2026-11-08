@@ -23,3 +23,10 @@ The registry and local volume are single-instance. Private-address host proxying
 ## Migration Plan
 
 Audit and preserve state; prepare and test host integration; review and gate changes; establish holds; deploy encrypted secrets; activate endpoint and clients; prove push/pull and negative cases; configure backup and run isolated recovery; record release identities and follow-up custody. Product migration is a subsequent change.
+
+## Source integration note — 2026-11-08
+
+The 2026-10-24 authorization and activation receipts above are historical evidence.
+The current bound-registry-storage revision stages source only, preserves supported
+legacy delivery routing and neither repeats activation nor establishes current
+installed readiness. It grants no new production action.

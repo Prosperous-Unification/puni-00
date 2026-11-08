@@ -1,4 +1,10 @@
-import type { Demand, PersonKind } from '@wbs/domain';
+import type {
+  Demand,
+  MeasureDefinition,
+  MeasureUsage,
+  PersonKind,
+  ResourceCapacity,
+} from '@wbs/domain';
 
 import type {
   Assignment,
@@ -13,6 +19,7 @@ import type {
   TeamPatch,
   TeamWithServices,
 } from './directory-values';
+import type { AuditedAct } from './organization-audit';
 import type {
   AssignmentWritten,
   ExternalSystem,
@@ -191,18 +198,9 @@ export interface DirectoryUsageRows {
    */
   claims: readonly { workItemId: string; stepId: string | null; personId: string }[];
   /**
-   * How many linked credentials are pinned to the person being removed
-   * (`external_identity.person_id`, `wbs-team-claims` D6); 0 for a team. A
-   * pin names no project, so it is a count beside the trees, and it refuses an
-   * unconfirmed removal `in_use` as an assignment does. A confirmed removal
-   * revokes those credentials with the person rather than unpinning them: an
-   * unpinned fleet credential could claim as any person of its account.
-   */
-  pinnedCredentials: number;
-  /**
    * How many unrevoked machine credentials are pinned to the person being
    * removed (`machine_credential.person_id`, `wbs-machine-credentials`); 0 for
-   * a team. Like a pin it refuses an unconfirmed removal `in_use`; a confirmed
+   * a team. Like an assignment it refuses an unconfirmed removal `in_use`; a confirmed
    * removal revokes them, auditing each, and removes them with the person.
    */
   machineCredentials: number;
@@ -281,6 +279,23 @@ export type ResourceProviderSet =
   | { ok: true; projectIds: TouchedProjects }
   | { ok: false; reason: 'not_found' | 'unknown_provider' | 'provider_not_in_organization' };
 
+/**
+ * What stating or clearing a resource's **Directory capacity** answered
+ * (`wbs-shared-occupancy` S1, S2): the units before and after, the
+ * organization the resource belongs to, and the projects whose demands or
+ * capacities name it; or `not_found`, or `organization_required` for a
+ * resource no organization owns.
+ */
+export type DirectoryCapacitySet =
+  | {
+      ok: true;
+      before: number | null;
+      after: number | null;
+      organizationId: string;
+      projectIds: TouchedProjects;
+    }
+  | { ok: false; reason: 'not_found' | 'organization_required' };
+
 /** What a resource patch answered, with the projects whose demands or capacities name it. */
 export type ResourceWritten =
   | { ok: true; resource: Resource; projectIds: TouchedProjects }
@@ -298,8 +313,11 @@ export interface ResourceUsageRows {
   demands: readonly Demand[];
   capacities: readonly { projectId: string; units: number }[];
   occupancies: number;
+  outstandingUses?: number;
   /** The provider instance the resource names, or null (`compute-providers` P3). */
   providerId: string | null;
+  /** The resource's stated directory capacity, or null (`wbs-shared-occupancy` S8). */
+  directoryCapacity: number | null;
 }
 
 /** What a resource removal's own transaction decided; `in_use` carries what it read. */
@@ -312,7 +330,71 @@ export type ResourceRemoved =
 export type OrganizationRenamed =
   { ok: true; projectIds: TouchedProjects } | { ok: false; reason: 'not_found' | 'taken' };
 
+/**
+ * What a measure definition create answered (`wbs-measure-budgets` D1, D2):
+ * the stored row, or the store's unique index refusing it. The batch decides
+ * both refusals first from the definitions it read in the same unit of work;
+ * these are the backstop a raced or mistaken read still meets.
+ */
+export type MeasureAdded =
+  | { ok: true; measure: MeasureDefinition }
+  | { ok: false; reason: 'measure_key_taken' | 'second_scheduling_measure' };
+
+/**
+ * What a measure definition patch answered: the stored row, `not_found` for an
+ * id the organization does not hold (another organization's included), or the
+ * one-scheduling-measure index refusing it.
+ */
+export type MeasureWritten =
+  | { ok: true; measure: MeasureDefinition }
+  | { ok: false; reason: 'not_found' | 'second_scheduling_measure' };
+
+/** What a measure definition removal answered; `not_found` as for {@link MeasureWritten}. */
+export type MeasureRemoved = { ok: true } | { ok: false; reason: 'not_found' };
+
 export interface DirectoryStore {
+  /**
+   * The organization marked legacy, which owns the measure definitions legacy
+   * access reads and writes (`wbs-measure-budgets` D9); null when none is
+   * marked, which the directory answers `organization_required`.
+   */
+  legacyOrganizationId(): Promise<string | null>;
+  /**
+   * One organization's measure definitions, ordered by `order` then `key`.
+   * Empty only for an organization the store does not hold: every held
+   * organization has its five seeded definitions from its first moment.
+   */
+  listMeasures(organizationId: string): Promise<MeasureDefinition[]>;
+  /** Stores `measure` in `organizationId`; see {@link MeasureAdded}. */
+  addMeasure(
+    organizationId: string,
+    measure: MeasureDefinition,
+    stamp: WriteStamp,
+  ): Promise<MeasureAdded>;
+  /**
+   * Rewrites every field of the organization's definition `measure.id` except
+   * its key, which never changes; see {@link MeasureWritten}.
+   */
+  patchMeasure(
+    organizationId: string,
+    measure: MeasureDefinition,
+    stamp: WriteStamp,
+  ): Promise<MeasureWritten>;
+  /**
+   * What references the organization's definition `measureId`: nothing in
+   * slice 1, so `{ references: 0 }`. The hook the later slices extend with
+   * `step_measure.measure_id`, `measure_estimate` and `work_item_budget`.
+   */
+  usageOfMeasure(organizationId: string, measureId: string): Promise<MeasureUsage>;
+  /**
+   * Removes the organization's definition `measureId`. The caller has refused
+   * a seeded or referenced one from reads in the same unit of work.
+   */
+  removeMeasure(
+    organizationId: string,
+    measureId: string,
+    stamp: WriteStamp,
+  ): Promise<MeasureRemoved>;
   /**
    * On an addressed miss, distinguish a missing/foreign entry from a present
    * trusted root whose ownership mapping is absent or conflicting. Optional
@@ -526,13 +608,6 @@ export interface DirectoryStore {
    */
   boundAccountOf(personId: string): Promise<string | null>;
   /**
-   * The person a linked credential `(issuer, subject)` is pinned to, or null
-   * when the credential is unpinned or is not linked through
-   * `external_identity` at all (a pre-activation login's pair lives on its
-   * user row and is unpinned) — `wbs-team-claims` D6.
-   */
-  credentialPinOf(issuer: string, subject: string): Promise<string | null>;
-  /**
    * What points at this person right now — a **fast path** for the refusal,
    * never the authority for it. Between this answer and any delete, anybody may
    * assign them. {@link DirectoryStore.removePerson} is what decides.
@@ -543,8 +618,8 @@ export interface DirectoryStore {
   /**
    * Counts what points at the person, refuses an unconfirmed removal that would
    * take any of it, and otherwise drops their assignments, their claims, the
-   * credentials pinned to them (revoked, see
-   * {@link DirectoryUsageRows.pinnedCredentials}), their memberships and the
+   * machine credentials pinned to them (revoked, see
+   * {@link DirectoryUsageRows.machineCredentials}), their memberships and the
    * person — all in **one** transaction, moving the revision of every work item
    * that lost an assignment or a claim.
    *
@@ -599,6 +674,23 @@ export interface DirectoryStore {
     organizationId: string | null,
     stamp: WriteStamp,
   ): Promise<ResourceProviderSet>;
+  /**
+   * The stated directory capacities of `resourceIds`, in resource-id order; an
+   * unstated resource, or one not held, has no entry. Read on the store's own
+   * connection, uncached: inside a batch, the batch's.
+   */
+  directoryCapacitiesOf(resourceIds: readonly string[]): Promise<ResourceCapacity[]>;
+  /**
+   * States (`units`) or clears (`null`) a resource's directory capacity and
+   * appends one `organization_audit` row, `directory_capacity_changed` on
+   * subject kind `resource` with the units before and after, in one
+   * transaction. Never journalled. Who may is the caller's to decide.
+   */
+  setDirectoryCapacity(
+    resourceId: string,
+    units: number | null,
+    act: AuditedAct,
+  ): Promise<DirectoryCapacitySet>;
   /**
    * What points at one resource right now — a fast path for the confirmation,
    * never the authority for it. {@link DirectoryStore.removeResource} decides.

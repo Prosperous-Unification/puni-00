@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 
 import { CellInput } from '../cell-input';
+import { ClaimChip, NAME_CLAIM_PX } from '../claim-chip';
 import { cellKey } from '../editable-grid';
 import { HoverPreview } from '../hover-preview';
 import { renderName } from '../inline-markdown';
@@ -53,9 +54,13 @@ export function createNameColumn({ live }: { live: PlanLive }) {
       const editingRef = useRef(false);
       const hovered = cardOpen;
       const hasNotes = row.original.notes.trim() !== '';
+      const subtreeClaim = row.original.readings.subtreeClaim;
       return (
         <span
           data-has-notes={hasNotes ? '' : undefined}
+          // The name's box keeps room on its right for the chip while there is
+          // one (`styles.css`), and only then: an unclaimed row reads as before.
+          data-subtree-claim={subtreeClaim === null ? undefined : ''}
           // `block`, not `inline-block`: a shrink-to-fit wrapper and a
           // `width: 100%` textarea inside it define each other in a circle.
           // It is also the positioned ancestor the preview below is placed
@@ -221,6 +226,23 @@ export function createNameColumn({ live }: { live: PlanLive }) {
               live.current.onArrowKey(e, row.original.id, 'name');
             }}
           />
+          {subtreeClaim !== null && (
+            // A subtree claim's chip, after the name and before the notes
+            // marker (`wbs-claim-display` C8), on this row only: the leaves
+            // under it draw nothing for it.
+            <span
+              data-subtree-claim-chip={row.original.id}
+              style={{
+                position: 'absolute',
+                top: 4,
+                right: hasNotes ? 24 : 3,
+                maxWidth: NAME_CLAIM_PX,
+                overflow: 'hidden',
+              }}
+            >
+              <ClaimChip drawn={subtreeClaim} form="full" />
+            </span>
+          )}
           {hasNotes && (
             // The notes marker: the mark that says this row has notes, and
             // the only thing that opens the preview.

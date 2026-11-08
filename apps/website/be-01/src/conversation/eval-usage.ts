@@ -1,0 +1,278 @@
+import {
+  observeRefusalEvidence,
+  observeSecurityEvidence,
+  type RefusalEvidence,
+  type SecurityEvidence,
+} from './eval-provider';
+import { isRecord } from './eval-scoping';
+import { type ProviderFetch, readFinalCharge, readFinalUsage } from './stream';
+
+export interface OperationMeasure {
+  /** Actual response status, or null until transport resolves and when it throws. */
+  httpStatus: number | null;
+  securityEvidence: SecurityEvidence;
+  refusalEvidence: RefusalEvidence;
+  reservedMicroUsd: number;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  reasoningTokens: number | null;
+  ratedMicroUsd: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
+  knownMicroUsd: number;
+  unknownReservedMicroUsd: number;
+  reportedCostUsd: number | null;
+  latencyMilliseconds: number;
+  provider: string | null;
+  model: string | null;
+  finishReason: string | null;
+}
+/**
+ * Tees only visible metadata. Final cumulative usage replaces earlier observations; reasoning is a completion subset.
+ * Refusal observation is bounded and optional; accounting failures still propagate from settle.
+ * Proof: removing the request counter bought a second operation in the hard-cap mounted test;
+ * removing bound validation admitted all five invalid bounds. Removing consumer invalidation
+ * left positive refusal evidence after cancellation; closing instead of forwarding the source
+ * error failed metering preserves source error in eval-initial-refusal.test.ts.
+ */
+export function meterUsage(
+  base: ProviderFetch,
+  rates: { input: number; output: number; inputCeiling: number; outputCeiling: number },
+  maximumMicroUsd?: number,
+  maximumRequests?: number,
+) {
+  const operations: OperationMeasure[] = [];
+  const pending: Promise<{ ok: true } | { ok: false; error: unknown }>[] = [];
+  if (
+    maximumRequests !== undefined &&
+    (!Number.isSafeInteger(maximumRequests) || maximumRequests <= 0)
+  )
+    throw new Error('Evaluation request bound must be a positive safe integer');
+  const providerFetch: ProviderFetch = async (input, init) => {
+    if (maximumRequests !== undefined && operations.length >= maximumRequests)
+      throw new Error('Evaluation request bound reached before provider request');
+    if (typeof init.body !== 'string') throw new Error('Evaluation provider body must be JSON');
+    const request: unknown = JSON.parse(init.body);
+    if (!isRecord(request) || typeof request['max_completion_tokens'] !== 'number')
+      throw new Error('Evaluation provider completion bound is missing');
+    // A conservative evaluation ceiling includes the entire wire body, exceeding the app's messages/schema reservation.
+    // Proof: substituting base input rates failed all unknown-charge effective-ceiling tests.
+    const ceiling = Math.ceil(
+      (Buffer.byteLength(init.body, 'utf8') + 2000) * rates.inputCeiling +
+        request['max_completion_tokens'] * rates.outputCeiling,
+    );
+    // Proof: removing this guard reached transport in evaluation unsafe-reservation refusal.
+    if (!Number.isSafeInteger(ceiling) || ceiling <= 0)
+      throw new Error('Evaluation reservation exceeds safe micro-USD');
+    // Proof: removing this bound purchased the forbidden operation in eval-scoping.test and the reported-surcharge budget case.
+    if (
+      maximumMicroUsd !== undefined &&
+      operations.reduce(
+        (sum, previous) => sum + previous.knownMicroUsd + previous.unknownReservedMicroUsd,
+        0,
+      ) +
+        ceiling >
+        maximumMicroUsd
+    )
+      throw new Error('Evaluation spend bound reached before provider request');
+    const operation: OperationMeasure = {
+      httpStatus: null,
+      securityEvidence: 'unproven',
+      refusalEvidence: 'unproven',
+      reservedMicroUsd: ceiling,
+      promptTokens: null,
+      completionTokens: null,
+      reasoningTokens: null,
+      ratedMicroUsd: null,
+      cacheReadTokens: null,
+      cacheWriteTokens: null,
+      knownMicroUsd: 0,
+      unknownReservedMicroUsd: ceiling,
+      reportedCostUsd: null,
+      latencyMilliseconds: 0,
+      provider: null,
+      model: null,
+      finishReason: null,
+    };
+    operations.push(operation);
+    const started = performance.now();
+    const headers = new Headers(init.headers);
+    // Proof: removing this documented opt-in failed metadata observation adds only documented header.
+    headers.set('X-OpenRouter-Metadata', 'enabled');
+    const response = await base(input, { ...init, headers });
+    // Proof: the injected HTTP 503 kept its response but the mounted meter receipt lacked status before this assignment.
+    operation.httpStatus = response.status;
+    if (!response.ok) {
+      operation.securityEvidence = await observeSecurityEvidence(response);
+      operation.latencyMilliseconds = Math.round(performance.now() - started);
+      return response;
+    }
+    if (!response.body) {
+      operation.latencyMilliseconds = performance.now() - started;
+      return response;
+    }
+    const observation = new AbortController();
+    const abortObservation = () => {
+      observation.abort();
+    };
+    init.signal?.addEventListener('abort', abortObservation, { once: true });
+    if (init.signal?.aborted) observation.abort();
+    pending.push(
+      observeRefusalEvidence(response, observation.signal).then(
+        (evidence) => {
+          operation.refusalEvidence = observation.signal.aborted ? 'cancelled' : evidence;
+          init.signal?.removeEventListener('abort', abortObservation);
+          return { ok: true as const };
+        },
+        (error: unknown) => ({ ok: false as const, error }),
+      ),
+    );
+    const [forApi, forMeter] = response.body.tee();
+    pending.push(
+      (async () => {
+        const source = await new Response(forMeter).text();
+        let finalUsage: unknown;
+        for (const line of source.split('\n')) {
+          if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+          const chunk: unknown = JSON.parse(line.slice(6));
+          if (!isRecord(chunk)) continue;
+          // Proof: replacing this assignment with accumulation doubled eval-scoping.test's cumulative fixture.
+          if (chunk['usage'] !== undefined && chunk['usage'] !== null) finalUsage = chunk['usage'];
+          if (typeof chunk['provider'] === 'string') operation.provider = chunk['provider'];
+          if (typeof chunk['model'] === 'string') operation.model = chunk['model'];
+          if (Array.isArray(chunk['choices']))
+            for (const choice of chunk['choices'])
+              if (isRecord(choice) && typeof choice['finish_reason'] === 'string')
+                operation.finishReason = choice['finish_reason'];
+        }
+        operation.latencyMilliseconds = Math.round(performance.now() - started);
+        const usage = readFinalUsage(finalUsage);
+        if (usage !== null) {
+          operation.promptTokens = usage.promptTokens;
+          operation.completionTokens = usage.completionTokens;
+          if (isRecord(finalUsage)) {
+            const completion = finalUsage['completion_tokens_details'];
+            const prompt = finalUsage['prompt_tokens_details'];
+            // Proof: removing the subset bound exposed impossible reasoning; bypassing the combined-cache guard exposed overlapping counts.
+            const boundedCount = (value: unknown, maximum: number): number | null =>
+              typeof value === 'number' &&
+              Number.isSafeInteger(value) &&
+              value >= 0 &&
+              value <= maximum
+                ? value
+                : null;
+            operation.reasoningTokens = boundedCount(
+              isRecord(completion) ? completion['reasoning_tokens'] : undefined,
+              usage.completionTokens,
+            );
+            operation.cacheReadTokens = boundedCount(
+              isRecord(prompt) ? prompt['cached_tokens'] : undefined,
+              usage.promptTokens,
+            );
+            operation.cacheWriteTokens = boundedCount(
+              isRecord(prompt) ? prompt['cache_write_tokens'] : undefined,
+              usage.promptTokens,
+            );
+            if (
+              operation.cacheReadTokens !== null &&
+              operation.cacheWriteTokens !== null &&
+              operation.cacheReadTokens + operation.cacheWriteTokens > usage.promptTokens
+            ) {
+              operation.cacheReadTokens = null;
+              operation.cacheWriteTokens = null;
+            }
+          }
+        }
+        const charge = readFinalCharge(finalUsage, {
+          inputUsdPerMillion: rates.input,
+          outputUsdPerMillion: rates.output,
+        });
+        // Missing/malformed charge retains the complete effective-rate reservation even when tokens are known.
+        if (charge === null) return;
+        operation.ratedMicroUsd = charge.ratedMicroUsd;
+        operation.knownMicroUsd = charge.accountedMicroUsd;
+        operation.reportedCostUsd = charge.reportedCostUsd;
+        operation.unknownReservedMicroUsd = 0;
+        // Attach rejection observation immediately; settle still rethrows every accounting error.
+      })().then(
+        () => ({ ok: true as const }),
+        (error: unknown) => ({ ok: false as const, error }),
+      ),
+    );
+    const apiReader = forApi.getReader();
+    let apiCancelled = false;
+    const published = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        try {
+          const next = await apiReader.read();
+          if (apiCancelled) return;
+          if (next.done) controller.close();
+          else controller.enqueue(next.value);
+        } catch (error) {
+          if (apiCancelled) return;
+          observation.abort();
+          operation.refusalEvidence = 'unreadable';
+          controller.error(error);
+        }
+      },
+      cancel(reason: unknown) {
+        apiCancelled = true;
+        observation.abort();
+        operation.refusalEvidence = 'cancelled';
+        // A tee cancellation waits for other branches; forward cancellation without delaying the consumer.
+        void apiReader.cancel(reason);
+      },
+    });
+    return new Response(published, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  };
+  return {
+    providerFetch,
+    operations,
+    settle: async () => {
+      // Proof: swallowing this error failed meter defers accounting parse rejection to settle.
+      for (const accounting of await Promise.all(pending))
+        if (!accounting.ok) throw accounting.error;
+    },
+  };
+}
+/**
+ * True only while the complete positive reservation remains unknown, without any known charge.
+ * Proof: removing known-charge, positivity and equality separately admitted known, empty and zero/partial
+ * receipt faults after real provider observation in eval-guarded.test.ts.
+ */
+export function retainsUnknownReservation(operation: OperationMeasure): boolean {
+  return (
+    operation.knownMicroUsd === 0 &&
+    operation.reservedMicroUsd > 0 &&
+    operation.unknownReservedMicroUsd === operation.reservedMicroUsd
+  );
+}
+
+export function totalUsage(operations: OperationMeasure[]) {
+  return operations.reduce(
+    (totals, operation) => ({
+      promptTokens: totals.promptTokens + (operation.promptTokens ?? 0),
+      completionTokens: totals.completionTokens + (operation.completionTokens ?? 0),
+      reasoningTokens: totals.reasoningTokens + (operation.reasoningTokens ?? 0),
+      knownMicroUsd: totals.knownMicroUsd + operation.knownMicroUsd,
+      unknownReservedMicroUsd: totals.unknownReservedMicroUsd + operation.unknownReservedMicroUsd,
+      unknownUsageOperations:
+        totals.unknownUsageOperations + (operation.unknownReservedMicroUsd > 0 ? 1 : 0),
+      unknownReasoningOperations:
+        totals.unknownReasoningOperations + (operation.reasoningTokens === null ? 1 : 0),
+    }),
+    {
+      promptTokens: 0,
+      completionTokens: 0,
+      reasoningTokens: 0,
+      knownMicroUsd: 0,
+      unknownReservedMicroUsd: 0,
+      unknownUsageOperations: 0,
+      unknownReasoningOperations: 0,
+    },
+  );
+}

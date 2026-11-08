@@ -7,17 +7,22 @@ import {
   estimateUnitOf,
   findTypedEndpointDefect,
   formatTypedDependencyKey,
+  isCurrencyCode,
   isHexTriple,
   isIsoDate,
+  isLegacyMetric,
   isMarkerName,
+  isMeasureKey,
   isOrphanedNotBeforeReason,
   isReservedStepCode,
   isStepCode,
   isStepState,
   LONGEST_NOT_BEFORE_REASON,
+  LONGEST_RATE_CARD_DIGEST,
   MEASURE_METRICS,
   type MeasureMetric,
   minuteTrioProblem,
+  MOST_MEASURE_ORDER,
   MOST_PEOPLE_AT_ONCE,
   PertWeights,
   priorityLadderProblem,
@@ -31,6 +36,7 @@ import { type } from '@wbs/validation';
 
 import type { StoredDependency } from '../../ports/dependency-values';
 import type { Scheduler } from '../../ports/scheduler';
+import { MOST_CHARACTERS_IN_A_UNIT_LABEL } from '../../service/command-fields';
 import { MOST_CHARACTERS_IN_A_REF_NAME } from '../../service/command-normalizers';
 import { findDependencyGraphCycle } from '../../service/dependency-graph';
 import {
@@ -624,6 +630,13 @@ export function prepareImport(
     preparedRows.push({ ...preparedRow(row), isLeaf: leaf, ...values, assignments, attempts });
   }
 
+  const measurePreparation = prepareMeasures(
+    document,
+    rows.byId,
+    new Set(document.workItems.flatMap(({ id }) => (parents.has(id) ? [] : [id]))),
+    steps.byId,
+  );
+  if ('ok' in measurePreparation) return measurePreparation;
   // Proof: bypassing graph validation made the mounted dangling-dependency test return 204.
   const dependencyRefusal = firstDependencyRefusal(document.workItems);
   if (dependencyRefusal !== null) return dependencyRefusal;
@@ -777,7 +790,189 @@ export function prepareImport(
       typeByFileId: preparedNamed(types.byId),
       externalSystemByFileId: preparedNamed(externalSystems.byId),
       ...resourcePreparation,
+      ...measurePreparation,
     },
+  };
+}
+
+/**
+ * The file's measures checked against its own definitions (`wbs-measure-budgets`
+ * design D63), as the commands would check them against an organization's:
+ *
+ * - each definition well formed as `createMeasure` requires (key, unit, order,
+ *   currency exactly on money) and its key stated once and not a legacy metric
+ *   name; only the seeded `time` schedules work and only the seeded
+ *   `agent_minutes` is derived, so any other definition claiming either is
+ *   refused;
+ * - each fact, trio and budget names a definition of the file and a row (a
+ *   leaf for facts and trios) and step of it, in the measure's scale, at most
+ *   once per place and key; no fact in the scheduling measure, a derived one,
+ *   or `tokens` and `hours` (their facts are the row's legacy `measures`), no
+ *   trio where three points are forbidden or beside the row's legacy token
+ *   estimate, no budget in the scheduling measure;
+ * - figures from 0, a trio ordered, a basis exactly on money with a digest of
+ *   1 to {@link LONGEST_RATE_CARD_DIGEST} characters.
+ *
+ * Whether the importing organization holds each definition in the same shape
+ * is decided at admission (`ImportService`), where its definitions are read.
+ */
+function prepareMeasures(
+  document: PlanDocumentImport,
+  rows: ReadonlyMap<string, DocumentRow>,
+  leaves: ReadonlySet<string>,
+  steps: ReadonlyMap<string, DocumentStep>,
+):
+  | Pick<PreparedImport, 'measureDefinitions' | 'measureFacts' | 'measureEstimates' | 'budgets'>
+  | Refusal {
+  const definitions = new Map<string, PlanDocumentImport['measureDefinitions'][number]>();
+  for (const [at, definition] of document.measureDefinitions.entries()) {
+    const path = (field: string) => `measureDefinitions[${String(at)}].${field}`;
+    // Proof: with each refusal in this loop bypassed alone, its case of
+    // `refuses a version-11 file whose measures do not hold together`
+    // (prepare-import.test.ts) prepared ok; watched 2026-10-23.
+    if (
+      !isMeasureKey(definition.key) ||
+      isLegacyMetric(definition.key) ||
+      definitions.has(definition.key)
+    )
+      return refuses('invalid_body', path('key'), definition.key);
+    const name = cleanName(definition.name);
+    if (name === null) return refuses('invalid_body', path('name'));
+    const unit = definition.unit.trim();
+    if (unit === '' || unit.length > MOST_CHARACTERS_IN_A_UNIT_LABEL)
+      return refuses('invalid_body', path('unit'));
+    if (
+      !Number.isSafeInteger(definition.order) ||
+      definition.order < 0 ||
+      definition.order > MOST_MEASURE_ORDER
+    )
+      return refuses('invalid_body', path('order'));
+    if (
+      definition.kind === 'money'
+        ? !isCurrencyCode(definition.currency)
+        : definition.currency !== null
+    )
+      return refuses('invalid_body', path('currency'));
+    if (definition.schedulesWork && definition.key !== 'time')
+      return refuses('invalid_body', path('schedulesWork'));
+    if (definition.derived && definition.key !== 'agent_minutes')
+      return refuses('invalid_body', path('derived'));
+    definitions.set(definition.key, { ...definition, name, unit });
+  }
+  const integerIn = (key: string, ...values: number[]) =>
+    definitions.get(key)?.scale !== 'integer' || values.every(Number.isInteger);
+  const basisRefusal = (
+    key: string,
+    basis: PlanDocumentImport['measureFacts'][number]['basis'],
+    path: string,
+  ): Refusal | null => {
+    const definition = definitions.get(key);
+    // A command refuses an unpriced write in a money measure
+    // (`rate_card_required`, design D43); the import names that code as its
+    // detail, since D65 adds no refusal code.
+    // Proof: with this refusal skipped, `refuses a version-11 file whose
+    // measures do not hold together: an unpriced money fact` and `: an
+    // unpriced money trio` (prepare-import.test.ts) prepared ok; watched 2026-10-24.
+    if (basis === null)
+      return definition?.kind === 'money'
+        ? refuses('invalid_body', path, 'rate_card_required')
+        : null;
+    if (definition?.kind !== 'money') return refuses('invalid_body', path);
+    // A command derives the basis currency from the definition (`money-basis.ts`),
+    // so a basis naming another one is a figure no command could have written.
+    // Proof: with the equality dropped, `refuses a version-11 file whose
+    // measures do not hold together` (prepare-import.test.ts) prepared an EUR
+    // fact and an EUR trio on a USD `cost`; watched 2026-10-23.
+    if (!isCurrencyCode(basis.currency) || basis.currency !== definition.currency)
+      return refuses('invalid_body', `${path}.currency`);
+    if (basis.rateCardDigest === '' || basis.rateCardDigest.length > LONGEST_RATE_CARD_DIGEST)
+      return refuses('invalid_body', `${path}.rateCardDigest`);
+    return null;
+  };
+  const placed = (prefix: string, workItemId: string, stepId: string, key: string) => {
+    if (!definitions.has(key)) return refuses('unknown_ref', `${prefix}.measure`, key);
+    if (!rows.has(workItemId)) return refuses('unknown_ref', `${prefix}.workItemId`, workItemId);
+    if (!leaves.has(workItemId)) return refuses('invalid_body', `${prefix}.workItemId`, workItemId);
+    if (!steps.has(stepId)) return refuses('unknown_ref', `${prefix}.stepId`, stepId);
+    return null;
+  };
+  const factPlaces = new Set<string>();
+  for (const [at, fact] of document.measureFacts.entries()) {
+    const prefix = `measureFacts[${String(at)}]`;
+    const refused = placed(prefix, fact.workItemId, fact.stepId, fact.measure);
+    if (refused !== null) return refused;
+    const definition = definitions.get(fact.measure);
+    if (
+      definition === undefined ||
+      definition.schedulesWork ||
+      definition.derived ||
+      fact.measure === 'tokens' ||
+      fact.measure === 'hours'
+    )
+      return refuses('invalid_body', `${prefix}.measure`, fact.measure);
+    if (fact.value < 0 || !integerIn(fact.measure, fact.value))
+      return refuses('invalid_body', `${prefix}.value`);
+    const basis = basisRefusal(fact.measure, fact.basis, `${prefix}.basis`);
+    if (basis !== null) return basis;
+    const place = JSON.stringify([fact.workItemId, fact.stepId, fact.measure]);
+    if (factPlaces.has(place)) return refuses('invalid_body', prefix);
+    factPlaces.add(place);
+  }
+  const trioPlaces = new Set<string>();
+  for (const [at, trio] of document.measureEstimates.entries()) {
+    const prefix = `measureEstimates[${String(at)}]`;
+    const refused = placed(prefix, trio.workItemId, trio.stepId, trio.measure);
+    if (refused !== null) return refused;
+    const definition = definitions.get(trio.measure);
+    if (definition === undefined || definition.schedulesWork || !definition.threePoint)
+      return refuses('invalid_body', `${prefix}.measure`, trio.measure);
+    const { optimistic, realistic, pessimistic } = trio;
+    if (
+      optimistic < 0 ||
+      optimistic > realistic ||
+      realistic > pessimistic ||
+      !integerIn(trio.measure, optimistic, realistic, pessimistic)
+    )
+      return refuses('invalid_body', prefix);
+    // The legacy token estimate is the single-point tokens trio (design D28):
+    // a three-point trio beside it would replace it on write, half-reading the file.
+    const legacyEstimates = rows.get(trio.workItemId)?.measures['token_estimate'];
+    if (
+      trio.measure === 'tokens' &&
+      isUnknownRecord(legacyEstimates) &&
+      legacyEstimates[trio.stepId] !== undefined
+    )
+      return refuses('invalid_body', `${prefix}.measure`, trio.measure);
+    const basis = basisRefusal(trio.measure, trio.basis, `${prefix}.basis`);
+    if (basis !== null) return basis;
+    const place = JSON.stringify([trio.workItemId, trio.stepId, trio.measure]);
+    if (trioPlaces.has(place)) return refuses('invalid_body', prefix);
+    trioPlaces.add(place);
+  }
+  const budgetPlaces = new Set<string>();
+  for (const [at, budget] of document.budgets.entries()) {
+    const prefix = `budgets[${String(at)}]`;
+    if (!definitions.has(budget.measure))
+      return refuses('unknown_ref', `${prefix}.measure`, budget.measure);
+    if (!rows.has(budget.workItemId))
+      return refuses('unknown_ref', `${prefix}.workItemId`, budget.workItemId);
+    if (definitions.get(budget.measure)?.schedulesWork === true)
+      return refuses('invalid_body', `${prefix}.measure`, budget.measure);
+    const figures = [
+      budget.cap,
+      ...(budget.holdPerAttempt === null ? [] : [budget.holdPerAttempt]),
+    ];
+    if (figures.some((figure) => figure < 0) || !integerIn(budget.measure, ...figures))
+      return refuses('invalid_body', prefix);
+    const place = JSON.stringify([budget.workItemId, budget.measure]);
+    if (budgetPlaces.has(place)) return refuses('invalid_body', prefix);
+    budgetPlaces.add(place);
+  }
+  return {
+    measureDefinitions: [...definitions.values()],
+    measureFacts: document.measureFacts,
+    measureEstimates: document.measureEstimates,
+    budgets: document.budgets,
   };
 }
 

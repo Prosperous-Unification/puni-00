@@ -93,7 +93,7 @@ const WAIVERS = new Map<string, Waiver>([
 
 /**
  * Directories whose `migration.sql` files reach a managed migrator. The website SQLite adapter
- * also owns paired forward and down scripts. The lab root holds
+ * and Dash run-store SQLite adapter also own paired forward and down scripts. The lab root holds
  * migrations that `deploy/k8s/wbs/lab/backend-upgrade.Dockerfile` copies into the drizzle root of a
  * lab-only backend image, so they run through the same migrator and obey the same rules;
  * `lab/rollback-fault/migrations` is the same for `backend-rollback-fault.Dockerfile`.
@@ -104,6 +104,8 @@ const MIGRATION_ROOTS: readonly (readonly string[])[] = [
   ['deploy', 'k8s', 'wbs', 'lab', 'migrations'],
   ['deploy', 'k8s', 'wbs', 'lab', 'rollback-fault', 'migrations'],
   ['libs', 'website', 'adapters', 'store-sqlite', 'src'],
+  // Proof: removing this root rejected the real forward/down pair; widening it to runs admitted sibling fixtures and failed the exact-root rejection test.
+  ['apps', 'twilight-structure', 'twilight-dash', 'cli', 'src', 'runs', 'sqlite', 'migrations'],
 ];
 
 function isInside(root: string, path: string): boolean {

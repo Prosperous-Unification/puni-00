@@ -1,4 +1,5 @@
 import { mcpAuthModeOf } from '@wbs/auth';
+import { canonicalMcpAuthorizationServer, mcpAuthorizationServerOf } from '@wbs/contracts';
 import { type } from '@wbs/validation';
 
 /**
@@ -23,6 +24,22 @@ export const McpConfig = type({
   // absent, it keeps forwarding the upstream token, which be-01 refuses for
   // organization resources once activated.
   'INTERNAL_AUTH_SECRET?': 'string>=32',
+  // be-01's MCP_BE_INTERNAL_SECRET, sent as `x-mcp-internal-auth` with every
+  // machine grant request, every machine token's be-01 call and, in place of
+  // INTERNAL_AUTH_SECRET, every `/internal/mcp/*` call (`wbs-mcp-agent-surface`
+  // M14). Present in standalone mode, the token endpoint offers the machine
+  // grants ({@link offersMachineGrants}).
+  // Proof: with 'string' here, `refuses a short MCP_BE_INTERNAL_SECRET, naming it and not its
+  // value` (machine-token.test.ts) loaded it; watched 2026-10-27.
+  'MCP_BE_INTERNAL_SECRET?': 'string>=32',
+  // How many trusted proxies stand between the client and mcp-01: the source address is the
+  // `X-Forwarded-For` entry this far from the right, or with 0 the socket address
+  // (`wbs-mcp-agent-surface` M10). Required, because a wrong guess either trusts a header the
+  // client wrote or counts every client as the proxy.
+  // Proof: with this key optional and unset, `refuses a missing or invalid
+  // MCP_TRUSTED_PROXY_HOPS, naming it` (config.test.ts) loaded the configuration; watched
+  // 2026-10-27.
+  MCP_TRUSTED_PROXY_HOPS: type(/^[0-9]$/).pipe((hops) => Number(hops)),
 });
 export type McpConfig = typeof McpConfig.infer;
 
@@ -33,6 +50,8 @@ const NAMES = [
   'MCP_TRUSTED_GATEWAY',
   'WBS_BASIC_AUTH',
   'INTERNAL_AUTH_SECRET',
+  'MCP_BE_INTERNAL_SECRET',
+  'MCP_TRUSTED_PROXY_HOPS',
 ] as const;
 
 const EXPECTATIONS: Record<(typeof NAMES)[number], string> = {
@@ -43,7 +62,26 @@ const EXPECTATIONS: Record<(typeof NAMES)[number], string> = {
   MCP_TRUSTED_GATEWAY: 'the exact value true when gateway mode terminates token verification',
   WBS_BASIC_AUTH: 'user:pass for the deployment’s basic auth, or unset',
   INTERNAL_AUTH_SECRET: "be-01's INTERNAL_AUTH_SECRET, at least 32 characters, or unset",
+  MCP_BE_INTERNAL_SECRET: "be-01's MCP_BE_INTERNAL_SECRET, at least 32 characters, or unset",
+  MCP_TRUSTED_PROXY_HOPS:
+    'the number of trusted proxies in front of mcp-01, 0 to 9 (1 behind one Caddy or Traefik)',
 };
+
+/**
+ * Whether the token endpoint offers the machine grants, `client_credentials`
+ * and the JWT-bearer grant (`wbs-mcp-agent-surface` M1, M2): only in
+ * standalone mode, and only with `MCP_BE_INTERNAL_SECRET`, without which no
+ * grant can be asked of be-01. Otherwise both grants answer
+ * `unsupported_grant_type` and the metadata omits them; gateway mode never
+ * admits a machine (M11).
+ */
+export function offersMachineGrants(
+  config: Pick<McpConfig, 'MCP_AUTH_MODE' | 'MCP_BE_INTERNAL_SECRET'>,
+): boolean {
+  // Proof: without the mode test, `omits them without the secret and in gateway mode`
+  // (machine-token.test.ts) listed the grants; watched 2026-10-27.
+  return config.MCP_AUTH_MODE === 'standalone' && config.MCP_BE_INTERNAL_SECRET !== undefined;
+}
 
 /**
  * Reads the MCP variables and nothing else.
@@ -75,7 +113,19 @@ export const loadConfig = (env: Record<string, string | undefined> = process.env
   }
 
   const result = McpConfig(picked);
-  if (!(result instanceof type.errors)) return result;
+  if (!(result instanceof type.errors)) {
+    // The issuer be-01's WBS_MCP_AUTHORIZATION_SERVER must equal is derived
+    // from this URL by the shared function; one it cannot reproduce (such as
+    // `…/mcp//`) would never match, so it refuses here, at boot.
+    // Proof: with this check removed, `refuses a public URL whose derived
+    // issuer is not canonical` (config.test.ts) loaded `…/mcp//`; watched
+    // 2026-10-26.
+    canonicalMcpAuthorizationServer(
+      mcpAuthorizationServerOf(result.MCP_PUBLIC_URL),
+      'the authorization server derived from MCP_PUBLIC_URL',
+    );
+    return result;
+  }
 
   const faults = [...new Set(result.map((error) => String(error.path[0])))]
     .filter((name): name is (typeof NAMES)[number] => name in EXPECTATIONS)

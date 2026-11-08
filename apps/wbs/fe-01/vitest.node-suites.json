@@ -21,7 +21,16 @@
       "file": "src/components/wbs/cell-card-store.test.ts"
     },
     {
+      "file": "src/components/wbs/claim-lease-view.test.ts"
+    },
+    {
       "file": "src/components/wbs/claim-limit-words.test.ts"
+    },
+    {
+      "file": "src/components/wbs/claim-offer.test.ts"
+    },
+    {
+      "file": "src/components/wbs/claim-refusal-words.test.ts"
     },
     {
       "file": "src/components/wbs/column-hints.test.ts"
@@ -91,6 +100,9 @@
     },
     {
       "file": "src/components/wbs/project-picker.test.ts"
+    },
+    {
+      "file": "src/components/wbs/resource-demand-words.test.ts"
     },
     {
       "file": "src/components/wbs/short-date.test.ts"
@@ -250,6 +262,12 @@
     },
     {
       "file": "src/components/wbs/organization-limit-words.test.ts"
+    },
+    {
+      "file": "src/components/wbs/measure-reading.test.ts"
+    },
+    {
+      "file": "src/components/wbs/plan-refusal-measures.test.ts"
     }
   ]
 }

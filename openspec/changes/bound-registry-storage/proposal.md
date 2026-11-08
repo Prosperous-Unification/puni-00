@@ -1,9 +1,8 @@
 ## Why
 
-The operational Distribution registry stores images on the host root filesystem.
-Its 50 GiB local-path PVC request does not enforce capacity, and images and backup
-snapshots currently accumulate without automatic retirement. Continuous publishing
-could exhaust host storage or force unsafe deletion of rollback artifacts.
+Distribution stores images on the host root filesystem. Its 50 GiB local-path PVC
+request does not enforce capacity; images and backup snapshots accumulate without
+automatic retirement. Publishing could exhaust storage or force unsafe rollback deletion.
 
 ## What Changes
 
@@ -18,11 +17,18 @@ its record changed during the sample; transient file replacement must never bypa
 Default policy: 50 GiB maximum registry storage; warning at 70%, cleanup at 80%,
 publication cutoff at 90%; newest ten successful release bundles per product and
 seven days for unpromoted artifacts. Image protections override age and count.
-The separate 100 GiB backup budget counts stored file/object sizes, including
+The 100 GiB backup budget counts stored file/object sizes, including
 versions and uploaded parts; provider billing overhead is outside this measure.
 
-Implementation and staged activation are authorized. Runtime readiness remains
-unverified until the implementation, failure proofs and activation checks pass.
+Earlier activation authorization is historical; current authorization covers source
+preparation. Runtime readiness remains unverified.
+
+## Current source delivery
+
+This revision stages complete libraries and manual provisioning sources. Supported
+publishing, copy, Compose and Kubernetes commands retain baseline routing and writer
+versions. Direct managed calls require trusted enrollment. Coordinated activation,
+native/provider proofs and deployment/adoption acceptance remain outstanding.
 
 ## Non-Goals
 
@@ -36,7 +42,7 @@ Preserve active, desired, rollback, recovery and in-progress images by digest,
 including untagged manifests and shared dependencies. Missing or untrusted state
 must prevent destructive maintenance. Preserve existing Flux ownership, private
 TLS/authentication and backup recovery. Capacity exhaustion blocks publication;
-it never authorizes deletion of protected images. Use existing Bun/Nx tooling.
+it never authorizes deletion of protected images. Use Bun/Nx.
 
 ## Capabilities
 

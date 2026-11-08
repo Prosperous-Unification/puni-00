@@ -9972,3 +9972,79 @@ remain unverified. The authenticated repository probe remains rejected before
 execution with its exact approval request pending. No provider account request,
 credential file read, backup, restore, retirement, service change, notification,
 prod deployment or product migration was performed.
+
+## Dormant source-stage index freeze — 2026-11-08
+
+This receipt stages the complete retained source from
+`e347fbf7adf555e75259ad520ffe7eef25e2a1b4` against main
+`e52bc3928736334c97bed5eebb2e03268c930db3`. Historical managed caller
+integration receipts above describe the retained prototype, not current default
+routing. Supported publishers, copier, Compose deployment/swap and Kubernetes
+coordinators retain main behavior and schema3/version2 writers. Managed helpers
+and owner readers remain explicit; no installed/provider/native readiness follows.
+
+All 517 retained additions remain. Thirteen restored runtime/test/active-manifest
+paths match main bytes; only first-start/journal receive shared validation. The
+four-argument copyImage declaration/body also matches main. Project targets, aliases,
+package pins and policy catalogs preserve newer main entries. Source intent is 397 words.
+
+### Source checks at index freeze
+
+- Frozen Bun install: 1523 packages, 40.26s; newer main dependencies plus pinned S3.
+- `bunx nx run-many -t typecheck -p tool-deploy,tool-dagger,tool-remote-scripts,tool-fleet,tool-devsync --parallel=2 --skip-nx-cache`: five passed, 4.5s after correcting extraction imports/symbols and newer-main fixture buffer types.
+- Owning lint: all five projects passed after import sorting and void-arrow fixes.
+- `bunx nx run-many -t build -p tool-deploy,tool-remote-scripts,tool-fleet --parallel=2 --skip-nx-cache`: three owners plus eight dependency tasks passed, 1.0s.
+- Shared CI helper's devsync lint/typecheck/build plus nine dependency tasks passed, 9.8s. Its actual owning shellcheck rejected an incomplete-if fault with SC1073/SC1072; exact helper bytes restored.
+- `bunx nx run-many -t test -p tool-deploy,tool-dagger,tool-remote-scripts,tool-fleet --parallel=2 --skip-nx-cache`: at this historical index freeze, deploy 879, Dagger 73, remote 820 and pinned-container Caddy 2 tests passed. Fleet's same execution remained pending; no fleet success is claimed by this freeze receipt. The normal local merge requires its eventual verdict, recorded with exact commit/index identity in the parent's frozen report. No second broad campaign was launched.
+- Remote suite's two existing solver-Docker cases remain skipped without WBS_SOLVER_ORPHAN_IMAGE. Existing optional Restic and observability-lab selection remains unchanged; no new exemption or suite weakening.
+- Complete changed toolchain fixture file: 34 pass/0 fail, 140 assertions, 104ms. Both selecting CI jobs execute one shared helper; both infra event filters select helper-only changes. Unrelated Twilight setup, docs routing, affected selectors and timeouts remain unchanged.
+- Earlier focused controls: 74 legacy, 20 copy/Compose, 59 paired parser, 46 restored fault controls; all passed. Full scoped logs retain commands/timings rather than rewriting older evidence.
+- Full tracked-tree secret, migration, private-nesting and doc-cap checks passed before the final helper addition; ordinary commit hooks and final source checks remain mandatory for that staged delta.
+
+### Active rendering and failure proofs
+
+Public-pinned kubectl v1.36.4 bytes matched the public toolchain lock
+`8b8f088da2dab964f853b38464033b1be15ede2839eca751482357c45abdd05a`.
+Actual local and production Kustomize renders match main byte-for-byte:
+`63b0d0fd64173d2966ad81ff706265d9cfd1bd127e1266870ead2c828481a365` and
+`5fb4f7130191e052d8ef562407d0ffbd88d2bfd53338745a83a8b12ba7c9bc68`.
+Linking storage-patch.yaml in owned scratch rendered successfully and failed the
+closure-equality predicate with exit 1. The dormant linked render retains deletion
+and upload-purger disables; the active base keeps main's resources/settings.
+
+Production-path guard removals observed real assertion failures, with exact source
+bytes restored in finally blocks: 23 parser/ownership/transport guards; four remaining
+legacy publish/deploy/execute/swap selection edges; closed backup admission; four
+historical inline-CI command omissions; nine current shared-helper/job/filter
+dependency omissions; and the owning build's broken-helper syntax fault. Current
+helper proofs replace inline wiring evidence; neither describes host provisioning.
+Unsupported-version and checksum fixtures were strengthened to isolate their own
+guards from later binding/receipt refusals. Present/absent/unreadable/oversize owner
+files, initialized genesis, sealed transfer, missing transferred destination, foreign
+binding/history and migration/replay checks remain tested. Adjacent Proof comments
+name the observing paths. Old integrated-coordinator acceptance remains historical
+and explicitly outstanding for coordinated activation.
+
+Backup admission still throws backup-budget-unavailable before storage effects.
+100 GiB remains 107374182400 stored object/version/uploaded-part bytes, excluding
+billing overhead; no complete physical-budget adapter or successful-budget receipt
+is invented. The private first-install A→B policy/lineage gap remains open before
+managed adoption without public producer-contract changes.
+
+### Remaining acceptance
+
+Required final source format, strict/all OpenSpec, source checks, normal local hooks,
+independent full-main-delta review and exact-current-head GitHub gate/pixels/infra
+verdicts remain mandatory. Local default Caddy succeeded under ordinary sandbox
+escalation with no binary override; an earlier sandbox-only Docker permission
+refusal remains historical, not a permanent tool block.
+
+No stopped privileged chroot proof, named test:registry-* or rehearse:registry-*
+target, installer main, enrollment, Secrets, installed audit/spool state, VM/storage
+allocation, Flux action, publish/pin/rollback or production operation was performed.
+The ordinary source suite includes local user namespaces/process/compiler fixtures;
+those do not establish installed qualification. All physical/native/provider, backup,
+isolation, protection, restore, monitoring, delivery and product-migration tasks stay
+open. The exact-revision canonical host gate remains required before deployment and
+adoption; this source-only phase neither invents a duplicate host gate nor claims
+host qualification from CI.

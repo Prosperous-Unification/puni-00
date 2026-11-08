@@ -1,0 +1,29 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-helper-images.test.ts:
+59 |   const directory = await scratchAsync('historical-lock-');
+60 |   const path = join(directory, 'toolchain.json');
+61 |   await writeFile(path, bytes);
+62 |   const hash = createHash('sha256').update(bytes).digest('hex');
+63 |   expect(await contracts.readRetainedToolchain(path, hash)).not.toHaveProperty('k3dHelpers');
+64 |   await rejects(contracts.readRetainedToolchain(path, '0'.repeat(64)));
+             ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-helper-images.test.ts:64:9
+(fail) Task37 retained historical toolchain requires exact independent content hash [13.96ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [232.00ms]

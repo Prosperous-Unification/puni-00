@@ -1,0 +1,120 @@
+{
+  "accepted": false,
+  "binding": {
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/puni-raw-repair-a2f4205072063acc8e66755d59687369.service",
+    "creator": [66307, 21892527, 1000, 448],
+    "invocation": "ef144ed111b846a0a5180226ffa5188e",
+    "originalCreator": [66307, 21891944, 1000, 448],
+    "pid": 2751443,
+    "raw": [66307, 21891946, 1000, 384],
+    "rawFd": 4,
+    "rawPath": "/home/df/.codex/worktrees/aa39/puni-00/.puni/fleet-labs/observability-baseline/raw-b8d15eb4bd332b87e3f7e41e9af27a5b/disk.raw",
+    "request": "77160420ab64fbe534d3cdf5543a37ad10af4dbaaa0a4dba9ce1d7a67b20dd0e",
+    "source": "4f3c6c6c12da6a99c229650df34f495e81faec87bfbd30911948f89bcfb61de9",
+    "staging": [66307, 21889026, 1000, 448],
+    "stagingFd": 3,
+    "start": "8056932",
+    "unit": "puni-raw-repair-a2f4205072063acc8e66755d59687369.service"
+  },
+  "causeHypothesis": "Deterministic actual parent-callback scratch test reproduces same-inode timestamp-race rejection; consistent with native category/time but no native stack proves unique attribution.",
+  "counterAvailable": false,
+  "exactCapture": {
+    "bytes": 4398,
+    "sha256": "898d393bc65f95b7ceba2a9af58d075bf78a7fa0f0ed7bce0ae5af825716807a"
+  },
+  "failure": "raw-state-changed",
+  "failureCleanup": "verified-original-unit-empty",
+  "failureFinishedNs": "1793896845175542628",
+  "finalCgroupCounters": null,
+  "fullStackAccepted": false,
+  "journal": {
+    "bytes": 60004,
+    "cpuUsageNanoseconds": "6546450000",
+    "emitterPid": "2226",
+    "emitterRole": "user-manager",
+    "events": 7,
+    "memoryPeakBytes": "1073741824",
+    "sha256": "28e397f28d2e644f6cf78f0155a822291b7b39ef0f5a6afb2336ea5db9b36e85"
+  },
+  "logicalContentVerified": false,
+  "logicalHashesAvailable": false,
+  "nonce": "a2f4205072063acc8e66755d59687369",
+  "originalArtifacts": {
+    "failure.json": {
+      "bytes": 177,
+      "sha256": "478631e6bcd8cce0d8f2d9e14e93e6a3669a0601badf2a2b9f85901e80069936"
+    },
+    "request-binding.json": {
+      "bytes": 498,
+      "sha256": "8971d8fa4434809ad9e09cb8c034b3b829f63dca2456ad0e1029fa48a5765915"
+    },
+    "reservation.json": {
+      "bytes": 498,
+      "sha256": "049028b548a38c77a7f16d1fd4ca20b906804fc7510347d5ad31fbf60dae113f"
+    },
+    "worker-ready.json": {
+      "bytes": 8161,
+      "sha256": "ea1645eddf16ff37fe0921659a880ca021bdd369aca76b45d710ee5e2ad17968"
+    }
+  },
+  "originalCgroupAbsent": true,
+  "originalCliExitCode": 1,
+  "originalCliOutput": "raw repair: producer-refused\n",
+  "originalPidStartAbsent": true,
+  "originalToolSession": 66363,
+  "precision": "Nanosecond summaries are decimal strings; original canonical native bytes are authoritative. Earlier rounded diagnostic projection retained as non-authoritative.",
+  "rawAfter": {
+    "allocatedBytes": "8443179008",
+    "ctimeNs": "1793896845147553815",
+    "device": "66307",
+    "inode": "21891946",
+    "links": 1,
+    "logicalBytes": "8589934592",
+    "mode": "0600",
+    "mtimeNs": "1793896845147553815",
+    "owner": 1000
+  },
+  "rawAllocationDeltaBytes": "7344128",
+  "rawBefore": {
+    "allocatedBytes": "8435834880",
+    "ctimeNs": "1793841387709411042",
+    "device": "66307",
+    "inode": "21891946",
+    "links": 1,
+    "logicalBytes": "8589934592",
+    "mode": "0600",
+    "mtimeNs": "1793841387709411042",
+    "owner": 1000
+  },
+  "readyObservedNs": "1793896838605332036",
+  "readyToFailureNs": "6570210592",
+  "releaseAvailable": false,
+  "reservationGrossBytes": "141754548224",
+  "retryAllowed": false,
+  "schemaVersion": 1,
+  "scope": "actual-native-repair-failure",
+  "sourceCommit": "9858bc03238d689f355e6cefa90deacc5aee97a6",
+  "terminalObservations": [
+    {
+      "ActiveState": "inactive",
+      "ControlGroup": "",
+      "ExecMainStatus": "0",
+      "InvocationID": "",
+      "LoadState": "not-found",
+      "MainPID": "0",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    {
+      "ActiveState": "inactive",
+      "ControlGroup": "",
+      "ExecMainStatus": "0",
+      "InvocationID": "",
+      "LoadState": "not-found",
+      "MainPID": "0",
+      "Result": "success",
+      "SubState": "dead"
+    }
+  ],
+  "workerExitStatus": "1"
+}

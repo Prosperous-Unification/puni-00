@@ -855,7 +855,10 @@ describe('every cached target declares what it reads', () => {
     const dependencies = projectGraph.dependencies['twilight-dash'];
     expect(dependencies.some(({ target }) => target === 'twilight-burokrat')).toBe(true);
     expect(dependencies.some(({ target }) => target === 'twilight-navigator')).toBe(false);
-    expect(dependencies.some(({ target }) => target === 'wbs-contracts')).toBe(false);
+    // The retained-binding final policy run exposed this stale false expectation (76 pass/1 fail).
+    // Runtime history already consumes the adopted WBS contracts edge.
+    // Resource cleanup now imports WBS transport contracts directly.
+    expect(dependencies.some(({ target }) => target === 'wbs-contracts')).toBe(true);
     expect(dependencies.some(({ target }) => target === 'wbs-validation')).toBe(false);
     const { rustReferences } = getFileMap();
     if (rustReferences === null) throw new Error('Nx did not hydrate its workspace file map');
@@ -879,6 +882,7 @@ describe('every cached target declares what it reads', () => {
       'apps/twilight-structure/twilight-navigator/cli/src/entrypoint.ts',
       'apps/twilight-structure/twilight-navigator/cli/src/fixtures/plan-export.v9.json',
       'libs/wbs/domain/contracts/src/http/plan-document-shapes.ts',
+      'libs/wbs/domain/contracts/src/http/resource-runtime-shapes.ts',
       'libs/wbs/domain/validation/src/index.ts',
       'libs/shared/domain/validation/src/index.ts',
     ];
@@ -982,6 +986,8 @@ describe('every cached target declares what it reads', () => {
     // entrypoint.ts, the fixtures directory and plan-export.v8.json (2026-10-14).
     // Proof: omitting the maintenance boot imports failed this scan naming
     // tool-remote-scripts and observability/src/index.ts plus store-sqlite/src/source.ts.
+    // Proof: missing Fleet control inputs failed this production oracle naming both
+    // repair-native-control.py and staging-native-control.py (2026-11-05).
     expect(undeclared).toBeEmpty();
   });
 });
@@ -1170,6 +1176,8 @@ describe('the root fast tier discovers every eligible project', () => {
     // with `missing: []` and `unexpected: ["tool-devsync"]` (2026-09-10).
     // Proof: before adding the two shared targets, this named
     // `shared-test-evidence` and `shared-test-levels` in `missing`.
+    // Proof: omitting analytics test:unit failed here with missing: ["website-analytics"]
+    // and unexpected: [] (2026-10-26).
     expect({ missing, unexpected }).toEqual({ missing: [], unexpected: [] });
   });
 

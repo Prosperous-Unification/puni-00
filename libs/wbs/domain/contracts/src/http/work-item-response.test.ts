@@ -1,7 +1,8 @@
+import { type } from 'arktype';
 import { expect, test } from 'bun:test';
 
 import { responseSchema, validateSchema } from './schema-shape';
-import { workItemTree } from './work-item-response';
+import { numberedWorkItem, workItemTree } from './work-item-response';
 import { getWorkItems } from './work-item-shapes';
 
 test('tree boundary refuses missing core producer fields while allowing additive metadata', async () => {
@@ -310,4 +311,26 @@ test('checks the optional optimization projection and every variant state', asyn
       })
     ).issues,
   ).toBeDefined();
+});
+
+test('carries a stated hold on a row budget, and only a number (wbs-measure-budgets D60)', () => {
+  const budgets = numberedWorkItem.pick('budgets');
+  const held = {
+    budgets: {
+      tokens: {
+        cap: 500,
+        policy: 'strict',
+        source: 'stated',
+        remaining: 200,
+        exceeded: false,
+        held: 300,
+        holdPerAttempt: 300,
+      },
+    },
+  } as const;
+  expect(budgets(held)).toEqual(held);
+  // Proof: with `holdPerAttempt?` left out of the row's budget entry, arktype
+  // kept the key undeclared and this malformed hold was accepted.
+  const malformed = { budgets: { tokens: { ...held.budgets.tokens, holdPerAttempt: '300' } } };
+  expect(budgets(malformed)).toBeInstanceOf(type.errors);
 });

@@ -6,6 +6,7 @@ const FULL = {
   MCP_AUTH_MODE: 'standalone',
   WBS_API_URL: 'https://dev.wbs.bulletpoints.club',
   MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp',
+  MCP_TRUSTED_PROXY_HOPS: '1',
   MCP_TRUSTED_GATEWAY: undefined,
   WBS_BASIC_AUTH: 'dany:hunter2',
 };
@@ -14,6 +15,28 @@ describe('loadConfig', () => {
   it('returns the public MCP resource URL when present', () => {
     const cfg = loadConfig(FULL);
     expect(cfg.MCP_PUBLIC_URL).toBe('https://dev.wbs.bulletpoints.club/mcp');
+  });
+
+  it('refuses a missing or invalid MCP_TRUSTED_PROXY_HOPS, naming it', () => {
+    expect(() => loadConfig({ ...FULL, MCP_TRUSTED_PROXY_HOPS: undefined })).toThrow(
+      /MCP_TRUSTED_PROXY_HOPS is required/,
+    );
+    for (const value of ['-1', '10', '1.5', 'one', ' 1'])
+      expect(() => loadConfig({ ...FULL, MCP_TRUSTED_PROXY_HOPS: value })).toThrow(
+        /MCP_TRUSTED_PROXY_HOPS is set but invalid/,
+      );
+    expect(loadConfig({ ...FULL, MCP_TRUSTED_PROXY_HOPS: '0' }).MCP_TRUSTED_PROXY_HOPS).toBe(0);
+    expect(loadConfig(FULL).MCP_TRUSTED_PROXY_HOPS).toBe(1);
+  });
+
+  it('refuses a public URL whose derived issuer is not canonical', () => {
+    expect(() =>
+      loadConfig({ ...FULL, MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp//' }),
+    ).toThrow('MCP_PUBLIC_URL');
+    expect(
+      loadConfig({ ...FULL, MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp/' })
+        .MCP_PUBLIC_URL,
+    ).toBe('https://dev.wbs.bulletpoints.club/mcp/');
   });
 
   it('leaves WBS_BASIC_AUTH undefined when unset', () => {

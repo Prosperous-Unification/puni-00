@@ -28,21 +28,32 @@ export const ORGANIZATION_AUDIT_ACTIONS = [
   'compute_provider_registered',
   'compute_provider_updated',
   'compute_provider_removed',
+  'machine_token_issued',
+  'machine_token_issued_overflow',
+  'agent_pool_created',
+  'agent_pool_revoked',
+  'agent_pool_rekeyed',
+  'directory_capacity_changed',
 ] as const;
 
 export type OrganizationAuditAction = (typeof ORGANIZATION_AUDIT_ACTIONS)[number];
 
-/** What an audit row is about. */
-export type OrganizationAuditSubjectKind =
-  | 'project'
-  | 'sso_connection'
-  | 'provisioning_token'
-  | 'scim_user'
-  | 'session_policy'
-  | 'machine_credential'
-  | 'trusted_issuer'
-  | 'organization_limits'
-  | 'compute_provider';
+/** What an audit row is about; the table's CHECK holds the same list. */
+export const ORGANIZATION_AUDIT_SUBJECT_KINDS = [
+  'project',
+  'sso_connection',
+  'provisioning_token',
+  'scim_user',
+  'session_policy',
+  'machine_credential',
+  'trusted_issuer',
+  'organization_limits',
+  'compute_provider',
+  'agent_pool',
+  'resource',
+] as const;
+
+export type OrganizationAuditSubjectKind = (typeof ORGANIZATION_AUDIT_SUBJECT_KINDS)[number];
 
 /**
  * The detail one audit row keeps: flat values only, so it is reviewable at a

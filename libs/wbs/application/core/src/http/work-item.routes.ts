@@ -1,13 +1,19 @@
 import {
+  actingPersonOf,
   applyDirectoryCommands,
   applyProjectCommands,
+  type AuthenticatedUser,
   commandParserRefusal,
   getStepReference,
   getWorkItem,
   getWorkItemRows,
   getWorkItems,
+  measureDefinitionRow,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
+  previewDirectoryCapacity,
+  readBudgetHeadroom,
+  readClaimHistory,
   readPersonWork,
   readProjectClaims,
   readProjectResources,
@@ -27,14 +33,16 @@ import type {
   WholeBatchRefusal,
 } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatch } from '../module/plan-commands/run-command-batch';
+import { CLAIM_HISTORY_LIMIT } from '../module/work-item/claim-history';
 import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
 import type { UndoOutcome, WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
+import type { UndoStack } from '../ports/command-journal-store';
 import type { CapacityReports } from '../ports/compute-providers';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
-import { hasRepeatedKey, pageQueryOf } from '../service/list-query';
+import { hasRepeatedKey, limitOf, pageQueryOf } from '../service/list-query';
 import type { PlanCommand } from '../service/plan-command';
 import { pageWorkItems, slicesByWorkItem, workItemPageQueryOf } from '../service/work-item-page';
 import { BadCapacity } from './capacity-body';
@@ -89,6 +97,25 @@ class BadRequest extends Error {
 function asRecord(body: unknown): Record<string, unknown> {
   if (!isFieldBag(body)) throw new BadRequest('expected_object');
   return body;
+}
+
+/**
+ * The caller's own undo stack on this project: the account, and the agent
+ * person its machine or consent credential acts as. A consent principal acts as
+ * its human's account, so the account alone would let the agent's undo pop the
+ * human's browser edits.
+ *
+ * Proof: with `personId: null` here, four of the five cases of
+ * `undo-acting-person.controller.db.test.ts` failed (1 pass, 4 fail), and
+ * `undo and redo walk a consent agent's own stack` (work-item.routes.test.ts)
+ * failed (1 pass, 1 fail); watched 2026-10-26.
+ */
+function undoStackOf(projectId: string, principal: AuthenticatedUser): UndoStack {
+  return {
+    projectId,
+    userId: principal.id,
+    personId: actingPersonOf(principal.authentication),
+  };
 }
 
 /**
@@ -289,7 +316,7 @@ function answerBatch(
     case 'unknown_step':
     case 'unknown_dependency':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
-    case 'unknown_metric':
+    case 'unknown_measure':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_person':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
@@ -313,6 +340,23 @@ function answerBatch(
     // nothing the caller did not send (`compute-providers` P3).
     case 'provider_not_in_organization':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    // The organization's own measure definitions stand in the way, or legacy
+    // access has no legacy organization to own one (`wbs-measure-budgets`).
+    // Proof (compile-time only): with these cases absent, wbs-core's typecheck
+    // failed on TS2366 at this function, the switch no longer exhaustive;
+    // watched 2026-10-23. No runtime observation exists: the code does not
+    // build without them.
+    case 'organization_required':
+    case 'measure_key_taken':
+    case 'measure_key_immutable':
+    case 'measure_shape_immutable':
+    case 'second_scheduling_measure':
+    case 'scheduling_measure_fixed':
+    case 'currency_required':
+    case 'currency_forbidden':
+    case 'unit_required':
+    case 'measure_in_use':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     // The resource's kind refuses the units whatever the plan holds.
     case 'exclusive_demand_is_one':
       return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
@@ -328,6 +372,22 @@ function answerBatch(
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'rolled_up':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'derived_measure':
+    case 'scheduling_measure_fact':
+    case 'scale_mismatch':
+    case 'scheduling_measure_estimate':
+    case 'three_point_forbidden':
+    case 'scheduling_measure_budget':
+    case 'rate_card_required':
+    case 'rate_card_forbidden':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    // Two rate cards a sum would add (`wbs-measure-budgets` D44), both named.
+    case 'mixed_rate_cards':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
     case 'ancestor':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'self_node':
@@ -362,6 +422,8 @@ function answerBatch(
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'missing_id':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
+    case 'person_required':
+      return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'duplicate_ref':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'name_required':
@@ -381,6 +443,7 @@ function answerBatch(
     // The caller may not act as the person, or under the parent claim, named.
     case 'person_not_bound':
     case 'credential_not_for_person':
+    case 'run_mismatch':
     case 'parent_claim_foreign':
       return { ok: false, status: 403, body: { ...context, error: outcome.reason } };
     case 'parent_claim_unknown':
@@ -461,9 +524,20 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
+    // A strict budget stands in the way of the start; the same start is
+    // admitted once a running attempt reports or ends, or the cap is raised
+    // (`wbs-measure-budgets` D69).
+    case 'budget_exhausted':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
   }
 }
 const namedEntity = responseSchema(type({ id: 'string', name: 'string' }));
+/** A measure definition as `createMeasure` and `patchMeasure` answer it, every field required. */
+const measureEntity = responseSchema(measureDefinitionRow);
 // Proof: optional serviceIds admitted a patchTeam without memberships,200 instead of500 in the mounted results case.
 const teamEntity = responseSchema(type({ id: 'string', name: 'string', serviceIds: 'string[]' }));
 // Proof: optional person kind admitted its omission,200 instead of500 in the mounted results case.
@@ -498,6 +572,7 @@ async function appliedWire(applied: AppliedCommand) {
     case 'createTag':
     case 'createService':
     case 'createWorkItemType':
+    case 'createMeasure':
       // Proof: removing this check admitted each missing minted id,200 instead of500 in the mounted minted-id case.
       if (typeof applied.id !== 'string')
         throw new Error('Created command producer requires its minted id');
@@ -520,6 +595,10 @@ async function appliedWire(applied: AppliedCommand) {
     case 'createWorkItemType':
     case 'patchWorkItemType':
       await requireShape(namedEntity, applied.entity);
+      break;
+    case 'createMeasure':
+    case 'patchMeasure':
+      await requireShape(measureEntity, applied.entity);
       break;
   }
   return { ...wire, ...(ref === undefined ? {} : { ref }) };
@@ -571,7 +650,7 @@ export function workItemRoutes(
           status: 200,
           body: {
             ...tree,
-            ...(await workItems.undoState(params.id, principal.id)),
+            ...(await workItems.undoState(undoStackOf(params.id, principal))),
             ...(await readStepAddresses(params.id, tree, digest)),
             // Proof: left out, `carries UTC by default and the patched zone
             // after a PATCH` (`step-node-attempt.controller.db.test.ts`) read
@@ -644,12 +723,16 @@ export function workItemRoutes(
     bind(undoProject, async ({ params, principal }): Promise<HttpReply<typeof undoProject>> => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      return answerUndo(await commands.undoWithin(params.id, principal.id, resolved.access));
+      return answerUndo(
+        await commands.undoWithin(undoStackOf(params.id, principal), resolved.access),
+      );
     }),
     bind(redoProject, async ({ params, principal }): Promise<HttpReply<typeof redoProject>> => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      return answerUndo(await commands.redoWithin(params.id, principal.id, resolved.access));
+      return answerUndo(
+        await commands.redoWithin(undoStackOf(params.id, principal), resolved.access),
+      );
     }),
     bind(
       getStepReference,
@@ -755,6 +838,36 @@ export function workItemRoutes(
       },
     ),
     bind(
+      readBudgetHeadroom,
+      async ({
+        params,
+        query,
+        request,
+        principal,
+      }): Promise<HttpReply<typeof readBudgetHeadroom>> => {
+        // Proof: with this check removed, `refuses a repeated team and an
+        // undeclared key` (budget-headroom.controller.db.test.ts) failed on
+        // the repeated team; watched 2026-10-23.
+        if (hasRepeatedKey(request.url))
+          return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        // Proof: with legacy access in place of the resolved one, `refuses a
+        // stranger exactly as the startable read does` and the team case
+        // (budget-headroom.controller.db.test.ts) failed; watched 2026-10-23.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const headroom = await workItems.budgetHeadroomWithin(
+          params.id,
+          resolved.access,
+          query.team ?? null,
+        );
+        if (headroom === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        // Proof: with `not_found` answered here, `narrows to a team, and
+        // refuses one the caller's organization does not hold` failed; watched 2026-10-23.
+        if ('kind' in headroom) return { ok: false, status: 404, body: { error: headroom.kind } };
+        return { ok: true, status: 200, body: headroom };
+      },
+    ),
+    bind(
       readPersonWork,
       async ({ params, principal }): Promise<HttpReply<typeof readPersonWork>> => {
         const resolved = await organizations.resolve(principal);
@@ -781,6 +894,36 @@ export function workItemRoutes(
       },
     ),
     bind(
+      readClaimHistory,
+      async ({
+        params,
+        query,
+        request,
+        principal,
+      }): Promise<HttpReply<typeof readClaimHistory>> => {
+        // A repeated `limit` would otherwise be read as its last value.
+        // Proof: with this check removed, `refuses a limit outside 1 to 100 and
+        // a repeated one` (claim-history-organization.controller.db.test.ts)
+        // answered 200 for `limit=5&limit=6`; watched 2026-10-24.
+        if (hasRepeatedKey(request.url))
+          return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        const limit = limitOf(query.limit, CLAIM_HISTORY_LIMIT);
+        // Proof: with this refusal removed, the same case answered `limit=0`
+        // with 200; watched 2026-10-24.
+        if (limit === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        // Proof: reading with legacy access, unresolved, failed `refuses a
+        // stranger exactly as the tree read does` and `refuses a removed
+        // member alike with the tree read`
+        // (claim-history-organization.controller.db.test.ts, 3 pass, 3 fail);
+        // watched 2026-10-24.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const events = await workItems.claimHistoryWithin(params.id, resolved.access, limit);
+        if (events === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        return { ok: true, status: 200, body: { events } };
+      },
+    ),
+    bind(
       readProjectResources,
       async ({ params, principal }): Promise<HttpReply<typeof readProjectResources>> => {
         // Proof: reading without resolving access made `refuses an unbound session
@@ -801,6 +944,29 @@ export function workItemRoutes(
           status: 200,
           body: await withProviderReadings(read, providers.reports, providers.clock.now()),
         };
+      },
+    ),
+    bind(
+      previewDirectoryCapacity,
+      async ({ params, body, principal }): Promise<HttpReply<typeof previewDirectoryCapacity>> => {
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        // A directory capacity is an organization's; legacy access has none.
+        if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+        const { units } = body;
+        // The command's own bound (`resourceUnitsOf`): a whole number from 0.
+        if (units !== null && (!Number.isSafeInteger(units) || units < 0))
+          return { ok: false, status: 400, body: { error: 'invalid_body' } };
+        const preview = await workItems.previewDirectoryCapacityWithin(
+          params.resourceId,
+          units,
+          resolved.access.scope,
+        );
+        if (!preview.ok)
+          return preview.reason === 'forbidden'
+            ? { ok: false, status: 403, body: { error: 'forbidden' } }
+            : { ok: false, status: 404, body: { error: 'not_found' } };
+        return { ok: true, status: 200, body: preview.value };
       },
     ),
     bind(getWorkItem, async ({ params, principal }): Promise<HttpReply<typeof getWorkItem>> => {

@@ -145,3 +145,76 @@ pinned gh package` and `Install the pinned gh`; the new probe passed), run 6
     printed the running-on line, Nx ran `test, lint, typecheck, build` for 49 projects in
     45 m 31 s and the two Twilight projects in 50 m 29 s, lints and `solver-image-smoke`
     (3 m 38 s) green, `GATE_EXIT=0` at 18:45 UTC. CI on the same head: all checks green.
+
+## Sandbox prerequisite repair, 2026-10-25
+
+Intent: restore the existing gate-host tool contract after the D9 h4 canonical gate stopped
+with missing `bwrap` (exit127) before tests. Install the standard Ubuntu apt `bubblewrap` and
+`busybox` packages and check availability as the gate account. No host apply, account grants,
+AppArmor, sysctl, namespace policy, canonical gate, dependency pin or feature architecture changes.
+The candidate is based on main `93b6f3555ede68c08d3d83b571f1fcd15a44f37b`.
+
+Commands ran in `/tmp/puni-gate-host-sandbox-tools-20261025` with official Bun1.4.4 and
+`TMPDIR=BUN_TMPDIR=/tmp/puni-gate-host-tools-bun-tmp` for tests:
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/ansible.test.ts --timeout=30000
+bun x eslint tools/tool-fleet/src/ansible.test.ts
+bun x tsc --noEmit -p tools/tool-fleet/tsconfig.spec.json
+bun x openspec validate --all --json
+```
+
+- Initial parsed real apt-task consumer RED:0pass/1fail, missing `bubblewrap` from the package
+  array. Before probe tasks existed, the new command/declaration consumers also failed.
+- Focused restored package/probe consumers:9pass/44assertions. Complete file:33pass,
+  0fail,221assertions,1.92s. The first sandboxed full-file attempt had one unrelated existing
+  fake-provider stdout `EPERM`; the exact escalated local replay passed. No actual provider
+  or host operation ran.
+- ESLint and tool-fleet spec TypeScript passed. The configured OpenSpec `--all --json` passed.
+  An extra strict change-only invocation reported the existing >500-character requirement
+  warnings; strict warnings are not the configured gate. The original requirement paragraphs
+  remain unchanged, and the new tool requirement is separate.
+- Six watched source omissions each made the intended consumer RED: remove either apt package;
+  replace the bwrap-version `&&` with `;`; skip BusyBox execution; remove either literal
+  BusyBox command argv. Faults were restored before the full33-test replay.
+- The exact parsed PATH probe ran with controlled HOME/bashrc/PATH executables: healthy passes;
+  each tool missing, nonexecutable or exiting74 refuses. For bwrap failures the later BusyBox
+  resolution is absent. Removing failure propagation let a later success mask exit74.
+  These are shell-command propagation proofs, not whole-role/system identity or namespace proofs.
+- The system-resolution assert and both literal BusyBox paths have parsed declaration
+  contracts. Initial host Python lacked `ansible`; the later pinned-controller evaluation
+  below supplies the real assertion proof. Local manual positives:
+  `/usr/bin/bwrap --version` reported `bubblewrap 0.11.0`; `/bin/busybox true` and
+  `/usr/bin/busybox true` exited0. Absolute-system-binary execution faults were not injected.
+
+Private detailed receipts: `/tmp/puni-gate-host-tools-omission-proofs.json`,
+`/tmp/puni-gate-host-tools-full-test-replay.log`, `/tmp/puni-gate-host-tools-types.log`,
+`/tmp/puni-gate-host-tools-eslint.log`, `/tmp/puni-gate-host-tools-openspec-all.log`.
+Package and Bun lock remain unchanged. Independent source review, fresh hosted CI, real
+operator-controller twice-apply convergence (second changed=0) and exact-SHA canonical gate
+remain outstanding. Binary availability does not establish namespace capability.
+
+### Recorded-output assertion evaluated by the pinned controller
+
+The existing local controller image exactly matches the reviewed lock:
+`sha256:372f6f433050a5844bc9c4cd657facf993eb505fec96b50838d253787e2462de`.
+It ran offline, with the role YAML mounted read-only, a private output directory,
+and no credentials or host SSH. The actual `Require system sandbox tools` assertion
+was extracted unchanged and executed by Ansible against recorded probe outputs.
+
+- Healthy system paths and version passed with exit0.
+- Wrong bwrap path, malformed version, wrong BusyBox path, absent output and
+  truncated output each failed with exit2.
+- Removing only each corresponding path/version condition from that extracted
+  assertion admitted its bad output with exit0. Other conditions remained present.
+
+The first evaluator attempt used an unsupported config filename and exited5 before
+the assertion; it supplies no passing evidence. A private valid `.cfg` file corrected
+the harness before every reported case. Actual case logs and receipt are retained at
+`/tmp/puni-gate-host-real-assert-20261025/receipt.json`. This proves the assertion's
+evaluation and breakability, not an absolute binary execution fault or namespace
+capability. The literal-path fault coverage limit above remains explicit.
+
+Independent source review approved the bounded seven-file package/probe scope and
+replayed9 focused cases/44 assertions. The subsequent comment/receipt update records
+this new evaluator evidence; host apply and canonical gate remain unverified.

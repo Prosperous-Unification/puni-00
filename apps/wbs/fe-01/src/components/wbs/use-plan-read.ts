@@ -25,6 +25,7 @@ import { type CellCards } from './cell-card-store';
 import type { FocusIntent } from './live-editing';
 import { forgetRefusedDrafts } from './live-editing';
 import { NOTHING_TO_REDO, NOTHING_TO_UNDO, refusalSentence } from './plan-refusal';
+import { demandsByWorkItem } from './resource-demand-words';
 import { type Toast, type ToastStackApi } from './toasts';
 import { useChannelListener } from './use-channel-listener';
 import { dropDrafts, rowOfCellKey, stepOfCellKey, stepOfDraftKey } from './use-estimate-drafts';
@@ -71,6 +72,13 @@ export interface WbsTableProps {
    * own in several of them. Absent, the sheet is exactly what it was.
    */
   savedPlansShelf?: ReactNode;
+  /**
+   * The signed-in account (`wbs-claim-display` 11.2), which a row's Claim
+   * names the bound person of ({@link claimantOf}). `ProjectPage` always passes
+   * it; absent — a suite drawing the table for nobody — the menus offer no
+   * claim item at all, which is the one state that is not a refusal.
+   */
+  viewerAccountId?: string;
 }
 
 export interface SubscriptionHandlers {
@@ -233,7 +241,7 @@ type DeliveredTree = NonNullable<DeliveredPlan['tree']>;
 function rowsOf(tree: DeliveredTree): TreeRow[] {
   const drawn = drawnRows.get(tree);
   if (drawn !== undefined) return drawn;
-  const rows = toTree(tree.value.workItems);
+  const rows = toTree(tree.value.workItems, demandsByWorkItem(tree.value));
   drawnRows.set(tree, rows);
   return rows;
 }
@@ -440,9 +448,16 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
    * array until a new one arrives, so `GanttPanel`'s memo on it holds.
    */
   const markers = delivered.markers;
+  /**
+   * The newest installed claims read, or null before one installs (C12): the
+   * chips' source, its own resource beside the tree, so a claim and its row can
+   * disagree for one read (C11).
+   */
+  const claims = delivered.claims;
   return {
     plan: project.plan,
     markers,
+    claims,
     activeProject,
     workItems,
     stepNodes,

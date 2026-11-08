@@ -1,5 +1,12 @@
 import type { PlanDocument, PlanDocumentImport } from '@wbs/contracts';
-import type { Demand, ResourceCapacity } from '@wbs/domain';
+import type {
+  Demand,
+  MeasureDefinition,
+  ResourceCapacity,
+  StoredBudget,
+  StoredMeasure,
+  StoredMeasureEstimate,
+} from '@wbs/domain';
 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
@@ -31,12 +38,25 @@ export interface ResourceFactsReader {
   demandsOf(projectId: string): Promise<Demand[]>;
 }
 
+/**
+ * The project's stored measures an export reads (`wbs-measure-budgets` design
+ * D63): its organization's definitions (null when none owns it), every fact
+ * with its basis, every trio and every stated budget.
+ */
+export interface MeasureFactsReader {
+  measureDefinitionsOf(projectId: string): Promise<MeasureDefinition[] | null>;
+  measuresOf(projectId: string): Promise<StoredMeasure[]>;
+  measureEstimatesOf(projectId: string): Promise<StoredMeasureEstimate[]>;
+  budgetsOf(projectId: string): Promise<StoredBudget[]>;
+}
+
 export interface PlanDocumentServiceOptions {
   stepParallels: Pick<StepParallelStore, 'listByProject'>;
   directory: PlanDirectory;
   markers: CalendarMarkerReader;
   clock: Pick<Clock, 'now'>;
   resourceFacts: ResourceFactsReader;
+  measureFacts: MeasureFactsReader;
 }
 
 /**

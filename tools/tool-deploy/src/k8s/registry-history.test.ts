@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { scratchSync } from '@tools/test-scratch';
 import { expect, it } from 'bun:test';
 
-import { fileJournal } from './journal';
+import { registryFileJournal } from './registry-journal';
 
 it('refuses a forged empty regular-release genesis and accepts only sealed inherited history', () => {
   const root = scratchSync('release-history-');
@@ -26,7 +26,7 @@ it('refuses a forged empty regular-release genesis and accepts only sealed inher
       path,
       JSON.stringify({ schemaVersion: 4, kind: 'registry-inheritance', registryHistory: history }),
     );
-    expect(() => fileJournal(path).read()).toThrow();
+    expect(() => registryFileJournal(path).read()).toThrow();
     const bundle = {
       operationId: 'candidate',
       references: [{ repository: 'wbs-be', digest: `sha256:${'1'.repeat(64)}` }],
@@ -54,7 +54,7 @@ it('refuses a forged empty regular-release genesis and accepts only sealed inher
         },
       }),
     );
-    const journal = fileJournal(path);
+    const journal = registryFileJournal(path);
     expect(journal.read()).toBeNull();
     expect(journal.readHistory?.()?.releases[0].operationId).toBe('candidate');
     expect(readFileSync(path, 'utf8')).toContain('registry-inheritance');

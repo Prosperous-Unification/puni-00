@@ -15,6 +15,7 @@ import { DnsUnavailableError } from './runtime/authoritative-dns/failures';
 import type { DnsTransport } from './runtime/authoritative-dns/resolver';
 import { DnsCleanupError } from './runtime/authoritative-dns/transport';
 import { startDomainProofWorker } from './runtime/domain-proof-worker';
+import { TEST_MCP_SERVICE_SETTINGS } from './testing/machine-grant-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 import { startSmtpRelay } from './testing/smtp-relay';
 
@@ -41,6 +42,7 @@ beforeEach(() => {
     internalAuthSecret: 'internal-secret-with-at-least-32-characters',
     browserSessionAuthority: 'disabled',
     organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+    mcpService: TEST_MCP_SERVICE_SETTINGS,
     organizationDnsResolvers: ['10.0.0.53'],
   };
 });
@@ -331,16 +333,12 @@ describe('boot-owned retained proof scheduling', () => {
     const queued = Promise.withResolvers<undefined>();
     const order: string[] = [];
     let holding: Promise<undefined> | undefined;
+    let gate: ReturnType<typeof openSqliteSource>['gate'] | undefined;
     running = await boot(options, {
       dnsTransport: { exchange: () => Promise.reject(new DnsUnavailableError('outage')) },
       openSource: (configured) => {
         const source = openSqliteSource(configured);
-        holding = source.gate.enter(() => held.promise);
-        const enter = source.gate.enter.bind(source.gate);
-        spyOn(source.gate, 'enter').mockImplementation((work) => {
-          queued.resolve(undefined);
-          return enter(work);
-        });
+        gate = source.gate;
         return {
           ...source,
           close: async () => {
@@ -348,6 +346,16 @@ describe('boot-owned retained proof scheduling', () => {
             await source.close();
           },
         };
+      },
+      startProofWorker: (schedule) => {
+        if (gate === undefined) throw new Error('source gate missing before proof worker startup');
+        holding = gate.enter(() => held.promise);
+        const enter = gate.enter.bind(gate);
+        spyOn(gate, 'enter').mockImplementation((work) => {
+          queued.resolve(undefined);
+          return enter(work);
+        });
+        return startDomainProofWorker(schedule);
       },
     });
     try {

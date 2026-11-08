@@ -60,3 +60,55 @@ async function rejectionOf(promise: Promise<unknown>): Promise<Error> {
   }
   throw new Error('Expected refusal');
 }
+
+it('refuses a canonical enrollment FIFO before waiting for a writer', async () => {
+  const directory = await scratchAsync('registry-enrollment-fifo-');
+  const path = join(directory, 'catalog.json');
+  const created = Bun.spawnSync(['mkfifo', path]);
+  if (created.exitCode !== 0) throw new Error(created.stderr.toString());
+  const entry = new URL('./registry-enrollment.ts', import.meta.url).pathname;
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      '--eval',
+      `
+      const { readTrustedEnrollment } = await import(${JSON.stringify(entry)});
+      process.stdout.write('entered-parser\\n');
+      try {
+        await readTrustedEnrollment(process.argv[1]);
+        process.stdout.write('ACCEPTED\\n');
+        process.exitCode = 3;
+      } catch (cause) {
+        if (!(cause instanceof Error)) throw cause;
+        process.stdout.write('refused:' + cause.message + '\\n');
+      }
+    `,
+      path,
+    ],
+    { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+  );
+  let expired = false;
+  const deadline = setTimeout(() => {
+    expired = true;
+    child.kill('SIGKILL');
+  }, 2000);
+  try {
+    const [code, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(stdout).toStartWith('entered-parser\n');
+    expect(expired).toBe(false);
+    expect({ code, stdout, stderr }).toEqual({
+      code: 0,
+      stdout: 'entered-parser\nrefused:Untrusted registry publication enrollment\n',
+      stderr: '',
+    });
+  } finally {
+    clearTimeout(deadline);
+    if (child.exitCode === null) child.kill('SIGKILL');
+    await child.exited;
+    await rm(directory, { recursive: true });
+  }
+});

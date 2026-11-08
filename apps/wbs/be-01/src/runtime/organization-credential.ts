@@ -91,20 +91,32 @@ export function organizationCredentialEvidence(
 ): VerifiedCredentialOf {
   const key = new TextEncoder().encode(sessionKey);
   return async (token, principal) => {
-    if (upstream !== undefined) {
+    // A first-party principal was proven on the JWT key alone
+    // (`AuthService.authenticateOrRefuse`), and only an HS256 native session
+    // becomes one; the verifier accepts RS256 only, so it could never have
+    // answered evidence for this token, and asking it made every data route
+    // wait on, and fail with, issuer discovery (issue #669 F5). Skipping it
+    // can only narrow: `verifyNative` still re-verifies and binds the token.
+    // Proof: with this condition removed, `answers /api/projects 200…` and
+    // `answers /api/people 200…` (boot.db.test.ts, "a native session under a
+    // verifier outage") answered 500 for cookie and Bearer; watched 2026-10-24.
+    if (upstream !== undefined && principal.authentication?.kind !== 'first_party') {
       const evidence = await upstream(token);
       if (evidence !== null) {
+        // `authenticateOrRefuse` refuses a groups-less token of the configured
+        // issuer before any principal exists (`wbs-machine-credentials` A18),
+        // and the principal here was admitted on this very token, so reaching
+        // this is a broken invariant, not a credential to refuse.
+        // Proof: answering null instead left `throws for groups-less upstream
+        // evidence behind an admitted principal`
+        // (`organization-credential.test.ts`) resolving; watched 2026-10-25.
+        if (!evidence.identity.groupsClaimed)
+          throw new Error(
+            'a groups-less token of the configured issuer reached organization evidence',
+          );
         // The exact verified pair, never an email match, must resolve to the
         // account that authenticated the request.
-        // A machine token (no groups claim) reads its link and never writes
-        // (`wbs-team-claims` D6b), as `authenticateOrRefuse` does.
-        // Proof: `resolveOidcIdentity` on both branches made `leaves the
-        // owner's email alone under a groups-less token carrying an email`
-        // (`fleet-credential.controller.db.test.ts`) store the token's
-        // `fleet@elsewhere.example` on Dany's row (watched 2026-10-20).
-        const user = evidence.identity.groupsClaimed
-          ? await auth.resolveOidcIdentity(evidence.identity)
-          : await auth.readExistingOidcIdentity(evidence.identity);
+        const user = await auth.resolveOidcIdentity(evidence.identity);
         if (user?.id !== principal.id) return null;
         return {
           kind: 'oidc',

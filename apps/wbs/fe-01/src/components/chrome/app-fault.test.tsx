@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import * as AppEx from 'application-exception';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GanttFaultBoundary } from '@/components/wbs/gantt-fault';
@@ -51,6 +52,30 @@ const muteConsoleError = () => vi.spyOn(console, 'error').mockImplementation(() 
 
 let logged: ReturnType<typeof muteConsoleError>;
 
+// Every importer, `@shared/failures` included, sees this pass-through wrapper, so one case can
+// make the report builder throw without touching the others.
+vi.mock('application-exception', async (importOriginal) => {
+  const actual = await importOriginal<typeof AppEx>();
+  return { ...actual, makeReportPair: vi.fn(actual.makeReportPair) };
+});
+
+const actualAppEx = await vi.importActual<typeof AppEx>('application-exception');
+const reportPair = vi.mocked(AppEx.makeReportPair);
+
+/**
+ * Make application-exception's report builder throw for the rest of the case.
+ *
+ * No caught value makes caught-object-report-json 15 throw, so the reporting-loss branch of
+ * `reportFailure` can no longer be reached from the input side; the fault is injected at the
+ * library instead. `runWhileReportingThrows` in `@shared/failures/testing` does this for Bun
+ * tests and cannot run here, under Vitest.
+ */
+const injectReportingFault = (): void => {
+  reportPair.mockImplementation(() => {
+    throw new Error('injected reporting fault: makeReportPair threw');
+  });
+};
+
 beforeEach(() => {
   logged = muteConsoleError();
 });
@@ -58,6 +83,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   logged.mockRestore();
+  reportPair.mockImplementation(actualAppEx.makeReportPair);
 });
 
 describe('the app’s last boundary', () => {
@@ -373,11 +399,10 @@ describe('a caught value that cannot be inspected', () => {
   });
 
   itDom('never offers an unreportable value to a disclosure selector', () => {
-    const { proxy, revoke } = Proxy.revocable({}, {});
-    revoke();
+    injectReportingFault();
     const select = vi.fn(() => 'the selector ran');
 
-    renderBareBoundary(new Error('boom', { cause: proxy }), select);
+    renderBareBoundary(new Error('boom'), select);
 
     expect(select).not.toHaveBeenCalled();
     expect(bareFaultWords()).toContain('the failure could not be described');
@@ -395,11 +420,10 @@ describe('a caught value that cannot be inspected', () => {
   });
 
   itDom('names the reporting loss in the console and gives it a handle', () => {
-    const { proxy, revoke } = Proxy.revocable({}, {});
-    revoke();
+    injectReportingFault();
     render(
       <GanttFaultBoundary generation={1}>
-        <ThrowingValue thrown={new Error('boom', { cause: proxy })} />
+        <ThrowingValue thrown={new Error('boom')} />
       </GanttFaultBoundary>,
     );
 

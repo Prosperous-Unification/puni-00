@@ -12,7 +12,8 @@ import {
 } from '@twilight-burokrat/judge';
 import { afterAll, describe, expect, test } from 'bun:test';
 
-import { runDash } from '../cli';
+import { runDashArguments } from '../cli';
+import { parseDashRequest } from '../cli-parser';
 import type { WallClock } from '../clock';
 import {
   activationCheckAuthority,
@@ -95,16 +96,19 @@ function command(
 ): { output: string; error: unknown } {
   let output = '';
   try {
-    runActivationChecksCommand(argv, {
-      clock: steppingClock(),
-      execute: () => {
-        throw new Error('this case must not run a check');
+    runActivationChecksCommand(
+      parseDashRequest('run-activation-checks', ['run-activation-checks', ...argv]),
+      {
+        clock: steppingClock(),
+        execute: () => {
+          throw new Error('this case must not run a check');
+        },
+        write: (text) => {
+          output += text;
+        },
+        ...deps,
       },
-      write: (text) => {
-        output += text;
-      },
-      ...deps,
-    });
+    );
     return { output, error: undefined };
   } catch (error) {
     return { output, error };
@@ -183,7 +187,7 @@ describe('twilight-dash run-activation-checks', () => {
       const fixture = candidate({ skipping });
       const checkRuns = join(scratch(), 'check-runs');
       let output = '';
-      await runDash(['run-activation-checks', ...argvFor(fixture, checkRuns)], {
+      await runDashArguments(['run-activation-checks', ...argvFor(fixture, checkRuns)], {
         clock: steppingClock(),
         monotonic: { now: () => 0 },
         planEnrollment: () => Promise.reject(new Error('no enrollment here')),
@@ -264,7 +268,10 @@ describe('twilight-dash run-activation-checks', () => {
     const fresh = join(scratch(), 'check-runs');
     const complete = argvFor(fixture, fresh);
     const faults: [readonly string[], string][] = [
-      [[...complete, '--candidate-revision', 'x'], 'unknown --candidate-revision'],
+      [
+        [...complete, '--candidate-revision', 'x'],
+        '(Unexpected option or subcommand: `--candidate-revision`.)',
+      ],
       [[...complete, '--check-runs', fresh], 'repeated --check-runs'],
       [complete.slice(0, 6), 'missing --check-runs'],
       [[...complete.slice(0, 7), '--candidate-sha'], '--check-runs has no value'],

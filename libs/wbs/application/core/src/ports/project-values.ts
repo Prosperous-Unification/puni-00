@@ -69,6 +69,24 @@ export interface Project {
    * store under `objective`.
    */
   scheduleObjective: SolverObjectiveName;
+  /**
+   * What a derived budget multiplies the pessimistic point by
+   * (`wbs-measure-budgets` design D38): 1 unless the project has said
+   * otherwise, finite, above 0 and at most {@link MOST_BUDGET_FACTOR}. Moves
+   * no date.
+   */
+  budgetFactor: number;
+}
+
+/** The largest budget factor a project may state: a bound, not a meaning. */
+export const MOST_BUDGET_FACTOR = 1000;
+
+/**
+ * Whether `value` is a budget factor a project may hold: finite, above 0 and
+ * at most {@link MOST_BUDGET_FACTOR} (design D38).
+ */
+export function isBudgetFactor(value: number): boolean {
+  return Number.isFinite(value) && value > 0 && value <= MOST_BUDGET_FACTOR;
 }
 
 /**
@@ -84,9 +102,11 @@ export interface Project {
  */
 export type NewProject = Omit<
   Project,
-  'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'
+  'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective' | 'budgetFactor'
 > &
-  Partial<Pick<Project, 'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'>>;
+  Partial<
+    Pick<Project, 'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective' | 'budgetFactor'>
+  >;
 
 /**
  * A project as one account sees it: null when that account has never opened it.
@@ -131,6 +151,8 @@ export interface ProjectPatch {
   optimizationEnabled?: boolean;
   scheduleEngine?: ScheduleEngine;
   scheduleObjective?: SolverObjectiveName;
+  /** The derived budgets' factor (design D38); checked by `isBudgetFactor`. */
+  budgetFactor?: number;
 }
 
 /**
@@ -143,6 +165,7 @@ export const PROJECT_CROSS_REFERENCE_KINDS = [
   'actual_step',
   'step_progress_step',
   'step_measure_step',
+  'measure_estimate_step',
   'step_node_attempt_step',
   'step_node_attempt_person',
   'assignment_step',

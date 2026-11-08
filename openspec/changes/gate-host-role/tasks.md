@@ -8,3 +8,10 @@
 - [x] 1.6 Docs: `docs/infra/gate-hosts.md`, linked from `docs/infra/README.md` and `LLM_README.md`.
 - [x] 2.1 Live h4claw: preflight, backup, two applies (second `changed=0`), after Dany authorizes the privileged path. (2026-10-21; the first live gate then exited 127 for want of `node`, fixed by the pinned Node tasks and re-applied, see verify.md.)
 - [x] 2.2 One real gate on h4claw (`GATE_EXIT=0` on 51ca24c6f, 2026-10-21, verify.md step 8); h4claw added to the Gate section of `AGENTS.md`.
+
+## Sandbox prerequisites, 2026-10-25
+
+- [x] 3.1 Parsed real apt-task contract requires Ubuntu `bubblewrap` and `busybox`; watch either package omission fail.
+- [x] 3.2 Gate-account tool probes fail closed for absent, nonexecutable and failing tools; prove command propagation in a controlled nonprivileged harness and record its limits.
+- [x] 3.3 Run focused tests, static checks and OpenSpec validation; freeze source for independent review.
+- [ ] 3.4 Apply through the already reviewed privileged operator path twice (second `changed=0`), then run the exact-SHA canonical gate. Source checks do not complete this host acceptance.

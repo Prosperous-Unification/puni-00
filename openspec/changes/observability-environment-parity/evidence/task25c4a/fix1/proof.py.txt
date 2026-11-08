@@ -1,0 +1,17 @@
+from pathlib import Path
+import subprocess,hashlib,json,time
+root=Path('/home/df/.codex/worktrees/aa39/puni-00');path=root/'tools/tool-fleet/src/creation-resources.ts';before=path.read_bytes();guard="    if ((await readdir(directory)).some((name) => name.startsWith('observation-')))\n      throw new Error('Historical creation cohort contains effective observations');\n"
+if before.decode().count(guard)!=1:raise RuntimeError('Guard seam changed')
+started=time.monotonic()
+try:
+ path.write_text(before.decode().replace(guard,''))
+ command=['bun','test','--preload','./tools/test/scratch/preload.ts','tools/tool-fleet/src/k3d-resource-caller.test.ts','--test-name-pattern','Task37 historical cohort rejects effective']
+ run=subprocess.run(command,cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=30)
+ Path('/tmp/task37-fix1-fault.log').write_bytes(run.stdout)
+ if run.returncode==0 or b'(fail) Task37 historical cohort rejects effective observation records before teardown' not in run.stdout:raise RuntimeError('Guard removal did not fail the regression assertion')
+ receipt={'base':'9f4bb094d2430440d3007da06d6ac24fc22828b2','fault':'remove historical effective-only observation refusal','command':command,'exit':run.returncode,'seconds':round(time.monotonic()-started,3),'restoredSha256':hashlib.sha256(before).hexdigest()}
+finally:
+ path.write_bytes(before)
+ if path.read_bytes()!=before:raise RuntimeError('Source restoration failed')
+Path('/tmp/task37-fix1-proof.json').write_text(json.dumps(receipt,indent=2)+'\n')
+print(json.dumps(receipt))

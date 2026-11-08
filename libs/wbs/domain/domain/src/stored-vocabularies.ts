@@ -154,3 +154,28 @@ export function isEstimateUnit(value: unknown): value is EstimateUnit {
   // Proof: accepting every string reached SQLite's CHECK and returned 500 instead of 422 for hours in step.controller.db.test.ts (2026-10-12).
   return typeof value === 'string' && (ESTIMATE_UNITS as readonly string[]).includes(value);
 }
+
+/**
+ * What a measure definition counts (`wbs-measure-budgets` D1): a span of time,
+ * a number of things, or an amount of money. Fixed at creation, because a fact
+ * recorded under one kind means nothing under another.
+ */
+export const MEASURE_KINDS = ['duration', 'count', 'money'] as const;
+export type MeasureKind = (typeof MEASURE_KINDS)[number];
+
+/** Whether a stored or posted value is one of the three measure kinds. */
+export function isMeasureKind(value: unknown): value is MeasureKind {
+  return typeof value === 'string' && (MEASURE_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * Whether a measure's figures are whole numbers or may carry a fraction
+ * (`wbs-measure-budgets` D1); money is `integer`, in micro-units of its currency.
+ */
+export const MEASURE_SCALES = ['integer', 'real'] as const;
+export type MeasureScale = (typeof MEASURE_SCALES)[number];
+
+/** Whether a stored or posted value is one of the two measure scales. */
+export function isMeasureScale(value: unknown): value is MeasureScale {
+  return typeof value === 'string' && (MEASURE_SCALES as readonly string[]).includes(value);
+}

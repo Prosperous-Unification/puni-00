@@ -43,6 +43,7 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       pertWeightRealistic: reads.project.pertWeights.realistic,
       pertWeightPessimistic: reads.project.pertWeights.pessimistic,
       timezone: reads.project.timezone,
+      budgetFactor: reads.project.budgetFactor,
     },
     // Proof: spreading the captured row leaked live resources and failed
     // `drops live node resources before canonical saved-plan persistence and
@@ -131,6 +132,33 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       stepId: row.stepId,
       metric: row.metric,
       value: row.value,
+      currency: row.basis?.currency ?? null,
+      rateCardDigest: row.basis?.rateCardDigest ?? null,
+    })),
+    // The single-point tokens trios are the `token_estimate` rows above
+    // (`wbs-measure-budgets` D28), so they are not captured twice.
+    // Proof: with the single-point trios kept, `captures every measure
+    // estimate, budget, basis and the factor, and compares a change in each`
+    // (saved-plan-input.test.ts) captured the legacy token estimate twice;
+    // watched 2026-10-23.
+    measureEstimates: reads.measureEstimates
+      .filter(({ singlePoint }) => !singlePoint)
+      .map((row) => ({
+        workItemId: row.workItemId,
+        stepId: row.stepId,
+        key: row.key,
+        optimistic: row.optimistic,
+        realistic: row.realistic,
+        pessimistic: row.pessimistic,
+        currency: row.basis?.currency ?? null,
+        rateCardDigest: row.basis?.rateCardDigest ?? null,
+      })),
+    budgets: reads.budgets.map((row) => ({
+      workItemId: row.workItemId,
+      key: row.key,
+      cap: row.cap,
+      policy: row.policy,
+      holdPerAttempt: row.holdPerAttempt,
     })),
     dependencies: reads.dependencies.map((row) => ({
       predecessorId: row.predecessorId,

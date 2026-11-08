@@ -53,3 +53,8 @@ export function verifyDigest(record: object, field: string): void {
     );
   }
 }
+
+/** SHA-256, lowercase hex, of the exact original bytes without text decoding. */
+export function digestBytes(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}

@@ -36,6 +36,23 @@ describe('loadConfig', () => {
     ).toThrow(/AUTH_REDIRECT_URI.*required.*AUTH_MODE=oidc/);
   });
 
+  it('refuses an issuer discovery could never reach at boot, naming the key', () => {
+    const oidcEnv = {
+      ...VALID,
+      AUTH_MODE: 'oidc',
+      AUTH_AUDIENCE: 'wbs-api',
+      AUTH_CLIENT_ID: 'client',
+      AUTH_CLIENT_SECRET: 'secret',
+      AUTH_REDIRECT_URI: 'https://dev.wbs.test/api/auth/okta/callback',
+    };
+    expect(() => loadConfig({ ...oidcEnv, AUTH_ISSUER_DISCOVERY_URL: 'http://idp.test' })).toThrow(
+      'AUTH_ISSUER_DISCOVERY_URL must be an https: URL, not http:',
+    );
+    expect(() => loadConfig({ ...oidcEnv, AUTH_ISSUER_DISCOVERY_URL: 'idp.test' })).toThrow(
+      'AUTH_ISSUER_DISCOVERY_URL is not a URL',
+    );
+  });
+
   it('builds the WebSocket verifier and exact allowed origin in OIDC mode', () => {
     const config = loadConfig({
       ...VALID,

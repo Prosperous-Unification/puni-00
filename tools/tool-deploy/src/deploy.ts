@@ -7,24 +7,19 @@
 // only reads that file, so a stale or missing release entry fails loudly
 // rather than silently deploying an old image.
 import {
+  APP_NAME,
   bundleFilesFor,
   type Color,
+  PORT,
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
   SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_SOCKET,
 } from '@tools/deploy-contract';
-import { buildSmokeCommand } from '@tools/deploy-smoke';
 import { type EnvLayout } from '@tools/env';
-export { buildSmokeCommand } from '@tools/deploy-smoke';
 
 import { materialize, parseDeployArgs, type Tier } from './affected';
-import {
-  runManagedCompose,
-  selectComposeDeployment,
-  verifyComposeCompletion,
-} from './compose-registry';
 import {
   assertMigrationFlag,
   assertStopTheWorldNotImplemented,
@@ -55,7 +50,6 @@ export interface ReleaseEntry {
 export type ReleaseRecord = Partial<Record<Tier, ReleaseEntry>>;
 
 export interface DeployPlan {
-  images: Partial<Record<Tier, string>>;
   tiers: Tier[];
   steps: string[];
   /**
@@ -233,6 +227,10 @@ export async function buildDeployPlan(
   const beDeployedMigrations = beDeployedSha === null ? null : deps.listMigrations(beDeployedSha);
   const newMigrations = hasNewMigrations(beDeployedMigrations, headMigrations);
   const deployingBe = tiers.includes('be');
+  // Proof: with this refusal removed, `refuses --accept-breaking without the be
+  // tier` (deploy.test.ts) planned a gw swap carrying the flag; watched 2026-10-28.
+  if (args.acceptBreaking.length > 0 && !deployingBe)
+    throw new Error('--accept-breaking names audiences only a be swap checks; deploy be with it');
 
   if (deployingBe) {
     // Throws (and aborts the whole plan, before any tier touches the network)
@@ -325,9 +323,12 @@ export async function buildDeployPlan(
     // the exact string verified against the live host above — this change must
     // not alter a single byte of what a prod deploy sends.
     const envPrefix = args.layout.env === 'prod' ? '' : `WBS_ENV=${args.layout.env} `;
+    // Emitted only when given, so a deploy without it sends the same bytes as before.
+    const accept =
+      args.acceptBreaking.length > 0 ? ` --accept-breaking=${args.acceptBreaking.join(',')}` : '';
     const base =
       `cd ${args.layout.root} && ${envPrefix}bun bin/swap.js ${tiers.join(',')} ` +
-      `${imageArgs.join(' ')} --sha=${headSha}`;
+      `${imageArgs.join(' ')} --sha=${headSha}${accept}`;
     const remoteCmd = base + (args.dryRun ? '' : ' --execute');
     steps.push(`[plan] ssh ${host} ${JSON.stringify(remoteCmd)}`);
     commands.push(remoteCmd);
@@ -343,13 +344,6 @@ export async function buildDeployPlan(
   }
 
   return {
-    images: Object.fromEntries(
-      tiers.map((tier) => {
-        const entry = release[tier];
-        if (entry === undefined) throw new Error('Missing planned release entry');
-        return [tier, entry.image];
-      }),
-    ),
     tiers,
     steps,
     commands,
@@ -358,6 +352,85 @@ export async function buildDeployPlan(
     host,
     layout: args.layout,
   };
+}
+
+// The app names and the ports come from `@tools/deploy-contract` — the entry
+// point the comment here used to say did not exist, while line 9 was already
+// importing `@tools/env` out of that same project. The health *paths* stay:
+// they are this file's only, and nothing else has a copy of them.
+const TIER_HEALTH_PATH: Record<Tier, string> = { be: '/health', gw: '/health', fe: '/' };
+
+/**
+ * The in-network URL smoke uses to reach a tier's container.
+ *
+ * The container prefix comes from the layout, not from TIER_APP alone. Without
+ * it, a dev smoke targets `be-01-blue` — PROD's container name — and gets one
+ * of two wrong answers: a connection failure (dev's network has no such name,
+ * which is what happened on the first dev deploy: three FAIL 0 lines and an
+ * aborted operation), or, if the smoke were ever run on prod's network, a
+ * green report about prod's containers after deploying dev.
+ */
+function tierUrl(tier: Tier, path: string, color: Color, layout: EnvLayout): string {
+  return `http://${layout.containerPrefix}${APP_NAME[tier]}-${color}:${String(PORT[tier])}${path}`;
+}
+
+/**
+ * Finding I5(b): wires `tool-smoke` (bundled to `/srv/wbs/bin/smoke.js` —
+ * see `tools/tool-smoke/project.json`'s `build` target and
+ * `tools/tool-smoke/src/main.ts`'s doc comment) into the deploy path.
+ * Design decision 9 says smoke runs "after every deploy"; before this,
+ * nothing called it at all.
+ *
+ * Per-tier colour overrides (`SMOKE_BE_URL`/`SMOKE_GW_URL`/`SMOKE_FE_URL`/
+ * `SMOKE_INTERNAL_URL` — see `tools/tool-smoke/src/health.ts`'s
+ * `resolveTargets`/`resolveInternalForwardUrl`), not a single `SMOKE_COLOR`:
+ * each tier's blue/green state moves independently, and a deploy need not
+ * leave all three on the SAME colour even with `--all` (each tier flips its
+ * OWN current colour; verified live on h2puni mid-branch, where be/gw were
+ * both green and fe was still blue). A single global colour would silently
+ * smoke-test the wrong container for whichever tier disagreed. `state` is
+ * read back from the server's own just-committed state (never guessed, never
+ * operator-supplied), which is what "the deploy knows the colours it just
+ * swapped to" means here — a tier with no recorded state (never deployed)
+ * is simply left without an override rather than guessed at.
+ *
+ * The JWT signing key and `INTERNAL_AUTH_SECRET` smoke needs never appear on
+ * this command line, and this process (running on the operator's machine,
+ * not the server) never reads them: they reach the ephemeral smoke
+ * container via `--env-file /srv/wbs/gw-01.secrets.env` on the server side,
+ * which already carries exactly those two and nothing else (see
+ * `lib/docker.ts`'s `SECRET_KEYS`) — "pass them rather than making an
+ * operator supply them" without this process ever handling secret bytes.
+ */
+export function buildSmokeCommand(
+  state: Partial<Record<Tier, RemoteTierState>>,
+  layout: EnvLayout,
+): string {
+  const overrides: string[] = [];
+  const be = state.be?.activeColor;
+  const gw = state.gw?.activeColor;
+  const fe = state.fe?.activeColor;
+  if (be !== undefined) {
+    overrides.push(`-e SMOKE_BE_URL=${tierUrl('be', TIER_HEALTH_PATH.be, be, layout)}`);
+    overrides.push(`-e SMOKE_INTERNAL_URL=${tierUrl('be', '/internal/forward', be, layout)}`);
+    overrides.push(`-e SMOKE_API_URL=${tierUrl('be', '', be, layout)}`);
+  }
+  if (gw !== undefined)
+    overrides.push(`-e SMOKE_GW_URL=${tierUrl('gw', TIER_HEALTH_PATH.gw, gw, layout)}`);
+  if (fe !== undefined)
+    overrides.push(`-e SMOKE_FE_URL=${tierUrl('fe', TIER_HEALTH_PATH.fe, fe, layout)}`);
+  // The signed-in read account is optional and operator-authored on the host
+  // (tool-smoke's `resolveReadIdentity`). Absent, the reads print SKIPPED;
+  // present but unreadable, `docker run` refuses it and smoke fails.
+  const readAccount = `${layout.root}/smoke-read.env`;
+  return (
+    `cd ${layout.root} && docker run --rm --network ${layout.network} ` +
+    `--env-file ${layout.root}/gw-01.secrets.env ` +
+    `$(test -e ${readAccount} && printf -- '--env-file %s' ${readAccount}) ` +
+    `${overrides.join(' ')} ` +
+    `-e SITE_ADDRESS=${layout.siteAddress} ` +
+    `-v ${layout.root}/bin/smoke.js:/smoke.js:ro oven/bun:1.3.14-alpine bun run /smoke.js`
+  );
 }
 
 async function sha256File(path: string): Promise<string> {
@@ -485,7 +558,6 @@ async function main(): Promise<void> {
 
   // Before any registry or tier check: refuse to drive a deploy against a
   // stale or missing bin/swap.js or bin/smoke.js. See assertBundleInstalled.
-  const registry = await selectComposeDeployment(plan);
   await assertBundleInstalled(plan.host, plan.layout);
 
   // Every tier's registry check first, then every tier's swap. Decision 10
@@ -502,20 +574,14 @@ async function main(): Promise<void> {
   // make a failed swap's console output impossible to attribute.
   for (const cmd of plan.commands) {
     console.log(`[tool-deploy] $ ssh ${plan.host} ${cmd}`);
-    if (registry === undefined) await runRemote(plan.host, cmd);
-    else
-      await verifyComposeCompletion(
-        await runManagedCompose(plan.host, cmd),
-        registry,
-        Object.values(plan.images),
-      );
+    await runRemote(plan.host, cmd);
   }
 
   // Design decision 9: "after every deploy". Strictly after every tier has
   // already swapped and committed — never inside the per-tier loop above —
   // so a smoke failure can only ever report on a deploy that already
   // happened, never influence it.
-  if (registry === undefined && plan.tiers.length > 0) {
+  if (plan.tiers.length > 0) {
     const postState = await readRemoteState(plan.host, plan.layout.stateDir);
     const smokeCmd = buildSmokeCommand(postState, plan.layout);
     console.log(`[tool-deploy] $ ssh ${plan.host} ${smokeCmd}`);

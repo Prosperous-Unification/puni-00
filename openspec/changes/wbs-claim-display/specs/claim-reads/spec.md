@@ -53,7 +53,9 @@ step claims in the project's step order.
 When `POST /api/claims/renew` commits at least one renewed lease, be-01 SHALL publish one
 `claims_changed` project event for each project in which a lease moved, after the commit. A
 renewal that moves nothing SHALL publish nothing. The optimizer trigger SHALL NOT schedule
-optimization on `claims_changed`.
+optimization on `claims_changed`. When an agent's committed batch renews leases, be-01 SHALL
+publish one `claims_changed` after the commit for each project in which a lease moved, except
+the batch's own project when the batch changed a row (it announces the tree instead).
 
 #### Scenario: A due heartbeat announces its project
 
@@ -65,18 +67,52 @@ optimization on `claims_changed`.
 - **WHEN** `codex` heartbeats twice within one minute
 - **THEN** the second heartbeat publishes no event
 
+#### Scenario: A batch's renewal announces the agent's other projects
+
+- **WHEN** `codex` holds leases in projects A and B, both due, and commits a batch in A
+- **THEN** one `claims_changed` reaches B's subscribers after the commit
+- **AND** A's subscribers receive the batch's `tree_replaced` and no `claims_changed`
+
+#### Scenario: A batch that changed no row announces its own project
+
+- **WHEN** `codex` holds leases in A and B, both due, and commits an empty batch in A
+- **THEN** one `claims_changed` reaches A's subscribers and one reaches B's
+
+#### Scenario: A refused or rolled-back batch announces no renewal
+
+- **WHEN** `codex`'s batch in A is refused or rolls back
+- **THEN** no `claims_changed` is published
+
 #### Scenario: The optimizer ignores it
 
 - **WHEN** `claims_changed` is published on a project with the optimized engine
 - **THEN** no optimization is scheduled
 
+### Requirement: The claims announcement is transient
+
+be-01 SHALL push `claims_changed` to the project's subscribers live and SHALL NOT record it in
+the durable event log or the replay buffer. A transient announcement SHALL NOT consume a durable
+sequence. Its push SHALL carry no `seq`, and gw-01 SHALL forward it to the subscribed sockets as
+a transient frame (`WsTransientFrame`: subscription and message, no `seq`), which a realtime
+client SHALL hand on without advancing its resume point. A failed push
+SHALL be reported and SHALL NOT fail the request.
+
+#### Scenario: A heartbeat leaves the replay window alone
+
+- **WHEN** a heartbeat moves a lease in P
+- **THEN** P's subscribers receive `{ subscription, message: { type: 'claims_changed' } }` with no
+  `seq`
+- **AND** P's latest sequence and its event log are unchanged
+
 ### Requirement: A bounded read lists a project's claims and releases
 
 be-01 SHALL offer `GET /api/projects/:id/claim-history`, derived from the shared HTTP
-descriptor, answering the project's `claim` and `release` plan events newest first, at most
-`limit` of them (1 to 100, default 50). A `limit` outside 1 to 100 SHALL be refused
-`400 invalid_query`. Undo and redo entries SHALL NOT be listed. A caller the tree read refuses
-SHALL be refused alike.
+descriptor, answering the project's claims and releases newest first, at most `limit` of them
+(1 to 100, default 50): its `claim` and `release` plan events, and each claim or release run
+inside a `batch` plan event beside other commands, found before the limit is applied. A
+`limit` outside 1 to 100 SHALL be refused `400 invalid_query`. Undo and redo entries SHALL NOT
+be listed. A caller the tree read refuses SHALL be refused alike at admission; membership is not
+rechecked inside the read, as the plan history read does not.
 
 #### Scenario: The limit bounds the answer
 
@@ -88,9 +124,22 @@ SHALL be refused alike.
 - **WHEN** the caller asks with `limit=0`
 - **THEN** the read is refused `400 invalid_query`
 
+#### Scenario: A claim inside a batch is listed
+
+- **WHEN** `claire` claims `080.25` in one batch with a `setProgress` on another item
+- **THEN** the read lists that claim with reason `claimed`, under the batch's event id
+
+#### Scenario: A batch releasing one claim and claiming another lists two events
+
+- **WHEN** one batch releases `claire`'s claim on `090` and then claims `080.1` for `codex`
+- **THEN** the read lists the claim on `080.1` first and the release of `090` second, both
+  with the batch's event id, told apart by `act`
+
 ### Requirement: A history event names who, what and why
 
-Each claim history event SHALL carry `eventId`, `at`, `kind`, `reason` and `claims`. `reason`
+Each claim history event SHALL carry `eventId`, `act`, `at`, `kind`, `reason` and `claims`;
+`act` is the event's place among its batch's claim and release acts in run order, 0 for an
+event that is not a batch. `reason`
 SHALL be `claimed` for a claim, `released` for a release command, and `lease_expired` or
 `credential_revoked` for a release the sweep wrote. Each claim SHALL carry `claimId`,
 `workItemId`, `stepId`, `runId`, `holder` (`personId`, and `name` or `null` when the person is

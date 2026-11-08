@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "archive": "validator-proofs.json.gz",
+  "archiveSha256": "f86441e976b078228e0a89252733407c3601b1daf1471f9a78348b54ea9b8582",
+  "uncompressedSha256": "bab3bc42af2aee589936077a1f75e1a8f5bfe3ae8b90f82ca3455850ba982031",
+  "compressedBytes": 318526,
+  "uncompressedBytes": 2326969,
+  "freshFaultInvocations": 57,
+  "freshRestoredInvocations": 57,
+  "selectedCasesPerPhase": 59,
+  "uniqueFreshSourceMutants": 56,
+  "historicalArtifactCopies": 116,
+  "scope": "Optional static workflow-binding validator only",
+  "limitations": [
+    "Historical copies are present-byte archives collected now, not original output sealing or recertification.",
+    "Original Task1 temporary artifacts remain absent; fresh trials establish new observations.",
+    "Fresh57fault/restored invocations select59cases,56unique source mutants. Diagnostics, combined defenses, caller mutability and valid-selection samples are not independent unsafe-admission proofs.",
+    "No runtime/storage/WBS architecture, host/CI or merge verdict is implied by this archive."
+  ]
+}

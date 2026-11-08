@@ -67,7 +67,7 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
       throw new Error(`missing or duplicate operationId: ${shape.operationId}`);
     }
     names.add(shape.operationId);
-    const path = shape.path.replace(/:([^/]+)/g, '{$1}');
+    const path = documentPathOf(shape.path);
     const method = shape.method.toLowerCase();
     const operations = paths[path] ?? {};
     // Proof: omitting this guard silently replaced the converted-path operation
@@ -172,6 +172,11 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
     paths[path] = operations;
   }
   return { openapi: '3.1.0', info: { title: 'WBS API', version: '1.0.0' }, paths };
+}
+
+/** A shape's `:name` path as the document's `{name}` template. */
+export function documentPathOf(path: string): string {
+  return path.replace(/:([^/]+)/g, '{$1}');
 }
 
 /** Parameters require named properties; a union cannot be flattened without losing constraints. */

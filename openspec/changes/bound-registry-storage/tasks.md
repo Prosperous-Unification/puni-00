@@ -52,6 +52,14 @@ startup`, `second convergence changes nothing`; negatives: replace mount with
 
 ## 3. Publication and consumer integration
 
+Historical checkmarks 3.1/3.2 describe integrated prototypes and receipts retained at
+`e347fbf7adf555e75259ad520ffe7eef25e2a1b4`. Source staging withdraws their default
+routing. Coordinated publication and consumer activation remain outstanding; the
+checkmarks do not establish current managed command routing.
+
+- [ ] 3.0 Reactivate and requalify coordinated 3.1/3.2 routing after all installed
+      native/provider, owning-history, isolation, budget, recovery and delivery obligations pass.
+
 - [x] 3.1 Integrate admission and candidate protection into
       `tools/tool-dagger/src/main.ts`, `src/lib/publish.ts`, every tier publish entrypoint,
       `bin/publish-release.sh` and `tools/tool-fleet/src/platform-registry.ts` copy.
@@ -241,3 +249,25 @@ record each actual production-path negative and guard-removal failure in
 | Maintenance exclusion and recovery | Live writer / stale Flux ack / killed GC; `Flux cannot revive writer`, `crash after deletion stays fenced`                                     | Not run      |
 | Backup preservation and budget     | Missing listing page / noncurrent versions / last-copy deletion; `last verified snapshot survives`, `noncurrent versions count`                | Not run      |
 | Monitoring                         | Dead monitor / rejected notification; `missed check alerts after five minutes`, `cutoff reaches destination`                                   | Not run      |
+
+## Source staging — 2026-11-08
+
+- [x] S1 Preserve main delivery callers and active render; prove legacy compatibility
+      with no lifecycle installation and production-patch closure fault.
+- [x] S2 Separate dormant managed copy, Compose plan and ownership-aware state APIs.
+- [x] S3 Extract common/managed Kubernetes parsers without a second coordinator;
+      retain version, binding, genesis, sealed transfer and owner-file refusal proofs.
+- [ ] S4 Audit defaults, preserve all retained additions and newer main behavior;
+      run owning tests/lint/typecheck/build, frozen install, format, OpenSpec, secrets,
+      migrations and required exact-candidate source CI. Independent parent review
+      precedes publication. Host gate remains open before deployment/adoption.
+
+Original managed executeRelease/startCutover, runSwaps and recovery integration
+assertions remain activation acceptance obligations with retained source/evidence at
+`e347fbf7adf555e75259ad520ffe7eef25e2a1b4`; current helpers do not claim that routing.
+All existing 4.2/4.3/5.1/5.2 obligations remain open without reduced scope.
+
+Coordinated activation also retains the cross-companion first-install acceptance:
+private source-owned genesis and A→B recovery lineage must satisfy the pinned public
+policy. Source staging changes neither public producer contracts nor that policy;
+the known initial recovery-policy gap remains OPEN before managed activation.

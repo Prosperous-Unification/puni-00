@@ -666,6 +666,8 @@ describe('Tab moves between the fields, from every cell', () => {
       // included, which is why the Types cell is here despite being hidden by
       // default on a plan nobody has configured.
       'Types for 010',
+      // A leaf's Resources cell (`wbs-resources` 1.5), after Types as it renders.
+      'Resources for 010',
       'People at once for 010',
       'Dev optimistic for 010',
       'Dev realistic for 010',

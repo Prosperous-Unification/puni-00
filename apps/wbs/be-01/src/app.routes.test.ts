@@ -1,21 +1,32 @@
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import {
+  bodyMediaFor,
   completeAuth0Link,
   completeOidcLogin,
+  type EndpointShape,
   httpShapes,
   logoutOidcSession,
   refreshOidcSession,
   type RequestPolicy,
   startAuth0Link,
   startOidcLogin,
+  validateSchema,
 } from '@wbs/contracts';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
+import fc from 'fast-check';
 
 import type { AppOptions } from './app';
 import { buildApp, mountedEndpoints } from './app';
+import {
+  type BoundEndpoint,
+  EMPTY,
+  type EndpointReply,
+  type RequestFailure,
+} from './http/endpoint';
+import { indexEndpoints } from './http/endpoint-index';
 import { bunPasswordHasher, joseTokenCodec } from './runtime/bun-runtime';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
@@ -29,6 +40,7 @@ import {
   refusingTestEmailDelivery,
 } from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
+import { linearEndpointLookup, requestsFor } from './testing/linear-endpoint-lookup';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
 import {
   legacyOrganizationAccess,
@@ -49,6 +61,19 @@ import { testWrites } from './testing/writes-fixture';
 
 function options(): AppOptions {
   return {
+    resourceRuntime: {
+      bind: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      read: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      admit: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      ingest: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      requests: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+    },
+    resourceUses: {
+      register: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      append: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      list: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      history: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+    },
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -159,6 +184,7 @@ const REQUEST_BOUNDARY_ERRORS = new Set([
   'invalid_origin',
   'unauthenticated',
   'unauthorized',
+  'internal_unauthorized',
   'insufficient_scope',
 ]);
 const PUBLIC_OPERATIONS = [
@@ -175,35 +201,43 @@ const PUBLIC_OPERATIONS = [
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiAuthRegister',
+  'postApiAuthReset',
   'postApiSmokeEcho',
 ] as const;
 const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
+  'getApiMeasures',
   'getApiOnboarding',
   'getApiOrganization',
+  'getApiOrganizationActive',
+  'getApiOrganizationAgent-pools',
+  'getApiOrganizationCompute-providers',
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiOrganizationLimits',
+  'getApiOrganizationMachine-credentials',
   'getApiOrganizationMembers',
   'getApiOrganizationMemberships',
-  'getApiOrganizationActive',
   'getApiOrganizationProject-rank',
   'getApiOrganizationProvisioningTokens',
-  'getApiOrganizationMachine-credentials',
+  'getApiOrganizationResourceAuthoritiesByAuthorityId',
   'getApiOrganizationSession-policy',
   'getApiOrganizationSso-connections',
   'getApiOrganizationTrusted-issuers',
-  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
+  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdCalendar-markers',
+  'getApiProjectsByIdClaim-history',
   'getApiProjectsByIdClaims',
   'getApiProjectsByIdHistory',
   'getApiProjectsByIdPeopleByPersonIdWork',
+  'getApiProjectsByIdResourceUses',
+  'getApiProjectsByIdResourceUsesByUseIdHistory',
   'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
@@ -213,6 +247,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiProjectsByIdWork-items',
   'getApiProjectsByIdWork-itemsByWorkItemId',
   'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+  'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
   'getApiSaved-plansById',
   'getApiServices',
   'getApiSpaces',
@@ -225,8 +260,16 @@ const SIGNED_IN_OPERATIONS = [
   'getApiWork-item-types',
   'postApiOrganizationActive',
 ] as const;
-const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
+const READ_SCOPE_OPERATIONS = [
+  'getApiProjectsByIdExport',
+  'getPlansBy-solutionBySlug',
+  'lookupRuntimeReceipt',
+  'readRuntimeState',
+] as const;
 const WRITE_SCOPE_OPERATIONS = [
+  'acquireRuntimeAuthority',
+  'applyRuntimeCommands',
+  'deleteApiOrganizationAgent-poolsById',
   'deleteApiOrganizationCompute-providersById',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationInvitationsById',
@@ -256,6 +299,8 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOnboardingInvitationsAccept',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
+  'postApiOrganizationAgent-pools',
+  'postApiOrganizationAgent-poolsByIdRekey',
   'postApiOrganizationCompute-providers',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
@@ -268,6 +313,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOrganizationProjectsByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
+  'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
   'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
   'postApiOrganizationTrusted-issuers',
@@ -277,6 +323,8 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiProjectsByIdOpened',
   'postApiProjectsByIdOptimizationRetry',
   'postApiProjectsByIdRedo',
+  'postApiProjectsByIdResourceUses',
+  'postApiProjectsByIdResourceUsesByUseIdEvents',
   'postApiProjectsByIdSaved-plans',
   'postApiProjectsByIdSteps',
   'postApiProjectsByIdUndo',
@@ -285,16 +333,25 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
   'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+  'putApiOrganizationResourceAuthoritiesByAuthorityId',
   'putApiOrganizationSession-policy',
+  'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+  'putApiResourceAuthoritiesByAuthorityIdEvents',
 ] as const;
-const INTERNAL_OPERATIONS = [
-  'postInternalForward',
+const INTERNAL_OPERATIONS = ['postInternalForward'] as const;
+/** mcp-01's routes: its dedicated secret or, during the cutover, `x-internal-auth`. */
+const MCP_INTERNAL_OPERATIONS = [
   'postInternalMcpAuthority',
   'postInternalMcpCredentials',
   'postInternalMcpCredentialsEnded',
   'postInternalMcpDelegation',
   'postInternalMcpOrganizations',
 ] as const;
+/**
+ * mcp-01's dedicated secret alone. The reachability compositions configure no
+ * dedicated secret, so these answer `internal_unauthorized` at the boundary.
+ */
+const MCP_DEDICATED_OPERATIONS = ['postInternalMcpMachineGrants'] as const;
 /** Internal routes whose own handler then needs the user's upstream Bearer, absent here. */
 const UPSTREAM_BEARER_OPERATIONS: ReadonlySet<string> = new Set([
   'postInternalGatewayProjectAccess',
@@ -311,6 +368,7 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationInvitationsById',
   'postApiAuthLogin',
   'postApiAuthRegister',
+  'postApiAuthReset',
   'postApiOnboardingEmailChallenges',
   'postApiOnboardingEmailChallengesConfirm',
   'postApiOnboardingInvitationsAccept',
@@ -322,6 +380,9 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'postApiOrganizationJoinRequestsByIdDeny',
 ] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
+  'acquireRuntimeAuthority',
+  'applyRuntimeCommands',
+  'deleteApiOrganizationAgent-poolsById',
   'deleteApiOrganizationCompute-providersById',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationMachine-credentialsById',
@@ -350,6 +411,8 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiAuthRefresh',
   'postApiClaimsRenew',
   'postApiDirectoryCommands',
+  'postApiOrganizationAgent-pools',
+  'postApiOrganizationAgent-poolsByIdRekey',
   'postApiOrganizationCompute-providers',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
@@ -359,6 +422,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationProjectsByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
+  'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
   'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
   'postApiOrganizationTrusted-issuers',
@@ -368,6 +432,8 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiProjectsByIdOpened',
   'postApiProjectsByIdOptimizationRetry',
   'postApiProjectsByIdRedo',
+  'postApiProjectsByIdResourceUses',
+  'postApiProjectsByIdResourceUsesByUseIdEvents',
   'postApiProjectsByIdSaved-plans',
   'postApiProjectsByIdSteps',
   'postApiProjectsByIdUndo',
@@ -377,40 +443,52 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
   'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+  'putApiOrganizationResourceAuthoritiesByAuthorityId',
   'putApiOrganizationSession-policy',
+  'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+  'putApiResourceAuthoritiesByAuthorityIdEvents',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
-  'postInternalGatewayProjectBrowserAccess',
+  'lookupRuntimeReceipt',
+  'readRuntimeState',
   'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',
   'getApiAuthMe',
   'getApiAuthMethods',
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
+  'getApiMeasures',
   'getApiOnboarding',
-  'getApiOrganizationMemberships',
-  'getApiOrganizationActive',
   'getApiOrganization',
+  'getApiOrganizationActive',
+  'getApiOrganizationCompute-providers',
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiOrganizationLimits',
+  'getApiOrganizationMachine-credentials',
+  'getApiOrganizationAgent-pools',
   'getApiOrganizationMembers',
+  'getApiOrganizationMemberships',
   'getApiOrganizationProject-rank',
   'getApiOrganizationProvisioningTokens',
-  'getApiOrganizationMachine-credentials',
+  'getApiOrganizationResourceAuthoritiesByAuthorityId',
   'getApiOrganizationSession-policy',
+  'getApiOrganizationSso-connections',
   'getApiOrganizationTrusted-issuers',
-  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
+  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdCalendar-markers',
+  'getApiProjectsByIdClaim-history',
   'getApiProjectsByIdClaims',
   'getApiProjectsByIdExport',
   'getApiProjectsByIdPeopleByPersonIdWork',
+  'getApiProjectsByIdResourceUses',
+  'getApiProjectsByIdResourceUsesByUseIdHistory',
   'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
@@ -420,6 +498,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiProjectsByIdWork-items',
   'getApiProjectsByIdWork-itemsByWorkItemId',
   'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+  'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
   'getApiSaved-plansById',
   'getApiServices',
   'getApiSpaces',
@@ -434,14 +513,15 @@ const NO_ORIGIN_OPERATIONS = [
   'getMetrics',
   'getPlansBy-solutionBySlug',
   'postInternalForward',
+  'postInternalGatewayProjectAccess',
+  'postInternalGatewayProjectBrowserAccess',
   'postInternalMcpAuthority',
   'postInternalMcpCredentials',
   'postInternalMcpCredentialsEnded',
   'postInternalMcpDelegation',
+  'postInternalMcpMachineGrants',
   'postInternalMcpOrganizations',
-  'postInternalGatewayProjectAccess',
   'postInternalResume',
-  'getApiOrganizationSso-connections',
 ] as const;
 
 async function reachabilityOptions(
@@ -552,6 +632,49 @@ function requestFor(shape: (typeof httpShapes)[number]): Request {
   });
 }
 
+/**
+ * The structurally valid request plus an undeclared query parameter, and, for
+ * a body-less write, an empty JSON object: input a raw client sends by habit.
+ */
+function strayInputRequests(
+  shape: (typeof httpShapes)[number],
+): { part: 'query' | 'body'; request: Request }[] {
+  const valid = requestFor(shape);
+  const url = new URL(valid.url);
+  url.searchParams.append('stray', '1');
+  const strays: { part: 'query' | 'body'; request: Request }[] = [
+    { part: 'query', request: new Request(url, valid) },
+  ];
+  if (bodyMediaFor(shape).length === 0 && shape.method !== 'GET') {
+    const headers = new Headers(valid.headers);
+    headers.set('content-type', 'application/json');
+    strays.push({
+      part: 'body',
+      request: new Request(valid.url, { method: valid.method, headers, body: '{}' }),
+    });
+  }
+  return strays;
+}
+
+/**
+ * Stray-input probes not answered `400 invalid_<part>`, each for a modeled
+ * reason: the import classifier names the part in `path`; a gateway delegation
+ * is refused before input (the declaration audit covers its input); the OIDC
+ * callbacks classify into their own browser outcomes; saved-plan compare
+ * declares its query refusal as 422.
+ */
+const STRAY_INPUT_EXCEPTIONS: ReadonlyMap<string, { status: number; error: string | null }> =
+  new Map([
+    ['postApiProjectsImport query', { status: 400, error: 'invalid_body' }],
+    ['postInternalGatewayProjectAccess query', { status: 401, error: 'unauthenticated' }],
+    ['postInternalGatewayProjectAccess body', { status: 401, error: 'unauthenticated' }],
+    // No dedicated mcp-01 secret is composed here, so identity refuses first.
+    ['postInternalMcpMachineGrants query', { status: 401, error: 'internal_unauthorized' }],
+    ['getApiAuthLinkAuth0Callback query', { status: 302, error: null }],
+    ['getApiAuthOktaCallback query', { status: 400, error: null }],
+    ['getApiProjectsByIdSaved-plansCompare query', { status: 422, error: 'invalid_query' }],
+  ]);
+
 interface WireReply {
   status: number;
   contentType: string | null;
@@ -600,6 +723,10 @@ function expectedPolicies(operationId: string): RequestPolicy[] {
     policies.push({ kind: 'identity', require: 'write-scope' });
   if (includesOperation(INTERNAL_OPERATIONS, operationId))
     policies.push({ kind: 'identity', require: 'internal' });
+  if (includesOperation(MCP_INTERNAL_OPERATIONS, operationId))
+    policies.push({ kind: 'identity', require: 'mcp-internal' });
+  if (includesOperation(MCP_DEDICATED_OPERATIONS, operationId))
+    policies.push({ kind: 'identity', require: 'mcp-dedicated' });
   if (includesOperation(GATEWAY_OPERATIONS, operationId))
     policies.push({ kind: 'identity', require: 'gateway-delegation' });
   if (includesOperation(GATEWAY_BROWSER_OPERATIONS, operationId))
@@ -636,6 +763,139 @@ it('binds each shared HTTP shape once in every configuration that owns it', () =
   }
 });
 
+// The production tables hold no two same-method paths one request could both match, so
+// precedence is proved in `http/endpoint-index.test.ts`; this proves the buckets.
+// Proof: dropping `methods.add('HEAD')` failed this on `HEAD
+// /api/projects/register/runtime-commands/0`, and bucketing the untrimmed pathname failed it on
+// `GET /health/` (watched 2026-10-28).
+it('selects the endpoint the linear lookup selects, over every production table', () => {
+  for (const endpoints of [
+    mountedEndpoints(options()),
+    mountedEndpoints({ ...options(), oidc: oidcOptions() }),
+  ]) {
+    const lookup = indexEndpoints(endpoints);
+    const linear = linearEndpointLookup(endpoints);
+    fc.assert(
+      fc.property(requestsFor(endpoints), ({ method, pathname }) => {
+        const indexed = lookup(method, pathname);
+        const expected = linear(method, pathname);
+        expect(indexed?.endpoint).toBe(expected?.endpoint);
+        expect(indexed?.params).toEqual(expected?.params);
+      }),
+      { numRuns: 5000 },
+    );
+  }
+});
+
+type BoundaryCode = RequestFailure['code'];
+
+/** The request-boundary failure codes the mount can raise for this shape. */
+function boundaryCodes(shape: EndpointShape): BoundaryCode[] {
+  const codes: BoundaryCode[] = ['invalid_query', 'invalid_body'];
+  if (shape.params !== undefined) codes.push('invalid_params');
+  if (bodyMediaFor(shape).includes('application/json')) codes.push('invalid_json');
+  return codes;
+}
+
+/** A failure as the mount builds it, for a classifier that inspects nothing beyond its fields. */
+function syntheticFailure(shape: EndpointShape, code: BoundaryCode): RequestFailure {
+  const request = {
+    url: new URL(shape.path, ORIGIN),
+    method: shape.method,
+    headers: new Headers(),
+    signal: new AbortController().signal,
+  };
+  const issues = [{ message: 'synthetic boundary failure' }];
+  if (code === 'invalid_params') return { part: 'params', code, rejected: {}, issues, request };
+  if (code === 'invalid_query') return { part: 'query', code, rejected: {}, issues, request };
+  if (code === 'invalid_json') return { part: 'body', code, rejected: '{', request };
+  return { part: 'body', code, rejected: {}, issues, request };
+}
+
+/**
+ * The status `renderReply` would answer a refusal with, or null when the shape
+ * declares no refusal for it (the mount then throws: a 500).
+ */
+async function declaredStatus(shape: EndpointShape, reply: EndpointReply): Promise<number | null> {
+  if (reply.ok) return null;
+  for (const refusal of shape.refusals) {
+    if (refusal.status !== reply.status) continue;
+    if ('kind' in refusal) {
+      if (refusal.kind === 'empty') {
+        if (reply.body === EMPTY) return refusal.status;
+        continue;
+      }
+      if ((await validateSchema(refusal.schema, reply.body)).issues === undefined)
+        return refusal.status;
+      continue;
+    }
+    if ((await validateSchema(refusal.schema, reply.body)).issues === undefined)
+      return refusal.status;
+  }
+  return null;
+}
+
+/**
+ * The status `refuse` answers `{ error: code }` with: the first untagged
+ * refusal accepting it, or null when none does (the mount then throws: a 500).
+ */
+async function refusedStatus(shape: EndpointShape, code: BoundaryCode): Promise<number | null> {
+  for (const refusal of shape.refusals) {
+    if ('kind' in refusal) continue;
+    if ((await validateSchema(refusal.schema, { error: code })).issues === undefined)
+      return refusal.status;
+  }
+  return null;
+}
+
+/**
+ * Every request-boundary failure the mount can raise is answered with a
+ * declared 4xx, in both endpoint tables: through `refuse` (the first refusal
+ * accepting `{ error: code }`) or through the endpoint's own classifier. Every
+ * endpoint refuses a stray query and a stray or invalid body; a declared params
+ * schema adds `invalid_params`, and JSON media adds `invalid_json`.
+ * Proof: removing the 400 from `renewClaimLeases` made this audit list
+ * `postApiClaimsRenew invalid_query` and `invalid_body` (watched 2026-10-24).
+ * Proof: the batch classifier (`classifyCommand`) answering its fallback with an
+ * undeclared 422 made it list `postApiProjectsByIdCommands` and
+ * `postApiDirectoryCommands` `invalid_query`/`invalid_json` (and params) as null;
+ * the earlier audit skipped every classified endpoint (watched 2026-10-24).
+ * Proof: a `503 { error: string }` placed before renew's 400 made it list
+ * `postApiClaimsRenew invalid_query: 503` and `invalid_body: 503` (watched 2026-10-24).
+ */
+it('answers every request-boundary failure the mount can raise with a declared 4xx', async () => {
+  const local = mountedEndpoints(options());
+  const oidc = mountedEndpoints({ ...options(), oidc: oidcOptions() });
+  const tableOf = (endpoints: readonly BoundEndpoint[]): string[] =>
+    endpoints
+      .filter(
+        ({ shape }) =>
+          ![...OIDC_SHAPES].some(({ operationId }) => operationId === shape.operationId),
+      )
+      .map(
+        ({ shape, classifyRequestFailure }) =>
+          `${shape.operationId} ${classifyRequestFailure === undefined ? 'refuse' : 'classified'}`,
+      )
+      .sort();
+  expect(tableOf(local)).toEqual(tableOf(oidc));
+  const undeclared: string[] = [];
+  for (const endpoint of [...local, ...oidc]) {
+    const { shape } = endpoint;
+    for (const code of boundaryCodes(shape)) {
+      const status =
+        endpoint.classifyRequestFailure === undefined
+          ? await refusedStatus(shape, code)
+          : await declaredStatus(
+              shape,
+              await endpoint.classifyRequestFailure(syntheticFailure(shape, code)),
+            );
+      if (status === null || status < 400 || status >= 500)
+        undeclared.push(`${shape.operationId} ${code}: ${String(status)}`);
+    }
+  }
+  expect([...new Set(undeclared)]).toEqual([]);
+});
+
 it('keeps OIDC health readiness live after the endpoint table is built', async () => {
   const state = { migrationsApplied: false };
   const app = buildApp({
@@ -667,6 +927,8 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
     ...READ_SCOPE_OPERATIONS,
     ...WRITE_SCOPE_OPERATIONS,
     ...INTERNAL_OPERATIONS,
+    ...MCP_INTERNAL_OPERATIONS,
+    ...MCP_DEDICATED_OPERATIONS,
     ...GATEWAY_OPERATIONS,
     ...GATEWAY_BROWSER_OPERATIONS,
   ]) {
@@ -699,6 +961,8 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
   expect(policyOperations('identity', 'read-scope')).toEqual([...READ_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'write-scope')).toEqual([...WRITE_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'internal')).toEqual([...INTERNAL_OPERATIONS]);
+  expect(policyOperations('identity', 'mcp-internal')).toEqual([...MCP_INTERNAL_OPERATIONS]);
+  expect(policyOperations('identity', 'mcp-dedicated')).toEqual([...MCP_DEDICATED_OPERATIONS]);
   expect(policyOperations('identity', 'gateway-delegation')).toEqual([...GATEWAY_OPERATIONS]);
   expect(policyOperations('identity', 'gateway-browser')).toEqual([...GATEWAY_BROWSER_OPERATIONS]);
   expect(policyOperations('origin', 'always')).toEqual([...ALWAYS_ORIGIN_OPERATIONS]);
@@ -713,6 +977,8 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
       ...READ_SCOPE_OPERATIONS,
       ...WRITE_SCOPE_OPERATIONS,
       ...INTERNAL_OPERATIONS,
+      ...MCP_INTERNAL_OPERATIONS,
+      ...MCP_DEDICATED_OPERATIONS,
       ...GATEWAY_OPERATIONS,
       ...GATEWAY_BROWSER_OPERATIONS,
     ].sort(),
@@ -805,6 +1071,23 @@ describe('shared HTTP shape reachability through the production app', () => {
       let modeledNotFoundCount = 0;
 
       for (const shape of composition.shapes) {
+        // Proof: removing the 400 from `renewClaimLeases` made both modes fail
+        // here on `postApiClaimsRenew` query, status 500 (watched 2026-10-24).
+        for (const stray of strayInputRequests(shape)) {
+          const strayReply = await wireReply(await app.handle(stray.request));
+          const probe = `${shape.operationId} ${stray.part}`;
+          expect({
+            probe,
+            status: strayReply.status,
+            error: boundaryError(strayReply) ?? null,
+          }).toEqual({
+            probe,
+            ...(STRAY_INPUT_EXCEPTIONS.get(probe) ?? {
+              status: 400,
+              error: `invalid_${stray.part}`,
+            }),
+          });
+        }
         const reply = await wireReply(await app.handle(requestFor(shape)));
         const refusal = boundaryError(reply);
         expect({
@@ -815,7 +1098,9 @@ describe('shared HTTP shape reachability through the production app', () => {
           operationId: shape.operationId,
           boundaryError: UPSTREAM_BEARER_OPERATIONS.has(shape.operationId)
             ? 'unauthenticated'
-            : null,
+            : includesOperation(MCP_DEDICATED_OPERATIONS, shape.operationId)
+              ? 'internal_unauthorized'
+              : null,
         });
         expect({ operationId: shape.operationId, reply }).not.toEqual({
           operationId: shape.operationId,
@@ -831,4 +1116,186 @@ describe('shared HTTP shape reachability through the production app', () => {
       expect(modeledNotFoundCount).toBeGreaterThan(0);
     });
   }
+});
+
+it('returns explicit unavailability for admission in a composition without runtime storage', async () => {
+  const composition = options();
+  const authentication = spyOn(composition.auth, 'authenticateOrRefuse').mockResolvedValue({
+    id: 'runtime-actor',
+    username: 'runtime-actor',
+    scopes: ['read', 'write'],
+    authentication: { kind: 'machine', credentialId: 'runtime-key', personId: 'runtime-person' },
+  });
+  try {
+    const app = buildApp({ ...composition, resourceRuntime: undefined });
+    const response = await app.handle(
+      new Request('http://localhost/api/resource-authorities/dash/admissions', {
+        method: 'PUT',
+        headers: { authorization: 'Bearer fixture', 'content-type': 'application/json' },
+        body: JSON.stringify(REQUEST_BODIES['putApiResourceAuthoritiesByAuthorityIdAdmissions']),
+      }),
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'resource_tracking_unavailable' });
+  } finally {
+    authentication.mockRestore();
+  }
+});
+
+describe('browser reset', () => {
+  const expiredCookies = [
+    '__Host-wbs_access=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+    '__Host-wbs_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+    '__Host-wbs_organization=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+  ];
+  const cookieJars = [
+    '',
+    '__Host-wbs_access=expired; __Host-wbs_session=old; __Host-wbs_organization=old; theme=dark',
+    '__Host-wbs_access=%ZZ; __Host-wbs_session=%; __Host-wbs_organization=broken',
+    '__Host-wbs_access=one; __Host-wbs_access=two; __Host-wbs_session=one; __Host-wbs_session=two',
+    '__Host-wbs_access; __Host-wbs_session=; __Host-wbs_organization=foreign',
+  ];
+
+  function resetApp(mode: 'local' | 'oidc' = 'local') {
+    return buildApp({
+      ...options(),
+      appOrigin: ORIGIN,
+      ...(mode === 'oidc' ? { oidc: oidcOptions() } : {}),
+      ...(mode === 'local'
+        ? {
+            browserSession: {
+              verifyNativeBrowserCredential: () => Promise.resolve(null),
+              revocations: {
+                revoke: () => Promise.reject(new Error('reset must not revoke credentials')),
+              },
+            },
+          }
+        : {}),
+    });
+  }
+
+  it('expires only the three browser session cookies on explicit same-origin reset', async () => {
+    for (const mode of ['local', 'oidc'] as const) {
+      const app = resetApp(mode);
+      for (const cookie of cookieJars) {
+        const response = await app.handle(
+          new Request(`${ORIGIN}/api/auth/reset`, {
+            method: 'POST',
+            headers: { origin: ORIGIN, cookie },
+          }),
+        );
+        expect(response.status).toBe(204);
+        expect(await response.text()).toBe('');
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        expect(response.headers.getSetCookie()).toEqual(expiredCookies);
+      }
+    }
+  });
+
+  it('refuses reset without the exact Origin', async () => {
+    const app = resetApp();
+    for (const origin of [undefined, 'https://foreign.test', `${ORIGIN}/`, 'null', '']) {
+      const headers = new Headers({ cookie: '__Host-wbs_access=broken' });
+      if (origin !== undefined) headers.set('origin', origin);
+      for (const body of [undefined, '{']) {
+        const response = await app.handle(
+          new Request(`${ORIGIN}/api/auth/reset`, {
+            method: 'POST',
+            headers,
+            body,
+          }),
+        );
+        expect(response.status).toBe(403);
+        expect(await response.json()).toEqual({ error: 'invalid_origin' });
+        expect(response.headers.getSetCookie()).toEqual([]);
+      }
+    }
+  });
+
+  it('refuses API carriers without clearing browser cookies', async () => {
+    const app = resetApp();
+    for (const carrier of ['authorization', 'x-wbs-token']) {
+      for (const value of ['', 'Bearer broken']) {
+        const response = await app.handle(
+          new Request(`${ORIGIN}/api/auth/reset`, {
+            method: 'POST',
+            headers: { origin: ORIGIN, cookie: '__Host-wbs_access=broken', [carrier]: value },
+          }),
+        );
+        expect(response.status).toBe(400);
+        expect(await response.json()).toEqual({ error: 'invalid_client' });
+        expect(response.headers.getSetCookie()).toEqual([]);
+      }
+    }
+  });
+
+  it('refuses reset bodies, queries and unsupported methods', async () => {
+    const app = resetApp();
+    for (const [suffix, body, error] of [
+      ['', '{}', 'invalid_body'],
+      ['', ' ', 'invalid_body'],
+      ['', '{', 'invalid_body'],
+      ['?unexpected=1', undefined, 'invalid_query'],
+      ['?unexpected=1&unexpected=2', undefined, 'invalid_query'],
+    ] as const) {
+      const response = await app.handle(
+        new Request(`${ORIGIN}/api/auth/reset${suffix}`, {
+          method: 'POST',
+          headers: { origin: ORIGIN },
+          body,
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error });
+      expect(response.headers.getSetCookie()).toEqual([]);
+    }
+    for (const method of ['GET', 'HEAD', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
+      const response = await app.handle(
+        new Request(`${ORIGIN}/api/auth/reset`, {
+          method,
+          headers: { origin: ORIGIN, cookie: '__Host-wbs_access=broken' },
+        }),
+      );
+      expect(response.status).toBe(404);
+      expect(response.headers.getSetCookie()).toEqual([]);
+    }
+  });
+
+  it('password validation is reachable after resetting a stale cookie jar', async () => {
+    const app = resetApp();
+    const jar = new Map([
+      ['__Host-wbs_access', 'broken'],
+      ['__Host-wbs_session', 'stale'],
+      ['__Host-wbs_organization', 'stale'],
+      ['theme', 'dark'],
+    ]);
+    const cookies = () => [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
+    const login = () =>
+      app.handle(
+        new Request(`${ORIGIN}/api/auth/login`, {
+          method: 'POST',
+          headers: { origin: ORIGIN, cookie: cookies(), 'content-type': 'application/json' },
+          body: JSON.stringify({ username: 'unknown', password: 'wrong-password' }),
+        }),
+      );
+    const stale = await login();
+    expect(stale.status).toBe(401);
+    expect(await stale.json()).toEqual({ error: 'unauthenticated' });
+    const reset = await app.handle(
+      new Request(`${ORIGIN}/api/auth/reset`, {
+        method: 'POST',
+        headers: { origin: ORIGIN, cookie: cookies() },
+      }),
+    );
+    expect(reset.status).toBe(204);
+    for (const cookie of reset.headers.getSetCookie()) {
+      expect(cookie).toContain('Max-Age=0');
+      jar.delete(cookie.split('=')[0] ?? '');
+    }
+    expect([...jar]).toEqual([['theme', 'dark']]);
+    const normal = await login();
+    expect(normal.status).toBe(401);
+    expect(await normal.json()).toEqual({ error: 'invalid_credentials' });
+    expect(normal.headers.getSetCookie()).toEqual([]);
+  });
 });

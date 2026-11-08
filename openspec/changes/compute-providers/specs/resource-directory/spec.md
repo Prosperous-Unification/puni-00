@@ -8,7 +8,8 @@ A resource SHALL carry an optional `providerId` naming one provider instance
 of the caller's organization SHALL be refused `404 unknown_provider`; an id naming an instance
 of another organization SHALL be refused `409 provider_not_in_organization`. The resource
 read, the project resources read and the directory usage (a `deleteResource` refused
-`in_use` names it in `counts.providerId`) SHALL carry `providerId`; the plan
+`in_use` names it in `counts.providerId`) SHALL carry `providerId`, and the project
+resources read also the instance's `provider { kind, name }`; the plan
 export and the plan document SHALL NOT. The reference SHALL NOT be read by the schedule input,
 the claim decision, the occupancy check or the startable read, and a resource without one
 SHALL behave byte for byte as before this change. The migration adding the column SHALL be

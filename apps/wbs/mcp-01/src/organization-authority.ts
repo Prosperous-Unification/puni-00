@@ -1,7 +1,8 @@
-import type { WbsScope } from '@wbs/contracts';
+import { MCP_INTERNAL_SECRET_HEADER, type WbsScope } from '@wbs/contracts';
 import { type } from '@wbs/validation';
 
 import type { McpConfig } from './config';
+import { McpDeploymentFault } from './deployment-fault';
 import type { McpRefreshAuthorityReader } from './refresh-authority';
 import type { FetchLike } from './wbs-client';
 
@@ -121,26 +122,55 @@ const AUTHORITY = type({ outcome: "'denied'" }).or({
 });
 
 /** be-01 answered something this release does not model: a deployment defect, never a refusal. */
-export class OrganizationAuthorityDefect extends Error {}
+export class OrganizationAuthorityDefect extends McpDeploymentFault {}
+
+/**
+ * The one service secret mcp-01 sends on `/internal/mcp/*` during the secret cutover
+ * (`wbs-mcp-agent-surface` M14, task 3.7): `MCP_BE_INTERNAL_SECRET` in `x-mcp-internal-auth`
+ * whenever it is configured, and then never `x-internal-auth` beside it. Release N's be-01
+ * admits either there, so be-01 swaps first and this mcp-01 second; a deployment that has not
+ * seeded the new secret yet keeps `INTERNAL_AUTH_SECRET` until release N+1 drops it.
+ *
+ * @throws when neither secret is configured.
+ */
+export function mcpServiceHeaderOf(
+  config: Pick<McpConfig, 'INTERNAL_AUTH_SECRET' | 'MCP_BE_INTERNAL_SECRET'>,
+): Readonly<Record<string, string>> {
+  // Proof: preferring INTERNAL_AUTH_SECRET here failed `sends only the dedicated secret once it
+  // is configured` (organization-authority.test.ts); watched 2026-10-27.
+  if (config.MCP_BE_INTERNAL_SECRET !== undefined)
+    return { [MCP_INTERNAL_SECRET_HEADER]: config.MCP_BE_INTERNAL_SECRET };
+  if (config.INTERNAL_AUTH_SECRET !== undefined)
+    return { 'x-internal-auth': config.INTERNAL_AUTH_SECRET };
+  throw new Error('organization authority needs MCP_BE_INTERNAL_SECRET or INTERNAL_AUTH_SECRET');
+}
 
 /**
  * Calls be-01's `/internal/mcp/*` routes with the deployment's internal
- * service secret and, where the route verifies a user, the user's own
- * upstream access token. Every answer is validated here, at the boundary;
+ * service secret ({@link mcpServiceHeaderOf}) and, where the route verifies a user, the user's
+ * own upstream access token. Every answer is validated here, at the boundary;
  * an unmodeled status or body throws {@link OrganizationAuthorityDefect}.
  */
 export function organizationAuthority(
-  config: Pick<McpConfig, 'WBS_API_URL' | 'WBS_BASIC_AUTH'> & {
-    readonly INTERNAL_AUTH_SECRET: string;
-  },
+  config: Pick<
+    McpConfig,
+    'WBS_API_URL' | 'WBS_BASIC_AUTH' | 'INTERNAL_AUTH_SECRET' | 'MCP_BE_INTERNAL_SECRET'
+  >,
   fetchImpl: FetchLike = fetch,
 ): OrganizationAuthority {
   const base = config.WBS_API_URL.replace(/\/+$/, '');
+  const serviceHeader = mcpServiceHeaderOf(config);
   const post = (path: string, body: unknown, upstreamToken?: string) =>
     fetchImpl(`${base}/internal/mcp/${path}`, {
       method: 'POST',
+      // Never followed: the service secret and the user's upstream token stay with be-01, and
+      // a 3xx is an unmodeled answer (`OrganizationAuthorityDefect`, a reported 502 at /mcp).
+      // Proof: following redirects made `never follows a redirect, so the secret stays with
+      // be-01` (organization-authority.test.ts) see the secret at the other origin and read its
+      // `pre_activation`; watched 2026-10-27.
+      redirect: 'manual',
       headers: {
-        'x-internal-auth': config.INTERNAL_AUTH_SECRET,
+        ...serviceHeader,
         ...(upstreamToken === undefined ? {} : { authorization: `Bearer ${upstreamToken}` }),
         ...(config.WBS_BASIC_AUTH === undefined
           ? {}
@@ -205,10 +235,10 @@ export function organizationAuthority(
       if (response.status === 200)
         return { kind: 'issued', token: parsed(DELEGATION, text, 'delegation').token };
       const error = errorOf(text);
-      // Only be-01's own verdicts on the user's token. `unauthorized` (mcp-01's
-      // service secret) and a proxy or Basic-gate 401 are deployment defects:
+      // Only be-01's own verdicts on the user's token. `internal_unauthorized`
+      // (mcp-01's service secret) and a proxy or Basic-gate 401 are deployment defects:
       // reading them as the user's token would end every session.
-      // Proof: admitting any non-`unauthorized` 401 made `reads each modeled
+      // Proof: admitting any 401 but the secret's made `reads each modeled
       // delegation refusal and throws on the rest` in
       // `organization-authority.test.ts` read a Basic-gate challenge as
       // upstream_rejected; watched 2026-10-21.

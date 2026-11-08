@@ -110,7 +110,15 @@ export const gatewayProjectAccess = defineEndpointShape({
   params: requestSchema(type({ projectId: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_body'" })) },
+    // Proof: with this file's stray-input codes undeclared, be-01's audit `answers every
+    // request-boundary failure the mount can raise with a declared 4xx` listed
+    // both gateway project-access routes `invalid_query` (watched 2026-10-24); it guards each widened 400 here.
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_body' | 'invalid_query'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     organizationRefusal,
@@ -133,7 +141,12 @@ export const gatewayBrowserProjectAccess = defineEndpointShape({
   params: requestSchema(type({ projectId: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_body'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_body' | 'invalid_query'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     organizationRefusal,

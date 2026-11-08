@@ -15,10 +15,11 @@ import { createLogger } from '@wbs/observability';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import {
   type BrowserAuthLifecycle,
+  BrowserLifecycleRefusedError,
   SqliteBrowserAuthLifecycle,
   SqliteBrowserCredentialRevocations,
 } from '@wbs/store-sqlite';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { errors, SignJWT } from 'jose';
 
 import { buildApp } from '../app';
@@ -110,12 +111,15 @@ describe('the OIDC callback after activation', () => {
   let savedReauthentication: { prompt: 'login'; maxAge: number | null } | undefined;
   let localTokens: InMemoryTokenStore;
   let nativeSessionKey: string;
+  let loginTransactions: InMemoryOidcTransactionStore;
+  let transactionClock: number;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-oidc-identity-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
     exchanges = 0;
+    transactionClock = now;
     linkAuthorization = null;
     accessClaims = new Map();
     exchangeChecks = null;
@@ -168,7 +172,10 @@ describe('the OIDC callback after activation', () => {
     omitBrowserSession = false,
   ) {
     const users = new UserRepository(openDrizzle(path), OPEN);
-    const transactions = new InMemoryOidcTransactionStore({ now: () => now, ttlMs: 300_000 });
+    const transactions = (loginTransactions = new InMemoryOidcTransactionStore({
+      now: () => transactionClock,
+      ttlMs: 300_000,
+    }));
     transactions.save({
       browserBinding: 'binding-1',
       nonce: 'nonce-1',
@@ -225,7 +232,7 @@ describe('the OIDC callback after activation', () => {
       groupsClaim: 'wbs_groups',
       methods: ['google', 'github'] as const,
       mode: 'oidc' as const,
-      now: () => now,
+      now: () => transactionClock,
       random: () => 'session-1',
       redirectUri: 'https://dev.wbs.test/api/auth/okta/callback',
       issuer: () => Promise.resolve('https://idp.test'),
@@ -1049,6 +1056,70 @@ describe('the OIDC callback after activation', () => {
     const start = await startLink(app, registration.value.token, 'fresh-password');
     expect(outcomeOf(await linkCallback(app, start, registration.value.token))).toBe('refused');
     expect(all('SELECT * FROM external_identity')).toEqual([]);
+  });
+
+  // A token without `wbs_groups` is a machine's (`wbs-machine-credentials`
+  // A18): it proves no browser session, so a retired link row cannot start a
+  // link that would add a sign-in method to the human's account.
+  // Proof: with `sessionUser`'s groups check removed, this started the link
+  // (200) and asked the provider for an authorization URL; watched 2026-10-25.
+  it('refuses a link start under a groups-less cookie whose pair is linked', async () => {
+    activate();
+    googleAccount('g', 'google-oauth2|1');
+    sql(
+      "INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES ('map-fleet', 'g', 'https://idp.test', 'claire-m2m@clients', 1)",
+    );
+    accessClaims.set('fleet-access', {
+      iss: 'https://idp.test',
+      sub: 'claire-m2m@clients',
+      exp: Math.floor((now + 900_000) / 1000),
+    });
+    const app = mounted(githubClaims);
+    const before = all('SELECT user_id, subject FROM external_identity ORDER BY subject');
+
+    const start = await startOidcLink(app, 'fleet-access', { method: 'github' });
+    expect(start.status).toBe(401);
+    expect(linkAuthorization).toBeNull();
+    expect(all('SELECT user_id, subject FROM external_identity ORDER BY subject')).toEqual(before);
+  });
+
+  // Proof: with the refresh path's groups check removed, this answered 204
+  // and replaced the lifecycle's credential; watched 2026-10-25.
+  it('refuses a refreshed access token without groups, leaving the lifecycle alone', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const credential = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', credential, { openedAt: 1, reauthenticatedAt: null });
+    const { wbs_groups: _groups, ...groupless } = claims;
+    refreshClaims = { ...groupless, exp: Math.floor((now + 900_000) / 1000) };
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential,
+    });
+
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: credential });
   });
 
   it('refuses a verified refresh identity for another local user before lifecycle CAS', async () => {
@@ -2529,6 +2600,442 @@ describe('the OIDC callback after activation', () => {
     expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([]);
   });
 
+  it.each([
+    ['malformed', 'unassociated_access'],
+    ['malformed-native', 'unverified_native'],
+    ['expired-native', 'unverified_native'],
+    ['mismatched-oidc', 'unassociated_access'],
+    ['closed-session-cookie', 'inactive_session'],
+    ['foreign-session-cookie', 'inactive_session'],
+  ] as const)(
+    'redirects a bound callback with an unverifiable predecessor to browser recovery: %s',
+    async (predecessor, refusal) => {
+      sql(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('captured', 'captured', NULL, 1)",
+      );
+      const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+      const retained = {
+        kind: 'oidc' as const,
+        userId: 'captured',
+        digest: createHash('sha256').update('retained-access').digest('hex'),
+        expiresAt: now + 900_000,
+      };
+      await lifecycle.open('old-session', retained, { openedAt: 1, reauthenticatedAt: null });
+      const logs: string[] = [];
+      const app = mounted(claims, lifecycle, logs);
+      const resolve = spyOn(auth, 'resolveOidcIdentity');
+      localTokens.save({
+        sessionCorrelation: 'old-session',
+        refreshToken: 'retained-refresh',
+        expiresAt: now + 86_400_000,
+        userId: 'captured',
+        generation: 1,
+        credential: retained,
+      });
+      if (predecessor === 'closed-session-cookie')
+        await lifecycle.close('old-session', { kind: 'oidc', digest: retained.digest }, now);
+      const stored = localTokens.read('old-session');
+      const tables = [
+        'users',
+        'external_identity',
+        'browser_auth_lifecycle',
+        'browser_auth_association',
+        'browser_credential_revocations',
+      ];
+      const before = tables.map((table) => all(`SELECT * FROM ${table}`));
+      const access =
+        predecessor === 'expired-native'
+          ? await new SignJWT({ username: 'captured' })
+              .setProtectedHeader({ alg: 'HS256' })
+              .setSubject('captured')
+              .setJti('expired-native')
+              .setIssuedAt(1)
+              .setExpirationTime(2)
+              .sign(new TextEncoder().encode(nativeSessionKey))
+          : predecessor === 'mismatched-oidc'
+            ? 'different-access'
+            : 'not-a-token';
+      const correlation =
+        predecessor === 'expired-native' || predecessor === 'malformed-native'
+          ? ''
+          : predecessor === 'foreign-session-cookie'
+            ? '; __Host-wbs_session=forged-session'
+            : '; __Host-wbs_session=old-session';
+      // Session-cookie-only cases model an access cookie the browser already expired.
+      const carriedAccess =
+        predecessor === 'closed-session-cookie' || predecessor === 'foreign-session-cookie'
+          ? ''
+          : `; __Host-wbs_access=${access}`;
+      const binding = browserBindingCookieName('binding-1');
+      const otherBinding = browserBindingCookieName('binding-2');
+      loginTransactions.save({
+        browserBinding: 'binding-2',
+        state: 'state-2',
+        nonce: 'nonce-2',
+        verifier: 'verifier-2',
+      });
+      const cookie = `${binding}=binding-1; ${otherBinding}=binding-2${carriedAccess}${correlation}; __Host-wbs_organization=selected`;
+      const createCallbackRequest = (state: string) =>
+        new Request(`https://dev.wbs.test/api/auth/okta/callback?code=c&state=${state}`, {
+          headers: { cookie },
+        });
+      const reply = await app.handle(createCallbackRequest('state-1'));
+      expect(reply.status).toBe(302);
+      expect(reply.headers.get('location')).toBe('/?auth_error=browser_session_unverified');
+      expect(await reply.text()).toBe('');
+      expect(reply.headers.getSetCookie()).toEqual([
+        `${binding}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`,
+      ]);
+      expect(exchanges).toBe(0);
+      expect(resolve).not.toHaveBeenCalled();
+      expect(revokeCalls).toBe(0);
+      expect(tables.map((table) => all(`SELECT * FROM ${table}`))).toEqual(before);
+      expect(localTokens.read('old-session')).toEqual(stored);
+      const refusals = logs
+        .map((line) => JSON.parse(line) as { msg?: string; refusal?: string; level?: unknown })
+        .filter(({ msg }) => msg === 'oidc callback refused the browser predecessor');
+      expect(refusals.map(({ level, refusal: logged }) => [level, logged])).toEqual([
+        ['info', refusal],
+      ]);
+      for (const secret of ['old-session', 'forged-session', access, 'retained-refresh'])
+        expect(logs.join('\n')).not.toContain(secret);
+      const replay = await app.handle(createCallbackRequest('state-1'));
+      expect(replay.status).toBe(400);
+      expect(replay.headers.get('location')).toBeNull();
+      const other = await app.handle(createCallbackRequest('state-2'));
+      expect(other.status).toBe(302);
+      expect(other.headers.get('location')).toBe('/?auth_error=browser_session_unverified');
+      expect(exchanges).toBe(0);
+    },
+  );
+
+  it.each([
+    {
+      attack: 'mismatched state',
+      query: 'code=c&state=forged',
+      method: 'GET',
+      binding: 'honest',
+      clears: false,
+      survives: true,
+    },
+    {
+      attack: 'missing state',
+      query: 'code=c',
+      method: 'GET',
+      binding: 'honest',
+      clears: false,
+      survives: true,
+    },
+    {
+      attack: 'duplicate state',
+      query: 'code=c&state=state-1&state=forged',
+      method: 'GET',
+      binding: 'honest',
+      clears: false,
+      survives: true,
+    },
+    {
+      attack: 'duplicate code',
+      query: 'code=c&code=other&state=state-1',
+      method: 'GET',
+      binding: 'honest',
+      clears: false,
+      survives: true,
+    },
+    {
+      attack: 'HEAD',
+      query: 'code=c&state=state-1',
+      method: 'HEAD',
+      binding: 'honest',
+      clears: false,
+      survives: true,
+    },
+    {
+      attack: 'missing binding',
+      query: 'code=c&state=state-1',
+      method: 'GET',
+      binding: 'absent',
+      clears: false,
+      survives: true,
+    },
+    {
+      attack: 'malformed binding',
+      query: 'code=c&state=state-1',
+      method: 'GET',
+      binding: 'malformed',
+      clears: false,
+      survives: true,
+    },
+    {
+      attack: 'misnamed binding',
+      query: 'code=c&state=state-1',
+      method: 'GET',
+      binding: 'misnamed',
+      clears: true,
+      survives: true,
+    },
+    {
+      attack: 'missing transaction',
+      query: 'code=c&state=state-1',
+      method: 'GET',
+      binding: 'missing',
+      clears: true,
+      survives: true,
+    },
+    {
+      attack: 'expired binding',
+      query: 'code=c&state=state-1',
+      method: 'GET',
+      binding: 'expired',
+      clears: true,
+      survives: false,
+    },
+  ] as const)(
+    'a forged callback cannot trigger browser recovery or consume an honest transaction: $attack',
+    async ({ query, method, binding, clears, survives }) => {
+      const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+      const app = mounted(claims, lifecycle, []);
+      const resolve = spyOn(auth, 'resolveOidcIdentity');
+      const name = browserBindingCookieName('binding-1');
+      const offered =
+        binding === 'absent'
+          ? ''
+          : binding === 'malformed'
+            ? `${name}=%ZZ; `
+            : binding === 'misnamed'
+              ? '__Host-wbs_oidc_wrong=binding-1; '
+              : binding === 'missing'
+                ? `${browserBindingCookieName('missing')}=missing; `
+                : `${name}=binding-1; `;
+      if (binding === 'expired') transactionClock += 300_001;
+      const reply = await app.handle(
+        new Request(`https://dev.wbs.test/api/auth/okta/callback?${query}`, {
+          method,
+          headers: {
+            cookie: `${offered}__Host-wbs_access=not-a-token; __Host-wbs_organization=selected`,
+          },
+        }),
+      );
+      expect(reply.status).toBe(method === 'HEAD' ? 405 : 400);
+      expect(reply.headers.get('location')).toBeNull();
+      expect(reply.headers.getSetCookie()).toHaveLength(clears ? 1 : 0);
+      expect(
+        reply.headers
+          .getSetCookie()
+          .every((cookie) => cookie.startsWith('__Host-wbs_oidc_') && cookie.includes('Max-Age=0')),
+      ).toBe(true);
+      expect(exchanges).toBe(0);
+      expect(resolve).not.toHaveBeenCalled();
+      expect(revokeCalls).toBe(0);
+      for (const table of [
+        'users',
+        'external_identity',
+        'browser_auth_lifecycle',
+        'browser_auth_association',
+        'browser_credential_revocations',
+      ])
+        expect(all(`SELECT * FROM ${table}`)).toEqual([]);
+      const honest = await app.handle(
+        new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+          headers: { cookie: `${name}=binding-1; __Host-wbs_access=not-a-token` },
+        }),
+      );
+      expect(honest.status).toBe(survives ? 302 : 400);
+      expect(honest.headers.get('location')).toBe(
+        survives ? '/?auth_error=browser_session_unverified' : null,
+      );
+      expect(exchanges).toBe(0);
+    },
+  );
+
+  it('signs a browser whose access cookie expired in again without reset', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('captured', 'captured', NULL, 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const retained = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('retained-access').digest('hex'),
+      expiresAt: now - 1,
+    };
+    await lifecycle.open('old-session', retained, { openedAt: 1, reauthenticatedAt: null });
+    const app = mounted(claims, lifecycle, []);
+    localTokens.save({
+      sessionCorrelation: 'old-session',
+      refreshToken: 'retained-refresh',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: retained,
+    });
+    // The access cookie's Max-Age is the provider token lifetime, so after it
+    // passes the browser sends only the 30-day correlation cookie.
+    const reply = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: {
+          cookie: `${browserBindingCookieName('binding-1')}=binding-1; __Host-wbs_session=old-session; __Host-wbs_organization=selected`,
+        },
+      }),
+    );
+    expect(reply.status).toBe(302);
+    expect(reply.headers.get('location')).toBe('/');
+    expect(reply.headers.get('set-cookie')).toContain('__Host-wbs_access=access-1;');
+    expect(exchanges).toBe(1);
+    expect(revokeCalls).toBe(1);
+    expect(localTokens.read('old-session')).toBeNull();
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([
+      { credential_digest: retained.digest },
+    ]);
+    expect(all("SELECT state FROM browser_auth_lifecycle WHERE state = 'active'")).toHaveLength(1);
+    await lifecycle.generation('old-session').then(
+      () => {
+        throw new Error('retired predecessor returned a generation');
+      },
+      (cause: unknown) => {
+        expect(cause).toBeInstanceOf(BrowserLifecycleRefusedError);
+      },
+    );
+  });
+
+  it('predecessor-store failure remains a server failure', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('captured', 'captured', NULL, 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const retained = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('old-session', retained, { openedAt: 1, reauthenticatedAt: null });
+    const app = mounted(claims, lifecycle, []);
+    const resolve = spyOn(auth, 'resolveOidcIdentity');
+    localTokens.save({
+      sessionCorrelation: 'old-session',
+      refreshToken: 'retained-refresh',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: retained,
+    });
+    const tables = [
+      'users',
+      'external_identity',
+      'browser_auth_lifecycle',
+      'browser_credential_revocations',
+    ];
+    const before = tables.map((table) => all(`SELECT * FROM ${table}`));
+    const stored = localTokens.read('old-session');
+    sql('DROP TABLE browser_auth_association');
+    const reply = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: {
+          cookie: `${browserBindingCookieName('binding-1')}=binding-1; __Host-wbs_access=access-1; __Host-wbs_session=old-session; __Host-wbs_organization=selected`,
+        },
+      }),
+    );
+    expect(reply.status).toBe(500);
+    expect(reply.headers.get('location')).toBeNull();
+    expect(reply.headers.getSetCookie()).toEqual([]);
+    expect(exchanges).toBe(0);
+    expect(resolve).not.toHaveBeenCalled();
+    expect(revokeCalls).toBe(0);
+    expect(loginTransactions.consume('binding-1', 'state-1')).toEqual({ outcome: 'missing' });
+    expect(tables.map((table) => all(`SELECT * FROM ${table}`))).toEqual(before);
+    expect(localTokens.read('old-session')).toEqual(stored);
+  });
+
+  it('session-only predecessor-store failure remains a server failure', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('captured', 'captured', NULL, 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const retained = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now - 1,
+    };
+    await lifecycle.open('old-session', retained, { openedAt: 1, reauthenticatedAt: null });
+    const app = mounted(claims, lifecycle, []);
+    const resolve = spyOn(auth, 'resolveOidcIdentity');
+    localTokens.save({
+      sessionCorrelation: 'old-session',
+      refreshToken: 'retained-refresh',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: retained,
+    });
+    const tables = [
+      'users',
+      'external_identity',
+      'browser_auth_lifecycle',
+      'browser_credential_revocations',
+    ];
+    const before = tables.map((table) => all(`SELECT * FROM ${table}`));
+    const stored = localTokens.read('old-session');
+    sql('DROP TABLE browser_auth_association');
+    const reply = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: {
+          cookie: `${browserBindingCookieName('binding-1')}=binding-1; __Host-wbs_session=old-session; __Host-wbs_organization=selected`,
+        },
+      }),
+    );
+    expect(reply.status).toBe(500);
+    expect(reply.headers.get('location')).toBeNull();
+    expect(reply.headers.getSetCookie()).toEqual([]);
+    expect(exchanges).toBe(0);
+    expect(resolve).not.toHaveBeenCalled();
+    expect(revokeCalls).toBe(0);
+    expect(tables.map((table) => all(`SELECT * FROM ${table}`))).toEqual(before);
+    expect(localTokens.read('old-session')).toEqual(stored);
+  });
+
+  it('closes a session-only predecessor before a provider revoke failure fails the callback', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('captured', 'captured', NULL, 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const retained = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('retained-access').digest('hex'),
+      expiresAt: now - 1,
+    };
+    await lifecycle.open('old-session', retained, { openedAt: 1, reauthenticatedAt: null });
+    const app = mounted(claims, lifecycle, []);
+    localTokens.save({
+      sessionCorrelation: 'old-session',
+      refreshToken: 'retained-refresh',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: retained,
+    });
+    revokeFault = true;
+    const reply = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: {
+          cookie: `${browserBindingCookieName('binding-1')}=binding-1; __Host-wbs_session=old-session`,
+        },
+      }),
+    );
+    expect(reply.status).toBe(500);
+    expect(reply.headers.get('location')).toBeNull();
+    expect(reply.headers.getSetCookie()).toEqual([]);
+    expect(revokeCalls).toBe(1);
+    expect(localTokens.read('old-session')).toBeNull();
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([
+      { credential_digest: retained.digest },
+    ]);
+    expect(all('SELECT state FROM browser_auth_lifecycle')).toEqual([{ state: 'closed' }]);
+    expect(loginTransactions.consume('binding-1', 'state-1')).toEqual({ outcome: 'missing' });
+  });
+
   it('retires a proved native predecessor before OIDC callback publishes replacement cookies', async () => {
     const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
     const app = mounted(claims, lifecycle);
@@ -2642,6 +3149,48 @@ describe('the OIDC callback after activation', () => {
     );
   });
 
+  it('closes an OIDC predecessor proved by its correlation cookie alone before native login', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const revoked = new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now - 1,
+    };
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const native = await auth.register('password-user', 'correct-horse');
+    if (!native.ok) throw new Error('native account registration failed');
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://dev.wbs.test',
+          'x-forwarded-for': '127.0.0.1',
+          cookie: '__Host-wbs_session=session-1',
+        },
+        body: JSON.stringify({ username: 'password-user', password: 'correct-horse' }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await revoked.isRevoked(first)).toBe(true);
+    expect(localTokens.read('session-1')).toBeNull();
+    expect(revokeCalls).toBe(1);
+  });
+
   it('refuses an enabled OIDC browser composition with no shared lifecycle or a mismatched one', () => {
     const first = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
     const second = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
@@ -2689,6 +3238,29 @@ describe('the OIDC callback after activation', () => {
       credential: expected,
     });
     expect(response.headers.get('set-cookie')).toContain('__Host-wbs_access=access-1;');
+  });
+
+  // A human whose access token carries no groups claim would get a session every `/api` call
+  // refuses (a groups-less configured-issuer token is a machine bearer, M9): a sign-in loop.
+  // The callback refuses it as a rendered error before anything is written.
+  // Proof: with the callback's groups check removed (red first), this redirected to `/`
+  // instead of the rendered error; watched 2026-10-31.
+  it('refuses a sign-in whose access token has no groups claim, issuing no session', async () => {
+    const { wbs_groups: _groups, ...groupless } = claims;
+    callbackAccessClaims = { ...groupless, exp: Math.floor((now + 900_000) / 1000) };
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const app = mounted(claims, lifecycle);
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: { cookie: `${browserBindingCookieName('binding-1')}=binding-1` },
+      }),
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('/?auth_error=groups_claim_missing');
+    expect(response.headers.get('set-cookie') ?? '').not.toContain('__Host-wbs_access=access-1');
+    expect(all('SELECT id FROM users')).toEqual([]);
+    expect(all('SELECT * FROM browser_auth_lifecycle')).toEqual([]);
+    expect(localTokens.read('session-1')).toBeNull();
   });
 
   describe('sign-in times (organization-session-policy)', () => {

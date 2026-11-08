@@ -13,61 +13,61 @@ deploy; after the first tenant, a compatibility layer forever.
   `project:<id>` subscriptions, plan document, audit subject, fe-01 words.
 - To: `work_package`, `/api/work-packages/...`, `postApiWorkPackages…`, `work-package:<id>`,
   plan document 12 with `workPackage`, saved-plan input schema 10.
-- Impact: breaking everywhere; Navigator and the wbs-dev MCP tool names change; dev data
-  migrates in place.
+- Impact: breaking everywhere, MCP tool names included; dev data migrates in place.
 
 **A project is the engagement** (slice 2)
 
-- To: `project(organization_id, name)`; every work package has exactly one project; a
-  "Default project" per organization is back-filled; `createProject`, `patchProject`,
-  `deleteProject`, `moveWorkPackage` with typed refusals; plan document 13.
+- To: `project(organization_id, name)`; every work package has one project, named on create
+  and import (`422 project_required`); project commands and `moveWorkPackage` with typed
+  refusals; no owner; plan document 13.
 
-**Settings inherit; spaces group projects, persons and teams** (slice 3)
+**Settings inherit; spaces are the organization's structure** (slice 3a)
 
-- To: a setting catalogue and `resolveSetting`, organization, space, project, work package, every read naming its provenance; timezone, calendar markers and PERT weights
-  overridable at the work package; steps and a work item type allow-list owned by the
-  project. A space still owns nothing.
+- To: a project in one space or none; a setting catalogue resolving organization → space →
+  project → work package with provenance; timezone, calendar markers and the work item type
+  allow-list settable at space; budget factor fixed at the project.
 
-**Dev cleanup and regrouping** (slice 4) are a runbook, not a migration.
+**Steps** (slice 3b) wait for the separate `wbs-step-catalogue` design.
+
+**Dev cleanup and regrouping** (before slice 2) are a runbook, not a migration.
 
 ## Non-Goals
 
-Per-project access (`wbs-permissions`); any space-level override; budgets (`wbs-budgets`);
-cross-work-package dependencies themselves (`feat/cross-project-dependencies` rebases onto
-these names); keeping any old name, route or document
-version alive.
+Per-project access (`wbs-permissions`); space-scope grants; nested spaces; calendar date
+ranges (`wbs-calendar-ranges`); budgets
+(`wbs-measure-budgets`, merged); cross-work-package dependencies themselves
+(`feat/cross-project-dependencies` rebases onto these names); keeping any old name, route
+or document version alive.
 
 ## Constraints
 
-- Slice 1 renames tables and columns under a migration-lint waiver; slice 2 rebuilds
-  `work_package` with `project_id NOT NULL`. Each ships in a stop-the-world window with a
-  verified backup as the rollback.
+- Slices 1, 2 and 3a are a documented exception to the additive-migration rule: explicit
+  waivers, the application stopped, a backup report proving source, snapshot and ledger,
+  the snapshot as rollback.
 - Ids stay stable; one project per work package, one organization per project; no
   per-project access invented.
-- The rename is a rerunnable script under `tools/`; residuals are listed, never hidden. Old
+- The rename is a rerunnable script under `tools/`; residuals are listed. Old
   `migration.sql` files are never edited.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `work-packages`: rename invariants, project entity, default project, moves, settings
-  inheritance with provenance, space links.
+- `work-packages`: rename, projects, moves, settings, steps, spaces.
 
 ### Modified Capabilities
 
-none; synced specs are renamed at archive time (E29).
+None by delta; ten synced specs are edited in place in the slice 1 PR (E29).
 
 ## Domain Terms
 
-Work package, Project, Default project, Space, Space membership, Project settings, Setting
-provenance.
+Work package, Project, Space, Space membership, Project settings, Setting provenance.
 
 ## Decisions Recorded
 
-No ADR. E1 to E9 are the owner's; E10 onward in design.md are assumed, overrulable by id.
+E1 to E9 are Dany's; E10 onward assumed, overrulable by id; E47 to E49 settled 2026-10-25. ADR
+0063 supersedes ADR 0033.
 
 ## Impact
 
-Every `@wbs/*` library, both stores, be-01, gw-01, mcp-01, fe-01, twilight-navigator,
-`CONTEXT.md`, docs, the dev database.
+Every `@wbs/*` library, be-01, gw-01, mcp-01, fe-01, twilight-navigator, docs, dev data.

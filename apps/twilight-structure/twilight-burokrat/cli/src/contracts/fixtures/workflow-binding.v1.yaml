@@ -1,0 +1,32 @@
+version: 1
+types:
+  change:
+    plan: { class: plan }
+    impl: { class: impl }
+    review: { class: review }
+    verify: { class: verify }
+    integrate: { class: integrate }
+classes:
+  plan:
+    executor: api-model
+    model: anthropic:claude-opus-5-5
+    prompt: .twilight/prompts/plan.md
+    tools: [wbs-read]
+    limits: { maxSteps: 20, maxOutputTokens: 16000 }
+  impl:
+    executor: cli-harness
+    harness: claude-code
+    permissionMode: allow-edits
+    prompt: .twilight/prompts/impl.md
+  review:
+    executor: api-model
+    model: anthropic:claude-opus-5-5
+    prompt: .twilight/prompts/review.md
+    tools: [wbs-read]
+    limits: { maxSteps: 20, maxOutputTokens: 16000 }
+  verify:
+    executor: tool
+    command: bin/h2puni-gate.sh
+  integrate:
+    executor: human
+    prompt: .twilight/prompts/integrate.md

@@ -1,15 +1,18 @@
-import type { MeasureMetric, StoredMeasure } from '@wbs/domain';
+import type { MeasureDefinition, StoredMeasure } from '@wbs/domain';
 
 import type { StepWriteOutcome, ValueGroupPlacement } from './estimate-store';
 import type { WriteStamp } from './write-stamp';
 
 export type { StoredMeasure } from '@wbs/domain';
 
-/** One measure row's whole identity: the triple its primary key is. */
+/**
+ * One measure row's whole identity: its step node and its metric, a legacy
+ * name or a definition key ({@link StoredMeasure.metric}).
+ */
 export interface MeasureKey {
   workItemId: string;
   stepId: string;
-  metric: MeasureMetric;
+  metric: string;
 }
 
 /**
@@ -35,11 +38,20 @@ export interface MeasureStore {
   listByProject(projectId: string): Promise<StoredMeasure[]>;
   /** Values for the requested work items in project, step, and metric order. */
   listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredMeasure[]>;
+  /**
+   * The measure definitions of the organization owning the project, in list
+   * order, or null when no organization owns it (`wbs-measure-budgets` D4,
+   * design D19): what a fact's metric is decided against.
+   */
+  definitionsFor(projectId: string): Promise<MeasureDefinition[] | null>;
   /** Populated-group placements with {@link EstimateStore.listPlacements}'s exact semantics. */
   listPlacements(projectId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
   /**
    * Writes one work item's figure in one metric for one step, replacing any
    * earlier one in that metric and leaving the pair's other metrics alone.
+   *
+   * @throws when the metric is neither a legacy name nor a key the owning
+   * organization defines: callers decide it first ({@link definitionsFor}).
    */
   set(measure: StoredMeasure, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**
@@ -52,12 +64,7 @@ export interface MeasureStore {
    * left. What it leaves behind is nobody having said, which is the absence of a
    * row and never a stored zero.
    */
-  remove(
-    workItemId: string,
-    stepId: string,
-    metric: MeasureMetric,
-    stamp: WriteStamp,
-  ): Promise<void>;
+  remove(workItemId: string, stepId: string, metric: string, stamp: WriteStamp): Promise<void>;
   /**
    * Moves every measure in every metric from one work item to another, exactly
    * as {@link ActualStore.moveAll} does and at the same call sites.

@@ -26,12 +26,14 @@ export const planDocumentModule = DiBag.createBuilder()
         markers,
         clock,
         resourceFacts,
+        measureFacts,
       }: {
         directory: PlanDocumentServiceOptions['directory'];
         stepParallels: PlanDocumentServiceOptions['stepParallels'];
         markers: CalendarMarkerReader;
         clock: Pick<Clock, 'now'>;
         resourceFacts: PlanDocumentServiceOptions['resourceFacts'];
+        measureFacts: PlanDocumentServiceOptions['measureFacts'];
         // Proof (2026-09-23): handing the feature `clock: { now: () => 0 }` instead of the supplied
         // clock left `exports a project with its markers over the graph installPlanDocument wires`
         // failing (4 pass, 1 fail): `exportedAt` read "1970-01-01T00:00:00.000Z".
@@ -41,6 +43,7 @@ export const planDocumentModule = DiBag.createBuilder()
         clock,
         stepParallels,
         resourceFacts,
+        measureFacts,
       }),
       { factoryReturnKind: 'sync-value' },
     ),

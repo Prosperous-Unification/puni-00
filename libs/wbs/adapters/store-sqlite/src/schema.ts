@@ -2,6 +2,7 @@ import {
   allowanceHundredthsOf,
   type AllowancePercent,
   ATTEMPT_OUTCOMES,
+  BUDGET_POLICIES,
   CAPACITY_REPORT_OUTCOMES,
   COMPUTE_PROVIDER_KINDS,
   DOMAIN_CLAIM_STATUSES,
@@ -9,11 +10,15 @@ import {
   HOLDS,
   INVITABLE_ROLES,
   JOIN_REQUEST_STATUSES,
+  MEASURE_KINDS,
   MEASURE_METRICS,
+  MEASURE_SCALES,
   ORGANIZATION_ROLES,
   PERSON_KINDS,
   READINESSES,
   RESOURCE_KINDS,
+  type ResourceUse,
+  type ResourceUseEvent,
   SOLVER_FAILURE_REASONS,
   SOLVER_OBJECTIVES,
 } from '@wbs/domain';
@@ -335,6 +340,14 @@ export const project = sqliteTable(
      * is not one.
      */
     timezone: text('timezone').notNull().default('UTC'),
+    /**
+     * What a derived budget multiplies the pessimistic point by
+     * (`wbs-measure-budgets` design D38), created by
+     * `20261023170000_add_work_item_budget` with a column CHECK keeping it
+     * above 0 and at most 1000. Defaulted to 1, which the outgoing release's
+     * insert relies on.
+     */
+    budgetFactor: real('budget_factor').notNull().default(1),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },
@@ -1131,13 +1144,33 @@ export const stepMeasure = sqliteTable(
     stepId: text('step_id')
       .notNull()
       .references(() => step.id),
-    metric: text('metric', { enum: MEASURE_METRICS }).notNull(),
+    // Nullable since `20261023150000_key_step_measure`: a fact on a defined
+    // measure has no legacy name and is keyed by `measureId` alone.
+    metric: text('metric', { enum: MEASURE_METRICS }),
+    /**
+     * The definition a fact is in (`wbs-measure-budgets` D4): set by the store
+     * for a defined measure, and by the `step_measure_keys_legacy_fact` trigger
+     * for a `token_actual` or `hours_actual` row of a project an organization
+     * owns. NULL on a `token_estimate` row and on an unowned project's facts.
+     */
+    measureId: text('measure_id').references(() => measure.id),
     value: real('value').notNull(),
     recordedAt: integer('recorded_at').notNull(),
+    /**
+     * What a money fact was priced with (`wbs-measure-budgets` D43), both or
+     * neither: a column CHECK on `rate_card_digest` from
+     * `20261023170000_add_work_item_budget`. NULL on every other measure.
+     */
+    currency: text('currency'),
+    rateCardDigest: text('rate_card_digest'),
     ...auditColumns(),
   },
   (t) => [
-    primaryKey({ columns: [t.workItemId, t.stepId, t.metric] }),
+    // The old primary key's three columns, still unique: the outgoing
+    // release's upsert names exactly this conflict target.
+    uniqueIndex('step_measure_metric_key').on(t.workItemId, t.stepId, t.metric),
+    uniqueIndex('step_measure_measure_key').on(t.workItemId, t.stepId, t.measureId),
+    index('step_measure_by_measure').on(t.measureId),
     // Declared here and created by `20260831120000_rename_role_to_step`, which is
     // the awkward half of that rename: the index was rebuilt under its new name
     // in SQL and never written back into this file, so the next
@@ -1151,10 +1184,90 @@ export const stepMeasure = sqliteTable(
       'role_measure_metric',
       sql`${t.metric} IN ('token_estimate', 'token_actual', 'hours_actual')`,
     ),
+    check('step_measure_addressed', sql`${t.metric} IS NOT NULL OR ${t.measureId} IS NOT NULL`),
   ],
 );
 
 export type StepMeasureRow = typeof stepMeasure.$inferSelect;
+
+/**
+ * One step node's three-point estimate in one measure other than time
+ * (`wbs-measure-budgets` D3), created by `20261023160000_add_measure_estimate`.
+ *
+ * `measureKey` is the identity and `measureId` the reference, NULL while no
+ * organization owns the project (design D19). A `tokens` row with
+ * `singlePoint` stands for the legacy `token_estimate` row of
+ * {@link stepMeasure}, which the `step_measure_mirrors_token_estimate_*`
+ * triggers keep it in step with (design D28). `work_item_id` cascades and
+ * `step_id` does not, as on {@link stepMeasure}.
+ */
+export const measureEstimate = sqliteTable(
+  'measure_estimate',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    stepId: text('step_id')
+      .notNull()
+      .references(() => step.id),
+    measureKey: text('measure_key').notNull(),
+    measureId: text('measure_id').references(() => measure.id),
+    optimistic: real('optimistic').notNull(),
+    realistic: real('realistic').notNull(),
+    pessimistic: real('pessimistic').notNull(),
+    singlePoint: integer('single_point', { mode: 'boolean' }).notNull().default(false),
+    /** What a money trio was priced with, as on {@link stepMeasure} (design D43). */
+    currency: text('currency'),
+    rateCardDigest: text('rate_card_digest'),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.stepId, t.measureKey] }),
+    index('measure_estimate_by_step').on(t.stepId),
+    index('measure_estimate_by_measure').on(t.measureId),
+    check(
+      'measure_estimate_ordered',
+      sql`0 <= ${t.optimistic} AND ${t.optimistic} <= ${t.realistic} AND ${t.realistic} <= ${t.pessimistic}`,
+    ),
+    check(
+      'measure_estimate_single_point',
+      sql`${t.singlePoint} IN (0, 1) AND (${t.singlePoint} = 0 OR (${t.measureKey} = 'tokens' AND ${t.optimistic} = ${t.realistic} AND ${t.realistic} = ${t.pessimistic}))`,
+    ),
+  ],
+);
+
+/**
+ * One work item's stated budget in one measure (`wbs-measure-budgets` D5,
+ * design D36), created by `20261023170000_add_work_item_budget`.
+ *
+ * `measureKey` is the identity and `measureId` the reference, NULL while no
+ * organization owns the project (design D30). Derived budgets are computed on
+ * read and never stored here. `work_item_id` cascades: a deleted work item's
+ * budgets go with it and an undo writes them back.
+ */
+export const workItemBudget = sqliteTable(
+  'work_item_budget',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    measureKey: text('measure_key').notNull(),
+    measureId: text('measure_id').references(() => measure.id),
+    cap: real('cap').notNull(),
+    policy: text('policy', { enum: BUDGET_POLICIES }).notNull(),
+    holdPerAttempt: real('hold_per_attempt'),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.measureKey] }),
+    index('work_item_budget_by_measure').on(t.measureId),
+    check('work_item_budget_policy', sql`${t.policy} IN ('strict', 'advisory')`),
+    check(
+      'work_item_budget_figures',
+      sql`${t.cap} >= 0 AND (${t.holdPerAttempt} IS NULL OR ${t.holdPerAttempt} >= 0)`,
+    ),
+  ],
+);
 
 /**
  * One **attempt** (`CONTEXT.md`): one run at a step node's work, numbered from
@@ -1903,6 +2016,31 @@ export const projectResourceCapacity = sqliteTable(
 export type ProjectResourceCapacityRow = typeof projectResourceCapacity.$inferSelect;
 
 /**
+ * A resource's **Directory capacity** (`wbs-shared-occupancy` S1,
+ * `20261101100100_add_resource_directory_capacity`): the units of it that exist
+ * for every project of its organization. A row is stated, its absence
+ * unstated; nothing is remembered, since it is a fact about the resource, not
+ * about any plan's use of it. Cascades from the resource; 0 is a legal
+ * statement, as a project capacity's is.
+ */
+export const resourceDirectoryCapacity = sqliteTable(
+  'resource_directory_capacity',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => resource.id, { onDelete: 'cascade' }),
+    units: integer('units').notNull(),
+    ...auditColumns(),
+  },
+  (t) => [
+    check(
+      'resource_directory_capacity_units',
+      sql`typeof(${t.units}) = 'integer' AND ${t.units} >= 0`,
+    ),
+  ],
+);
+
+/**
  * The units of one resource one work item needs while any of its steps runs: a
  * satellite of the work item like {@link workItemTeam}, so writing one moves the
  * item's revision. Both ends cascade; indexed by resource for the directory
@@ -2331,14 +2469,17 @@ export type TypedDependencyRow = typeof typedDependency.$inferSelect;
  * One command somebody ran, and everything needed to reverse it — the undo
  * stack, held on the server so it survives a reload.
  *
- * **One stack per (project, account).** Undo is personal: reversing somebody
- * else's last edit because it happened to be the newest is how a shared plan
- * loses work nobody meant to lose. Two browser tabs of one account share one
- * stack, which is accepted and stated in
- * `openspec/changes/conditional-undo/design.md`.
+ * **One stack per (project, account, acting person).** Undo is personal:
+ * reversing somebody else's last edit because it happened to be the newest is
+ * how a shared plan loses work nobody meant to lose. Two browser tabs of one
+ * account share one stack, which is accepted and stated in
+ * `openspec/changes/conditional-undo/design.md`. `person_id` is the agent
+ * person a machine or consent credential acts as, null for the account acting
+ * as itself, because those credentials act as their human's account (`UndoStack`).
+ * Compared with `IS`, so a null matches only a null.
  *
- * `seq` orders that stack and is assigned by SQLite from the pair's current
- * maximum, inside the `INSERT` itself — the same rule as `work_item.revision`
+ * `seq` orders the account's stacks together and is assigned by SQLite from
+ * the pair's current maximum, inside the `INSERT` itself — the same rule as `work_item.revision`
  * and for the same reason. Two processes sharing the file mid-swap would
  * otherwise both read the same maximum and both write it, and the unique index
  * on `(project_id, user_id, seq)` would then refuse the second insert, failing
@@ -2372,6 +2513,12 @@ export const commandJournal = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * Added by `20261026120000_add_command_journal_person`. Cascades: a deleted
+     * agent's stack can never be pressed again, and `SET NULL` would hand its
+     * edits to its human's stack, which is the bug this column fixes.
+     */
+    personId: text('person_id').references(() => person.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),
     kind: text('kind').notNull(),
     payload: text('payload').notNull(),
@@ -2380,7 +2527,11 @@ export const commandJournal = sqliteTable(
     undone: integer('undone', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at').notNull(),
   },
-  (t) => [uniqueIndex('command_journal_stack').on(t.projectId, t.userId, t.seq)],
+  (t) => [
+    uniqueIndex('command_journal_stack').on(t.projectId, t.userId, t.seq),
+    index('command_journal_person_stack').on(t.projectId, t.userId, t.personId, t.seq),
+    index('command_journal_person').on(t.personId),
+  ],
 );
 
 export type CommandJournalRow = typeof commandJournal.$inferSelect;
@@ -2390,9 +2541,9 @@ export type CommandJournalRow = typeof commandJournal.$inferSelect;
  *
  * **This is the third log in this file and it is not either of the other two.**
  * `event_log` is the websocket resume buffer, keyed by subscription and pruned
- * by count. `command_journal` is an undo stack: one per (project, **account**),
- * fifty deep, and its `append` deletes that account's redo branch every time it
- * writes. Neither can answer "how did this estimate move" — the first never
+ * by count. `command_journal` is an undo stack: one per (project, **account**,
+ * acting person), fifty deep, and its `append` deletes that stack's redo branch
+ * every time it writes. Neither can answer "how did this estimate move" — the first never
  * held it, and the second is per-person, evicted after an afternoon's editing,
  * and loses anything undone. Dany, 2026-08-13: *"so that later I can examine
  * the history of estimates changes"*. `notes/wbs-brief-2026-08-14-r5-r6-history.md`
@@ -2985,13 +3136,13 @@ export const externalIdentity = sqliteTable(
     issuer: text('issuer').notNull(),
     subject: text('subject').notNull(),
     /**
-     * The one person this credential may claim as (`wbs-team-claims` D6): a
-     * fleet credential linked to a human's account is pinned to that fleet's
-     * agent person, which must be bound to the same account. Null is an
-     * unpinned credential, as every browser login is. Written only by
-     * `link-credential-cli.ts`; added by
+     * Inert since the operator links retired (`wbs-machine-credentials` A18):
+     * the person the retired link CLI pinned a fleet credential to. No release
+     * reads it; removing the person deletes its rows, the column's only use,
+     * until a cleanup change drops it. Added by
      * `20261019130100_add_external_identity_person`, whose `down.sql` refuses
-     * while any credential is pinned.
+     * while any row is pinned (its message names the retired CLI; delete
+     * those rows instead).
      */
     personId: text('person_id').references(() => person.id),
     createdAt: integer('created_at').notNull(),
@@ -3381,7 +3532,13 @@ export const savedPlanOrganization = sqliteTable(
  * `20261022130100_widen_organization_audit_organization_limits` the
  * operator's limits changes; and
  * `20261022140100_widen_organization_audit_compute_providers` the compute
- * provider acts.
+ * provider acts; `20261026130000_widen_organization_audit_machine_tokens`
+ * machine grant issuance, with the two partial unique indexes its targeted
+ * insert names (`MachineTokenAuditRepository`);
+ * `20261028100100_widen_organization_audit_agent_pools` the agent pool acts,
+ * recreating those two indexes after its rebuild; and
+ * `20261101100000_widen_organization_audit_directory_capacity` the
+ * directory capacity changes, recreating the same two indexes.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3400,13 +3557,23 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed')`,
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed', 'machine_token_issued', 'machine_token_issued_overflow', 'agent_pool_created', 'agent_pool_revoked', 'agent_pool_rekeyed', 'directory_capacity_changed')`,
     ),
     check(
       'organization_audit_subject_kind',
-      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider')`,
+      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider', 'agent_pool', 'resource')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
+    uniqueIndex('organization_audit_machine_token_issued_run')
+      .on(
+        sql`json_extract(${t.detail}, '$.credentialId')`,
+        sql`${t.createdAt} / 86400000`,
+        sql`coalesce(json_extract(${t.detail}, '$.runId'), '')`,
+      )
+      .where(sql`${t.action} = 'machine_token_issued'`),
+    uniqueIndex('organization_audit_machine_token_issued_overflow_day')
+      .on(sql`json_extract(${t.detail}, '$.credentialId')`, sql`${t.createdAt} / 86400000`)
+      .where(sql`${t.action} = 'machine_token_issued_overflow'`),
   ],
 );
 
@@ -3522,7 +3689,8 @@ export const organizationTrustedIssuer = sqliteTable(
  * lowercase UUID because an API key carries it in the clear (A22), held to
  * that shape by `20261022110100_check_machine_credential_id`'s triggers. Added
  * by `20261022100000_add_machine_credential`, whose `down.sql` refuses while
- * any row exists.
+ * any row exists. `agent_pool_id` names the {@link agentPool} that issued it
+ * (`20261028100000_add_agent_pool`), null for a credential issued alone.
  */
 export const machineCredential = sqliteTable(
   'machine_credential',
@@ -3549,6 +3717,7 @@ export const machineCredential = sqliteTable(
     revokedAt: integer('revoked_at'),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
+    agentPoolId: text('agent_pool_id').references((): AnySQLiteColumn => agentPool.id),
   },
   (t) => [
     // One subject per trusted issuer row (A25,
@@ -3565,8 +3734,41 @@ export const machineCredential = sqliteTable(
       .where(sql`${t.revokedAt} IS NULL`),
     index('machine_credential_organization').on(t.organizationId),
     index('machine_credential_person').on(t.personId),
+    index('machine_credential_agent_pool').on(t.agentPoolId),
   ],
 );
+
+/**
+ * One **Agent pool** (`wbs-mcp-agent-surface` M7): the act that made `size`
+ * agent persons and one API key each, fixed after creation. `expires_at` is
+ * judged for every pool credential at admission; `revoked_at` is set once,
+ * when the pool is revoked as a unit, and frees the name. Added by
+ * `20261028100000_add_agent_pool`, whose `down.sql` refuses while any row
+ * exists.
+ */
+export const agentPool = sqliteTable(
+  'agent_pool',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+    size: integer('size').notNull(),
+    expiresAt: integer('expires_at'),
+    revokedAt: integer('revoked_at'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('agent_pool_live_name')
+      .on(t.organizationId, t.name)
+      .where(sql`${t.revokedAt} IS NULL`),
+    index('agent_pool_organization').on(t.organizationId),
+  ],
+);
+
+export type AgentPoolRow = typeof agentPool.$inferSelect;
 
 export type MachineCredentialRow = typeof machineCredential.$inferSelect;
 
@@ -3946,6 +4148,118 @@ export const stepParallel = sqliteTable(
   ],
 );
 
+/** Permanent receiver installation witness; only its explicit migration creates the singleton. */
+export const runtimeLedger = sqliteTable(
+  'runtime_ledger',
+  {
+    id: integer('id').primaryKey().notNull(),
+    schemaVersion: integer('schema_version').notNull(),
+    ledgerId: text('ledger_id').notNull(),
+    authorityCount: integer('authority_count').notNull(),
+    bindingCount: integer('binding_count').notNull(),
+    receiptCount: integer('receipt_count').notNull(),
+  },
+  (table) => [
+    check('runtime_ledger_singleton', sql`${table.id} = 1`),
+    check('runtime_ledger_version', sql`${table.schemaVersion} = 1`),
+    check('runtime_ledger_identity', sql`length(${table.ledgerId}) > 0`),
+    check(
+      'runtime_authority_count',
+      sql`typeof(${table.authorityCount}) = 'integer' AND ${table.authorityCount} BETWEEN 0 AND 9007199254740991`,
+    ),
+    check(
+      'runtime_binding_count',
+      sql`typeof(${table.bindingCount}) = 'integer' AND ${table.bindingCount} BETWEEN 0 AND 9007199254740991`,
+    ),
+    check(
+      'runtime_receipt_count',
+      sql`typeof(${table.receiptCount}) = 'integer' AND ${table.receiptCount} BETWEEN 0 AND 9007199254740991`,
+    ),
+  ],
+);
+
+/** Retains scope strings without foreign keys so ordinary deletion cannot erase receiver history. */
+function runtimeScopeColumns() {
+  return {
+    organizationId: text('organization_id').notNull(),
+    projectId: text('project_id').notNull(),
+    personId: text('person_id').notNull(),
+  };
+}
+
+/** One monotonic owner grant for each retained organization/project/person scope. */
+export const runtimeAuthority = sqliteTable(
+  'runtime_authority',
+  {
+    ...runtimeScopeColumns(),
+    ownerId: text('owner_id').notNull(),
+    generation: integer('generation').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.projectId, table.personId] }),
+    check(
+      'runtime_authority_scope',
+      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+    ),
+    check('runtime_authority_owner', sql`length(${table.ownerId}) > 0`),
+    check(
+      'runtime_authority_generation',
+      sql`typeof(${table.generation}) = 'integer' AND ${table.generation} BETWEEN 1 AND 9007199254740991`,
+    ),
+  ],
+);
+
+/** Exact immutable execution identity, independent of live claims and business attempt numbers. */
+export const runtimeClaimBinding = sqliteTable(
+  'runtime_claim_binding',
+  {
+    ...runtimeScopeColumns(),
+    claimId: text('claim_id').notNull(),
+    storeId: text('store_id').notNull(),
+    attemptId: text('attempt_id').notNull(),
+    binding: text('binding').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.projectId, table.personId, table.claimId] }),
+    unique('runtime_scope_attempt').on(
+      table.organizationId,
+      table.projectId,
+      table.personId,
+      table.storeId,
+      table.attemptId,
+    ),
+    check(
+      'runtime_binding_scope',
+      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+    ),
+    check(
+      'runtime_binding_identity',
+      sql`length(${table.claimId}) > 0 AND length(${table.storeId}) > 0 AND length(${table.attemptId}) > 0`,
+    ),
+    check('runtime_binding_json', sql`json_valid(${table.binding})`),
+  ],
+);
+
+/** Accepted envelopes and exact successful replies share one permanent scoped command namespace. */
+export const runtimeCommandReceipt = sqliteTable(
+  'runtime_command_receipt',
+  {
+    ...runtimeScopeColumns(),
+    commandId: text('command_id').notNull(),
+    accepted: text('accepted').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.organizationId, table.projectId, table.personId, table.commandId],
+    }),
+    check(
+      'runtime_receipt_scope',
+      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+    ),
+    check('runtime_receipt_identity', sql`length(${table.commandId}) > 0`),
+    check('runtime_receipt_json', sql`json_valid(${table.accepted})`),
+  ],
+);
 /**
  * One **Provider instance** (`compute-providers` P2): what one organization
  * registered as fulfilling its resources' units, with a display-only locator
@@ -3990,6 +4304,10 @@ export const resourceCapacityReport = sqliteTable(
     outcome: text('outcome', { enum: CAPACITY_REPORT_OUTCOMES }).notNull(),
     capacityUnits: integer('capacity_units'),
     usageUnits: integer('usage_units'),
+    /** What a host pool's ledger reserves, beside `usageUnits` (`dash-host-jobs` J10). */
+    reservedUnits: integer('reserved_units'),
+    /** The host pool dimension `reservedUnits` counts; set exactly when they are. */
+    reservedDimension: text('reserved_dimension'),
     reason: text('reason'),
     reportedByPersonId: text('reported_by_person_id')
       .notNull()
@@ -4003,3 +4321,164 @@ export const resourceCapacityReport = sqliteTable(
 );
 
 export type ResourceCapacityReportRow = typeof resourceCapacityReport.$inferSelect;
+
+/**
+ * One organization's measure definitions (`wbs-measure-budgets` D1, D2), the
+ * rows `MeasureDefinition` in `@wbs/domain` reads. Added by
+ * `20261023140000_add_measure`, which seeds the five definitions for every
+ * existing organization and, by its `organization_seed_measures` trigger, for
+ * every organization inserted later; its `measure_shape_frozen` trigger keeps
+ * `key`, `organization_id`, `kind`, `scale` and `derived` unchanged, and its
+ * `down.sql` refuses while any definition beyond the seeded keys, or any seeded
+ * definition edited away from its seed, exists. `order` is quoted by drizzle and
+ * must be quoted in raw SQL.
+ */
+export const measure = sqliteTable(
+  'measure',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    name: text('name').notNull(),
+    unit: text('unit').notNull(),
+    kind: text('kind', { enum: MEASURE_KINDS }).notNull(),
+    scale: text('scale', { enum: MEASURE_SCALES }).notNull(),
+    threePoint: integer('three_point', { mode: 'boolean' }).notNull(),
+    showByDefault: integer('show_by_default', { mode: 'boolean' }).notNull(),
+    schedulesWork: integer('schedules_work', { mode: 'boolean' }).notNull(),
+    derived: integer('derived', { mode: 'boolean' }).notNull(),
+    order: integer('order').notNull(),
+    currency: text('currency'),
+    ...auditColumns(),
+  },
+  (t) => [
+    uniqueIndex('measure_organization_key').on(t.organizationId, t.key),
+    uniqueIndex('measure_one_scheduling')
+      .on(t.organizationId)
+      .where(sql`${t.schedulesWork} = 1`),
+    check(
+      'measure_key',
+      sql`length(${t.key}) BETWEEN 1 AND 40 AND ${t.key} GLOB '[a-z]*' AND ${t.key} NOT GLOB '*[^a-z0-9_]*'`,
+    ),
+    check('measure_kind', sql`${t.kind} IN ('duration', 'count', 'money')`),
+    check('measure_scale', sql`${t.scale} IN ('integer', 'real')`),
+    check(
+      'measure_flags',
+      sql`${t.threePoint} IN (0, 1) AND ${t.showByDefault} IN (0, 1) AND ${t.schedulesWork} IN (0, 1) AND ${t.derived} IN (0, 1)`,
+    ),
+    check(
+      'measure_order',
+      sql`typeof(${t.order}) = 'integer' AND ${t.order} BETWEEN 0 AND 1000000`,
+    ),
+    check(
+      'measure_currency',
+      sql`(${t.kind} = 'money') = (${t.currency} IS NOT NULL) AND (${t.currency} IS NULL OR (length(${t.currency}) = 3 AND ${t.currency} NOT GLOB '*[^A-Z]*'))`,
+    ),
+  ],
+);
+
+/** Durable operational snapshots; source deletions never cascade into reported responsibility. */
+export const resourceUseRecord = sqliteTable(
+  'resource_use',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id'),
+    projectId: text('project_id').notNull(),
+    workItemId: text('work_item_id').notNull(),
+    responsiblePersonId: text('responsible_person_id').notNull(),
+    agentRun: text('agent_run').notNull(),
+    stepId: text('step_id'),
+    attemptNumber: integer('attempt_number'),
+    state: text('state').notNull(),
+    revision: integer('revision').notNull(),
+    snapshot: text('snapshot', { mode: 'json' }).$type<ResourceUse>().notNull(),
+    requestId: text('request_id').notNull(),
+    requestFingerprint: text('request_fingerprint').notNull(),
+    registrationResponse: text('registration_response', { mode: 'json' })
+      .$type<ResourceUse>()
+      .notNull(),
+  },
+  (t) => [
+    index('resource_use_project').on(t.projectId, t.id),
+    index('resource_use_lifecycle').on(t.workItemId, t.responsiblePersonId, t.agentRun),
+  ],
+);
+/** Append-only reports and exact original responses for retries after subsequent transitions. */
+export const resourceUseEventRecord = sqliteTable('resource_use_event', {
+  id: text('id').notNull(),
+  useId: text('use_id').notNull(),
+  projectId: text('project_id').notNull(),
+  revision: integer('revision').notNull(),
+  snapshot: text('snapshot', { mode: 'json' }).$type<ResourceUseEvent>().notNull(),
+  fingerprint: text('fingerprint').notNull(),
+  response: text('response', { mode: 'json' }).$type<ResourceUse>().notNull(),
+});
+
+/** Immutable authority binding; its sequence advances atomically with accepted runtime events. */
+export const resourceAuthorityRecord = sqliteTable('resource_authority', {
+  authorityId: text('authority_id').primaryKey(),
+  organizationId: text('organization_id').notNull(),
+  providerId: text('provider_id').notNull(),
+  credentialId: text('credential_id').notNull(),
+  epoch: text('epoch').notNull(),
+  acceptedSequence: integer('accepted_sequence').notNull(),
+  createdAt: integer('created_at').notNull(),
+  createdBy: text('created_by').notNull(),
+});
+/** Runtime identity is separate from the browser projection revision. */
+export const resourceRuntimeUseRecord = sqliteTable('resource_runtime_use', {
+  useId: text('use_id').primaryKey(),
+  authorityId: text('authority_id').notNull(),
+  incarnation: text('incarnation').notNull(),
+  revision: integer('revision').notNull(),
+  declaration: text('declaration').notNull(),
+});
+/** Exact accepted message and answer make replay independent of later state. */
+export const resourceRuntimeEventRecord = sqliteTable('resource_runtime_event', {
+  authorityId: text('authority_id').notNull(),
+  eventId: text('event_id').notNull(),
+  sequence: integer('sequence').notNull(),
+  fingerprint: text('fingerprint').notNull(),
+  response: text('response', { mode: 'json' })
+    .$type<{ acceptedSequence: number; useId: string; revision: number }>()
+    .notNull(),
+});
+/**
+ * One host job its resource authority published (`dash-host-jobs` J10): owned by the
+ * authority and its organization, never by a planning row, so no deletion strands it.
+ * `declaration` is the use exactly as sent; `evidence` the settlement evidence once returned.
+ */
+export const resourceHostJobRecord = sqliteTable(
+  'resource_host_job',
+  {
+    useId: text('use_id').primaryKey(),
+    authorityId: text('authority_id').notNull(),
+    organizationId: text('organization_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    incarnation: text('incarnation').notNull(),
+    revision: integer('revision').notNull(),
+    declaration: text('declaration').notNull(),
+    state: text('state', { enum: ['registered', 'release_verified'] }).notNull(),
+    registeredAt: integer('registered_at').notNull(),
+    releasedAt: integer('released_at'),
+    evidence: text('evidence'),
+  },
+  (t) => [index('resource_host_job_provider').on(t.providerId, t.state)],
+);
+/** Durable request queue; only an accepted matching runtime event acknowledges a request. */
+export const resourceCleanupRequestRecord = sqliteTable(
+  'resource_cleanup_request',
+  {
+    requestId: integer('request_id').primaryKey({ autoIncrement: true }),
+    authorityId: text('authority_id').notNull(),
+    useId: text('use_id').notNull(),
+    incarnation: text('incarnation').notNull(),
+    expectedRevision: integer('expected_revision').notNull(),
+    reason: text('reason').notNull(),
+    at: integer('at').notNull(),
+    acknowledgedSequence: integer('acknowledged_sequence'),
+  },
+  (t) => [index('resource_cleanup_request_authority').on(t.authorityId, t.requestId)],
+);

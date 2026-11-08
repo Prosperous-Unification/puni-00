@@ -168,10 +168,19 @@ export * from './claim-lease';
 export * from './occupancy';
 // Resources, their per-project capacity and per-work-item demand (wbs-resources R1).
 export * from './resource';
+export * from './runtime-basis';
+// Measure definitions, one scheduling measure per organization (wbs-measure-budgets D1, D2).
+export * from './budget';
+export * from './budget-admission';
+export * from './measure-definition';
+export * from './measure-estimate';
+export * from './measure-fact';
+export * from './money-basis';
 // Admission of a machine credential, whichever source presented it (wbs-machine-credentials A13, A22).
 export * from './machine-credential';
 // Provider instances and capacity reports beside a declared capacity (compute-providers P2-P7).
 export * from './compute-provider';
+export * from './resource-use';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';

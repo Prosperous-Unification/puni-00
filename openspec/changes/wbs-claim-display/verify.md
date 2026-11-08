@@ -1,6 +1,6 @@
 ## Verification record
 
-Drafted 2026-10-23 as an OpenSpec proposal; nothing is built. C1 to C18 are assumed until
+Drafted 2026-10-23 as an OpenSpec proposal; nothing is built. C1 to C19 are assumed until
 Dany reads them. Sources read on 2026-10-23 on `main` at `e70166d28` and on
 `plan/wbs-claim-leases` at `485972419`: `wbs-team-claims` (tasks 1.7, D1 to D8, spec
 `startable-work`), `wbs-claim-leases` (L1 to L16, tasks 2.1), `startable-shapes.ts`,
@@ -398,3 +398,847 @@ Results (fresh, 2026-10-23):
 - `openspec validate --all --json`: 275 of 275.
 
 The C21 section above described `onChange('claims_changed')`; the second review round replaced that with the opt-in `onClaims`.
+
+### Slice 3: heartbeat announcement (be-01), 2026-10-23
+
+Branch `feat/wbs-claim-display-heartbeat` on `plan/wbs-claim-display` at `dfacc4af0`. Commands
+ran with `env -u CLAUDECODE` from the worktree.
+
+**3.1** `ClaimStore.renewLeases` answers a `LeaseRenewal`: the standing and the projects whose
+leases its committed write moved, in project-id order. SQLite reads them inside the transaction
+that moves the leases; the memory twin from the rows it moves. `PlanCommandRunner.renewLeases`
+publishes one type-only `claims_changed` per named project after the store answers, and the
+route still answers the standing alone. `claims_changed` joins `ProjectEvent` (core only; fe-01
+reads event types as strings, so no fe-01 union changed). Red: two of three new
+`claim-lease.controller.db.test.ts` cases failed before the change (4 pass, 2 fail); the
+`write-renew-expire` conformance case now asserts the named projects.
+
+| R5 fault (watched)                                                                                  | Observed                                                                |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| SQLite store answers the pre-turn due projects and does not await the write (publish before commit) | `announces nothing when the renewal rolls back` records one (0/1 alone) |
+| SQLite store answers every in-force lease's project after the renewal (publish unconditionally)     | `announces nothing for a heartbeat within the minute, …` (5/1)          |
+| SQLite in-transaction read selects in-force rather than due leases                                  | SQLite certification fails `claims.lease:write-renew-expire` (74/1)     |
+| memory twin names the in-force rows' projects rather than the due rows'                             | memory certification fails `claims.lease:write-renew-expire` (74/1)     |
+
+The rolled-back renewal is made by a temporary `RAISE(ABORT)` trigger on `claim.lease_expires_at`;
+the route answers 500 and the lease keeps its old expiry.
+
+Deviation: the task's fault "publish before commit" has no one-line form here, because the store
+owns both the turn and the transaction and the runner learns the moved projects only from its
+answer. The injected fault is the closest real mistake: the store answers before its write
+commits. Observation, not changed: a batch's own renewal moves the agent's leases in every
+project, yet only the batch's project is announced (`tree_replaced`); design C4 accepts the
+batch's project and says nothing of the others.
+
+**3.2** `optimizer-trigger-broadcaster.test.ts` `schedules no optimization for claims_changed`.
+The trigger is an allowlist, so there is no exclusion to remove; the fault adds `claims_changed`
+to the list.
+
+| R5 fault (watched)                      | Observed                      |
+| --------------------------------------- | ----------------------------- |
+| `claims_changed` added to the allowlist | the case sees a trigger (3/1) |
+
+Results (fresh, 2026-10-23): be-01 `claim-lease.controller` (6), `project-claims-organization`,
+`gateway-broadcaster-*`, `services.db`, `app.routes` 163 pass; be-01 `optimization-events` 4
+pass; core `service`, `module/plan-commands`, `module/work-item`, `http/claim*` 830 pass;
+store-sqlite `claim*` and source conformance 130 pass; store-memory 193 pass; conformance 35
+pass; typecheck wbs-contracts, wbs-core (+module), wbs-store-sqlite, wbs-store-memory,
+wbs-conformance, wbs-be-01 (+module), wbs-mcp-01 pass. Not run: mcp-01 tests and fe-01
+`typecheck:module` (no contract or fe-01-visible union changed), the full be-01 and fe-01
+suites (CI carries them).
+
+**3.3** (C19, the coordinator's decision of 2026-10-23, assumed until Dany reads it) A
+committed agent batch announces `claims_changed` through its collector to each project its
+renewal moved other than its own. Four new cases in `claim-lease.controller.db.test.ts`
+(`a batch renewal announcing claims_changed elsewhere`); red before the change on the two
+announcing cases (8 pass, 2 fail).
+
+| R5 fault (watched)                                                | Observed                                                     |
+| ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| announcement loop removed                                         | `announces once to each other project, …` records none (8/2) |
+| own-project filter removed                                        | the batch's own project is announced too (8/2)               |
+| published through the outer broadcaster in place of the collector | deadlock on the event log's turn: both cases time out (8/2)  |
+| SQLite store answers its due projects before its write            | `announces nothing when the batch rolls back` records one    |
+| SQLite store answers every in-force lease's project               | `announces nothing within the minute` records a second       |
+
+The refused case renews nothing, because a refusal never reaches the renewal. It reddened only
+under the every-in-force-project fault, whose setup claims also announce, so it has no fault of
+its own.
+
+**Review round (Fable, #693 at 965adfe10).** After-commit and tenant isolation held. Fixes:
+
+- S3-1 (task 3.4): the own-project exclusion assumed a `tree_replaced` that only a dirty batch
+  sends. A batch that changed no row now announces its own project too. Step commands are not
+  plan commands (steps have their own routes), so no step-only batch renews. Residual, recorded
+  in design C19: a dirty batch whose tree answers `plan_unavailable` refreshes the tree only.
+- S3-2 → C21 (task 3.5): `claims_changed` is transient. `GatewayBroadcaster` pushes it with no
+  `seq`, no `event_log` row and no buffer entry; `InternalPushRequest.seq` is optional and gw-01
+  forwards the frame without one. The route tests now read the pushes (`pushFetch`) and throw if
+  the event is ever logged or sequenced. fe-01 (slice 2) must treat an unsequenced frame as a
+  hint and reread claims on every resume (plan-refresh delta).
+- S4-1: the runner's JSDoc says what a throwing publish means; sequential, kept.
+- S4-2 (task 3.6): SQLite names the projects from `UPDATE … RETURNING` with a scalar subquery,
+  one write statement, no read snapshot before the write.
+- S4-3: the memory twin finds every due row's project before moving any row (new memory test);
+  the conformance case asserts two projects in code-unit order.
+- S4-4: the loop variable is `renewedProjectId`.
+
+| R5 fault (watched 2026-10-23)                                    | Observed                                                                                |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| batch announcement loop removed                                  | three announcing batch cases record none (8/3)                                          |
+| own-project filter removed                                       | the dirty batch's own project is announced (9/2)                                        |
+| dirty test removed                                               | `announces its own project for a batch that changed no row` (10/1)                      |
+| SQLite store answers due projects before its write               | both rollback cases record one (7/4)                                                    |
+| SQLite store answers every in-force lease's project              | within-the-minute and refused cases record extra (4/7)                                  |
+| `isTransient` never true                                         | gateway-broadcaster unit cases (5/2); be-01 cases throw `claims_changed recorded` (6/5) |
+| a failed transient push rethrown                                 | `reports a refused transient push and does not throw` (6/1)                             |
+| `InternalPushRequest.seq` required again                         | gw-01 `delivers an unsequenced push without a sequence` 400 (7/1)                       |
+| SQLite project list unsorted; again undeduplicated               | SQLite certification `write-renew-expire` (74/1 each)                                   |
+| memory project list unsorted; due rows replaced by in-force rows | memory certification `write-renew-expire` (74/1 each)                                   |
+| memory rows moved before the work-item lookups                   | `renews nothing when a due claim names an absent work item` (0/1)                       |
+
+Not watchable: publishing the batch's announcement through the outer broadcaster instead of the
+collector left every case green, because nothing in a batch can fail after its renewal; the
+collector's after-commit send is the existing batch rule, proven in `plan-commands.db.test.ts`.
+The earlier "deadlock" observation no longer holds since the event is not logged.
+
+Merge order (tasks.md): after slices 1 and 2 reach `main` and deploy; gw-01 no later than be-01.
+
+**Cross-check (contract drift, task 3.7).** C21 frames had no home in the socket vocabulary:
+`WsFrame` requires `seq` and the generic client's guard refused a frame without one. Chosen: a
+named `WsTransientFrame` (subscription, message, `'seq?': 'never'`) with its builder
+`wsTransient`, rather than an optional `seq` on `WsFrame`, so every reader that advances a
+resume point still holds a `seq` it can trust. gw-01's internal push builds it when `seq` is
+absent; `createReconnectingWs` gains a required `onTransient` and never updates its tracker
+for one.
+
+| R5 fault (watched 2026-10-23)                     | Observed                                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------- |
+| client's transient arm removed                    | `hands a seq-less frame to onTransient and leaves …` fails (6/1)    |
+| guard's transient arm removed                     | the same case throws on parse (6/1)                                 |
+| tracker advanced on a transient frame             | the same case fails on the snapshot (6/1)                           |
+| `'seq?': 'never'` dropped from `WsTransientFrame` | `are transient frames the parser accepts, and only without …` (6/1) |
+
+design.md's Risks no longer says heartbeat events reach the event log; the claim-reads delta
+states that a transient announcement SHALL NOT consume a durable sequence.
+
+Slice 3 gate fix, 2026-10-24: the h4claw gate on 9bb246710 failed `wbs-core:test` in
+`module-boundaries.test.ts` ("closed feature modules do not reference repository ports"):
+`plan-commands.feature.ts` resolved `renewLeases`' answer to `LeaseRenewal`, then declared in
+`ports/claim-store.ts`. `LeaseRenewal` now lives in `@wbs/domain` beside `LeaseStanding` and the
+port re-exports it. After the move the audit file passes 15 of 15; typecheck wbs-domain, wbs-core,
+wbs-store-sqlite, wbs-store-memory, wbs-be-01 and lint wbs-domain, wbs-core pass.
+
+### Slices 4–7: claim chips, lease display, phone cards (fe-01), 2026-10-24
+
+Branch `feat/wbs-claim-display-chips` on `origin/main` at `76575e668` (slices 1 and 2 merged).
+Commands ran with `env -u CLAUDECODE` and `TZ=UTC` from `apps/wbs/fe-01`. Slice 3 (be-01
+heartbeat announcement, #693) is separate; nothing here touches be-01, gw-01 or contracts.
+
+**Plumbing.** The claims resource installed in slice 2 never reached the screen: the plan feed's
+delivery carried tree, steps, directory and markers only. `AppliedGenerations`,
+`PlanFeedDelivery` and `DeliveredPlan` gain `claims`; `nextDelivery` carries each claims
+generation once, as it does the others; `usePlanRead` returns the installed claims.
+
+| R5 fault (watched)                        | Observed                                                                                        |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| claims generation comparison dropped      | `carries each generation exactly once`: `expected { readAt: 1, … } to be null`                  |
+| delivered store ignores a claims delivery | model run fails after 1 run: `a new snapshot exactly when something changed`, teardown `claims` |
+
+**Boundary.** `httpProjectApi.readClaims` now refuses a read with two claims on one work item and
+step, or a delegated claim whose parent it does not list (`checkClaimsRead`): either is a
+malformed answer (a claims read is one observation and a release cascades to delegated claims),
+and refused there it shows as the claims notice (C12) instead of a chip naming nobody.
+
+| R5 fault (watched)      | Observed                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| duplicate check removed | `refuses a claims read with two claims on one step` resolved                    |
+| parent check removed    | `refuses a claims read whose delegated claim names an unlisted parent` resolved |
+
+**4.1** `claim-chip.tsx` (`ClaimChip`, `ClaimLine`, `claimSentence`, `CLAIM_SLOT_PX`),
+`use-plan-claims.ts` (`indexClaims`, `usePlanClaims`), the folded cell's claim slot after the
+assignee's, the unfolded `by` chip after the picker, the folded step card's claim line. The chip is
+`role="img"` named by the whole sentence ("Claimed by codex since 24 Oct 10:42, run r-7, under
+claire's claim on 010; lease 14 min left"), not focusable, no action; bordered with a 3px hold
+edge in a new `--claim-ink` violet (light and dark tokens), so it differs from the assignee by
+shape. The instant prints in the project's zone (`zonedMoment`) and is left out on a read
+without a zone. Six cases in `plan-claims.test.tsx` over `testing/claims-fixture.ts`.
+
+| R5 fault (watched)                     | Observed                                                                                                                   |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| slot reserved whatever `anyClaim` says | `reserves no claim slot …` and `leaves an unclaimed plan exactly as it was` fail: `expected <span …(3)></span> to be null` |
+| chip's `aria-label` dropped            | `names the claim in full …` and the 5.1 delegated case: `Unable to find role="img" and name "Claimed by codex …"`          |
+
+**4.2** A claim whose row or step the installed tree lacks is skipped in `indexClaims` (C11) and
+starts no ticker; the case draws dana's chip and nothing for three absent claims.
+
+| R5 fault (watched)                       | Observed                                                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| throwing row lookup (`no row w-not-yet`) | `draws nothing for a claim on a row or step the tree lacks …`: no rows, the table replaced by its fault |
+| row skip removed                         | same case: `expected 1 to be +0` (the absent claim's lease ran the ticker)                              |
+| step skip removed                        | same case: `expected 1 to be +0`                                                                        |
+
+**5.1** The subtree chip sits absolutely after the name, before the notes marker; the Name
+cell's box keeps 82px (103px beside the notes marker) on its right only while the row holds one
+(`[data-subtree-claim]` in `styles.css`), so unclaimed names wrap as before.
+
+| R5 fault (watched)                      | Observed                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| leaf inherits its parent's subtree chip | `sits in its own row’s Name cell …`: `expected [ 'CL14m' ] to deeply equal []`; collapsed case: `[ 'CL14m', 'CO' ]` |
+
+**6.1** `claim-lease-view.ts` (`leaseViewOf`, `leaseChipText`, `leaseCardWords`), nine cases in
+`claim-lease-view.test.ts` (node tier, listed in `vitest.node-suites.json`) including a
+fast-check property (seed 20261024, 200 runs) that the faked wall clock never changes the answer.
+
+| R5 fault (watched)                  | Observed                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| `Date.now()` for the server instant | 7 of 9 fail; the clock-ahead case on `expected 'releasing' to be '14m'`         |
+| `<` for `<=` at the lease end       | `reads releasing at exactly the lease end`: `{ kind: 'in_force', minutes: +0 }` |
+
+**6.2** `lease-clock.ts`: one `LeaseClock` store per table (`useLeaseClock`), ticked by
+`useLeaseTicker` every 15 s only while a drawn lease is in force and the page is visible; chips
+read it through `useSyncExternalStore`, carried in each `DrawnClaim`, so a tick re-renders the
+chips and no row. Three cases with fake `setInterval`, `clearInterval` and `performance`
+(`Date` stays real: faking it kept the plan from drawing).
+
+| R5 fault (watched)               | Observed                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
+| a timer per chip                 | the three ticker cases: `expected 6 to be 1`, `expected 3 to be 1`, `expected 2 to be +0` |
+| `running` gate removed           | `runs no timer while no drawn claim holds a lease in force`: `expected 1 to be +0`        |
+| revoked lease counted as running | same case: `expected 1 to be +0`                                                          |
+| visibility ignored               | `stops the ticker while the page is hidden …`: `expected 1 to be +0`                      |
+| tick reads no clock              | `… counts down on it`: `expected '✕CO14m' to contain '12m'`                               |
+
+**7.1** Phone cards draw the step chip right after the step's assignee and the subtree chip in
+the header, at a tap size (12px) beside the cards' 14px words; two cases in `plan-cards.test.tsx`.
+
+| R5 fault (watched)   | Observed                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| step chip not read   | `draws a step’s chip beside its assignee …`: `expected [] to deeply equal [ 'CO14m' ]`           |
+| header chip not read | `draws a subtree claim’s chip in its card’s header …`: `expected [] to deeply equal [ 'CL14m' ]` |
+
+Deviations:
+
+- The green for each slice was written before its test file, as in slice 2; the weight of each
+  case rests on the watched faults above, not on a red before the green.
+- The ticker is a store carried in `DrawnClaim`, not a React context: a provider around the
+  viewport re-indented about a thousand lines of `wbs-table.tsx`.
+- `CLAIM_SLOT_PX` is 30, not the narrower slot the design imagined: `WW` is a 27px chip at 10px
+  bold (Chromium, 2026-10-24). In a claimed column the folded trio box shrinks to about 18px. A
+  trio beside a drawn result is dropped whole to the card (`watchTrioFit`), but a box with no
+  result has no such yield, and its `o/r/p` placeholder read `o.`; the review round below drops
+  that placeholder in claimed columns. Pixel budget per design Risks.
+- By-eye review used a scratch Vite page (not committed) that draws the real table over
+  `testing/claims-fixture.ts`, not the dev stack.
+
+By eye (2026-10-24, Chromium 1440×900 and 390×844 at 2x, light and dark; screenshots kept outside
+the repo): folded chips line up on the figures' baseline with the figures still in one column;
+the subtree chip sits on the name's first line left of the notes marker; the unfolded `CO 14m`
+counted down to `13m` and `EV <1m` turned to a dashed, muted `EV releasing` 31 s later; the card
+and the instant fact card read the full sentence; phone chips sit right after the assignee and in
+the header. Seen and left: on a phone a long assignee name truncates beside the chip. (The
+unfolded `by` cell squeezed an assumed name to `(…` beside a releasing chip; the review round
+below fixed it.)
+
+Results (fresh, 2026-10-24):
+
+- `nx run wbs-fe-01:typecheck` (with `typecheck:module`, `--skip-nx-cache`) succeeded.
+- eslint on the 26 changed TypeScript files: exit 0; Prettier check on every changed file: clean.
+- vitest over `src/components/wbs`, `src/components/board`, `src/modules`, `src/lib`,
+  `src/testing` and `src/runtime`, serial: 173 files, 3684 pass.
+- `apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`: exit
+  0 (the published `bunx twilight-burokrat` refuses under Bun 1.4.4: `toolkit was built with
+another Bun: 1.4.2 != 1.4.4`).
+- `openspec validate --all --json`: 278 of 278.
+
+Not run locally: the full fe-01 suite, the Auckland zoned run, e2e and pixels (CI carries them;
+laptop RAM). No e2e spec names claims or counts claim marks, and an unclaimed plan adds no
+element, so no pixels baseline is expected to move.
+
+**Review round (Fable, PR #704 at `91ab8593f`, no S1).**
+
+- S2-1 **Merge order: #704 lands after #693.** Until be-01 publishes `claims_changed` on a
+  heartbeat (#693), nothing rereads claims when a lease is renewed, so a healthy heartbeating
+  agent's chip counts down to a false `releasing` until some tree change rereads them. New case
+  for the scenario "A renewal moves the display": a chip at `lease 3 min left` reads `lease 14
+min left` after the stream's claims announcement and its covering claims read.
+- S2-2 The unfolded `by` cell's chip moved out of the picker's flex row onto a line of its own
+  under it, so the row above is exactly the unclaimed cell's. Chromium, 1440×900, after 31 s:
+  `search (Vad…` on the first line (the same ellipsis an unclaimed long assumed name has, 43 of
+  121px shown) and `EV releasing` under it, no `(…`; `CO 13m` under `ada ×`. A claimed row is
+  one chip-line taller while the step is unfolded.
+- S2-3 A folded column that keeps the claim slot draws no `o/r/p` placeholder (Chromium: the
+  `030` boxes of claimed Dev and QA read `null`); an unclaimed column keeps it.
+- S3:
+  - A read `checkClaimsRead` refuses, driven through the table: the claims notice, no plan
+    stale alert, no chip, no fault.
+  - `parentOf`'s throw names the boundary that makes it unreachable, with a unit negative on
+    `indexClaims`.
+  - The `columnWidths()` assertion, which could not fail (no claim reaches `<col>`), is gone;
+    the unclaimed case now also asserts no claimed `by` line and the `o/r/p` placeholder.
+  - The ticker now runs until the latest lease end among claims drawn on screen: rows the
+    collapse and filter leave (`shownRows`), step columns not hidden. The tick that reaches it is
+    the last, so the last chip turns to releasing and no timer remains.
+  - No timer remains after the table unmounts.
+  - The phone header's subtree chip clips (`overflow-hidden`) rather than pushing past a long
+    priority.
+- Left as notes, unchanged: tick granularity, the per-read row rebuild, the `subtree` key.
+
+| R5 fault (watched)                           | Observed                                                                                   |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| plan feed `onClaims` invalidates nothing     | `moves the chip to the renewed minutes …`: aria-label still `lease 3 min left`             |
+| by-cell chip back inside the picker's row    | `puts a claimed by cell’s chip on its own line …`: `expected 'flex' not to be 'flex'`      |
+| `o/r/p` placeholder kept in a claimed column | `drops the o/r/p placeholder in a claimed column`: `expected 'o/r/p' to be null`           |
+| `checkClaimsRead` duplicate check removed    | `shows a read its boundary refuses as the claims notice …`: `expected null not to be null` |
+| `parentOf` throw never taken                 | `refuses to index a delegated claim …`: `expected [Function] to throw an error`            |
+| lease deadline counts rows off screen        | `runs no timer for a lease drawn on no row on screen`: `expected 1 to be +0`               |
+| ticker never stops at the deadline           | `stops ticking once the last drawn lease has ended`: `expected 1 to be +0`                 |
+| ticker cleanup does not clear its timer      | `leaves no timer behind once the plan unmounts`: `expected 1 to be +0`                     |
+
+Screenshots re-shot: `desktop-light.png`, `desktop-light-right.png`,
+`desktop-{light,dark}-unfolded-after-31s.png`.
+
+Results after the round (fresh, 2026-10-24): `nx run wbs-fe-01:typecheck --skip-nx-cache`
+succeeded; eslint on the changed files exit 0; vitest over the same six trees, serial: 173 files,
+3692 pass (`plan-claims.test.tsx` 21).
+
+### Slice 8: claim history read (be-01), 2026-10-24
+
+Branch `feat/wbs-claim-history` on `origin/main` at `e763aa1a3` (slices 1 and 2 merged as
+`76575e668`; slices 3 to 7 are open PRs and not in this branch). Commands ran with
+`env -u CLAUDECODE` from the worktree.
+
+**8.1** `claim-history.ts` in the work-item module: `decodeClaimEvents` decodes each stored
+`after` with the journal's `readCommand` (batches walked, so a claim that also assigned lists its
+`add_claims`), `nameClaimHistory` names holders and items as the plan holds them now, and
+`claimHistoryLimitOf` reads the `limit` query. `WorkItemService.claimHistoryWithin` admits as the
+tree read does, reads `listFor(projectId, { kinds: ['claim', 'release'], limit })`, then the rows
+and the holders' names through the caller's access. `PlanEventFilter` gains `limit`: SQLite adds
+`LIMIT`, the memory twin slices. Eight cases in `claim-history.test.ts` over the memory source and
+the real batch runner: claim, release, lease reap and credential reap newest first with their
+reasons and the stored event ids; a release of an item named `x (lease expired)` reads
+`released`; a deleted holder and item read `null`; a claim's undo and redo and a `setEstimate`
+add nothing; 120 events answer the newest 50 and 100; the limit grammar; four corrupt events
+(unknown command, no command, a `claim` whose command claims nothing, an unknown reap reason) each
+fail the read naming the event; an absent project reads `null`. Red: the seven service cases
+failed (`claimHistoryWithin` is not a function) before the green; the limit grammar case passed
+with the helper alone. SQLite `plan-event.db.test.ts` gains `answers at most the limit, newest
+first, after the other filters`.
+
+| R5 fault (watched)                                                 | Observed                                                    |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| undecodable event skipped (`flatMap` with an empty catch)          | corrupt-history case fails (7/1)                            |
+| reason read off the label before the stored reason                 | `reads a release named like a reap …` fails (7/1)           |
+| unknown reap reason read as `released`                             | corrupt-history case fails (7/1)                            |
+| "names no claim" check removed                                     | corrupt-history case fails (7/1)                            |
+| `limit` maximum check removed                                      | limit grammar case fails (7/1)                              |
+| memory store ignores `limit`                                       | `answers the newest events up to the limit` fails (7/1)     |
+| SQLite store ignores `limit`                                       | SQLite `answers at most the limit …` fails (7/1)            |
+| `kinds` filter dropped from the service's read                     | `lists no undo, redo or other command` fails (7/1)          |
+| deleted holder named by its id instead of `null`                   | `names a holder and an item deleted since as null` (7/1)    |
+| `planEvents` dropped from `servicesOver` / from the module mapping | every service case throws `built without plan events` (1/7) |
+
+**8.2** `readClaimHistory` (`GET /api/projects/:id/claim-history`,
+`getApiProjectsByIdClaim-history`) in `claim-history-shapes.ts`, bound beside the claims read
+in `work-item.routes.ts`: a repeated key or a `limit` outside 1 to 100 is `400 invalid_query`
+before access is resolved; then `organizations.resolve`, then the service (`404 not_found` for a
+foreign or absent project). Inventory entry, `app.routes.test.ts` operation lists, the MCP pin
+list and README (87 to 88 tools; `counts them the same way the document does` failed 87 against
+88 until the README moved). `claim-history-organization.controller.db.test.ts` (6 cases): a
+member and a viewer read the same newest-first list with `lease_expired`, `released` and
+`claimed`, a deleted holder and item `null`, and no foreign event; 60 events answer 50, 2 and 60;
+`limit=0`, `101`, `ten`, empty and repeated are refused; a stranger, a foreign or absent project
+and an unbound session are refused exactly as the tree read; a removed member is refused as the
+tree read refuses them; an undecodable stored command answers 500. The organization harness's
+work-item service now gets `PlanEventRepository`.
+
+| R5 fault (watched)                                    | Observed                                                                                        |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `organization-resource` policy dropped from the shape | `covers every mounted organization mutation` and `refuses a stale expected organization …` fail |
+| repeated-key check removed                            | limit refusal case fails (5/1)                                                                  |
+| `limit === null` refusal removed                      | limit refusal case fails (5/1)                                                                  |
+| read with legacy access, access unresolved            | listing, stranger and removed-member cases fail (3/3)                                           |
+| service admission removed                             | stranger case fails (5/1)                                                                       |
+
+Deviations and limits:
+
+- Placement: the read lives in the work-item resource, not in `plan-history`. It needs the
+  admission, rows and access-scoped names that `WorkItemService` already owns
+  (`admits`, `personNamesWithin`), and `plan-history` is a closed feature module under
+  `module-boundaries.test.ts`. The resource gains an optional `planEvents` option (read-only
+  `listFor`), throwing when absent, as `claims` does; `servicesOver` passes the scope's store.
+- The admission is the tree read's `admits` after `organizations.resolve`; unlike the claims read
+  it rechecks nothing inside one observation, so a member removed between admission and the event
+  read is answered. History rows are append-only and the plan history read takes the same stance;
+  the spec now says "refused alike at admission" (review S3-6).
+- The first round left claims and releases inside a multi-command batch unlisted; the review
+  round below closes that gap (S1-1).
+- An undone claim stays listed as claimed (design Risks); the held claims are the truth.
+
+Results (fresh, 2026-10-24): core `claim-history`, `module-boundaries` (15) and the
+`module/work-item`, `module/plan-commands`, `module/plan-history`, `module/plan-event` and `http`
+suites 446 pass; store-memory 193 pass; store-sqlite `plan-event`, `command-journal`, `changes`
+and source conformance 91 pass; be-01 `claim-history-organization` (6),
+`project-claims-organization`, `app.routes`, `organization-context`, `claim-lease`,
+`claim-identity`, `saved-plan-organization` 52 pass and `history.controller` 8 pass; contracts
+496 pass; mcp-01 516 pass; typecheck wbs-contracts, wbs-core (+module), wbs-store-sqlite,
+wbs-store-memory, wbs-be-01 (+module), wbs-mcp-01 pass; lint of the same six projects pass;
+Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 280 of 280;
+`tool-devsync:test` 921 tests, target succeeded. Not run locally: the full be-01 and fe-01
+suites (CI carries them).
+
+**Review round (Fable, #706).** Decision on the batch gap: filter in the store by the stored
+command, no migration.
+
+- S1-1: `PlanEventFilter.batchesHolding` widens a non-empty `kinds` with the `batch` events whose
+  stored `after` holds an object whose `do` names `add_claims` or `remove_claims` at any depth:
+  SQLite `kind = 'batch' AND EXISTS (SELECT 1 FROM json_tree(after) …)` before `LIMIT`, the memory
+  twin `holdsCommand`. The decoder splits a batch into one act per top-level step holding either
+  (a step holding both, or a kept batch with no act, fails the read naming the event), listed
+  last step first with an `act` index; acts of one batch share `eventId`, a lone event is act 0.
+  The service cuts the acts to `limit` (each kept event yields at least one). Contract field
+  `act`, description and MCP README wording; spec scenarios "A claim inside a batch is listed"
+  and "A batch releasing one claim and claiming another lists two events"; C13 note in the
+  proposal and design; task 8.3. New conformance case `planEvents.listFor:batches-limit`
+  (registered in the manifest, certification and existing-case lists) pins the batch clause, a
+  nested batch, a batch that only mentions `add_claims` in text, the limit after the filter, and
+  the refusal of limit 0, -1 and 1.5. New core cases: a claim beside `setEstimate` in one batch;
+  a batch releasing `090` and claiming `080.1` as two acts, and `limit` 1 answering only the
+  newest act; a claim batch found under three newer batches that claim nothing with `limit` 1; a
+  batch deleting a claimed item lists nothing (its `before` holds `add_claims`); two corrupt
+  batches. `claim-history-batch.controller.db.test.ts` runs `claimWorkItem` beside `setProgress`
+  through `POST /commands` on be-01's production composition (`openComposedWith`), so it also
+  proves `json_tree` in the SQLite build be-01 runs.
+- S3-1: the SQLite limit Proof now cites `plan-event.db.test.ts` and the case's full name.
+- S3-2: both stores throw for a limit that is not a whole number of at least 1
+  (`checkPlanEventLimit`), pinned in the conformance case.
+- S3-3: `claimHistoryLimitOf` is gone; `limitOf(raw, bounds = PAGE_LIMIT)` in
+  `service/list-query.ts` reads the claim history's `limit` with `CLAIM_HISTORY_LIMIT`.
+- S3-4: `item` is `null` only when the row is gone; a row present with no number throws. No fault
+  reaches that line: `deriveNumbers` already throws for a row no root reaches ("work items
+  unreachable from any root"), which the case "fails the read for a row the tree cannot number,
+  never reading it as deleted" pins. The line narrows the map's answer as `project-claims.ts` and
+  `person-work.ts` do; its comment says so instead of claiming a watched negative.
+- S3-5: kept as is (optional `planEvents`, production wiring proven).
+- S3-6: spec wording "refused alike at admission".
+
+| R5 fault (watched)                                                       | Observed                                                                        |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| SQLite batch clause removed                                              | SQLite certification fails `batches-limit` (74/1); be-01 batch case fails (0/1) |
+| memory batch clause removed                                              | memory certification fails `batches-limit` (74/1); four core batch cases (10/4) |
+| SQLite `LIKE '%add_claims%'` in place of `json_tree`                     | SQLite certification fails `batches-limit` (74/1)                               |
+| memory text match (`JSON.stringify(…).includes`) before the walk         | memory certification fails `batches-limit` (74/1)                               |
+| SQLite limit check removed                                               | SQLite certification fails `batches-limit` (74/1)                               |
+| memory limit check removed                                               | memory certification fails `batches-limit` (74/1)                               |
+| batches read as a kind and filtered in the service after the store limit | `finds a claim batch under newer batches that claim nothing` (13/1)             |
+| post-expansion cut removed                                               | `lists a batch that … as two acts` answers two acts for limit 1 (13/1)          |
+| both-in-one-step check skipped                                           | `fails the read on a batch it cannot split into acts` (13/1)                    |
+| zero-act batch check skipped                                             | same case (13/1)                                                                |
+| memory matches `before` as well as `after`                               | `lists nothing for a batch that deleted a claimed item` (13/1)                  |
+| `kinds` dropped from the service's read (rewatched)                      | undo/redo, newer-batches and deleted-item cases (11/3)                          |
+
+A text-match fault on the escaped serialised `"do":"add_claims"` did not redden the memory case:
+JSON escapes the quotes inside the stored string, so that spelling cannot match it; the
+watched text fault matches the bare command name instead.
+
+Results after the review round (fresh, 2026-10-24): core `module-boundaries`, `list-query` and
+the `module/work-item` (claim history 14), `module/plan-commands`, `module/plan-history`,
+`module/plan-event` and `http` suites 456 pass; conformance 35 pass; store-memory 193 pass;
+store-sqlite `plan-event`, `command-journal`, `changes` and source conformance 91 pass; be-01
+`claim-history-batch` (1), `claim-history-organization` (6), `project-claims-organization`,
+`app.routes`, `organization-context`, `claim-lease`, `claim-identity`, `saved-plan-organization`
+and `history.controller` 61 pass; contracts 496 pass; mcp-01 516 pass; typecheck and lint of
+wbs-contracts, wbs-core (+module), wbs-conformance, wbs-store-sqlite, wbs-store-memory,
+wbs-be-01 (+module), wbs-mcp-01 pass; Burokrat `check-indexes working . HEAD` exit 0;
+`openspec validate --all --json` 280 of 280; `tool-devsync:test` 921 tests, target succeeded.
+Not run locally: the full be-01 and fe-01 suites (CI carries them).
+
+### Slice 9: Claims sheet (fe-01), 2026-10-24
+
+Branch `feat/wbs-claim-display-sheet` on `origin/feat/wbs-claim-history` at `167ab6f82` (#706,
+slice 8, which already holds main with slices 1–7). Commands ran with `env -u CLAUDECODE` and
+`TZ=UTC` from `apps/wbs/fe-01`. No contracts change: slice 8's `readClaimHistory` shape is
+used as it is.
+
+**Plumbing.** `ProjectApi.readClaimHistory` (`ClaimHistoryEventView`, `ClaimHistoryClaimView`)
+reads `GET /api/projects/:id/claim-history` at be-01's default bound through the shape list;
+`plan-refusal.ts` words its refusals exhaustively. It reaches the table as a bound project route
+of `PlanCommands` (`readClaimHistory`, beside `exportPlan`, the other read there), so no new
+runtime member. The fakes (`fake-project-api.ts`, the shape-checked `refusing-api.ts` boundary,
+`claims-fixture.ts` with `history` and `historyReads`) answer it.
+
+**9.1** `claims-sheet.tsx` (`ClaimsSheet`, `groupHeldClaims`): a `Claims` toolbar button with
+the held count, a right-side sheet (the whole screen on a phone) listing held claims grouped by
+holder (by name), then run (read order), each row number, name, step or `subtree`, lease text
+(the plan's lease clock against the read's own clock, C6) and since; claims the tree lacks are
+listed by the read's own number and name. Below, the recent claims and releases newest first,
+each naming who, `claimed` or `released`, the items (`a deleted person`, `a deleted item` for
+null) and the reason (`lease expired`, `credential revoked`). The history is read on open and on
+each change of the installed tree's generation while open, never on `claims_changed` and never
+while closed; its failure is said in place ("Claim history could not be read.", `Retry
+history`) with the held list kept; a failed claims read is said in place over the last claims.
+No claim or release control: the sheet's only button is its ✕. Ten cases in
+`claims-sheet.test.tsx` at first push. Red before the green: 8 of the first 9 failed (no
+button, no dialog); the zero-claims case passed vacuously until its fault below. The tenth,
+`says a failed claims read in place …`, was written after the green, its weight resting on its
+watched fault.
+
+| R5 fault (watched)                                        | Observed                                                                                           |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| history reread on `claims_changed` (`claims` in the deps) | `rereads the history on a tree change while open, and not on claims_changed`: `expected 2 to be 1` |
+| `treeGeneration` dropped from the deps                    | same case, on the tree change: `expected 1 to be 2`                                                |
+| button drawn with no claim held                           | `is not drawn while no claim is held …`: `expected <button …> to be null`                          |
+| history failure answered as an empty list                 | `says the history could not be read in place …`: the sentence not found                            |
+| claims failure not said in the sheet                      | `says a failed claims read in place …`: `expected undefined to be 'Claims could not be read. …'`   |
+
+**9.2** The phone `Plan actions` sheet's View group carries the same button; it opens the Claims
+sheet over the actions sheet (its trigger is `aria-haspopup`, so the actions sheet stays, as
+Project settings does). Case `is offered on the Plan actions sheet, and opens over it` in
+`plan-cards.test.tsx`.
+
+| R5 fault (watched)             | Observed                                               |
+| ------------------------------ | ------------------------------------------------------ |
+| button left off the View group | the case found no `Claims, 5 held` button in the sheet |
+
+Deviations:
+
+- C16 amended (first push: drawn only while a claim is held or the sheet is open; replaced in
+  the review round below by the latch).
+- The history read is a `PlanCommands` route rather than a new `ProjectRuntime` member, as
+  `exportPlan` is: a new runtime member would change the runtime's enumerated surface for one
+  sheet-local read.
+
+By eye (2026-10-24, Chromium 1440×900 and 390×844 at 2x, light and dark, a scratch Vite page
+over `claims-fixture.ts` with seven claims, one on a row the tree lacks, a 52-character run id,
+and five history acts including a batch and a deleted person and item; not committed): the
+button sits after `2 unestimated` with its count in the claim tint; the sheet lists the groups
+with the run ids in mono, long names truncated before the lease and since columns, the long run
+id wrapping inside the sheet (no horizontal overflow: scrollWidth equals clientWidth at both
+widths); the failed history reads one line with its retry. Fixed during review: browser-default
+list margins and indent (an empty band above each run's rows) and the kit's 90vh cap leaving the
+right sheet short of the bottom edge (`max-h-dvh`). Screenshots kept outside the repo.
+
+Results (fresh, 2026-10-24):
+
+- `nx run wbs-fe-01:typecheck` (with `typecheck:module`, `--skip-nx-cache`) succeeded.
+- eslint on the 14 changed TypeScript files: exit 0; Prettier written on them.
+- vitest over `src/components/wbs`, `src/modules`, `src/lib` and `src/testing`, serial: 156
+  files, 3560 pass (`claims-sheet.test.tsx` 10).
+- `apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`: exit 0.
+- `openspec validate --all --json`: 282 of 282.
+
+Not run locally: the full fe-01 suite, e2e and pixels (CI carries them; laptop RAM). No e2e
+plan holds a claim, so no e2e toolbar count or width moves and no pixels baseline is expected to
+change.
+
+**Review round (#710 at `7c541b40a`, no blocker).** Coordinator decisions recorded as
+assumptions for Dany.
+
+- S1 The latch: `useClaimsOffered` in `claims-sheet.tsx`, held by the table (on a phone the
+  sheet mounts only while `Plan actions` is open), offers the button once a claims read in this
+  table has listed a claim for the project, and while the sheet is open. A never-claimed plan's
+  toolbar is unchanged; a plan whose last claim was reaped keeps a count-less button, so the
+  reason stays reachable (C13). C16 and the spec delta say so, with the scenario "The last claim
+  is reaped while the sheet is closed"; case `stays, with no number, when the last claim is
+reaped while it is closed`.
+- S2 Focus: the "last claim goes while open" case now closes the sheet with Escape and asserts
+  the focus is back on the trigger.
+- S3 Two deferred-promise cases: a close and reopen, and a tree change whose read lands before an
+  older one. Proof beside the `current` guards.
+- S4 The toolbar on the scratch plan (light, Chromium), `measureToolbar`'s sum:
+
+  | Width | Plan                            | laidOut | Rows | Overflow right | Page scroll |
+  | ----- | ------------------------------- | ------- | ---- | -------------- | ----------- |
+  | 1280  | never claimed                   | 1332.48 | 2    | 0              | 0           |
+  | 1280  | seven claims (`Claims 7`, 83px) | 1421.84 | 2    | 0              | 0           |
+  | 1024  | never claimed                   | 1332.48 | 2    | 0              | 0           |
+  | 1024  | seven claims                    | 1421.84 | 2    | 0              | 0           |
+
+  The never-claimed figure equals `project-settings.spec.ts`' pin (1332.5). With claims the
+  button ends row one and the `Whole plan` group stays whole and right-aligned on row two
+  (top 44, right edge 1272 and 1016); no third row, nothing clipped. Screenshots
+  `toolbar-{1280,1024}-light-claimed.png`.
+
+- Nits: a Proof on the never-read-while-closed return; a reopened sheet starts from `Reading…`
+  and a reread while open dims the list it keeps (`data-claim-history-rereading`); the history
+  failure comment cites the spec scenario; a `Reading…` line in the held section before the
+  first claims read; the amended design and spec lines rewrapped; the API JSDoc points at the
+  contract for the bound instead of repeating it; `PROJECT_COMMAND_ROUTES`' JSDoc names the
+  project-scoped reads.
+- Eye review: run ids break after `:`, `-` and `/` (`<wbr>`, `overflow-wrap: anywhere` only as
+  the last resort), so `…-long-` / `run-identifier`; `Retry history` is an outline button; a
+  history entry naming several claims reads `released 2 items` with one item per line, a
+  deleted one still `a deleted item`.
+
+| R5 fault (watched)               | Observed                                                                                                                                 |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| latch dropped (`return holding`) | `stays, with no number, when … closed`: `expected undefined to be 'Claims'`; the open case's focus: `expected <body …> to be <button …>` |
+| both `current` guards removed    | the two race cases: `expected [ 'old' ] to deeply equal [ 'new' ]`                                                                       |
+| `if (!open) return` removed      | `rereads the history …`: `expected 3 to be +0`                                                                                           |
+| no history reset on close        | `dims the list while open and rereading, and shows none of it on a reopen`: `expected [ 'second' ] to deeply equal []`                   |
+| no rereading mark                | same case: `expected null not to be null`                                                                                                |
+
+Results after the round (fresh, 2026-10-24): `nx run wbs-fe-01:typecheck --skip-nx-cache`
+succeeded; eslint on the changed files exit 0; vitest over the same four trees, serial: 156
+files, 3564 pass (`claims-sheet.test.tsx` 14); `openspec validate --all --json` 282 of 282; Burokrat `check-indexes working . HEAD` exit 0.
+
+Screenshots re-shot: every sheet shot (desktop and phone, light and dark, history failed) and the
+two toolbar shots, in the session scratchpad's `claim-sheet-shots`.
+
+### 10.2: record, 2026-10-24
+
+- `CONTEXT.md` holds **Claim chip**, **Releasing claim** and **Claim history** (lines 584–595),
+  added by slice 1's change; checked, not duplicated.
+- Module indexes: the be-01 reads live in `module.application.work-item`
+  (`libs/wbs/application/core/src/module/work-item/README.md`), whose index lists
+  `project-claims.ts`, `claim-history.ts` and their tests and whose prose names the claim history
+  read; fe-01's claims resource is `module.frontend.plan-feed`, whose README now names claims as
+  the fifth resource (C3, C12, C20, C21) and "the five resources" in its generation ledger. The
+  Claims sheet is in `components/wbs`, which carries no module index. Burokrat
+  `check-indexes working . HEAD`: exit 0.
+- fe-01 claims resource JSDoc: `PlanRefreshSnapshot.claims` in `lib/plan-refresh.ts` (beside
+  `InstalledClaims`, `resourcesFor` and the owner's claims read, which already carried theirs).
+- `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1 are ticked with "Superseded 2026-10-24 by
+  `wbs-claim-display`", the convention `puni-website-funnel` 5.0 uses.
+
+### Local swarm rehearsal (10.1 rehearsed locally; dev by-eye owed), 2026-10-24
+
+Dev is Dany's, so 10.1 stays open. This ran the branch's own be-01, gw-01 and fe-01 on the
+laptop, with a real swarm driven over HTTP.
+
+**Stack.** be-01: a scratch entry (not committed) beside
+`apps/wbs/be-01/src/testing/organization-browser-server.ts`, booting `bootBe01`'s production
+composition over a fresh migrated SQLite file. It used that fixture's dev-only constants
+(`TEST_JWT_KEY`, a 32-character `x` internal secret, `TEST_ORGANIZATION_DEFAULT_LIMITS`,
+password sessions `enabled`), but pushed to a real gw-01 on 7301 rather than `gw.invalid`. It
+registered `dany` (password `correct-horse`, the fixture's), inserted organization `org-swarm`
+with dany as `super_admin`, and committed the activation marker. gw-01: `bun src/main.ts` with
+`AUTH_MODE=oidc` and the same JWT key and internal secret. Its OIDC discovery is lazy, so a
+dummy discovery URL is never fetched: native session tokens verify on the JWT key. fe-01: Vite
+on 7400 (`VITE_BE_URL`/`VITE_GW_URL`), as `playwright.organization.config.ts` runs it. The
+browser (Playwright Chromium) logged in through `/api/auth/login` and carried the token in
+`__Host-wbs_access`, as `organization-context.real.spec.ts` does. It chose `org-swarm` on
+`/organization`; the header read **Live**. `AUTH_MODE=local` could not serve this: every
+request is `local-dev` there, so API keys never authenticate.
+
+**Lease timing.** No knob exists: `CLAIM_LEASE_MS` (15 min) and the 30 s sweep interval are
+constants (`@wbs/domain` `claim-lease.ts`, core `claim-lease-sweep.ts`). The rehearsal waited
+the real 15 minutes.
+
+**Swarm (scratch driver over be-01's routes; keys kept in a scratch file, never printed).**
+
+1. `POST /api/directory/commands`: team, persons `claire`, `codex`, `ada`; then `patchPerson
+kind: agent` binds `claire` and `codex` to dany's account → 200.
+2. `POST /api/organization/machine-credentials` `{ source: 'api_key' }` per agent → 201 each.
+3. Resources `h4claw RAM` (divisible, GiB) and `staging slot` (exclusive); project `Swarm
+rehearsal`; capacities RAM 16, staging 1. Tree `010 Hotfix the winch`, `020 Release 2.4`
+   with `Prime the mast`, `Sand the deck`, `Paint the hull`; estimates. Demands: Paint 6 GiB +
+   staging, Sand 6 GiB, Prime 8 GiB + staging.
+4. Claims, each with the agent's own key:
+   - claire claims the `Release 2.4` subtree → 200.
+   - claire claims Sand under it with `assign: true` → 200: acquired 6 GiB, both steps assigned.
+   - codex claims Paint Dev under claire's subtree claim with `assign: true` → 200: acquired
+     6 GiB + staging, Dev assigned.
+   - codex claims Prime → **409 `resources_exhausted`**: staging asked 1 free 0 held by codex;
+     RAM asked 8 free 4 held by codex and claire.
+   - dany claims Hotfix QA for `ada` (human, no lease) → 200.
+5. claire heartbeats `POST /api/claims/renew` every minute → 200 `{ leases: 3 }`. codex stops.
+6. After codex's lease and the sweep: `DELETE /api/organization/machine-credentials/:claire` → 204. Then `releaseWorkItem` of ada's Hotfix by dany → 200.
+
+**What fe-01 showed** (one page left open throughout; times from the page's open). Screenshots
+are in the session scratchpad's `swarm-rehearsal-shots`:
+
+| Time  | Shot                                                                 | Seen                                                                                                                                                              |
+| ----- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 s   | `01-phone-cards`, `02-phone-claims-sheet`                            | phone chips and the sheet from `Plan actions`                                                                                                                     |
+| 0 s   | `03-desktop-dark-claims-sheet`                                       | the sheet in dark mode                                                                                                                                            |
+| 0 s   | `04-desktop-chips-folded`, `05-desktop-dev-unfolded`                 | chips per holder: `CL 14m` on the subtree, `CL` on both Sand steps with claire assigned, `CO` beside codex on Paint Dev, `AD` (no lease) on Hotfix QA; `Claims 5` |
+| 0 s   | `06-desktop-claims-sheet-start`                                      | held list grouped ada / claire / codex with runs; history rows, a batch as "claimed 2 items"                                                                      |
+| 383 s | `07-desktop-countdown-codex-stopped`                                 | codex `CO 8m`, claire still `CL 14m` (renewed)                                                                                                                    |
+| 911 s | `08-desktop-codex-releasing`                                         | codex reads `CO releasing`, dashed                                                                                                                                |
+| 926 s | `09-desktop-after-sweep`                                             | the sweep released codex's claim: chip gone, claire's stay                                                                                                        |
+| 927 s | `10-desktop-sheet-lease-expired-row`                                 | history: "codex released 020.3 Paint the hull · Dev, lease expired"                                                                                               |
+| 931 s | `11-desktop-sheet-credential-revoked-row`                            | claire's key revoked: within 3 s her three claims went; "claire released 3 items … credential revoked"                                                            |
+| 935 s | `12-desktop-latch-button-no-count`, `13-desktop-latch-sheet-history` | ada released; no claim held, the button stays as `Claims` with no number; the sheet says "No claims are held." over the whole history                             |
+
+Claire's own **releasing** state did not show: a revocation is not announced (C4), and the sweep
+released her claims about 3 s after the revoke, before any claims read.
+
+**Found, outside this change's scope (reported, not fixed).**
+
+- `POST /api/claims/renew` with any JSON body (even `{}`) answers **500**. be-01 logs `Endpoint
+postApiClaimsRenew has no declared validation refusal` (`apps/wbs/be-01/src/http/elysia/mount.ts`
+  `refuse`). The shape `renewClaimLeases` in
+  `libs/wbs/domain/contracts/src/http/claim-lease-shapes.ts` declares no body and no 400. Repro:
+  `curl -X POST localhost:7300/api/claims/renew -H 'authorization: Bearer <agent key>' -H
+'content-type: application/json' -d '{}'`. mcp-01 sends no body for it
+  (`wbs-client.ts buildRequest` sends one only when the tool declares body inputs), so MCP agents
+  are unaffected; a raw HTTP agent sending `{}` loses its heartbeat and its claims are reaped at
+  15 min. The first rehearsal run hit this: every claim, claire's included, expired with codex's.
+  It belongs to `wbs-claim-leases`, or to a general rule that a bodiless endpoint refuses a body
+  with 400.
+- Seen and left: a released claim's `assign: true` assignees stay (claire on Sand, codex on Paint
+  Dev). The `claimWorkItem` description says assignments are "undone with the claim", which this
+  run reads as undo of the claim command, not release.
+
+### Swarm rehearsal polish (fe-01), 2026-10-25
+
+The live swarm rehearsal on main 93b6f3555 found three S3 items here, fixed on
+`fix/wbs-swarm-live-polish`:
+
+- The history read a sweep's reap as `w2 released 2 items`, with `lease expired` in small print
+  below. A reap is now worded by its reason: `w2’s lease expired, releasing 2 items`,
+  `finn’s credential was revoked`, `The leases of w2, a deleted person expired, …` for several
+  holders. The `claim-display` requirement and its "A reaped claim says why" scenario stated the
+  old sentence and are amended.
+- On a phone the Claims sheet cut the step (`Unit test shards · D…`), so a leaf's Dev and QA
+  rows read the same. The item name now truncates first; the step stays whole up to 60% of the
+  line.
+- A phone card's `LE 14m` subtree chip broke `16 d` over two lines. The total no longer shrinks
+  or wraps, and the chip takes its own header line: kept beside the number it clipped itself
+  to `LE 13r` (seen in `card-build-farm-375-light-pre`).
+- Initials take letters and digits only (`Mira (human)` was `M(`, now `MH`).
+
+#### Proofs (each fault injected alone, the named test watched failing, restored; 2026-10-25)
+
+| Fault injected                                                  | Observed failing test                                                                                     |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| a lease expiry worded `codex released`                          | `words a swept release by its reason…`, `lists the recent claims and releases…`, `stays, with no number…` |
+| `shrink-0` dropped from the held claim's step                   | `truncates a held claim’s item name before its step`                                                      |
+| total without `shrink-0 whitespace-nowrap`, chip on number line | `keeps the card’s total on one line, the subtree chip on its own`                                         |
+| initials word pattern `/\S+/gu`                                 | `takes letters and digits only, in any script`: `expected 'M(' to be 'MH'`                                |
+| no NFC composition                                              | same case: `expected 'ZA' to be 'ZÅ'`                                                                     |
+| `String#slice` for `Array.from`                                 | same case: two half surrogates for `𝔄𝔅`                                                                   |
+| `.trim()` dropped from the no-letter fallback                   | `answers a name without letters or digits with its first character`: `' '` for `🤖`                       |
+
+jsdom lays nothing out, so the two layout cases pin which element gives way; the 375 px shots
+show it holds.
+
+#### Eye review (activated-organization stack, ports 7330/7331/7430, the rehearsal's seed)
+
+Shots in the session scratchpad `swarm-polish-shots/` at 1280 light and 375 light and dark,
+before (`-pre2`) and after (`-post`) w2's lease expired (its claim went at 08:43:26 UTC, the
+sweep's history event `release/lease_expired`); overflow 0 px, no page error, no response of
+400 or more on any:
+
+- `claims-sheet-375-*-post`: held rows read `Integration s… · Dev` over `Integration suite · QA`;
+  the history's newest-but-one row reads `w2’s lease expired, releasing 2 items`.
+- `card-build-farm-375-*-pre2`: `▾ 020 Medium 50 … 16 d ⋯` on one line, the `LE 14m` chip on the
+  line under it; every card total measured 20 px high (one line).
+- `plan-1280-light-pre2`: Mira's assignee and chip read `MH`.
+
+#### Review follow-up (Fable on #732), 2026-10-25
+
+- **S2-1:** the possessive history line (`lead’s lease expired, releasing 5 items`) blamed
+  healthy agents. be-01's sweep puts one account's reaped claims in one event, together with
+  every claim delegated under an expired subtree claim, each with its own holder, and the read
+  does not say whose lease went. The line is now neutral, fe-only:
+  `A lease expired: released 5 items of w3, w2 and lead` (names joined by `Intl.ListFormat`,
+  `en-GB`), `A credential was revoked: released …`. The delta's requirement and scenario are
+  amended, with a new "A reaped subtree claim blames no delegated holder" scenario.
+- Initials count `Intl.Segmenter` graphemes, letters and digits only, and keep an apostrophe
+  inside a word: `D’Arcy Smith` is `DS`, `O'Neil` `ON`, `क्षत्रिय` `क्षत्रि`, `👩‍💻` stays whole.
+- The card's subtree chip is the header's last child in the DOM, not moved by `order-last`, so a
+  screen reader reads it after the total; the 375 layout is unchanged.
+- **S3-8, not changed:** the two layout cases assert classes and DOM order in jsdom, which lays
+  nothing out, and `max-w-[60%]` is not pinned. Layout is evidenced by the 375 px shots only.
+
+| Fault injected (watched 2026-10-25)                  | Observed failing test                                                                                     |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| possessive `lead’s lease expired, releasing 3 items` | `words a swept release by its reason…`, `lists the recent claims and releases…`, `stays, with no number…` |
+| apostrophe dropped from the word pattern             | `keeps an apostrophe inside a word…`: `expected 'DA' to be 'DS'`                                          |
+| code points for graphemes                            | same case: `expected 'कष' to be 'क्षत्रि'`; `answers an emoji name with its whole first grapheme`: `'👩'` |
+| no letter filter on graphemes                        | same case: `expected "O'" to be 'ON'`                                                                     |
+| `String#slice` for the grapheme letters              | `takes letters and digits only…`: two half surrogates for `𝔄𝔅`                                            |
+| chip before the total in the DOM (`order-last`)      | `keeps the card’s total on one line, the subtree chip on its own`                                         |
+
+Eye review, round 2 (`swarm-polish-shots/r2/`, overflow 0 px, no page error, no response of 400
+or more): `lead` stopped heartbeating while `w1`, `w3` and `w4` kept renewing. At 09:29 the sweep
+released lead's `020 Build farm` subtree with w3's and w2's delegated claims, and the sheet reads
+`A lease expired: released 5 items of w3, w2 and lead` (`claims-sheet-*-post`), which names no
+one as the lease's owner; under the possessive form it would have said w3's lease expired while
+w3 was renewing. `card-build-farm-375-*-pre`: the chip on its own line, every card total 20 px.
+
+### Slice 11: human claims and distinct marks (fe-01), 2026-10-27
+
+Branch `feat/wbs-claim-ui-humans` from `origin/main` (67773f97a). From the dev by-eye check of
+10.1 on 2026-10-26: `claude-code` and `claude-code-worker` both drew `CC`, and the plan offered
+no way for a human to claim. Commands ran with `env -u CLAUDECODE` from the worktree.
+
+Read, not run: `refuseIdentity` in `@wbs/domain` `claim.ts` (a caller claims for a person whose
+`boundAccountId` is its account, or as an admin); `claimLeaseExpiry` in `claim-lease.ts` (a lease
+only when the caller's pinned person is the claimant, so a session claim has none);
+`patchPersonWithin` (only an organization admin binds `accountId`); the people read carries
+`accountId` per person. fe-01 already holds the session's `userId` and the people read, so no
+new read was added (C23).
+
+| Fault injected (watched 2026-10-27)              | Observed failing test                                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `assignInitials` answering `initialsOf` per name | `tells claude-code from claude-code-worker`: `'CC'` for `'CW'`; property: counterexample `["aa","aaa"]` |
+| second loop's `taken` check removed              | property: counterexample `["aöa","aöA"]`                                                                |
+| chip printing `initialsOf(holder.name)`          | `draws claude-code and claude-code-worker as two marks…`: `[ 'CC', 'CC' ]` for `[ 'CC', 'CW' ]`         |
+| folded slot printing `initialsOf(doing.name)`    | same case: `'· CC'` for `'· CW'`                                                                        |
+| agent persons counted as the account             | `claims as the human, not the account’s agent`: `several` for `bound`                                   |
+| missing-`accountId` arm dropped                  | `cannot say from a person row without accountId`: `bound` for `unknown`                                 |
+| Release never offered                            | `offers Release on a row the claimant holds`: `'claim'` for `'release'`                                 |
+| done arm dropped                                 | `refuses Claim on a done row`: `claim` for `refused`                                                    |
+| `claimRow` rereading only the tree               | `offers Claim after the statuses…`: `expected to have a length of 2 but got +0`                         |
+| actions column handed no offer                   | six cases of `plan-claim-actions.test.tsx`                                                              |
+| `holdersOn` answering nobody                     | `offers Release my claim…`: menu lacks `Release my claim`                                               |
+| phone card claim arm dropped                     | `offers the same Claim on a phone card`: no `Claim` menu item                                           |
+| `ProjectPage` not passing `viewerAccountId`      | `offers Claim for the person bound to the signed-in account`: no `Claim` menu item                      |
+| `claimRefusalSentence` returning null            | holders, resource and subtree cases read the bare sentences                                             |
+| bare claim entries struck from `PLAN_REFUSALS`   | `words every claim refusal…`: `That change could not be completed (already_claimed)`                    |
+
+Eye review (ordinary local stack, `E2E_PORT_SHIFT=2000`, a scratch Playwright spec not
+committed; the people read and the claims read rewritten in the browser so `dany` is bound to
+`local-dev` and `claude-code`/`claude-code-worker` hold `020`): the unbound Claim drawn grey with
+its Directory reason as its fact; `DA`, `CC` and `CW` chips; `Release my claim` on `010`; `Claim`
+on `020`, which the real be-01 refused `person_not_bound` (the binding was only in the browser),
+toasted as `Your account is not bound to that person — an organization admin binds it in the
+Directory. Nothing was changed.`; `dany`'s card line `Claimed by dany since 27 Oct 07:44` with no
+lease text; the phone card's menu with `Claim` after the statuses. A real bound human claim on an
+organization stack is the 10.1 dev rerun (11.4).
+
+### Review of PR #763, 2026-10-27
+
+Fable's review: B1 (CI red), S1–S3, N1, N2, N4. fe-01 tests ran with Bun's runner
+(`bun ../../../node_modules/vitest/vitest.mjs run`, from `apps/wbs/fe-01`), not `bunx vitest`,
+which runs under volta Node 24 on this laptop.
+
+- **B1.** `planInitialsOf` now takes the plan's rows (every assignee and assumed assignee,
+  `(unknown)` for an id the directory lacks) and the claims read, never the directory. C22 and
+  `assignInitials` say marks are per plan and the shortest name keeps the plain initials.
+- **S1.** The Directory binding control (C25): `usePersonBindings` in
+  `components/organization/person-binding.tsx`, the `bindingOf` slot on `DirectoryPage`,
+  `DirectoryManagement.bindAccount`, `patchPerson { accountId }`; `forbidden` and
+  `unknown_account` worded.
+- **S2.** `delegatedCounts` over the claims read; `Release my claim and N under it` and the toast
+  `Released your claim and N under it.`
+- **N1, not changed:** `CardAssignee.initials` is read by the folded slot
+  (`estimate-presentation.tsx`, `· ${doing.initials}`); removing it breaks the B1 fix.
+- **N2, N4:** recorded as tasks 11.6 and 11.7.
+
+| Fault injected (watched 2026-10-27)                                | Observed failing test                                                                                       |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| every directory name passed to `planInitialsOf` beside the plan's  | `marks only the people this plan prints`: `'W0'` for `'WW'`                                                 |
+| an unknown assignee id skipped instead of `(unknown)`              | `prints an assignee the directory has not got as (unknown)`: the table's fault, `no initials … "(unknown)"` |
+| `initialsIn` answering `initialsOf(name)` instead of throwing      | `refuses a name outside the marks…`: `expected [Function] to throw an error`                                |
+| card's no-handlers arm answering a refused Claim                   | `offers no claim item on a phone card drawn for no account`: menu includes `Claim`                          |
+| Release label ignoring `delegated`                                 | `says how many delegated claims Release takes with it`: lacks `Release my claim and 2 under it`             |
+| release toast ignoring `delegated`                                 | same case: `[ 'Released your claim.' ]`                                                                     |
+| `delegatedCounts` counting direct children only                    | `counts every claim under a subtree claim, at any depth`: `1` for `2`                                       |
+| `bindAccount` without its equality guard                           | `sends nothing when the person is already bound there`: one `patchPerson` sent                              |
+| `forbidden` and `unknown_account` struck from `DIRECTORY_REFUSALS` | `words a binding be-01 refuses`: `The directory could not be changed (unknown_account).`                    |
+| binding control drawn for every role                               | `shows a member the binding read-only`: `Bound to your account` not found                                   |
+| Bind enabled whatever is chosen                                    | `offers Bind only once another account is chosen`: `disabled` not `true`                                    |
+| the row's `bind` sending nothing                                   | `binds a person through the binding slot…`: `expected [] to deeply equal [ { id: 'p1', …(1) } ]`            |
+| `bindingOf?.(…)` dropped from the Directory row                    | same case: no `bind p1` button                                                                              |
+
+Eye review on the real organization fixture (`organization-browser-server.ts`, Vite on 7400; a
+scratch Playwright spec and config, not committed): `ada` (super-admin of `org-a`) bound the
+person `Ada Lovelace` to `ada (you)` in the Directory, then claimed `010` from the row menu; the
+real be-01 took the session claim with no lease (`AL` chips on Dev and QA, the row in progress,
+no countdown), then `Release my claim` removed both chips. Shots in
+`/tmp/claude-1000/claim-shots-r2/` (1–8, the Directory also at 390 px): the binding line, picker
+and button sit on one row at 1280 and wrap to two at 390, no overflow.

@@ -1,6 +1,84 @@
 /** Independently enumerated production surface; control routes retain their existing authority contracts. */
 export const ORGANIZATION_ROUTE_INVENTORY = [
   {
+    operationId: 'readRuntimeState',
+    method: 'GET',
+    path: '/api/projects/:id/runtime-state',
+    kind: 'read',
+  },
+  {
+    operationId: 'lookupRuntimeReceipt',
+    method: 'GET',
+    path: '/api/projects/:id/runtime-commands/:commandId',
+    kind: 'read',
+  },
+  {
+    operationId: 'acquireRuntimeAuthority',
+    method: 'POST',
+    path: '/api/projects/:id/runtime-authority',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'applyRuntimeCommands',
+    method: 'POST',
+    path: '/api/projects/:id/runtime-commands',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'putApiOrganizationResourceAuthoritiesByAuthorityId',
+    method: 'PUT',
+    path: '/api/organization/resource-authorities/:authorityId',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'getApiOrganizationResourceAuthoritiesByAuthorityId',
+    method: 'GET',
+    path: '/api/organization/resource-authorities/:authorityId',
+    kind: 'read',
+  },
+  {
+    operationId: 'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+    method: 'PUT',
+    path: '/api/resource-authorities/:authorityId/admissions',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'putApiResourceAuthoritiesByAuthorityIdEvents',
+    method: 'PUT',
+    path: '/api/resource-authorities/:authorityId/events',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
+    method: 'GET',
+    path: '/api/resource-authorities/:authorityId/cleanup-requests',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdResourceUses',
+    method: 'GET',
+    path: '/api/projects/:id/resource-uses',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdResourceUsesByUseIdHistory',
+    method: 'GET',
+    path: '/api/projects/:id/resource-uses/:useId/history',
+    kind: 'read',
+  },
+  {
+    operationId: 'postApiProjectsByIdResourceUses',
+    method: 'POST',
+    path: '/api/projects/:id/resource-uses',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiProjectsByIdResourceUsesByUseIdEvents',
+    method: 'POST',
+    path: '/api/projects/:id/resource-uses/:useId/events',
+    kind: 'mutation',
+  },
+  {
     operationId: 'getApiOrganizationActive',
     method: 'GET',
     path: '/api/organization/active',
@@ -49,9 +127,21 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
+    method: 'POST',
+    path: '/api/organization/resources/:resourceId/directory-capacity/preview',
+    kind: 'read',
+  },
+  {
     operationId: 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
     method: 'PUT',
     path: '/api/compute-providers/:providerId/resources/:resourceId/capacity-report',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'deleteApiOrganizationAgent-poolsById',
+    method: 'DELETE',
+    path: '/api/organization/agent-pools/:id',
     kind: 'mutation',
   },
   {
@@ -180,6 +270,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiOrganizationAgent-pools',
+    method: 'GET',
+    path: '/api/organization/agent-pools',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiOrganizationMachine-credentials',
     method: 'GET',
     path: '/api/organization/machine-credentials',
@@ -232,6 +328,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiProjectsByIdClaim-history',
+    method: 'GET',
+    path: '/api/projects/:id/claim-history',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdClaims',
     method: 'GET',
     path: '/api/projects/:id/claims',
@@ -256,9 +358,21 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiMeasures',
+    method: 'GET',
+    path: '/api/measures',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdResources',
     method: 'GET',
     path: '/api/projects/:id/resources',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdBudget-headroom',
+    method: 'GET',
+    path: '/api/projects/:id/budget-headroom',
     kind: 'read',
   },
   {
@@ -386,6 +500,7 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'control',
   },
   { operationId: 'postApiAuthLogin', method: 'POST', path: '/api/auth/login', kind: 'control' },
+  { operationId: 'postApiAuthReset', method: 'POST', path: '/api/auth/reset', kind: 'control' },
   { operationId: 'postApiAuthLogout', method: 'POST', path: '/api/auth/logout', kind: 'control' },
   { operationId: 'postApiAuthRefresh', method: 'POST', path: '/api/auth/refresh', kind: 'control' },
   {
@@ -488,6 +603,18 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'postApiOrganizationTrusted-issuers',
     method: 'POST',
     path: '/api/organization/trusted-issuers',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationAgent-pools',
+    method: 'POST',
+    path: '/api/organization/agent-pools',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationAgent-poolsByIdRekey',
+    method: 'POST',
+    path: '/api/organization/agent-pools/:id/rekey',
     kind: 'mutation',
   },
   {
@@ -636,6 +763,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'postInternalMcpDelegation',
     method: 'POST',
     path: '/internal/mcp/delegation',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpMachineGrants',
+    method: 'POST',
+    path: '/internal/mcp/machine-grants',
     kind: 'control',
   },
   {

@@ -3,7 +3,11 @@ import {
   attemptOf,
   canWriteInOrganization,
   type CapacityLimitCrossed,
+  decideMeasureCreate,
+  definitionsOrUnowned,
   type LimitCrossed,
+  mayDefineMeasuresInOrganization,
+  type MeasureDefinition,
 } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
@@ -11,9 +15,10 @@ import type { Clock } from '../../ports/clock';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
-import type { ImportTransaction } from './imported-plan.resource';
+import type { ImportedPlanResource, ImportTransaction } from './imported-plan.resource';
 import {
   type ImportPreparation,
+  type PreparedImport,
   type PreparedNamedEntry,
   type PreparedWorkItem,
   prepareImport,
@@ -132,6 +137,90 @@ function parentsFirst(rows: readonly PreparedWorkItem[]): PreparedWorkItem[] {
     if (!admittedParent) throw new Error('prepared hierarchy lost its parents-first order');
   }
   return ordered;
+}
+
+/**
+ * The fields that decide what a measure's figures mean (`wbs-measure-budgets`
+ * design D63). A held definition differing in any of them is refused rather
+ * than remapped; its name, order and default visibility are the
+ * organization's own and stay as they are.
+ */
+const MEASURE_SHAPE_FIELDS = [
+  'kind',
+  'scale',
+  'unit',
+  'currency',
+  'threePoint',
+  'derived',
+  'schedulesWork',
+] as const satisfies readonly (keyof MeasureDefinition)[];
+
+/**
+ * Matches every measure definition the file names by key among the
+ * organization's and defines the ones it lacks (`wbs-measure-budgets` design
+ * D63, D65). Under legacy access the organization is the legacy one, which
+ * owns the created project before activation; only when none exists is the
+ * created project owned by no organization, so the file's definitions are
+ * matched against the seeded four it answers and none is defined (design D19).
+ *
+ * Every fact, trio and budget was checked against the file's definitions by
+ * `prepareImport`; a matched definition has the same shape, so the figures
+ * hold in the organization too, and the stores throw on a key they do not
+ * hold as the backstop.
+ *
+ * The answer is the definitions the created project holds (null when no
+ * organization owns it), or the first refusal in file order, which rolls the
+ * import back: a held definition of another shape (`measure_shape_mismatch`,
+ * at the first differing field), one no organization would own
+ * (`unknown_measure`), or a definition the organization refuses
+ * (`decideMeasureCreate`'s reasons, `derived_measure`).
+ */
+async function resolveMeasures(
+  writes: ImportedPlanResource,
+  prepared: PreparedImport,
+  access: ResourceAccess,
+  stamp: { at: number; by: string },
+  newId: () => string,
+): Promise<
+  | { ok: true; definitions: MeasureDefinition[] | null; created: boolean }
+  | { ok: false; refusal: ImportSourceRefusal | ImportForbidden }
+> {
+  const refused = (path: string, detail: string) =>
+    ({ ok: false, refusal: { ok: false, code: 'source_refused', path, detail } }) as const;
+  const owned = await writes.measureDefinitionsWithin(access);
+  const held = owned === null ? null : [...owned];
+  let created = false;
+  for (const [at, definition] of prepared.measureDefinitions.entries()) {
+    const path = `measureDefinitions[${String(at)}]`;
+    const found = definitionsOrUnowned(held).find(({ key }) => key === definition.key);
+    if (found !== undefined) {
+      // Proof: with this refusal skipped, `refuses a defined measure under
+      // legacy access, writing no project` (import-service-source-contract.ts,
+      // memory source) imported tokens counted in kilotokens; watched 2026-10-23.
+      const differing = MEASURE_SHAPE_FIELDS.find((field) => found[field] !== definition[field]);
+      if (differing !== undefined) return refused(`${path}.${differing}`, 'measure_shape_mismatch');
+      continue;
+    }
+    // Proof: with this refusal skipped, `refuses a defined measure under
+    // legacy access, writing no project` (import-service-source-contract.ts)
+    // threw from `addMeasureWithin` instead; watched 2026-10-23.
+    if (held === null) return refused(`${path}.key`, 'unknown_measure');
+    // Defining a measure is an admin's act (design D70), whichever way it arrives.
+    // Proof: with this refusal skipped, `refuses a member's import that would
+    // define a measure, writing nothing` (measure-export.controller.db.test.ts)
+    // answered 201 with gpu_minutes defined; watched 2026-10-24.
+    if (access.kind === 'scoped' && !mayDefineMeasuresInOrganization(access.scope.role))
+      return { ok: false, refusal: { ok: false, code: 'forbidden', path: '', detail: null } };
+    if (definition.derived) return refused(`${path}.derived`, 'derived_measure');
+    const measure: MeasureDefinition = { id: newId(), ...definition };
+    const decided = decideMeasureCreate(held, measure);
+    if (decided !== null) return refused(path, decided);
+    const added = await writes.addMeasureWithin(access, measure, stamp);
+    if (!added.ok) return refused(path, added.reason);
+    held.push(measure);
+    created = true;
+  }
+  return { ok: true, definitions: held, created };
 }
 
 async function resolveNamed(
@@ -365,6 +454,10 @@ export class ImportService {
               ? 'left-off'
               : 'kept';
         const stamp = this.opts.clock.stampFor(actorId);
+        const measures = await resolveMeasures(writes, prepared, access, stamp, () =>
+          this.opts.clock.newId(),
+        );
+        if (!measures.ok) return { commit: false, value: measures.refusal };
         const projectId = this.opts.clock.newId();
         const settings = prepared.settings;
         const steps = prepared.steps.map((step) => ({
@@ -403,6 +496,12 @@ export class ImportService {
           optimizationEnabled: settings.optimizationEnabled,
           scheduleEngine: settings.scheduleEngine,
           scheduleObjective: settings.scheduleObjective,
+          // Version 11 states it; earlier versions read as 1 (design D63).
+          // Proof: with the factor left off, `round-trips a version-11 plan’s
+          // trios, budgets and factor byte for byte`
+          // (import-service-source-contract.ts, memory source) failed; watched
+          // 2026-10-23.
+          budgetFactor: settings.budgetFactor,
         };
         await writes.createProject(project, steps, stamp, access);
         await writes.replacePriorityBands(projectId, prepared.priorityBands, stamp);
@@ -516,15 +615,27 @@ export class ImportService {
                 statedAt: stamp.at,
               })),
             ),
-            measures: prepared.workItems.flatMap((row) =>
-              row.measures.map((measure) => ({
-                workItemId: resolvedId(rowsByFileId, row.fileId, 'measured work item'),
-                stepId: resolvedId(stepsByFileId, measure.stepFileId, 'measure step'),
-                metric: measure.metric,
-                value: measure.value,
+            measures: [
+              ...prepared.workItems.flatMap((row) =>
+                row.measures.map((measure) => ({
+                  workItemId: resolvedId(rowsByFileId, row.fileId, 'measured work item'),
+                  stepId: resolvedId(stepsByFileId, measure.stepFileId, 'measure step'),
+                  metric: measure.metric,
+                  value: measure.value,
+                  recordedAt: stamp.at,
+                })),
+              ),
+              // Facts in defined measures, addressed by key with their basis
+              // (design D63); `resolveMeasures` has defined every key.
+              ...prepared.measureFacts.map(({ workItemId, stepId, measure, value, basis }) => ({
+                workItemId: resolvedId(rowsByFileId, workItemId, 'measured work item'),
+                stepId: resolvedId(stepsByFileId, stepId, 'measure step'),
+                metric: measure,
+                value,
                 recordedAt: stamp.at,
+                ...(basis === null ? {} : { basis }),
               })),
-            ),
+            ],
             // Written below through `setDemand`, which answers the file's resource ids.
             demands: [],
             assignments: prepared.workItems.flatMap((row) =>
@@ -555,6 +666,37 @@ export class ImportService {
           },
           stamp,
         );
+        // After the tree, whose legacy token estimates are the single-point
+        // tokens trios (design D28); preparation refused a trio beside one.
+        // Proof: with either loop below skipped, `round-trips a version-11
+        // plan’s trios, budgets and factor byte for byte`
+        // (import-service-source-contract.ts, memory source) failed; watched
+        // 2026-10-23.
+        for (const trio of prepared.measureEstimates)
+          await writes.setMeasureEstimate(
+            {
+              workItemId: resolvedId(rowsByFileId, trio.workItemId, 'estimated work item'),
+              stepId: resolvedId(stepsByFileId, trio.stepId, 'measure estimate step'),
+              key: trio.measure,
+              optimistic: trio.optimistic,
+              realistic: trio.realistic,
+              pessimistic: trio.pessimistic,
+              singlePoint: false,
+              ...(trio.basis === null ? {} : { basis: trio.basis }),
+            },
+            stamp,
+          );
+        for (const budget of prepared.budgets)
+          await writes.setBudget(
+            {
+              workItemId: resolvedId(rowsByFileId, budget.workItemId, 'budgeted work item'),
+              key: budget.measure,
+              cap: budget.cap,
+              policy: budget.policy,
+              holdPerAttempt: budget.holdPerAttempt,
+            },
+            stamp,
+          );
         for (const demand of prepared.demands)
           await writes.setDemand(
             resolvedId(rowsByFileId, demand.workItemFileId, 'demanding work item'),
@@ -662,7 +804,7 @@ export class ImportService {
             };
           }
         }
-        if (directoryChanged) {
+        if (directoryChanged || measures.created) {
           // Proof: omitting this fan-out left an existing project's subscriber
           // with no refresh, so its post-import directory read never saw `Billing`.
           for (const told of await writes.listToldProjectIds(actorId, access)) {

@@ -2,7 +2,8 @@
 
 ### Requirement: Grant and access-group acts write audit rows
 
-Granting or revoking an access role, removing a member's grants with the member, each
+Granting or revoking an access role, removing a member's grants with the member, removing
+a machine credential's grants with the credential, each
 grant the operator's `revoke-backfill` deletes, and creating, renaming or deleting an
 access group or adding or removing its member SHALL each write exactly one
 `organization_audit` row in the same transaction as the act, with actions

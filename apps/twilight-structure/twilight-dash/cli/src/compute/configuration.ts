@@ -2,6 +2,14 @@ import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 
 import { parseSecretsOrThrow, type } from '@shared/validation';
 
+import { ApiKey, type McpEndpoint, mcpEndpointOf } from '../mcp/machine-token';
+import {
+  type HostPoolDimension,
+  HostPoolDimensionShape,
+  type HostPoolLedger,
+  isCountedDimension,
+  openHostPoolLedger,
+} from './host-pool-ledger';
 import {
   type ComputeProvider,
   type Measure,
@@ -35,32 +43,6 @@ export class ConfigurationRefusal extends Error {
   }
 }
 
-/**
- * A WBS API key (`wbs_mk_<id>.<secret>`, `wbs-machine-credentials` A22). The key is held in a
- * private field, so stringifying, logging or serialising the configuration that carries it prints
- * `[credential]`; only {@link WbsCredential.authorization} reveals it, for the one request header.
- */
-export class WbsCredential {
-  readonly #key: string;
-
-  public constructor(key: string) {
-    this.#key = key;
-  }
-
-  /** The `Authorization` header value for one WBS request. */
-  public authorization(): string {
-    return `Bearer ${this.#key}`;
-  }
-
-  public toString(): string {
-    return '[credential]';
-  }
-
-  public toJSON(): string {
-    return '[credential]';
-  }
-}
-
 /** One configured provider instance, its adapter opened and its bindings validated. */
 export interface ReporterInstance {
   readonly instanceId: string;
@@ -70,11 +52,16 @@ export interface ReporterInstance {
 
 /** A loaded `report-capacity` configuration (`compute-providers` P10, P11). */
 export interface ReporterConfiguration {
-  /** The WBS origin, `https:` or loopback `http:`, with no path, query or user info. */
-  readonly wbsOrigin: string;
-  readonly credential: WbsCredential;
+  /** WBS's MCP endpoint, `https:` or loopback `http:` (`wbs-mcp-agent-surface` M12). */
+  readonly endpoint: McpEndpoint;
+  readonly credential: ApiKey;
   readonly cadenceSeconds: number;
   readonly instances: readonly ReporterInstance[];
+  /**
+   * This host's managed-resource ledger, present exactly when a binding's source is the host
+   * pool (`dash-host-jobs` J10); the loader refuses either without the other.
+   */
+  readonly hostPool?: HostPoolLedger;
 }
 
 /** One instance's settings as the file states them, shape-checked, for its adapter to open. */
@@ -119,7 +106,7 @@ const DockerContext = /^[A-Za-z0-9][A-Za-z0-9_.+-]{1,63}$/;
 // An image reference (`registry/repository:tag@digest`), bounded, never starting with `-`.
 const ImageReference = /^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,254}$/;
 // The key shape `libs/wbs/application/core/src/service/machine-key.ts` mints.
-const MachineKey =
+export const MachineKey =
   /^wbs_mk_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/;
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
@@ -129,7 +116,16 @@ const Binding = type({
   'path?': AbsolutePath,
   'slots?': '1 <= number.integer <= 10000',
   'ceilingGib?': '1 <= number.integer <= 1000000',
+  'source?': "'host_pool'",
+  'dimension?': HostPoolDimensionShape,
 }).onUndeclaredKey('reject');
+
+/** The measure a `host_pool` dimension's reserved units sit beside (`dash-host-jobs` J10). */
+const DIMENSION_MEASURES: Readonly<Record<HostPoolDimension, Measure>> = {
+  cpuCores: 'cpu_cores',
+  memoryGib: 'memory_gib',
+  tmpDiskGib: 'disk_gib',
+};
 
 const Instance = type({
   instanceId: Identifier,
@@ -142,20 +138,21 @@ const Instance = type({
 }).onUndeclaredKey('reject');
 
 const Configuration = type({
-  schemaVersion: '1',
-  wbsOrigin: 'string',
+  schemaVersion: '2',
+  mcpResource: 'string',
   credential: MachineKey,
   'cadenceSeconds?': '30 <= number.integer <= 86400',
   instances: Instance.array().atLeastLength(1),
+  'hostPool?': type({ ledger: AbsolutePath }).onUndeclaredKey('reject'),
 }).onUndeclaredKey('reject');
 
 /**
  * The file's bytes, opened without following a link and checked on the open descriptor: a
  * regular file owned by this user with no group or other permission bits, since it holds the
- * credential.
+ * credential or authorizes executable configuration.
  * @throws ConfigurationRefusal `config_absent`, `config_unreadable`, `credential_not_owner_only`.
  */
-function readOwnerOnly(path: string): string {
+export function readOwnerOnly(path: string): string {
   let descriptor: number;
   try {
     descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
@@ -180,7 +177,7 @@ function readOwnerOnly(path: string): string {
     if ((opened.mode & 0o077) !== 0 || opened.uid !== process.getuid?.()) {
       throw new ConfigurationRefusal(
         'credential_not_owner_only',
-        `${path} holds the WBS credential and must be owned by this user with mode 0600`,
+        `${path} contains protected settings and must be owned by this user with mode 0600`,
       );
     }
     const buffer = Buffer.alloc(MAX_CONFIGURATION_BYTES + 1);
@@ -202,38 +199,33 @@ function readOwnerOnly(path: string): string {
 }
 
 /**
- * The origin requests go to. Plain HTTP would carry the credential readable on the wire, so only
- * a loopback origin may use it (a local tunnel or a test server).
+ * The MCP endpoint reports go to (`mcpResource`, e.g. `https://wbs.example/mcp`). The key crosses
+ * the wire to its token endpoint, so plain HTTP is accepted only on loopback (a local tunnel or a
+ * test server), and user info, a query or a fragment is refused.
  */
-function readOrigin(path: string, source: string): string {
-  let origin: URL;
+function readMcpResource(path: string, source: string): McpEndpoint {
+  let url: URL;
   try {
-    origin = new URL(source);
+    url = new URL(source);
   } catch {
-    throw new ConfigurationRefusal('config_malformed', `${path}: wbsOrigin is not a URL`);
+    throw new ConfigurationRefusal('config_malformed', `${path}: mcpResource is not a URL`);
   }
-  const plainLoopback = origin.protocol === 'http:' && LOOPBACK_HOSTS.has(origin.hostname);
+  const plainLoopback = url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname);
   // Proof: accepting any `http:` origin made `refuses a plain-HTTP origin that is not loopback`
   // load a configuration that would send the key in clear text (2026-10-22).
-  if (origin.protocol !== 'https:' && !plainLoopback) {
+  if (url.protocol !== 'https:' && !plainLoopback) {
     throw new ConfigurationRefusal(
       'config_malformed',
-      `${path}: wbsOrigin must be https, or http on loopback`,
+      `${path}: mcpResource must be https, or http on loopback`,
     );
   }
-  if (
-    origin.username !== '' ||
-    origin.password !== '' ||
-    origin.pathname !== '/' ||
-    origin.search !== '' ||
-    origin.hash !== ''
-  ) {
+  if (url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') {
     throw new ConfigurationRefusal(
       'config_malformed',
-      `${path}: wbsOrigin must be an origin without user info, path, query or fragment`,
+      `${path}: mcpResource must be a URL without user info, query or fragment`,
     );
   }
-  return origin.origin;
+  return mcpEndpointOf(source);
 }
 
 /**
@@ -268,6 +260,24 @@ function checkBinding(
       `${path}: instance ${instanceId} resource ${binding.resourceId} measure ${binding.measure} takes ${wanted}`,
     );
   }
+  // Proof: dropping this pairing made `refuses a host pool binding whose dimension does not
+  // match its measure config_malformed` (report-capacity.test.ts) load memoryGib beside
+  // cpu_cores (2026-11-01, verify.md Slice 5).
+  if ((binding.source === undefined) !== (binding.dimension === undefined))
+    throw new ConfigurationRefusal(
+      'config_malformed',
+      `${path}: instance ${instanceId} resource ${binding.resourceId} names source and dimension together or neither`,
+    );
+  if (binding.dimension !== undefined) {
+    const paired = isCountedDimension(binding.dimension)
+      ? DIMENSION_MEASURES[binding.dimension]
+      : 'agent_slots';
+    if (binding.measure !== paired)
+      throw new ConfigurationRefusal(
+        'config_malformed',
+        `${path}: instance ${instanceId} resource ${binding.resourceId} dimension ${binding.dimension} pairs with measure ${paired}`,
+      );
+  }
 }
 
 /**
@@ -275,12 +285,15 @@ function checkBinding(
  * (`compute-providers` P10, P11): the owner-only file, its shape (field paths only, never
  * values), one binding per resource across the file, and per instance its kind's availability,
  * the adapter's measures, then the adapter's own local inputs.
+ * A `hostPool.ledger` is opened read-only through `openLedger` after every instance opened,
+ * and only when a binding names the host pool.
  * @throws ConfigurationRefusal naming the first unusable input; an adapter's own refusal (an SSH
- * transport refusal) propagates as it is.
+ * transport refusal) and the ledger's own refusal propagate as they are.
  */
 export async function loadReporterConfiguration(
   path: string,
   adapters: ProviderAdapters,
+  openLedger: (ledger: string) => HostPoolLedger = openHostPoolLedger,
 ): Promise<ReporterConfiguration> {
   const source = readOwnerOnly(path);
   let input: unknown;
@@ -299,7 +312,7 @@ export async function loadReporterConfiguration(
     const fields = cause instanceof Error ? cause.message : 'the value itself';
     throw new ConfigurationRefusal('config_malformed', `${path}: ${fields}`);
   }
-  const wbsOrigin = readOrigin(path, parsed.wbsOrigin);
+  const endpoint = readMcpResource(path, parsed.mcpResource);
   const instanceIds = new Set<string>();
   const resourceIds = new Set<string>();
   for (const instance of parsed.instances) {
@@ -322,8 +335,63 @@ export async function loadReporterConfiguration(
       checkBinding(path, instance.instanceId, instance.kind, binding);
     }
   }
+  const pooled = parsed.instances.some((instance) =>
+    instance.bindings.some((binding) => binding.source === 'host_pool'),
+  );
+  if (pooled !== (parsed.hostPool !== undefined))
+    throw new ConfigurationRefusal(
+      'config_malformed',
+      `${path}: hostPool.ledger is ${pooled ? 'required by' : 'unused without'} a binding whose source is host_pool`,
+    );
+  // Opened before any adapter, so a host before `resources init` is refused with nothing to
+  // close; an adapter failing afterwards closes the ledger again.
+  const hostPool =
+    parsed.hostPool === undefined ? undefined : openPool(path, parsed.hostPool.ledger, openLedger);
+  try {
+    return {
+      endpoint,
+      credential: ApiKey.of(parsed.credential, `${path}: credential`),
+      cadenceSeconds: parsed.cadenceSeconds ?? DEFAULT_CADENCE_SECONDS,
+      instances: await openInstances(parsed.instances, adapters),
+      ...(hostPool === undefined ? {} : { hostPool }),
+    };
+  } catch (cause) {
+    hostPool?.close();
+    throw cause;
+  }
+}
+
+/**
+ * The host pool's ledger through `openLedger`.
+ * @throws ConfigurationRefusal `config_malformed` naming the ledger when it cannot be opened or
+ * is not a ledger this Dash reads, with the ledger's own refusal as the cause.
+ */
+function openPool(
+  path: string,
+  ledger: string,
+  openLedger: (ledger: string) => HostPoolLedger,
+): HostPoolLedger {
+  try {
+    return openLedger(ledger);
+  } catch (cause) {
+    // Proof: rethrowing the ledger's own error made `refuses a host pool binding the loader
+    // cannot honour, config_malformed` (report-capacity.host-pool.test.ts) receive a plain Error
+    // (2026-11-02).
+    throw new ConfigurationRefusal(
+      'config_malformed',
+      `${path}: hostPool.ledger ${ledger} is not a managed-resource ledger this Dash can read; run resources init first`,
+      { cause },
+    );
+  }
+}
+
+/** Opens each instance's adapter after the checks the file allows without dialling anything. */
+async function openInstances(
+  configured: readonly (typeof Instance.infer)[],
+  adapters: ProviderAdapters,
+): Promise<ReporterInstance[]> {
   const instances: ReporterInstance[] = [];
-  for (const instance of parsed.instances) {
+  for (const instance of configured) {
     const { kind } = instance;
     // Proof: letting `puni_pool` fall through to the adapter lookup failed `refuses a pool
     // instance provider_kind_not_available` with `provider_not_implemented` (2026-10-22).
@@ -365,10 +433,5 @@ export async function loadReporterConfiguration(
       bindings: instance.bindings,
     });
   }
-  return {
-    wbsOrigin,
-    credential: new WbsCredential(parsed.credential),
-    cadenceSeconds: parsed.cadenceSeconds ?? DEFAULT_CADENCE_SECONDS,
-    instances,
-  };
+  return instances;
 }

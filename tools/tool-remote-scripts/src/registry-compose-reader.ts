@@ -11,8 +11,11 @@ import {
 } from '@tools/registry-publication';
 import { type } from 'arktype';
 
-import { parseComposeRegistry } from './lib/registry-state';
-import { parseStateJson, renderStateJson } from './lib/state';
+import {
+  parseComposeRegistry,
+  parseRegistryTierState,
+  renderRegistryTierState,
+} from './lib/registry-state';
 import { type ComposeSourceConfiguration, readComposeSource } from './registry-compose-source';
 
 const Scope = type({
@@ -37,7 +40,7 @@ export async function readComposeHistory(
     throw new Error('Compose history target differs');
   const path = join(root.root, 'state', 'be.json');
   const bytes = await readRegistrySource(path);
-  const state = parseStateJson(bytes.text);
+  const state = parseRegistryTierState(bytes.text);
   const registry = parseComposeRegistry(state.registry, path);
   for (const key of ['registryId', 'product', 'environment', 'target'] as const)
     if (registry.history[key] !== configuration.scope[key])
@@ -130,7 +133,7 @@ export async function initializeComposeHistory(
   const descriptor = await open(path, 'wx', 0o600);
   try {
     await descriptor.writeFile(
-      renderStateJson({
+      renderRegistryTierState({
         tier: 'be',
         activeColor: 'blue',
         lastDeployedSha: null,

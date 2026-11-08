@@ -51,10 +51,9 @@ spec:
             - { name: REGISTRY_AUTH, value: htpasswd }
             - { name: REGISTRY_AUTH_HTPASSWD_REALM, value: puni-registry }
             - { name: REGISTRY_AUTH_HTPASSWD_PATH, value: /auth/htpasswd }
-            # Proof: pinned native DELETE returns 405; enabling deletion removes the protected manifest.
-            - { name: REGISTRY_STORAGE_DELETE_ENABLED, value: 'false' }
-            # Proof: pinned native config starts no purger; removing this object override arms it.
-            - { name: REGISTRY_STORAGE_MAINTENANCE_UPLOADPURGING, value: '{"enabled": false}' }
+            - { name: REGISTRY_STORAGE_DELETE_ENABLED, value: 'true' }
+            # Garbage collection flips this to true, restarts, collects, then restores false;
+            # docs/infra/platform.md has the procedure.
             - { name: REGISTRY_STORAGE_MAINTENANCE_READONLY, value: '{"enabled": false}' }
           ports:
             - { name: registry, containerPort: 5000 }
@@ -66,8 +65,8 @@ spec:
           readinessProbe:
             httpGet: { path: /debug/health, port: debug }
           resources:
-            requests: { cpu: 25m, memory: 64Mi }
-            limits: { cpu: '1', memory: 512Mi }
+            requests: { cpu: 25m, memory: 64Mi, ephemeral-storage: 32Mi }
+            limits: { cpu: '1', memory: 512Mi, ephemeral-storage: 256Mi }
           volumeMounts:
             - { name: storage, mountPath: /var/lib/registry }
             - { name: tls, mountPath: /certs, readOnly: true }

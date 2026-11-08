@@ -301,8 +301,42 @@ expired (3,128 files, 150.4 GiB). `sqlite/website-dev`: 824 files listed, 63 sta
 objects, and `list-multipart-uploads` reports 0 (down from 68). The 05:17Z hourly backup
 after the prune was green.
 
+**Alert delivery, restore proof and coverage, 2026-10-25.** Claire PR #140 (merged, live on
+h1claw). Why the outage was silent: the `check` freshness gate only answered when asked, and the
+OpenClaw heartbeat meant to ask had last run on 2026-09-09. Now `backup-freshness-alert.timer`
+(every 15 min, systemd, not a gateway cron job) judges each backup set fail-closed from four
+records (status age, newest stamp actually in the bucket, retention record, restore-drill
+record) and pushes to the owner's WhatsApp through the gateway: new or changed alerts at once,
+unchanged every 6 h, one recovery message, a failed push fails the unit. Proof at 04:25Z: a
+healthy pass delivered nothing; an injected 250-minute-old status in a scratch root delivered
+`[sqlite] newest backup is 250 minutes old (limit 90)` (WhatsApp message `3EB0E2ED354F317B39B426`);
+the repeat was deduplicated; the pass back on the real roots delivered the recovery message.
+`sqlite-backup-restore-drill.timer` (Sun 05:47) downloads the newest set from the bucket,
+checks size and SHA-256 against the status record, opens every member (python3
+`integrity_check` plus the sanity query, `tar -tzf`) and requires the snapshot's answer; first
+drill at 04:22Z: sqlite set 987 MB verified in 56.2 s (download 54.2 s, verify 2.0 s), mlflow
+set 701 MB in 41.3 s. Coverage: the hourly set gained an `h2puni-config` tarball (blue/green
+state, compose, Caddy sites, env files; 55 members, 12 KiB) and a new daily `mlflow` set
+snapshots the root-owned h3mon MLflow volume (first generation 04:11Z, 700,915,712 bytes, 34
+tables, 4 m 59 s); `prune-remote` covers both directories. The first five-member hourly set
+(04:25Z) carried the tarball at 12,306 bytes with 55 members and uploaded in 5 m 22 s. Its
+start stamp had been set to 00:00Z, which flagged that morning's four-file sets as incomplete
+for one run and pushed one alert; claire PR #142 moved the stamp to the deploy time. Store
+table and RPO rows: [recovery](../../infra/recovery.md).
+
+**wbs-dev size, explained.** 865 MB of the 987 MB generation is `event_log.message`: 5,288
+`tree_replaced` events each carry the whole work-item tree of their project (largest 1.4 MB),
+and `EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000` (`apps/wbs/be-01/src/services.ts`) keeps the last
+thousand per project, so one project holds 764 MB in 1,000 rows. Beside the live database,
+`/home/puni1/wbs-dev/data` holds two 0.9 GB pre-deploy copies from 2026-10-20 and 2026-10-21
+that no backup or retention covers. The remedy is a smaller `tree_replaced` payload or a
+byte-bounded replay log in the WBS code, not a backup change.
+
 **Not done here.** The bucket lifecycle rule still lacks `AbortIncompleteMultipartUpload`
 and `ExpiredObjectDeleteMarker` (the session's permission classifier refused direct bucket
 mutations; the daily `rclone backend cleanup` covers stale multipart uploads meanwhile);
 the 150 GiB of expired generations stay billable as noncurrent versions until the 30-day
-rule releases them around 2026-11-23; the `wbs-dev` database size itself is unexplained.
+rule releases them around 2026-11-23; the alert's remote check uses the read-write object
+storage credentials because no read-only token exists; the alert path still depends on the
+OpenClaw gateway for delivery (a dead gateway shows as a failed unit, not a message); putting a
+drilled generation back into a running h2puni container is not yet drilled.

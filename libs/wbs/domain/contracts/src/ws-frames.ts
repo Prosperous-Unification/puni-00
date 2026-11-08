@@ -18,6 +18,14 @@ export function wsData(subscription: string, seq: number, message: unknown): str
   return JSON.stringify({ subscription, seq, message });
 }
 
+/**
+ * One subscription's transient announcement (`WsTransientFrame`): no sequence,
+ * because nothing durable stands behind it.
+ */
+export function wsTransient(subscription: string, message: unknown): string {
+  return JSON.stringify({ subscription, message });
+}
+
 /** The answer to a `ping`, which is what keeps an idle socket from being reaped. */
 export function wsPong(): string {
   return JSON.stringify({ type: 'pong' });

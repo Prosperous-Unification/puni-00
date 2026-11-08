@@ -1,6 +1,6 @@
 import type { PlanEvent, PlanEventFilter } from './plan-event-values';
 export type { PlanEvent, PlanEventFilter } from './plan-event-values';
-export { PLAN_EVENT_RETENTION_DAYS } from './plan-event-values';
+export { checkPlanEventLimit, holdsCommand, PLAN_EVENT_RETENTION_DAYS } from './plan-event-values';
 
 export interface PlanEventStore {
   /**

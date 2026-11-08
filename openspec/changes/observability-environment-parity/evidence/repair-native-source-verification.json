@@ -1,0 +1,114 @@
+{
+  "scope": "native-repair-producer-source-only",
+  "base": "1d294e035ecdf4b4c670bcaa221bb77be3ab81cc",
+  "source": [
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair.py",
+      "bytes": 58615,
+      "sha256": "d7774b58713d1bf65be728b49b12010b08f51257d6e15fda0ff491b9879e7537",
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair.ts",
+      "bytes": 3901,
+      "sha256": "8a5b795f37cf9b7d1fe571a3ded0e8e8bb62d5ad20affef350ecc883427efbe9",
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "bytes": 66952,
+      "sha256": "3001b28c366f112c2ba4f04973f96451a8dc082e3c5b442d539cdd0fe69ee651",
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair-cli.ts",
+      "bytes": 744,
+      "sha256": "7233129295bb4a3be9e4a3dd388fe150e5bba222c282bad491d49c4b892a84b2",
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-worker.py",
+      "bytes": 13665,
+      "sha256": "228c46388b14258589deae9908e238df818c789f05545c5bc6ee1704f09e320c",
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-worker.test.ts",
+      "bytes": 13708,
+      "sha256": "5802bad5a494b19744ee63943afa2fe54f426cf6cb33497a59f3512e86f30fbf",
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-preparation.py",
+      "bytes": 54259,
+      "sha256": "999699a5450e6f0b58f9d617997f58737b8680b966281f7742bd7b420d4b6a16",
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-seed-preparation.py",
+      "bytes": 50585,
+      "sha256": "8ac78438df46a9098ed0bd7190f19f106dc1283ffd00c2a9c4d53314ed074344",
+      "mode": "0644"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-seed-preparation.test.ts",
+      "bytes": 51474,
+      "sha256": "3ff190d9747c3b1a99dbdb16a34d95dedf1dea399fe2a2766ae60a64055f5bc5",
+      "mode": "0644"
+    }
+  ],
+  "reportSha256": "026dc38e260aab717dfff0c8c152002029be78270b29458ee5c7aadd7d6f8da8",
+  "reviewSha256": "4a97b63f9de63d4c79ef5e112bf34cb0a0548566eac72cbf3a33618711084612",
+  "packetBytesAtFreeze": 285397,
+  "packetFilesAtFreeze": 107,
+  "focusedVerification": {
+    "passed": 79,
+    "assertions": 250,
+    "seconds": 9.67,
+    "newRepairCases": 78,
+    "necessaryV1CompatibilityCases": 1,
+    "otherFiltered": 52,
+    "environment": {
+      "CI": "true",
+      "FORCE_COLOR": "1",
+      "TERM": "xterm",
+      "NO_COLOR": "absent"
+    },
+    "pythonVersion": "3.14.7 with controlled native-runtime seams"
+  },
+  "watchedSourceFaults": 27,
+  "statics": {
+    "namedFormat": 0,
+    "namedLint": 0,
+    "owningFleetTypecheck": 0,
+    "pythonAsts": 4,
+    "diffWhitespace": 0
+  },
+  "postRuntimeAmendments": "erased test type annotations/equivalent NO_COLOR bracket access; two production Proof comments with equal Python ASTs",
+  "nativePolicyInstalled": false,
+  "nativeUnitRun": false,
+  "retainedRawAccessed": false,
+  "repairAccepted": false,
+  "debtReleaseImplemented": false,
+  "continuedGuestV2Implemented": false,
+  "commands.json": {
+    "sha256": "68ed783268bdd50af7baf1a621146fd2909d70f3a81468cacde4a7331146facf",
+    "bytes": 4041
+  },
+  "runtime-equivalence.json": {
+    "sha256": "1deb83741d45563d5fdcbb86d505adac3aa77c6cc47a6ed9bd0727a2eaf60bda",
+    "bytes": 418
+  },
+  "historical-formats.json": {
+    "sha256": "df8e974ca0a3fac6e5891429bfa05f99301083d28617df63d1cbbea664760302",
+    "bytes": 1862
+  },
+  "faults.json": {
+    "sha256": "05e696f9e751707f38c1c9fcf1280e3bd746f140ce389e7ccc8272bd9268215e",
+    "bytes": 6753
+  },
+  "environment.json": {
+    "sha256": "87eecd046a6a81dd9d6382de9570f552f7d23403014fb88aafdfec4bcd954529",
+    "bytes": 280
+  }
+}

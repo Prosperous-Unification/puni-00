@@ -14,7 +14,7 @@ import {
 } from '@tools/registry-publication';
 import { type } from 'arktype';
 
-import { inheritFirstStartHistory, initializeFirstStartHistory } from './k8s/first-start';
+import { inheritFirstStartHistory, initializeFirstStartHistory } from './k8s/registry-first-start';
 import { readKubernetesSource } from './k8s/registry-reader';
 
 const Path = type('string > 0').narrow(isAbsolute);

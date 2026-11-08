@@ -1,5 +1,8 @@
 import { createRemoteJWKSet, errors, jwtVerify } from 'jose';
-import { discovery } from 'openid-client';
+import { type Configuration, discovery } from 'openid-client';
+
+import { issuerUrlFromEnv } from './issuer-url';
+import { cacheWhileItSucceeds } from './oidc-client';
 
 export interface JwtClaims {
   sub: string;
@@ -62,30 +65,46 @@ export interface ConfiguredTokenVerifier extends TokenVerifier {
   issuer(): Promise<string>;
 }
 
-/** Builds a lazy verifier from the same discovery contract as the browser flow. */
+/**
+ * Builds a lazy verifier from the same discovery contract as the browser flow.
+ * `discover` and `now` are injectable for tests only; production passes
+ * neither.
+ *
+ * @throws at composition, through {@link issuerUrlFromEnv}, when the issuer
+ *   URL could never be discovered, and when a required key is missing.
+ */
 export function oidcTokenVerifierFromEnv(
   env: Readonly<Record<string, string | undefined>>,
+  options: { discover?: () => Promise<Configuration>; now?: () => number } = {},
 ): ConfiguredTokenVerifier {
-  const issuerUrl = required(env, 'AUTH_ISSUER_DISCOVERY_URL');
+  const issuerUrl = issuerUrlFromEnv(env);
   const audience = required(env, 'AUTH_AUDIENCE');
   const clientId = required(env, 'AUTH_CLIENT_ID');
   const clientSecret = required(env, 'AUTH_CLIENT_SECRET');
-  let verifier: Promise<{ issuer: string; verifier: JwksTokenVerifier }> | undefined;
-  const discovered = () => {
-    verifier ??= discovery(new URL(issuerUrl), clientId, clientSecret).then((configuration) => {
-      const metadata = configuration.serverMetadata();
-      if (metadata.jwks_uri === undefined) throw new Error('OIDC discovery has no jwks_uri');
-      return {
-        issuer: metadata.issuer,
-        verifier: new JwksTokenVerifier({
-          audience,
-          issuer: metadata.issuer,
-          jwksUri: new URL(metadata.jwks_uri),
-        }),
-      };
-    });
-    return verifier;
-  };
+  // A rejected discovery is held only for a short cooldown, as the browser
+  // client's is: memoized for good, one transient failure kept every OIDC
+  // verification failing until restart.
+  // Proof: with `??=` memoization in its place, `discovers again once a failed
+  // discovery cools down` (token-verifier.test.ts) rethrew the first failure;
+  // watched 2026-10-24.
+  const discovered = cacheWhileItSucceeds(
+    () =>
+      (options.discover ?? (() => discovery(issuerUrl, clientId, clientSecret)))().then(
+        (configuration) => {
+          const metadata = configuration.serverMetadata();
+          if (metadata.jwks_uri === undefined) throw new Error('OIDC discovery has no jwks_uri');
+          return {
+            issuer: metadata.issuer,
+            verifier: new JwksTokenVerifier({
+              audience,
+              issuer: metadata.issuer,
+              jwksUri: new URL(metadata.jwks_uri),
+            }),
+          };
+        },
+      ),
+    options.now === undefined ? {} : { now: options.now },
+  );
 
   return {
     async verify(token) {

@@ -120,11 +120,13 @@ describe('Navigator record kinds', () => {
       /planDocumentVersion/,
     );
     expect(() =>
-      decodeRecord('plan-reference', planReference({ planDocumentVersion: 11 })),
+      decodeRecord('plan-reference', planReference({ planDocumentVersion: 12 })),
     ).toThrow(/planDocumentVersion/);
   });
 
-  test.each([6, 7, 8, 9, 10])(
+  // Proof: with 11 dropped from `planDocumentVersion`, the version-11 case threw on
+  // `planDocumentVersion`; watched 2026-10-24.
+  test.each([6, 7, 8, 9, 10, 11])(
     'decodes a version-%s plan reference without rewriting its digest',
     (version) => {
       const record = planReference({ planDocumentVersion: version });

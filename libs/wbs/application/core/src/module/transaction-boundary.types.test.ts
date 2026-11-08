@@ -46,6 +46,7 @@ test('composition keeps source capabilities outside feature callbacks', async ()
     throw new Error('unused command graph factory');
   }).run((resources) => {
     expect(Object.keys(resources).sort()).toEqual([
+      'authorizeRuntime',
       'listCrossReferenceKinds',
       'openCommandGraph',
       'refuseOutsideScope',

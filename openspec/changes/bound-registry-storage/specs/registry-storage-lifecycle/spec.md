@@ -397,7 +397,8 @@ fences. Missing or corrupt journal state MUST prevent writes and deletion.
 
 ### Requirement: Mandatory installed selection and compatible artifacts
 
-Every installed publishing, copy or consumer-mutating entrypoint SHALL require the
+During coordinated managed rollout, every installed publishing, copy or consumer-mutating
+entrypoint SHALL require the
 complete trusted host catalog. Missing or unreadable catalog, source, artifact,
 identity or protocol MUST refuse rather than imply unmanaged execution. An explicit
 valid unmanaged catalog SHALL preserve legacy workflows.
@@ -448,3 +449,37 @@ remain pending until exact downstream Flux, runtime and live checks succeed.
 
 - **WHEN** shared smoke fails under the whole-environment lock
 - **THEN** no promotion occurs, candidate/outgoing ownership remains, and retry verifies/smokes the complete candidate without repeating committed swaps or migrations
+
+### Requirement: Dormant source staging preserves supported commands
+
+Supported legacy publishing, copy, deployment and recovery commands SHALL retain
+baseline routing and writer versions without discovering managed adapters. Direct
+managed APIs SHALL require the complete trusted catalog and refuse absent, unreadable
+or malformed state. Source staging MUST NOT establish enrollment or installed readiness.
+
+#### Scenario: Legacy delivery without lifecycle installation
+
+- **WHEN** a supported legacy command runs without registry lifecycle installation
+- **THEN** it preserves its baseline effects and persisted schema without managed selection
+
+#### Scenario: Direct managed call lacks trusted catalog
+
+- **WHEN** a directly invoked managed API cannot read a complete trusted catalog
+- **THEN** it refuses before publication or consumer mutation, without classifying absence as unmanaged
+
+### Requirement: Source CI fixture prerequisites
+
+Each CI job selecting ordinary fleet tests SHALL prepare compiler and unprivileged
+user-namespace prerequisites before testing. Both infrastructure event filters SHALL
+include changes to their shared preparation helper. Preparation failure MUST stop
+before runtime tests without widening unrelated job selection or host permissions.
+
+#### Scenario: Infrastructure helper changes alone
+
+- **WHEN** a pull request or main push changes only the fixture prerequisite helper
+- **THEN** infrastructure CI selects the owning fleet check and runs preparation first
+
+#### Scenario: Prerequisite preparation fails
+
+- **WHEN** compiler installation, executable-specific profile loading or namespace probing fails
+- **THEN** each selecting job refuses before running fleet tests

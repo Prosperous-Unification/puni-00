@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { canonicalJson, digestOf, verifyDigest } from './canonical';
+import { canonicalJson, digestBytes, digestOf, verifyDigest } from './canonical';
 
 const record = { schemaVersion: 1, kind: 'sample', nested: { b: [2, 'x'], a: true }, empty: null };
 
@@ -47,4 +47,13 @@ describe('canonical record digests', () => {
       verifyDigest(record, 'recordDigest');
     }).toThrow(/has no recordDigest/);
   });
+});
+
+test('hashes exact bytes using the SHA-256 empty known vector', () => {
+  expect(digestBytes(new Uint8Array())).toBe(
+    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+  );
+  expect(digestBytes(Uint8Array.from([0x61, 0x62, 0x63]))).toBe(
+    'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+  );
 });

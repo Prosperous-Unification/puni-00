@@ -1,9 +1,12 @@
+import type { RuntimeClaim, RuntimeReceipt } from '@wbs/contracts';
 import type { NewJournalEntry, PlanEvent, StepRemoved, TransactionalStores } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { describe, expect, it } from 'bun:test';
 
+import { inMemoryClaims, memoryClaimTable } from './claim-fixture';
+import { memoryProgressTable } from './progress-fixture';
 import {
   openMemorySource,
   openMemorySourceFixture,
@@ -15,6 +18,7 @@ const STORE_BINDINGS = [
   'actuals',
   'attempts',
   'blockages',
+  'budgets',
   'calendarMarkers',
   'capacity',
   'claims',
@@ -24,12 +28,14 @@ const STORE_BINDINGS = [
   'estimates',
   'eventLog',
   'journal',
+  'measureEstimates',
   'measures',
   'planEvents',
   'priorityBands',
   'progress',
   'projects',
   'resourceCapacity',
+  'runtimeCommands',
   'stepParallels',
   'steps',
   'subtrees',
@@ -274,6 +280,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       id: 'journal-1',
       projectId: 'p1',
       userId: 'owner',
+      personId: null,
       kind: 'rename',
       payload: { nested: { label: 'stored payload' } },
       inverse: { type: 'rename' },
@@ -313,12 +320,117 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   );
   const updated = await stores.projects.update('p1', { name: 'Stored update' }, stamp);
 
+  // Raw persistence fixtures exercise detachment, not receiver business acceptance.
+  const runtimeScope = { organizationId: 'org-1', projectId: 'p1', personId: 'person-1' };
+  const grant = await stores.runtimeCommands.compareAuthority(runtimeScope, null, 'runtime-owner');
+  const runtimeClaim: RuntimeClaim = {
+    claimId: 'runtime-claim',
+    workItemId: 'wi-1',
+    stepId: 'step-memory',
+    parentClaimId: null,
+    execution: {
+      storeId: 'runtime-store',
+      runId: 'runtime-run',
+      attemptId: 'runtime-attempt',
+      sessionId: 'runtime-session',
+    },
+  };
+  await stores.runtimeCommands.insertBinding(runtimeScope, runtimeClaim);
+  const ledger = await stores.runtimeCommands.inspectLedger();
+  const runtimeReceipt: RuntimeReceipt = {
+    schemaVersion: 1,
+    ledgerId: ledger.ledgerId,
+    scope: runtimeScope,
+    commandId: 'runtime-command',
+    requestDigest: 'a'.repeat(64),
+    actorId: 'owner',
+    acceptance: {
+      kind: 'write',
+      authority: { ownerId: 'runtime-owner', generation: 1 },
+      claim: runtimeClaim,
+      basisAfter: `rb1:${'b'.repeat(64)}`,
+      applied: [{ index: 0, kind: 'setProgress' }],
+    },
+  };
+  await stores.runtimeCommands.insertAcceptance({
+    schemaVersion: 1,
+    scope: runtimeScope,
+    commandId: runtimeReceipt.commandId,
+    canonicalRequest: 'raw detached-value fixture',
+    requestDigest: runtimeReceipt.requestDigest,
+    receipt: runtimeReceipt,
+  });
+  const readRuntimeAcceptance = () =>
+    stores.runtimeCommands.readAcceptance(runtimeScope, runtimeReceipt.commandId);
+
   const cases: readonly {
     readonly name: string;
     readonly returned: unknown;
     readonly reread: () => Promise<unknown>;
     readonly mutate?: (value: unknown) => boolean;
   }[] = [
+    {
+      name: 'runtime ledger',
+      returned: await stores.runtimeCommands.inspectLedger(),
+      reread: () => stores.runtimeCommands.inspectLedger(),
+    },
+    {
+      // Proof: bypassing both runtime detachers returned the shared CAS grant; both boundaries reread caller-mutation.
+      name: 'runtime authority CAS',
+      returned: grant,
+      reread: () => stores.runtimeCommands.readAuthority(runtimeScope),
+    },
+    {
+      name: 'runtime authority read',
+      returned: await stores.runtimeCommands.readAuthority(runtimeScope),
+      reread: () => stores.runtimeCommands.readAuthority(runtimeScope),
+    },
+    {
+      name: 'runtime claim binding',
+      returned: await stores.runtimeCommands.readBinding(runtimeScope, runtimeClaim.claimId),
+      reread: () => stores.runtimeCommands.readBinding(runtimeScope, runtimeClaim.claimId),
+    },
+    {
+      name: 'runtime attempt binding execution',
+      returned: (
+        await stores.runtimeCommands.readAttemptBinding(
+          runtimeScope,
+          'runtime-store',
+          'runtime-attempt',
+        )
+      )?.execution,
+      reread: async () =>
+        (
+          await stores.runtimeCommands.readAttemptBinding(
+            runtimeScope,
+            'runtime-store',
+            'runtime-attempt',
+          )
+        )?.execution,
+    },
+    {
+      name: 'runtime acceptance envelope',
+      returned: await readRuntimeAcceptance(),
+      reread: readRuntimeAcceptance,
+    },
+    {
+      name: 'runtime acceptance receipt scope',
+      returned: (await readRuntimeAcceptance())?.receipt.scope,
+      reread: async () => (await readRuntimeAcceptance())?.receipt.scope,
+    },
+    {
+      name: 'runtime acceptance receipt claim execution',
+      returned: (await readRuntimeAcceptance())?.receipt,
+      reread: async () => (await readRuntimeAcceptance())?.receipt,
+      mutate(value) {
+        if (value === null || typeof value !== 'object') return false;
+        const acceptance = Reflect.get(value, 'acceptance') as RuntimeReceipt['acceptance'];
+        if (acceptance.kind !== 'write') return false;
+        Reflect.set(acceptance.claim.execution, 'sessionId', 'caller-session');
+        Reflect.set(acceptance.applied, 0, { index: 0, kind: 'setMeasure' });
+        return true;
+      },
+    },
     {
       name: 'users',
       returned: createdUser,
@@ -446,8 +558,12 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     },
     {
       name: 'journal',
-      returned: await stores.journal.entriesFor('p1', 'owner'),
-      reread: () => stores.journal.entriesFor('p1', 'owner'),
+      returned: await stores.journal.entriesFor({
+        projectId: 'p1',
+        userId: 'owner',
+        personId: null,
+      }),
+      reread: () => stores.journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null }),
     },
     { name: 'project create', returned: created, reread: () => stores.projects.findById('p2') },
     { name: 'project update', returned: updated, reread: () => stores.projects.findById('p1') },
@@ -773,6 +889,7 @@ describe('the staged memory source', () => {
       id: 'legitimate-entry',
       projectId: 'p1',
       userId: 'owner',
+      personId: null,
       kind: 'rename',
       payload: { type: 'rename', name: 'After' },
       inverse: { type: 'rename', name: 'Before' },
@@ -798,9 +915,9 @@ describe('the staged memory source', () => {
     );
     expect(await source.stores.planEvents.listFor('p1', {})).toEqual([event]);
     expect(await fixture.independentJournalHistoryFor()).toEqual([]);
-    expect(await source.stores.journal.entriesFor('p1', 'owner')).toEqual([
-      { ...entry, seq: 1, undone: false },
-    ]);
+    expect(
+      await source.stores.journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null }),
+    ).toEqual([{ ...entry, seq: 1, undone: false }]);
     await source.close();
   });
 
@@ -1027,3 +1144,45 @@ for (const cascade of [false, true])
     expect(await source.stores.steps.findById('st-1')).toMatchObject({ name: 'Dev' });
     expect(await source.stores.stepParallels.listByProject('p1')).toEqual([fact]);
   });
+
+describe('the memory claims renewal', () => {
+  it('renews nothing when a due claim names an absent work item', async () => {
+    const table = memoryClaimTable();
+    const due = {
+      runId: 'run-1',
+      parentClaimId: null,
+      accountId: 'owner',
+      personId: 'codex',
+      claimedAt: 0,
+      leaseExpiresAt: 1_000,
+      leaseRevokedAt: null,
+    };
+    table.rows.push(
+      { ...due, id: 'claim-kept', workItemId: 'item-kept', stepId: 'step-1' },
+      { ...due, id: 'claim-gone', workItemId: 'item-gone', stepId: 'step-1' },
+    );
+    const before = structuredClone(table.rows);
+    // The claims store reads only `findById` here; the rest of each stub is
+    // never reached by a renewal.
+    const claims = inMemoryClaims(
+      {
+        findById: (id: string) =>
+          Promise.resolve(id === 'item-kept' ? workItemRow({ id, projectId: 'p-1' }) : null),
+        listByProject: () => Promise.resolve([]),
+      },
+      memoryProgressTable(),
+      table,
+      {} as Parameters<typeof inMemoryClaims>[3],
+      () => true,
+      {} as Parameters<typeof inMemoryClaims>[5],
+    );
+    const refusal = await claims
+      .renewLeases('codex', null, () => 500)
+      .then(
+        () => '(renewed)',
+        (error: unknown) => String(error),
+      );
+    expect(refusal).toContain('absent work item item-gone');
+    expect(table.rows).toEqual(before);
+  });
+});

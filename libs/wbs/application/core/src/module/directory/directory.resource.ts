@@ -2,6 +2,8 @@ import {
   cleanName,
   type LimitCrossed,
   mayBindAccountInOrganization,
+  mayRemoveResourceInOrganization,
+  mayStateDirectoryCapacityInOrganization,
   type OrganizationScope,
   PERSON_KINDS,
   type PersonKind,
@@ -49,8 +51,10 @@ import {
   directoryUsageOfWorkItemType,
   type ResourceUsageCounts,
 } from '../../service/directory-usage';
+import { MeasureDefinitions } from './measure-definitions';
 
 export type { DirectoryOutcome, DirectoryRefusal } from '../../ports/directory-outcome';
+export type { MeasureInput, MeasureOutcome, MeasureRefusalReason } from './measure-definitions';
 
 /** How many fresh ids an opaque root name is tried under before a create gives up. */
 const OPAQUE_NAME_ATTEMPTS = 3;
@@ -138,11 +142,12 @@ export type PersonPatchOutcome =
 
 /**
  * How a resource removal answered: `in_use` names the rows that lose a demand
- * and counts the demands, capacities and occupancies (`wbs-resources` R8).
+ * and counts the demands, capacities and occupancies (`wbs-resources` R8);
+ * `forbidden` is a scoped caller who is neither an admin nor a super-admin (R8a).
  */
 export type RemoveResourceOutcome =
   | { ok: true }
-  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'not_found' | 'forbidden' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage; counts: ResourceUsageCounts };
 
 /** What a resource create names; the kind is fixed here and never patched. */
@@ -219,8 +224,20 @@ type NamedRenamed<T> =
 export class DirectoryService {
   private readonly clock: Clock;
 
+  /**
+   * The organization's measure definitions (`wbs-measure-budgets` D1): read by
+   * the list route, written by the `createMeasure`, `patchMeasure` and
+   * `deleteMeasure` directory commands.
+   */
+  readonly measures: MeasureDefinitions;
+
   constructor(private readonly opts: DirectoryServiceOptions) {
     this.clock = opts.clock;
+    this.measures = new MeasureDefinitions({
+      directory: opts.directory,
+      clock: opts.clock,
+      standalone: opts.standaloneWrite !== undefined,
+    });
   }
 
   /**
@@ -518,8 +535,11 @@ export class DirectoryService {
    * Removes a resource through the caller's access, refusing an unconfirmed
    * removal while any demand, capacity or occupancy names it — `in_use` with
    * the rows and the counts. With `cascade` its demands and capacities go in the
-   * same transaction. Under scoped access a foreign resource is `not_found` and
-   * a foreign project naming it fails closed.
+   * same transaction. Under scoped access only an admin or a super-admin may
+   * remove one (`forbidden` otherwise, before the resource is looked up, so the
+   * refusal says nothing of what exists), a foreign resource is `not_found` and
+   * a foreign project naming it fails closed. Legacy access carries no role,
+   * and every legacy caller already writes the whole directory, so it may.
    *
    * The unconfirmed read is only a fast path; the store's own count inside its
    * transaction decides.
@@ -538,6 +558,15 @@ export class DirectoryService {
     this.refuseStandaloneResourceWrite();
     const scope = access.kind === 'scoped' ? access.scope : null;
     if (scope !== null) {
+      // Proof: with this refusal skipped, `refuses a member removing a resource
+      // on either route, an admin and a super-admin allowed`
+      // (resource-organization.controller.db.test.ts) answered the member's
+      // cascade 200 (`results: [{ index: 0 }]`), the demand removed with it, and
+      // `refuses an agent key of a super-admin removing a resource, as a member`
+      // (compute-provider.controller.db.test.ts) answered the agent 200; moved
+      // after the `ownEntry` lookup, the member's foreign and absent ids answered
+      // 404 not_found; watched 2026-10-25.
+      if (!mayRemoveResourceInOrganization(scope.role)) return { ok: false, reason: 'forbidden' };
       if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
         return { ok: false, reason: 'not_found' };
       await this.refuseForeignReach('resources', resourceId, scope);
@@ -562,6 +591,60 @@ export class DirectoryService {
     if (scope !== null) await this.refuseForeignProjects(removed.removal.projectIds, scope);
     await this.announce(removed.removal.projectIds);
     return { ok: true };
+  }
+
+  /**
+   * States (`units`) or clears (`null`) a resource's **Directory capacity**
+   * (`wbs-shared-occupancy` S1, S11), the one function both command
+   * routes take. Under scoped access only an admin or a super-admin may
+   * (`forbidden` otherwise, before the resource is looked up, as a removal is
+   * refused); every agent arrives as at most a member. A foreign or absent
+   * resource is `not_found`; legacy access, and a resource no organization
+   * owns, is `organization_required`. The write
+   * appends one `directory_capacity_changed` audit row and enters no journal;
+   * it then announces `directory_changed` to every project that demands or
+   * states the resource (S7).
+   *
+   * `confirm` is carried for the clearing check of `wbs-organization-limits`
+   * (S10, task 7.1), which is not built yet; nothing reads it here.
+   *
+   * Proof, each watched 2026-10-25: with the role check skipped, `refuses a
+   * member and a viewer on either route`, the agent key case and the MCP
+   * consent case (directory-capacity.controller.db.test.ts) failed (8 pass,
+   * 3 fail); with the stored role answered in place of `organizationRoleOf`'s
+   * in `SqliteOrganizationAccess`, the agent key, consent and preview cases
+   * failed; with the announce skipped, `announces directory_changed to every
+   * project that states or demands the resource`
+   * (directory-capacity.test.ts) found none.
+   */
+  async setDirectoryCapacityWithin(
+    resourceId: string,
+    actorId: string,
+    units: number | null,
+    _confirm: boolean,
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<null>> {
+    this.refuseStandaloneResourceWrite();
+    // Legacy access has no organization to state units for, and no role to
+    // check: refused before any read (review S3-1).
+    // Proof: with this refusal replaced by the store write, `refuses legacy
+    // access organization_required, writing nothing`
+    // (directory-capacity.test.ts) failed (3 pass, 1 fail); watched 2026-10-25.
+    if (access.kind === 'legacy') return { ok: false, reason: 'organization_required' };
+    const { scope } = access;
+    if (!mayStateDirectoryCapacityInOrganization(scope.role))
+      return { ok: false, reason: 'forbidden' };
+    if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
+      return { ok: false, reason: 'not_found' };
+    const written = await this.opts.directory.setDirectoryCapacity(resourceId, units, {
+      stamp: this.clock.stampFor(actorId),
+      actor: actorId,
+      auditId: this.clock.newId(),
+    });
+    if (!written.ok) return { ok: false, reason: written.reason };
+    await this.refuseForeignProjects(written.projectIds, scope);
+    await this.announce(written.projectIds);
+    return { ok: true, value: null };
   }
 
   /** One organization's catalog, as {@link DirectoryStore.listInOrganization} reads it. */
@@ -932,8 +1015,7 @@ export class DirectoryService {
         await this.opts.directory.usageOfPerson(personId),
         personId,
       );
-      if (seen.projects.length > 0 || seen.pinnedCredentials > 0)
-        return { ok: false, reason: 'in_use', usage: seen };
+      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
     }
     // Legacy access exists only before activation, when no machine
     // credential can have been created, so it reaches none.
@@ -1519,7 +1601,6 @@ export class DirectoryService {
             usage: {
               projects: [],
               members: [],
-              pinnedCredentials: 0,
               machineCredentials: written.machineCredentials,
             },
           };
@@ -1607,7 +1688,7 @@ export class DirectoryService {
       removal.usageIn(await this.localUsage(rows, scope), id);
     if (!cascade) {
       const seen = await shown(await removal.usageOf(id));
-      if (seen.projects.length > 0 || seen.members.length > 0 || seen.pinnedCredentials > 0) {
+      if (seen.projects.length > 0 || seen.members.length > 0) {
         return { ok: false, reason: 'in_use', usage: seen };
       }
     }
@@ -1724,7 +1805,12 @@ export class DirectoryService {
 
 /** Whether anything still names a resource: a demand, a stated capacity or an occupancy. */
 function isResourceInUse(rows: ResourceUsageRows): boolean {
-  return rows.demands.length > 0 || rows.capacities.length > 0 || rows.occupancies > 0;
+  return (
+    rows.demands.length > 0 ||
+    rows.capacities.length > 0 ||
+    rows.occupancies > 0 ||
+    rows.directoryCapacity !== null
+  );
 }
 
 /**

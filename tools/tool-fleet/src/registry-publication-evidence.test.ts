@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import {
+  RegistryPublicationEvidence,
   validateRegistryDeclaration,
   validateRegistryPublicationEvidence,
 } from './registry-publication-evidence';
@@ -100,5 +101,92 @@ for (const [fault, digest, upload] of [
         stamp,
       );
     }).toThrow('Publication write lacks exact declared ownership');
+  });
+}
+
+const expanded = '+010000-01-01T00:00:00.000Z';
+const laterExpanded = '+010001-01-01T00:00:00.000Z';
+const boundary = '9999-12-31T23:59:59.999Z';
+function chronology(declaredAt: string, writeAt: string) {
+  return RegistryPublicationEvidence.assert({
+    operationId: 'owned',
+    declaredAt,
+    contents: [blob, manifest],
+    writes: [blob, manifest].map((content) => ({
+      repository: content.repository,
+      digest: content.digest,
+      uploadId: content.isManifest ? null : uploadId,
+      phase: 'stored',
+      at: writeAt,
+    })),
+  });
+}
+for (const [name, declaredAt, writeAt, receiptAt, updatedAt, state, message] of [
+  [
+    'declaration after receipt',
+    expanded,
+    expanded,
+    stamp,
+    expanded,
+    'unfinished',
+    'Invalid publication evidence chronology',
+  ],
+  [
+    'write before declaration',
+    expanded,
+    stamp,
+    expanded,
+    expanded,
+    'unfinished',
+    'Publication write lacks exact declared ownership',
+  ],
+  [
+    'write after journal',
+    stamp,
+    expanded,
+    stamp,
+    stamp,
+    'unfinished',
+    'Publication write lacks exact declared ownership',
+  ],
+  [
+    'write after completed receipt',
+    stamp,
+    expanded,
+    stamp,
+    expanded,
+    'completed',
+    'Publication write lacks exact declared ownership',
+  ],
+] as const) {
+  test('publication chronology refuses expanded-year ' + name, () => {
+    const evidence = chronology(declaredAt, writeAt);
+    expect(() => {
+      validateRegistryPublicationEvidence(
+        evidence,
+        references,
+        { state, at: receiptAt },
+        updatedAt,
+      );
+    }).toThrow(message);
+  });
+}
+for (const [name, declaredAt, writeAt, receiptAt] of [
+  ['mixed expanded boundary', boundary, expanded, laterExpanded],
+  ['ordered expanded years', expanded, laterExpanded, laterExpanded],
+  ['ordered negative years', '-000002-01-01T00:00:00.000Z', '-000001-01-01T00:00:00.000Z', stamp],
+] as const) {
+  test('publication chronology preserves ' + name, () => {
+    const evidence = chronology(declaredAt, writeAt);
+    const before = structuredClone(evidence);
+    expect(() => {
+      validateRegistryPublicationEvidence(
+        evidence,
+        references,
+        { state: 'completed', at: receiptAt },
+        receiptAt,
+      );
+    }).not.toThrow();
+    expect(evidence).toEqual(before);
   });
 }

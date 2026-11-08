@@ -10,7 +10,10 @@
       "cache": false,
       "inputs": ["default", "{workspaceRoot}/**/*"],
       "options": {
-        "env": { "CLAUDECODE": "0", "AGENT": "0" },
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
         "commands": [
           "bun tools/tool-devsync/src/check-documents.ts",
           "bun test --preload ./tools/test/scratch/preload.ts ./tools/tool-devsync/src/adr-index.test.ts ./tools/tool-devsync/src/retired-roots.test.ts --timeout=60000",
@@ -111,12 +114,13 @@
         "{workspaceRoot}/bin/dev-mcp-preflight.sh",
         "{workspaceRoot}/bin/dev-mcp-probe.sh",
         "{workspaceRoot}/bin/dev-poll.sh",
-        "{workspaceRoot}/bin/dev-poll-sync.sh"
+        "{workspaceRoot}/bin/dev-poll-sync.sh",
+        "{workspaceRoot}/bin/registry-source-test-prerequisites.sh"
       ],
       "options": {
         "commands": [
           "command -v shellcheck >/dev/null 2>&1 || { echo '[tool-devsync] shellcheck is required but not installed. macOS: brew install shellcheck. Debian/Ubuntu: apt-get install shellcheck.' >&2; exit 1; }",
-          "shellcheck -s bash bin/dev.sh bin/dev-ports.sh bin/dev-deploy.sh bin/dev-be-probe.sh bin/dev-mcp-preflight.sh bin/dev-mcp-probe.sh bin/dev-poll.sh bin/dev-poll-sync.sh"
+          "shellcheck -s bash bin/dev.sh bin/dev-ports.sh bin/dev-deploy.sh bin/dev-be-probe.sh bin/dev-mcp-preflight.sh bin/dev-mcp-probe.sh bin/dev-poll.sh bin/dev-poll-sync.sh bin/registry-source-test-prerequisites.sh"
         ],
         "parallel": false
       }

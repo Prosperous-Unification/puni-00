@@ -45,6 +45,43 @@ export function mayBindAccountInOrganization(role: OrganizationRole): boolean {
 }
 
 /**
+ * Whether `role` may define, change or remove the organization's measure
+ * definitions, directly or by importing a plan that names one the
+ * organization lacks (`wbs-measure-budgets` D70, superseding D16): an admin
+ * or a super-admin. A definition changes what every project's figures mean,
+ * so it is an organization act, like ranking projects.
+ */
+export function mayDefineMeasuresInOrganization(role: OrganizationRole): boolean {
+  return role === 'admin' || role === 'super_admin';
+}
+
+/**
+ * Whether `role` may remove a directory resource (`wbs-resources` R8a, Dany's
+ * decision of 2026-10-25): an admin or a super-admin. A removal cascades into
+ * every project of the organization, dropping each demand and capacity that
+ * names it, so it is an organization act; creating and editing one stays open
+ * to every writing role ({@link canWriteInOrganization}).
+ */
+export function mayRemoveResourceInOrganization(role: OrganizationRole): boolean {
+  return role === 'admin' || role === 'super_admin';
+}
+
+/**
+ * Whether `role` may state, change or clear a resource's directory capacity,
+ * or preview that change or read the resource's holders across projects
+ * (`wbs-shared-occupancy` S11, S12): an admin or a super-admin, as
+ * {@link mayRemoveResourceInOrganization} decides a removal. The units of a
+ * shared resource bind every project of the organization, so stating them is
+ * an organization act. `role` is the one `organizationRoleOf` answered, so a
+ * machine credential and an MCP consent delegation acting as an agent person
+ * arrive as at most a member and are refused, while an admin's own MCP
+ * session keeps the admin's role.
+ */
+export function mayStateDirectoryCapacityInOrganization(role: OrganizationRole): boolean {
+  return role === 'admin' || role === 'super_admin';
+}
+
+/**
  * Whether the scoped user may write to a project of that organization: a writing
  * role, and for a restricted project its creator.
  *

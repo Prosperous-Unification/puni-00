@@ -1,3 +1,5 @@
+import type { Tier } from '@tools/deploy-contract';
+import type { EnvLayout } from '@tools/env';
 import {
   type DeploymentEnrollment,
   readDeploymentEnrollment,
@@ -6,11 +8,16 @@ import {
   verifyRegistryPromotion,
 } from '@tools/registry-publication';
 
-import type { DeployPlan } from './deploy';
+/** Only the image identities and environment root consumed by explicit managed selection. */
+export interface ComposeRegistryPlan {
+  images: Partial<Record<Tier, string>>;
+  tiers: readonly Tier[];
+  layout: Pick<EnvLayout, 'root'>;
+}
 
-/** The local supported caller shares the mandatory catalog and refuses partial managed execution. */
+/** Explicit managed selection requires the mandatory catalog and refuses partial managed execution. */
 export async function selectComposeDeployment(
-  plan: DeployPlan,
+  plan: ComposeRegistryPlan,
   select = readDeploymentEnrollment,
 ): Promise<DeploymentEnrollment | undefined> {
   const enrollment = await select(Object.values(plan.images), `compose:${plan.layout.root}`);

@@ -471,7 +471,10 @@ function linkCallbackFailure(
  * What the callback knows of the credential its sign-in replaces. An OIDC
  * predecessor's access token was proved associated with its lifecycle by
  * {@link proveBrowserPredecessor}, so its bytes are ones this server verified
- * when it issued them, and reading their `sub` unverified is safe.
+ * when it issued them, and reading their `sub` unverified is safe. A
+ * predecessor proved by its correlation cookie alone carries no access bytes,
+ * so its subject is null and {@link reauthenticatedAtOf} credits a
+ * `prompt=login` without `max_age` only to a proved same-connection subject.
  */
 function replacedCredentialOf(
   predecessor: BrowserPredecessor | { readonly kind: 'none' },
@@ -491,6 +494,8 @@ function replacedCredentialOf(
 
 /**
  * Browser OIDC bindings. Composition registers these only when OIDC options exist.
+ * Recovery consumes a matching browser transaction before admitting the predecessor;
+ * a refused predecessor redirects without clearing session cookies or exchanging codes.
  * Exchange failures carry their owned classification; account and token-store failures remain throws.
  */
 export function authOidcEndpoints(
@@ -603,6 +608,9 @@ export function authOidcEndpoints(
         let settled = held.surplus;
         // Proof: substituting invalid_query made the mounted absent-binding
         // assertion receive that code instead of invalid_oidc_callback.
+        // Proof: moving predecessor recovery before binding admission made
+        // `a forged callback cannot trigger browser recovery or consume an honest
+        // transaction: missing binding` answer 302 instead of 400 (2026-11-02).
         if (held.offered.length === 0 || !state)
           return {
             ok: false,
@@ -612,12 +620,6 @@ export function authOidcEndpoints(
             // discarding the logins in flight` fail at its honest callback, Expected302 Received400.
             headers: clearsFor(settled),
           };
-        const predecessor =
-          browserSession === undefined
-            ? { kind: 'none' as const }
-            : await proveBrowserPredecessor(request, browserSession, options.appOrigin);
-        if (predecessor === null)
-          return { ok: false, status: 401, body: EMPTY, headers: clearsFor(settled) };
         const consumed = consumeBrowserBinding(
           options.transactions,
           held.offered.map(({ binding }) => binding),
@@ -628,6 +630,9 @@ export function authOidcEndpoints(
         const transaction = consumed.transaction;
         // Proof: clearing this cookie failed the mounted empty-cookie assertion; spending
         // the retained transaction made its subsequent honest callback receive400 instead of302.
+        // Proof: bypassing the transaction outcome refusals made `a forged callback
+        // cannot trigger browser recovery or consume an honest transaction:
+        // mismatched state` answer 302 instead of 400 (2026-11-02).
         if (transaction.outcome === 'state_mismatch')
           return {
             ok: false,
@@ -647,6 +652,32 @@ export function authOidcEndpoints(
             body: EMPTY,
             headers: clearsFor(settled),
           };
+        // Proof: catching predecessor-proof errors as null with the association
+        // table dropped made `predecessor-store failure remains a server failure`
+        // answer 302 instead of 500 (2026-11-02).
+        const predecessor =
+          browserSession === undefined
+            ? { kind: 'none' as const }
+            : await proveBrowserPredecessor(request, browserSession, options.appOrigin);
+        // Proof: the mounted bound-callback recovery test first answered 401
+        // instead of 302 with malformed old cookies (2026-11-02).
+        if (predecessor.kind === 'refused') {
+          // Proof: removing this log made all six `unverifiable predecessor`
+          // recovery cases find no info-level refusal entry (2026-11-07).
+          options.logger?.info(
+            { refusal: predecessor.refusal },
+            'oidc callback refused the browser predecessor',
+          );
+          return {
+            ok: true,
+            status: 302,
+            body: EMPTY,
+            headers: [
+              ...clearsFor(settled),
+              ['location', '/?auth_error=browser_session_unverified'],
+            ],
+          };
+        }
         // Proof: bypassing this branch redirected access_denied to / in the mounted provider test.
         if (sent.has('error')) {
           const providerError = sent.get('error') ?? '';
@@ -780,6 +811,24 @@ export function authOidcEndpoints(
             accessEvidence.identity.subject !== identity.subject)
         )
           return { ok: false, status: 401, body: EMPTY, headers: clearsFor(settled) };
+        // An access token without the groups claim is a machine bearer on
+        // `/api` (`wbs-mcp-agent-surface` M9), so a session on it would be
+        // refused at every call: a sign-in loop. Refused as a rendered error
+        // before anything is written; an empty claim is a scopeless session.
+        // Proof: with this check removed, `refuses a sign-in whose access
+        // token has no groups claim, issuing no session`
+        // (`oidc-identity.controller.db.test.ts`) redirected to `/` instead;
+        // watched 2026-10-31.
+        if (
+          options.browserLifecycle !== undefined &&
+          accessEvidence?.identity.groupsClaimed !== true
+        )
+          return {
+            ok: true,
+            status: 302,
+            body: EMPTY,
+            headers: [...clearsFor(settled), ['location', '/?auth_error=groups_claim_missing']],
+          };
         // Proof: catching account-store failure as null returned409 (now the account_exists 302) instead of500 in the mounted failure test.
         const account = await auth.resolveOidcIdentity(identity);
         // A verified email another account holds: a rendered refusal naming no
@@ -943,7 +992,13 @@ export function authOidcEndpoints(
             // an invented TTL made mounted malformed-evidence refresh return 204
             // instead of 401 (0/1, 2026-10-01).
             const evidence = await verifyEvidence(next.accessToken);
-            if (evidence === null) {
+            // A refreshed token without the groups claim proves no browser
+            // session (`wbs-machine-credentials` A18): refused, never installed.
+            // Proof: without the groups check, `refuses a refreshed access
+            // token without groups, leaving the lifecycle alone`
+            // (`oidc-identity.controller.db.test.ts`) answered 204; watched
+            // 2026-10-25.
+            if (evidence?.identity.groupsClaimed !== true) {
               if (spent) attempt.delete();
               return refused();
             }

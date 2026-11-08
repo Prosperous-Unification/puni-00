@@ -8,6 +8,8 @@ import {
   tokenRevocation,
 } from 'openid-client';
 
+import { issuerUrlFromEnv } from './issuer-url';
+
 export interface BrowserOidcTokenSet {
   accessToken: string;
   expiresIn: number;
@@ -133,6 +135,9 @@ type Environment = Readonly<Record<string, string | undefined>>;
  * {@link refuseCallbackFromAnotherIssuer} exists to warn about, left the whole
  * suite green (486 pass / 0 fail). The check was proven and the wiring to it was
  * not. Production never passes this.
+ *
+ * @throws at composition, through {@link issuerUrlFromEnv}, when the issuer
+ *   URL could never be discovered, and when a required key is missing.
  */
 export function browserOidcClientFromEnv(
   env: Environment,
@@ -141,7 +146,7 @@ export function browserOidcClientFromEnv(
     discover?: () => Promise<Configuration>;
   } = {},
 ): BrowserOidcClient {
-  const issuer = new URL(required(env, 'AUTH_ISSUER_DISCOVERY_URL'));
+  const issuer = issuerUrlFromEnv(env);
   const clientId = required(env, 'AUTH_CLIENT_ID');
   const clientSecret = required(env, 'AUTH_CLIENT_SECRET');
   const scope = env['AUTH_SCOPE'] ?? 'openid profile email offline_access';

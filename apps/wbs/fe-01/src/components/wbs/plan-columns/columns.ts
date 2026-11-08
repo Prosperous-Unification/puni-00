@@ -1,6 +1,6 @@
 import type { EstimateRule } from '@wbs/domain/estimate';
 
-import { type StepView } from '@/lib/wbs-api';
+import { type MeasureDefinitionView, type StepView } from '@/lib/wbs-api';
 
 import type { PlanLive } from '../plan-live';
 import { createActionsColumn } from './actions';
@@ -13,11 +13,13 @@ import { createFinalTotalColumn } from './final-total';
 import { createFinishColumn } from './finish';
 import { createFloatColumn } from './float';
 import { createInParallelColumn } from './in-parallel';
+import { createMeasureColumns } from './measures';
 import { createNameColumn } from './name';
 import { createNotBeforeColumn } from './not-before';
 import { createNumberColumn } from './number';
 import { createPriorityColumn } from './priority';
 import { createRefsColumn } from './refs';
+import { createResourcesColumn } from './resources';
 import { createServiceColumn } from './service';
 import { createStartColumn } from './start';
 import { createStatusColumn } from './status';
@@ -25,13 +27,21 @@ import { createTagColumn } from './tag';
 import { createTeamColumn } from './team';
 import { createTypeColumn } from './type';
 
-/** The column registry. Called only for steps, unfoldedSteps and hiddenColumnIds changes. */
+/**
+ * The column registry. Called only for steps, unfoldedSteps, hiddenColumnIds
+ * and shown measure changes.
+ *
+ * `shownMeasures` are the definitions whose columns this reader has on the
+ * table ({@link shownDefinitions}); they sit after Days, beside time's own
+ * columns, because together they are what a row costs.
+ */
 export function createPlanColumns(
   steps: StepView[],
   unfoldedSteps: readonly string[],
   hiddenColumnIds: readonly string[],
   live: PlanLive,
   rule: EstimateRule,
+  shownMeasures: readonly MeasureDefinitionView[] = [],
 ) {
   return (
     [
@@ -48,9 +58,11 @@ export function createPlanColumns(
       createTagColumn({ live }),
       createServiceColumn({ live }),
       createTypeColumn({ live }),
+      createResourcesColumn({ live }),
       createInParallelColumn({ live }),
       ...createEstimatesColumns({ steps, unfoldedSteps, live, rule }),
       createFinalTotalColumn(),
+      ...createMeasureColumns(shownMeasures),
       createNotBeforeColumn({ live }),
       createDeadlineColumn({ live }),
       createFactStartColumn({ live }),

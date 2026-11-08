@@ -1,0 +1,1863 @@
+## ADDED Requirements
+
+### Requirement: Common deployed behavior
+
+Local integration rehearsal, dev and production candidates SHALL derive their observability services from one versioned set of component definitions and pinned runtime versions. The acceptance path MUST exercise the same log, trace, metric, alert, access and recovery contracts. A lightweight fixture or transitional Compose deployment MUST NOT certify parity with the Kubernetes deployment.
+
+#### Scenario: All candidates contain the trace path
+
+- **WHEN** local, dev and production candidates are rendered from one reviewed revision
+- **THEN** every candidate contains the edge collector, compatible Elastic gateway with APM enrichment and aggregates, Elastic/Kibana, Prometheus and Alertmanager, with the existing Grafana integrated by an explicit owner
+- **AND** deleting the trace pipeline or changing one environment's gateway pin makes the production validation entrypoint fail
+
+#### Scenario: A fixture cannot establish deployment parity
+
+- **WHEN** a rehearsal sends telemetry only to a fixture receiver, or validates only Compose
+- **THEN** its evidence is identified as component evidence and cannot satisfy Kubernetes deployment acceptance
+
+### Requirement: Explicit environment differences
+
+The system SHALL compare rendered candidates semantically and refuse differences outside a versioned, narrowly scoped list. Each permitted difference MUST name its exact field, environments, reason and verification. Unknown fields, absent inputs, unreadable configuration and malformed exception records MUST fail. Whole subtrees, runtime-version drift and weaker security or recovery semantics MUST NOT be admitted as generic dev exceptions.
+
+#### Scenario: Capacity differs for a measured reason
+
+- **WHEN** a dev memory limit differs at an explicitly permitted field with capacity evidence
+- **THEN** comparison accepts that field and continues checking every sibling field
+
+#### Scenario: An exception does not hide a disabled guard
+
+- **WHEN** an allowed capacity patch also disables TLS verification, removes a persistent queue or changes a health acceptance rule
+- **THEN** comparison rejects the candidate and identifies each unauthorized behavioral difference
+
+### Requirement: Separate deployment and signal identities
+
+Adapters SHALL distinguish the deployment target's cluster/namespace identity from the source application's environment and revision. Stored telemetry MUST retain measured source identity. Unknown source environment MUST be visible or refused at the applicable input boundary and MUST NOT be replaced by the monitoring host's profile name. Cross-environment ingestion and query permissions MUST match the explicitly declared isolation contract.
+
+#### Scenario: Dev observed from a platform cluster
+
+- **WHEN** an observer on a platform cluster collects a dev application's health revision
+- **THEN** stored records retain the application's dev identity and measured revision independently of the cluster name
+
+#### Scenario: Foreign telemetry cannot be relabelled into acceptance
+
+- **WHEN** an input claims a different environment from the destination's admitted sources
+- **THEN** acceptance refuses that input rather than overwriting its environment and reporting complete health
+
+### Requirement: Common protected access and lifecycle
+
+Every persistent environment SHALL enforce authenticated private access, query-versus-mutation separation, bounded resources, durable state and controller-managed process recovery. Local rehearsal SHALL exercise those mechanisms with disposable identities. Receiver and backup endpoints SHALL be explicit environment inputs; missing required credentials MUST refuse readiness rather than select an unauthenticated fallback.
+
+#### Scenario: Invalid identity is refused everywhere
+
+- **WHEN** a local, dev or production candidate receives a request with an untrusted certificate or a query identity attempts an administrative operation
+- **THEN** the request is refused through the real deployed route
+- **AND** a valid identity succeeds through the same route
+
+#### Scenario: Local backup transport exercises certificate verification
+
+- **WHEN** a local rehearsal candidate connects to its disposable snapshot or backup destination
+- **THEN** it uses authenticated HTTPS with the configured trust anchor
+- **AND** an unknown CA or a plaintext/certificate-verification bypass makes acceptance fail rather than becoming an environment exception
+
+#### Scenario: A dev identity cannot access the production instance
+
+- **WHEN** a valid dev client identity reaches a production ingest or query listener
+- **THEN** production refuses that identity
+- **AND** each instance accepts its own authorized identity through the same tested route
+
+#### Scenario: A restarted process preserves history
+
+- **WHEN** a collector or store process is terminated in an isolated authorized rehearsal
+- **THEN** its deployment controller restores the workload within the declared bounded acceptance deadline
+- **AND** known retained records remain queryable and observation health reflects any gap
+
+### Requirement: Ownership and capacity precede migration
+
+Migration planning SHALL bind a reviewed revision to fresh target identity, namespace/controller ownership, prerequisite readiness, safe credential metadata, capacity including coexistence, and retained-volume identities. Read denial, unready dependencies and unknown ownership MUST block live readiness. Flux SHALL own long-lived platform resources; an alternative apply path MUST NOT bypass its dependencies. Existing Grafana, Victoria, MLflow and application services MUST be preserved.
+
+#### Scenario: Denied cluster read blocks live readiness only
+
+- **WHEN** SSH succeeds but authorized Kubernetes inspection fails
+- **THEN** the source candidate remains reviewable while live migration is explicitly blocked
+- **AND** no guessed cluster identity or direct apply is substituted
+
+#### Scenario: Native unreconciled generation remains unready evidence
+
+- **WHEN** the Kubernetes/Flux resource adapter receives the supported native `observedGeneration: -1` value
+- **THEN** it retains that value as valid resource evidence rather than a malformed projection
+- **AND** the resource cannot satisfy current-generation readiness, even if its Ready flag is true
+
+#### Scenario: Unsupported negative generation is malformed
+
+- **WHEN** a resource projection reports `observedGeneration` below `-1`, or a negative declared `generation`
+- **THEN** the production decoder refuses the malformed projection
+- **AND** no missing-field or invalid-value fallback makes it ready
+
+#### Scenario: Shared controllers are not installed twice
+
+- **WHEN** two instances use one cluster
+- **THEN** their deployment plan resolves one owner for cluster-scoped controllers and CRDs, distinct service/store identities, and scoped selectors
+- **AND** duplicate controller ownership, shared writable claims or cross-instance selectors make validation fail
+
+### Requirement: Retained-history cutover
+
+A dev migration SHALL retain the Compose stores and the old telemetry path until the replacement satisfies the same stored-query, UI, isolation and bounded outage acceptance. It MUST use supported snapshot/restore or explicitly queryable retained history, never attach one writable store volume to two runtimes. Each cutover and rollback MUST use a new ownership receipt. Production activation and destructive retirement require separate authorization.
+
+#### Scenario: Candidate failure preserves the old path
+
+- **WHEN** the new candidate fails stored-query acceptance or an outage drill
+- **THEN** its route is not promoted, the current dev route remains usable and all retained stores remain intact
+
+#### Scenario: Repeated rollback and restore keeps evidence
+
+- **WHEN** a completed cutover is rolled back and later restored again
+- **THEN** each operation has a distinct immutable receipt and prior receipts are not overwritten
+- **AND** known historical Elastic and Prometheus evidence remains queryable at its recorded location
+
+#### Scenario: Recovery proves the retained route without changing checkpoints
+
+- **WHEN** rollback needs fresh stored health in the retained backend after the candidate route has collected newer observations
+- **THEN** it may send one bounded observation from the validated actual source through the existing retained OTLP route and verify stored-query convergence
+- **AND** it does not initialize or overwrite any existing checkpoint or treat frozen historical evidence as fresh health
+- **AND** failed publication, transport or bounded stored-query acceptance prevents the unit rollback
+
+#### Scenario: Explicit recovery reconciles a lost unit activation
+
+- **WHEN** an operation recorded mutation-started but reload or restart completion is uncertain
+- **THEN** its output provides a runnable explicit recovery command pinned to its prepared receipt and exact current/prior unit hashes
+- **AND** recovery requires operator reconciliation, proves the prior process inactive and exclusively records a new retained-route rollback
+- **AND** known captured BEFORE/AFTER file and loaded-command combinations may recover while arbitrary drift, active/unknown ownership or tampered pins refuse
+- **AND** the original uncertain receipt remains unchanged
+
+#### Scenario: Ownership and evidence are durable before mutation
+
+- **WHEN** an operation, compensation or explicitly reconciled recovery prepares to replace the observer unit
+- **THEN** the operation/lock parent entries and exact original owner archive are synced before mutation, and both source and destination directories of an owner-record transfer are synced
+- **AND** a failed required file/directory sync prevents the next unit mutation
+- **AND** the root lock stays continuously present during the sole authorized inactive-owner handoff
+
+#### Scenario: Explicit recovery remains retryable after preparation failure
+
+- **WHEN** retained source, history, canary or preparation fails before recovery invokes unit replacement
+- **THEN** original ownership and frozen prepared/uncertain evidence remain intact and output supplies a supported pinned retry
+- **AND** interrupted lease cleanup or post-transfer sync failure supports the original or durably prepared successor command after its real process exits
+- **AND** active, denied, foreign or changed ownership/leases refuse without lock stealing
+
+#### Scenario: Recovery reclamation has physical exclusion
+
+- **WHEN** separate processes contend to reconcile an inactive recovery lease
+- **THEN** nonwaiting physical exclusion covers reclamation, acquisition, owner transfer and mutation, so a loser cannot erase the winner's active lease or ownership
+- **AND** the stable private guard inode is never unlinked or replaced, process death releases physical exclusion, and logical active/unknown ownership still refuses after physical release
+
+#### Scenario: Durable completion survives cleanup failure truthfully
+
+- **WHEN** unit acceptance and completed or compensated receipts are durable but required ownership cleanup fails
+- **THEN** the command exits nonzero with the durable outcome, exact receipts and supported inspection metadata
+- **AND** it neither claims overall success nor emits recovery argv requiring retired ownership, recreates owner records or exposes private failure bodies
+
+#### Scenario: Uncertainty diagnostics survive persistence failure
+
+- **WHEN** invocation may have changed the unit and compensation or outer uncertainty publication fails
+- **THEN** the CLI still emits actionable uncertain-operation metadata with exact cached prepared/inspection/recovery bindings and retained ownership
+- **AND** closed persistence diagnostics distinguish recording failure without private cause text or a false claim that the receipt was durable
+
+#### Scenario: Diagnostic canaries coexist with autonomous observer telemetry
+
+- **WHEN** a route operation publishes an actual-source canary while the retained observer continues emitting, including different producer revisions and repeated canaries across application revisions
+- **THEN** the canary uses a distinct metric namespace and exact observation correlation, and its stored acceptance excludes every other canary and the continuous observer
+- **AND** the unchanged observer metric namespace retains its existing strict uniqueness semantics, with no cross-producer zeroing, checkpoint overwrite or claimed full acceptance
+
+#### Scenario: Normal application progress preserves route recovery
+
+- **WHEN** dev watchers advance the application revision from A to B during route freshness windows while the observer binary, physical source ownership and candidate artifacts remain unchanged
+- **THEN** cutover stored queries correlate each actual observation with its own observed revision and completed receipts record those revisions
+- **AND** compensation, rollback and explicit manual recovery can restore the healthy retained route using revision B without rolling back the application or freezing delivery
+- **AND** retained-route recovery observes two bounded 120-second windows so dormant gauges can expire under the existing two-minute exporter policy, while actual stored uniqueness remains mandatory
+- **AND** forward operations honor the reviewed interval as a minimum and observe at least 120 seconds per window when the destination retains an earlier observer revision; no elapsed interval replaces actual stored acceptance
+- **AND** reviewed cohort and historical witnesses retain their original revisions while changed container identity, producer identity or invalid source still refuses
+
+#### Scenario: Reviewed acceptance does not replace current checks
+
+- **WHEN** a dev route cutover or restore is requested
+- **THEN** reviewed staged evidence also binds the exact immutable selected controllers, repository source, nodes and workload replicas; fresh matching pins for recreated instances cannot reuse the older cohort
+- **AND** a fetched but unapplied repository head may advance with an independently refreshed live pin and unchanged repository identity, while applied controller revisions remain bound and require new reviewed evidence when changed
+- **AND** each member starts within the existing reviewed `maxAgeMs`, so all bounded command captures and both windows fall within that same age bound even if completion is recent
+- **AND** independently pinned reviewed evidence binds the complete common-stack rehearsal and staged candidate acceptance to their exact sources, targets, stores and routes
+- **AND** missing, failed, stale, component-only, source-only or mismatched evidence prevents mutation
+- **AND** the operation independently reruns fresh target preflight, current effective observer ownership, candidate stored-signal and retained-history checks before switching
+- **AND** reviewed evidence remains explicitly reviewed evidence, rather than an invented automated runtime certification
+
+#### Scenario: Rollback remains available during candidate failure
+
+- **WHEN** the candidate or its Kubernetes path is unavailable after a route switch
+- **THEN** recovery to the captured retained route validates fresh retained source, store, effective unit and history ownership without requiring the failed candidate to be Ready
+- **AND** unknown retained ownership or a changed effective observer still prevents mutation
+- **AND** no broad readiness-blocker exception or source-only inventory authorizes recovery
+
+#### Scenario: Uncertain route mutation remains visible
+
+- **WHEN** a restart, reload or transport outcome is uncertain after mutation begins
+- **THEN** durable immutable evidence records that mutation may have occurred
+- **AND** the operation never reports the route unchanged or accepted without observing it
+- **AND** any compensating rollback has a distinct receipt, while unresolved ownership or failed recovery produces a pinned manual inspection and recovery instruction
+
+### Requirement: Evidence states are distinct
+
+Reports SHALL distinguish source conformance, runtime rehearsal and actual live migration. They MUST bind evidence to exact revisions, target identities and observed commands. Planned production readiness, passing render validation and an accepted ingest response MUST NOT be reported as live stored-signal acceptance.
+
+#### Scenario: Rendered production candidate is not a production deployment
+
+- **WHEN** shared candidates pass local checks but live production activation has not occurred
+- **THEN** the report identifies source and rehearsal evidence separately and leaves production live readiness unverified
+
+### Requirement: Native API providers precede consumers
+
+The generated deployment graph SHALL await the existing Prometheus controller Helm release in a prerequisite Flux stage before applying native ServiceMonitor resources. It MUST retain one controller owner, exact release identities and existing Helm dependencies. Declared packet validation MUST reject missing readiness/dependency barriers independently of matching generated bytes.
+
+#### Scenario: A fresh target lacks the monitoring API
+
+- **WHEN** the common graph reconciles on a target without the ServiceMonitor CRD
+- **THEN** its controller stage becomes Ready and the API is Established before the application stage applies native ServiceMonitors
+- **AND** removing that barrier or combining provider and consumers makes source validation refuse rather than treating Kustomize build success as runtime readiness
+
+### Requirement: Disposable resource evidence precedes ownership use
+
+The strict rehearsal path SHALL retain actual creator-returned container/network identities, same-daemon creation/mount corroboration and a complete expected resource set before consuming ownership evidence. It MUST NOT infer ownership from names or labels. Raw private debug configuration and arbitrary event labels MUST NOT be persisted or exposed.
+
+#### Scenario: A successful creation has accountable resources
+
+- **WHEN** the existing runner creates a fresh strict rehearsal attempt
+- **THEN** its exact returned identities, required creation/mount observations and resource inspections agree in exclusive durable attempt-bound evidence
+- **AND** missing or conflicting creator evidence, a missed handshake, reuse, foreign attachment or persistence failure refuses complete accounting
+
+#### Scenario: Partial creation retains uncertainty
+
+- **WHEN** creation fails after some identities were recorded
+- **THEN** individual evidence and the attempt remain retained while global completeness stays unknown
+- **AND** no name/label-based automatic cleanup or failure rollback is authorized
+
+#### Scenario: Recorded teardown retains storage
+
+- **WHEN** a recorded attempt is torn down within its cooperative ownership boundary
+- **THEN** the existing runner verifies daemon, exact container/network identities and attachments, removes only those recorded targets and retains volumes and private evidence
+- **AND** missing/edited evidence, replacement or foreign attachments refuses the strict path without falling back to legacy teardown
+
+### Requirement: Strict bootstrap consumes a verified retained artifact
+
+The strict full-rehearsal path SHALL require an explicit prebuilt object-store archive and validate its bounded complete import identity against the committed lock before creating Docker resources. It MUST retain and import the same verified bytes on exact owned nodes of the captured daemon without an implicit image build. Ordinary legacy build behavior remains explicit; the app profile requires no object-store archive. Artifact availability MUST NOT replace full capacity or runtime acceptance.
+
+#### Scenario: A locked archive is reused
+
+- **WHEN** a strict non-app attempt receives a complete valid archive for the locked object-store image
+- **THEN** its retained bytes, manifest, config, ordered layers, sizes, platform and import references agree before creation and bootstrap imports those retained bytes without Buildx activity
+- **AND** imported source and digest-alias targets still match the lock on exact owned nodes
+
+#### Scenario: An unsafe archive refuses before creation
+
+- **WHEN** the required archive is missing, unreadable, malformed, unsafe, duplicated or conflicts with a locked identity, size, platform or import reference
+- **THEN** the production lab path refuses before Docker resource creation without rebuilding or silently selecting another artifact
+
+#### Scenario: The original path changes after capture
+
+- **WHEN** original archive bytes change after successful private capture
+- **THEN** bootstrap consumes only the retained verified bytes and their receipt, preserving the original source distinction and all existing ownership checks
+
+### Requirement: Generated workloads have finite planning inputs
+
+The shared candidate SHALL declare complete positive resource maps for its selected application, init, reloader and monitoring-hook roles through supported pinned-provider inputs. It MUST preserve existing positive capacity and storage identities and reject omitted required role bounds. Declared inputs MUST remain distinct from actual generated Pods and enforcement evidence used for full admission.
+
+#### Scenario: The selected roles are planned
+
+- **WHEN** both service instances and their shared controllers are generated
+- **THEN** the selected supported role inputs contain positive CPU, memory and ephemeral-storage requests and limits without lowering existing positive bounds
+- **AND** supported scratch-volume limits are declared while unsupported memory-volume enforcement remains an explicit admission prerequisite
+
+#### Scenario: A required bound is omitted
+
+- **WHEN** a required selected role or positive resource input is removed or replaced with zero
+- **THEN** the production candidate validation refuses rather than treating the missing demand as zero
+
+#### Scenario: Source output is not effective Pod evidence
+
+- **WHEN** pinned chart and role-input validation succeeds
+- **THEN** the result remains source evidence and full rehearsal still requires actual complete generated roles, resource enforcement, capacity and readiness
+
+### Requirement: Cold-start planning shares exact workload accounting
+
+Native cold-start costs SHALL be derived from byte-bound source artifacts through the existing workload normalizer and shared quantity/capacity arithmetic. The implementation MUST preserve preflight ownership and cutover behavior, including CPU requests with finite limit evidence, and distinguish scoped native contributions from full admission authority.
+
+#### Scenario: Complete native inputs fit a declared capacity
+
+- **WHEN** byte-bound native artifacts have supported complete resource, replica, concurrency and claim inputs
+- **THEN** namespace-scoped owners, init sequencing and claims produce exact contributions and the shared evaluator reports fit or named deficit
+- **AND** this alone cannot authorize lab creation or certify runtime health
+
+#### Scenario: A contribution is not known
+
+- **WHEN** a runnable owner or capacity behavior cannot be modeled from the selected source contract
+- **THEN** its identity and concrete missing fact remain incomplete rather than zero
+- **AND** malformed trusted bytes, hash drift, duplicate ownership or contradictory inputs refuse
+
+#### Scenario: Cutover accounting is preserved
+
+- **WHEN** shared calculation is used by existing preflight
+- **THEN** memory, CPU-request overcommit, claim, replica, placement and freshness outcomes remain unchanged
+- **AND** cold start never supplies fictional Ready, Bound or UID state
+
+### Requirement: Generated capacity traits retain their evidence boundary
+
+Selected generated-workload capacity traits SHALL consume the same validated role inputs and workload normalizer as source validation. Provider-specific mapping MUST remain outside shared capacity concepts. Byte-bound source, provider/runtime pins, per-replica resource and claim facts, unassessed concurrency and unobserved enforcement MUST remain distinguishable. Source traits MUST NOT fabricate effective Pods or grant creation authority.
+
+#### Scenario: Selected provider inputs produce traits
+
+- **WHEN** the exact supported ECK and Prometheus-operator inputs for both instances are decoded
+- **THEN** named roles, sequential init order, source resource quantities, scratch and requested claims produce source-bound per-replica traits
+- **AND** unresolved operator overlap, generated-input overhead and effective runtime facts remain named blockers rather than nominal replica totals charged as complete demand
+
+#### Scenario: A named generated memory volume has no literal size limit
+
+- **WHEN** an internal source policy authorizes exactly one supported Memory volume with absent literal sizeLimit and complete application and sequential-init limits
+- **THEN** the shared normalizer derives the conservative Pod memory upper bound as max(sum(application limits), max(sequential init limits)) plus Pod overhead
+- **AND** it adds neither that bound nor overhead twice, preserves the absent source sizeLimit and records enforcement as unobserved
+- **AND** missing or wrong policy identity, unsupported volumes, invalid explicit limits or incomplete resource shapes refuse
+
+#### Scenario: Standalone metadata projection is source-policy scoped
+
+- **WHEN** the internal policy authorizes the selected standalone downwardAPI volume
+- **THEN** actual safe metadata field paths, unique relative file paths, read-only mounts and effective file modes, including zero, are retained without inventing metadata values or zero overhead
+- **AND** missing or contradictory selectors, unsafe paths, invalid modes, mixed volume sources and duplicate identities refuse before unrelated unsupported recovery
+
+#### Scenario: Default normalization remains strict
+
+- **WHEN** existing cutover or native callers omit the new source policy
+- **THEN** their accepted schemas, normalized output and first-refusal behavior remain unchanged
+- **AND** standalone downwardAPI and emptyDir without a finite literal sizeLimit remain unsupported for those callers
+
+#### Scenario: Provider or cost-bearing closure is unsupported
+
+- **WHEN** required roles, source hashes, provider/runtime identity or claim binding conflict, or an additional cost-bearing shape is unsupported
+- **THEN** malformed trusted inputs refuse and supported-but-unmodeled demand remains explicitly incomplete
+- **AND** selecting known roles never hides additional demand or relabels source evidence as an actual Pod observation
+
+### Requirement: Archive byte facts preserve allocation uncertainty
+
+The existing verified archive boundary SHALL provide digest-bound layer byte facts through bounded complete streaming inspection without filesystem extraction. Compressed bytes, decoded tar-stream bytes and logical file payload MUST remain separate from physical allocation, process memory and runtime demand. These facts MUST NOT replace unknown unpack or memory allowances or grant creation authority.
+
+#### Scenario: Locked layers are completely inspected
+
+- **WHEN** the actual retained verified archive contains supported complete layers
+- **THEN** byte facts identify the archive and ordered layers and report decoded stream bytes, logical payload and entry counts
+- **AND** overwritten or deleted layer contributions receive no speculative storage credit
+- **AND** original and retained import identities remain unchanged while physical allocation, heap and import demand remain unknown
+
+#### Scenario: Layer inspection cannot establish complete facts
+
+- **WHEN** input is missing, unreadable, changed, malformed, truncated, unsupported or exceeds the bounded expansion, member or metadata contract
+- **THEN** the production reader refuses without returning partial sums as complete facts
+- **AND** it neither extracts paths nor silently skips unsupported tar, link or whiteout semantics
+
+#### Scenario: Byte facts are consumed for planning
+
+- **WHEN** deterministic byte facts are available
+- **THEN** complete device, filesystem, memory, concurrency and runtime accounting remain separately required
+- **AND** no declared claim capacity, decoded byte sum or measured peak is relabeled as a physical quota or total process-memory bound
+
+### Requirement: Rehearsal source inventory retains closure and uncertainty
+
+The rehearsal inventory SHALL consume the existing validated packet's actual stage builds and pinned Helm expansions, retaining source, tool, archive, namespace and object provenance. It MUST distinguish source declarations from provider/bootstrap/runtime obligations and MUST NOT infer capacity, creation authority or runtime acceptance from source inventory.
+
+#### Scenario: Selected sources produce an inventory
+
+- **WHEN** a complete validated packet is inventoried
+- **THEN** its required stage outputs and discovered release expansions retain exact byte hashes, object identities, native images, claim references and hook phases
+- **AND** enabled objects come from actual rendered output while disabled values alone produce no runnable entry
+- **AND** release declarations stay linked to their expansions without double counting the same owner
+
+#### Scenario: A required source or tool identity is not established
+
+- **WHEN** a required stage or expansion is omitted, bytes or chart identities drift, or a matching-version Helm executable differs from the verified locked artifact
+- **THEN** inventory refuses instead of accepting a narrowed or substituted source view
+- **AND** archive and extracted executable digests remain distinct provenance facts
+
+#### Scenario: Namespace or provider scope is unresolved
+
+- **WHEN** an object has an unfamiliar API, scope or provider-produced behavior
+- **THEN** its known declaration and concrete unresolved facts remain visible without a guessed namespace or zero-demand classification
+- **AND** known malformed shapes, duplicate ownership and contradictory identities refuse
+
+#### Scenario: Existing source contracts are preserved
+
+- **WHEN** shared structural decoding is reused by inventory
+- **THEN** existing prepare/validate outputs and observability API/default namespace policy remain unchanged
+- **AND** no smaller test graph bypasses the production packet contract
+
+#### Scenario: Source inventory is not runtime acceptance
+
+- **WHEN** stage and chart inventory succeeds
+- **THEN** bootstrap/helper/provider closure, lifecycle accounting, host observations and runtime acceptance remain separately required
+- **AND** inventory grants no creation authority and records transport as not evaluated in its own scope without relabeling the existing authenticated binding implementation
+
+### Requirement: Bootstrap contributors retain exact source and lifecycle origins
+
+The source inventory SHALL retain the selected Git input's Flux install, local platform topology and policy bootstrap inputs with exact source/artifact hashes. It MUST distinguish bootstrap application origins from Flux stage ownership and from observed runtime behavior. It MUST reuse the existing structural inventory and runner/bootstrap contracts without creating a second graph runner or capacity calculator.
+
+#### Scenario: A complete packet retains bootstrap inputs
+
+- **WHEN** the full selected packet is prepared and inventoried
+- **THEN** the committed Flux install and local platform topology are retained through the existing source collector before artifact hashes are computed
+- **AND** the Flux install bytes match the same packet's manifest lock
+- **AND** source inputs remain bound to the selected Git revision rather than mutable original-checkout bytes
+- **AND** native bootstrap images and templates retain explicit bootstrap origins using the shared structural decoder
+
+#### Scenario: A required bootstrap input drifts
+
+- **WHEN** a required Flux/topology/policy input is omitted, unreadable, malformed or contradicts its bound manifest hash
+- **THEN** the production inventory refuses instead of accepting an incomplete bootstrap view as source closure
+
+#### Scenario: Bootstrap and a stage apply the same object
+
+- **WHEN** independently decoded bootstrap and stage declarations have the same group, kind, namespace and name and equal definitions
+- **THEN** inventory records one physical object with both lifecycle origins
+- **AND** stage-only generated objects remain explicit
+- **AND** unequal shared definitions refuse instead of silently merging them
+- **AND** unrelated cross-stage duplicate-owner checks remain strict
+
+#### Scenario: A rendered digest reference omits its locked tag
+
+- **WHEN** the exact rendered repository and digest match a supported structured chart lock record whose name also contains a tag
+- **THEN** inventory retains the rendered string and exact lock coordinates as separate linked facts
+- **AND** a digest from another repository or a changed digest cannot establish that link
+- **AND** existing strict platform/source guard contracts and pinned values remain unchanged
+
+#### Scenario: External runtime demand remains unresolved
+
+- **WHEN** node/system, registry, load-balancer, serial tool, import, provisioning, solver or transfer roles are declared by the existing topology and bootstrap flow
+- **THEN** inventory retains their known source/pin origins and concrete unresolved realization facts
+- **AND** an unknown helper cannot disappear behind a complete or zero-demand classification
+- **AND** arbitrary ConfigMap strings are not treated as already active Pods
+- **AND** no image sizes, process allowances, capacity totals, runtime identities or creation authority are invented
+
+#### Scenario: Bootstrap inventory remains source evidence
+
+- **WHEN** bootstrap contributor inventory succeeds
+- **THEN** actual runner-input equality, lifecycle and writer accounting, admitted measurements, host facts and full runtime/live acceptance remain required
+- **AND** runtime and creation authority remain false, with transport not evaluated in this receipt
+
+### Requirement: Native ordinal charges retain lifecycle conditions
+
+Native lifecycle accounting SHALL consume the existing validated rehearsal source traversal and reuse shared quantities, workload normalization and the native ledger. A dedicated Kubernetes adapter MUST distinguish declared/defaulted source policy, supported lifecycle conditions and unobserved runtime prerequisites. Native subset charges MUST NOT confer creation authority or complete whole-attempt admission.
+
+#### Scenario: Supported StatefulSet source gains ordinal charges
+
+- **WHEN** validated apps/v1 StatefulSet inputs use supported default or explicit OrderedReady and RollingUpdate policy in one immutable-source attempt
+- **THEN** accounting retains one full normalized Pod charge per supported ordinal through creation, process recovery and graceful same-template replacement
+- **AND** selected real source owners gain nonzero native charges without hardcoded owner budgets or a second calculator
+- **AND** terminating source demand is never replaced by an assumed zero
+
+#### Scenario: Source defaults remain distinguishable from observations
+
+- **WHEN** supported API defaulting supplies omitted lifecycle policy or grace fields
+- **THEN** the declared absence, pinned provider default and derivation provenance remain distinguishable
+- **AND** the source-render capability and intended runtime pin remain separate from observed runtime versions
+- **AND** a grace value is not presented as a guaranteed physical reclamation deadline
+
+#### Scenario: A source or recognized input is malformed
+
+- **WHEN** required frame identity/hash/namespace closure drifts, counts are malformed, or supplied quantities, claims or volumes contradict their known contract
+- **THEN** production accounting throws before an unsupported lifecycle or missing-bound shortcut can conceal the malformed input
+- **AND** valid absent resource declarations in the broad inventory remain named incomplete facts without invented maps or caps
+- **AND** legacy selected-input missing-bound refusals remain strict
+
+#### Scenario: A lifecycle is outside the supported scenario
+
+- **WHEN** forced deletion, lost-node execution, foreign mutation, unbound old templates, unsupported ordinal or management policy, or unaccounted controller generations are required
+- **THEN** the affected lifecycle remains explicitly incomplete rather than receiving a nominal-replica peak
+- **AND** Deployment, DaemonSet, Job, CronJob, generated-operator and writer obligations remain separately visible until their own accounting is implemented
+
+#### Scenario: Replacement reuses an ordinal claim
+
+- **WHEN** a supported same-template StatefulSet ordinal reuses its source claim template
+- **THEN** the namespace/controller/template/ordinal claim identity is charged once
+- **AND** conflicting identities or sizes refuse
+- **AND** requested claim bytes remain source reservations rather than observed Bound storage, retained usage or filesystem quotas
+
+#### Scenario: Existing callers and full admission remain bounded
+
+- **WHEN** common per-owner derivation is reused by the new whole-inventory native adapter
+- **THEN** existing valid selected-input and cutover contracts remain unchanged and no caller can replace full production source validation with a filtered summary
+- **AND** whole-attempt system/helper/image/transient/host accounting, effective enforcement and live acceptance remain required
+- **AND** native source charges report no creation or runtime authority
+
+### Requirement: Deployment charges retain bounded replacement conditions
+
+Native Deployment accounting SHALL reuse the existing validated native source traversal and workload normalizer. A supported conditional envelope MUST charge each original and first replacement Pod fully, retain exact source/template identities and distinguish source declarations/defaults from unobserved runtime conditions. No Deployment strategy alone establishes a physical peak.
+
+#### Scenario: A supported single replacement wave is accounted
+
+- **WHEN** a supported apps/v1 Deployment has explicit positive replica count R and complete supported workload bounds
+- **THEN** a conditional single-ReplicaSet, same-template first replacement wave retains R original and R first replacement Pod charges through termination
+- **AND** source lifecycle/defaulting provenance identifies the intended pinned provider separately from observed runtime state
+- **AND** source does not claim its strategy enforces the replacement-wave event exclusions
+
+#### Scenario: A lifecycle or supplied source is unsuitable
+
+- **WHEN** a supplied recognized lifecycle, count, quantity or volume value is malformed or contradictory
+- **THEN** production accounting throws before missing bounds or unsupported policy can conceal it
+- **AND** valid unsupported strategies, absent bounds or unsupported workload shapes remain named incomplete obligations
+
+#### Scenario: A conditional source envelope cannot authorize creation
+
+- **WHEN** Deployment contributions are emitted
+- **THEN** actual single-ReplicaSet/template/generation identity, unchanged scale, first replacement identities and absence of further replacement or foreign mutation remain required runtime conditions
+- **AND** rollout, repeated replacement, old/new templates, forced deletion and lost-node execution remain outside this source envelope
+- **AND** terminating Pods are never budgeted as zero and grace is not a reclamation deadline
+- **AND** existing StatefulSet charges and unrelated native/operator/writer/system/helper obligations remain visible
+- **AND** creation and runtime authority remain false and whole-attempt admission stays incomplete
+
+### Requirement: Shared networking workloads declare bounded resources
+
+Shared cert-manager and Traefik source definitions SHALL declare explicit container CPU, memory and ephemeral-storage requests and limits. Their validated source and locked rendered workloads MUST agree. Workload limits are candidate policy inputs, not measured consumption or proven runtime enforcement.
+
+#### Scenario: Common networking candidates have complete maps
+
+- **WHEN** the shared cert-manager and Traefik releases are prepared
+- **THEN** all three cert-manager controllers, its startup API-check Job and the Traefik container have explicit CPU, memory and ephemeral-storage requests and limits
+- **AND** requests are nonnegative, limits are positive, quantities are valid and requests do not exceed limits
+- **AND** Traefik's existing data and temporary emptyDirs have positive size limits while persistence remains disabled
+- **AND** versions, images, workload identity, replicas, ingress/TLS/redirect behavior and supported environment parity remain unchanged
+
+#### Scenario: A required source bound is missing or malformed
+
+- **WHEN** a networking candidate omits a required map or field, supplies null or malformed quantities, contradicts request/limit relationships or loses a required emptyDir bound
+- **THEN** its production source validation refuses before rendering or claiming a bounded candidate
+- **AND** structural image-reference decoding remains distinct from the stricter current-candidate budget policy
+- **AND** broad native source inventory still represents valid historical absent bounds as incomplete rather than inventing maps
+
+#### Scenario: Limits activate resource-aware runtime settings
+
+- **WHEN** the pinned Traefik chart derives Go runtime settings from explicit resource limits
+- **THEN** the locked render retains the chart's resource-aware CPU and memory settings and their declared/defaulted provenance
+- **AND** actual ingress, TLS, readiness, garbage collection and throttling under those limits remain required rehearsal checks
+- **AND** source success cannot complete host admission, actual enforcement or runtime acceptance
+
+### Requirement: Velero scratch patches have one validated execution contract
+
+Both Velero releases SHALL bound their plugin init and writable storage without changing original chart/component/image pins. A narrow standard Flux Kustomize post-render patch MUST have the same source, target and effects in offline rendering. No ignored or arbitrary post-renderer may establish a bounded candidate.
+
+#### Scenario: The supported patch is applied
+
+- **WHEN** a current Velero candidate is prepared
+- **THEN** the AWS-plugin init has complete CPU, memory and ephemeral requests/limits and its server has explicit ephemeral bounds
+- **AND** exactly one supported inline JSON6902 patch tests the complete pinned volumes array and adds only the plugins and scratch size limits
+- **AND** the original chart archive, images, credentials reference, namespace, endpoints and unrelated workload fields remain unchanged
+
+#### Scenario: A patch or tool cannot establish its intended effect
+
+- **WHEN** policy is missing, malformed, excessive, ambiguous or outside the exact supported target/operation shape, its quantities are invalid, or prepared locked tools cannot be authenticated
+- **THEN** production source validation or direct offline rendering refuses before treating the workload as bounded
+- **AND** missing or duplicate targets, failed preconditions, no-op output, wrong values and unrelated semantic changes refuse
+- **AND** other releases cannot acquire arbitrary post-renderer permission
+
+#### Scenario: The direct and canonical paths retain the same boundary
+
+- **WHEN** the supported Velero release is rendered directly or through the canonical rehearsal producer
+- **THEN** both use the same narrow decoder and the actual verified locked kubectl to apply the original source patch
+- **AND** semantic identity/cardinality and exact effects are checked without a second patch interpreter, fallback download or validation bypass
+- **AND** historical source inventory remains valid incomplete evidence without granting current-candidate readiness
+
+#### Scenario: Source patch success remains distinct from runtime acceptance
+
+- **WHEN** actual offline patched outputs satisfy the shared workload normalizer
+- **THEN** source and generator identities, original chart provenance and patch source are retained separately from runtime facts
+- **AND** actual Flux revision/patch binding, generated Pods, plugin installation/backup/recovery, writable storage/eviction/headroom and physical enforcement remain required
+- **AND** runtime/creation authority and whole-attempt admission remain incomplete until their separate criteria pass
+
+### Requirement: Serial Job attempts retain conditional lifecycle costs
+
+The native capacity companion SHALL derive supported serial Job attempt charges through the existing validated traversal and workload normalizer, preserving source provenance and every independent incomplete contributor. A finite source envelope MUST NOT confer runtime or creation authority.
+
+#### Scenario: A supported Job has bounded retry accounting
+
+- **WHEN** a fresh unchanged serial NonIndexed Job has one completion, one parallel slot, supported failure/replacement behavior and a valid declared or pinned-default backoff limit B
+- **THEN** the companion retains B+1 full normalized Pod charges, including failed and terminating attempts, with exact source/template/namespace and declared/defaulted provenance
+- **AND** slots are accounting identities rather than observed Pod UIDs
+- **AND** the conditional envelope explicitly requires reconciled successful and uncertain creates, durable nonduplicated failure accounting, no adoption or foreign mutation, and no further creation after success
+- **AND** container restart, deadline, grace, TTL and hook deletion do not provide physical reclamation or cumulative log-growth bounds
+
+#### Scenario: A known Job declaration is malformed or unsupported
+
+- **WHEN** supplied known count, policy, selector, quantity or volume state is malformed or contradictory
+- **THEN** the production entry refuses before unsupported-policy, missing-bound or provider-mismatch shortcuts
+- **WHEN** the supplied declaration is valid but outside the supported serial scenario or has absent bounds
+- **THEN** its unsupported policy or independent missing resource/storage facts remain explicit, without manufactured maps or zeroed demand
+
+#### Scenario: A per-Job envelope cannot certify the whole attempt
+
+- **WHEN** conditional Job contributions are derived from retained real source
+- **THEN** existing StatefulSet/Deployment charges and unrelated obligations remain intact
+- **AND** missing Helm invocation/retry/remediation, hook Job generations, Flux forced-recreation and predecessor-history bindings remain explicit whole-attempt obligations
+- **AND** actual provider features, effective Pods, UIDs, mounts, logs and enforcement still require runtime evidence
+- **AND** inventory remains source-only and creation/runtime authority remain false
+
+### Requirement: Common container candidates declare ephemeral storage bounds
+
+Current platform candidates SHALL declare explicit ephemeral-storage requests and limits for the registered registry, signal, exporter, object-store and setup/snapshot container roles. The bucket initializer MUST also bound its existing temporary emptyDir. These are candidate policy inputs, not measurements or a host admission verdict.
+
+#### Scenario: The registered role is prepared from common source
+
+- **WHEN** registry, signal metrics proxy/collector/gateway, blackbox exporter, kube-state-metrics, node exporter, local MinIO or setup/snapshot/bucket containers are prepared
+- **THEN** each role has explicit nonnegative ephemeral requests and positive ephemeral limits with requests not exceeding limits
+- **AND** its existing CPU/memory policy, images, versions, replicas, security, endpoints, storage identities and functional configuration remain unchanged
+- **AND** common generated instances and actual locked outputs retain the declared bounds
+- **AND** the bucket initializer's existing temporary emptyDir has a positive size limit without introducing a duplicate mount
+
+#### Scenario: A required current bound is absent or invalid
+
+- **WHEN** a current registered candidate lacks its required map, field or scratch size, supplies null or malformed quantities, or contradicts request/limit relationships
+- **THEN** production candidate validation refuses before claiming bounded source readiness
+- **AND** missing, unreadable or malformed required source files cannot be ignored
+- **AND** structural/image reading still accepts valid historical absence as incomplete, without weakening existing supplied-value, image or ownership checks
+
+#### Scenario: Source bounds preserve unrelated obligations
+
+- **WHEN** a clean committed candidate is captured and normalized through the canonical source path
+- **THEN** exact new resource/scratch values and source/generator identities are retained while unrelated source semantics and prior captures remain unchanged
+- **AND** other unbounded receiver, Flux, node-agent, hostPath, lifecycle, system/helper/transient and retained-storage facts remain explicit
+- **AND** actual startup/load/log/eviction/recovery and effective enforcement remain required before live activation
+- **AND** source-only inventory and false creation/runtime authority do not become deployment permission
+
+### Requirement: Conditional DaemonSet costs bind the selected source topology
+
+The native capacity companion SHALL derive supported DaemonSet initial and first-replacement contributions through the existing source traversal and normalizer, bound to the same selected source's candidate-node population. No source condition or caller-provided count may establish runtime or creation authority.
+
+#### Scenario: The source topology supports a conditional wave
+
+- **WHEN** independently captured source/packet/bootstrap coordinates match exact retained topology bytes and the supported DaemonSet policy
+- **THEN** N is the entire source-declared server-plus-agent population, without eligibility or scheduling discounts
+- **AND** the companion retains N full initial plus N full first-replacement Pod charges, including failed and terminating demand
+- **AND** source/template/namespace, declared/defaulted policy, topology provenance and synthetic candidate-slot identities are retained without inventing Node UIDs
+- **AND** validated topology provenance is snapshotted so subsequent caller-input mutation cannot change the accepted record
+
+#### Scenario: Topology evidence is missing, invalid or computationally unsupported
+
+- **WHEN** legacy callers omit optional topology evidence
+- **THEN** their existing native contributions remain usable and DaemonSet topology remains explicitly incomplete, without a default N
+- **WHEN** supplied topology bytes, source coordinates, selected revision or artifact identity are malformed or mismatched
+- **THEN** the native boundary refuses rather than trusting the evidence object's own count or hash
+- **WHEN** a valid decoded candidate population falls outside the supported one-to-128 materialization range
+- **THEN** the adapter reports an explicit computational limitation before allocating slots, without truncation or a physical-capacity claim
+
+#### Scenario: Known policy validation precedes incomplete classification
+
+- **WHEN** supplied known DaemonSet strategy, counts, placement, selector/template, toleration, affinity, restart, deadline or foreign-controller fields are malformed
+- **THEN** the complete native prepass refuses before provider, missing topology, missing resources or unsupported-policy shortcuts
+- **AND** valid unsupported policies remain named incomplete without inventing API contradictions or widening legacy contracts
+- **AND** independent missing map, claim, volume, hostPath, log/runtime and generation/history obligations cannot be concealed by the first unsupported contributor
+
+#### Scenario: The first-wave condition cannot certify the whole attempt
+
+- **WHEN** conditional DaemonSet contributions are returned
+- **THEN** one unchanged controller/template and fixed reachable Node UID set, complete reconciled creation histories, no prior/adopted work and at most one first replacement remain unobserved requirements
+- **AND** rollout, repeated replacement/eviction, force/loss, node/placement changes, controller recreation and foreign mutation remain outside the bound
+- **AND** grace, history, surge and cleanup policies provide no physical reclamation credit
+- **AND** other native families and all system/helper/writer/transient/host obligations remain intact, with source-only inventory, incomplete state and false creation/runtime authority
+
+### Requirement: Immutable helper selection and versioned effective image evidence
+
+The rehearsal SHALL select its load-balancer and temporary helper images from a closed committed provider/version/platform lock, retaining index, selected manifest and config identities. The same selection MUST derive creation-plan references and the owned provider environment for ordinary and witnessed execution. Source metadata, effective image observations and runtime authority MUST remain distinct.
+
+#### Scenario: Supported helper selection reaches creation
+
+- **WHEN** the selected k3d version and linux/amd64 platform match the reviewed helper lock
+- **THEN** both helper references use the selected immutable manifests and reach the owned load-balancer/tools environment overrides
+- **AND** helper names, order and permanent/temporary roles remain unchanged
+- **AND** inherited provider overrides remain refused by strict creation before mutation
+
+#### Scenario: Supplied helper selection cannot be validated
+
+- **WHEN** required lock state is absent, unreadable, malformed, unknown, or mismatched by provider/version/platform or repository identity
+- **THEN** creation throws before resource mutation without a mutable-tag fallback
+- **AND** syntactically valid digests alone do not establish registry provenance or physical image costs
+
+#### Scenario: Effective helper identity is retained
+
+- **WHEN** a new strict creation uses the selected helper lock
+- **THEN** precreation helper image observations match its selected reference, manifest association, config identity and platform
+- **AND** every permanent and temporary creator has the exact configured reference and expected effective config image ID
+- **AND** each serial temporary creator has a unique retained exact-ID observation joined to its creator and lifecycle evidence
+- **AND** missing, duplicate, substituted or mismatched evidence cannot seal a successful attempt
+
+#### Scenario: Temporary helper disappears before observation
+
+- **WHEN** a required exact-ID inspection loses the race with provider deletion, or retention fails
+- **THEN** the attempt throws, retains partial evidence and cannot report ready or complete
+- **AND** it does not retry by name, infer an effective ID from events, fabricate observations or claim to synchronize provider deletion
+
+#### Scenario: Historical receipts retain their supported meaning
+
+- **WHEN** an authentic old sealed receipt satisfies the complete closed historical format and existing identity checks
+- **THEN** its existing receipt-based teardown remains available with current exact-ID/attachment checks and retained volumes/history
+- **AND** historical evidence cannot satisfy the new effective-image forward-acceptance boundary or be rewritten into new evidence
+- **AND** new creation writes only the explicit new format; unknown, mixed, truncated or inconsistent versions refuse
+
+#### Scenario: Source helper closure does not supply admission
+
+- **WHEN** helper source selection and component evidence pass
+- **THEN** complete system/helper/transient/physical costs, actual daemon/cache/platform observations, host admission and live acceptance remain separately required
+- **AND** k3d memory flags remain disabled and no historical hidden-helper cleanup claim is inferred
+
+### Requirement: The rehearsal receiver bounds input and retained alert history
+
+The current local receiver SHALL preserve opaque Alertmanager webhook bytes and firing/resolved evidence while enforcing explicit candidate input, history and scratch policies. Source bounds SHALL remain distinct from measured workload fit, transport costs, effective Kubernetes enforcement and full-stack readiness. Production recipients and routing authority SHALL remain unchanged.
+
+#### Scenario: A bounded webhook is recorded and acknowledged
+
+- **WHEN** the sole admitted writer receives a complete body with a valid declared byte length no greater than65536 within10seconds and sufficient space in8388608bytes of history
+- **THEN** the exact body, including trailing whitespace and labels, is retained with the existing alert-received textual prefix through checked same-directory atomic replacement
+- **AND** the retained record is readable and its stdout mirror completes before a200ok acknowledgement
+- **AND** existing records are preserved; no rotation, JSON transformation or new method/content-type restriction is introduced
+
+#### Scenario: Input or storage cannot safely accept a record
+
+- **WHEN** length is absent/malformed/oversized, input is short or times out, another writer holds the nonwaiting lock, history is full, or persistence/readback/stdout fails
+- **THEN** the receiver returns an explicit non-success status withoutok; malformed/absent length is400, oversized413, short400, timed-out408, busy503, full507, and write/readback/stdout failure500
+- **AND** bounds apply before body buffering or unbounded decimal arithmetic, interrupted state remains visible for inspection, and accepted history is never silently truncated or reset
+- **AND** loss of acknowledgement may permit duplicates; exactly-once or power-loss durability is not claimed
+
+#### Scenario: Current source policy is missing or inconsistent
+
+- **WHEN** the required receiver role, policy, scratch mount/cap, resource map or identity cannot be validated through the current platform entry
+- **THEN** validation refuses before source success
+- **AND** scratch is32Mi disk emptyDir, ephemeral request32Mi/limit64Mi, with unchanged image, security, CPU5m/100m and memory8Mi/32Mi
+- **AND** valid historical structural/image readers retain their supported meaning without being upgraded to current-candidate acceptance
+
+#### Scenario: Source or application tests do not establish runtime acceptance
+
+- **WHEN** extracted actual CGI/bootstrap application tests and source comparison pass
+- **THEN** exact pinned BusyBox/httpd behavior, arbitrary transport children/buffers, actual traffic fit, effective resource/storage enforcement and host admission remain separately required
+- **AND** the one-writer cap only bounds application serialization/spooling; same-Pod restart retention is distinct from Pod replacement and power-loss durability
+- **AND** fixture-receiver-cannot-certify-stack-readiness, full stored-signal/isolation/history/recovery and live-dev criteria remain open
+
+### Requirement: Effective image observations retain identity roles and provider provenance
+
+The shared image-identity concepts SHALL distinguish index, manifest and config identities without assuming a provider uses one as its object ID. A dedicated provider adapter SHALL bind observed objects to selected content and retain provenance. Missing, contradictory or unsupported trusted observations SHALL refuse before mutation or sealing.
+
+#### Scenario: Supported observations use different object roles
+
+- **WHEN** a supported provider reports an index or manifest object instead of a config object, or image inspection and container inspection report different object roles
+- **THEN** both observations must bind the same selected child manifest, exact configured reference, platform and daemon through corroborating descriptors and the source selection
+- **AND** helper config identity is inferred only from its independently verified selected manifest/config tuple; it is not mislabeled as a direct runtime config-byte observation
+- **AND** arbitrary digest membership or version-only inference cannot substitute for that binding
+
+#### Scenario: Runtime pins do not declare a config identity
+
+- **WHEN** a nonhelper source pin declares only the executable image identity
+- **THEN** preserve that source-root pin and the provider-observed selected child with exact provenance
+- **AND** config identity remains explicitly unobserved rather than manufactured from an object ID
+
+#### Scenario: A provider or identity graph cannot be validated
+
+- **WHEN** source/lock, daemon, capability/store contract, role, descriptor, configured reference, repository, platform or expected/runtime graph is missing, malformed, conflicting or unsupported
+- **THEN** the production creation/read boundary refuses before creating or sealing resources
+- **AND** a failed projection is not retried through an unqualified fallback and missing fields are not supplied from defaults
+
+#### Scenario: New creation and retained history have explicit versions
+
+- **WHEN** new creation records effective image evidence
+- **THEN** plans, inputs, permanent/transient observations and closure use the explicit version3 contract with neutral image identities and separate provider binding provenance
+- **AND** every join validates the exact same independently selected content and daemon
+- **AND** unknown versions, mixed cohorts, omitted observations and false provenance refuse
+
+#### Scenario: Authentic prior receipts are used for teardown
+
+- **WHEN** a version1 or version2 receipt satisfies its original closed schema and identity semantics
+- **THEN** its existing exact-ID, attachment and retained-volume teardown remains available under those original rules
+- **AND** old bytes and configId meanings are not rewritten, upgraded or defaulted into version3, and legacy formats cannot certify new forward acceptance
+
+#### Scenario: Identity compatibility does not authorize the full rehearsal
+
+- **WHEN** role-aware source checks and selected provider components pass
+- **THEN** all existing configured-reference, daemon/container/mount/network, anonymous-volume, transient lifecycle, sealing/history and source-authority checks remain required
+- **AND** actual selected-helper capture, complete physical/runtime image costs, host admission and full observability acceptance remain separately unresolved
+
+### Requirement: Image platform observations retain their provider origin
+
+Image inspection SHALL accept a supported omitted descriptor platform only when explicit observed image platform fields establish the selected content platform and satisfy source/request agreement. Provider records SHALL retain safe raw observations and their normalization origin without changing prior receipt meanings.
+
+#### Scenario: Direct helper descriptors omit platform
+
+- **WHEN** normal and platform-selected image inspections report the exact selected manifest, explicit supported image OS/architecture and an explicitly observed empty image variant, while descriptor platform is omitted
+- **THEN** the adapter derives known content platform from those observed image fields and retains descriptor-platform absence and image-field origin
+- **AND** digest/media/size, normal/selected, configured reference, repository, daemon, source/config and volume joins remain required
+- **AND** requested or source platform is never substituted for an observed field
+
+#### Scenario: Image platform evidence is missing or contradictory
+
+- **WHEN** an image field is absent, unreadable, malformed or unsupported, image variant is nonempty, descriptor platform is null/malformed, or a present descriptor platform conflicts with image/source/request evidence
+- **THEN** the production boundary refuses before creation or sealing without an unqualified retry or fabricated default
+
+#### Scenario: Provider provenance has a discriminated format
+
+- **WHEN** new forward image evidence is produced or sealed
+- **THEN** binding and container observations use closed adapter4 records inside outer creation3 and preserve mandatory raw-to-normalized provenance
+- **AND** omitted provenance, mixed3/4 pairs or cohorts and unknown formats refuse
+- **AND** complete old adapter3 pairs retain their original supported teardown semantics without new raw fields or silent upgrades
+- **AND** outer1/2 teardown and outer3 independent Git source validation keep their existing requirements
+
+#### Scenario: Container descriptor platform remains mandatory
+
+- **WHEN** a new or retained supported container observation has missing, malformed, unsupported or contradictory descriptor platform
+- **THEN** it refuses through the existing exact manifest/platform/source join
+- **AND** image inspection compatibility alone does not justify inferred container platform, helper functionality, full admission or observability acceptance
+
+### Requirement: Fresh CronJob syntax is validated before conditional source accounting
+
+The native inventory SHALL validate supplied CronJob schedule and timeZone fields on its existing full-source prepass before provider, missing-bound or unsupported-lifecycle shortcuts. Malformed supplied fields SHALL throw. The provider adapter SHALL preserve pinned Kubernetes1.36.4 fresh-source schedule predicates and robfig3.0.1 field/descriptor/Go1.26.0 duration semantics. Validation SHALL remain separate from recurrence charging. No runtime calendar engine or source authority is implied.
+
+#### Scenario: Malformed late CronJob cannot hide behind another incomplete owner
+
+- **GIVEN** an earlier owner has unresolved ordinal, resource or provider conditions and a later CronJob has a missing, null, nonstring or malformed schedule/timeZone
+- **WHEN** `readRehearsalNativeCosts` validates all source frames
+- **THEN** it throws on the malformed trusted source before returning an incomplete inventory
+- **AND** absent timeZone remains explicitly absent rather than becoming UTC
+
+#### Scenario: Pinned syntax and duration semantics preserve valid unsupported schedules
+
+- **GIVEN** the retained337-case Go1.26.0/robfig3.0.1 corpus and original code points
+- **WHEN** the actual production parser is compared under Bun
+- **THEN** applicable fresh-source schedule predicates, field masks including bit63, descriptor identity, exact duration nanoseconds and Every delay semantics agree with the independently retained reference
+- **AND** all embedded uppercase TZ forms are rejected by the fresh Kubernetes predicate even where raw robfig accepts them
+- **AND** raw panic inputs become controlled refusal; direct raw-TZ and host-only zone lookups are diagnostic reference evidence, not a broader raw ParseStandard compatibility claim
+- **AND** valid syntax outside the separately declared charging subset stays unsupported rather than receiving invented capacity
+
+#### Scenario: Timezone knowledge stays distinct from malformed input
+
+- **GIVEN** a supplied timezone satisfies pinned fresh-source component predicates but is absent from the exact598-name Go1.26.0 catalogue
+- **WHEN** the source calendar is decoded
+- **THEN** it returns an explicit outside-catalogue state and inventory retains a named timezone-knowledge blocker
+- **AND** it neither defaults the zone nor declares that catalogue absence proves universal Kubernetes invalidity
+- **AND** known non-UTC zones remain valid source syntax but unsupported for the initial UTC charging subset
+
+### Requirement: CronJob rehearsal horizons bind conditional full-attempt charges
+
+The native-only capacity companion SHALL bind optional declared CronJob horizons to independently verified native source inputs. Malformed or mismatched bindings SHALL throw before incomplete/provider shortcuts. Missing or valid unsupported scenarios SHALL remain named incomplete, preserving existing calls, Job semantics, other contributors and independent blockers.
+
+#### Scenario: Supplied horizons cannot detach from their source
+
+- **GIVEN** optional `RehearsalCronJobHorizons` containing closed declared windows
+- **WHEN** the native-only reader validates the horizon with its required source contract
+- **THEN** each window binds exact source selection, resource identity, frame, pointer and jobTemplate bytes
+- **AND** malformed, duplicate, unknown-owner or mismatched bindings throw before incomplete/provider shortcuts
+- **AND** calls without horizons preserve existing standalone Job and other-contributor facts and independent blockers
+
+#### Scenario: Supported UTC windows charge every scheduled retry slot
+
+- **GIVEN** an unsuspended source CronJob with supported serial NonIndexed Job policy, declared source or controller UTC, cadence `*/d * * * *` for a positive divisor d of60 or `* * * * *`, and bound interval `(L,U]`
+- **WHEN** the conditional lifecycle is calculated
+- **THEN** ticks equal `floor(U/P)-floor(L/P)`, where P is60000d milliseconds
+- **AND** it reserves N times B+1 full normalized Pod slots for N ticks and effective backoff B, including failed/terminating attempts
+- **AND** Forbid, deadlines, TTL/history and cleanup assumptions do not discount those charges
+- **AND** slots and provenance remain accounting coordinates rather than observed Job or Pod identities
+
+#### Scenario: Valid large or absent scenarios remain visibly incomplete
+
+- **GIVEN** a missing horizon, unknown effective timezone knowledge, suspended/Replace/non-UTC/other valid calendar, unsupported Job policy or safe computed envelope exceeding256 slots
+- **WHEN** source accounting runs
+- **THEN** it retains exact named incomplete conditions without truncating demand or inventing a horizon
+- **AND** malformed supplied fields and bindings still throw before those classifications
+
+#### Scenario: Declared windows never supply runtime admission authority
+
+- **GIVEN** a supported declared horizon and source-derived slot subtotal
+- **WHEN** lifecycle provenance and readiness are emitted
+- **THEN** fresh creation afterL, bounded controller clock while creation remains possible, stable source/calendar/timezone/controller generation and one JobUID per nominal tick remain explicit conditions
+- **AND** prior/missed-beforeL/manual/adopted/recreated Jobs, Helm/Flux generations, retained history/log/device/volume growth and actual window enforcement remain independent unobserved obligations
+- **AND** source completeness, whole-attempt fit, creation and runtime authority remain false until their own evidence is verified
+
+#### Scenario: Required controller metadata does not override explicit source scheduling
+
+- **GIVEN** a valid bound horizon always supplies structurally valid controllerTimeZone metadata and the CronJob explicitly declares UTC
+- **WHEN** the declared controller zone differs or lies outside pinned catalogue knowledge
+- **THEN** scheduling still uses source UTC without an invented equality requirement
+- **AND** controller declaration and its knowledge state remain visible without claiming observation or replacing the source
+- **AND** absent source timezone instead requires the declared controller zone as an explicit conditional scheduling input
+
+#### Scenario: Zero scheduled ticks do not fabricate retry allocations
+
+- **GIVEN** a supported UTC horizon contains no nominal tick and nested backoff is a large valid count
+- **WHEN** the aggregate CronJob envelope is calculated
+- **THEN** N(B+1) is zero and no retry entry is materialized
+- **AND** declared lifecycle facts and all manual/prior/generation/history/enforcement obligations remain visible
+- **AND** the standalone Job representation bound is unchanged
+
+### Requirement: Generated rehearsal costs reuse bound source traits
+
+The full rehearsal capacity companion SHALL consume its independently validated stage/chart source once and reuse the existing selected generated-role decoder, pinned-provider traits, workload normalizer and capacity arithmetic. It MUST preserve native-only API/output behavior and public source-only inventory. Source-derived selection, exact packet/runtime-lock binding, conditional lifecycle charges and unobserved runtime facts MUST remain distinct.
+
+#### Scenario: Retained frames supply generated roles
+
+- **WHEN** the supported two-instance releases and their shared providers are retained with exact stage/frame/resource identities
+- **THEN** application namespaces/environments and release inputs come from validated declarations and explicit enablement or the exact pinned chart defaults, and all eight generated store traits bind to exact API group/kind/namespace/name, release, frame and pointer
+- **AND** no mutable-checkout reconstruction, fabricated full source object, synthetic effective Pod or second resource calculator is used
+
+#### Scenario: Runtime lock is authenticated independently
+
+- **WHEN** exact toolchain bytes accompany the combined reader
+- **THEN** the retained packet's unique toolchain file hash authenticates them and packet source/artifact identity equals inventory provenance before decoding
+- **AND** absent/duplicate/wrong coordinates, changed bytes, malformed locks, selection drift and substituted decoded locks refuse; a historical bootstrap source is not invented
+
+#### Scenario: Retained file metadata matches its artifact commitment
+
+- **WHEN** a retained packet accompanies the combined capacity reader
+- **THEN** its complete ordered files list hashes to its independently retained artifact identity using the existing canonical two-space JSON encoding plus trailing newline, before its toolchain bytes are decoded
+- **AND** coherently changing toolchain bytes and their file row while preserving the original packet/inventory artifact identity refuses; a partial file list cannot borrow a full packet identity
+- **AND** self-consistent supported packets remain accepted, and lower lock-coordinate, lock-schema and pinned-default checks remain independently exercised with deliberately resealed synthetic packets
+
+#### Scenario: First replacement remains a conditional budget
+
+- **WHEN** a selected supported one-replica trait has finite per-replica costs
+- **THEN** the declared fresh-attempt scenario retains one full initial and one full first-replacement Pod charge, including failed/terminating resource and disk costs, through existing cohort arithmetic
+- **AND** source claim slots are charged once under explicit unchanged-claim reuse, without pretending to observe PVC names/UIDs or granting reuse credit across unrelated owners
+- **AND** second/repeated/uncertain creations, adopted/prior children, changed scale/template, new claims, retained history and actual enforcement remain independent blockers; the scenario is not an operator maximum
+
+#### Scenario: Unsupported traits cannot acquire nominal charges
+
+- **WHEN** a valid selected trait has unsupported cost-bearing source shape or unknown concurrency/enforcement
+- **THEN** null per-replica costs never become charges, and concrete trait/lifecycle/runtime blockers preserve incompleteness
+- **AND** only actually covered generated-owner generic blockers are replaced; native entries, totals, lifecycle records and unrelated provider/writer/history obligations remain unchanged
+
+#### Scenario: Combined entry uses the existing producer
+
+- **WHEN** the production companion is invoked
+- **THEN** it prepares the existing canonical packet exactly once and consumes the same validated source and packet/runtime identities for native and generated costs
+- **AND** the combined closure binds exact traits, lifecycle inputs and charges while creation/runtime authority remains false
+
+#### Scenario: Retained enablement preserves pinned defaults
+
+- **WHEN** the retained KPS91.4.1 declaration omits a store or shared-controller enablement flag
+- **THEN** only the locked chart archive SHA256 `1bd5e7a88e758ed3ec22db0fe6e72b1352f3f0e7e5a93c79979f7edf361becdb` supplies its modeled `true` default for `alertmanager.enabled`, `prometheusOperator.enabled` or `prometheus.enabled`
+- **AND** each enablement fact distinguishes an explicit value from a pinned-default value with its declaration pointer and chart/version/hash provenance; null, nonboolean or malformed maps refuse before selection
+- **AND** disabled, extra or mismatched selections cannot disappear, and changed pins cannot reuse these defaults
+
+### Requirement: Read-only host-path source costs preserve writer obligations
+
+The native source adapter MAY account an explicitly supported read-only host-path consumer through the existing workload normalizer and cohort arithmetic. It SHALL bind its internal policy to exact validated source/provider identity and every application/init mount. Default normalization and cutover observation remain strict. Consumer read intent MUST NOT certify recursive read-only enforcement, zero backing-filesystem demand, a writable quota or runtime admission.
+
+#### Scenario: Selected node-exporter contributes full conditional cohorts
+
+- **WHEN** the validated pinned node-exporter source has its exact proc/sys/root host paths and application/init mount tuples with explicit readOnly true
+- **THEN** an internal source policy preserves path/type/mount/propagation identity and allows the existing normalizer to derive full memory, CPU-request and ephemeral costs
+- **AND** existing DaemonSet expansion retains both full conditional cohorts for every declared candidate node, with independent device/writer/runtime/lifecycle obligations
+
+#### Scenario: Every host mount must match the declared reader policy
+
+- **WHEN** any app/init reference is writable or lacks explicit readOnly, changes path/type/target/propagation, uses a subpath, duplicates or adds an unmatched mount
+- **THEN** the read-only policy does not authorize a contribution through that unsupported shape
+- **AND** Bidirectional propagation and unknown provider/template identities cannot inherit an exemption from labels or owner names alone
+
+#### Scenario: Known malformed state precedes incomplete classification
+
+- **WHEN** supplied hostPath bodies, types, mount modes/propagation or reference/cardinality state are malformed
+- **THEN** source validation throws before another unsupported volume, absent bound, lifecycle/provider shortcut or earlier-owner collision
+- **AND** structurally valid unsupported paths/types remain named obligations rather than fabricated device observations
+
+#### Scenario: Source metadata preserves absence and remains a snapshot
+
+- **WHEN** the selected source omits hostPath.type or mount propagation, or explicitly supplies empty type or None propagation
+- **THEN** those states remain distinct without canonicalization or invented Directory/enforcement facts
+- **AND** accepted policy and normalized evidence cannot be rewritten by later caller mutation
+
+#### Scenario: Existing strict consumers and writable state remain blocked
+
+- **WHEN** a caller omits the internal reader policy, or the Pod also has unsupported writable OTel checkpoint or Velero paths
+- **THEN** default cutover/normalization behavior and whole-Pod incompleteness remain strict
+- **AND** existing state/history/backing paths, source resources, versions, image pins and capacity floors remain unchanged; no zero-growth claim or new quota is introduced
+
+### Requirement: Flux bootstrap uses shared finite scratch policy
+
+All forward bootstrap callers SHALL apply one authored Kustomize overlay over the unchanged digest-locked Flux vendor installation. Local rehearsal, fleet installation and cutover rehearsal SHALL consume the same policy. The policy is a declared containment input, not measured startup sufficiency, hard filesystem quota or runtime admission.
+
+#### Scenario: All controllers receive the same authored policy
+
+- **WHEN** the shared Flux overlay is built
+- **THEN** only the four apps/v1 Deployments in flux-system receive these additions to their existing manager container and disk emptyDirs: source-controller requests2Gi/limits2304Mi ephemeral-storage and data1Gi/tmp1Gi sizeLimits; kustomize-controller requests1Gi/limits1280Mi and temp1Gi; helm-controller requests256Mi/limits384Mi and temp256Mi; notification-controller requests16Mi/limits64Mi and temp16Mi
+- **AND** removing exactly those13 new scalar fields produces objects semantically identical to the locked vendor installation, preserving CPU/memory, images, replicas, identities, security, mounts, disk medium, strategies and termination/persistence behavior
+- **AND** missing, unreadable, malformed or foreign overlay inputs, wrong or duplicate roles/coordinates, nonpositive or absent quantities, extra operations/references, and changed vendor bytes refuse at their owning validation boundary
+
+#### Scenario: Every forward caller applies the authored overlay
+
+- **WHEN** Fleet's k3d bootstrap, the fleet Ansible playbook or the existing cutover rehearsal installs Flux
+- **THEN** its existing vendor-authentication and lifecycle behavior is preserved and it applies the shared overlay directory rather than raw install.yaml
+- **AND** Ansible transports both exact source files and no environment-specific bootstrap policy fork is introduced
+
+#### Scenario: Retained Flux evidence binds the applied build
+
+- **WHEN** a new canonical rehearsal packet is prepared
+- **THEN** its source closure retains both the locked vendor and authored overlay, builds the overlay through the existing authenticated kubectl seam and emits exactly one bootstrap/flux frame with the actual build bytes and both input identities
+- **AND** missing, unreadable, changed, substituted or unbound overlay inputs cannot acquire raw-vendor accounting or acceptance
+- **AND** historical retained native frames remain interpretable under their original explicit source coordinates, without retrofitted hashes or a new-forward raw-manifest fallback
+
+#### Scenario: Declared limits do not imply functional or physical acceptance
+
+- **WHEN** the declared Flux policy contributes finite source costs
+- **THEN** existing lifecycle arithmetic accounts full Pod cohorts and retains independent logs/cache/history/concurrency/eviction/device/system/initialization/recovery obligations
+- **AND** successful authenticated fetch, Kustomize/Helm reconciliation, restart/recovery and actual effective Pod/storage enforcement remain required runtime evidence; source bounds never grant creation or runtime authority
+
+### Requirement: Combined source costs reserve standalone storage claims
+
+The existing combined capacity reader and canonical companion SHALL account explicitly declared standalone PersistentVolumeClaims from the same validated source traversal, alongside unchanged native and generated subrecords. They SHALL retain declaration origin, declared consumers and unobserved runtime ownership separately. No third capacity API, second source traversal or resource calculator is introduced.
+
+#### Scenario: Declared claims reserve once under explicit source conditions
+
+- **WHEN** a supported v1 claim has a resolved namespace/name, positive validated storage request, explicit nonempty storage class, ReadWriteOnce and absent or Filesystem volumeMode, without prebinding, selector, data-source or runtime-identity/status inputs
+- **THEN** its full requested storage is reserved exactly once by the existing claim quantity/CapacityCharge/sum helpers, with source identity and declared/default provenance retained
+- **AND** unreferenced declarations still reserve fully; repeated or initial/replacement consumers do not multiply the same logical reservation or establish physical deduplication
+- **AND** reservations remain conditional on a fresh immutable attempt, unchanged same-claim reuse, and no prior/adopted/deleted/recreated/resized/unrelated or hidden claims/history
+
+#### Scenario: Consumers and actual ownership remain distinct
+
+- **WHEN** any supported native family's validated source references a persistent claim, including an unbounded or zero-replica consumer
+- **THEN** the companion retains every source pointer and joins only exact resolved namespace/name to a declaration, independently of successful Pod normalization
+- **AND** missing declarations or unresolved namespaces remain explicit consumer blockers; actual PVC/PV UIDs, Bound status, mounts, devices, ownership, retention and quota/enforcement remain unobserved
+- **AND** only a successfully reserved PVC's exact generic unaccounted-declaration refusal is replaced by concrete physical/history obligations; consumer ownership/retention and all unrelated native/generated/runtime/writer obligations remain
+
+#### Scenario: Known malformed claims cannot disappear
+
+- **WHEN** any recognized claim contains malformed known request/spec/identity/access-mode/volume-mode fields, even after an unsupported or incomplete consumer
+- **THEN** the complete claim prepass throws before incomplete shortcuts; duplicate/conflicting logical identities and collisions with already charged claims refuse
+- **AND** valid unsupported binding/provider/source shapes retain their request evidence and named uncharged obligations rather than nominal capacity, inferred defaults or fabricated effective state
+
+#### Scenario: Existing source APIs gain the corrected total
+
+- **WHEN** the two existing combined entry points are called
+- **THEN** additive standalone declaration/consumer/charge evidence and its sum feed their existing total, blockers and closure through one shared derivation, while native-only APIs, public source inventory and native/generated subrecords remain unchanged
+- **AND** the retained registry50Gi and object-store20Gi add exactly71680Mi disk and zero CPU/memory; they are not already charged by ordinal or generated claims
+- **AND** returned provenance is a snapshot, the canonical producer is invoked once, and state remains incomplete with creation/runtime authority false
+
+### Requirement: Retained collector and backup agents declare ephemeral budgets
+
+Current platform candidates MUST give the retained OTel collector and Velero node-agent finite ephemeral-storage requests and limits. The node-agent MUST retain its existing scratch volume name and mount path with a finite emptyDir size. These policies are shared across placement profiles and do not certify persistent host-path bounds or runtime sufficiency.
+
+#### Scenario: The two agent roles are rendered from current owning source
+
+- **WHEN** the retained collector or either placement's Velero node-agent is prepared
+- **THEN** the collector declares16Mi request/64Mi limit and the node-agent256Mi request/2Gi limit for ephemeral-storage
+- **AND** Velero's existing scratch remains named scratch at /scratch with1Gi emptyDir size, supplied once through the pinned chart's existing values
+- **AND** actual locked output matches the owning resource/scratch values while existing CPU, memory, pins, security, persistence, host paths, retention and the Deployment-only postrenderer remain unchanged
+
+#### Scenario: A required current policy is missing, invalid or lost during rendering
+
+- **WHEN** a required resource map, bound or scratch declaration is absent, null, zero where positive is required, malformed, contradictory, duplicated or inconsistent with the effective rendered role
+- **THEN** current production candidate validation refuses
+- **AND** supplied historical values retain their existing structural and image checks without requiring these new current-policy fields merely to decode historical source
+- **AND** neither ignored values nor wrong/extra rendered containers can certify source correspondence
+
+#### Scenario: Finite ephemeral policy preserves persistent growth uncertainty
+
+- **WHEN** a current candidate passes the new source checks
+- **THEN** persistent collector queue/checkpoints, Velero writable host paths, physical writers, retained allocations and runtime enforcement remain independent unresolved obligations
+- **AND** no whole-path quota, measured functional sufficiency, full-host admission, creation authority, runtime acceptance or live convergence is inferred
+- **AND** earlier saved source captures and proof artifacts remain unchanged
+
+### Requirement: Autonomous resource history precedes measured sizing
+
+The existing observer SHALL collect fresh host/workload memory and cumulative CPU
+through a bounded read-only provider adapter, retaining identity/generation provenance.
+Shared reading/metric concepts MUST remain provider-independent and reuse existing
+OTel publication and Prometheus storage with explicit unavailable states.
+
+#### Scenario: Valid measurements enter the existing pipeline
+
+- **WHEN** the existing autonomous cycle obtains fresh identity-bound resource readings
+- **THEN** host availability, per-workload current memory and generation-bound CPU counters are published through its existing metric sender
+- **AND** resource state and observation time are explicit while existing signal/progress semantics remain unchanged
+- **AND** this adds no daemon, backend, Docker socket exposure, credentials, resource-limit change or admission bypass
+
+#### Scenario: Incomplete resource evidence cannot become zero usage
+
+- **WHEN** SSH is denied, a selected workload is absent, identity or generation changes during reading, a cgroup path escapes, counters are invalid, or the observation is stale/future
+- **THEN** the resource observation is explicitly unavailable with a finite reason and no fabricated usage samples
+- **AND** local protocol rehearsal cannot claim actual host measurements, raw diagnostics/credential material never become metric labels, and configured limits are not reported as measured peaks
+
+#### Scenario: Lifetime maxima do not certify concurrent capacity
+
+- **WHEN** resource history or lifetime peaks are inspected for sizing
+- **THEN** distinct workloads' maxima and terminated attempts are not asserted to coexist without phase and identity evidence
+- **AND** source component success does not certify full Kubernetes/Flux, history/recovery or live migration readiness
+
+### Requirement: Immutable observer updates preserve operation
+
+The existing dev observer SHALL support selecting an immutable source revision
+without changing its transport, checkpoints or service containment. Selecting a
+revision generates units only; it does not authorize or perform installation.
+
+#### Scenario: A reviewed observer revision is selected
+
+- **WHEN** the operator renders units for a full lowercase forty-character hexadecimal source revision
+- **THEN** only the observer executable release directory and producer version change together
+- **AND** omission preserves the original unit bytes, the tunnel remains identical, and checkpoints, resource limits and restart policy remain unchanged
+
+#### Scenario: A revision is malformed or extra arguments are supplied
+
+- **WHEN** revision input is empty, abbreviated, uppercase, path-shaped, contains whitespace or control characters, or the CLI receives unexpected arguments
+- **THEN** rendering refuses rather than producing an executable path or accepting an ignored argument
+
+#### Scenario: Source selection does not prove rollout
+
+- **WHEN** a candidate unit has been generated successfully
+- **THEN** actual rollout still requires fresh existing-account access, immutable binary/manifest verification, exact prior-unit preservation and reversible activation
+- **AND** autonomous stored collection, effective service bounds and retained history must be observed separately before runtime acceptance
+
+### Requirement: Retained observations have bounded durable evidence
+
+Before changing producer or query routes, the runtime tooling SHALL support
+capturing a retained observation from actual correlated stored signals and
+verifying its exact records later. The shared evidence model MUST be independent
+of backend vendors. Capture and verification MUST remain read-only on backends
+and MUST NOT authorize migration, route mutation or deletion.
+
+#### Scenario: A fresh correlated observation becomes a retained reference
+
+- **WHEN** an existing validated observation has complete stored log, trace and metric acceptance and a capture command selects it
+- **THEN** a new owner-private receipt binds its application identity, observed/captured times and bounded nonempty signal references with canonical content fingerprints
+- **AND** provider-specific record locations and safe route-binding commitments are decoded by a dedicated adapter, with no credentials or raw log/document bodies persisted
+- **AND** publication is exclusive and cannot overwrite an earlier operation or Grafana receipt
+
+#### Scenario: Historical verification succeeds without asserting fresh health
+
+- **WHEN** the original records and exact metric samples remain readable after the observation ages
+- **THEN** verification checks their original identities and fingerprints at the historical sample times
+- **AND** it produces a distinct verification outcome linked to the retained receipt digest, leaves that receipt unchanged and does not classify old telemetry as fresh application health
+
+#### Scenario: Missing changed or inaccessible evidence refuses acceptance
+
+- **WHEN** a retained record/sample is missing, changes content or relationships, cannot be read, returns partial/ambiguous output, or a receipt/binding/identity is malformed, changed or mismatched
+- **THEN** verification cannot report complete and the CLI exits nonzero with bounded explicit reasons
+- **AND** absent, unreadable, malformed and occupied trusted files refuse without overwrite, Secret disclosure, fabricated empty history or backend mutation
+
+#### Scenario: A retained reference is not migration admission
+
+- **WHEN** capture or historical verification succeeds
+- **THEN** candidate ownership, fresh preflight, route switching, rollback/restore and full Kubernetes/Flux acceptance remain independent required work
+- **AND** existing observer/Grafana receipts, current signal semantics, stores and live routes remain unchanged
+
+### Requirement: Native measurements preserve lifecycle provenance
+
+Disposable component evidence SHALL identify the actual provider, owner and measurement interval. Pre-exit resource readings MUST NOT be represented as current post-exit counters. Final cleanup SHALL be established independently from current provider state. Missing provider state or counter evidence MUST NOT become invented identity or zero usage.
+
+#### Scenario: Provider cleanup removes counter files
+
+- **GIVEN** the original host worker records complete counters after the guest process exits successfully and is reaped, while its own native instance remains live
+- **WHEN** the parent validates that bounded fresh record and independently observes the original instance terminal and its owned group empty or absent, with client exit0 and current physical floors
+- **THEN** the component retains the explicit pre-worker-exit measurement interval and separate fresh cleanup evidence
+- **AND** it does not insert counters, InvocationID or loaded state into the terminal provider projection
+- **AND** component success grants no full-rehearsal or live-migration authority
+
+#### Scenario: Terminal state has no authentic counter record
+
+- **WHEN** counter paths disappear without a complete readable original-inode host record, or its owner, source, PID, native binding, phase or timestamps are wrong, stale or future
+- **THEN** the component refuses acceptance and exposes incomplete evidence
+- **AND** an earlier sample, guest-supplied record or fabricated zero cannot substitute for the missing host evidence
+
+#### Scenario: Descriptor handoff follows actual runtime ordering
+
+- **WHEN** the worker starts the pinned runtime with validated original artifact descriptors
+- **THEN** the actual pre-exec and descriptor-close ordering preserves the original read/write authorities and excludes worker-only device/metadata descriptors from runtime inheritance
+- **AND** an unexpected descriptor, changed artifact, wrong access or denied confinement refuses before runtime execution
+- **AND** controlled process fixtures do not certify native enforcement or boot
+
+#### Scenario: Matching packages do not imply matching runtime capabilities
+
+- **WHEN** selected signed packages match their declared versions but the actual daemon reports a different API, operating-system/architecture or store capability than the selected supported provider contract
+- **THEN** compatibility remains refused without broadening the adapter or defaulting the missing capability
+- **AND** immutable source/component evidence and unsupported baseline observations remain distinct from full rehearsal acceptance
+
+### Requirement: Baseline components have scoped memory admission
+
+Raw-disk preparation and the private-Docker guest baseline SHALL use their own finite memory envelope instead of inheriting the whole-platform rehearsal's16GiB available-memory prerequisite. These components SHALL preserve2GiB host MemAvailable during execution and at final cleanup observation. Full-platform admission and acceptance remain separate.
+
+#### Scenario: Bounded preparation fits an existing smaller host
+
+- **WHEN** raw preparation has at least3623878656bytes available, or the guest baseline has at least4160749568bytes available, and every other required admission check succeeds
+- **THEN** memory admission permits that component using its unchanged enforced service/helper caps
+- **AND** the guest's1GiB allocation remains included within its1536MiB service limit
+- **AND** no full-platform or live-migration authority follows
+
+#### Scenario: Insufficient or unknown memory still refuses
+
+- **WHEN** available memory is one byte below the component's initial threshold, below2147483648bytes at a live/final boundary, or unavailable/malformed
+- **THEN** the corresponding production boundary refuses admission or acceptance
+- **AND** negative proofs expose removal of each changed memory guard while preserving positive controls
+- **AND** existing disk, staging, device, identity, resource caps and cleanup requirements still apply
+
+### Requirement: Baseline preparation survives loss of temporary state
+
+Baseline helper source and tests SHALL be retained in the repository, and new native inputs and evidence SHALL use persistent owner-only state. Lost temporary receipts SHALL NOT be recreated as successful acceptance or silently reused.
+
+#### Scenario: Fixed raw allocation exceeds one mapping page
+
+- **WHEN** the read-only Linux adapter inspects a private owned raw file whose complete allocation requires more than512 extents
+- **THEN** bounded FIEMAP pagination validates contiguous complete coverage and native completion while allowing at most1MiB of filesystem allocation metadata
+- **AND** exact file ownership, regular-file type, mode, link count, descriptor/path identity, stable observations and finite mapping limits remain required
+- **AND** the source CLI returns allocation evidence without authorizing conversion, guest boot, full rehearsal or live migration
+
+#### Scenario: Incomplete or unsafe allocation cannot certify a disk
+
+- **WHEN** mapping contains a gap, overlap, unknown/shared/delayed flags, missing native completion, exceeded page/metadata limits, changed identity or unavailable/malformed input
+- **THEN** the production inspector refuses evidence
+- **AND** focused negative proofs expose removal of the corresponding safety guards
+
+#### Scenario: Malformed helper diagnostics remain private
+
+- **WHEN** a missing dependency or malformed child projection rejects through the exported API or source CLI
+- **THEN** the public refusal retains its fixed category without preserving child output or supplied private paths as raw error causes
+- **AND** direct API regressions and a cause-restoration fault prove this boundary independently of CLI rendering
+
+### Requirement: Raw production joins enforced native bounds to original artifacts
+
+The durable baseline producer SHALL create a fixed8GiB raw artifact only after source/input, physical capacity, allocated staging and independent native worker/descriptor admission succeed. Its profile SHALL retain1GiB service memory,1CPU,128PIDs, swap0, bounded runtime/stop, a2GiB live/final host reserve and3.375GiB initial available-memory requirement. Core observation concepts SHALL remain provider-neutral; Linux/QEMU identities belong to this adapter.
+
+#### Scenario: Only the observed owned worker can allocate
+
+- **WHEN** source/input hashes, original creator/file descriptors, current capacity, actual unit/InvocationID/MainPID/process start and effective cgroup limits match before the parent ACK
+- **THEN** the bounded worker may preallocate and convert its owned raw file while preserving fixed geometry and byte accounting
+- **AND** absent/malformed/unreadable state, mismatched caps, changed identities or missing/foreign ACK refuse allocation
+- **AND** the writer has no writable directory or unrelated regular-file grant
+
+#### Scenario: Content or allocation mismatch refuses acceptance
+
+- **WHEN** conversion fails, target geometry/allocation changes, comparison detects substituted content, physical floors cross or evidence cannot be durably persisted
+- **THEN** the component remains unaccepted and retains its original evidence
+- **AND** focused production-path negatives expose removal of the relevant checks
+
+#### Scenario: Terminal observation preserves authentic counter lifetime
+
+- **WHEN** converters are reaped and the live original worker sends its bounded counter record to the coordinator, which fsyncs the record and ACKs durability before worker exit
+- **THEN** parent validation joins the original identities and actual interval to fresh terminal/empty-group facts and client exit0 before accepting the component
+- **AND** stale/future/foreign/partial records, OOM, failed client, cancellation or cleanup uncertainty refuse acceptance
+- **AND** unloaded unit fields remain native blank values and no full-rehearsal or guest authority is granted
+
+#### Scenario: Concurrent nonces cannot overcommit shared staging
+
+- **WHEN** one original worker owns staging from fresh admission through converter reap and the durability ACK
+- **THEN** a competing worker refuses before creating its raw file or reaching allocation readiness
+- **AND** completion, refusal or process termination releases that ownership for a later fresh attempt
+- **AND** missing, unreadable or replaced staging state cannot become an unlocked successful attempt
+
+### Requirement: Seed production preserves exact bytes and native ownership
+
+The durable seed adapter SHALL produce only the exact six reviewed root members within its fixed resource profile. It SHALL preserve original artifact ownership, bounded verification, durable evidence and independent native acceptance.
+
+#### Scenario: Seed preparation uses the fixed finite profile
+
+- **WHEN** any native seed attempt is admitted
+- **THEN** member inputs total at most64MiB and the ISO at most80MiB, with256MiB service memory, swap0,1CPU,64PIDs,60seconds runtime,5seconds stop,1GiB address space and80MiB file size
+- **AND** initial physical admission requires3.875GiB available memory,2GiB live/final reserve, unchanged50/40GiB disk floors and10GiB allocated staging, with finite metadata/client bounds
+- **AND** the accepted raw artifact is charged once as an existing artifact
+
+#### Scenario: An original worker produces a verified seed
+
+- **WHEN** reviewed source/input and provenance hashes, historical accepted raw receipt/artifact identity, fresh capacity, exclusive original-directory staging ownership, effective native worker bounds and original output descriptor join before independent parent admission
+- **THEN** the worker may write only its original ISO descriptor and retain it through generation and verification
+- **AND** PVD, ISO9660, Joliet and Rock Ridge namespaces, regular-file types and exact member bytes must match the six declared aliases
+- **AND** changed identity, duplicate/extra/hostile names, unsafe types, short writes, oversized output or failed synchronization refuse acceptance
+
+#### Scenario: Historical producer completion survives a consumer source update
+
+- **WHEN** a new reviewed seed implementation consumes the pinned accepted raw receipt and original artifact
+- **THEN** its fresh artifact identity/allocation checks join the receipt's historical producer provenance without pretending the original PID remains live
+- **AND** updating the current producer implementation does not require rerunning or overwriting that completed raw attempt
+- **AND** missing, unaccepted, substituted or incoherent historical evidence still refuses
+
+#### Scenario: Seed acceptance requires durable native completion
+
+- **WHEN** the still-live original worker sends bounded counters and artifact evidence after tool reap and the coordinator fsyncs them before durability ACK
+- **THEN** fresh terminal/empty-group observations, original identities, unchanged effective bounds, current floors and actual client exit0 must all pass
+- **AND** OOM, failed client, cancellation, stale/missing/foreign evidence or uncertain cleanup remains unaccepted
+- **AND** seed integrity grants no guest startup, full-rehearsal or live-cutover authority
+
+### Requirement: Artifact prerequisite evidence remains distinct from configured guest status
+
+The reusable Debian/Docker adapter SHALL bind exact selected archive/control fields and dependency versions/architectures to independently reviewed immutable signed-index and image-inventory provenance. It SHALL evaluate Depends/Pre-Depends alternatives and conflicts with native package semantics, under bounded input, process and output limits. Public reports SHALL explicitly leave configured guest installation and runtime authority false.
+
+#### Scenario: A dependency report can be consumed without inventing provenance
+
+- **WHEN** every required artifact dependency edge is supported by the selected exact metadata and no matching conflict remains
+- **THEN** a bounded report may certify artifact prerequisite metadata and retain exact input bindings
+- **AND** a seed request can consume that independently reviewed hash-pinned report only when its archive/image bindings and closed completeness fields match
+- **AND** missing/unreadable/malformed/substituted state, unsupported grammar, unknown virtual providers, incompatible versions/architecture, unresolved alternatives or conflicting inputs refuse
+
+### Requirement: Offline guest observation cannot mutate the host or claim host cleanup
+
+The fixed serial-only guest payload SHALL contain no SSH key material, authorized keys or credentials, bind its NoCloud instance/source identity, and require the expected isolated guest machine, read-only seed and8GiB root disk before mutation. It SHALL install only the selected offline packages within the declared bounded installer/service policy, verify actual configured prerequisites and installed status, and never fall back to network installation.
+
+#### Scenario: Guest installation and actual capabilities are fenced
+
+- **WHEN** actual guest identity and immutable seed inputs match, the bounded installer succeeds and the observed merged service/socket policies match the fixed profile
+- **THEN** safe actual Docker capability queries may proceed through the selected Unix socket/API
+- **AND** unit InvocationID/MainPID/start/cgroup and socket identity must remain stable across each query and the measured interval
+- **AND** unsupported/ambiguous stores, unknown or changed identities, capability mismatch, incomplete installation, duplicate JSON keys and noninteger or nonzero workload counts refuse
+- **AND** source-only image inventory or authored configuration cannot replace those runtime observations
+
+#### Scenario: Serial success remains provisional until native host acceptance
+
+- **WHEN** a real60second steady window with at least two endpoints completes and the bounded shutdown request returns0
+- **THEN** nonce/source-bound measured and final frames may report guest observations, with host cleanup and full-rehearsal authority still false
+- **AND** the host must read through EOF and actual QEMU exit, rejecting extra/missing/failure frames including any failure after measurement
+- **AND** a failed shutdown request, malformed projection, shortened/stale interval or uncertain native completion cannot be accepted
+
+### Requirement: Native guest acceptance retains original host authority
+
+The guest adapter SHALL reuse original-artifact ownership and bounded native lifecycle checks. Serial success SHALL remain provisional until independent host acceptance, and SHALL grant no full-rehearsal or live-cutover authority.
+
+#### Scenario: Durable controls precede mutation and completion
+
+- **WHEN** the fixed-profile guest is admitted
+- **THEN** original request, source, input descriptors, creator, native worker and effective bounds join before the parent admission ACK
+- **AND** only the existing original raw descriptor is writable by QEMU; seed, source and tool inputs remain read-only
+- **AND** six evidence files plus two64KiB control records retain the unchanged11MiB+64KiB aggregate ceiling and16MiB reservation, with request bytes charged separately
+- **AND** direct operator stdout/stderr captures are separate exclusive0600 files capped at8MiB each; fresh outside-plan bytes plus32MiB+64KiB future evidence/capture/record allowance must fit the unchanged160MiB nonraw reservation
+- **AND** counter evidence is durably acknowledged while the original worker is live, after QEMU is reaped
+- **AND** client exit0, fresh original terminal/empty-group observations, final artifact/capacity checks and independent repeated owned cleanup are required
+- **AND** missing, stale, substituted, unbounded, interrupted or uncertain evidence refuses acceptance
+
+### Requirement: Baseline source CLIs preserve machine-readable output
+
+The raw-allocation, raw-preparation, seed-preparation and guest-preparation source CLIs SHALL emit literal machine-readable projections and fixed refusal categories independent of console presentation settings.
+
+#### Scenario: CI colors do not alter protocol bytes
+
+- **WHEN** a source CLI runs with CI color settings such as FORCE_COLOR
+- **THEN** successful stdout remains one valid JSON projection without console formatting escapes
+- **AND** refusal stderr retains its fixed category and excludes supplied private paths or raw child causes
+- **AND** focused regressions expose restoration of console formatting on the protocol stream
+
+### Requirement: Bootstrap consumes actual seed and reports admitted-guest failure
+
+The bootstrap SHALL accept the exact canonical seed label emitted and verified by the selected producer. It SHALL refuse other labels without normalization. After read-only guest identity validation, early startup refusal SHALL emit one bounded nonce/source-bound failure frame and propagate failure. Execution outside the expected guest SHALL refuse before opening its serial device or reaching mutation.
+
+#### Scenario: Real canonical seed reaches bootstrap
+
+- **WHEN** the selected producer emits the verified lowercase `cidata` PVD label
+- **THEN** the guest label boundary accepts those exact bytes
+- **AND** a foreign label remains refused through the production boundary
+
+#### Scenario: Startup refusal is visible before measurement
+
+- **WHEN** an identity-validated guest fails a seed or startup prerequisite before measurement
+- **THEN** its original serial protocol reports one bounded source/nonce-bound failure frame and raises
+- **AND** host supervision refuses without waiting for the success deadline
+- **AND** no installer or policy mutation follows the failed prerequisite
+
+### Requirement: Guest writable raw geometry is continuously constrained
+
+The supported QEMU provider SHALL enforce fixed raw length and allocated-range behavior in the kernel for QEMU and its descendants. Final allocation inspection SHALL remain necessary and SHALL NOT substitute for continuous enforcement. Unsupported filesystem, ABI, file features, kernel policy installation or allocation state SHALL refuse before execution. Historical creation acceptance SHALL NOT authorize a raw artifact that a subsequent failed guest changed into an invalid allocation state.
+
+#### Scenario: An alias cannot remove backing allocation
+
+- **WHEN** QEMU attempts a range allocation, punch, collapse, insert, truncate, clone or remap through an original, duplicated or reopened descriptor or an alternate submission interface
+- **THEN** the fixed provider policy denies unsupported geometry mutation while preserving the qualified ordinary-write/flush profile
+- **AND** unknown ioctls or imported foreign authority cannot bypass that policy
+
+#### Scenario: Initialized storage qualification preserves preparation compatibility
+
+- **WHEN** the guest requires the selected private, unshared, initialized ext4 profile
+- **THEN** an unwritten, shared, unknown or unsupported map refuses guest admission
+- **AND** the existing preparation inspector retains its default acceptance of allocated-unwritten extents
+
+#### Scenario: Repair preserves failed guest contents and lineage
+
+- **WHEN** a separately reviewed bounded component repairs physical allocation of the retained failed raw inode
+- **THEN** original identity/length and equal complete before/after logical-content hashes are required under existing staging/native limits
+- **AND** it publishes distinct repair lineage without replacing historical creation or failure receipts
+- **AND** no new guest runs until both repaired allocation and kernel enforcement are independently verified
+
+#### Scenario: Repair native metadata retains exact precision
+
+- **WHEN** new repair admission receives native identities or nanosecond timestamps beyond JavaScript's safe-integer range
+- **THEN** canonical decimal-string fields preserve exact values through its typed boundary
+- **AND** numeric/coerced input, a prior tuple shape or a one-nanosecond substitution refuses before writable admission
+- **AND** historical v1 opaque bytes and their digests remain unchanged
+
+### Requirement: Repair source observation cannot certify allocation readiness
+
+The Linux FIEMAP adapter SHALL share one bounded read-only decoder between strict inspection and a distinct non-admitting repair observation. It SHALL preserve strict/default/initialized contracts and report mapped, missing and unwritten data plus unclassified residual allocation. Residual bytes SHALL NOT be identified as metadata or grant admission authority.
+
+#### Scenario: A sparse file produces facts but stays inadmissible
+
+- **WHEN** a private original file has bounded verified leading/interior/trailing holes or no mapped data
+- **THEN** the repair observation reports exact missing data and the unclassified allocation residual separately without writing or synchronizing it
+- **AND** strict and initialized admission still refuse that sparse file
+- **AND** the repair observation has no guest, repair or full-rehearsal authority
+
+#### Scenario: Pagination and physical accounting remain bounded
+
+- **WHEN** the repair source spans multiple FIEMAP pages
+- **THEN** the original descriptor/path identity, native LAST/empty-map semantics, page/extent/projection/time bounds and known flags are checked through completion
+- **AND** missing data is derived from mapped logical extent bytes, never from st_blocks alone
+- **AND** allocated inode bytes below mapped data or unexplained metadata beyond the supported bound refuse
+
+#### Scenario: Invalid repair observations refuse
+
+- **WHEN** source state is missing, unreadable, unstable or malformed, flags are unknown/shared, logical ranges overlap/exceed bounds, or enumeration completion cannot be proven
+- **THEN** observation refuses rather than returning authoritative facts
+- **AND** finite page, extent, projection and time limits remain enforced
+
+### Requirement: Repair range checks reuse canonical allocation decoding
+
+The FIEMAP adapter SHALL derive bounded missing ranges and initialized-range checks from its existing original-descriptor decoder. Existing strict and aggregate observation projections SHALL remain unchanged. Missing ranges SHALL exactly partition holes, and initialized-range checks SHALL require full private allocation plus initialization of the requested aligned range. These observations SHALL grant no repair or guest authority.
+
+#### Scenario: Missing ranges are planning evidence only
+
+- **WHEN** a private sparse map contains leading, interior or trailing holes, including page boundaries or an entirely sparse file
+- **THEN** the bounded range observation reports every missing logical interval exactly once in order with the existing aggregate observation
+- **AND** malformed map/identity/input state and excessive projected metadata refuse through the canonical validation path without content reads, writes or SYNC
+- **AND** existing aggregate-only observation and strict CLI schemas remain unchanged
+
+#### Scenario: Only the completed range must be initialized
+
+- **WHEN** a trusted worker inspects an aligned positive range inside a fully allocated private file after a bounded write
+- **THEN** an UNWRITTEN extent intersecting that range refuses before another write is authorized
+- **AND** UNWRITTEN extents wholly outside that range may remain while whole-file initialized inspection still refuses them
+- **AND** invalid, boolean, unaligned, empty, overflowing or out-of-file ranges refuse before native inspection
+- **AND** the result explicitly identifies its limited range and cannot certify whole-file or guest readiness
+
+### Requirement: Repair admission retains live and unreclaimed allocation budgets
+
+The fixed repair adapter SHALL preserve existing memory, inode-staging, outside and free-backing limits. Each step SHALL reserve its complete next-step growth before mutation. A durable original-bound gross filesystem reservation SHALL precede admission ACK, survive failure and remain charged once in later repair and continued-guest admissions until independently qualified release. Missing or malformed reservation state SHALL refuse.
+
+#### Scenario: Existing raw and next step are charged correctly
+
+- **WHEN** an existing8GiB failed disk is admitted for bounded repair
+- **THEN** current inode blocks are counted once, with160MiB outside and full next-step gross inside10GiB staging
+- **AND** the reviewed fixed profile uses one native syscall per missing4KiB block, at most256calls per allocation batch, and1MiB rewrite steps
+- **AND** fresh free backing retains50GiB initial or40GiB live floor plus the full current/prior unreclaimed reservations and other outstanding reservations
+- **AND** an unknown, unsupported or one-byte-short observation refuses before mutation
+
+#### Scenario: Failed attempts retain their debt
+
+- **WHEN** repair fails, is cancelled, completes, cleans up or a new nonce is proposed
+- **THEN** the original request/source/inode-bound durable reservation remains discoverable and charged exactly once
+- **AND** absence of an accepted receipt, smaller st_blocks, successful fsync or final logical equality cannot release it
+- **AND** no mutation ACK precedes the reservation's file and directory durability
+
+#### Scenario: A step cannot be replayed or self-certified
+
+- **WHEN** a confined child reports a completed bounded step
+- **THEN** its trusted worker validates exact sequence/offset/count and canonical initialized range before the next private acknowledgement
+- **AND** short I/O, failed sync, uninitialized range, stale/replayed completion or unsupported profile refuses without retry or another write
+- **AND** the outer coordinator keeps its existing frame/output bounds and captures authentic counters only after child reap
+
+### Requirement: Reclamation credit requires durable ordered proof
+
+Repair debt SHALL remain pending until a separately qualified release proof binds quiesced writers, original reservations, the supported writable journal and actual ordered exclusive counter/artifact publication with original-directory full commits. A later full commit SHALL establish prior callback completion. Existing files alone SHALL NOT release debt, and reservations SHALL remain immutable.
+
+#### Scenario: Ordered publications can establish release
+
+- **WHEN** all selected repair writers and I/O are quiesced and the fixed qualified adapter completes counter publication before creating and fully publishing its distinct artifact
+- **THEN** only a subsequently durable source/profile/reservation/artifact-bound proof may permit credit after required acceptance and cleanup joins
+- **AND** no extra marker, global filesystem flush or timeout increase is substituted
+
+#### Scenario: Incomplete release evidence retains debt
+
+- **WHEN** either directory barrier is missing, reordered or failed, the second file was precreated, identity/profile changes, a writer remains live, or proof is premature, foreign, partial or replayed
+- **THEN** credit refuses and original reservations remain charged
+- **AND** absent optional proof means pending debt, while unreadable or malformed trusted proof cannot become released
+- **AND** a prior failed attempt requires independent terminal/drain proof before inclusion
+
+#### Scenario: Later receipt failure does not fabricate runtime acceptance
+
+- **WHEN** the qualified release certificate was durably published after all ordered barriers, quiescence and cleanup, but the subsequent accepted receipt directory sync and failure-record publication fail
+- **THEN** exact canonical source-bound receipt bytes may prove the earlier certificate publication returned for settlement of that reservation only
+- **AND** the coordinator throws without a successful preparation envelope or guest authority
+- **AND** certificate bytes without the required accepted receipt, or any present malformed/failed state, cannot be treated as successful runtime acceptance
+
+### Requirement: Continued-guest lineage is explicit and independently accepted
+
+Seed and guest request schemaVersion2 SHALL select `continued-guest`. Seed-v2 SHALL require the selected repair request, receipt and provenance including a successful preparation envelope; guest-v2 SHALL require matching seed-v2. Native v2 receipts SHALL bind repair lineage. Closed v1 contracts SHALL remain unchanged. Version1 transport envelopes SHALL bind the actual native receipt digest.
+
+#### Scenario: Accepted same-inode repair admits a distinct continued seed and guest
+
+- **WHEN** independently pinned original history and successful repair provenance join exact counters, immutable artifact/certificate/receipt and verified cleanup
+- **THEN** the v2 consumer derives the original target, verifies its current exact decimal after-snapshot and fully initialized map before writable handoff, and retains historical receipts unchanged
+- **AND** a distinct seed/request and NoCloud identity bind the corrected bootstrap while the old ISO remains immutable
+- **AND** native v2 seed and guest receipts retain the same explicit repair lineage and all authority fields remain component-only
+
+#### Scenario: Missing, changed or mixed continued lineage refuses
+
+- **WHEN** the success envelope is missing/failed/malformed, only a release-causal receipt exists, provenance/request/source/digests differ, native snapshot/map is changed, or v1 and v2 inputs are mixed
+- **THEN** continued admission refuses before writable handoff without fallback, reset, retry or reimaging
+- **AND** one-nanosecond and unsafe numeric precision substitutions cannot be normalized into acceptance
+
+#### Scenario: Continued components retain unresolved allocation debt
+
+- **WHEN** seed-v2 or guest-v2 starts, remains live or finalizes with pending or prior failed repair reservations
+- **THEN** all unresolved G is enumerated and charged exactly once above the unchanged backing floors, independently of current inode staging and retained output allowances
+- **AND** missing, unreadable or malformed required debt state refuses before the protected next operation
+
+### Requirement: First inventory uses observed API definitions
+
+The Kubernetes preflight adapter SHALL query core workloads and only supported custom workload types whose CRDs were observed. It SHALL report absent custom APIs explicitly without treating query failure as empty state. Inventory completion SHALL NOT authorize migration.
+
+#### Scenario: Initial inventory discovers absent custom workload APIs
+
+- **WHEN** the actual API lists core workloads and only some supported custom resource definitions during initial inventory
+- **THEN** preflight queries core workloads plus only those fixed custom types justified by the observed CRD inventory and records the missing definitions
+- **AND** native query errors for a type observed as present still refuse rather than becoming empty or absent state
+- **AND** missing required controllers/resources continue to block cutover; inventory completion grants no runtime or migration acceptance
+
+### Requirement: Passive inventory preserves evidence permissions
+
+Finite native qualification SHALL account for retained evidence without changing its permissions or granting payload authority. Passive directory inventory SHALL require owned readable/searchable directory shape and complete stable modification identities. Active staging and control-packet directories SHALL retain private ownership/mode checks.
+
+#### Scenario: Historical directory permissions do not imply active authority
+
+- **WHEN** retained owned evidence contains a readable/searchable group-writable directory
+- **THEN** inventory records its exact mode and every allocated entry without changing it
+- **AND** foreign ownership, world-writable or unreadable/unsearchable directories, symlink traversal and changed metadata still refuse
+- **AND** group-writable active staging or control-packet directories still refuse
+
+### Requirement: Runtime identity supports empty imported modules
+
+Native qualification SHALL distinguish repository source/tool pins from actual imported runtime module pins. Source/tool bytes SHALL be positive. An actual selected root-owned runtime module MAY be empty, with unchanged mode, original-FD hash/stability and exact runtime-closure requirements.
+
+#### Scenario: Empty system package marker retains strict identity
+
+- **WHEN** the actual imported runtime contains a root-owned zero-byte Python package marker
+- **THEN** its exact empty content hash and native identity may satisfy the runtime pin
+- **AND** zero-byte source/tool pins, negative byte counts and unmatched runtime declarations still refuse
+
+### Requirement: Runtime observation includes its own imports
+
+Native runtime identity observation SHALL include modules imported by its own map-reading work. A first cold observation and an unchanged subsequent observation SHALL agree without caller warmup, preload exceptions or weakening exact closure checks.
+
+#### Scenario: Map decoding imports a codec on the first observation
+
+- **WHEN** the first native map read imports a supported runtime codec
+- **THEN** that same observation includes the codec in its imported-module set
+- **AND** an unchanged subsequent observation returns the same set
+
+#### Scenario: Transient worker receives the fixed runtime locale
+
+- **WHEN** native qualification launches its manager-spawned worker
+- **THEN** the service command explicitly sets LANG and LC_ALL to C
+- **AND** client-only locale values cannot substitute for that service handoff
+
+### Requirement: Native startup failures retain bounded provenance
+
+Native qualification SHALL retain bounded failure-stage and original-client evidence when a worker fails or its readiness is rejected before admission. Known helper refusals SHALL preserve their safe category; unknown/private diagnostics SHALL produce explicit unavailable or incomplete states and bounded identities, never plaintext disclosure or invented counters. Failure SHALL remain unaccepted and SHALL NOT authorize a mutation ACK, foreign-process cleanup or request reuse.
+
+#### Scenario: Worker exits before its readiness frame
+
+- **WHEN** the original worker exits with a modeled refusal before readiness
+- **THEN** the caller retains its bounded safe category, stage, original client exit and missing worker-binding/counter states before closing the streams
+- **AND** unknown/private or oversized diagnostics fail safely without plaintext leakage, missing-as-success behavior or broader cleanup authority
+
+### Requirement: Fresh qualification accounts for retained failures
+
+A fresh qualification SHALL fully charge retained provenance and future request/capture/fixture costs, reserving a bounded1MiB program/evidence allowance in backing/outside arithmetic. Other resource limits and physical floors SHALL remain unchanged. Original plaintext patches, live source/tools, requests/receipts and raw/ISO SHALL remain retained; the unexecuted archival draft grants no repacking authority. Old requests SHALL remain historical and non-executable.
+
+#### Scenario: A failed request remains while a new attempt is planned
+
+- **WHEN** retained provenance plus a new request/captures would exceed the fixed metadata cap
+- **THEN** admission refuses until a concrete reviewed allocation plan and fresh complete accounting fit without retiring original provenance
+- **AND** absent/changed/unreadable retained input or insufficient budget refuses without original plaintext retirement
+- **AND** a separately reviewed fresh nonce is required; no automatic retry or debt credit follows
+
+#### Scenario: Worker emits a modeled refusal frame
+
+- **WHEN** the trusted worker emits a closed failure-only frame carrying a fixed safe category before admission
+- **THEN** the caller retains only bounded diagnostic provenance and refuses without a mutation ACK or binding/cleanup authority from that frame
+- **AND** arbitrary stderr or unknown categories cannot become public diagnostic plaintext by matching a prefix or regular expression
+- **AND** refusal evidence has a distinct failure identity and never substitutes for a terminal/counter receipt
+
+#### Scenario: Cancellation preserves bounded refusal handling
+
+- **WHEN** SIGINT or SIGTERM cancels the controller before acceptance
+- **THEN** controlled cancellation retains bounded stage state and performs only original-owned cleanup
+- **AND** the hard 20-second alarm and service/resource limits remain unchanged
+
+#### Scenario: Retained evidence needs the revised bounded allowance
+
+- **WHEN** native qualification reserves its durable program/evidence envelope
+- **THEN** capacity arithmetic charges the complete1MiB allowance and refuses a one-byte deficit before client launch
+- **AND** reverting to the old512KiB allowance is caught by a production-path negative
+- **AND** original plaintext provenance remains retained; no archival utility, debt credit, larger runtime/source/output bound or weaker memory/staging/backing floor follows
+
+#### Scenario: Native process-limit columns contain padding
+
+- **WHEN** Linux reports the required exact soft/hard process limits with trailing space or tab column padding
+- **THEN** the existing process-limit reader accepts that same-line formatting while retaining exact values, units, one occurrence and status requirements
+- **AND** wrong/missing/duplicate values, malformed units/suffixes or unsafe process status still refuse before readiness acceptance
+
+### Requirement: Repair executes the admitted repository source
+
+The repair coordinator and worker SHALL execute only fixed repository source bytes captured through original SHA-verified descriptors before helper imports. Initial, transitive and lazy imports SHALL use those immutable buffers; repository bytecode and later path reads SHALL NOT supply executable bytes.
+
+#### Scenario: A valid source pin accompanies a substituted cache
+
+- **WHEN** owned scratch copies retain their pinned source bytes but a helper bytecode cache contains a harmless execution marker
+- **THEN** the real production coordinator and worker startup and a lazy nested helper import execute the admitted source buffers without executing the marker
+- **AND** a watched loader omission executes the forbidden marker, proving the control at the protected import
+
+#### Scenario: Source or request admission is incomplete
+
+- **WHEN** a required request/source is absent, unreadable, malformed, unsafe, duplicated, unpinned, changed during capture or differs from its declared digest
+- **THEN** the production entry refuses before repository helper execution or service launch
+- **AND** unknown sibling imports refuse rather than fall back to a repository file or cache
+
+#### Scenario: Source paths change after successful capture
+
+- **WHEN** a required source path or its cache changes after successful capture but before initial or lazy execution
+- **THEN** execution uses the exact previously verified immutable bytes and the existing later source/identity checks still refuse drift before mutation authority
+- **AND** worker startup cannot execute an unverified replacement of its own entry
+
+The existing request/envelope versions, fixed source roles, service/process and physical capacity floors, history, reservation/release and native writer functions SHALL remain unchanged. Each captured Python source is at most131072bytes; the six fixed Python sources together are at most786432bytes, within the existing coordinator/service limits. These are source-capture bounds, not larger runtime or evidence allowances. Component source verification grants no retained-disk repair, new guest or full observability acceptance.
+
+#### Scenario: Trusted launchers and fixed bounds remain explicit
+
+- **WHEN** production source admission succeeds
+- **THEN** the existing direct coordinator/Bun launcher and root-installed Python runtime/stdlib retain their explicit trust boundaries
+- **AND** the worker entry verifies before execution, each of six Python sources is at most131072bytes and their sum is at most786432bytes
+- **AND** source capture grants no mutation, release, guest or full observability acceptance and preserves the existing runtime/capacity/history contracts
+
+#### Scenario: A fixed tool uses its installed private library directory
+
+- **WHEN** the fixed installed tool's actual ELF dependency closure includes its supported private library path
+- **THEN** repair input admission accepts that selected, pinned library while retaining exact equality with the complete actual dependency set
+- **AND** an extra or foreign library refuses before its payload is read; no credential or arbitrary directory becomes an allowed input role
+
+### Requirement: Observe an admitted changing raw inode
+
+The coordinator SHALL sample an admitted raw target through descriptors bound to its original private inode. Expected timestamp/allocation changes SHALL remain valid during owned mutation. Device, inode, owner, mode, type, links, length, readonly access and path/descriptor joins MUST remain enforced. Pre-admission snapshots and final artifact checks MUST stay exact.
+
+#### Scenario: The admitted worker changes timestamps during open
+
+- **WHEN** its original raw inode's timestamps change between path inspection and descriptor capture
+- **THEN** live capacity sampling succeeds with the original inode and current capacity facts, without reading payload or changing debt
+- **AND** immutable request/state admission still rejects that same timestamp race
+
+#### Scenario: A live target is substituted or unsafe
+
+- **WHEN** path/descriptor identity, ownership, private mode, regular type, single link, fixed length, allocation bound or readonly open is violated
+- **THEN** sampling refuses before unsafe authority reaches the profile/capacity boundary and every acquired descriptor closes
+- **AND** deleting each new guard or breaking its dependency exposes the named forbidden witness
+
+### Requirement: Failed-repair staging ownership survives handoff
+
+A future failed-reservation drainer SHALL receive the same already-locked staging open-file description through a bounded one-shot channel queued before launch. Coordinator and recipient references SHALL preserve exclusion while either process can still act. Closing one reference MUST NOT explicitly unlock the others. This ownership prerequisite SHALL NOT confer drain, reservation release, repair, guest or full-rehearsal authority.
+
+#### Scenario: Startup and process exit preserve exclusion
+
+- **WHEN** the original coordinator exits while its locked descriptor remains queued on inherited service stdin or held by the recipient
+- **THEN** a competing staging acquisition refuses until the last owned reference closes
+- **AND** recipient exit leaves the coordinator's retained reference locked through later publication
+
+#### Scenario: A foreign or malformed handoff cannot supply ownership
+
+- **WHEN** the bounded frame, kernel per-message credentials, original sender start, original private directory identity, transferred rights or actual lock ownership do not join
+- **THEN** receive refuses before any protected action and every acquired descriptor closes
+- **AND** socketpair creator credentials cannot stand in for the eventual worker identity
+
+#### Scenario: Source ownership proof does not imply native settlement
+
+- **WHEN** ordinary process tests establish transfer and cleanup semantics
+- **THEN** actual systemd stdio handoff, physical/transient budget qualification and the separate drain/publication/cleanup certificate remain required before any debt credit
+
+### Requirement: Staging handoff is qualified through the selected service transport
+
+The native qualification adapter SHALL reuse fixed request/source/runtime/capacity and lifecycle helpers and run only two bounded original-owned staging cases through the actual selected service stdin transport. It SHALL preserve all existing primitive qualification semantics and physical floors. No handoff result grants drain, repair, guest, settlement or full-rehearsal authority.
+
+#### Scenario: Native worker retains live-sender ownership
+
+- **WHEN** the actual factory prequeues a private-directory lock and the native service consumes it through its original stdin socket
+- **THEN** kernel message credentials and independently observed native/process limits identify the original worker
+- **AND** closing the coordinator lock copy still excludes a competitor until worker ownership closes
+
+#### Scenario: Queued native ownership survives dead sender
+
+- **WHEN** the exact owned sender exits before native receipt
+- **THEN** the queued reference still excludes a competitor through startup
+- **AND** receipt refuses the dead original sender, closes every acquired right and grants no adoption authority
+
+#### Scenario: Source preparation cannot certify native passage
+
+- **WHEN** copied-fixture tests pass but the selected service has not completed both cases with authentic counters, durable ACK and repeated owned cleanup
+- **THEN** native qualification remains unaccepted and old debt stays pending
+
+### Requirement: Bounded one-attempt staging operator preparation
+
+The staging operator SHALL preserve original admission-lock ownership across preparation, observation and publication, execute only the exact reviewed captured builder bytes, and bound required bootstrap and subprocess I/O. These controls SHALL precede any retained request or native invocation and SHALL not weaken existing physical floors, source roles or service limits.
+
+#### Scenario: State pathname changes under the original operator lock
+
+- **GIVEN** the operator holds the original state FD and its flock
+- **WHEN** the state pathname is replaced before or during a ledger, inventory, capacity or retained-write boundary
+- **THEN** it refuses further authority using the original FD/path/flock join, without acquiring a replacement lock or releasing old reservation debt.
+
+#### Scenario: Builder path changes after executable capture
+
+- **GIVEN** one bounded private builder buffer has its reviewed SHA verified
+- **WHEN** the pathname changes after capture
+- **THEN** only the captured buffer may execute, its same SHA binds preparation and review, and conflicting later provenance refuses.
+
+#### Scenario: Bootstrap or child output exceeds its bound
+
+- **WHEN** required bootstrap I/O times out or Git/CLI output exceeds the live joint byte bound
+- **THEN** the operator refuses within its declared wall plus bounded original-owned cleanup allowance, including original child reap and closure of owned pipes/selectors.
+
+#### Scenario: Setup fails immediately after spawn
+
+- **WHEN** setup or observation fails after successful original CLI spawn
+- **THEN** cleanup already owns that exact child and every opened channel, preserves primary and cleanup failures, and cannot leave it running or grant retry authority.
+
+### Requirement: Settlement record publication preserves the finite allocation protocol
+
+Internal failed-settlement records SHALL use the fixed nine-name namespace and original private directory. Publication SHALL allocate, directly write and verify each initialized4096-byte prefix before allocating another block. Failures SHALL refuse without retry or replacement. Primitive publication SHALL NOT grant settlement, repair, guest or deployment authority.
+
+#### Scenario: Bounded canonical record is durably published
+
+- **WHEN** a supported fixed record is published through the internal primitive in an owned disposable directory
+- **THEN** its exact canonical bytes are retained after initialized-prefix verification and ordered file and directory durability
+- **AND** the original borrowed directory FD remains open
+- **AND** exclusive creation retains the same original writer open-file description with O_DIRECT through final close
+- **AND** only a partial final padded block may shrink, without a buffered rewrite
+- **AND** file synchronization, original file close and original directory synchronization complete in that order before successful return
+
+#### Scenario: A publication prerequisite fails
+
+- **WHEN** a name or parent is foreign, a name already exists, direct flags or path/FD identity change, a write is short, a prefix is uninitialized, or synchronization or close fails
+- **THEN** publication throws without retry, replacement, deletion, a later allocation or a success envelope
+- **AND** any partial file remains visible while all owned resources receive exactly one cleanup attempt and primary plus cleanup failures remain inspectable
+
+### Requirement: Failed repair settlement has a closed separate authority
+
+Failed settlement SHALL use a distinct closed request, bootstrap and output envelope. It SHALL preserve immutable failed history and the strict existing successful-repair path. Receiving staging ownership SHALL NOT grant drain authority. Only independently bound original-writer terminality, authenticated new-worker readiness and one credential-checked grant may authorize read-only same-inode drain.
+
+#### Scenario: Complete conditional source settlement
+
+- **WHEN** qualified external prerequisites and all original/native/source joins are present
+- **THEN** the fixed producer adopts original staging exclusion, drains only the original read-only FD, publishes authentic new counters and later barrier through actual original-directory full commits, consumes a durable ACK, verifies owned terminal cleanup and produces the complete certificate, receipt and execution witness
+- **AND** only that exact original reservation may leave unresolved oldG after the closed reader accepts all joins
+- **AND** raw repair, guest, full-rehearsal and deployment authority remain false
+
+#### Scenario: Partial or conflicting settlement cannot release debt
+
+- **WHEN** the full bounded namespace contains a missing phase, malformed, unreadable, changed, unknown or conflicting record, foreign history, reordered barrier, stale worker, failed ACK or uncertain cleanup
+- **THEN** valid canonical incomplete prefixes retain oldG, while malformed or conflicting trusted state throws
+- **AND** no record is overwritten, deleted, retried or treated as a resumable allocation session
+- **AND** original failure and reservation records remain unchanged
+
+#### Scenario: Queued final acknowledgement outlives its sender
+
+- **WHEN** a previously authenticated worker sends its fully bound ACK-consumed frame after the exact durable ACK and exits before the coordinator's fresh process lookup
+- **THEN** only that final phase may accept matching queued kernel credentials with an explicit ENOENT lookup outcome
+- **AND** wrong/reused identity, unreadability, other lookup errors and missing earlier adoption still refuse
+- **AND** actual client exit0, EOF and matching terminal cleanup remain required before certificate or credit
+- **AND** old terminal boot metadata identifies its observation boot, while missing historical birth-boot evidence is never fabricated
+
+### Requirement: Settlement allocation allowance persists independently
+
+Every active allocation admission SHALL include the complete validated reservation accounting and the fixed32MiB settlement allowance when failed settlement is relevant. Removing a qualified original reservation SHALL NOT remove that allowance. Unknown accounting SHALL refuse; a legacy reservation-only projection SHALL NOT silently hide settlement debt.
+
+#### Scenario: Old reservation settles but new allowance remains
+
+- **WHEN** the exact complete accepted settlement namespace releases one original reservation
+- **THEN** every initial, live and later raw, seed, guest, lineage and native-control admission retains K separately from the remaining oldG and actual retained inode bytes
+- **AND** backing, staging, outside and memory inequalities preserve all existing floors, other reservations and future commitments
+- **AND** one-byte-short backing or staging refuses both before and after oldG release
+
+#### Scenario: No surviving first record does not prove no attempt
+
+- **WHEN** the original four-record namespace remains after a possible failed first creation
+- **THEN** K remains charged and namespace emptiness cannot authorize another allocating invocation
+- **AND** absent qualified durable prepublication consumption or outside-input coverage refuses before first creation, without accepting a caller boolean or nonce as proof
+
+### Requirement: Settlement consumes one durable publication attempt
+
+The fixed Linux adapter SHALL consume the original-directory attempt through checked exact NOATIME serialization and same-FD fullsync before creating any settlement record. Only its current completed calls may grant publication. Restart, unknown completion, unsupported state and cross-directory replay SHALL refuse. OldG and fixed K remain charged until independently accepted settlement permits only oldG credit.
+
+#### Scenario: Original-directory durable grant
+
+- **WHEN** all other prerequisites qualify and the original private four-record directory has exact EXTENTS-only flags
+- **THEN** one original-FD setter changes only NOATIME and actual same-directory fullsync must succeed before first creation
+- **AND** fresh identity, mode, writable profile and exact flags remain joined across both calls
+- **AND** failure or uncertain completion grants no publication, retry, fallback or bit clear
+
+#### Scenario: Lost first filename still consumes the operation
+
+- **WHEN** a process restarts after durable consumption, with no new filename surviving a failed first create
+- **THEN** original-directory NOATIME identifies a consumed O-only attempt and retains oldG plus K
+- **AND** full-state enumeration refuses another attempt or another failed namespace before a new setter or allocating create
+- **AND** a caller boolean, nonce, hash, positive flags snapshot or serialized capability cannot authorize resumption
+
+#### Scenario: Inherited flags retain the fixed allocation profile
+
+- **WHEN** the current qualified invocation publishes its fixed nine records
+- **THEN** the parent and new records require exact EXTENTS|NOATIME flags while original records, raw, witness and staging keep their existing predicates
+- **AND** any additional flag, missing latch, changed directory or malformed/conflicting record refuses
+- **AND** K and the fixed-record surplus stay unchanged, without whole-operation zero-cost or actual native authority claims
+
+#### Scenario: Outside inputs remain unqualified
+
+- **WHEN** actual outside/bootstrap/runtime/security input qualification is unavailable
+- **THEN** production admission still refuses before mutation even when the consumption adapter is implemented
+- **AND** source fixtures and disposable real-syscall proofs grant no retained operation or debt credit
+
+### Requirement: Repair source after failure has a distinct consumer
+
+A successor repair SHALL consume the historical repair source after failure through a closed discriminated request and independently validate the exact original failed request, source, reservation, ready/failure records and both distinct capture relations. Original postboot evidence and executable pins SHALL remain historical. The consumer MUST require complete strict settlement of exactly that failed reservation, retain the fixed33554432-byte settlement debt, and obtain fresh qualification, capacity, lock, writer-terminality and original-inode observations before mutation. Historical recorded booleans or pinned JSON alone MUST NOT grant execution authority. The complete [source contract](../../failed-repair-source-consumption.md) defines the request, finite metadata roles, native observation and unchanged bounds.
+
+#### Scenario: Distinct captures join one failure
+
+- **WHEN** a successor request names the original exact failure capture and a different settlement terminal capture
+- **THEN** each capture is validated against its own closed schema and exact bytes
+- **AND** both independently join the same original request/source/reservation/ready/failure and native identity
+- **AND** no digest equality, missing-counter fallback or rewritten historical record substitutes for that relation
+
+#### Scenario: Legacy postboot fields cannot bypass failed-repair recovery
+
+- **WHEN** a fresh legacy repair request supplies repair-after-failure evidence as its postboot record, or tries to bypass known failed-repair history for the selected original inode
+- **THEN** the production admission refuses before another repair can mutate that inode
+- **AND** sufficient free capacity does not substitute for the distinct historical relation, strict settlement and current native admission
+- **AND** valid initial v1 history remains compatible
+
+#### Scenario: Changed or incomplete evidence refuses
+
+- **WHEN** required evidence is missing, unreadable, malformed, has unknown fields or types, or a relation nonce/digest/source/identity differs
+- **THEN** the production path refuses before the applicable helper/import, ACK, writable-open or mutation boundary
+- **AND** same-byte inode replacement, incomplete/foreign settlement, absent settlement debt and stale source snapshots also refuse
+
+#### Scenario: Current observations carry current authority
+
+- **WHEN** immutable relations and initial prerequisites are valid
+- **THEN** the worker and coordinator independently observe the original inode under verified current staging-lock ownership
+- **AND** exact snapshot/map, original-writer terminality, source/capture identities, complete settlement accounting and capacity are rechecked at readiness, ACK and before writable open
+- **AND** historical continuous lock ownership or observer provenance is not inferred from a recorded true flag, Git revision or inspector hash
+
+#### Scenario: Unavailable qualification stops the successor before mutation
+
+- **WHEN** the existing whole-input/consumer/outside qualification is unavailable
+- **THEN** the successor refuses before creating its attempt or performing accesses that require that qualification
+- **AND** conditional fixture providers cannot authorize an actual native operation
+
+#### Scenario: Successful successor remains usable by continued preparation
+
+- **WHEN** a conditional successor completes the existing repair protocol
+- **THEN** continued seed/guest history compares its before snapshot with the distinct repair source after failure
+- **AND** validates the inherited postboot snapshot against the original failed request without rebasing it
+- **AND** existing v1 request, CLI, envelope and successful release contracts remain compatible
+
+#### Scenario: A failed successor keeps new debt and refuses another settlement
+
+- **WHEN** the successor fails after readiness
+- **THEN** accounting understands its request and retains its entire new reservation plus the existing fixed settlement debt
+- **AND** the current single-settlement policy refuses another settlement before latch consumption or publication
+- **AND** an intelligible failed request is not classified as malformed merely to hide its debt
+
+#### Scenario: The consumer adds no unaccounted runtime role or record
+
+- **WHEN** source observation is produced through the current worker/coordinator
+- **THEN** it remains an internal in-memory observation rather than a deserializable admission token
+- **AND** no seventh Python role, tenth settlement name, consumed-packet file, increased source/FD/resource cap or reduced physical floor is introduced
+- **AND** exact source/evidence/descriptor contributions are measured against the existing admission contracts

@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
+import { fileDataDepTarget } from 'nx/src/config/project-graph';
 import { createProjectGraphAsync, type ProjectGraph } from 'nx/src/devkit-exports';
+import { getFileMap } from 'nx/src/project-graph/build-project-graph';
 
 import { APPLICATION_SUITES, productConstraints, readProjects } from '../workspace-projects.mjs';
 
@@ -54,6 +56,9 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['libs/wbs/domain/contracts', 'wbs-contracts'],
   ['libs/wbs/domain/domain', 'wbs-domain'],
   ['libs/wbs/domain/validation', 'wbs-validation'],
+  // Proof: omitting analytics failed both the destination-map and product-axis cases
+  // with this exact root/identity and its product:website tag (2026-10-26).
+  ['libs/website/adapters/analytics', 'website-analytics'],
   ['libs/website/adapters/portability-fixture', 'website-portability-fixture'],
   ['libs/website/adapters/store-sqlite', 'website-store-sqlite'],
   ['libs/website/domain/contracts', 'website-contracts'],
@@ -79,11 +84,20 @@ const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
 // @tools/fleet-ssh-transport to `compute/`,
 // @tools/test-scratch to tests and @twilight-burokrat/judge to cli.ts, `authority/` and tests,
 // and refuse a sibling alias and a relative path into Burokrat.
+// Proof: omitting the WBS pair reported `twilight-dash -> wbs-contracts` in the real graph oracle.
+// Effective ESLint tests separately pin its public alias to the four runtime history consumers.
 const ALLOWED_DASH_EDGES = [
   ['twilight-dash', 'tool-fleet'],
   ['twilight-dash', 'tool-test-clock-reads'],
   ['twilight-dash', 'tool-test-scratch'],
   ['twilight-dash', 'twilight-burokrat'],
+  // The resources-only exact-alias ESLint regression pins this transport boundary.
+  // Proof: omitting this pair reported twilight-dash -> wbs-contracts (2026-10-25).
+  ['twilight-dash', 'wbs-contracts'],
+  // The coordination topology/facts exact-alias ESLint regression pins this boundary to
+  // `@wbs/domain` at three files. Proof: without this pair the real graph oracle reported
+  // twilight-dash -> wbs-domain (CI run 41244462158 and locally, 2026-11-01).
+  ['twilight-dash', 'wbs-domain'],
 ] as const;
 
 // Both suite apps' `no-ambient-clock.test.ts` apply the shared clock-read detector. Proof:
@@ -481,6 +495,38 @@ describe('productConstraints', () => {
             ...ALLOWED_NAVIGATOR_RECORD_EDGES,
           ].some(([source, reached]) => project.name === source && target.name === reached)
         ) {
+          continue;
+        }
+        // Proof: POLICY-R5 G01/G05 removed each new target route; this actual-graph
+        // oracle reported its forbidden edge. G02/G03/G06/G07 added one actual
+        // production/test importer and failed the exact receiver-file assertion.
+        const expectedImporter =
+          project.name === 'wbs-be-01' && target.name === 'twilight-dash'
+            ? 'apps/wbs/be-01/scripts/resource-cleanup-smoke.ts'
+            : project.name === 'twilight-dash' &&
+                ['wbs-be-01', 'wbs-observability', 'wbs-store-sqlite'].includes(target.name)
+              ? 'apps/twilight-structure/twilight-dash/cli/src/runs/testing/recovery-receiver.ts'
+              : undefined;
+        if (expectedImporter !== undefined) {
+          const importers = getFileMap()
+            .fileMap.projectFileMap[project.name].filter((file) =>
+              file.deps?.some((dependency) => fileDataDepTarget(dependency) === target.name),
+            )
+            .map((file) => file.file)
+            .sort();
+          // The smoke and private receiver compose real applications; their exact files alone own these edges.
+          // Proof: an extra production importer and an unattributed implicit edge each
+          // failed this exact-file assertion (2026-10-25).
+          // Proof: graph-runtime and graph-test injected actual additional Dash importers; each failed this exact-source assertion, then passed after exact removal (2026-10-29).
+          expect(
+            importers,
+            `POLICY-R5 graph ${project.name} -> ${target.name} exact importer`,
+          ).toEqual([expectedImporter]);
+          // Proof: POLICY-R5 G04/G08 added an actual implicit edge beside the unchanged
+          // receiver import for each new target; the static-edge assertion failed.
+          // Proof: graph-implicit added an actual implicit edge alongside the approved receiver importer; it failed with implicit rather than static, then passed after exact project.json restoration.
+          if (project.name === 'twilight-dash')
+            expect(dependency.type, `POLICY-R5 graph ${target.name} static edge`).toBe('static');
           continue;
         }
         // Excused only when the edge is reached through an allowed alias and through no

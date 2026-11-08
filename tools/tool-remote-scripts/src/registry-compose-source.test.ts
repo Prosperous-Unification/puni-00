@@ -251,3 +251,18 @@ it('reads the checked-in prod and service-free dev bases while requiring tier se
     await expectRejection(readComposeSource(configuration, fixture.read), 'Unsupported');
   }
 });
+
+it('refuses malformed ownership in actual tier files instead of stripping it through legacy state', async () => {
+  const fixture = await dockerOwnershipFixture();
+  const configuration = fixture.source('a');
+  writeFileSync(
+    join(configuration.root, 'state', 'be.json'),
+    JSON.stringify({
+      tier: 'be',
+      activeColor: 'blue',
+      lastDeployedSha: null,
+      registry: { schemaVersion: 1, history: null, operation: null },
+    }),
+  );
+  await expectRejection(readComposeSource(configuration, fixture.read), 'ownership');
+});

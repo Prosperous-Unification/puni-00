@@ -94,7 +94,7 @@ function checkedTime(value: number | null, id: string): number | null {
 }
 
 /** The secrets of `credentialIds` live at `at`, oldest first, by credential. */
-function liveSecretsOf(
+export function liveMachineSecretsOf(
   tx: Transaction,
   credentialIds: readonly string[],
   at: number,
@@ -123,7 +123,7 @@ function liveSecretsOf(
 }
 
 /** A stored credential as listed, with its live secrets: never a digest. */
-function summaryOf(
+export function machineCredentialSummaryOf(
   row: MachineCredentialRow,
   secrets: readonly MachineSecretSummary[],
 ): MachineCredentialSummary {
@@ -151,7 +151,7 @@ function summaryOf(
  * (A17), and never the free-text name, which the subject id already
  * identifies.
  */
-function auditDetail(row: MachineCredentialRow, secretId: string | null) {
+export function machineCredentialAuditDetail(row: MachineCredentialRow, secretId: string | null) {
   return {
     source: row.source,
     personId: row.personId,
@@ -190,12 +190,12 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
         .orderBy(asc(machineCredential.createdAt), asc(machineCredential.id))
         .all()
         .map(({ credential }) => credential);
-      const secrets = liveSecretsOf(
+      const secrets = liveMachineSecretsOf(
         tx,
         rows.filter((row) => row.source === 'api_key').map((row) => row.id),
         at,
       );
-      return rows.map((row) => summaryOf(row, secrets.get(row.id) ?? []));
+      return rows.map((row) => machineCredentialSummaryOf(row, secrets.get(row.id) ?? []));
     });
   }
 
@@ -244,12 +244,12 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
         action: 'machine_credential_created',
         subjectKind: 'machine_credential',
         subjectId: draft.id,
-        detail: auditDetail(row, draft.secretId),
+        detail: machineCredentialAuditDetail(row, draft.secretId),
         at: act.stamp.at,
       });
       return {
         kind: 'created',
-        credential: summaryOf(row, [
+        credential: machineCredentialSummaryOf(row, [
           { id: draft.secretId, createdAt: act.stamp.at, expiresAt: null },
         ]),
       } as const;
@@ -330,10 +330,10 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
         action: 'machine_credential_created',
         subjectKind: 'machine_credential',
         subjectId: draft.id,
-        detail: auditDetail(row, null),
+        detail: machineCredentialAuditDetail(row, null),
         at: act.stamp.at,
       });
-      return { kind: 'created', credential: summaryOf(row, []) } as const;
+      return { kind: 'created', credential: machineCredentialSummaryOf(row, []) } as const;
     });
   }
 
@@ -393,7 +393,7 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
         action: 'machine_credential_rotated',
         subjectKind: 'machine_credential',
         subjectId: credentialId,
-        detail: { ...auditDetail(row, successor.secretId), previousExpiresAt },
+        detail: { ...machineCredentialAuditDetail(row, successor.secretId), previousExpiresAt },
         at,
       });
       return { kind: 'rotated', previousExpiresAt } as const;
@@ -435,7 +435,7 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
         action: 'machine_credential_revoked',
         subjectKind: 'machine_credential',
         subjectId: credentialId,
-        detail: auditDetail(row, null),
+        detail: machineCredentialAuditDetail(row, null),
         at,
       });
       return 'revoked' as const;

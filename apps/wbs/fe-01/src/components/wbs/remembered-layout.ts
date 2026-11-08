@@ -8,6 +8,7 @@ import {
   ganttLabelsKey,
   hiddenColumnsKey,
   linksResetShownKey,
+  measureColumnsKey,
   MERMAID_SECTION_MODE_KEY,
   savedViewsKey,
   widthOverridesKey,
@@ -15,6 +16,7 @@ import {
 
 import { type AxisRungId, isAxisRungId, resolveAxisRung, resolveRungWidth } from './gantt-axis';
 import { type DayPx, GANTT_CEILING_PX, GANTT_MIN_PX, isDayPx } from './gantt-panel';
+import { isMeasureToggles, type MeasureToggles } from './measure-reading';
 import { isSectionMode, type SectionMode } from './plan-mermaid';
 import {
   floorFor,
@@ -33,6 +35,7 @@ export {
   ganttLabelsKey,
   hiddenColumnsKey,
   linksResetShownKey,
+  measureColumnsKey,
   MERMAID_SECTION_MODE_KEY,
   savedViewsKey,
   widthOverridesKey,
@@ -514,6 +517,31 @@ export function forgetHiddenColumns(projectId: string): boolean {
   return storedHiddenColumns(projectId).forget();
 }
 
+/** One project's measure column answers, judged by {@link isMeasureToggles}. */
+export const storedMeasureColumns = (projectId: string): RuntimeRemembered<MeasureToggles> =>
+  remembered(measureColumnsKey(projectId), isMeasureToggles);
+
+/**
+ * The measure column answers this browser holds for `projectId`, or none.
+ *
+ * None means every definition follows its own `showByDefault`
+ * ({@link isMeasureShown}). A stored value that is not a record of booleans is
+ * dropped by {@link remembered}, exactly as a malformed hide-list is.
+ */
+export function rememberedMeasureColumns(projectId: string): MeasureToggles {
+  return storedMeasureColumns(projectId).readAndDrop().value ?? {};
+}
+
+/** Forgets the measure column answers for `projectId`: Reset layout's measure half (D54). */
+export function forgetMeasureColumns(projectId: string): boolean {
+  return storedMeasureColumns(projectId).forget();
+}
+
+/** Writes the measure column answers in force for `projectId`. */
+export function rememberMeasureColumns(projectId: string, toggles: MeasureToggles): boolean {
+  return storedMeasureColumns(projectId).write(toggles);
+}
+
 /** Remembers only the reset outcome that differs from the initial hidden-Links baseline. */
 export function rememberLinksResetTarget(projectId: string, hasAnyExternalRefs: boolean): boolean {
   const marker = storedLinksResetShown(projectId);
@@ -604,6 +632,10 @@ export function isFilterCriteriaShape(value: unknown): value is FilterCriteria {
     isStringArray(claimed['teamIds']) &&
     isAbsentOrStringArray(claimed['tagIds']) &&
     isAbsentOrStringArray(claimed['serviceIds']) &&
+    // Absent in every view saved before `wbs-resources` task 3.4.
+    // Proof: this line removed, `drops a saved view whose resources are not a
+    // list, keeping the rest` failed (both views offered); watched 2026-10-25.
+    isAbsentOrStringArray(claimed['resourceIds']) &&
     isAbsentOrBoolean(claimed['builtByNonOwner']) &&
     isAbsentOrBoolean(claimed['assignedOutsideTeam']) &&
     isStringArray(claimed['assigneeIds']) &&

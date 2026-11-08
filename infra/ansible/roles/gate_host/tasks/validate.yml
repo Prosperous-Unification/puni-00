@@ -1,6 +1,15 @@
 ---
 # Each probe runs as the gate account through its ~/.bashrc, the environment `ssh puni1@host CMD`
-# gives a gate, and fails the play when its condition is broken; none of them changes the host.
+# gives a gate, and fails the play when its condition is broken. None of them changes the host,
+# with one exception: on an initialized pool, `ops pool inspect` and `ops job audit` open the
+# ledger, and an open migrates an older ledger version forward in place (resources.md).
+
+# The live file, which main.yml wrote only after the same count passed on its staged copy.
+- name: Count the live gate authorized keys
+  ansible.builtin.import_tasks: authorized-keys-count.yml
+  vars:
+    puni_gate_keys_file: '{{ puni_gate_home }}/.ssh/authorized_keys'
+
 - name: Resolve Bun the way a remote gate does
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
@@ -54,6 +63,49 @@
   # task itself; the earlier `| head -n 1` form had swallowed that status (rc 0, empty output).
   # The host state behind the third live gate's 60 failures was exactly this missing file.
 
+# Tool availability only: the unchanged canonical gate owns the namespace probe.
+# Proof: replacing the version probe's && with ; masked an exit-74 bwrap;
+# skipping busybox true masked its exit 74. Both actual extracted-command
+# harness cases then failed their nonzero assertions; missing/nonexecutable
+# PATH controls also refuse. This is shell propagation, not host capability.
+- name: Resolve sandbox tools the way a remote gate does
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        . "$HOME/.bashrc" && command -v bwrap && bwrap --version &&
+        command -v busybox && busybox true
+  register: puni_gate_sandbox_probe
+  changed_when: false
+
+# Proof (locked controller, 2026-10-25): this actual Ansible assertion accepted
+# healthy recorded output and refused wrong paths, malformed version and absent/
+# truncated output. Removing each corresponding condition admitted its bad input.
+# These are evaluator proofs, separate from live host and namespace acceptance.
+- name: Require system sandbox tools
+  ansible.builtin.assert:
+    that:
+      - puni_gate_sandbox_probe.stdout_lines[0] == '/usr/bin/bwrap'
+      - puni_gate_sandbox_probe.stdout_lines[1] is match('^bubblewrap [0-9]')
+      - puni_gate_sandbox_probe.stdout_lines[2] == '/usr/bin/busybox'
+    fail_msg: 'The gate sandbox tools report {{ puni_gate_sandbox_probe.stdout_lines }}'
+
+# Proof: removing either literal-path argv failed the parsed task contract.
+# Both real local paths execute true; absolute-binary faults were not injected.
+- name: Execute BusyBox at the mount caller path
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [/bin/busybox, 'true']
+  changed_when: false
+
+- name: Execute BusyBox at the process caller path
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [/usr/bin/busybox, 'true']
+  changed_when: false
+
 # The spec grants the account Docker and nothing else; a pre-existing sudo membership or a
 # sudoers drop-in would survive `append: true`, so the probes check the result, not the task.
 - name: Try to escalate as the gate account
@@ -69,13 +121,39 @@
       - "'sudo' not in puni_gate_sudo_probe.stdout_lines[0].split(' ')"
       - puni_gate_sudo_probe.stdout_lines[-1] != 'sudo_rc=0'
     fail_msg: 'The gate account reports {{ puni_gate_sudo_probe.stdout_lines }}; it must not escalate'
+  when: not puni_gate_account_may_sudo
   # Proof (2026-10-21): the assertion, fed recorded probe outputs through the controller image
   # (set_fact, localhost), passed `['puni1 docker', 'sudo_rc=1']` and failed both
   # `['puni1 docker sudo', 'sudo_rc=1']` and `['puni1 docker', 'sudo_rc=0']`. Live on h4claw the
   # probe printed `puni1 docker`, sudo's refusal line and `sudo_rc=1`; a sudoer gate account was
   # not created to watch the probe itself produce the failing lines.
+  # Proof (2026-11-04): in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py,
+  # E8) h4claw's recorded lines passed, `['puni1 docker sudo', 'sudo_rc=1']` and
+  # `['puni1 docker', 'sudo_rc=0']` were refused, and h2puni's `['puni1 sudo docker', 'sudo_rc=0']`
+  # skipped under the exception (recap `skipped=1`); removing either condition let its line through, and removing
+  # `when` refused h2puni's.
 
-- name: Read the gate tree state
+# An exception that no longer matches the host would be a check that cannot fail (AGENTS.md R5,
+# docs/findings/checks-that-cannot-fail.md): once the escalation is gone, the flag must go too,
+# or a later sudo grant would pass unnoticed.
+- name: Require the sudo exception to still match the gate account
+  ansible.builtin.assert:
+    that:
+      - >-
+        'sudo' in puni_gate_sudo_probe.stdout_lines[0].split(' ')
+        or puni_gate_sudo_probe.stdout_lines[-1] == 'sudo_rc=0'
+    fail_msg: >-
+      The gate account reports {{ puni_gate_sudo_probe.stdout_lines }}: it no longer escalates, so
+      the puni_gate_account_may_sudo exception is stale. Remove it from this host's inventory
+      entry (docs/infra/gate-hosts.md, step 0)
+  when: puni_gate_account_may_sudo
+  # Proof (2026-11-04): in the same evaluator (E9) h2puni's recorded `['puni1 sudo docker',
+  # 'sudo_rc=0']`, the group alone and the grant alone passed, h4claw's `['puni1 docker',
+  # 'sudo: a password is required', 'sudo_rc=1']` was refused as stale, and a host without the
+  # exception skipped (recap `skipped=1`); removing the condition let the stale line through, keeping only one
+  # disjunct refused the other's line, and removing `when` refused the strict host.
+
+- name: Read the gate checkouts' state
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
     argv:
@@ -84,19 +162,27 @@
       - >-
         cd "$1" && git remote get-url origin && git rev-parse --is-shallow-repository &&
         printf 'promisor=%s\n' "$(git config --default '' --get remote.origin.promisor)" &&
-        printf 'dirty=%s\n' "$(git status --porcelain --untracked-files=normal | wc -l)"
+        printf 'dirty=%s\n' "$(git status --porcelain --untracked-files=normal | wc -l)" &&
+        if [[ -d node_modules ]]; then printf 'installed=yes\n'; else printf 'installed=no\n'; fi
       - gate-tree
-      - '{{ puni_gate_checkout }}'
+      - '{{ item }}'
+  loop: '{{ puni_gate_checkouts }}'
   register: puni_gate_tree_probe
   changed_when: false
 
-# A dirty tree makes every gate exit 65, so it is refused here rather than at the first gate.
-- name: Require a full, clean clone of the canonical repository
+# A dirty tree makes every gate exit 65, and a dirty unit is never handed out, so each is
+# refused here rather than at the first gate; `installed` is the frozen install's node_modules.
+- name: Require full, clean, installed clones of the canonical repository
   ansible.builtin.assert:
     that:
-      - puni_gate_tree_probe.stdout_lines == [puni_gate_repository_url, 'false', 'promisor=', 'dirty=0']
-    fail_msg: 'The gate tree reports {{ puni_gate_tree_probe.stdout_lines }}'
+      - item.stdout_lines == [puni_gate_repository_url, 'false', 'promisor=', 'dirty=0', 'installed=yes']
+    fail_msg: 'The gate checkout {{ item.item }} reports {{ item.stdout_lines }}'
+  loop: '{{ puni_gate_tree_probe.results }}'
+  loop_control:
+    label: '{{ item.item }}'
   # Proof (Docker lab, 2026-10-21): one untracked file in the tree failed this with `dirty=1`.
+  # Proof: with the `installed=` line dropped, gate-host-pool.test.ts, which runs the probe's
+  # exact argv on a fixture clone without node_modules, failed (verify.md Slice 6c, 6c-F12).
 
 - name: Use Docker as the gate account
   become_user: '{{ puni_gate_user }}'
@@ -150,3 +236,186 @@
     that:
       - puni_gate_lock_probe.stdout_lines[0] == puni_gate_home + '/.cache/wbs-heavy-work.lock'
     fail_msg: 'The gate resolves the heavy lock at {{ puni_gate_lock_probe.stdout_lines[0] }}'
+
+# The host pool (task 6.3). Linger is read as root: `loginctl` answers for any account.
+# Proof: with `&& [[ $linger == yes ]]` dropped, gate-host-pool.test.ts, which runs this exact
+# argv against fake `loginctl`s printing `yes`, printing `no` and failing, failed (verify.md
+# Slice 6c, 6c-F5).
+- name: Require linger for the gate account
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        linger=$(loginctl show-user "$1" --property=Linger --value) &&
+        printf 'Linger=%s\n' "$linger" && [[ $linger == yes ]]
+      - gate-linger
+      - '{{ puni_gate_user }}'
+  changed_when: false
+
+- name: Read the gate account's uid for its user manager
+  ansible.builtin.getent:
+    database: passwd
+    key: '{{ puni_gate_user }}'
+
+# A unit with no commit has no resting commit to settle back to.
+# Proof: with the HEAD check dropped, the unborn-tree case of gate-host-pool.test.ts failed
+# (verify.md Slice 6c, 6c-F6). In the controller-image evaluator (E14) the loop reduced to
+# `dagger_engine` let a dirty and a commit-less `docker_build` through (verify.md, task 6.3).
+- name: Read the token units
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        [[ $(git -C "$1" rev-parse --show-toplevel) == "$1" ]] &&
+        git -C "$1" rev-parse -q --verify HEAD >/dev/null &&
+        [[ -z $(git -C "$1" status --porcelain --untracked-files=all) ]]
+      - token-unit
+      - '{{ item }}'
+  loop: '{{ puni_gate_pool_token_units }}'
+  changed_when: false
+
+- name: Read the host pool paths
+  ansible.builtin.stat:
+    path: '{{ item }}'
+    follow: false
+    get_checksum: false
+  loop:
+    - '{{ puni_gate_pool_root }}'
+    - '{{ puni_gate_pool_config }}'
+    - '{{ puni_gate_pool_ledger }}'
+    - '{{ puni_gate_user_unit_directory }}/dash-resources-watch.service'
+    - '{{ puni_gate_user_unit_directory }}/dash-job-audit.service'
+    - '{{ puni_gate_user_unit_directory }}/dash-job-audit.timer'
+    - '{{ puni_gate_user_unit_directory }}/gate-launcher-refresh.service'
+    - '{{ puni_gate_user_unit_directory }}/gate-launcher-refresh.timer'
+  register: puni_gate_pool_paths
+
+# Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E3) recorded stat results with the root
+# missing, 0755, foreign-owned, or any unit file missing were each refused; each condition
+# removed let its input through (verify.md Slice 6c; the refresh pair, Slice 6d).
+- name: Require the pool root and the Dash user units
+  ansible.builtin.assert:
+    that:
+      - puni_gate_pool_paths.results[0].stat.isdir | default(false)
+      - puni_gate_pool_paths.results[0].stat.mode == '0700'
+      - puni_gate_pool_paths.results[0].stat.pw_name == puni_gate_user
+      - puni_gate_pool_paths.results[3].stat.isreg | default(false)
+      - puni_gate_pool_paths.results[4].stat.isreg | default(false)
+      - puni_gate_pool_paths.results[5].stat.isreg | default(false)
+      - puni_gate_pool_paths.results[6].stat.isreg | default(false)
+      - puni_gate_pool_paths.results[7].stat.isreg | default(false)
+    fail_msg: >-
+      The pool root or a Dash user unit is missing or not as the role writes it:
+      {{ puni_gate_pool_paths.results | map(attribute='item') | zip(puni_gate_pool_paths.results
+      | map(attribute='stat.exists')) | list }}
+
+# Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E4) a configuration or a ledger left on an
+# unenrolled host was refused and an enrolled host skipped; each condition removed, or `when`,
+# turned one of those around (verify.md Slice 6c).
+- name: Require no host pool state on a host that is not enrolled
+  ansible.builtin.assert:
+    that:
+      - not puni_gate_pool_paths.results[1].stat.exists
+      - not puni_gate_pool_paths.results[2].stat.exists
+    fail_msg: >-
+      puni_gate_host_pool_enroll is false, but the configuration exists:
+      {{ puni_gate_pool_paths.results[1].stat.exists }}, the ledger exists:
+      {{ puni_gate_pool_paths.results[2].stat.exists }}. Set it true for an enrolled host; never
+      delete either file to unenroll (docs/infra/gate-hosts.md)
+  when: not puni_gate_host_pool_enroll
+
+# The configuration's mode, owner and shape against the documented fields; jq's own output is
+# discarded, so the credential is never printed.
+# Proof: gate-host-pool.test.ts runs this exact argv against the rendered template and against
+# broken copies (group-readable, no `enrollmentId`, an extra key, another root, one gate tree, a
+# string budget, no launcher checkout, no `docker_build` unit, not JSON); dropping the mode,
+# key-set or root check each failed it (verify.md Slice 6c, 6c-F13, 6c-F9, 6c-F8), and so did
+# dropping `docker_build` from the expected units (verify.md, task 6.3).
+- name: Require the host pool configuration of an enrolled host
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        [[ $(stat -c '%a %U' -- "$1") == "600 $2" ]] &&
+        jq -e --arg root "$3" --arg first "$4" --arg second "$5" --arg dagger "$6" --arg docker "$7"
+        --arg launcher "$8"
+        '(keys == ["authorityId", "concurrencyEligible", "cpuCores", "credential",
+        "diskBudgetUnits", "diskUnitBytes", "enrollmentId", "epoch", "exclusiveUnits", "headroom",
+        "headroomBytes", "launcherCheckouts", "mcpResource", "memoryGib", "providerId", "root",
+        "schemaVersion", "workspaceSlots"])
+        and .schemaVersion == 3 and .root == $root
+        and .exclusiveUnits == {"gate_tree": [$first, $second], "dagger_engine": [$dagger],
+        "docker_build": [$docker]}
+        and (.launcherCheckouts | type == "array" and any(.[]; . == $launcher))
+        and (.concurrencyEligible | type == "array")
+        and (.headroom | keys == ["cpuCores", "memoryGib"])
+        and ([.cpuCores, .memoryGib, .headroom.cpuCores, .headroom.memoryGib, .diskUnitBytes,
+        .diskBudgetUnits, .workspaceSlots, .headroomBytes] | all(type == "number" and . == floor))
+        and ([.authorityId, .epoch, .providerId, .mcpResource, .credential, .enrollmentId]
+        | all(type == "string" and length > 0))' -- "$1" >/dev/null
+      - pool-config
+      - '{{ puni_gate_pool_config }}'
+      - '{{ puni_gate_user }}'
+      - '{{ puni_gate_pool_root }}'
+      - '{{ puni_gate_checkout }}'
+      - '{{ puni_gate_second_checkout }}'
+      - '{{ puni_gate_pool_dagger_unit }}'
+      - '{{ puni_gate_pool_docker_build_unit }}'
+      - '{{ puni_gate_launcher_checkout }}'
+  changed_when: false
+  when: puni_gate_host_pool_enroll
+
+# `is-enabled` exits 0 for `static` too, hence the exact pairing.
+# Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E5) a fake `systemctl` printing `enabled
+# static` with exit 0 was refused and `enabled enabled` passed; without `failed_when` the static
+# timer passed, and so did a disabled refresh timer (verify.md Slice 6c, Slice 6d).
+- name: Read whether the Dash user units are enabled
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - --user
+      - is-enabled
+      - dash-resources-watch.service
+      - dash-job-audit.timer
+      - gate-launcher-refresh.timer
+  environment:
+    XDG_RUNTIME_DIR: '/run/user/{{ ansible_facts.getent_passwd[puni_gate_user][1] }}'
+  register: puni_gate_unit_probe
+  changed_when: false
+  failed_when: puni_gate_unit_probe.stdout_lines != ['enabled', 'enabled', 'enabled']
+  when: puni_gate_host_pool_enroll
+
+# Proof: in the controller-image evaluator (infra/ansible/tests/gate-host-assertions.py, E6) a recorded ledger ran a fake `bun` for
+# `ops pool inspect` then `ops job audit` with no skip line, a missing ledger printed the skip
+# line and ran nothing, and an audit exiting 1 failed the play; removing either `when` turned
+# one around (verify.md Slice 6c).
+- name: Name the Dash probes this host skips
+  ansible.builtin.debug:
+    msg: >-
+      Skipped `ops pool inspect` and `ops job audit`: {{ puni_gate_pool_ledger }} does not exist,
+      so this host's pool is not initialized (`ops pool init`, task 6.4)
+  when: not puni_gate_pool_paths.results[2].stat.exists
+
+# Both run Dash from the launcher checkout, which is no pool unit, so neither holds a unit.
+# `ops job audit` exits 1 on any envelope drift, which fails the play by design.
+- name: Inspect the host pool and audit its envelopes
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        . "$HOME/.bashrc" && cd "$1" && bun "$2" ops pool inspect --config "$3" >/dev/null &&
+        bun "$2" ops job audit --config "$3"
+      - pool-probe
+      - '{{ puni_gate_launcher_checkout }}'
+      - '{{ puni_gate_dash_entrypoint }}'
+      - '{{ puni_gate_pool_config }}'
+  changed_when: false
+  when: puni_gate_pool_paths.results[2].stat.exists

@@ -1,6 +1,7 @@
 import { DiBag } from 'di-bag';
 
 import type { ActualStore } from '../../ports/actual-store';
+import type { BudgetStore } from '../../ports/budget-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
 import type { ClaimStore } from '../../ports/claim-store';
@@ -11,8 +12,10 @@ import type { DependencyStore } from '../../ports/dependency-store';
 import type { DirectoryStore } from '../../ports/directory-store';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { EstimateStore } from '../../ports/estimate-store';
+import type { MeasureEstimateStore } from '../../ports/measure-estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
 import type { OrganizationLimitGauge } from '../../ports/organization-limits';
+import type { PlanEventStore } from '../../ports/plan-event-store';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore } from '../../ports/progress-store';
 import type { Broadcaster } from '../../ports/project-event';
@@ -55,6 +58,8 @@ export const workItemModule = DiBag.createBuilder()
         estimateStore,
         actualStore,
         measureStore,
+        measureEstimateStore,
+        budgetStore,
         progressStore,
         attemptStore,
         blockageStore,
@@ -69,6 +74,7 @@ export const workItemModule = DiBag.createBuilder()
         typedDependencyStore,
         subtreeStore,
         journalStore,
+        planEventStore,
         broadcast,
         editAdmission,
         scheduler,
@@ -82,6 +88,8 @@ export const workItemModule = DiBag.createBuilder()
         estimateStore: EstimateStore;
         actualStore: ActualStore;
         measureStore: MeasureStore;
+        measureEstimateStore: MeasureEstimateStore;
+        budgetStore: BudgetStore;
         progressStore: StepProgressStore;
         attemptStore: StepNodeAttemptStore;
         blockageStore: StepBlockageStore;
@@ -97,6 +105,8 @@ export const workItemModule = DiBag.createBuilder()
         typedDependencyStore: TypedDependencyStore;
         subtreeStore: SubtreeStore;
         journalStore: CommandJournalStore;
+        /** Undefined where a fixture graph predates the claim history read. */
+        planEventStore: Pick<PlanEventStore, 'listFor'> | undefined;
         broadcast: Broadcaster;
         editAdmission: EditAdmission;
         scheduler: Scheduler;
@@ -110,6 +120,8 @@ export const workItemModule = DiBag.createBuilder()
         estimates: estimateStore,
         actuals: actualStore,
         measures: measureStore,
+        measureEstimates: measureEstimateStore,
+        budgets: budgetStore,
         progress: progressStore,
         attempts: attemptStore,
         blockages: blockageStore,
@@ -124,6 +136,9 @@ export const workItemModule = DiBag.createBuilder()
         typedDependencies: typedDependencyStore,
         subtrees: subtreeStore,
         journal: journalStore,
+        // Proof: with this mapping removed, every service case of
+        // claim-history.test.ts threw `built without plan events`; watched 2026-10-24.
+        ...(planEventStore === undefined ? {} : { planEvents: planEventStore }),
         // Proof (2026-09-24): handing the resource
         // `{ ...broadcast, publish: () => Promise.resolve() }` instead of the supplied
         // broadcaster left `announces a created work item through the broadcaster installWorkItem

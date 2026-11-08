@@ -1,0 +1,60 @@
+{
+  "accepted": false,
+  "actualDeniedFacts": [
+    {
+      "errno": 1,
+      "fact": "kernel AUDIT_GET status",
+      "retriedThroughOtherAuthority": false,
+      "uid": 1000
+    },
+    {
+      "errno": 13,
+      "fact": "rsyslog spool enumeration",
+      "retriedThroughOtherAuthority": false,
+      "uid": 1000
+    }
+  ],
+  "diagnosticLimitFailures": [
+    "Temporary launch JSON projection90034B exceeded65535cap and was removed; final bounded files are not claimed fully compliant acquisition.",
+    "Sandbox ownership65534 was projection; approved same-userhost metadata observed root0.",
+    "Initial sandboxbusrestriction was not a hostauthorization denial."
+  ],
+  "missing": [
+    "complete first-use/source/ELF/pyc/transient/tool closure",
+    "no-mutator and dirty-state interval",
+    "effective manager-spawned environment",
+    "kernel audit state/rule event multiplicity",
+    "relevant fsnotify/fanotify receivers and callbacks or positive exclusion",
+    "effective stable consumer and spool state",
+    "finite gross append/rotation/compression/deferred allocation",
+    "complete future-capture plus causal160MiB equation"
+  ],
+  "nextAuthorityStep": "An existing authorized read-only administrator route or administrator-run reviewed status inspection; do not infer permission from goal or from this packet. Status alone does not qualify the remaining terms.",
+  "observedTerms": {
+    "fixedInputPaths": 88,
+    "historicalPycPins": 0,
+    "historicalRuntimePinBytes": 8319627,
+    "historicalRuntimePins": 71,
+    "launchSourcesBytes": 414602,
+    "outsideCapBytes": 167772160,
+    "outsideRemainingBeforeFutureAndCausalTerms": 57225216,
+    "ownedOutsideBytes": 110546944,
+    "selectedMount": "rw,noatime ext4",
+    "selectedPycAllocatedBytes": 7471104,
+    "selectedPycEntries": 330,
+    "selectedPycLogicalBytes": 6811851,
+    "stableRegularInputsWithEmptyXattrNames": 81,
+    "unavailableInputObservations": 7
+  },
+  "runtimeAcceptance": "4/11",
+  "sourceCommit": "42e1c6cccef285a288f7a5ee7693cf6695cc3d54",
+  "state": "incomplete-unqualified",
+  "task97Complete": false,
+  "unchanged": [
+    "fulloldG141754548224 charged",
+    "K33554432 separate",
+    "allsource/runtime/physicalfloors",
+    "retainedrawISOandexistingdevhistoryGrafanaMLflowVictoria",
+    "noSourceInputProviderSuccessClaim"
+  ]
+}

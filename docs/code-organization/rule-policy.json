@@ -15,6 +15,10 @@
       "mode": "observe"
     },
     {
+      "ruleId": "JOB-CATALOGUE",
+      "mode": "observe"
+    },
+    {
       "ruleId": "K2",
       "mode": "observe"
     },
@@ -623,7 +627,7 @@
       {
         "path": "infra/platform/charts/eck-elasticsearch-0.20.0.tgz",
         "format": "application/gzip",
-        "consumer": "infra/platform/observability/elastic/local/elasticsearch.yaml",
+        "consumer": "infra/platform/observability/elastic/base/elasticsearch.yaml",
         "regenerationAuthority": {
           "kind": "source",
           "path": "infra/versions/toolchain.json"

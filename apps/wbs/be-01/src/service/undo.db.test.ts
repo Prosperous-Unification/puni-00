@@ -5,12 +5,14 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { UndoOutcome } from '@wbs/core/module/work-item/work-item.resource';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { JournalEntry, LabelledWorkItem, Step, WorkItem, WriteStamp } from '../repository';
@@ -136,6 +138,8 @@ beforeEach(async () => {
     estimates: estimateStore,
     actuals: actualStore,
     measures: measureStore,
+    measureEstimates: new MeasureEstimateRepository(db, OPEN),
+    budgets: new WorkItemBudgetRepository(db, OPEN),
     progress: progressStore,
     attempts: new StepNodeAttemptRepository(db, OPEN),
     blockages: new StepBlockageRepository(db, OPEN),
@@ -377,7 +381,7 @@ function expectStale(outcome: UndoOutcome): string {
 
 /** The entry an undo would reach next for `userId`, or null. */
 async function nextUndoable(userId = ownerId): Promise<JournalEntry | null> {
-  const stack = await journalStore.entriesFor(projectId, userId);
+  const stack = await journalStore.entriesFor({ projectId, userId, personId: null });
   return [...stack].reverse().find((each) => !each.undone) ?? null;
 }
 
@@ -1495,11 +1499,15 @@ describe('redo', () => {
     const strip = await root('Strip');
     await workItems.patch(strip, ownerId, { name: 'Strip out' });
     expect(expectDone(await undone())).toBe('rename “Strip out”');
-    expect((await journalStore.stateOf(projectId, ownerId)).redoable).toBe(true);
+    expect(
+      (await journalStore.stateOf({ projectId, userId: ownerId, personId: null })).redoable,
+    ).toBe(true);
 
     await workItems.patch(strip, ownerId, { notes: 'a different thing entirely' });
 
-    expect((await journalStore.stateOf(projectId, ownerId)).redoable).toBe(false);
+    expect(
+      (await journalStore.stateOf({ projectId, userId: ownerId, personId: null })).redoable,
+    ).toBe(false);
     const outcome = await workItems.redo(projectId, ownerId);
     expect(outcome.ok).toBe(false);
     expect((await found(strip))?.name).toBe('Strip');

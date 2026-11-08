@@ -5,8 +5,7 @@ import { scratchSync } from '@tools/test-scratch';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { exportArgv, type SqliteReport } from './cutover';
-import { main as nativeMain, restoreJob } from './cutover-cli';
-const main = (args: readonly string[]) => nativeMain(args, () => Promise.resolve(undefined));
+import { main, restoreJob } from './cutover-cli';
 import {
   fixtureBackend,
   fixtureCutoverIdentity,
@@ -347,36 +346,3 @@ for (const malformed of [
     expect(outcome).toContain('malformed SQLite report');
   });
 }
-
-it('refuses selected missing registry protection before emitting a usable restore Job', async () => {
-  const root = scratchSync('wbs-cutover-registry-');
-  roots.push(root);
-  writeFileSync(join(root, 'descriptor.json'), fixtureDescriptorBytes);
-  writeFileSync(join(root, 'export.json'), JSON.stringify(exported));
-  const selected = process.env['REGISTRY_DEPLOYMENT_ENROLLMENT'];
-  process.env['REGISTRY_DEPLOYMENT_ENROLLMENT'] = join(root, 'missing-enrollment.json');
-  try {
-    const observation = await nativeMain([
-      'restore-job',
-      '--descriptor',
-      join(root, 'descriptor.json'),
-      '--descriptor-sha256',
-      sha256Of(fixtureDescriptorBytes),
-      '--old-image',
-      fixtureOldBackend,
-      '--image',
-      fixtureBackend,
-      '--export-report',
-      join(root, 'export.json'),
-      '--registry-target',
-      'k8s:cluster/wbs/wbs-solver',
-    ]).then(
-      () => 'EMITTED',
-      (cause: unknown) => String(cause),
-    );
-    expect(observation).toContain('ENOENT');
-  } finally {
-    if (selected === undefined) delete process.env['REGISTRY_DEPLOYMENT_ENROLLMENT'];
-    else process.env['REGISTRY_DEPLOYMENT_ENROLLMENT'] = selected;
-  }
-});

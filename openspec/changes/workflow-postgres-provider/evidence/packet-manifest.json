@@ -1,0 +1,9 @@
+{
+  "file": "postgres-index-20261104.json.gz",
+  "sha256": "1924e65a54b2e6b4aa494791a8603fc04bc7cdc7f1f15813dba07a546e18c295",
+  "bytes": 545412,
+  "originalFiles": 304,
+  "originalBytes": 1285442,
+  "originalIndexSha256": "aee1147c6735b53b50e55a6b5cc81aaeca4a574481726b02040db28ec62aee66",
+  "allReadbackHashesVerified": true
+}

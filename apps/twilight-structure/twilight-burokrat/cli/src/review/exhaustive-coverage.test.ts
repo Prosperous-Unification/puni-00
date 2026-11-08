@@ -1000,7 +1000,9 @@ describe('exhaustive repository coverage', () => {
     expect(() =>
       freezeExhaustivePlan(fixture.repository, fixture.revision, staleGraph, 'seed.fixture'),
     ).toThrow('artifact descriptor differs from selected evidence');
-  }, 20_000);
+    // Two freezes plus a commit over a fresh git fixture: about 10 s locally, but 20-21 s on
+    // shared CI runners (#772, #785 timed out at 20 s on every attempt), so allow 60 s.
+  }, 60_000);
 
   test('pinned pre-move mapping survives checkout drift but refuses a different candidate', () => {
     const fixture = repositoryFixture();

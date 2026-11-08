@@ -15,7 +15,7 @@ describe('saved sparse step parallelism', () => {
   it('captures ordered detached explicit facts including equality and sibling absence', () => {
     const supplied = [{ ...fact, stepId: 's2', maxParallel: 3 }, { ...fact }];
     const captured = canonicalisePlanInput(rows(supplied));
-    expect(captured.schemaVersion).toBe(8);
+    expect(captured.schemaVersion).toBe(9);
     expect(captured.stepParallels).toEqual([fact, { ...fact, stepId: 's2', maxParallel: 3 }]);
     expect(captured).toEqual(canonicalisePlanInput(rows([...supplied].reverse())));
     supplied[1].maxParallel = 9;
@@ -53,7 +53,7 @@ describe('saved sparse step parallelism', () => {
     const legacy = { ...earlier, schemaVersion: 7 };
     const bytes = JSON.stringify(legacy);
     const upgraded = normalisePlanInputForward(legacy, 7);
-    expect(upgraded.schemaVersion).toBe(8);
+    expect(upgraded.schemaVersion).toBe(9);
     expect(upgraded.stepParallels).toEqual([]);
     expect(JSON.stringify(legacy)).toBe(bytes);
   });

@@ -4,12 +4,11 @@ import { type } from 'arktype';
 import { expect, test } from 'bun:test';
 import { parseAllDocuments } from 'yaml';
 
-async function registryEnvironment(): Promise<Record<string, string>> {
+async function registryEnvironment(
+  source: 'base/registry.yaml' | 'production/storage-patch.yaml',
+): Promise<Record<string, string>> {
   const manifests = parseAllDocuments(
-    await readFile(
-      new URL('../../../infra/platform/registry/base/registry.yaml', import.meta.url),
-      'utf8',
-    ),
+    await readFile(new URL(`../../../infra/platform/registry/${source}`, import.meta.url), 'utf8'),
   ).map((document): unknown => document.toJS() as unknown);
   const shape = type({
     kind: "'Deployment'",
@@ -32,12 +31,20 @@ async function registryEnvironment(): Promise<Record<string, string>> {
   );
 }
 
-test('ordinary endpoint refuses manifest and blob deletion independently of credentials', async () => {
-  expect((await registryEnvironment())['REGISTRY_STORAGE_DELETE_ENABLED']).toBe('false');
+test('staged managed endpoint retains manifest and blob deletion refusal', async () => {
+  expect(
+    (await registryEnvironment('production/storage-patch.yaml'))['REGISTRY_STORAGE_DELETE_ENABLED'],
+  ).toBe('false');
 });
 
-test('ordinary endpoint disables age-only upload purging using the pinned object override', async () => {
-  const environment = await registryEnvironment();
+test('staged managed endpoint retains the pinned age-only purger override', async () => {
+  const environment = await registryEnvironment('production/storage-patch.yaml');
   expect(environment['REGISTRY_STORAGE_MAINTENANCE_UPLOADPURGING']).toBe('{"enabled": false}');
   expect(environment['REGISTRY_STORAGE_MAINTENANCE_UPLOADPURGING_ENABLED']).toBeUndefined();
+});
+
+test('active base preserves the supported legacy endpoint configuration', async () => {
+  const environment = await registryEnvironment('base/registry.yaml');
+  expect(environment['REGISTRY_STORAGE_DELETE_ENABLED']).toBe('true');
+  expect(environment['REGISTRY_STORAGE_MAINTENANCE_UPLOADPURGING']).toBeUndefined();
 });

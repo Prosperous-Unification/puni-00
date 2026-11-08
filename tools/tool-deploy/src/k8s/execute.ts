@@ -3,12 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
-import {
-  advanceRegistryHistory,
-  parseRegistryHistory,
-  prepareManagedDeployment,
-  type RegistryDeployment,
-} from '@tools/registry-publication';
+import { parseAllDocuments } from 'yaml';
 
 import { isTerminal, type JournalRecord, type ReleaseJournal } from './journal';
 import {
@@ -417,13 +412,6 @@ function startingState(request: ReleaseRequest, journal: ReleaseJournal): Releas
   // Proof: removing resume validation mutates the cluster with missing or altered durable replay progress.
   assertReplayProgress(existing.state, existing.request);
   const requestedId = releaseIdOf(request.release);
-  // Proof: the lost-persistence retry test reran validation against already-promoted cluster state without this terminal reuse.
-  if (
-    existing.registry != null &&
-    existing.state.phase === 'lease-released' &&
-    JSON.stringify(existing.request) === JSON.stringify(request)
-  )
-    return existing.state;
   if (existing.state.phase === 'recovery-required' || isTerminal(existing.state)) {
     // Proof: without this check `stops at recovery-required ... recovers with a fresh capture` started a fresh
     // release over the promoted one until recovery required an explicit `recovers` name.
@@ -458,12 +446,6 @@ function startingState(request: ReleaseRequest, journal: ReleaseJournal): Releas
 }
 
 export interface ExecuteOptions {
-  /** Actual authority boundary; the default reads trusted explicit enrollment. */
-  protectImages?: (
-    request: ReleaseRequest,
-    transaction: string,
-    recovers?: string,
-  ) => Promise<RegistryDeployment | undefined>;
   clock?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** Heartbeat period; the effects' Lease duration must be several of these. */
@@ -502,53 +484,6 @@ export async function executeRelease(
   const existing = journal.read();
   let state = startingState(request, journal);
   planRelease(request, state);
-  const registry = await (
-    options.protectImages ??
-    ((request, transaction, recovers) =>
-      prepareManagedDeployment(
-        transaction,
-        Object.values(request.release.images),
-        Object.values(request.expectedCurrent.images),
-        `k8s:${request.cluster.uid}/${request.namespaces.app}/${request.namespaces.backend}`,
-        process.env,
-        recovers,
-      ))
-  )(
-    request,
-    state.transactionId,
-    existing?.registry != null && request.recovers === existing.state.releaseId
-      ? existing.registry.operationId
-      : undefined,
-  );
-  if (
-    existing !== null &&
-    registry !== undefined &&
-    (existing.schemaVersion !== 4 || existing.registry == null)
-  )
-    throw new Error('Managed recovery requires a verified schema4 registry binding');
-  if (
-    existing?.registry != null &&
-    (existing.registry.registryId !== registry?.registryId ||
-      (existing.state.transactionId === state.transactionId &&
-        (existing.registry.operationId !== registry.operationId ||
-          JSON.stringify(existing.registry.references) !== JSON.stringify(registry.references))))
-  )
-    throw new Error('Managed recovery registry binding differs from authority');
-  let registryHistory = existing?.registryHistory ?? journal.readHistory?.() ?? null;
-  if (registry !== undefined) {
-    registryHistory = parseRegistryHistory(registryHistory, journal.path);
-    if (
-      registryHistory.registryId !== registry.registryId ||
-      registryHistory.product !== registry.product ||
-      registryHistory.environment !== registry.environment ||
-      registryHistory.target !== registry.target ||
-      registry.target !==
-        `k8s:${request.cluster.uid}/${request.namespaces.app}/${request.namespaces.backend}` ||
-      registryHistory.releases.length === 0
-    )
-      throw new Error('Managed release requires verified inherited owner history');
-  } else if (registryHistory !== null)
-    throw new Error('Managed release history cannot become unmanaged');
   const holder = `${state.transactionId}#${randomBytes(4).toString('hex')}`;
   const held = { value: false, lost: null as unknown };
 
@@ -598,26 +533,12 @@ export async function executeRelease(
   const history: { phase: string; at: string }[] = [...(existing?.history ?? [])];
   const record = (next: ReleaseState): void => {
     history.push({ phase: next.phase, at: new Date(clock()).toISOString() });
-    const entry: JournalRecord = {
-      schemaVersion: 4,
-      registry:
-        registry === undefined
-          ? null
-          : {
-              registryId: registry.registryId,
-              operationId: registry.operationId,
-              references: registry.references,
-            },
-      registryHistory,
-      request,
-      state: next,
-      history,
-    };
+    const entry: JournalRecord = { schemaVersion: 3, request, state: next, history };
     journal.write(entry);
   };
   // Proof: recording before claiming let `refuses to resume a transaction whose live
   // coordinator still renews the Lease` overwrite the live coordinator's journal.
-  if (state.phase !== 'requested' && !isTerminal(state)) await claim();
+  if (state.phase !== 'requested') await claim();
   if (state.phase !== 'requested' && history.at(-1)?.phase !== state.phase) record(state);
 
   // One Lease write at a time: a heartbeat and a pre-step renewal racing each other read the
@@ -726,25 +647,6 @@ export async function executeRelease(
   } finally {
     clearInterval(heartbeat);
   }
-  if (registry !== undefined) {
-    const receipt = await registry.finish(
-      state.phase === 'lease-released'
-        ? 'promoted'
-        : state.phase === 'rolled-back'
-          ? 'reconciled'
-          : 'recovery-required',
-    );
-    if (state.phase === 'lease-released') {
-      if (receipt === undefined) throw new Error('Release completion omitted authority history');
-      const advanced = advanceRegistryHistory(registryHistory, receipt);
-      if (JSON.stringify(advanced) !== JSON.stringify(registryHistory)) {
-        registryHistory = advanced;
-        record(state);
-        if (JSON.stringify(journal.read()?.registryHistory) !== JSON.stringify(advanced))
-          throw new Error('Release history persistence readback differs');
-      }
-    }
-  }
   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
   return state;
 }
@@ -795,6 +697,23 @@ export interface KubectlSettings {
   drainTimeoutMs: number;
   /** Lease lifetime without renewal; the executor's heartbeat must be several times shorter. */
   leaseDurationSeconds: number;
+  /**
+   * Stored audiences the operator accepts as breaking the MCP authorization server
+   * (`--accept-breaking`), handed to the capture Job's audience preflight as
+   * `WBS_ACCEPT_BREAKING_AUDIENCES`. Absent or empty accepts none.
+   */
+  acceptBreakingAudiences?: readonly string[];
+  /**
+   * The candidate overlay's `WBS_MCP_AUTHORIZATION_SERVER`, resolved before the transaction by
+   * {@link readCandidateAuthorizationServer} so its absence refuses before writes close. Absent,
+   * the capture effect resolves it itself.
+   */
+  candidateAuthorizationServer?: string;
+  /**
+   * The deploy declared an older candidate (`--allow-downgrade` or `--recovers`), so a capture
+   * Job may skip a preflight CLI the image does not ship. Otherwise an absent CLI refuses.
+   */
+  olderCandidateDeclared?: boolean;
   /**
    * Clone of the deploy repository the WBS GitRepository serves. `reconcile-desired` pushes
    * `flux.desiredRevision` to it, and only while the WBS unit is suspended. Absent or `null`,
@@ -905,6 +824,39 @@ if (mode === 'capture') {
   }
 }
 if (!fs.existsSync(dbPath)) throw new Error('database ' + dbPath + ' does not exist');
+// The MCP preflight (wbs-mcp-agent-surface M2, M3) runs before the snapshot and every
+// migration, in the order the Compose swap runs it: the machine grant settings (exit 4 on an
+// activated store lacking one), then the audience check against the candidate overlay's
+// WBS_MCP_AUTHORIZATION_SERVER (exit 3 on a breaking audience not in
+// WBS_ACCEPT_BREAKING_AUDIENCES). Either failure fails the Job with the CLI's exit and stderr.
+// A candidate without a CLI refuses, unless the deploy declared an older candidate
+// (--allow-downgrade or --recovers, PUNI_OLDER_CANDIDATE=1): then the check is skipped, loudly.
+// Proof: with this block removed, 'refuses an unaccepted wbs:org registration before the
+// snapshot' (execute-adapter.test.ts) took the snapshot and passed; watched 2026-10-28.
+if (mode === 'capture') {
+  for (const [name, path] of [
+    ['machine grant settings', 'src/mcp-service-settings-check-cli.ts'],
+    ['trusted issuer audience', 'src/trusted-issuer-audience-check-cli.ts'],
+  ]) {
+    if (!fs.existsSync(path)) {
+      // Proof: with this refusal replaced by the skip, 'refuses a candidate without the
+      // preflight CLIs unless an older candidate is declared' (execute-adapter.test.ts) took
+      // the snapshot; watched 2026-10-28.
+      if (process.env.PUNI_OLDER_CANDIDATE !== '1') {
+        throw new Error('candidate image lacks ' + path + '; only a declared downgrade or ' +
+          'recovery (--allow-downgrade, --recovers) may deploy an image without the ' + name + ' preflight');
+      }
+      console.error('declared older candidate ships no ' + path + ': the ' + name + ' preflight is skipped');
+      continue;
+    }
+    const check = Bun.spawnSync(['bun', 'run', path], { stdout: 'pipe', stderr: 'pipe' });
+    if (check.exitCode !== 0) {
+      throw new Error(name + ' preflight refused (exit ' + check.exitCode + '): ' +
+        check.stderr.toString().trim());
+    }
+    console.error(name + ' preflight passed: ' + check.stdout.toString().replace(/\s+/g, ' '));
+  }
+}
 const cli = (args) => {
   const child = Bun.spawnSync(['bun', 'run', ...args], { stdout: 'inherit', stderr: 'inherit' });
   if (child.exitCode !== 0) throw new Error(args.join(' ') + ' exited ' + child.exitCode);
@@ -1050,6 +1002,13 @@ const SECURITY_CONTEXT = {
 };
 
 /**
+ * The capture Job's settings preflight judges the machine grant settings be-01 will boot with,
+ * so it sees the backend's own Secret. The authorization server is not read from the live
+ * ConfigMap: the capture effect passes the candidate overlay's value as a plain env.
+ */
+const CAPTURE_ENV_FROM = [{ secretRef: { name: 'wbs-backend-secrets' } }];
+
+/**
  * One schema Job in the backend namespace. It satisfies F6's trusted admission (approved image,
  * service account, controller label, product node, no token) and runs at most one pod ever:
  * `backoffLimit: 0` and `podReplacementPolicy: Failed` forbid a replacement while one lives.
@@ -1098,6 +1057,10 @@ export function backendTaskJob(
                 { name: 'HOME', value: '/tmp' },
                 ...Object.entries(env).map(([key, value]) => ({ name: key, value })),
               ],
+              // Proof: with this entry removed, `passes the candidate overlay's server and the
+              // backend Secret, never the live ConfigMap` (execute-adapter.test.ts) failed;
+              // watched 2026-10-28.
+              ...(env['PUNI_TASK'] === 'capture' ? { envFrom: CAPTURE_ENV_FROM } : {}),
               resources: {
                 requests: { cpu: '50m', memory: '128Mi' },
                 limits: { memory: '512Mi' },
@@ -1868,6 +1831,24 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
           PUNI_TASK: 'capture',
           PUNI_RELEASE: identity.attempt,
           PUNI_SNAPSHOT_DIR: '/data/snapshots',
+          // The candidate's server, never the live ConfigMap's: the candidate overlay lands only
+          // in reconcileDesired, after migration, so the live value would judge a server change
+          // against the old server.
+          // Proof: with this entry removed, `passes the candidate overlay's server and the
+          // backend Secret, never the live ConfigMap` (execute-adapter.test.ts) failed; the
+          // same test refuses any configMapKeyRef in the Job; watched 2026-10-28.
+          WBS_MCP_AUTHORIZATION_SERVER:
+            settings.candidateAuthorizationServer ??
+            (await readCandidateAuthorizationServer(settings)),
+          ...(settings.olderCandidateDeclared === true ? { PUNI_OLDER_CANDIDATE: '1' } : {}),
+          // Proof: with this spread emptied, `passes the candidate overlay's server and the
+          // backend Secret, never the live ConfigMap` (execute-adapter.test.ts) failed; watched
+          // 2026-10-28.
+          ...((settings.acceptBreakingAudiences ?? []).length > 0
+            ? {
+                WBS_ACCEPT_BREAKING_AUDIENCES: (settings.acceptBreakingAudiences ?? []).join(','),
+              }
+            : {}),
         }),
         identity,
       );
@@ -2007,6 +1988,54 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
 }
 
 /** Renders `settings.overlay` with the release's digests substituted for the placeholder names. */
+/**
+ * `WBS_MCP_AUTHORIZATION_SERVER` from the backend ConfigMap in a rendered overlay: what be-01
+ * will boot with once this release reconciles.
+ *
+ * @throws when the render holds no such ConfigMap, or it lacks the key or leaves it empty.
+ */
+export function authorizationServerOfRendered(rendered: string, backendNamespace: string): string {
+  for (const document of parseAllDocuments(rendered)) {
+    const object: unknown = document.toJS();
+    if (object === null || typeof object !== 'object') continue;
+    const metadata: unknown = Reflect.get(object, 'metadata');
+    if (
+      Reflect.get(object, 'kind') !== 'ConfigMap' ||
+      metadata === null ||
+      typeof metadata !== 'object' ||
+      Reflect.get(metadata, 'name') !== 'wbs-backend-config' ||
+      Reflect.get(metadata, 'namespace') !== backendNamespace
+    )
+      continue;
+    const data: unknown = Reflect.get(object, 'data');
+    const server: unknown =
+      data !== null && typeof data === 'object'
+        ? Reflect.get(data, 'WBS_MCP_AUTHORIZATION_SERVER')
+        : undefined;
+    // Proof: with this refusal removed, `refuses a candidate overlay without the server`
+    // (execute-adapter.test.ts) returned undefined; watched 2026-10-28.
+    if (typeof server !== 'string' || server === '')
+      throw new Error(
+        `the candidate overlay's wbs-backend-config lacks WBS_MCP_AUTHORIZATION_SERVER`,
+      );
+    return server;
+  }
+  throw new Error(`the candidate overlay renders no ${backendNamespace}/wbs-backend-config`);
+}
+
+/**
+ * Renders the candidate overlay (`settings.overlay`, this checkout's) and reads its server with
+ * {@link authorizationServerOfRendered}. Images are irrelevant to a ConfigMap, so the overlay
+ * renders as it stands.
+ */
+export async function readCandidateAuthorizationServer(
+  settings: Pick<KubectlSettings, 'kubectl' | 'overlay' | 'namespaces'>,
+): Promise<string> {
+  const rendered = await run([settings.kubectl, 'kustomize', settings.overlay], null, 60_000);
+  if (rendered.exitCode !== 0) throw new Error(`kustomize failed: ${rendered.stderr.trim()}`);
+  return authorizationServerOfRendered(rendered.stdout, settings.namespaces.backend);
+}
+
 export async function renderOverlay(
   settings: Pick<KubectlSettings, 'kubectl' | 'overlay'>,
   identity: ReleaseIdentity,

@@ -24,6 +24,8 @@ import { ActionsMenu, type MenuAction } from './actions-menu';
 import { type AttemptActions, AttemptsSection } from './attempts-section';
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
+import { ClaimChip, type DrawnClaim } from './claim-chip';
+import { claimActions, type ClaimOffer } from './claim-offer';
 import { DEADLINE_EFFECT_HINT } from './column-hints';
 import {
   type PickableEntry,
@@ -42,6 +44,7 @@ import { type CommitOutcome, didLand, flushCell } from './live-editing';
 import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
+import { demandSummary } from './resource-demand-words';
 import { type PrintedDay, shortIsoDate } from './short-date';
 import { statusActions } from './status-cell';
 import { StepBlockageSection } from './step-blockage';
@@ -84,6 +87,8 @@ export interface CardRow {
  */
 export interface CardAssignee {
   name: string;
+  /** The folded cell's mark for `name`, distinct among the plan's people (C22). */
+  initials: string;
   assumed: boolean;
   /**
    * Why this person is marked as assigned outside the team — the whole
@@ -162,6 +167,14 @@ export interface PlanCardsProps {
   /** What the `@` list in one box is offering, or nothing while it is closed. */
   mentionOptions: (row: TreeRow, stepId: string) => PickerOption[];
   assigneeOn: (row: TreeRow, stepId: string) => CardAssignee | null;
+  /**
+   * The step claim drawn beside this step's assignee, the table's own
+   * (`wbs-claim-display` C17). Absent, as a suite drawing the cards for
+   * something else leaves it, the cards draw no chips.
+   */
+  stepClaimOn?: (row: TreeRow, stepId: string) => DrawnClaim | null;
+  /** The subtree claim drawn in this card's header, the table's Name-cell chip. */
+  subtreeClaimOn?: (row: TreeRow) => DrawnClaim | null;
   /**
    * A leaf node's reading and attempts, for its step line's `Attempts`
    * details (`step-node-attempts` D7): `null` on a parent and from an older
@@ -464,12 +477,25 @@ export interface CardRowActionHandlers {
   addChild: (row: TreeRow) => void;
   /** Opens the Move under… picker over the row, by id — the table's own. */
   moveUnder: (rowId: string) => void;
+  /** Opens the row's Measures panel, the table's own; absent where none is offered. */
+  measures?: (rowId: string) => void;
+  /** Opens a leaf's Resources panel, the table's own; absent where none is offered. */
+  resources?: (rowId: string) => void;
   unfreeze: (rowId: string) => void;
   remove: (row: TreeRow) => void;
   /** The table's own `chooseStatus`: Done and In progress ask first, the rest are sent at once. */
   chooseStatus: (rowId: string, status: SettableStatus) => void;
   /** The statuses the row's menu offers, the table's own {@link statusOffersOf}. */
   statusOffers: (row: TreeRow) => SettableStatus[];
+  /**
+   * The table's own Claim / Release my claim (`wbs-claim-display` 11.2);
+   * absent where the table was drawn for no account, as its ⋯ then offers none.
+   */
+  claims?: {
+    offerOf: (row: TreeRow) => ClaimOffer | null;
+    claim: (rowId: string, personId: string) => void;
+    release: (rowId: string, personId: string, delegated: number) => void;
+  };
 }
 
 /**
@@ -480,11 +506,26 @@ export interface CardRowActionHandlers {
  */
 const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuAction[] => [
   // The same list the table's ⋯ offers (`plan-columns/actions.tsx`), in the
-  // same order: the status entries, Add child, Move under…, Duplicate, Unfreeze where it applies, and
-  // Delete last in the destructive tint.
+  // same order: the status entries, Claim or Release my claim, Add child, Move under…, Duplicate, Measures…, Unfreeze where it
+  // applies, and Delete last in the destructive tint.
   ...statusActions(handlers.statusOffers(row), (status) => {
     handlers.chooseStatus(row.id, status);
   }),
+  // Proof: dropping this arm made `offers the same Claim on a phone card` fail
+  // on `Unable to find … "menuitem" and name "Claim"`; watched 2026-10-27.
+  ...(handlers.claims === undefined
+    ? []
+    : (() => {
+        const { claims } = handlers;
+        return claimActions(claims.offerOf(row), {
+          claim: (personId) => {
+            claims.claim(row.id, personId);
+          },
+          release: (personId, delegated) => {
+            claims.release(row.id, personId, delegated);
+          },
+        });
+      })()),
   {
     id: 'add-child',
     label: 'Add child',
@@ -506,6 +547,29 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
       handlers.duplicate(row.id);
     },
   },
+  ...(handlers.measures === undefined
+    ? []
+    : [
+        {
+          id: 'measures',
+          label: 'Measures…',
+          run: () => {
+            handlers.measures?.(row.id);
+          },
+        },
+      ]),
+  // A leaf's only: a parent's demand charges nothing (`wbs-resources` R2).
+  ...(handlers.resources === undefined || row.subRows.length > 0
+    ? []
+    : [
+        {
+          id: 'resources',
+          label: 'Resources…',
+          run: () => {
+            handlers.resources?.(row.id);
+          },
+        },
+      ]),
   ...(row.frozenNumber === null
     ? []
     : [
@@ -2693,6 +2757,8 @@ export function PlanCards({
   leaveEstimate,
   mentionOptions,
   assigneeOn,
+  stepClaimOn,
+  subtreeClaimOn,
   attemptsOn,
   attemptActionsOn,
   setStepBlocked,
@@ -2767,6 +2833,10 @@ export function PlanCards({
         const slack = cardSlackOf(row, showDay);
         const mismatches = cardMismatchesOf(row, steps, nonOwner, assigneeOn);
         const typedWaits = typedWaitsFor?.(row) ?? [];
+        // Proof: no chip read here made `draws a subtree claim’s chip in its
+        // card’s header` fail on `expected [] to deeply equal [ 'CL14m' ]`;
+        // watched 2026-10-24.
+        const subtreeClaim = subtreeClaimOn?.(row) ?? null;
         const offered = offering.has(row.id);
         const folds = !offered;
         // The same emptiness each field's own trigger reads; it only decides
@@ -2807,7 +2877,7 @@ export function PlanCards({
             }}
             className="border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"
           >
-            <header className="flex items-center gap-2">
+            <header className="flex flex-wrap items-center gap-x-2 gap-y-1">
               {expandable && (
                 <button
                   type="button"
@@ -2836,11 +2906,33 @@ export function PlanCards({
                 separate attributes.
               */}
               <CardPriorityField row={row} bands={priorityBands} setPriority={setPriority} />
-              <span data-final-total className="text-muted-foreground ml-auto text-sm">
+              {/*
+                Never wraps or shrinks. Proof: 2026-10-25, without `shrink-0
+                whitespace-nowrap`, or with the chip before the total in the DOM
+                (`order-last`, as first written), `keeps the card’s total on one
+                line, the subtree chip on its own` failed.
+              */}
+              <span
+                data-final-total
+                className="text-muted-foreground ml-auto shrink-0 text-sm whitespace-nowrap"
+              >
                 {showDay(row.finalTotal)} d
               </span>
               {rowActions !== undefined && (
                 <CardActions row={row} handlers={rowActions} menu={menu.current} />
+              )}
+              {/*
+                A subtree claim's chip takes its own line under the number: on a
+                375px phone the toggle, number, priority, chip, total and menu
+                do not fit one, and the chip squeezed in either clipped itself
+                or broke the total over two lines (swarm rehearsal, 2026-10-25).
+                Last in the DOM as well as on screen, so a screen reader meets
+                it in the order it is drawn.
+              */}
+              {subtreeClaim !== null && (
+                <span data-card-subtree-claim={row.id} className="basis-full">
+                  <ClaimChip drawn={subtreeClaim} form="full" tap />
+                </span>
               )}
             </header>
 
@@ -2876,6 +2968,10 @@ export function PlanCards({
               const options = mentionOptions(row, step.id);
               const listId = `card-mention-${row.id}-${step.id}`;
               const assignee = assigneeOn(row, step.id);
+              // Proof: no chip read here made `draws a step’s chip beside its
+              // assignee` fail on `expected [] to deeply equal [ 'CO14m' ]`;
+              // watched 2026-10-24.
+              const claim = stepClaimOn?.(row, step.id) ?? null;
               const trio = cardTrioOf(row, step, showDay);
               // The table's folded cell, on the face a phone reads: the box
               // holds the trio shorthand and the figure the estimate method
@@ -3008,6 +3104,11 @@ export function PlanCards({
                         }`}
                       >
                         {assignee.assumed ? `(${assignee.name})` : assignee.name}
+                      </span>
+                    )}
+                    {claim !== null && (
+                      <span data-card-claim={step.id} className="shrink-0">
+                        <ClaimChip drawn={claim} form="full" tap />
                       </span>
                     )}
                     {options.length > 0 && (
@@ -3281,6 +3382,26 @@ export function PlanCards({
                   createValue={createService}
                   foldsWhenEmpty={folds}
                 />
+              )}
+              {/*
+                What the leaf holds while it runs (`wbs-resources` 1.5), after
+                the labels as the table's Resources column sits after Types.
+                Only where it states some: the ⋯ menu's `Resources…` offers the
+                panel on every leaf, so an empty chip would be a second offer.
+              */}
+              {row.demands.length > 0 && row.subRows.length === 0 && (
+                <button
+                  type="button"
+                  data-card-resources={row.id}
+                  aria-label={`Resources for ${row.number}: ${demandSummary(row.demands)}`}
+                  disabled={rowActions?.resources === undefined}
+                  className={fieldTriggerClass(false, folds)}
+                  onClick={() => {
+                    rowActions?.resources?.(row.id);
+                  }}
+                >
+                  {demandSummary(row.demands)}
+                </button>
               )}
               {/*
                 What the plan was asked to run this row at, where somebody asked

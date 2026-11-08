@@ -1,5 +1,14 @@
 # Registry consumer installation and recovery
 
+**Source staging — 2026-11-08:** Registry lifecycle libraries and manual provisioning
+sources are retained for future coordinated activation. Supported publish, copy,
+Compose and Kubernetes commands keep current-main routing and legacy persisted
+writer versions; they do not select managed adapters. Explicit managed helpers
+require trusted enrollment. Historical installed receipts below do not establish
+current readiness. Managed procedures remain attended future operations; this
+source merge performs no installation, adoption or production action. Full native,
+provider, storage, backup, isolation, recovery and delivery acceptance stays open.
+
 This is the installation contract for the staged bounded-registry tools. It does
 not declare an existing product adopted. Task11 installs the reviewed artifacts,
 trusted configuration and source access together; product image migration remains

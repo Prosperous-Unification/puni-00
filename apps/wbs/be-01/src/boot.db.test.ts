@@ -21,6 +21,7 @@ import type { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
 import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
+import { TEST_MCP_SERVICE_SETTINGS } from './testing/machine-grant-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
 /**
@@ -33,6 +34,7 @@ import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-
 interface HealthAnswer {
   status: string;
   commit: string | null;
+  bootCommit: string | null;
 }
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
@@ -102,6 +104,7 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
       organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+      mcpService: TEST_MCP_SERVICE_SETTINGS,
       localIdentity: { id: 'ada', username: 'ada', scopes: ['read', 'write'] },
     },
     {
@@ -317,6 +320,8 @@ function bootOptions(dbPath: string, port: number) {
     internalAuthSecret: 's'.repeat(32),
     browserSessionAuthority: 'disabled' as const,
     organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+    // Activated stores refuse to boot without them (machine-grant.boot.db.test.ts).
+    mcpService: TEST_MCP_SERVICE_SETTINGS,
   };
 }
 
@@ -805,6 +810,43 @@ describe('bootBe01', () => {
     });
   });
 
+  it('serves agent pools from the shared database once activated', async () => {
+    const dir = tempDir('wbs-agent-pool-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    let pools: Parameters<typeof buildApp>[0]['agentPools'];
+    running = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        pools = options.agentPools;
+        const app = buildApp(options);
+        app.stop = () => Promise.resolve(app);
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (pools === undefined) throw new Error('boot did not wire agent pools');
+    expect(await pools.list('org-a', 'ada', Date.now())).toEqual([]);
+    expect(await pools.list('org-a', 'nobody', Date.now())).toBe('forbidden');
+  });
+
   it('serves machine credential administration from the shared database once activated', async () => {
     const dir = tempDir('wbs-machine-credential-boot-');
     const dbPath = join(dir, 'test.db');
@@ -922,7 +964,7 @@ describe('bootBe01', () => {
     expect(await providers.reports.readingsOf(['absent'])).toEqual(new Map());
   });
 
-  it("refuses a stranger issuer's JWT invalid_token once booted", async () => {
+  it("refuses a stranger issuer's JWT machine_bearer_not_accepted once booted", async () => {
     const dir = tempDir('wbs-trusted-issuer-token-boot-');
     const dbPath = join(dir, 'test.db');
     runMigrations(dbPath, FOLDER);
@@ -946,7 +988,7 @@ describe('bootBe01', () => {
       .setIssuer('https://stranger.example.test')
       .setExpirationTime('5m')
       .sign(privateKey);
-    expect(await auth.authenticateOrRefuse(token)).toBe('invalid_token');
+    expect(await auth.authenticateOrRefuse(token)).toBe('machine_bearer_not_accepted');
   });
 
   it('codes the steps an older writer left uncoded once it has migrated', async () => {
@@ -1147,7 +1189,7 @@ describe('bootBe01', () => {
     expect(closes).toBe(1);
   }, 10_000);
 
-  it('releases the source and the port when a step after the listener fails', async () => {
+  it('releases the source without acquiring a port when startup migration fails', async () => {
     const dir = tempDir('wbs-boot-rollback-');
     const dbPath = join(dir, 'test.db');
     const port = await freePort();
@@ -1396,7 +1438,11 @@ describe('bootBe01', () => {
     const res = await fetch(`http://localhost:${String(be.port)}/health`);
 
     expect(res.status).toBe(200);
-    expect((await res.json()) as HealthAnswer).toEqual({ status: 'ok', commit: null });
+    expect((await res.json()) as HealthAnswer).toEqual({
+      status: 'ok',
+      commit: null,
+      bootCommit: null,
+    });
   });
 
   it('names the commit its checkout is at, not one captured at startup', async () => {
@@ -1414,14 +1460,27 @@ describe('bootBe01', () => {
     const be = await boot(repo);
 
     const first = await fetch(`http://localhost:${String(be.port)}/health`);
-    expect((await first.json()) as HealthAnswer).toEqual({ status: 'ok', commit: sha });
+    expect((await first.json()) as HealthAnswer).toEqual({
+      status: 'ok',
+      commit: sha,
+      bootCommit: sha,
+    });
 
     // The deploy this exists for moves the checkout under a process that is
     // never restarted, so the second read has to see the move.
     const moved = 'd'.repeat(39) + '4';
     writeFileSync(join(repo, '.git', 'refs', 'heads', 'main'), moved + '\n');
     const second = await fetch(`http://localhost:${String(be.port)}/health`);
-    expect((await second.json()) as HealthAnswer).toEqual({ status: 'ok', commit: moved });
+    // `bootCommit` stays where the process started: this is the stale watcher
+    // of 2026-10-26, a moved checkout under code that never reloaded, and the
+    // only field that can tell `tools/tool-devsync` so. Proof: striking
+    // `bootCommit,` from `boot.ts` failed the first read (`null` for c…3); making
+    // the endpoint answer `bootCommit = commit` failed this one (d…4 for c…3).
+    expect((await second.json()) as HealthAnswer).toEqual({
+      status: 'ok',
+      commit: moved,
+      bootCommit: sha,
+    });
   });
 
   it('holds a command batch out while the write coordinator is taken', async () => {
@@ -1593,19 +1652,64 @@ describe('OIDC boot wiring', () => {
   });
 });
 
-for (const passwordLoginEnabled of [false, true]) {
-  it(`keeps boot verifier outages as 500 with password login ${String(passwordLoginEnabled)}`, async () => {
+// With password login on, a native session verifies on the JWT key and its
+// credential evidence never asks the verifier, so a discovery outage leaves
+// it working on data routes too (issue #669 F5). With password login off, or
+// for a token that is not native, the token reaches the verifier and its
+// outage stays a 500.
+describe('a native session under a verifier outage', () => {
+  async function bootWithOutage(passwordLoginEnabled: boolean) {
     const oidc = oidcOptions(passwordLoginEnabled);
     oidc.verifier = { verify: () => Promise.reject(new Error('discovery unavailable')) };
     const be = await boot(undefined, oidc);
     const registered = await be.services.auth.register('password-user', 'correct-horse-2026');
     if (!registered.ok) throw new Error('password fixture was not registered');
-    const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {
-      headers: { cookie: `__Host-wbs_access=${registered.value.token}` },
+    return { port: be.port, token: registered.value.token };
+  }
+
+  for (const route of ['/api/auth/me', '/api/projects', '/api/people']) {
+    // Proof: with first-party principals still asking the upstream verifier
+    // in `organizationCredentialEvidence`, `/api/projects` and `/api/people`
+    // answered 500 for both carriers; watched 2026-10-24.
+    it(`answers ${route} 200 by cookie and by Bearer with password login on`, async () => {
+      const { port, token } = await bootWithOutage(true);
+      const byCookie = await fetch(`http://localhost:${String(port)}${route}`, {
+        headers: { cookie: `__Host-wbs_access=${token}` },
+      });
+      const byBearer = await fetch(`http://localhost:${String(port)}${route}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect([byCookie.status, byBearer.status]).toEqual([200, 200]);
+    });
+  }
+
+  it('answers 500 with password login off', async () => {
+    const { port, token } = await bootWithOutage(false);
+    const me = await fetch(`http://localhost:${String(port)}/api/people`, {
+      headers: { cookie: `__Host-wbs_access=${token}` },
     });
     expect(me.status).toBe(500);
   });
-}
+
+  it('still answers an RS256 token 500 rather than admitting it', async () => {
+    const { port } = await bootWithOutage(true);
+    const { privateKey } = await generateKeyPair('RS256');
+    const upstream = await new SignJWT({ sub: 'upstream-user' })
+      .setProtectedHeader({ alg: 'RS256' })
+      .setIssuer('https://idp.test')
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(privateKey);
+    const statuses = [];
+    for (const route of ['/api/auth/me', '/api/people']) {
+      const answer = await fetch(`http://localhost:${String(port)}${route}`, {
+        headers: { authorization: `Bearer ${upstream}` },
+      });
+      statuses.push(answer.status);
+    }
+    expect(statuses).toEqual([500, 500]);
+  });
+});
 
 it('refuses boot after migrations when blockage admission authority is missing', async () => {
   const dbPath = join(tempDir('wbs-blockage-boot-'), 'plan.db');

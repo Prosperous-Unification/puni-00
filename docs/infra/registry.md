@@ -1,5 +1,14 @@
 # Private registry operation
 
+**Source staging — 2026-11-08:** Registry lifecycle libraries and manual provisioning
+sources are retained for future coordinated activation. Supported publish, copy,
+Compose and Kubernetes commands keep current-main routing and legacy persisted
+writer versions; they do not select managed adapters. Explicit managed helpers
+require trusted enrollment. Historical installed receipts below do not establish
+current readiness. Managed procedures remain attended future operations; this
+source merge performs no installation, adoption or production action. Full native,
+provider, storage, backup, isolation, recovery and delivery acceptance stays open.
+
 The platform registry is Distribution 2.8.3 with verified TLS and htpasswd authentication. Its endpoint is `registry.puni.internal:5000`, resolved to h4claw’s private address `10.1.0.4`. It uses the existing `puni-registry/registry` PVC, a 50 GiB local-path Retain volume on h4claw. This is a single-instance service, not a highly available registry.
 
 The existing website images remain on GHCR and WBS keeps its existing registry. Making this endpoint usable does not migrate either product. See the [activation checklist](../../openspec/changes/activate-platform-registry/tasks.md).

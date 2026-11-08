@@ -145,7 +145,7 @@ async function seeded(cap: number, counting: { source: CountSource }) {
       ),
   });
   const run = (projectId: string, userId: string, commands: PlanCommand[]) =>
-    runner.runWithin(projectId, userId, commands, accessOf(userId), null);
+    runner.runWithin(projectId, userId, commands, accessOf(userId), null, null);
   /** Arms the hold so the next sum read waits, holding its turn, until released. */
   const holdNextRead = () => {
     let release: () => void = () => undefined;

@@ -21,7 +21,7 @@ import {
 } from '@twilight-burokrat/contracts';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
 
-import { runDash } from '../cli';
+import { runDashArguments } from '../cli';
 
 const navigatorRoot = join(import.meta.dir, '../../../../twilight-navigator/cli/src');
 const burokrat = join(import.meta.dir, '../../../../twilight-burokrat/cli/src/cli.ts');
@@ -121,7 +121,7 @@ beforeAll(() => {
   exportsRoot = mkdtempSync(join(tmpdir(), 'dash-exports-'));
   const requirements = join(exportsRoot, 'requirements.md');
   writeFileSync(requirements, 'Requirements\n');
-  for (const version of [7, 8, 9, 10]) {
+  for (const version of [7, 8, 9, 10, 11]) {
     const destination = join(exportsRoot, String(version));
     mkdirSync(destination);
     const invocation = invokeCli(join(navigatorRoot, 'entrypoint.ts'), [
@@ -157,7 +157,9 @@ afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-for (const version of [6, 7, 8, 9, 10])
+// Proof: with 11 dropped from Burokrat's `planDocumentVersion`, generating the v11
+// Navigator reference failed this file's `beforeAll` (0 pass, 1 fail); watched 2026-10-24.
+for (const version of [6, 7, 8, 9, 10, 11])
   test(`records canonical v1 receipt for reference v${String(version)} without changing inputs`, () => {
     loadFixture(version);
     const paths = [referencePath, tasksPath, entriesPath];
@@ -301,7 +303,7 @@ for (const name of [
     const invocation = invokeDash(argv);
     expect(invocation.exitCode).toBe(1);
     expect(invocation.stdout).toBe('');
-    expect(invocation.stderr).toContain('usage: dash record-progress');
+    expect(invocation.stderr).toContain('usage: twilight-dash record-progress ');
     expect(invocation.stderr).not.toContain('missing:');
     expect(existsSync(output)).toBe(false);
   });
@@ -343,7 +345,8 @@ for (const fault of [
   'v8schema1',
   'v9schema1',
   'v10schema1',
-  'v11',
+  'v11schema1',
+  'v12',
   'unknownTask',
   'parentTask',
   'unknownStep',
@@ -351,7 +354,13 @@ for (const fault of [
   'tasksExtra',
 ])
   test(`refuses planning fault ${fault}`, () => {
-    if (fault === 'v8schema1' || fault === 'v9schema1' || fault === 'v10schema1') loadFixture(7);
+    if (
+      fault === 'v8schema1' ||
+      fault === 'v9schema1' ||
+      fault === 'v10schema1' ||
+      fault === 'v11schema1'
+    )
+      loadFixture(7);
     if (fault === 'plan') tasks.plan = 'another';
     if (fault === 'count') reference['taskCount'] = 99;
     if (fault === 'duplicateTask') {
@@ -377,7 +386,7 @@ for (const fault of [
       writeInputs();
     }
     expectRefusal(
-      fault === 'referenceDigest' || fault === 'v11' || fault === 'referenceExtra'
+      fault === 'referenceDigest' || fault === 'v12' || fault === 'referenceExtra'
         ? 'plan reference is malformed'
         : fault === 'tasksExtra'
           ? 'task export is malformed'
@@ -465,7 +474,7 @@ test('dispatcher uses no clocks or fleet planner', async () => {
   const forbidden = () => {
     throw new Error('forbidden dependency');
   };
-  await runDash(['record-progress', ...buildFlags()], {
+  await runDashArguments(['record-progress', ...buildFlags()], {
     clock: { read: forbidden },
     monotonic: { now: forbidden },
     planEnrollment: forbidden,

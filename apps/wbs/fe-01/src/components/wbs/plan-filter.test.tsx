@@ -1882,3 +1882,188 @@ describe('what the filter says it dropped, and what it exports', () => {
     expect(text).not.toContain('Scope');
   });
 });
+
+describe('narrowing the plan by resource (wbs-resources 3.4)', () => {
+  beforeEach(showEveryColumn);
+
+  const RAM = { id: 'r-ram', name: 'h2puni ram', kind: 'divisible' as const, unitLabel: 'GB' };
+  const STAGING = { id: 'r-stg', name: 'staging', kind: 'exclusive' as const, unitLabel: '' };
+  const DISK = { id: 'r-disk', name: 'disk', kind: 'divisible' as const, unitLabel: 'GB' };
+
+  /**
+   * ```
+   * 010     Gate        demands disk itself, which as a parent charges nothing
+   *  010.1   Build      h2puni ram 6, staging
+   *  010.2   Lint       h2puni ram 2
+   * 020     Deploy
+   *  020.1   Smoke      staging
+   *  020.2   Docs       nothing
+   * ```
+   *
+   * `disk` is demanded only by a parent, so the facet must not offer it: a
+   * parent's demand is kept and levels nothing.
+   */
+  async function aDemandingPlan(): Promise<ReturnType<typeof fakeApi>> {
+    const api = fakeApi();
+    const gate = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Gate' });
+    const build = await api.createWorkItem('p1', {
+      parentId: gate.id,
+      afterId: null,
+      name: 'Build',
+    });
+    const lint = await api.createWorkItem('p1', {
+      parentId: gate.id,
+      afterId: build.id,
+      name: 'Lint',
+    });
+    const deploy = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: gate.id,
+      name: 'Deploy',
+    });
+    const smoke = await api.createWorkItem('p1', {
+      parentId: deploy.id,
+      afterId: null,
+      name: 'Smoke',
+    });
+    await api.createWorkItem('p1', { parentId: deploy.id, afterId: smoke.id, name: 'Docs' });
+    api.resources.push(
+      { ...RAM, providerId: null },
+      { ...STAGING, providerId: null },
+      { ...DISK, providerId: null },
+    );
+    api.demands.push(
+      { workItemId: gate.id, resourceId: DISK.id, units: 4 },
+      { workItemId: build.id, resourceId: RAM.id, units: 6 },
+      { workItemId: build.id, resourceId: STAGING.id, units: 1 },
+      { workItemId: lint.id, resourceId: RAM.id, units: 2 },
+      { workItemId: smoke.id, resourceId: STAGING.id, units: 1 },
+    );
+    return api;
+  }
+
+  async function shown(api: ProjectApi): Promise<void> {
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020', '020.1', '020.2']);
+    });
+    fireEvent.click(screen.getByText(/^Filters/));
+  }
+
+  const tick = (label: string) => {
+    fireEvent.click(screen.getByLabelText(label));
+  };
+
+  itDom('offers the resources the leaves demand, by name, and never a parent’s own', async () => {
+    await shown(await aDemandingPlan());
+    const group = document.querySelector('[data-facet-group="resource"]');
+    if (!(group instanceof HTMLElement)) throw new Error('no Resource group');
+    expect(
+      within(group)
+        .getAllByRole('checkbox')
+        .map((box) => box.getAttribute('aria-label')),
+    ).toEqual(['Resource h2puni ram', 'Resource staging']);
+    expect(screen.queryByLabelText('Resource disk')).toBeNull();
+  });
+
+  itDom('keeps the leaves demanding a ticked resource and the rows that place them', async () => {
+    await shown(await aDemandingPlan());
+
+    tick('Resource staging');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '020.1']);
+    expect(screen.getByLabelText('Name of 020.1').dataset['match']).toBe('true');
+    expect(screen.getByLabelText('Name of 010').dataset['match']).toBeUndefined();
+    expect(screen.getByText('Filters (1)')).toBeInTheDocument();
+
+    tick('Resource h2puni ram');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020', '020.1']);
+  });
+
+  itDom('draws no Resource group on a plan stating no demand', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Gate' });
+    api.resources.push({ ...RAM, providerId: null });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010']);
+    });
+    fireEvent.click(screen.getByText(/^Filters/));
+
+    expect(document.querySelector('[data-facet-group="resource"]')).toBeNull();
+    expect(screen.queryByLabelText(/^Resource /)).toBeNull();
+  });
+
+  itDom('saves a view by resource in words, and applies it back after a reload', async () => {
+    await shown(await aDemandingPlan());
+    tick('Resource staging');
+    fireEvent.click(screen.getByText(/^Views/));
+    // Saved unnamed, so the view takes the filter's own words as its name.
+    click('Save');
+    const stored: unknown = JSON.parse(localStorage.getItem('wbs.views.p1') ?? 'null');
+    expect(stored).toMatchObject([
+      { name: 'resource staging', criteria: { resourceIds: ['r-stg'] } },
+    ]);
+
+    cleanup();
+    await shown(await aDemandingPlan());
+    expect(screen.getByLabelText('Resource staging')).not.toBeChecked();
+    fireEvent.click(screen.getByText(/^Views/));
+    fireEvent.click(screen.getByText('resource staging'));
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '020.1']);
+    expect(screen.getByLabelText('Resource staging')).toBeChecked();
+  });
+
+  itDom('names a ticked resource no leaf demands any more, and narrows to nothing', async () => {
+    localStorage.setItem(
+      'wbs.views.p1',
+      JSON.stringify([
+        {
+          id: 'gone',
+          name: 'Gone',
+          criteria: {
+            query: '',
+            teamIds: [],
+            resourceIds: ['r-gone'],
+            assigneeIds: [],
+            priorityBands: [],
+            estimatedStepIds: [],
+            unestimated: false,
+            critical: false,
+          },
+        },
+      ]),
+    );
+    await shown(await aDemandingPlan());
+    fireEvent.click(screen.getByText(/^Views/));
+    fireEvent.click(screen.getByText('Gone'));
+
+    expect(numbersOnScreen()).toEqual([]);
+    expect(screen.getByLabelText('Resource a resource this plan has not loaded')).toBeChecked();
+  });
+
+  itDom('drops a saved view whose resources are not a list, keeping the rest', async () => {
+    const criteria = {
+      query: 'x',
+      teamIds: [],
+      assigneeIds: [],
+      priorityBands: [],
+      estimatedStepIds: [],
+      unestimated: false,
+      critical: false,
+    };
+    localStorage.setItem(
+      'wbs.views.p1',
+      JSON.stringify([
+        { id: 'a', name: 'Before resources', criteria },
+        { id: 'b', name: 'Malformed', criteria: { ...criteria, resourceIds: 'r-ram' } },
+      ]),
+    );
+    await shown(await aDemandingPlan());
+    fireEvent.click(screen.getByText(/^Views/));
+
+    expect(screen.getByText('Views (1)')).toBeInTheDocument();
+    expect(screen.getByText('Before resources')).toBeInTheDocument();
+  });
+});

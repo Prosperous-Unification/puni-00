@@ -850,6 +850,8 @@ it('refuses unsafe replacement entries without deleting canonical or unrelated f
     else if (kind === 'directory') await mkdir(path, { mode: 0o700 });
     else if (kind === 'symlink') await symlink(join(directory, 'journal.json'), path);
     else await writeFile(path, 'preserve', { mode: kind === 'public-file' ? 0o644 : 0o600 });
+    // Creation mode is masked by umask; inject the actual public mode even under private077 callers.
+    if (kind === 'public-file') await chmod(path, 0o644);
     await writeFile(join(directory, 'operator-notes'), 'unrelated', { mode: 0o600 });
     await requireRefusal(read(directory), 'replacement');
     expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);

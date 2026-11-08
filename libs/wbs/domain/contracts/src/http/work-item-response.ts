@@ -53,6 +53,12 @@ export const nodeResourcesShape = type({
   maxParallel: 'number',
   width: 'number',
 });
+/** A money figure's basis on the wire: currency and rate card digest (design D43). */
+export const moneyBasis = type({ currency: 'string', rateCardDigest: 'string' });
+
+/** The two bases a mix is named by, null for an unpriced figure (design D44). */
+export const mixedBases = type([moneyBasis.or('null'), moneyBasis.or('null')]);
+
 export const numberedWorkItem = type({
   id: 'string',
   projectId: 'string',
@@ -91,6 +97,55 @@ export const numberedWorkItem = type({
   status:
     "'unknown' | 'draft' | 'ready' | 'in_progress' | 'blocked_by_proxy' | 'on_hold' | 'blocked' | 'done'",
   measures: type({ '[string]': numbers }),
+  // Estimates per measure other than time by definition key, then step id
+  // (`wbs-measure-budgets` D3): the summed trio, whether every trio in it is
+  // single-point, the expected measure and, when a fact sits beside it, the
+  // variance. Absent when no measure holds an estimate on the row, and from
+  // an older be-01 mid-swap.
+  'measureEstimates?': type({
+    '[string]': type({
+      '[string]': type({
+        optimistic: 'number',
+        realistic: 'number',
+        pessimistic: 'number',
+        singlePoint: 'boolean',
+        expected: 'number',
+        'variance?': 'number',
+      }),
+    }),
+  }),
+  // Budgets by definition key (`wbs-measure-budgets` D5, design D39): stated
+  // or derived from the pessimistic points, with what remains after the
+  // subtree's facts and holds (negative past the cap) and whether the facts
+  // crossed it; `held` and `holdPerAttempt` only where the budget states a hold. Absent when the
+  // row has none, and from an older be-01 mid-swap.
+  'budgets?': type({
+    '[string]': type({
+      cap: 'number',
+      policy: "'strict' | 'advisory'",
+      source: "'stated' | 'derived'",
+      remaining: 'number',
+      exceeded: 'boolean',
+      'held?': 'number',
+      // The stated hold per running attempt, beside `held`, only where the
+      // budget states one (design D60): what an editor would otherwise drop.
+      'holdPerAttempt?': 'number',
+    }),
+  }),
+  // Money keys whose figures in the subtree are priced under two bases, per
+  // kind, with the first two (null: unpriced). Facts and trios fold apart: a
+  // key mixing facts is left out of `measures` and `budgets`, one mixing trios
+  // out of `measureEstimates` (design D44).
+  'mixedRateCards?': type({
+    '[string]': type({ 'facts?': mixedBases, 'estimates?': mixedBases }),
+  }),
+  // The one priced basis a money key's figures in the subtree are in, per
+  // kind (`wbs-measure-budgets` D49): what the row's sums in that key are
+  // priced with. A mixing kind is in `mixedRateCards` instead; unpriced
+  // figures name none. Absent when no key has one, and from an older be-01.
+  'moneyBases?': type({
+    '[string]': type({ 'facts?': moneyBasis, 'estimates?': moneyBasis }),
+  }),
   dependsOn: 'string[]',
   finalDays: numbers,
   // Absent only from a backend that predates estimate units during swap or rollback.
@@ -235,6 +290,17 @@ export const workItemTree = type({
   // Present exactly when a slice's `capacityResource` names a resource
   // (`wbs-resources` R5): one label per resource named.
   'resourceLabels?': type({ id: 'string', name: 'string', unitLabel: 'string' }).array(),
+  // Both present exactly when a work item of the project states a demand
+  // (`wbs-resources` 1.5): each demand in work-item then resource-id order, and
+  // one entry per resource a demand names, under the caller's directory names.
+  // The tree read alone carries them; an export writes its own file-local lists.
+  'demands?': type({ workItemId: 'string', resourceId: 'string', units: 'number' }).array(),
+  'demandedResources?': type({
+    id: 'string',
+    name: 'string',
+    kind: "'exclusive' | 'divisible'",
+    unitLabel: 'string',
+  }).array(),
   slices: workItemSlice.array(),
   steps: stepShape.array(),
   assignedPeople: named.array(),

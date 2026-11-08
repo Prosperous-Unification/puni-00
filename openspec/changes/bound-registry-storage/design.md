@@ -861,3 +861,30 @@ This conservative classification can refuse benign anonymous descriptors; it
 never treats unknown authority as safe because it has no current storage FD.
 The complete descriptor-authority review and native proof remain pending, and
 these source corrections alone do not establish installed readiness.
+
+## Source-stage boundary — 2026-11-08
+
+The complete retained source is staged while ordinary publishAll/copyImage, DeployPlan,
+executeRelease, startCutover and runSwaps preserve current-main behavior. Ordinary
+journal writers remain schema3/version2 and TierState remains the legacy contract.
+The active registry render remains current-main; production/storage-patch.yaml is unreferenced.
+
+Explicit managed helpers retain mandatory catalog selection and source-owned history.
+Registry-first-start and registry-journal own managed state; first-start-state and
+journal-state share only sealed request, receipt, migration and replay validation.
+Baseline parsers enforce their original versions before common validation. No second
+coordinator, automatic upgrade, initialized history, selector fallback or default hook
+is introduced. ComposeRegistryPlan and RegistryTierState name dormant ownership.
+
+Before switching supported routing, complete the outstanding coordinated caller,
+physical/native, provider, backup, isolation, delivery and restore acceptance. The
+exact-revision host gate remains required before deployment/adoption; source readiness
+requires actual owning source checks and current-head CI, without a duplicate host gate.
+Original integrated prototype/evidence remains at e347fbf7adf555e75259ad520ffe7eef25e2a1b4.
+
+Source CI preserves the ordinary fleet test prerequisites in both ci.yml's selected
+workspace shard and infra-check's fleet-check job. They invoke one shared CI-only
+compiler/user-namespace preparation helper before fleet tests. The workspace's exact
+fleet/full selector and unrelated Twilight profile remain unchanged. Both infra
+workflow event filters include helper-only changes. This provisions no target host
+and invokes no registry installer or stopped privileged proof.

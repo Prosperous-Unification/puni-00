@@ -1,3 +1,4 @@
+import { runWhileReportingThrows } from '@shared/failures/testing';
 import { parseOrThrow } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
 
@@ -13,7 +14,8 @@ interface LoggedLoss {
 /**
  * Log two failures no report can be built for and read back both loss records.
  *
- * Asserts nothing about which layer produced the loss, so it holds both on an intact tree, where
+ * The report library is made to throw, because no caught value does any more. Asserts nothing
+ * about which layer produced the loss, so it holds both on an intact tree, where
  * `@shared/failures` returns it, and under the dependency fault of the guard's proof, where the
  * serializer's own fallback does.
  */
@@ -27,11 +29,11 @@ function twoLostReports(): [LoggedLoss, LoggedLoss] {
       },
     },
   });
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const revocable = Proxy.revocable({}, {});
-    revocable.revoke();
-    logger.error({ err: new Error('boom', { cause: revocable.proxy }) }, 'report lost');
-  }
+  runWhileReportingThrows(() => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      logger.error({ err: new Error('boom') }, 'report lost');
+    }
+  });
   const [first, second] = stream
     .slice(-2)
     .map((line) => parseOrThrow(LogRecord, JSON.parse(line) as Record<string, unknown>))
@@ -247,10 +249,13 @@ describe('createLogger', () => {
         },
       },
     });
-    const revocable = Proxy.revocable({}, {});
-    revocable.revoke();
 
-    logger.error({ err: new Error('boom', { cause: revocable.proxy }) }, 'unreadable failure');
+    // Proof: on 2026-11-02, making `reportFailure`'s catch rethrow failed this test on
+    // `Expected to contain: "UNREPORTED_"` (the serializer fallback answered), and leaving
+    // `makeReportPair` unfaulted failed it and both `twoLostReports` tests on `reported: true`.
+    runWhileReportingThrows(() => {
+      logger.error({ err: new Error('boom') }, 'unreadable failure');
+    });
 
     const parsed = parseOrThrow(LogRecord, JSON.parse(stream.at(-1)!) as Record<string, unknown>);
     const failure = parsed.err as { occurrence_id: string; reported: false; reason: string };
