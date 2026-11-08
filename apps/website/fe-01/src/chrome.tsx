@@ -132,11 +132,13 @@ const navigation = [
   { label: 'Home', href: `${siteOrigin}/` },
   { label: 'Build', href: '/' },
   { label: 'Services', href: `${siteOrigin}/services/` },
+  { label: 'About', href: `${siteOrigin}/#about` },
   { label: 'Blog', href: `${siteOrigin}/blog/` },
 ] as const;
 
 /**
- * The measured landing masthead: left identity, right horizontal desktop links and a narrow
+ * The measured landing masthead, the same five links as the site's header (About joined on
+ * 2026-11-08 so the two headers match): left identity, right horizontal desktop links and a narrow
  * Menu. Escape closes the panel and restores toggle focus. `buildCurrent` marks Build as the
  * page or the manual brief's section; both tones share geometry. See browser/screens.mjs for
  * the live reference measurements and bounds. Overlay callers reserve the masthead inset.

@@ -85,3 +85,9 @@ Independent review reproduced inherited live-peer startup recovery, active-cooki
 Pending exact-SHA canonical host gate, merged public source, governed five-tree private snapshot, source and fleet CI/rehearsal, packaged artifacts, SQLite pre-start backup/full name-hash capture, live served identities, normal anonymous journey, proxy refusals and configured reset.
 
 The preview testing secret was generated in private mode0600 artifacts and encrypted on h4 using the SHA256-verified locked SOPS binary. Every existing runtime value was decrypted/re-encrypted and compared on that host without publication; all remained unchanged. The prepared ciphertext has not been applied. Site ceilings, provider-key caps, production configuration and inference activation remain authoritative.
+
+## Integrated source checks
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all` completed successfully (silent success), followed under `set -e` by the uncached five-project `bunx nx run-many -t test lint typecheck build -p website-fe-01 website-be-01 website-store-sqlite website-contracts website-analytics --skip-nx-cache` matrix: **20 successful tasks**, 3m44s, `/tmp/harden-website-matrix.log`. Main advanced to `a5e9dbe9f` during work; a normal merge preserved its registry changes. Website runtime trees were unchanged by that integration.
+
+Private main concurrently advanced to `36a3b4e` with an already-approved About header link in the canonical app snapshot. The corresponding two public app files were reconciled byte-for-byte to that eligible public source before snapshot refresh, preserving the concurrent site/app navigation rather than overwriting it. Its existing chrome regression passed.
