@@ -2,7 +2,7 @@ import { type } from '@shared/validation';
 
 import { serializeCanonical } from '../evidence/content-manifest';
 
-export const packageVersion = '0.2.0';
+export const packageVersion = '0.2.1';
 
 /** The installed package identity that binds its executable to one reviewed toolkit. */
 export const PackageManifest = type({

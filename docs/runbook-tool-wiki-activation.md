@@ -271,10 +271,10 @@ the base's copy.
 ### Flip (pending publication)
 
 The committed switch is `archive-launcher` and no `bun.lock` is committed, because the registry
-integrity of `twilight-burokrat@0.2.0` exists only after publication. In order:
+integrity of `twilight-burokrat@0.2.1` exists only after publication. In order:
 
-1. **Publish.** Complete the P4 prerequisites and push `twilight-burokrat-v0.2.0`; confirm
-   `bun info twilight-burokrat@0.2.0 dist.integrity` equals the release record's integrity.
+1. **Publish.** Complete the P4 prerequisites and push `twilight-burokrat-v0.2.1`; confirm
+   `bun info twilight-burokrat@0.2.1 dist.integrity` equals the release record's integrity.
 2. **Pin.** Resolve the base-owned manifest into a lock with nothing inherited, check its
    integrity against the release record, commit `bun.lock` alone and merge:
 
@@ -292,7 +292,7 @@ integrity of `twilight-burokrat@0.2.0` exists only after publication. In order:
    launcher is the toolkit's, so the archive route keeps working with it.
 4. **Flip.** Commit `"admission": "installed-package"` and merge. That pull request is still judged
    by the base's `archive-launcher`; later pull requests take the package route.
-5. **Root route.** `bun add --dev --exact twilight-burokrat@0.2.0`, then point lefthook's
+5. **Root route.** `bun add --dev --exact twilight-burokrat@0.2.1`, then point lefthook's
    `tool-wiki`, the CI diagnostic step and `twilight-burokrat:lint` at
    `bin/tool-wiki-package-lint.sh`. It refuses without an exact root pin or matching install and
    refuses re-entry (exit 70). `bin/tool-wiki-lint.sh` stays the launcher source until the

@@ -607,7 +607,7 @@ describe('Performance level target production boundary', () => {
     const identity = {
       schemaVersion: 1,
       tool: 'twilight-burokrat',
-      toolVersion: '0.2.0',
+      toolVersion: '0.2.1',
       candidate: 'a'.repeat(64),
       selection: { kind: 'committed', revision },
       certifies: false,
