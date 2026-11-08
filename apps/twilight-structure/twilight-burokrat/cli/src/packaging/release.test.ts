@@ -177,6 +177,28 @@ describe('package release planner', () => {
         stdout: new Uint8Array(),
       })),
     ).toBe('absent');
+    // Bun answers a missing version of an existing package with this JSON on stdout (observed on
+    // release run 42451249726 for twilight-burokrat-v0.2.0, after 0.1.0 had been published).
+    expect(
+      await lookupRegistryVersion('twilight-burokrat', '0.2.0', () => ({
+        exitCode: 1,
+        stderr: new Uint8Array(),
+        stdout: new TextEncoder().encode(
+          '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
+        ),
+      })),
+    ).toBe('absent');
+    expect(
+      await refusal(
+        lookupRegistryVersion('twilight-burokrat', '0.2.0', () => ({
+          exitCode: 1,
+          stderr: new Uint8Array(),
+          stdout: new TextEncoder().encode(
+            '{ "error": "No matching version found", "version": "other-package@0.2.0" }\n',
+          ),
+        })),
+      ),
+    ).toContain('cannot determine registry version state');
     expect(
       await refusal(
         lookupRegistryVersion('twilight-burokrat', '0.2.0', () => ({
@@ -212,23 +234,57 @@ describe('package release planner', () => {
         record,
         () => {
           registryAttempts += 1;
-          return registryAttempts === 1
-            ? {
-                exitCode: 1,
-                stderr: new TextEncoder().encode('404 Not Found'),
-                stdout: new Uint8Array(),
-              }
-            : {
-                exitCode: 0,
-                stderr: new Uint8Array(),
-                stdout: new TextEncoder().encode(
-                  JSON.stringify({ dist: { integrity: planned.integrity } }),
-                ),
-              };
+          // Attempt 1: the registry has no such package yet. Attempt 2: the package exists but
+          // the new version has not propagated, Bun's JSON answer for a missing version.
+          if (registryAttempts === 1) {
+            return {
+              exitCode: 1,
+              stderr: new TextEncoder().encode('404 Not Found'),
+              stdout: new Uint8Array(),
+            };
+          }
+          if (registryAttempts === 2) {
+            return {
+              exitCode: 1,
+              stderr: new Uint8Array(),
+              stdout: new TextEncoder().encode(
+                '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
+              ),
+            };
+          }
+          return {
+            exitCode: 0,
+            stderr: new Uint8Array(),
+            stdout: new TextEncoder().encode(
+              JSON.stringify({ dist: { integrity: planned.integrity } }),
+            ),
+          };
         },
         () => Promise.resolve(),
       ),
     ).toBe(`twilight-burokrat@0.2.0 ${planned.integrity}`);
+    expect(registryAttempts).toBe(3);
+
+    let notYetVisibleAttempts = 0;
+    expect(
+      await refusal(
+        verifyPublishedPackage(
+          record,
+          () => {
+            notYetVisibleAttempts += 1;
+            return {
+              exitCode: 1,
+              stderr: new Uint8Array(),
+              stdout: new TextEncoder().encode(
+                '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
+              ),
+            };
+          },
+          () => Promise.resolve(),
+        ),
+      ),
+    ).toContain('published registry package did not become readable');
+    expect(notYetVisibleAttempts).toBe(12);
 
     expect(
       await refusal(
