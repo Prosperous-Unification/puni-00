@@ -33,10 +33,12 @@
 
 ## 5. Current-main controller/CI integration
 
-- [ ] 5.1 Record intent/spec/design/tasks before codec changes; refresh exact main and preserve normal D-to-main81b merge ancestry. Resolve all sixteen named overlaps and compare main-only/feature-only identities against the manifest.
+- [x] 5.1 Record intent/spec/design/tasks before codec changes; refresh exact main and preserve normal D-to-main81b merge ancestry. Resolve all sixteen named overlaps and compare main-only/feature-only identities against the manifest.
 - [x] 5.2 Preserve active main4 controllers, progress/UID/sticky Lease and four-argument takeover; use precise common historical progress/capture without controller defaults. Preserve replay body with only its exact five-field parameter type.
 - [x] 5.3 Add actual-reader positive/hybrid groups; observe active reserved-envelope and dormant controller hybrid admission when each boundary is omitted, restore, and record accurate adjacent Proof comments. Retain every old assertion and validation order.
 - [x] 5.4 Recheck current ADR allocation, then relocate only the three incoming registry ADRs and live exact references; preserve accepted main ADRs and historical evidence IDs.
 - [x] 5.5 Union exact dependencies/patch/lock/aliases/policies; run Bun1.4.4 frozen install and verify unchanged union lock, S3 identity and actual patched resolved Ark0.56.2.
 - [x] 5.6 Run the finite CI/remote/K8s/classification and workspace inventory/Compose cohorts, owning checks and required source checks; restore exact typed-project routing for the known historical evidence script after the actual normal-hook refusal, retaining typed-rule and sibling negatives; preserve distinct historical receipts, main-only paths and D-only paths outside named repairs.
-- [ ] 5.7 Form normal clean combined candidate and frozen D-to-combined resolution/report package before exact11 pilot, five actual docs-target cases and index/link positives. Record actual HEAD/tree and clean before/after; parent scoped appendix and final published-head hosted gates remain required.
+- [x] 5.7 Form normal clean combined candidate and frozen D-to-combined resolution/report package before exact11 pilot, five actual docs-target cases and index/link positives. Record actual HEAD/tree and clean before/after; parent scoped appendix and final published-head hosted gates remain required.
+
+- [x] 5.8 After the exact E pilot exposes stale Dagger authority, append only the two required publisher-script inputs to both existing target facts; verify22/22 canonical target facts, commit F normally and pass the unchanged eleven-case pilot on clean F. Preserve E's9/2 failure and E's five docs-target/two index-link successes at their actual identities. Receipt-only documentation does not relabel those checks as a test of its own commit.
