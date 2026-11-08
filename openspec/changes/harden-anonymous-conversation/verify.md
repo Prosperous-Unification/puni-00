@@ -101,3 +101,13 @@ Fresh tests first failed on both new-host acceptance paths. After updating the A
 Private Fleet fixture is pinned to combined reviewed Fleet10f85c7, with exact six upstream blobs and tree identity. Its synthetic API input supplies trusted peers and the actual gateway-only API policy. The first full-policy fixture test refused the prior empty synthetic ingress policy, then186deployment/pin/registry tests passed with the corrected fixture. Both Fleet39CI checks are green. Frozen public installation restored the missing locked AWS SDK dependency; no unrelated source fix was made.
 
 Live HTTPS still serves private2c3c8e40/publicbe6923; the request hostname returns421before the combined gateway rollout. Final combined exact-SHA host gate, private full matrix/build, published images, migration snapshot/ledger capture, Fleet pin and live acceptance remain pending. Production is held and no new paid calls are authorized for these checks.
+
+## Shared lint contract restored before publication
+
+PublicCIrun42526533579failed the existing durable-contract typed-lint test:1105tool-devsync tests passed and one failed because the canonical evidence probe was globally ignored. The same existing test failed locally before the correction. This is a precise contract restoration, with no website behavior or gate command changes.
+
+The global evidence pattern now allows traversal only into the durable-contract probe directory; the explicit project-service whitelist remains one canonical file. The existing test passes all10assertions: the admitted probe gets typed lint, an injected floating promise is refused and an unlisted sibling gets a project-service fatal error. Other evidence exclusions remain in place. This follows [ESLint's directory traversal rules](https://eslint.org/docs/latest/use/configure/ignore#unignore-files-and-directories).
+
+Fresh commands: `bun test ./tools/tool-devsync/src/eslint-boundaries.test.ts --test-name-pattern 'durable-contract evidence retains'` passed; `bunx eslint --max-warnings=0 openspec/changes/cross-project-dependencies/evidence/task-7-durable-contracts/canonical-properties.ts` passed. Omitting the new traversal/admission exceptions made both production-path commands fail; restored. Logs: `.superpowers/sdd/harden-anonymous-conversation/delivery/lint-scope-*.log`.
+
+Only this source's superseded private build waiter and exactcf384gate jobs were cancelled after that deterministic failure. No other jobs were touched. Publication remains conditional on the corrected exact-SHA normal gate, required CI and full private source/image checks.
