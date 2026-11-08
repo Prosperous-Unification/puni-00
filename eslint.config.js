@@ -112,7 +112,11 @@ export default [
       'tools/*/feasibility/**',
       // OpenSpec evidence snapshots are the same kind of artefact: main carries
       // `.ts` probes under openspec/changes/*/evidence that no tsconfig includes.
-      'openspec/**/evidence/**',
+      // Keep the existing typed durable-contract probe and its parser-refusal peers visible.
+      // Proof: restoring the broad directory ignore fails the durable-contract evidence test with an ignored-file warning.
+      'openspec/**/evidence/**/*',
+      '!openspec/changes/cross-project-dependencies/evidence/task-7-durable-contracts/',
+      '!openspec/changes/cross-project-dependencies/evidence/task-7-durable-contracts/*.ts',
     ],
   },
 
