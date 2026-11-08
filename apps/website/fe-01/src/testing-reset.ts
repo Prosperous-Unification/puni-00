@@ -3,6 +3,34 @@ interface ResetBrowser {
   history: { replaceState(state: null, unused: string, url: string): void };
 }
 
+interface ResetWindow extends ResetBrowser {
+  addEventListener(type: 'hashchange', listener: () => void): void;
+  removeEventListener(type: 'hashchange', listener: () => void): void;
+}
+
+/**
+ * Observes same-document reset URLs before analytics starts. Successful resets call `remount`
+ * so callers discard cached exhausted state. Ordinary fragments do nothing; cleanup removes
+ * the observer. Initial page startup still uses {@link consumeTestingReset} explicitly.
+ */
+export function bindTestingReset(
+  browser: ResetWindow,
+  reset: (secret: string) => Promise<void>,
+  remount: () => void,
+  fail: (error: unknown) => void,
+): () => void {
+  const consumeHash = (): void => {
+    const pending = consumeTestingReset(browser, reset);
+    // Proof: removing this guard raised a window error on ordinary hashes and failed the no-remount test.
+    if (pending !== null) void pending.then(remount, fail);
+  };
+  // Proof: removing this registration left same-document reset tests without a request or remount.
+  browser.addEventListener('hashchange', consumeHash);
+  return () => {
+    browser.removeEventListener('hashchange', consumeHash);
+  };
+}
+
 /**
  * Consumes the operator-only preview fragment before analytics or app requests start. Ordinary
  * startup returns null synchronously and changes nothing. The secret is passed only to the
