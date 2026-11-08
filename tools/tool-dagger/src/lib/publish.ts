@@ -97,6 +97,7 @@ export interface PublishedRelease {
 
 /**
  * Export every requested tier onto the independently enforced builder filesystem before admission.
+ * The endpoint must exactly match the validated enrollment before any scratch or publication effect.
  * Enrollment supplies the required repository set; a subset cannot acknowledge a whole release.
  * The callback is the real Dagger export boundary; the shared writer uploads only frozen OCI bytes.
  */
@@ -107,6 +108,9 @@ export async function publishManagedRelease(
   sha: string,
   exportTier: (tier: Tier, path: string) => Promise<unknown>,
 ): Promise<PublishedRelease> {
+  // Proof: removing this bind reaches scratch admission on foreign, alternate-scheme and alternate-path targets in publish-endpoint.fixture.ts; the matching control still publishes through the owned HTTP fixture.
+  if (endpoint.url !== enrollment.registryUrl)
+    throw new Error('Managed publication endpoint differs from enrolled registry');
   const registry = new URL(endpoint.url).host;
   const repositories = tiers.map((tier) => RELEASE_IMAGE_NAME[tier]);
   if (

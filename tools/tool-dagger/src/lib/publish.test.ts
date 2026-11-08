@@ -135,3 +135,19 @@ it('managed Dagger caller forwards schema4 ownership into the real HTTP uploader
   expect({ code, diagnostic }).toEqual({ code: 0, diagnostic: '' });
   expect(output).toContain('2 bodies');
 });
+
+it('managed Dagger caller refuses foreign endpoints before every publication effect', async () => {
+  const child = Bun.spawn(
+    [process.execPath, new URL('./publish-endpoint.fixture.ts', import.meta.url).pathname],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const [code, output, diagnostic] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  expect({ code, diagnostic }).toEqual({ code: 0, diagnostic: '' });
+  expect(output).toContain(
+    '3 endpoint refusals: zero effects; matching endpoint reaches admission',
+  );
+});

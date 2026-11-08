@@ -28,6 +28,10 @@ const Resource = type({
   metadata: { name: Text, 'namespace?': Text },
   'spec?': 'unknown',
 });
+/** Only images and patches alter this reader's child build. Scheduling, apply and health
+ * settings remain opaque because they do not change the desired resource/image closure.
+ * All other fields, including future transforms, refuse completeness rather than disappearing.
+ */
 const Flux = type({
   path: Text,
   sourceRef: { kind: "'GitRepository'", name: Text, 'namespace?': Text },
@@ -55,6 +59,20 @@ const Flux = type({
   'postBuild?': 'unknown',
   'decryption?': 'unknown',
   'kubeConfig?': 'unknown',
+  'interval?': 'unknown',
+  'retryInterval?': 'unknown',
+  'timeout?': 'unknown',
+  'prune?': 'unknown',
+  'deletionPolicy?': 'unknown',
+  'dependsOn?': 'unknown',
+  'force?': 'unknown',
+  'healthCheckExprs?': 'unknown',
+  'healthChecks?': 'unknown',
+  'serviceAccountName?': 'unknown',
+  'suspend?': 'unknown',
+  'wait?': 'unknown',
+  // Proof: removing this exact-field boundary lets actual-reader components, namespace/name/metadata transforms, drift-ignore and unknown-field negatives resolve with incomplete inventory.
+  '+': 'reject',
 });
 const kustomizationKeys = new Set([
   'apiVersion',
@@ -94,6 +112,7 @@ function documents(text: string): unknown[] {
 /**
  * Read effective desired images from a clean checkout at its registered ref. Every renderer input
  * stays inside that tracked source. Same-source Flux children receive their image/patch transforms;
+ * unsupported child fields (including components, name/metadata/namespace transforms and drift-ignore),
  * substitutions, decryption, foreign sources and execution plugins refuse completeness.
  */
 export async function readFluxConsumers(input: unknown) {
