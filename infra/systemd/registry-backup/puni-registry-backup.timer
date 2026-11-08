@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily PUNI registry snapshot at 02:37 UTC
+
+[Timer]
+OnCalendar=*-*-* 02:37:00 UTC
+Persistent=true
+Unit=puni-registry-backup.service
+
+[Install]
+WantedBy=timers.target

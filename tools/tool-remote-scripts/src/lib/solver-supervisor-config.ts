@@ -40,7 +40,7 @@ function boundedInteger(value: unknown, name: string, maximum: number): number {
 export function decodeSolverSupervisorConfig(
   value: unknown,
   now: () => number = Date.now,
-): SolverSupervisorRuntimeOptions {
+): SolverSupervisorRuntimeOptions & { readonly imageReferences: readonly string[] } {
   const config = configRecord(value);
   const socketPath = config['socketPath'];
   if (typeof socketPath !== 'string' || !SOCKET_PATH.test(socketPath)) {
@@ -60,6 +60,7 @@ export function decodeSolverSupervisorConfig(
   const images = supervisorImagePolicy(config['images']);
 
   return {
+    imageReferences: images.imageReferences,
     connection: {
       unix: socketPath,
       allowedNamePatterns: images.allowedNamePatterns,

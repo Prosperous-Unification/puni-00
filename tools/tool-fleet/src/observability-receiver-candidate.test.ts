@@ -44,7 +44,8 @@ test('receiver candidate accepts the current platform and current platform prese
   expect(() => {
     assertReceiverCandidate(manifests(source));
   }).not.toThrow();
-  expect(await validatePlatform(root)).toMatchObject({ workloadImages: 13 });
+  // Source census also includes the separately staged registry storage patch.
+  expect(await validatePlatform(root)).toMatchObject({ workloadImages: 14 });
 });
 
 test.each([

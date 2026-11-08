@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry durable registry alerts within their persisted bounds (staged)
+
+[Timer]
+OnBootSec=15s
+OnUnitInactiveSec=15s
+Unit=puni-registry-alert-send.service
+
+[Install]
+WantedBy=timers.target

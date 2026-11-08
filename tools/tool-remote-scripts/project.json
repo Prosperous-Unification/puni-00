@@ -15,7 +15,8 @@
           "bun build tools/tool-remote-scripts/src/activate-dependencies.ts --target=bun --outfile dist/tool-remote-scripts/activate-dependencies.js",
           "bun build tools/tool-remote-scripts/src/initialize-edge-policy.ts --target=bun --outfile dist/tool-remote-scripts/initialize-edge-policy.js",
           "bun build tools/tool-remote-scripts/src/lib/dependency-complete-activation.ts --target=bun --outfile dist/tool-remote-scripts/dependency-complete-activation.js",
-          "bun build tools/tool-remote-scripts/src/adopt-edge-init.ts --target=bun --outfile dist/tool-remote-scripts/adopt-edge-init.js"
+          "bun build tools/tool-remote-scripts/src/adopt-edge-init.ts --target=bun --outfile dist/tool-remote-scripts/adopt-edge-init.js",
+          "bun build tools/tool-remote-scripts/src/registry-compose-reader.ts tools/tool-remote-scripts/src/registry-compose-consumers.ts tools/tool-remote-scripts/src/registry-docker-consumers.ts tools/tool-remote-scripts/src/registry-solver-reader.ts --target=bun --outdir dist/tool-remote-scripts"
         ],
         "parallel": false
       },

@@ -229,13 +229,14 @@ interface CiWorkflow {
     gate_frontend?: CiJob;
     gate_checks?: CiJob;
     gate_twilight?: CiJob;
+    'fleet-check'?: CiJob;
   };
 }
 
 type GateJob = keyof NonNullable<CiWorkflow['jobs']>;
 
-async function readCiWorkflow(): Promise<CiWorkflow> {
-  return Bun.YAML.parse(await read('.github/workflows/ci.yml')) as CiWorkflow;
+async function readCiWorkflow(path = '.github/workflows/ci.yml'): Promise<CiWorkflow> {
+  return Bun.YAML.parse(await read(path)) as CiWorkflow;
 }
 
 function gateStep(workflow: CiWorkflow, job: GateJob, name: string): WorkflowStep {
@@ -483,6 +484,125 @@ describe('the CI gate scope', () => {
     expect(execution.exitCode).toBe(loader || probe);
     expect(execution.stdout.toString()).not.toContain('runtime-started');
   });
+
+  const registrySourceJobs = [
+    [
+      '.github/workflows/ci.yml',
+      'gate_workspace',
+      "${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'tool-fleet') }}",
+      'Gate — test, lint, typecheck, build',
+    ],
+    [
+      '.github/workflows/infra-check.yml',
+      'fleet-check',
+      undefined,
+      'tool-fleet:check (test, lint, typecheck, then every artifact family)',
+    ],
+  ] as const;
+
+  it.each(registrySourceJobs)(
+    'prepares registry source fixtures in %s before selecting fleet tests',
+    async (path, job, condition, next) => {
+      const workflow = await readCiWorkflow(path);
+      const step = gateStep(workflow, job, 'Provision registry source fixtures');
+      expect(step.if).toBe(condition);
+      const steps = workflow.jobs?.[job]?.steps ?? [];
+      expect(steps.indexOf(step)).toBeLessThan(steps.indexOf(gateStep(workflow, job, next)));
+      expect(step).not.toHaveProperty('continue-on-error');
+      if (job === 'fleet-check') {
+        const triggers = workflow as unknown as {
+          on?: Record<string, { paths?: string[] }>;
+          true?: Record<string, { paths?: string[] }>;
+        };
+        const events = triggers.on ?? triggers.true;
+        for (const event of ['pull_request', 'push'])
+          expect(
+            events?.[event]?.paths?.some((pattern) =>
+              new Bun.Glob(pattern).match('bin/registry-source-test-prerequisites.sh'),
+            ),
+          ).toBe(true);
+      }
+
+      const execution = Bun.spawnSync(
+        [
+          'bash',
+          '-euo',
+          'pipefail',
+          '-c',
+          `
+      sudo() { if [ "$1" = tee ]; then cat >&2; else printf '%s\\n' "$*"; fi; }
+      unshare() { printf 'namespace-probe\\n'; }
+      export -f sudo unshare
+      ${step.run ?? ''}
+      printf 'runtime-started\\n'
+    `,
+        ],
+        { cwd: WORKSPACE.pathname },
+      );
+      expect(execution.exitCode).toBe(0);
+      expect(execution.stderr.toString()).toBe(
+        'abi <abi/4.0>,\ninclude <tunables/global>\nprofile unshare /usr/bin/unshare flags=(unconfined) {\n  userns,\n}\n',
+      );
+      expect(execution.stdout.toString().trim().split('\n')).toEqual([
+        'apt-get update',
+        'apt-get install --yes --no-install-recommends gcc libc6-dev',
+        'apparmor_parser --replace /etc/apparmor.d/unshare',
+        'namespace-probe',
+        'runtime-started',
+      ]);
+      expect(commandsOf(await read('bin/registry-source-test-prerequisites.sh'))).not.toMatch(
+        /sysctl|sudo unshare|continue-on-error|\|\| true/,
+      );
+      for (const unrelated of ['gate_mode', 'gate_docs', 'gate_twilight'] as const)
+        expect(
+          workflow.jobs?.[unrelated]?.steps?.some(
+            (candidate) => candidate.name === 'Provision registry source fixtures',
+          ),
+        ).not.toBe(true);
+    },
+  );
+
+  for (const [path, job] of registrySourceJobs) {
+    it.each([
+      ['compiler packages', 43, 0, 0],
+      ['profile loader', 0, 41, 0],
+      ['namespace probe', 0, 0, 42],
+    ] as const)(
+      `refuses failed registry source %s in ${job} before runtime tests`,
+      async (_fault, packages, loader, probe) => {
+        const step = gateStep(
+          await readCiWorkflow(path),
+          job,
+          'Provision registry source fixtures',
+        );
+        const execution = Bun.spawnSync(
+          [
+            'bash',
+            '-euo',
+            'pipefail',
+            '-c',
+            `
+        sudo() {
+          case "$1" in
+            apt-get) return ${String(packages)} ;;
+            tee) cat > /dev/null ;;
+            apparmor_parser) return ${String(loader)} ;;
+            *) return 97 ;;
+          esac
+        }
+        unshare() { return ${String(probe)}; }
+        export -f sudo unshare
+        ${step.run ?? ''}
+        printf 'runtime-started\\n'
+      `,
+          ],
+          { cwd: WORKSPACE.pathname },
+        );
+        expect(execution.exitCode).toBe(packages || loader || probe);
+        expect(execution.stdout.toString()).not.toContain('runtime-started');
+      },
+    );
+  }
 
   it('runs Burokrat packaging only for full gates or exact project membership', async () => {
     const workflow = await readCiWorkflow();

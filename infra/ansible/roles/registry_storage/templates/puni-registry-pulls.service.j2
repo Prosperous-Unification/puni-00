@@ -1,0 +1,13 @@
+[Unit]
+Description=Verify and mount retained bounded registry client scratch
+Requires=puni-registry-storage.service
+After=puni-registry-storage.service
+Before=puni-registry-backup.service puni-registry-retire.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/puni-registry-storage/storage.sh mount-pulls /etc/puni/registry-pulls.json
+
+[Install]
+WantedBy=multi-user.target

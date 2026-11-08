@@ -27,6 +27,7 @@
         "./tools/tool-remote-scripts/src/fixtures/controller-account.ts"
       ],
       "@tools/fleet-operation-plan-schema": ["./infra/fleet/schemas/operation-plan.json"],
+      "@tools/registry-publication": ["./tools/tool-fleet/src/registry-publication-facade.ts"],
       "@tools/fleet-plan": ["./tools/tool-fleet/src/plan-facade.ts"],
       "@tools/fleet-ssh-transport": ["./tools/tool-fleet/src/ssh-transport-facade.ts"],
       "@tools/observability-transport": ["./tools/tool-observability-stack/src/dev/transport.ts"],
@@ -162,6 +163,8 @@
         "./tools/tool-remote-scripts/src/lib/step-blockage-inventory.ts"
       ],
       "@tools/docker": ["./tools/tool-remote-scripts/src/lib/docker.ts"],
+      "@tools/compose-registry": ["./tools/tool-remote-scripts/src/registry-compose-facade.ts"],
+      "@tools/deploy-smoke": ["./tools/tool-remote-scripts/src/lib/smoke-command.ts"],
       "@tools/deploy-contract": ["./tools/tool-remote-scripts/src/lib/deploy-contract.ts"],
       "@tools/compose": ["./tools/tool-compose/src/index.ts"],
       "@tools/test-scratch": ["./tools/test/scratch/index.ts"],

@@ -1,0 +1,82 @@
+---
+# Proof: registry-hosts.test.ts injects an invalid hostname; removing this command permits trust writes.
+- name: Validate registry client inputs
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import ipaddress, pwd, re, sys
+        address, port, hostname, mode, service, owner = sys.argv[1:]
+        account = pwd.getpwnam(owner)
+        if mode == "k3s" and account.pw_uid != 0:
+            raise ValueError("k3s trust must be root-owned")
+        parsed = ipaddress.IPv4Address(address)
+        if not any(parsed in ipaddress.IPv4Network(cidr) for cidr in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')):
+            raise ValueError('Registry endpoint must be RFC1918 IPv4')
+        if not port.isascii() or not port.isdecimal() or not 1 <= int(port) <= 65535:
+            raise ValueError('Registry port must be numeric TCP port 1..65535')
+        if len(hostname) > 253 or not re.fullmatch(r'[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+', hostname):
+            raise ValueError('Registry hostname must be a DNS hostname')
+        if mode not in ('trust', 'k3s') or (mode == 'k3s' and service not in ('k3s', 'k3s-agent')):
+            raise ValueError('Registry mode/service is not allowed')
+      - '{{ puni_registry_address }}'
+      - '{{ puni_registry_port }}'
+      - '{{ puni_registry_hostname }}'
+      - '{{ puni_registry_mode }}'
+      - '{{ puni_registry_service if puni_registry_mode == "k3s" else "unused" }}'
+      - '{{ puni_registry_owner }}'
+  changed_when: false
+
+# Proof: registry-hosts.test.ts removes this command; invalid PEM is installed as trusted CA.
+- name: Validate supplied CA
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import subprocess, sys
+        certificate = sys.stdin.read()
+        checked = subprocess.run(['openssl', 'x509', '-noout', '-text', '-checkend', '0'], input=certificate, text=True, capture_output=True, check=True)
+        if certificate.count('-----BEGIN CERTIFICATE-----') != 1 or 'CA:TRUE' not in checked.stdout:
+            raise ValueError('Exactly one unexpired PEM CA certificate is required')
+    stdin: '{{ puni_registry_ca }}'
+  changed_when: false
+
+# Proof: registry-hosts.test.ts injects an empty password; removing this assertion installs it.
+- name: Require k3s credentials
+  ansible.builtin.assert:
+    that:
+      - puni_registry_username is string
+      - puni_registry_username | trim | length > 0
+      - puni_registry_password is string
+      - puni_registry_password | length > 0
+    fail_msg: Nonempty registry username and password are required
+  when: puni_registry_mode == 'k3s'
+  no_log: true
+
+- name: Inspect existing registry configuration
+  ansible.builtin.stat:
+    path: /etc/rancher/k3s/registries.yaml
+    follow: false
+  register: puni_registry_config
+  when: puni_registry_mode == 'k3s'
+
+- name: Read existing registry configuration
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/registries.yaml
+  register: puni_registry_content
+  when: puni_registry_mode == 'k3s' and puni_registry_config.stat.exists
+  no_log: true
+
+# Proof: registry-hosts.test.ts removes this assertion; unrelated operator configuration is overwritten.
+- name: Refuse unmanaged registry configuration
+  ansible.builtin.assert:
+    that:
+      - puni_registry_config.stat.isreg
+      - puni_registry_config.stat.uid == 0
+      - >-
+        (puni_registry_content.content | b64decode).startswith('# Ansible managed: puni-registry client v1\n')
+    fail_msg: Refusing to replace unmanaged registries.yaml
+  when: puni_registry_mode == 'k3s' and puni_registry_config.stat.exists
+  no_log: true

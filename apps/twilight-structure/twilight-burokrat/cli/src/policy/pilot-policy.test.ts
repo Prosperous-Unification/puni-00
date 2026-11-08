@@ -485,6 +485,8 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // Proof (2026-10-19): this pilot failed on the undeclared shared-unit-recovery denial receipt.
     // Removing either exact recovery gzip declaration from either shipped policy made production
     // classify-candidate exit 1 naming that archive; both policies also refused an unlisted gzip.
+    // Proof (2026-10-24): omitting the .timer config selector made this production pilot
+    // refuse infra/systemd/registry-backup/puni-registry-backup.timer with matched 0 rules.
     // Proof (2026-10-23): omitting dependency-navigation.tsx from dependency-lookup's mapped
     // consumers while its index declared that production importer made observe lint exit 1 with
     // `pilot module external consumers disagree with index …/dependency-lookup/README.md`.

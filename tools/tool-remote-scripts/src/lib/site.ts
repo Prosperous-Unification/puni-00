@@ -1,4 +1,4 @@
-import { appName, containerName, PORT } from './docker';
+import { appName, containerName, CURRENT_ENV, type EnvLayout, PORT } from './docker';
 import type { Color, Tier } from './state';
 
 /**
@@ -151,6 +151,7 @@ export function routedColorFromAdminConfig(
   tier: Tier,
   siteAddress: string,
   rawConfig: string,
+  layout: Pick<EnvLayout, 'containerPrefix'> = CURRENT_ENV,
 ): Color | null {
   let config: unknown;
   try {
@@ -207,8 +208,8 @@ export function routedColorFromAdminConfig(
   for (const dial of dials) {
     if (!dial.endsWith(suffix)) continue;
     const host = dial.slice(0, -suffix.length);
-    if (host === containerName(tier, 'blue')) found.add('blue');
-    if (host === containerName(tier, 'green')) found.add('green');
+    if (host === containerName(tier, 'blue', layout)) found.add('blue');
+    if (host === containerName(tier, 'green', layout)) found.add('green');
   }
 
   if (found.size > 1) {

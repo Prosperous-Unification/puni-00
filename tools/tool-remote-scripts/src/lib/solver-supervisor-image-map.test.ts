@@ -77,3 +77,7 @@ describe('the host-owned solver image map', () => {
     ).toThrow(/callerImage must be null/);
   });
 });
+
+it('reports every locked backend and solver image even without a running solver', () => {
+  expect(supervisorImagePolicy(RULES).imageReferences).toEqual([BLUE, SOLVER, GREEN, DEV_SOLVER]);
+});

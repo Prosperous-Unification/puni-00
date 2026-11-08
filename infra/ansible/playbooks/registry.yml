@@ -1,0 +1,56 @@
+---
+- name: Enroll bounded registry storage explicitly
+  hosts: registry_endpoints
+  become: true
+  gather_facts: false
+  serial: 1
+  tags: [never, registry_storage]
+  roles: [registry_storage]
+
+- name: Converge the private registry TCP endpoint
+  hosts: registry_endpoints
+  become: true
+  gather_facts: false
+  serial: 1
+  tags: [registry_endpoint]
+  roles: [registry_endpoint]
+
+- name: Converge registry client trust and optional k3s authentication
+  hosts: registry_clients
+  become: true
+  gather_facts: false
+  serial: 1
+  tags: [registry_client]
+  roles: [registry_client]
+
+- name: Stage reviewed registry authority without activating pressure renewal
+  hosts: registry_endpoints
+  become: true
+  tags: [never, registry_authority]
+  tasks:
+    - name: Install explicitly enrolled authority artifacts
+      ansible.builtin.include_role:
+        name: registry_storage
+        tasks_from: authority
+
+- name: Stage verified maintenance helpers without activating timers
+  hosts: registry_endpoints
+  become: true
+  tags: [never, registry_maintenance]
+  tasks:
+    - name: Install explicitly enrolled maintenance artifacts
+      ansible.builtin.include_role:
+        name: registry_storage
+        tasks_from: maintenance
+
+- name: Enroll independently bounded registry pull scratch
+  hosts: registry_endpoints
+  become: true
+  gather_facts: false
+  serial: 1
+  tags: [never, registry_pulls]
+  tasks:
+    - name: Provision explicitly enrolled pull storage
+      ansible.builtin.include_role:
+        name: registry_storage
+        tasks_from: pulls

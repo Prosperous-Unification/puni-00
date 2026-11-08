@@ -2,8 +2,8 @@ import { closeSync, fsyncSync, openSync, readFileSync, renameSync, writeSync } f
 import { dirname, join } from 'node:path';
 
 import { assertControllerLifecycle, assertControllerProgress } from './controller-lifecycle';
-import { assertMigrationCapture, migrationIdentityOf } from './migration-capture';
-import { isReleasePhase, type ReleaseRequest, type ReleaseState, TERMINAL_PHASES } from './release';
+import { parseJournalState } from './journal-state';
+import { type ReleaseRequest, type ReleaseState, TERMINAL_PHASES } from './release';
 import { assertReplayProgress } from './replay-receipt';
 
 /** Bumped when a stored field changes meaning; an older coordinator refuses a newer journal. */
@@ -61,47 +61,15 @@ export function parseJournal(path: string, text: string): JournalRecord {
   if (!isRecord(parsed) || parsed['schemaVersion'] !== JOURNAL_SCHEMA) {
     throw new Error(`release journal ${path} has an unsupported schema version`);
   }
-  const state = parsed['state'];
-  const request = parsed['request'];
-  const history = parsed['history'];
-  if (!isRecord(state) || !isRecord(request) || !Array.isArray(history)) {
-    throw new Error(`release journal ${path} is missing its request, state or history`);
-  }
-  // Proof: `rejects an unknown phase` resumed from `half-migrated` as a forward phase until
-  // this check refused it.
-  if (!isReleasePhase(state['phase'])) {
-    throw new Error(`release journal ${path} records unknown phase ${String(state['phase'])}`);
-  }
-  if (typeof state['releaseId'] !== 'string' || state['releaseId'] === '') {
-    throw new Error(`release journal ${path} names no release`);
-  }
-  if (typeof state['transactionId'] !== 'string' || state['transactionId'] === '') {
-    throw new Error(`release journal ${path} names no transaction`);
-  }
-  if (state['capture'] !== null && state['capture'] !== undefined) {
-    const source = request['release'];
-    const cluster = request['cluster'];
-    const namespaces = request['namespaces'];
-    if (
-      !isRecord(source) ||
-      !isRecord(source['images']) ||
-      !isRecord(cluster) ||
-      !isRecord(namespaces) ||
-      typeof source['images']['backend'] !== 'string' ||
-      typeof cluster['uid'] !== 'string' ||
-      typeof namespaces['backend'] !== 'string'
-    ) {
-      throw new Error(`release journal ${path} has no capture request identity`);
-    }
-    // Boundary: the discriminated request fields above supply only the identity projection.
-    // Proof: bypassing this disk parser check made `rejects a changed capture from disk before
-    // returning a journal record` read altered bytes as a valid durable transaction.
-    assertMigrationCapture(
-      state['capture'],
-      migrationIdentityOf(request as unknown as ReleaseRequest, state['transactionId']),
-    );
-  }
-  const controllers = state['controllers'];
+  // Proof: omitting only this family check admits all four valid-controller registry envelopes through fileJournal in the active journal family negatives.
+  if (
+    Object.hasOwn(parsed, 'registry') ||
+    Object.hasOwn(parsed, 'registryHistory') ||
+    parsed['kind'] === 'registry-inheritance'
+  )
+    throw new Error(`release journal ${path} has an unsupported schema family`);
+  const progress = parseJournalState(path, parsed);
+  const controllers: unknown = Reflect.get(progress.state, 'controllers');
   // Proof: journal-history-required bypass lost the missing/malformed controller lifecycle diagnostic.
   if (!isRecord(controllers) || Object.keys(controllers).sort().join(',') !== 'forward,rollback')
     throw new Error(`release journal ${path} is missing controller lifecycle`);

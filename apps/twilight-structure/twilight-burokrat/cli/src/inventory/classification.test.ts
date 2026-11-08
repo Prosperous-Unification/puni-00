@@ -13,7 +13,9 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import type { ClassificationPolicy } from '../contracts/records';
 import { type CliInvocation, invokeCli } from '../invoke-cli';
+import type { ContentClassification } from './classify-entries';
 
 const repositories: string[] = [];
 const shippedPolicyPath = join(
@@ -607,6 +609,245 @@ describe('entry classification production CLI', () => {
         classification: { kind: 'content', contentClass: 'test' },
       },
     ]);
+  });
+
+  test.each([
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+    'docs/code-organization/rule-policy.json',
+    'apps/twilight-structure/twilight-burokrat/cli/src/contracts/fixtures/classification-policy.v1.json',
+  ])(
+    'classifies registry systemd units and refuses an omitted timer selector with %s',
+    async (policyPath) => {
+      const repository = createRepository();
+      const workspace = join(import.meta.dir, '../../../../../..');
+      const unitPaths = [
+        'infra/systemd/registry-backup/puni-registry-backup.service',
+        'infra/systemd/registry-backup/puni-registry-backup.timer',
+      ];
+      for (const path of unitPaths) write(repository, path, readFileSync(join(workspace, path)));
+      const revision = commitAll(repository);
+      interface Policy {
+        contentRules: {
+          contentClass: string;
+          include: { kind: string; value: string }[];
+        }[];
+      }
+      const envelope = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8')) as Policy & {
+        classificationPolicy?: Policy;
+      };
+      const classificationPolicy = envelope.classificationPolicy ?? envelope;
+      const invocation = await classify(
+        repository,
+        revision,
+        writePolicy(repository, classificationPolicy),
+      );
+      expect(invocation.exitCode, output(invocation)).toBe(0);
+      const classified = JSON.parse(standardOutput(invocation)) as {
+        entries: { path: string; classification: { contentClass: string } }[];
+      };
+      expect(
+        classified.entries.map(({ path, classification }) => [path, classification.contentClass]),
+      ).toEqual(unitPaths.map((path) => [path, 'config']));
+
+      const configRule = classificationPolicy.contentRules.find(
+        (rule) => rule.contentClass === 'config',
+      );
+      if (configRule === undefined) throw new Error('trusted config rule missing');
+      configRule.include = configRule.include.filter(
+        (selector) => selector.kind !== 'suffix' || selector.value !== '.timer',
+      );
+      const omitted = await classify(
+        repository,
+        revision,
+        writePolicy(repository, classificationPolicy),
+      );
+      // Proof: removing .timer from each shipped config rule makes this production CLI refuse
+      // the actual registry timer, while the unchanged .service selector still classifies its sibling.
+      expect(omitted.exitCode, output(omitted)).toBe(1);
+      expect(output(omitted)).toContain(
+        `ordinary content ${unitPaths[1]} matched 0 classification rules`,
+      );
+    },
+  );
+
+  test.each([
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+    'docs/code-organization/rule-policy.json',
+    'apps/twilight-structure/twilight-burokrat/cli/src/contracts/fixtures/classification-policy.v1.json',
+  ])('classifies bounded registry storage paths exactly once with %s', async (policyPath) => {
+    const repository = createRepository();
+    const workspace = join(import.meta.dir, '../../../../../..');
+    const paths = [
+      ['infra/ansible/roles/registry_client/templates/registries.yaml.j2', 'config'],
+      ['infra/ansible/roles/registry_endpoint/templates/puni-registry.service.j2', 'config'],
+      ['infra/ansible/roles/registry_endpoint/templates/puni-registry.socket.j2', 'config'],
+      ['infra/ansible/roles/registry_storage/files/authority.sh', 'script'],
+      ['infra/ansible/roles/registry_storage/files/identity.sh', 'script'],
+      ['infra/ansible/roles/registry_storage/files/k3s-storage.conf', 'config'],
+      ['infra/ansible/roles/registry_storage/files/maintenance.sudoers', 'config'],
+      ['infra/ansible/roles/registry_storage/files/maintenance.tmpfiles', 'config'],
+      ['infra/ansible/roles/registry_storage/files/storage.sh', 'script'],
+      ['infra/ansible/roles/registry_storage/tasks/authority.yml', 'config'],
+      ['infra/ansible/roles/registry_storage/templates/pulls.json.j2', 'config'],
+      [
+        'infra/ansible/roles/registry_storage/templates/puni-registry-pressure.service.j2',
+        'config',
+      ],
+      ['infra/ansible/roles/registry_storage/templates/puni-registry-pulls.service.j2', 'config'],
+      ['infra/ansible/roles/registry_storage/templates/puni-registry-storage.service.j2', 'config'],
+      ['infra/ansible/roles/registry_storage/templates/storage.json.j2', 'config'],
+      ['infra/ansible/tests/registry-capacity-fixture.ts', 'test'],
+      ['infra/ansible/tests/registry-capacity-rehearsal.test.sh', 'test'],
+      ['infra/ansible/tests/registry-capacity.test.ts', 'test'],
+      ['infra/ansible/tests/registry-storage-rehearsal.sh', 'test'],
+      ['infra/platform/registry/production/startup.sh', 'script'],
+      ['infra/platform/registry/production/storage-patch.yaml', 'config'],
+      ['tools/tool-fleet/src/fixtures/dagger-0.21.9.oci.tar', 'binary'],
+      ['tools/tool-fleet/src/fixtures/docker-29.1.3-containerd.oci.tar', 'binary'],
+    ] as const;
+    const binaryDeclarations = [
+      {
+        path: 'tools/tool-fleet/src/fixtures/dagger-0.21.9.oci.tar',
+        format: 'application/x-tar',
+        consumer: 'tools/tool-fleet/src/registry-artifact.test.ts',
+        regenerationAuthority: {
+          kind: 'external',
+          authority:
+            'Pinned external Dagger 0.21.9 SDK/CLI and engine OCI export; retained provenance in openspec/changes/bound-registry-storage/verify.md. Re-export and characterize the pinned output before replacing this archive.',
+        },
+      },
+      {
+        path: 'tools/tool-fleet/src/fixtures/docker-29.1.3-containerd.oci.tar',
+        format: 'application/x-tar',
+        consumer: 'tools/tool-fleet/src/registry-docker.test.ts',
+        regenerationAuthority: {
+          kind: 'external',
+          authority:
+            'External pinned Docker 29.1.3 containerd image-store OCI export. Regenerate with that exporter and re-characterize the root and metadata against tools/tool-fleet/src/registry-docker.test.ts before replacing this archive.',
+        },
+      },
+    ] satisfies ClassificationPolicy['binaryDeclarations'];
+    for (const [path] of paths) write(repository, path, readFileSync(join(workspace, path)));
+    const revision = commitAll(repository);
+    interface Policy {
+      contentRules: { contentClass: string; include: { kind: string; value: string }[] }[];
+      binaryDeclarations: typeof binaryDeclarations;
+    }
+    const envelope = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8')) as Policy & {
+      classificationPolicy?: Policy;
+    };
+    const classificationPolicy = envelope.classificationPolicy ?? envelope;
+    const invocation = await classify(
+      repository,
+      revision,
+      writePolicy(repository, classificationPolicy),
+    );
+    expect(invocation.exitCode, output(invocation)).toBe(0);
+    const classified = JSON.parse(standardOutput(invocation)) as {
+      entries: { path: string; classification: ContentClassification }[];
+    };
+    expect(
+      classified.entries.map(({ path, classification }) => [path, classification.contentClass]),
+    ).toEqual(paths.map(([path, contentClass]) => [path, contentClass]));
+    for (const { path, ...classification } of binaryDeclarations)
+      expect(classified.entries.find((entry) => entry.path === path)?.classification).toEqual({
+        kind: 'content',
+        contentClass: 'binary',
+        ...classification,
+      });
+    const exactPaths = [
+      'infra/ansible/roles/registry_storage/files/maintenance.sudoers',
+      'infra/ansible/roles/registry_storage/files/maintenance.tmpfiles',
+    ];
+    if (
+      policyPath.includes('bootstrap-policy') ||
+      policyPath.endsWith('classification-policy.v1.json')
+    )
+      exactPaths.push(
+        ...[
+          'infra/ansible/roles/registry_client/templates/registries.yaml.j2',
+          'infra/ansible/roles/registry_endpoint/templates/puni-registry.service.j2',
+          'infra/ansible/roles/registry_endpoint/templates/puni-registry.socket.j2',
+          'infra/ansible/roles/registry_storage/templates/pulls.json.j2',
+          'infra/ansible/roles/registry_storage/templates/puni-registry-pulls.service.j2',
+        ],
+      );
+    // Proof: all18 newly required exact-selector omissions and8 binary-declaration omissions refuse their named real paths across these four policies; every restored policy returns the complete original classification. Existing k3s refusal remains.
+    for (const path of [
+      ...exactPaths,
+      'infra/ansible/roles/registry_storage/files/k3s-storage.conf',
+    ]) {
+      const fault = structuredClone(classificationPolicy);
+      const config = fault.contentRules.find((rule) => rule.contentClass === 'config');
+      if (config === undefined) throw new Error('Trusted config rule missing');
+      const before = config.include.length;
+      config.include = config.include.filter(
+        (selector) => selector.kind !== 'path' || selector.value !== path,
+      );
+      expect(config.include.length).toBe(before - 1);
+      const omitted = await classify(repository, revision, writePolicy(repository, fault));
+      expect(omitted.exitCode, output(omitted)).toBe(1);
+      expect(output(omitted)).toContain(`ordinary content ${path} matched 0 classification rules`);
+      const restored = await classify(
+        repository,
+        revision,
+        writePolicy(repository, classificationPolicy),
+      );
+      expect(restored.exitCode, output(restored)).toBe(0);
+      expect(JSON.parse(standardOutput(restored))).toEqual(JSON.parse(standardOutput(invocation)));
+    }
+    for (const { path } of binaryDeclarations) {
+      const fault = structuredClone(classificationPolicy);
+      fault.binaryDeclarations = fault.binaryDeclarations.filter(
+        (declaration) => declaration.path !== path,
+      );
+      expect(fault.binaryDeclarations.length).toBe(
+        classificationPolicy.binaryDeclarations.length - 1,
+      );
+      const omitted = await classify(repository, revision, writePolicy(repository, fault));
+      expect(omitted.exitCode, output(omitted)).toBe(1);
+      expect(output(omitted)).toContain(`undeclared binary content at ${path}`);
+      const restored = await classify(
+        repository,
+        revision,
+        writePolicy(repository, classificationPolicy),
+      );
+      expect(restored.exitCode, output(restored)).toBe(0);
+      expect(JSON.parse(standardOutput(restored))).toEqual(JSON.parse(standardOutput(invocation)));
+    }
+    // Proof: all four policies refuse the same archive bytes at an unlisted sibling and unlisted same-directory sudoers/tmpfiles; no suffix or directory fallback is admitted.
+    for (const [path, source, diagnostic] of [
+      [
+        'tools/tool-fleet/src/fixtures/unlisted.oci.tar',
+        readFileSync(join(workspace, binaryDeclarations[0].path)),
+        'undeclared binary content at',
+      ],
+      [
+        'infra/ansible/roles/registry_storage/files/unlisted.sudoers',
+        'no grant\n',
+        'ordinary content',
+      ],
+      [
+        'infra/ansible/roles/registry_storage/files/unlisted.tmpfiles',
+        'no grant\n',
+        'ordinary content',
+      ],
+    ] as const) {
+      const unlisted = createRepository();
+      write(unlisted, path, source);
+      const unlistedRevision = commitAll(unlisted);
+      const refused = await classify(
+        unlisted,
+        unlistedRevision,
+        writePolicy(unlisted, classificationPolicy),
+      );
+      expect(refused.exitCode, output(refused)).toBe(1);
+      expect(output(refused)).toContain(`${diagnostic} ${path}`);
+      if (diagnostic === 'ordinary content')
+        expect(output(refused)).toContain('matched 0 classification rules');
+    }
   });
 
   // Proof: before the six exact shipped-policy exclusions, all six real retained-tuple CLI cases refused matched 2 classification rules; the same tuples passed afterward.

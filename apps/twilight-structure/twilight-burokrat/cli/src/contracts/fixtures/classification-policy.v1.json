@@ -19,141 +19,427 @@
     {
       "contentClass": "test",
       "include": [
-        { "kind": "suffix", "value": ".test.ts" },
-        { "kind": "suffix", "value": ".spec.ts" },
-        { "kind": "suffix", "value": ".test.tsx" },
-        { "kind": "suffix", "value": ".spec.tsx" },
-        { "kind": "suffix", "value": ".test.sh" },
-        { "kind": "segment", "value": "e2e" },
-        { "kind": "segment", "value": "test" },
-        { "kind": "segment", "value": "tests" }
+        {
+          "kind": "suffix",
+          "value": ".test.ts"
+        },
+        {
+          "kind": "suffix",
+          "value": ".spec.ts"
+        },
+        {
+          "kind": "suffix",
+          "value": ".test.tsx"
+        },
+        {
+          "kind": "suffix",
+          "value": ".spec.tsx"
+        },
+        {
+          "kind": "suffix",
+          "value": ".test.sh"
+        },
+        {
+          "kind": "segment",
+          "value": "e2e"
+        },
+        {
+          "kind": "segment",
+          "value": "test"
+        },
+        {
+          "kind": "segment",
+          "value": "tests"
+        }
       ],
       "exclude": []
     },
     {
       "contentClass": "generated",
-      "include": [{ "kind": "segment", "value": "generated" }],
+      "include": [
+        {
+          "kind": "segment",
+          "value": "generated"
+        }
+      ],
       "exclude": []
     },
     {
       "contentClass": "vendored",
       "include": [
-        { "kind": "segment", "value": "vendor" },
-        { "kind": "segment", "value": "third-party" }
+        {
+          "kind": "segment",
+          "value": "vendor"
+        },
+        {
+          "kind": "segment",
+          "value": "third-party"
+        }
       ],
       "exclude": []
     },
     {
       "contentClass": "fixture",
       "include": [
-        { "kind": "segment", "value": "fixtures" },
-        { "kind": "segment", "value": "__fixtures__" }
+        {
+          "kind": "segment",
+          "value": "fixtures"
+        },
+        {
+          "kind": "segment",
+          "value": "__fixtures__"
+        }
       ],
       "exclude": []
     },
     {
       "contentClass": "migration",
       "include": [
-        { "kind": "segment", "value": "migrations" },
-        { "kind": "segment", "value": "drizzle" }
+        {
+          "kind": "segment",
+          "value": "migrations"
+        },
+        {
+          "kind": "segment",
+          "value": "drizzle"
+        }
       ],
       "exclude": []
     },
     {
       "contentClass": "openspec",
-      "include": [{ "kind": "prefix", "value": "openspec" }],
+      "include": [
+        {
+          "kind": "prefix",
+          "value": "openspec"
+        }
+      ],
       "exclude": []
     },
     {
       "contentClass": "placeholder",
       "include": [
-        { "kind": "name", "value": ".gitkeep" },
-        { "kind": "name", "value": ".keep" }
+        {
+          "kind": "name",
+          "value": ".gitkeep"
+        },
+        {
+          "kind": "name",
+          "value": ".keep"
+        }
       ],
       "exclude": []
     },
     {
       "contentClass": "script",
       "include": [
-        { "kind": "suffix", "value": ".sh" },
-        { "kind": "prefix", "value": "bin" },
-        { "kind": "path", "value": "ops/agent-trailer/prepare-commit-msg" }
+        {
+          "kind": "suffix",
+          "value": ".sh"
+        },
+        {
+          "kind": "prefix",
+          "value": "bin"
+        },
+        {
+          "kind": "path",
+          "value": "ops/agent-trailer/prepare-commit-msg"
+        }
       ],
-      "exclude": [{ "kind": "suffix", "value": ".test.sh" }]
+      "exclude": [
+        {
+          "kind": "suffix",
+          "value": ".test.sh"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/tests/registry-storage-rehearsal.sh"
+        }
+      ]
     },
     {
       "contentClass": "config",
       "include": [
-        { "kind": "suffix", "value": ".json" },
-        { "kind": "suffix", "value": ".yaml" },
-        { "kind": "suffix", "value": ".yml" },
-        { "kind": "suffix", "value": ".toml" },
-        { "kind": "suffix", "value": ".config.ts" },
-        { "kind": "suffix", "value": ".lock" },
-        { "kind": "suffix", "value": ".example" },
-        { "kind": "suffix", "value": ".sops" },
-        { "kind": "suffix", "value": ".service" },
-        { "kind": "suffix", "value": ".caddy" },
-        { "kind": "suffix", "value": ".candidate" },
-        { "kind": "suffix", "value": ".bootstrap" },
-        { "kind": "suffix", "value": ".tmpl" },
-        { "kind": "suffix", "value": ".Dockerfile" },
-        { "kind": "name", "value": "Dockerfile" },
-        { "kind": "name", "value": "Caddyfile" },
-        { "kind": "name", "value": ".bun-version" },
-        { "kind": "name", "value": ".dockerignore" },
-        { "kind": "name", "value": ".editorconfig" },
-        { "kind": "name", "value": ".gitignore" },
-        { "kind": "name", "value": ".nxignore" },
-        { "kind": "name", "value": ".prettierignore" }
+        {
+          "kind": "suffix",
+          "value": ".json"
+        },
+        {
+          "kind": "suffix",
+          "value": ".yaml"
+        },
+        {
+          "kind": "suffix",
+          "value": ".yml"
+        },
+        {
+          "kind": "suffix",
+          "value": ".toml"
+        },
+        {
+          "kind": "suffix",
+          "value": ".config.ts"
+        },
+        {
+          "kind": "suffix",
+          "value": ".lock"
+        },
+        {
+          "kind": "suffix",
+          "value": ".example"
+        },
+        {
+          "kind": "suffix",
+          "value": ".sops"
+        },
+        {
+          "kind": "suffix",
+          "value": ".service"
+        },
+        {
+          "kind": "suffix",
+          "value": ".timer"
+        },
+        {
+          "kind": "suffix",
+          "value": ".caddy"
+        },
+        {
+          "kind": "suffix",
+          "value": ".candidate"
+        },
+        {
+          "kind": "suffix",
+          "value": ".bootstrap"
+        },
+        {
+          "kind": "suffix",
+          "value": ".tmpl"
+        },
+        {
+          "kind": "suffix",
+          "value": ".Dockerfile"
+        },
+        {
+          "kind": "name",
+          "value": "Dockerfile"
+        },
+        {
+          "kind": "name",
+          "value": "Caddyfile"
+        },
+        {
+          "kind": "name",
+          "value": ".bun-version"
+        },
+        {
+          "kind": "name",
+          "value": ".dockerignore"
+        },
+        {
+          "kind": "name",
+          "value": ".editorconfig"
+        },
+        {
+          "kind": "name",
+          "value": ".gitignore"
+        },
+        {
+          "kind": "name",
+          "value": ".nxignore"
+        },
+        {
+          "kind": "name",
+          "value": ".prettierignore"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_storage/files/k3s-storage.conf"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_storage/templates/puni-registry-storage.service.j2"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_storage/templates/puni-registry-pressure.service.j2"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_storage/templates/storage.json.j2"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_storage/files/maintenance.sudoers"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_storage/files/maintenance.tmpfiles"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_client/templates/registries.yaml.j2"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_endpoint/templates/puni-registry.service.j2"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_endpoint/templates/puni-registry.socket.j2"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_storage/templates/pulls.json.j2"
+        },
+        {
+          "kind": "path",
+          "value": "infra/ansible/roles/registry_storage/templates/puni-registry-pulls.service.j2"
+        }
       ],
       "exclude": [
-        { "kind": "segment", "value": "fixtures" },
-        { "kind": "segment", "value": "drizzle" },
-        { "kind": "segment", "value": "migrations" },
-        { "kind": "prefix", "value": "openspec" },
-        { "kind": "segment", "value": "e2e" },
-        { "kind": "segment", "value": "test" },
-        { "kind": "segment", "value": "tests" },
-        { "kind": "prefix", "value": "docs/review-evidence" },
-        { "kind": "prefix", "value": "docs/experiment-evidence" }
+        {
+          "kind": "segment",
+          "value": "fixtures"
+        },
+        {
+          "kind": "segment",
+          "value": "drizzle"
+        },
+        {
+          "kind": "segment",
+          "value": "migrations"
+        },
+        {
+          "kind": "prefix",
+          "value": "openspec"
+        },
+        {
+          "kind": "segment",
+          "value": "e2e"
+        },
+        {
+          "kind": "segment",
+          "value": "test"
+        },
+        {
+          "kind": "segment",
+          "value": "tests"
+        },
+        {
+          "kind": "prefix",
+          "value": "docs/review-evidence"
+        },
+        {
+          "kind": "prefix",
+          "value": "docs/experiment-evidence"
+        }
       ]
     },
     {
       "contentClass": "source",
       "include": [
-        { "kind": "suffix", "value": ".ts" },
-        { "kind": "suffix", "value": ".tsx" },
-        { "kind": "suffix", "value": ".js" },
-        { "kind": "suffix", "value": ".mjs" },
-        { "kind": "suffix", "value": ".py" },
-        { "kind": "suffix", "value": ".css" },
-        { "kind": "suffix", "value": ".html" },
-        { "kind": "suffix", "value": ".svg" }
+        {
+          "kind": "suffix",
+          "value": ".ts"
+        },
+        {
+          "kind": "suffix",
+          "value": ".tsx"
+        },
+        {
+          "kind": "suffix",
+          "value": ".js"
+        },
+        {
+          "kind": "suffix",
+          "value": ".mjs"
+        },
+        {
+          "kind": "suffix",
+          "value": ".py"
+        },
+        {
+          "kind": "suffix",
+          "value": ".css"
+        },
+        {
+          "kind": "suffix",
+          "value": ".html"
+        },
+        {
+          "kind": "suffix",
+          "value": ".svg"
+        }
       ],
       "exclude": [
-        { "kind": "suffix", "value": ".test.ts" },
-        { "kind": "suffix", "value": ".spec.ts" },
-        { "kind": "suffix", "value": ".test.tsx" },
-        { "kind": "suffix", "value": ".spec.tsx" },
-        { "kind": "suffix", "value": ".config.ts" },
-        { "kind": "segment", "value": "e2e" },
-        { "kind": "segment", "value": "test" },
-        { "kind": "segment", "value": "tests" },
-        { "kind": "segment", "value": "fixtures" },
-        { "kind": "segment", "value": "generated" },
-        { "kind": "segment", "value": "vendor" }
+        {
+          "kind": "suffix",
+          "value": ".test.ts"
+        },
+        {
+          "kind": "suffix",
+          "value": ".spec.ts"
+        },
+        {
+          "kind": "suffix",
+          "value": ".test.tsx"
+        },
+        {
+          "kind": "suffix",
+          "value": ".spec.tsx"
+        },
+        {
+          "kind": "suffix",
+          "value": ".config.ts"
+        },
+        {
+          "kind": "segment",
+          "value": "e2e"
+        },
+        {
+          "kind": "segment",
+          "value": "test"
+        },
+        {
+          "kind": "segment",
+          "value": "tests"
+        },
+        {
+          "kind": "segment",
+          "value": "fixtures"
+        },
+        {
+          "kind": "segment",
+          "value": "generated"
+        },
+        {
+          "kind": "segment",
+          "value": "vendor"
+        }
       ]
     },
     {
       "contentClass": "document",
       "include": [
-        { "kind": "suffix", "value": ".md" },
-        { "kind": "suffix", "value": ".txt" }
+        {
+          "kind": "suffix",
+          "value": ".md"
+        },
+        {
+          "kind": "suffix",
+          "value": ".txt"
+        }
       ],
       "exclude": [
-        { "kind": "prefix", "value": "openspec" },
-        { "kind": "segment", "value": "fixtures" }
+        {
+          "kind": "prefix",
+          "value": "openspec"
+        },
+        {
+          "kind": "segment",
+          "value": "fixtures"
+        }
       ]
     }
   ],
@@ -167,7 +453,26 @@
       "allowedRecordKinds": ["benchmark-corpus", "candidate-inventory", "experiment-manifest"]
     }
   ],
-  "binaryDeclarations": [],
+  "binaryDeclarations": [
+    {
+      "path": "tools/tool-fleet/src/fixtures/dagger-0.21.9.oci.tar",
+      "format": "application/x-tar",
+      "consumer": "tools/tool-fleet/src/registry-artifact.test.ts",
+      "regenerationAuthority": {
+        "kind": "external",
+        "authority": "Pinned external Dagger 0.21.9 SDK/CLI and engine OCI export; retained provenance in openspec/changes/bound-registry-storage/verify.md. Re-export and characterize the pinned output before replacing this archive."
+      }
+    },
+    {
+      "path": "tools/tool-fleet/src/fixtures/docker-29.1.3-containerd.oci.tar",
+      "format": "application/x-tar",
+      "consumer": "tools/tool-fleet/src/registry-docker.test.ts",
+      "regenerationAuthority": {
+        "kind": "external",
+        "authority": "External pinned Docker 29.1.3 containerd image-store OCI export. Regenerate with that exporter and re-characterize the root and metadata against tools/tool-fleet/src/registry-docker.test.ts before replacing this archive."
+      }
+    }
+  ],
   "gitlinkBoundaries": [],
   "symlinks": "inventory-only",
   "gitlinks": "declared-external-boundary"

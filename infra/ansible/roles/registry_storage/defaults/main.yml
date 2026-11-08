@@ -1,0 +1,6 @@
+---
+puni_registry_storage_directory: /var/lib/puni-registry
+puni_registry_storage_registry_bytes: 53687091200
+puni_registry_storage_journal_bytes: 1073741824
+puni_registry_storage_root_reserve_bytes: 21474836480
+puni_registry_storage_uid: 59001

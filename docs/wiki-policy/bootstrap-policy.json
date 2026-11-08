@@ -200,6 +200,10 @@
           {
             "kind": "path",
             "value": "openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/hooks/lint-staged.sh"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/tests/registry-storage-rehearsal.sh"
           }
         ]
       },
@@ -245,6 +249,10 @@
           {
             "kind": "suffix",
             "value": ".service"
+          },
+          {
+            "kind": "suffix",
+            "value": ".timer"
           },
           {
             "kind": "suffix",
@@ -301,6 +309,50 @@
           {
             "kind": "name",
             "value": "Containerfile"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/files/k3s-storage.conf"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/templates/puni-registry-storage.service.j2"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/templates/storage.json.j2"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/templates/puni-registry-pressure.service.j2"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/files/maintenance.sudoers"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/files/maintenance.tmpfiles"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_client/templates/registries.yaml.j2"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_endpoint/templates/puni-registry.service.j2"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_endpoint/templates/puni-registry.socket.j2"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/templates/pulls.json.j2"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/templates/puni-registry-pulls.service.j2"
           }
         ],
         "exclude": [
@@ -4938,6 +4990,24 @@
         "regenerationAuthority": {
           "kind": "external",
           "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/recovery-verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "tools/tool-fleet/src/fixtures/dagger-0.21.9.oci.tar",
+        "format": "application/x-tar",
+        "consumer": "tools/tool-fleet/src/registry-artifact.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Pinned external Dagger 0.21.9 SDK/CLI and engine OCI export; retained provenance in openspec/changes/bound-registry-storage/verify.md. Re-export and characterize the pinned output before replacing this archive."
+        }
+      },
+      {
+        "path": "tools/tool-fleet/src/fixtures/docker-29.1.3-containerd.oci.tar",
+        "format": "application/x-tar",
+        "consumer": "tools/tool-fleet/src/registry-docker.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "External pinned Docker 29.1.3 containerd image-store OCI export. Regenerate with that exporter and re-characterize the root and metadata against tools/tool-fleet/src/registry-docker.test.ts before replacing this archive."
         }
       }
     ],

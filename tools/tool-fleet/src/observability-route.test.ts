@@ -671,8 +671,12 @@ for (const fault of ['platform', 'primitive', 'permissions', 'symlink'] as const
           denied.mockRestore();
         };
       }
-      if (fault === 'permissions')
-        writeFileSync(join(fixture.observer.state, 'recovery.guard'), '', { mode: 0o644 });
+      if (fault === 'permissions') {
+        const guard = join(fixture.observer.state, 'recovery.guard');
+        writeFileSync(guard, '', { mode: 0o644 });
+        // Inject public permissions explicitly; creation alone is masked by private caller umasks.
+        filesystem.chmodSync(guard, 0o644);
+      }
       if (fault === 'symlink')
         filesystem.symlinkSync(
           join(fixture.observer.state, 'route.lock/owner.json'),

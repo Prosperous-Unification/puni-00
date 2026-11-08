@@ -211,3 +211,18 @@ it('refuses missing source drain and restore acknowledgments in durable phase hi
   );
   expect(() => fileJournal(path).read()).toThrow('restore acknowledgment');
 });
+
+for (const [family, envelope] of [
+  ['registry binding', { registry: null }],
+  ['registry history', { registryHistory: null }],
+  ['inheritance kind', { kind: 'registry-inheritance' }],
+  ['combined registry', { registry: null, registryHistory: null }],
+] as const) {
+  it(`active journal family refuses ${family} with valid controller progress`, () => {
+    const path = join(directory(), 'hybrid.json');
+    const bytes = JSON.stringify({ ...record(), ...envelope });
+    writeFileSync(path, bytes);
+    expect(() => fileJournal(path).read()).toThrow('unsupported schema');
+    expect(readFileSync(path, 'utf8')).toBe(bytes);
+  });
+}

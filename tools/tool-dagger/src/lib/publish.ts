@@ -1,4 +1,18 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import { IMAGE_NAME, type Tier as ComposeTier } from '@tools/deploy-contract';
+import {
+  admitExportScratch,
+  checkExportScratch,
+  connectRegistryAuthority,
+  inspectOciArchive,
+  type ManagedRegistry,
+  publishArtifacts,
+  type RegistryArtifact,
+  type RegistryEndpoint,
+  uploadArtifact,
+} from '@tools/registry-publication';
 
 // Re-exported because this module's own callers take `Tier` from it. The image
 // names came from a second copy here until 2026-09-02, and they are the pair
@@ -73,4 +87,73 @@ export function parseDigest(publishOutput: string): string {
 
 export function renderRelease(rec: ReleaseRecord): string {
   return JSON.stringify(rec, null, 2) + '\n';
+}
+
+/** A managed receipt accompanies the legacy tier record without changing release.json consumers. */
+export interface PublishedRelease {
+  record: ReleaseRecord;
+  publication?: Awaited<ReturnType<typeof publishArtifacts>>;
+}
+
+/**
+ * Export every requested tier onto the independently enforced builder filesystem before admission.
+ * The endpoint must exactly match the validated enrollment before any scratch or publication effect.
+ * Enrollment supplies the required repository set; a subset cannot acknowledge a whole release.
+ * The callback is the real Dagger export boundary; the shared writer uploads only frozen OCI bytes.
+ */
+export async function publishManagedRelease(
+  enrollment: ManagedRegistry,
+  endpoint: RegistryEndpoint,
+  tiers: readonly Tier[],
+  sha: string,
+  exportTier: (tier: Tier, path: string) => Promise<unknown>,
+): Promise<PublishedRelease> {
+  // Proof: removing this bind reaches scratch admission on foreign, alternate-scheme and alternate-path targets in publish-endpoint.fixture.ts; the matching control still publishes through the owned HTTP fixture.
+  if (endpoint.url !== enrollment.registryUrl)
+    throw new Error('Managed publication endpoint differs from enrolled registry');
+  const registry = new URL(endpoint.url).host;
+  const repositories = tiers.map((tier) => RELEASE_IMAGE_NAME[tier]);
+  if (
+    new Set(repositories).size !== repositories.length ||
+    repositories.length !== enrollment.requiredRepositories.length ||
+    enrollment.requiredRepositories.some((repository) => !repositories.includes(repository))
+  )
+    throw new Error('Selected tiers do not contain all required product repositories');
+  // Proof: removing scratch admission reached the real managed export callback with no enforced receipt.
+  const scratch = await admitExportScratch(enrollment);
+  const directory = await mkdtemp(join(enrollment.builder.path, 'publication-'));
+  try {
+    const artifacts: RegistryArtifact[] = [];
+    for (const tier of tiers) {
+      const path = join(directory, `${tier}.tar`);
+      await exportTier(tier, path);
+      await checkExportScratch(enrollment, scratch);
+      artifacts.push(await inspectOciArchive(path, RELEASE_IMAGE_NAME[tier], sha));
+    }
+    const publication = await publishArtifacts(
+      enrollment,
+      artifacts,
+      connectRegistryAuthority(enrollment),
+      async (artifact, ownership) => {
+        // Proof: dropping ownership makes the real HTTP caller fixture reject its first body (409, no durable write intent).
+        await uploadArtifact(endpoint, artifact, ownership);
+      },
+    );
+    const record: ReleaseRecord = {};
+    for (const tier of tiers) {
+      const artifact = artifacts.find(
+        (candidate) => candidate.repository === RELEASE_IMAGE_NAME[tier],
+      );
+      if (artifact === undefined) throw new Error('Completed publication omitted a required tier');
+      record[tier] = {
+        sha,
+        digest: artifact.digest,
+        ref: imageRef(registry, tier, sha),
+        image: digestRef(registry, tier, artifact.digest),
+      };
+    }
+    return { record, publication };
+  } finally {
+    await rm(directory, { recursive: true });
+  }
 }

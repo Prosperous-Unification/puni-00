@@ -111,10 +111,12 @@
       "options": {
         "commands": [
           "command -v shellcheck >/dev/null 2>&1 || { echo '[tool-deploy] shellcheck is required but not installed. macOS: brew install shellcheck. Debian/Ubuntu: apt-get install shellcheck.' >&2; exit 1; }",
-          "shellcheck -s bash bin/assert-no-prod-release.sh"
+          "shellcheck -s bash bin/assert-no-prod-release.sh",
+          "bun build tools/tool-deploy/src/registry-history-cli.ts tools/tool-deploy/src/k8s/registry-reader.ts tools/tool-deploy/src/k8s/registry-history-reader.ts --target=bun --outdir dist/tool-deploy"
         ],
         "parallel": false
-      }
+      },
+      "outputs": ["{workspaceRoot}/dist/tool-deploy"]
     }
   },
   "namedInputs": {

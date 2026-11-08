@@ -1,0 +1,104 @@
+---
+# Proof: removing enrollment assertion admits refused enrollment in registry-hosts.test.ts.
+- name: Require explicit bounded storage enrollment
+  ansible.builtin.assert:
+    that:
+      - puni_registry_storage_enrolled | default(false) | bool
+      - puni_registry_storage_directory is match('^/[a-zA-Z0-9_./-]+$')
+    fail_msg: Storage enrollment must be explicit; back up and migrate the old PVC separately.
+
+- name: Validate dedicated registry identity
+  ansible.builtin.script:
+    cmd: 'identity.sh {{ puni_registry_storage_uid }}'
+  changed_when: false
+
+- name: Create dedicated registry authority group
+  ansible.builtin.group:
+    name: puni-registry-authority
+    gid: '{{ puni_registry_storage_uid }}'
+    system: true
+
+- name: Create dedicated registry authority account
+  ansible.builtin.user:
+    name: puni-registry-authority
+    uid: '{{ puni_registry_storage_uid }}'
+    group: puni-registry-authority
+    home: /nonexistent
+    create_home: false
+    shell: /usr/sbin/nologin
+    system: true
+    password_lock: true
+
+- name: Create root owned storage configuration directories
+  ansible.builtin.file:
+    path: '{{ registry_storage_path }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - '{{ puni_registry_storage_directory }}'
+    - /usr/local/libexec/puni-registry-storage
+    - /etc/puni
+    - /etc/systemd/system/k3s.service.d
+  loop_control:
+    loop_var: registry_storage_path
+
+- name: Install bounded storage command
+  ansible.builtin.copy:
+    src: storage.sh
+    dest: /usr/local/libexec/puni-registry-storage/storage.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install exact storage enrollment
+  ansible.builtin.template:
+    src: storage.json.j2
+    dest: /etc/puni/registry-storage.json
+    owner: root
+    group: root
+    mode: '0600'
+
+# Proof: the real fstrim --listed-in rehearsal preserves allocated blocks with these entries.
+- name: Exclude bounded backing filesystems from scheduled discard
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^{{ puni_registry_storage_directory | regex_escape }}/{{ registry_storage_name }}\.ext4\s'
+    line: '{{ puni_registry_storage_directory }}/{{ registry_storage_name }}.ext4 {{ puni_registry_storage_directory }}/{{ registry_storage_name }} ext4 loop,noauto,nodiscard,nodev,nosuid,noexec,X-fstrim.notrim 0 0'
+  loop: [registry, journal]
+  loop_control:
+    loop_var: registry_storage_name
+
+- name: Provision and verify both bounded filesystems
+  ansible.builtin.command:
+    argv:
+      - /usr/local/libexec/puni-registry-storage/storage.sh
+      - provision
+      - /etc/puni/registry-storage.json
+  register: registry_storage_convergence
+  changed_when: registry_storage_convergence.stdout == 'changed'
+
+- name: Install storage boot guard
+  ansible.builtin.template:
+    src: puni-registry-storage.service.j2
+    dest: /etc/systemd/system/puni-registry-storage.service
+    owner: root
+    group: root
+    mode: '0644'
+
+# Proof: registry-hosts.test.ts fails when the k3s Requires dependency is removed.
+- name: Require verified storage before k3s starts
+  ansible.builtin.copy:
+    src: k3s-storage.conf
+    dest: /etc/systemd/system/k3s.service.d/registry-storage.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable storage verification on host boot
+  ansible.builtin.systemd_service:
+    name: puni-registry-storage.service
+    enabled: true
+    state: started
+    daemon_reload: true

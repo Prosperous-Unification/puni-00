@@ -1,0 +1,30 @@
+---
+- name: Complete endpoint preflight before writes
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Install private registry socket
+  ansible.builtin.template:
+    src: puni-registry.socket.j2
+    dest: /etc/systemd/system/puni-registry.socket
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart registry socket
+
+- name: Install registry TCP proxy service
+  ansible.builtin.template:
+    src: puni-registry.service.j2
+    dest: /etc/systemd/system/puni-registry.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart registry socket
+
+- name: Activate changed registry units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable private registry socket
+  ansible.builtin.systemd_service:
+    name: puni-registry.socket
+    enabled: true
+    state: started

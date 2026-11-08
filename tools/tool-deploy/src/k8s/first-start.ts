@@ -2,12 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { closeSync, fsyncSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import {
-  assertExportSound,
-  assertRestoredMatches,
-  parseSqliteReport,
-  type SqliteReport,
-} from './cutover';
+import { assertRestoredMatches, parseSqliteReport, type SqliteReport } from './cutover';
 import {
   createCutoverIdentity,
   type CutoverIdentity,
@@ -15,7 +10,14 @@ import {
 } from './cutover-replay';
 import { parseDescriptor, releaseIdentityOf } from './descriptor';
 import type { ReleaseEffects } from './execute';
-import { parseSourceReceipt, type SourceReceipt } from './first-start-source';
+import type { SourceReceipt } from './first-start-source';
+import {
+  assertFirstStartObservation,
+  type FirstStartProgress,
+  parseFirstStartProgress,
+  requireFirstStartFields,
+  verifyFirstStartReport,
+} from './first-start-state';
 import { sha256Of } from './migration-capture';
 import {
   type ClusterIdentity,
@@ -39,27 +41,11 @@ export interface FirstStartRequest {
   flux: FluxUnit;
 }
 
-const PHASES = [
-  'requested',
-  'admitted',
-  'starting',
-  'ready',
-  'recorded',
-  'handed',
-  'complete',
-] as const;
-type Phase = (typeof PHASES)[number];
-
-/** Separate from release journal schema 3; receipt seals the actual stopped-writer observation. */
-export interface FirstStartState {
+/** Original disk version; newer coordinators never resume it by silently upgrading state. */
+export interface FirstStartState extends FirstStartProgress {
   version: 2;
-  transaction: string;
-  requestBytes: string;
-  requestSha256: string;
-  phase: Phase;
-  receipt: { bytes: string; sha256: string } | null;
-  source: SourceReceipt | null;
 }
+type Phase = FirstStartProgress['phase'];
 
 /** Missing is a new transaction; malformed/unreadable state always throws. */
 export interface FirstStartJournal {
@@ -103,18 +89,6 @@ export interface FirstStartEffects extends Pick<
   currentRelease(): Promise<ReleaseIdentity | null>;
 }
 
-function requireRecord(raw: unknown): Record<string, unknown> {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
-    throw new Error('first-start state is malformed');
-  // Boundary: non-null object shape permits unknown protocol field inspection.
-  return raw as Record<string, unknown>;
-}
-
-function verifyReport(report: SqliteReport): void {
-  parseSqliteReport(`PUNI_SQLITE_REPORT ${JSON.stringify(report)}`);
-  assertExportSound(report);
-}
-
 /** Refuses foreign descriptors, missing immutable object identities and unverified restore reports. */
 export function assertFirstStartRequest(request: FirstStartRequest): ReleaseIdentity {
   // Proof: malformed operator namespace negative fails when trusted namespace admission is omitted.
@@ -153,8 +127,8 @@ export function assertFirstStartRequest(request: FirstStartRequest): ReleaseIden
     !/^[0-9a-f]{40}$/.test(request.flux.previousRevision)
   )
     throw new Error('first-start PVC path or Flux revision is invalid');
-  verifyReport(request.exported);
-  verifyReport(request.restored);
+  verifyFirstStartReport(request.exported);
+  verifyFirstStartReport(request.restored);
   assertRestoredMatches(request.exported, request.restored);
   const before = validateCutoverReplay(
     request.exported.replay,
@@ -175,19 +149,19 @@ export function assertFirstStartRequest(request: FirstStartRequest): ReleaseIden
 
 /** Parse external operator input once; every required field is read before creating effects. */
 export function parseFirstStartRequest(raw: unknown): FirstStartRequest {
-  const fields = requireRecord(raw);
+  const fields = requireFirstStartFields(raw);
   const text = (source: Record<string, unknown>, name: string): string => {
     const value = source[name];
     if (typeof value !== 'string' || value === '')
       throw new Error(`first-start request lacks ${name}`);
     return value;
   };
-  const identity = requireRecord(fields['identity']);
-  const cluster = requireRecord(fields['cluster']);
-  const namespaces = requireRecord(fields['namespaces']);
-  const pvc = requireRecord(fields['pvc']);
-  const restore = requireRecord(fields['restore']);
-  const flux = requireRecord(fields['flux']);
+  const identity = requireFirstStartFields(fields['identity']);
+  const cluster = requireFirstStartFields(fields['cluster']);
+  const namespaces = requireFirstStartFields(fields['namespaces']);
+  const pvc = requireFirstStartFields(fields['pvc']);
+  const restore = requireFirstStartFields(fields['restore']);
+  const flux = requireFirstStartFields(fields['flux']);
   const request: FirstStartRequest = {
     environment:
       fields['environment'] === 'local' ||
@@ -226,70 +200,15 @@ export function parseFirstStartRequest(raw: unknown): FirstStartRequest {
   return request;
 }
 
-function assertObservation(
-  request: FirstStartRequest,
-  observation: { report: SqliteReport; activation: string },
-): void {
-  verifyReport(observation.report);
-  // Proof: call omission admitted changed actual main-file bytes in the actual-bytes negative.
-  assertRestoredMatches(request.exported, observation.report);
-  const actual = validateCutoverReplay(
-    observation.report.replay,
-    request.identity,
-    request.exported.sha256,
-  );
-  const exported = validateCutoverReplay(
-    request.exported.replay,
-    request.identity,
-    request.exported.sha256,
-  );
-  // Proof: actual-replay omission admits a changed retained journal inventory in first-start tests.
-  if (
-    observation.report.path !== request.pvc.path ||
-    JSON.stringify(actual) !== JSON.stringify(exported)
-  )
-    throw new Error('first-start actual PVC replay differs from restore');
-  // Proof: disabled-authority omission starts every tier in the enabled-marker refusal test.
-  if (observation.activation !== 'DISABLED')
-    throw new Error('first-start requires DISABLED step blockage authority');
-}
-
-/** Validates sealed disk state before any Lease or cluster mutation, including terminal receipts. */
+/** Validates original version2 before shared sealed-state validation; never adopts managed state. */
 export function parseFirstStartState(raw: unknown, request: FirstStartRequest): FirstStartState {
-  const fields = requireRecord(raw);
-  // Proof: request-binding omission allows a changed PVC UID to resume without evidence.
-  if (
-    fields['version'] !== 2 ||
-    typeof fields['transaction'] !== 'string' ||
-    !/^first-start-[0-9a-f]{16}$/.test(fields['transaction']) ||
-    fields['requestBytes'] !== JSON.stringify(request) ||
-    fields['requestSha256'] !== sha256Of(JSON.stringify(request)) ||
-    typeof fields['phase'] !== 'string' ||
-    !(PHASES as readonly string[]).includes(fields['phase'])
-  )
+  const fields = requireFirstStartFields(raw);
+  // Proof: removing version2 refusal accepted managed progress in registry-first-start.test.ts.
+  if (fields['version'] !== 2)
     throw new Error('first-start state belongs to another request or version');
-  if (fields['phase'] !== 'requested' || fields['source'] !== null)
-    parseSourceReceipt(fields['source'], request);
-  if (fields['phase'] !== 'requested' || fields['receipt'] !== null) {
-    const receipt = requireRecord(fields['receipt']);
-    // Proof: receipt null/digest omission admits corrupted durable admission before scaling.
-    if (typeof receipt['bytes'] !== 'string' || receipt['sha256'] !== sha256Of(receipt['bytes']))
-      throw new Error('first-start receipt differs from original SHA-256');
-    const payload = requireRecord(JSON.parse(receipt['bytes']) as unknown);
-    // Proof: each identity omission accepted a resealed foreign transaction/request receipt
-    // in the corresponding first-start progress corruption negatives.
-    if (
-      payload['transaction'] !== fields['transaction'] ||
-      payload['requestSha256'] !== fields['requestSha256']
-    )
-      throw new Error('first-start receipt belongs to another transaction');
-    const report = parseSqliteReport(`PUNI_SQLITE_REPORT ${JSON.stringify(payload['report'])}`);
-    if (typeof payload['activation'] !== 'string')
-      throw new Error('first-start receipt lacks activation');
-    assertObservation(request, { report, activation: payload['activation'] });
-  }
-  // Boundary: protocol fields, phase, request binding and receipt were checked above.
-  return fields as unknown as FirstStartState;
+  const progress = parseFirstStartProgress(fields, request);
+  // Boundary: the original version is checked above and all sealed common fields were validated.
+  return progress as FirstStartState;
 }
 
 /** Atomic fsync/rename state, in the protected operator state directory. */
@@ -447,7 +366,7 @@ export async function startCutover(
     state = { ...state, source: await effects.admitSource(request, state.source) };
     persist('requested');
     const restored = await effects.observeRestore(request);
-    verifyReport(restored);
+    verifyFirstStartReport(restored);
     assertRestoredMatches(request.exported, restored);
     // Proof: restore-report equality omission admits a legacy Job log without replay evidence
     // in the restore-evidence negative, even with a matching fresh actual PVC observation.
@@ -456,7 +375,7 @@ export async function startCutover(
     await renew();
     assertLease();
     const actual = await effects.observePvc(request, state.transaction);
-    assertObservation(request, actual);
+    assertFirstStartObservation(request, actual);
     await renew();
     await effects.assertSafety(request, true, false);
     assertLease();

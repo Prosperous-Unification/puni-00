@@ -7,7 +7,7 @@
   - [x] Live SOPS decryption and missing-key refusal; live wrong-cluster kubeconfig refusal.
   - [x] Complete cluster-specific Flux source graph reconciled from an immutable Git commit on k3d.
   - [x] Local test registry with TLS and htpasswd auth, digest-preserving migration copy, read-only offline GC and pull after restart.
-  - [ ] Production registry adoption: node containerd trust, private endpoint and migration from the existing registry. Prepared: `registry/production`, `platform-registry.ts copy`; next: encrypt `registry-ca` and `registry-auth`, add `registries.yaml` to the k3s roles, copy images, repoint pulls.
+  - [ ] Production registry adoption: activation is verified in [registry activation](../activate-platform-registry/verify.md), including node/containerd trust, the private endpoint and backup/restore. Existing products retain their registry sources. Next: implement and verify the [registry storage lifecycle](../bound-registry-storage/tasks.md), configure Dagger engine DNS/trust, copy product images and repoint builds/pulls.
   - [ ] Staging ACME issuance for the two hostnames. Prepared: `letsencrypt-staging`; next: a reviewed `platform-dns.ts plan`, applied by hand, then a staging Certificate.
   - [ ] Production Flux bootstrap with the read-only deploy key and hcloud storage on real hosts.
 - [ ] F7 — Bring up observability and layered backups per [F7](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f7--bring-up-elastic-metrics-logging-and-backups).

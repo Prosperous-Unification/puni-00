@@ -1,0 +1,52 @@
+---
+- name: Complete client preflight before writes
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Create dedicated registry trust directory
+  ansible.builtin.file:
+    path: /etc/puni/registry
+    state: directory
+    owner: '{{ puni_registry_owner }}'
+    group: root
+    mode: '0700'
+
+- name: Install registry CA
+  ansible.builtin.copy:
+    content: '{{ puni_registry_ca }}'
+    dest: /etc/puni/registry/ca.crt
+    owner: '{{ puni_registry_owner }}'
+    group: root
+    mode: '0600'
+  notify: Restart registry client
+
+- name: Map private registry hostname
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: '# {mark} Ansible managed: puni-registry'
+    block: '{{ puni_registry_address }} {{ puni_registry_hostname }}'
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create k3s registry configuration directory
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: puni_registry_mode == 'k3s'
+
+- name: Install authenticated k3s registry configuration
+  ansible.builtin.template:
+    src: registries.yaml.j2
+    dest: /etc/rancher/k3s/registries.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  when: puni_registry_mode == 'k3s'
+  no_log: true
+  notify: Restart registry client
+
+- name: Activate changed registry client configuration
+  ansible.builtin.meta: flush_handlers

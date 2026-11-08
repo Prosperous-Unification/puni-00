@@ -1,5 +1,15 @@
 # Platform map
 
+**Source staging — 2026-11-08:** Registry lifecycle libraries and manual provisioning
+sources are retained for future coordinated activation. Supported publish, copy,
+Compose and Kubernetes commands keep current-main routing and persisted writer
+formats; they do not select managed adapters. Explicit managed helpers
+require trusted enrollment. Active Kubernetes controller schema4 is separate from
+dormant registry-history schema4. Historical installed receipts below do not establish
+current readiness. Managed procedures remain attended future operations; this
+source merge performs no installation, adoption or production action. Full native,
+provider, storage, backup, isolation, recovery and delivery acceptance stays open.
+
 A snapshot of everything puni-00 does, taken 2026-11-03 at `main` 415fd7902 by reading the
 repository (first taken 2026-10-21 at 69a8b38f4), as the starting point for reconciling the
 platform's workflows and capabilities.
@@ -231,6 +241,13 @@ h1claw.
   coverage ledgers.
 
 ### 5.9 Operate
+
+**2026-10-25 follow-up (proposed):** The operational platform registry needs the
+[storage lifecycle workflow](../openspec/changes/bound-registry-storage/design.md)
+before continuous product adoption. It links publishing, import, deployment,
+rollback, backup and retirement through enforced capacity and image protections.
+The design exists; runtime safeguards are not yet active. This follow-up does not
+change the historical capability states in the snapshot below.
 
 Runbooks: dev deploy, dev observability (runtime, Grafana), prod deploy, heavy-lock owner,
 organization DNS, activation, ownership preflight, email delivery, public email policy, Dagger

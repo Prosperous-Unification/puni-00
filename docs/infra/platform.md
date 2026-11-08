@@ -1,5 +1,14 @@
 # Platform reconciliation
 
+**Source staging — 2026-11-08:** Registry lifecycle libraries and manual provisioning
+sources are retained for future coordinated activation. Supported publish, copy,
+Compose and Kubernetes commands keep current-main routing and legacy persisted
+writer versions; they do not select managed adapters. Explicit managed helpers
+require trusted enrollment. Historical installed receipts below do not establish
+current readiness. Managed procedures remain attended future operations; this
+source merge performs no installation, adoption or production action. Full native,
+provider, storage, backup, isolation, recovery and delivery acceptance stays open.
+
 Operator commands and what has been tested: [infrastructure operator guide](README.md).
 
 Ansible installs k3s and bootstraps Flux. Flux then owns every long-lived
@@ -211,9 +220,16 @@ and a separate plain-HTTP debug port (5001) for health probes. NetworkPolicy
 issues a disposable CA and certificate through cert-manager.
 `registry/production` issues `registry.puni.internal` from the escrowed
 `registry-ca` Secret, so a rebuild keeps the chain that nodes and Dagger trust.
-Node containerd trust (`/etc/rancher/k3s/registries.yaml` with that CA and
-credential) and the private-network endpoint are not yet configured by any
-role; until they are, the existing external registry stays authoritative.
+The standalone `infra/ansible/playbooks/registry.yml` configures the private
+endpoint and per-node containerd trust without reprovisioning k3s. Its inputs,
+Flux ownership, recovery custody and rollback are in [registry operation](registry.md).
+The existing product registries remain authoritative until a separately verified migration.
+
+Continuous publishing adoption also requires the
+[storage lifecycle design](../../openspec/changes/bound-registry-storage/design.md)
+to be implemented and verified. The current local-path PVC size is not a hard cap.
+Publication, copy/import, deploy/rollback and backup must participate in the same
+protection and capacity protocol before automatic image retirement is enabled.
 
 Migrate by copying each image by tag without re-encoding it; the copier
 verifies every blob digest and requires the target to report the source
@@ -225,7 +241,12 @@ TARGET_USERNAME=puni-push TARGET_PASSWORD=... TARGET_CA_FILE=registry-ca.crt \
   https://<existing-registry> https://registry.puni.internal:5000 wbs/be-01:<tag> ...
 ```
 
-Garbage collection runs offline. Suspend Flux `platform`, set
+The following is the original local-lab GC rehearsal, not an automatic retention
+policy or a sufficient production maintenance procedure. Production requires the
+root/platform ownership barrier, protected-image inventory and recovery sequencing
+in the linked storage lifecycle design; these are not activated yet.
+
+For the local-lab rehearsal, suspend Flux `platform`, set
 `REGISTRY_STORAGE_MAINTENANCE_READONLY={"enabled": true}` and wait for the
 rollout, confirm pushes return 405, then run
 `registry garbage-collect /etc/docker/registry/config.yml` in the pod.

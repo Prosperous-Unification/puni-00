@@ -618,3 +618,10 @@ export function decideLease(
       `${String(observed.journal)}); inspect that journal and delete the Lease by hand`,
   );
 }
+
+/** Durable registry authority acknowledgment bound to exactly one release transaction. */
+export interface ReleaseRegistryBinding {
+  readonly registryId: string;
+  readonly operationId: string;
+  readonly references: readonly { repository: string; digest: string }[];
+}
