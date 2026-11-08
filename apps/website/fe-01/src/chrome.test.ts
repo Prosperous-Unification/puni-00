@@ -33,12 +33,13 @@ async function renderHeader(tone: 'light' | 'night' = 'night') {
 }
 
 describe('night site header', () => {
-  test('lists four plain links and a decorative moon from the site origin', async () => {
+  test('lists five plain links and a decorative moon from the site origin', async () => {
     const { container, root, act, siteOrigin } = await renderHeader();
     const links = [...container.querySelectorAll('nav[aria-label="Primary"] a')].map((link) =>
       link.textContent.replace(/\s+/g, ' ').trim(),
     );
-    expect(links).toEqual(['Home', 'Build', 'Services', 'Blog']);
+    expect(links).toEqual(['Home', 'Build', 'Services', 'About', 'Blog']);
+    expect(container.querySelector(`a[href="${siteOrigin}/#about"]`)?.textContent).toBe('About');
     expect(container.querySelector('.nav-rail-label, .nav-index')).toBeNull();
     expect(container.querySelector('a[aria-current="page"]')?.textContent).toBe('Build');
     const moon = container.querySelector('.wordmark-moon img');
@@ -98,7 +99,7 @@ describe('night site header', () => {
     );
     expect(container.querySelector('.nav-rail-label, .nav-index')).toBeNull();
     expect(container.querySelector('a[aria-current="page"]')?.textContent).toBe('Build');
-    expect(container.querySelectorAll('nav[aria-label="Primary"] a')).toHaveLength(4);
+    expect(container.querySelectorAll('nav[aria-label="Primary"] a')).toHaveLength(5);
     expect(container.querySelector('.wordmark-moon img')).not.toBeNull();
     expect(container.querySelector('.menu-toggle')?.textContent).toBe('Menu☰');
     act(() => {

@@ -18,3 +18,12 @@ Enabled development analytics SHALL approve exactly dev.puni.dev and dev.request
 
 - **WHEN** a visitor accepts on the development site and opens the development request host
 - **THEN** the request host reads the same development preference while production remains ungranted
+
+### Requirement: Preserve existing shared header navigation
+
+The governed public snapshot refresh SHALL retain the pre-existing About link in the shared header after Services and before Blog. Both header tones SHALL expose Home, Build, Services, About and Blog. About SHALL target the unchanged site origin with path and fragment `/#about`.
+
+#### Scenario: Refreshing the public snapshot preserves About
+
+- **WHEN** the request-host analytics snapshot is refreshed into the private application
+- **THEN** the application retains its existing About navigation and all five primary links

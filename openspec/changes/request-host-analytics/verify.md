@@ -27,8 +27,20 @@ Every injected production fault was restored in a `finally` block before subsequ
 
 ## Scope and unverified checks
 
-The public implementation changes only analytics host pairs and affected website frontend/browser fixtures, plus this four-artifact change record. No new domain term or architectural decision is introduced; a design document is unnecessary for this two-value configuration change.
+The public implementation changes analytics host pairs and affected website frontend/browser fixtures, plus the two public-classified Chrome files and this four-artifact change record. No new domain term or architectural decision is introduced; a design document is unnecessary for this two-value configuration change.
 
 The complete official-Google-tag browser suite and arrival-choice screenshots were not run: this change uses existing controller/consent behavior with renamed fixture origins; affected controller, native regional privacy and mounted frontend tests provide scoped coverage. Google ingestion and account reports, private-site built Home, DNS/TLS, gateway redirects, real draft journeys, snapshot projection and shared-host/full CI gates remain integration checks owned by the parent workflow. No paid models were called.
 
 Production deployment remains held. No push, merge, private modification, Fleet modification or deployment was performed. The new analytics configuration deliberately refuses legacy hosts; gateways must redirect them before executing new JavaScript.
+
+## Existing snapshot drift repair
+
+Strict parent projection refused before writes because the private canonical tree already contained About navigation absent from public pin `be6923c10565a2f3c0582794b6baef12569b494d`. The parent identified the pre-existing source as private commit `7b0a9b9` and validated the complete five-project public-classified closure into the empty stage `/tmp/puni-request-domain-20261108/public-promotion-stage/`. It authorized promotion of exactly `apps/website/fe-01/src/chrome.tsx` and `chrome.test.ts`; no private site or licence content was read or copied.
+
+The production Chrome file matches the approved staged file. Tests preserve Home, Build, Services, About, Blog order in the night header, five links in the light header, and explicitly assert About's `${siteOrigin}/#about` destination. This repairs existing application behavior before governed projection; the analytics implementation in commit `97b946bb0c964a899e635a5232da55d4e3fce48a` is unchanged.
+
+Public-main fetch was unavailable during this follow-up: the sandbox attempt failed DNS, and authorized SSH/HTTPS fetches produced no ref and were cancelled. The parent explicitly approved classified-stage promotion regardless of public-main availability and owns later public-main reconciliation. These attempts establish no public-main provenance.
+
+Fresh checks: `NX_DAEMON=false NX_NO_CLOUD=true bunx --no-install nx run website-fe-01:test --skipNxCache --output-style=static` failed with 161 passes and two header failures before production promotion (`about-red.log`). After promotion, `NX_DAEMON=false NX_NO_CLOUD=true bunx --no-install nx run-many -t test lint typecheck build --projects=website-fe-01 --parallel=2 --skipNxCache --output-style=static` passed all eight tasks including four prerequisite builds and 163 frontend tests (`about-affected.log`). The initial full OpenSpec validation had passed 324 entries (`openspec-all.json`); follow-up scoped formatting and OpenSpec checks are recorded in `about-format.log` and `about-openspec.json`. Normal hooks run on the follow-up commit, with the receipt in `about-commit.log`.
+
+Browser layout/screenshots were not repeated for the snapshot drift repair. The parent retains integration/browser acceptance and public-main reconciliation. No push, merge, deployment or private/Fleet edit was performed.

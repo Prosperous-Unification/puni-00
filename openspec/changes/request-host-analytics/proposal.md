@@ -20,4 +20,4 @@ None.
 
 ## Impact
 
-Only the public analytics adapter and affected website frontend fixtures change. Private gateway redirects precede execution of new application JavaScript. Private release projection, DNS, TLS and deployment are managed separately; production deployment remains held.
+The public analytics adapter and affected website frontend fixtures change. Preserve the existing About navigation from the validated public-classified frontend closure before refreshing the private snapshot; this repairs pre-existing snapshot drift. Private gateway redirects precede execution of new application JavaScript. Private release projection, DNS, TLS and deployment are managed separately; production deployment remains held.
