@@ -9,6 +9,7 @@ import type {
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { endLeasesOfUncredentialed } from './claim';
 import type { Gate } from './gate';
@@ -136,6 +137,11 @@ export class ConsentCredentialRepository implements ConsentCredentials {
       // the last live credential` (claim-lease.db.test.ts) kept them in force
       // (9 pass, 1 fail); watched 2026-10-23.
       endLeasesOfUncredentialed(tx, row.personId, at);
+      // An ended consent holds no grant (`wbs-permissions` P17).
+      // Proof: with this call removed, `are deleted when an MCP consent ends`
+      // in `access-grant-store.db.test.ts` kept the consent's grant row;
+      // watched 2026-11-08.
+      deleteGrantsOfCredentials(tx, [credentialId]);
       appendOrganizationAudit(tx, {
         id: act.auditId,
         organizationId: row.organizationId,

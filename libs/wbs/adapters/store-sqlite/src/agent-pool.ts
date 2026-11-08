@@ -14,6 +14,7 @@ import { type OrganizationLimitValues, refuseLimit } from '@wbs/domain';
 import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { endLeasesOfUncredentialed } from './claim';
 import type { Gate } from './gate';
@@ -236,6 +237,15 @@ function revokePoolKeys(
   act: AuditedAct,
 ): void {
   const at = act.stamp.at;
+  // A revoked key holds no grant (`wbs-permissions` P17); a re-key's new keys
+  // start with none.
+  // Proof: with this call removed, `deletes the grants naming each revoked
+  // key (wbs-permissions P17)` in `agent-pool.controller.db.test.ts` kept
+  // both keys' grant rows; watched 2026-11-08.
+  deleteGrantsOfCredentials(
+    tx,
+    rows.map((row) => row.id),
+  );
   for (const row of rows) {
     tx.update(machineCredential)
       .set({ revokedAt: at, ...auditOnUpdate(act.stamp) })

@@ -498,6 +498,21 @@ describe('revoking a pool', () => {
     });
   });
 
+  it('deletes the grants naming each revoked key (wbs-permissions P17)', async () => {
+    const doc = await createPool('dany', { name: 'swarm-a', size: 2 });
+    for (const agent of doc.agents)
+      h.sqlite.run(
+        `INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at)
+         VALUES (?, 'org-a', 'organization', 'org-a', 'machine_credential', ?, 'project-contributor', 'route', 1)`,
+        [crypto.randomUUID(), agent.credentialId],
+      );
+    const credentialGrants = () =>
+      count("SELECT COUNT(*) AS n FROM access_grant WHERE subject_kind = 'machine_credential'");
+    expect(credentialGrants()).toBe(2);
+    expect(await h.call('dany', 'DELETE', `${PATH}/${doc.poolId}`)).toMatchObject({ status: 200 });
+    expect(credentialGrants()).toBe(0);
+  });
+
   // Proof: with the route's directory batch skipped, this answered
   // `removedPersons: 0` and kept the eight persons; watched 2026-10-28.
   it('removes the pool’s persons with removePersons and releases the cap', async () => {

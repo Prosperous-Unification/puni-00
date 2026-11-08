@@ -70,7 +70,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       case is manager; catch-and-skip the unknown row and the throw test fails; drop the
       `:machine = 0` guards and an `org-admin`'s agent writes a package no grant of its
       credential names; watched.
-- [ ] 1.4 Grant store `AccessGrants` (`grant`, `revoke`, `list`, groups and members) with
+- [x] 1.4 Grant store `AccessGrants` (`grant`, `revoke`, `list`, groups and members) with
       the in-transaction invariants (`role_scope_mismatch`, scope ownership through
       `work_package_organization`, today's `project_organization`; `not_a_member`,
       `unknown_group`, `unknown_credential`, `already_granted`, `last_super_admin`), and a

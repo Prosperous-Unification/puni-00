@@ -10,6 +10,7 @@ import {
 import { and, asc, count, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate } from './audit';
 import type { Gate } from './gate';
 import { type ImmediateTransaction, writeImmediately } from './immediate-write';
@@ -297,6 +298,13 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
         .all()
         .map((each) => each.id);
       if (revoked.length > 0) {
+        // A grant a revocation by an older release left behind goes with
+        // its credential (`wbs-permissions` P17).
+        // Proof: with this call removed, `deletes a grant an older release
+        // left on a revoked credential with the issuer (wbs-permissions P17)`
+        // in `trusted-issuer.controller.db.test.ts` kept the grant row;
+        // watched 2026-11-08.
+        deleteGrantsOfCredentials(tx, revoked);
         tx.delete(machineCredentialSecret)
           .where(inArray(machineCredentialSecret.credentialId, revoked))
           .run();

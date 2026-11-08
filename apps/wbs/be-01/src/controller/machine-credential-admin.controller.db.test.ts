@@ -574,6 +574,26 @@ describe("a credential's person", () => {
     expect(revoked[0]).toMatchObject({ actor_id: h.userId('dany'), subject_id: created.id });
   });
 
+  it('deletes every grant naming the removed person’s credentials (wbs-permissions P17)', async () => {
+    const live = await create('dany', 'claire');
+    const revoked = await create('dany', 'claire', 'claire-old');
+    expect((await h.call('dany', 'DELETE', `${PATH}/${revoked.id}`)).status).toBe(204);
+    // The revoked key's row stands for one an older release revoked without
+    // the cascade, mid-swap.
+    for (const credentialId of [live.id, revoked.id])
+      h.sqlite.run(
+        `INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at)
+         VALUES (?, 'org-a', 'organization', 'org-a', 'machine_credential', ?, 'project-contributor', 'route', 1)`,
+        [crypto.randomUUID(), credentialId],
+      );
+    expect(
+      (await directory({ kind: 'deletePerson', personId: 'claire', cascade: true })).status,
+    ).toBe(200);
+    expect(rows("SELECT id FROM access_grant WHERE subject_kind = 'machine_credential'")).toEqual(
+      [],
+    );
+  });
+
   it('removes a person whose credentials are all revoked, their rows with it', async () => {
     const created = await create('dany', 'claire');
     expect((await h.call('dany', 'DELETE', `${PATH}/${created.id}`)).status).toBe(204);

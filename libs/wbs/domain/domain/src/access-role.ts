@@ -82,6 +82,16 @@ export function roleMayHold(objectKind: AccessObjectKind, permission: Permission
 }
 
 /**
+ * Whether a role declared on `roleKind` may be granted at a scope of
+ * `scopeKind` (`wbs-permissions` "Tables"): the role's kind is the scope's kind
+ * or a kind beneath it, so `package-viewer` at organization scope is allowed
+ * and `org-admin` at project scope is not (`role_scope_mismatch`).
+ */
+export function roleFitsScope(roleKind: AccessObjectKind, scopeKind: AccessObjectKind): boolean {
+  return BREADTH[roleKind] <= BREADTH[scopeKind];
+}
+
+/**
  * The nine built-in roles and their sets, the seed `add_access_grants` writes
  * into `access_role` and `access_role_permission` (`wbs-permissions` E7,
  * `wbs-custom-permissions` CP7). `level` is display order only (CP1); no

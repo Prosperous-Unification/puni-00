@@ -44,6 +44,7 @@ import type { MeasureDefinition, MeasureUsage, ResourceCapacity } from '@wbs/dom
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type { Gate } from './gate';
@@ -2633,6 +2634,12 @@ function removeMachineCredentialsOf(
     .all()
     .map(({ id }) => id);
   if (credentialIds.length === 0) return;
+  // A removed credential leaves no grant naming it (`wbs-permissions` P17).
+  // Proof: with this call removed, `deletes every grant naming the removed
+  // person’s credentials (wbs-permissions P17)` in
+  // `machine-credential-admin.controller.db.test.ts` kept both grant rows;
+  // watched 2026-11-08.
+  deleteGrantsOfCredentials(tx, credentialIds);
   tx.delete(machineCredentialSecret)
     .where(inArray(machineCredentialSecret.credentialId, credentialIds))
     .run();

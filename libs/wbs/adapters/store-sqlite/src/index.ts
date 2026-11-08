@@ -1,3 +1,4 @@
+export * from './access-grant';
 export * from './actual';
 export * from './agent-pool';
 export * from './audit';
