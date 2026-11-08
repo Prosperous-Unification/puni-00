@@ -9,7 +9,7 @@ import {
 import { configureAnalytics, resolvePage } from './configuration';
 
 const dev = { enabled: true, environment: 'development', measurementId: 'G-R0JM3R4SSV' } as const;
-const href = 'https://dev.app.puni.dev/?email=secret@example.test#private';
+const href = 'https://dev.request.puni.dev/?email=secret@example.test#private';
 function fixture(initialLocation = href, initialPreference: string | null = null) {
   let preference: string | null = initialPreference;
   let location = initialLocation;
@@ -105,7 +105,7 @@ test('first page and safe startup steps enqueue before cookie permission without
   expect(
     f.analytics.dispatch({ name: 'brief_view', route: 'early', starting_choice: 'improve' }),
   ).toBe('sent');
-  f.setLocation('https://dev.app.puni.dev/manual?email=secret@example.test');
+  f.setLocation('https://dev.request.puni.dev/manual?email=secret@example.test');
   f.analytics.navigate();
   expect(f.analytics.dispatch({ name: 'funnel_failure', category: 'network' })).toBe('sent');
   await f.complete();
@@ -133,7 +133,7 @@ test('initialization and navigation contain fixed pages, origin-only referrers a
   f.analytics.accept();
   await f.complete();
   expect(f.initializations[0]).toMatchObject({
-    page_location: 'https://dev.app.puni.dev/',
+    page_location: 'https://dev.request.puni.dev/',
     page_title: 'Build with PUNI',
     page_referrer: 'https://search.example',
     campaign_source: '',
@@ -143,10 +143,10 @@ test('initialization and navigation contain fixed pages, origin-only referrers a
   expect(JSON.stringify(f.initializations)).not.toContain('secret');
   f.analytics.navigate();
   expect(f.sent).toHaveLength(1);
-  f.setLocation('https://dev.app.puni.dev/manual?email=secret@example.test');
+  f.setLocation('https://dev.request.puni.dev/manual?email=secret@example.test');
   f.analytics.navigate();
-  expect(f.sent.at(-1)?.parameters['page_location']).toBe('https://dev.app.puni.dev/manual');
-  f.setLocation('https://dev.app.puni.dev/operator');
+  expect(f.sent.at(-1)?.parameters['page_location']).toBe('https://dev.request.puni.dev/manual');
+  f.setLocation('https://dev.request.puni.dev/operator');
   f.analytics.navigate();
   expect(f.analytics.getState()).toEqual({ status: 'disabled' });
   expect(f.analytics.dispatch({ name: 'funnel_failure', category: 'network' })).toBe('dropped');
@@ -275,7 +275,7 @@ test('configuration isolates environments and refuses wrong hosts, IDs, cookie d
     { preferenceName: 'puni_prod_consent_v1' },
   ])
     expect(() => configureAnalytics({ ...dev, ...changed }, href)).toThrow();
-  expect(() => configureAnalytics(dev, 'https://app.puni.dev/')).toThrow();
+  expect(() => configureAnalytics(dev, 'https://request.puni.dev/')).toThrow();
   expect(() => configureAnalytics(dev, 'http://localhost:4201/')).toThrow();
   expect(() =>
     configureAnalytics({ ...dev, environment: 'production' }, 'https://puni.dev/'),
@@ -314,7 +314,9 @@ test('page/campaign mapping permits only exact registered triples and excludes p
     )?.campaign_name,
   ).toBe('');
   expect(resolvePage(config, 'https://dev.puni.dev/unknown-secret', '', campaigns)).toBeNull();
-  expect(resolvePage(config, 'https://dev.app.puni.dev/operator/inbox', '', campaigns)).toBeNull();
+  expect(
+    resolvePage(config, 'https://dev.request.puni.dev/operator/inbox', '', campaigns),
+  ).toBeNull();
   expect(() => resolvePage(config, 'https://evil.example/', '')).toThrow();
 });
 
@@ -447,7 +449,7 @@ test('page dispatch reports a transport outage instead of claiming a sent naviga
   const f = fixture();
   f.analytics.accept();
   await f.complete();
-  f.setLocation('https://dev.app.puni.dev/manual');
+  f.setLocation('https://dev.request.puni.dev/manual');
   f.ports.vendor.send = () => 'unavailable';
   expect(f.analytics.dispatch({ name: 'page_view', page_id: 'manual' })).toBe('unavailable');
   expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'transport' });
@@ -576,8 +578,8 @@ test.each([
     'a-clearer-first-step-for-software-requests',
     'A clearer first step for software requests',
   ],
-  ['dev.app.puni.dev', '/', 'build', 'Build with PUNI'],
-  ['dev.app.puni.dev', '/manual', 'manual', 'Request PUNI help'],
+  ['dev.request.puni.dev', '/', 'build', 'Build with PUNI'],
+  ['dev.request.puni.dev', '/manual', 'manual', 'Request PUNI help'],
 ] as const)(
   'canonical and directory routes retain fixed metadata: %s%s',
   async (host, path, id, title) => {
@@ -614,7 +616,7 @@ test.each([
 test.each([
   ['dev.puni.dev', '//'],
   ['dev.puni.dev', '///'],
-  ['dev.app.puni.dev', '//'],
+  ['dev.request.puni.dev', '//'],
   ['dev.puni.dev', '/services//'],
   ['dev.puni.dev', '/services///'],
   ['dev.puni.dev', '/services%2f'],
@@ -625,12 +627,12 @@ test.each([
   ['dev.puni.dev', '/services/unapproved-slug/'],
   ['dev.puni.dev', '/unknown-secret/'],
   ['dev.puni.dev', '/operator/'],
-  ['dev.app.puni.dev', '/operator/'],
-  ['dev.app.puni.dev', '/operator/inbox/'],
-  ['dev.app.puni.dev', '/manual//'],
-  ['dev.app.puni.dev', '/manual%2f'],
-  ['dev.app.puni.dev', '/manual/%2F'],
-  ['dev.app.puni.dev', '/privacy/'],
+  ['dev.request.puni.dev', '/operator/'],
+  ['dev.request.puni.dev', '/operator/inbox/'],
+  ['dev.request.puni.dev', '/manual//'],
+  ['dev.request.puni.dev', '/manual%2f'],
+  ['dev.request.puni.dev', '/manual/%2F'],
+  ['dev.request.puni.dev', '/privacy/'],
   ['dev.puni.dev', '/manual/'],
 ] as const)('unsupported directory routes remain unmeasured: %s%s', (host, path) => {
   const location = `https://${host}${path}?email=route-secret@example.test#private`;
@@ -867,7 +869,7 @@ test('failed preference restores storage recovery after leaving and returning to
   await f.complete();
   f.ports.writePreference = () => ({ status: 'unavailable' });
   f.analytics.reject();
-  f.setLocation('https://dev.app.puni.dev/operator');
+  f.setLocation('https://dev.request.puni.dev/operator');
   f.analytics.navigate();
   expect(f.analytics.getState().status).toBe('disabled');
   f.setLocation(href);
@@ -882,3 +884,53 @@ test('failed preference restores storage recovery after leaving and returning to
   expect(f.analytics.getChoice()).toBe('rejected');
   expect(f.analytics.getState().status).toBe('denied');
 });
+
+for (const [environment, measurementId, hosts, refused] of [
+  [
+    'development',
+    'G-R0JM3R4SSV',
+    ['dev.puni.dev', 'dev.request.puni.dev'],
+    ['dev.app.puni.dev', 'app.puni.dev', 'puni.dev', 'request.puni.dev', 'unknown.puni.dev'],
+  ],
+  [
+    'production',
+    'G-TESTPROD12',
+    ['puni.dev', 'request.puni.dev'],
+    [
+      'app.puni.dev',
+      'dev.app.puni.dev',
+      'dev.puni.dev',
+      'dev.request.puni.dev',
+      'unknown.puni.dev',
+    ],
+  ],
+] as const) {
+  test(`${environment} analytics approves exactly its site and request hosts`, () => {
+    const options = { enabled: true, environment, measurementId };
+    for (const host of hosts) {
+      const configuration = configureAnalytics(options, `https://${host}/`);
+      expect(configuration.hosts).toEqual(hosts);
+      expect(configuration.cookieDomain).toBe('puni.dev');
+      expect(configuration.measurementId).toBe(measurementId);
+      expect(configuration.cookiePrefix).toBe(
+        environment === 'development' ? 'puni_dev' : 'puni_prod',
+      );
+      expect(
+        resolvePage(configuration, `https://${host}/?email=PRIVATE#PRIVATE`, '')?.page_location,
+      ).toBe(`https://${host}/`);
+    }
+  });
+
+  test(`${environment} analytics refuses legacy crossed and unknown hosts before initialization and navigation`, () => {
+    const options = { enabled: true, environment, measurementId };
+    const configuration = configureAnalytics(options, `https://${hosts[0]}/`);
+    for (const host of refused) {
+      expect(() => configureAnalytics(options, `https://${host}/`)).toThrow(
+        'Unapproved analytics host',
+      );
+      expect(() => resolvePage(configuration, `https://${host}/`, '')).toThrow(
+        'Unapproved analytics host',
+      );
+    }
+  });
+}

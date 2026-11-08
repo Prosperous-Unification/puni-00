@@ -53,10 +53,12 @@ export function configureAnalytics(
     cookieDomain: 'puni.dev',
     cookiePrefix,
     preferenceName,
+    // Proof: restoring dev.app.puni.dev failed canonical-host acceptance and legacy refusal
+    // in development analytics approves exactly / refuses legacy (negative-broken-host.log).
     hosts:
       environment === 'development'
-        ? ['dev.puni.dev', 'dev.app.puni.dev']
-        : ['puni.dev', 'app.puni.dev'],
+        ? ['dev.puni.dev', 'dev.request.puni.dev']
+        : ['puni.dev', 'request.puni.dev'],
   };
   if (!configuration.enabled) return configuration;
   // Proof: removing isolation refusal accepted the wrong cookie ancestor in configuration-isolates.
@@ -80,7 +82,8 @@ export function configureAnalytics(
 }
 
 function assertHost(configuration: AnalyticsConfiguration, url: URL): void {
-  // Proof: removing host refusal accepted the production host in a development configuration.
+  // Proof: replacing hostname admission with false failed development/production analytics
+  // refuses legacy crossed and unknown hosts before initialization and navigation (negative-host-guard.log).
   if (
     url.protocol !== 'https:' ||
     url.port !== '' ||
