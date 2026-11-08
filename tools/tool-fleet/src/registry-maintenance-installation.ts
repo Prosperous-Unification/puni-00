@@ -194,6 +194,7 @@ export async function verifyRegistryHostArtifact(
   secret = false,
   expectedMode?: number,
 ): Promise<Buffer> {
+  // Proof: removing canonical validation admits the owned parent-directory alias in registry-maintenance-installation.test.ts.
   if ((await realpath(artifact.path)) !== artifact.path)
     throw new Error('Host artifact path is not canonical');
   const descriptor = await open(

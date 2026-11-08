@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, realpath, symlink, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
@@ -10,16 +10,17 @@ import { verifyRegistryHostArtifact } from './registry-maintenance-installation'
 import { requireRejection } from './registry-rejection.fixture';
 
 const hash = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
+const executable = await realpath('/usr/bin/true');
 test('fixed host artifact verifies actual root-owned pinned executable bytes', async () => {
   await verifyRegistryHostArtifact({
-    path: '/usr/bin/true',
-    sha256: hash(await readFile('/usr/bin/true')),
+    path: executable,
+    sha256: hash(await readFile(executable)),
   });
 });
 test('fixed host artifact refuses changed executable bytes', async () => {
   let failure: unknown;
   try {
-    await verifyRegistryHostArtifact({ path: '/usr/bin/true', sha256: 'a'.repeat(64) });
+    await verifyRegistryHostArtifact({ path: executable, sha256: 'a'.repeat(64) });
   } catch (cause) {
     failure = cause;
   }
@@ -65,8 +66,20 @@ for (const fault of ['owner', 'source', 'path', 'executable'] as const) {
 }
 
 test('client artifact preflight requires exact executable mode on the verified descriptor', async () => {
-  const artifact = { path: '/usr/bin/true', sha256: hash(await readFile('/usr/bin/true')) };
+  const artifact = { path: executable, sha256: hash(await readFile(executable)) };
   await verifyRegistryHostArtifact(artifact, false, 0o755);
   const refused = await requireRejection(verifyRegistryHostArtifact(artifact, false, 0o644));
   expect(refused.throwCause).toThrow('Untrusted fixed registry host artifact');
+});
+
+test('fixed host artifact refuses a parent-directory alias to the same root-owned bytes', async () => {
+  const directory = await scratchAsync('registry-host-parent-alias-');
+  const parent = join(directory, 'alias');
+  await symlink(dirname(executable), parent, 'dir');
+  const artifact = {
+    path: join(parent, basename(executable)),
+    sha256: hash(await readFile(executable)),
+  };
+  const refused = await requireRejection(verifyRegistryHostArtifact(artifact));
+  expect(refused.throwCause).toThrow('Host artifact path is not canonical');
 });
