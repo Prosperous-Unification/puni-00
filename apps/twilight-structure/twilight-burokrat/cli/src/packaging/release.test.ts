@@ -265,21 +265,26 @@ describe('package release planner', () => {
     ).toBe(`twilight-burokrat@0.2.0 ${planned.integrity}`);
     expect(registryAttempts).toBe(3);
 
+    let notYetVisibleAttempts = 0;
     expect(
       await refusal(
         verifyPublishedPackage(
           record,
-          () => ({
-            exitCode: 1,
-            stderr: new Uint8Array(),
-            stdout: new TextEncoder().encode(
-              '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
-            ),
-          }),
+          () => {
+            notYetVisibleAttempts += 1;
+            return {
+              exitCode: 1,
+              stderr: new Uint8Array(),
+              stdout: new TextEncoder().encode(
+                '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
+              ),
+            };
+          },
           () => Promise.resolve(),
         ),
       ),
     ).toContain('published registry package did not become readable');
+    expect(notYetVisibleAttempts).toBe(12);
 
     expect(
       await refusal(
