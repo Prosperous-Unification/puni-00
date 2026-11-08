@@ -810,6 +810,52 @@ async function expectRestored(
   );
 }
 
+/** Exact local CronJob transformation for the inert graceful-drain command; all other storage and lifecycle fields survive. */
+export function drainJobPatch(uid: string) {
+  return [
+    {
+      op: 'add',
+      path: '/metadata/ownerReferences',
+      value: [
+        {
+          apiVersion: 'batch/v1',
+          kind: 'CronJob',
+          name: 'sqlite-backup',
+          uid,
+          controller: true,
+          blockOwnerDeletion: true,
+        },
+      ],
+    },
+    {
+      op: 'replace',
+      path: '/spec/template/spec/containers/0/command',
+      value: [
+        'bun',
+        '-e',
+        'process.on("SIGTERM", () => setTimeout(() => process.exit(0), 3000)); setInterval(() => {}, 1000)',
+      ],
+    },
+    { op: 'remove', path: '/spec/template/spec/containers/0/env' },
+    // Proof: wrong readOnly/secretName failed actual kubectl tests; omitting each test made
+    // unchanged expected-refusal controls accept bad input. Restoration passed both.
+    // Secret defaultMode420 is the actual API-defaulted CronJob profile, not raw YAML.
+    // Omitting either removal left an unused CA dependency and failed the owning control.
+    {
+      op: 'test',
+      path: '/spec/template/spec/containers/0/volumeMounts/3',
+      value: { name: 's3-trust', mountPath: '/s3-trust', readOnly: true },
+    },
+    { op: 'remove', path: '/spec/template/spec/containers/0/volumeMounts/3' },
+    {
+      op: 'test',
+      path: '/spec/template/spec/volumes/3',
+      value: { name: 's3-trust', secret: { secretName: 'sqlite-backup-s3', defaultMode: 420 } },
+    },
+    { op: 'remove', path: '/spec/template/spec/volumes/3' },
+  ];
+}
+
 /** Seeds an active real Job controller so the disposable rehearsal includes replacement and graceful termination behavior. */
 async function seedDrainJob(): Promise<void> {
   const uid = (
@@ -842,32 +888,7 @@ async function seedDrainJob(): Promise<void> {
       '-',
       '--type=json',
       '-p',
-      JSON.stringify([
-        {
-          op: 'add',
-          path: '/metadata/ownerReferences',
-          value: [
-            {
-              apiVersion: 'batch/v1',
-              kind: 'CronJob',
-              name: 'sqlite-backup',
-              uid,
-              controller: true,
-              blockOwnerDeletion: true,
-            },
-          ],
-        },
-        {
-          op: 'replace',
-          path: '/spec/template/spec/containers/0/command',
-          value: [
-            'bun',
-            '-e',
-            'process.on("SIGTERM", () => setTimeout(() => process.exit(0), 3000)); setInterval(() => {}, 1000)',
-          ],
-        },
-        { op: 'remove', path: '/spec/template/spec/containers/0/env' },
-      ]),
+      JSON.stringify(drainJobPatch(uid)),
       '-o',
       'json',
     ],
@@ -908,6 +929,15 @@ async function main(): Promise<void> {
     log(`images ${JSON.stringify(labImages)}`);
     const { v1, v2, broken, v3, rollbackFault } = labImages;
     await platform();
+    await sh([
+      'env',
+      `KUBECTL=${kubectl}`,
+      `KUBECONFIG=${join(state, 'kubeconfig')}`,
+      `KUBE_CONTEXT=${CONTEXT}`,
+      `CLEANUP_PROBE_EVIDENCE=${join(state, 'cleanup-admission')}`,
+      'bun',
+      join(ROOT, 'infra/platform/conformance/admission/terminal-cleanup-check.mjs'),
+    ]);
     mcpKeys = await createMcpSecret();
     const uid = (
       await k(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
