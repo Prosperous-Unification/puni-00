@@ -371,6 +371,9 @@ audit rows stop the rollback at the widening, so run
 in the be-01 directory of the dev checkout and report it (`docs/runbook-prod-deploy.md`,
 _Directory capacity_).
 
+**An organization no super-admin can act for.** Run `access-grant-cli.ts grant-super-admin`
+in `wbs-dev-src` ([organization activation runbook](runbook-organization-activation.md#grant-or-revoke-an-organizations-super-admin)).
+
 **What dev no longer proves.** The blue/green swap, health gate, Caddy repoint and smoke
 test used to run on dev before prod. They no longer do. Run a prod dry-run deliberately
 before any prod deploy; dev will not catch a regression in that path.

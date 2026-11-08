@@ -281,3 +281,29 @@ are the routes' (4.2); a `project` scope is `not_found` until the project entity
 | `bunx nx run-many -t lint -p wbs-store-sqlite,wbs-core,wbs-domain,wbs-be-01,tool-rename-work-package` | exit 0                  |
 | `bunx nx run tool-rename-work-package:test --skip-nx-cache`                                           | 37 pass, 0 fail         |
 | `bunx nx format:check --all`, `openspec validate --all --json`, `check-indexes working . HEAD`        | exit 0; 328/328; exit 0 |
+
+## 1.5 Operator CLI `access-grant-cli.ts` (2026-11-08, branch `feat/wbs-permissions-1-5`)
+
+`apps/wbs/be-01/src/access-grant-cli.ts` (`grant-super-admin`, `revoke-super-admin`), its
+pre-write read `operatorSubjectRefusal` in `libs/wbs/adapters/store-sqlite/src/access-grant.ts`
+(be-01 may not import Drizzle), test `access-grant-cli.db.test.ts` (12 cases, the CLI spawned
+with `DB_PATH` as `organization-limits-cli.db.test.ts` does). The grant and the revoke go
+through `AccessGrantRepository` with an `operator` actor: origin `operator`, `created_by`
+null, CP14 counted in the revoke's transaction. Runbook:
+`docs/runbook-organization-activation.md`, _Grant or revoke an organization's super-admin_.
+
+No audit row is written (design.md P21, amended 2026-11-08): `access_granted` and
+`access_revoked` are task 4.1's, and the CLI's output names the actor `operator:<os login>`
+they will carry. The unreadable-database case needs a non-root login, and asserts it.
+
+Each fault injected alone, the named case watched failing, the source restored:
+
+| Fault (2026-11-08)                                                     | Case that failed (`access-grant-cli.db.test.ts`)                                               |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| store membership check (`subjectRefusalOf`, `user`) made `return null` | refuses a user who is not a current member, writing nothing (the outsider was granted, exit 0) |
+| store CP14 count made `false &&` in `revoke`                           | refuses revoking the last direct human super-admin, writing nothing (revoked, none left)       |
+| CLI `unreadable_database` return replaced by `process.exit(0)`         | refuse an unreadable database, writing nothing (no refusal line)                               |
+| CLI `ENOENT` branch answering null                                     | refuse a missing database without creating it (the open's own error thrown, 17 stderr lines)   |
+| `unknown_organization` return removed from `operatorSubjectRefusal`    | refuse an unknown organization, writing nothing (revoke answered `not_granted`)                |
+| `machine_credential` return removed from `operatorSubjectRefusal`      | refuses a machine credential's id, writing nothing (`not_a_member`)                            |
+| store duplicate read answering null                                    | refuses a user who holds the role directly already (UNIQUE constraint thrown, 42 stderr lines) |

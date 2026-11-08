@@ -393,6 +393,41 @@ export function directSuperAdminCount(
   return counted.holders;
 }
 
+/**
+ * Why the operator CLI (`wbs-permissions` P21, task 1.5) may not name
+ * `userId` at `organizationId`, read before its write, or null:
+ * `unknown_organization` when no organization has the id, `machine_credential`
+ * when `userId` is a machine credential's id (any organization's). Read
+ * outside the write because neither answer can change before it:
+ * organizations are never deleted and a credential id never becomes a
+ * `users.id`. Membership is the write's own check (`not_a_member`).
+ *
+ * Proof: 2026-11-08, with the `unknown_organization` return removed, `refuse
+ * an unknown organization, writing nothing` in `access-grant-cli.db.test.ts`
+ * failed (revoke answered `not_granted`), and with the `machine_credential`
+ * return removed, `refuses a machine credential's id, writing nothing`
+ * failed (`not_a_member`).
+ */
+export function operatorSubjectRefusal(
+  reader: Reader,
+  organizationId: string,
+  userId: string,
+): 'unknown_organization' | 'machine_credential' | null {
+  const known = reader
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .get();
+  if (known === undefined) return 'unknown_organization';
+  const credential = reader
+    .select({ id: machineCredential.id })
+    .from(machineCredential)
+    .where(eq(machineCredential.id, userId))
+    .get();
+  if (credential !== undefined) return 'machine_credential';
+  return null;
+}
+
 /** The first rule `draft` breaks in `organizationId`, read in the write's transaction, or null. */
 function grantRefusal(
   tx: Transaction,

@@ -290,6 +290,43 @@ unavailable login or a failed audit write throw (exit 1). The transaction is rol
 
 The CLI is SQLite-only. The memory store has no `OrganizationLimits` administration.
 
+### Grant or revoke an organization's super-admin
+
+Inside an organization a current `org-super-admin` hands the role over through the product:
+grant first, revoke second (`wbs-permissions` P21). For an organization where no
+super-admin can act, the host operator runs `access-grant-cli.ts`. It needs the host, not a
+login. `--user` is a `users.id` of a current member; there is no `--force`, so admit a
+non-member through onboarding first.
+
+```sh
+docker exec -u <login> -e DB_PATH=/data/wbs.db wbs-dev-src \
+  bun apps/wbs/be-01/src/access-grant-cli.ts grant-super-admin --organization <organization id> --user <user id>
+# Revoke after the hand-over; refused while the user is the last direct human holder (CP14).
+docker exec -u <login> -e DB_PATH=/data/wbs.db wbs-dev-src \
+  bun apps/wbs/be-01/src/access-grant-cli.ts revoke-super-admin --organization <organization id> --user <user id>
+```
+
+Success prints one JSON line on stdout with the grant id, `origin: operator`, the actor
+`operator:<os login>` and `superAdminCount`, the organization's direct human super-admins
+afterwards. The `access_granted`/`access_revoked` audit row is not written until task 4.1
+widens `organization_audit`; the output says `audit: deferred to wbs-permissions 4.1`.
+
+| Exit | Refusal                | Meaning                                                    |
+| ---- | ---------------------- | ---------------------------------------------------------- |
+| 2    | `malformed`            | unknown flag or command, missing `--organization`/`--user` |
+| 3    | `missing_database`     | `DB_PATH` names no file; none is created                   |
+| 4    | `unreadable_database`  | the file is closed to this login                           |
+| 5    | `unknown_organization` | no organization has that id                                |
+| 6    | `machine_credential`   | `--user` is a machine credential's id                      |
+| 7    | `not_a_member`         | the user is not a current member of the organization       |
+| 8    | `already_granted`      | the user holds `org-super-admin` directly already          |
+| 9    | `not_granted`          | revoke: the user holds no direct `org-super-admin`         |
+| 10   | `last_super_admin`     | revoke would leave no direct human holder                  |
+
+A missing `DB_PATH`, an empty login or any other failure throws (exit 1); nothing is
+written. Verified locally on 2026-11-08 by `access-grant-cli.db.test.ts`; **not** run
+against dev or prod.
+
 Verified locally on 2026-10-22 by `organization-limits-cli.db.test.ts` and
 `organization-limits-audit-migration.db.test.ts`. The CLI has **not** been run against dev
 or prod.
