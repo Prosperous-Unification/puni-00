@@ -14,6 +14,15 @@ import {
 } from '@website/contracts';
 import type { Database } from 'bun:sqlite';
 
+import {
+  anonymousAllowance,
+  conversationBaseline,
+  effectiveVisitorTurns,
+  ledgerSpend,
+  readAggregate,
+  refuseRollingAllowance,
+  refuseSiteWindow,
+} from './anonymous-admission';
 import { sweepAdmissionCounts, tripInferencePause } from './guardrail-store';
 import { applyScopingReply, type DraftScoping, readDraftScoping } from './scoping-store';
 
@@ -40,11 +49,14 @@ export interface ConversationOperationRecord {
   replyFailure: ReplyFailure | null;
 }
 
+/** Maximum lifetime of a provider operation across cooperating API processes. */
+export const conversationDeadlineMilliseconds = 30_000;
+
 /**
  * Turn, spend and concurrency ceilings in turns, micro-USD and calls. `visitorTurns` counts the
- * Home request and is reported to the browser as `visitorTurnLimit`. The site-day ceiling and the
- * site-wide unsettled-call count still read legacy `provider_call` rows of the retired account chat
- * (ADR 0039); drop that read once `SELECT count(*) FROM provider_call` is 0 on the deployed database.
+ * Home request and is reported to the browser as `visitorTurnLimit`. Financial sums read the
+ * content-free ledger, including retired-provider charges; concurrency still includes any
+ * unsettled retired `provider_call` rows (ADR 0039).
  */
 export const conversationAllowance = {
   visitorTurns: 8,
@@ -82,6 +94,8 @@ export type ConversationPricing =
 export interface ConversationAdmissionRequest {
   claimHash: string;
   sourceHash: string;
+  /** Today and yesterday under the existing retained daily salts. */
+  sourceHashes?: readonly string[];
   idempotencyKey: string;
   bodyHash: string;
   message: string;
@@ -119,6 +133,7 @@ export type ConversationAdmission =
       replyFailure: ReplyFailure | null;
       promptVersion: string;
     }
+  | { kind: 'rate_limited'; retryAfterSeconds: number }
   | { kind: 'exhausted'; reason: ConversationExhaustedReason }
   /** Paid inference is paused; `openedPauseId` names the pause this admission opened, if any. */
   | { kind: 'paused'; openedPauseId: string | null }
@@ -160,7 +175,7 @@ interface OperationRow {
  * Spend in micro-USD: settled usage, the full reservation of an operation settled at its ceiling
  * or still in flight. It can only over-count what the provider charged, never under-count.
  */
-const spentMicroUsd = 'COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0)';
+const spentMicroUsd = ledgerSpend;
 
 function utcDayOf(now: number): string {
   return new Date(now).toISOString().slice(0, 10);
@@ -355,6 +370,7 @@ function refuseReservation(
   sourceHash: string,
   reservedMicroUsd: number,
   now: number,
+  browserBaseline: number,
 ): ConversationAdmission | null {
   const utcDay = utcDayOf(now);
   // Each operation carries the source hash and UTC day it was admitted under, so a conversation
@@ -363,7 +379,7 @@ function refuseReservation(
   const otherConversationsFromSource = single(
     database
       .query<{ count: number }, [string, string, string]>(
-        'SELECT count(DISTINCT conversation_id) AS count FROM conversation_operation WHERE source_hash = ? AND utc_day = ? AND conversation_id <> ?',
+        'SELECT count(DISTINCT conversation_id) AS count FROM paid_attempt WHERE source_hash = ? AND utc_day = ? AND conversation_id <> ?',
       )
       .get(sourceHash, utcDay, conversation.id),
     'source conversation',
@@ -371,20 +387,21 @@ function refuseReservation(
   const sourceSpend = single(
     database
       .query<{ total: number }, [string, string]>(
-        `SELECT ${spentMicroUsd} AS total FROM conversation_operation WHERE source_hash = ? AND utc_day = ?`,
+        `SELECT ${spentMicroUsd} AS total FROM paid_attempt WHERE source_hash = ? AND utc_day = ?`,
       )
       .get(sourceHash, utcDay),
     'source spend',
   ).total;
   if (
-    otherConversationsFromSource >= conversationAllowance.sourceDayConversations ||
-    sourceSpend + reservedMicroUsd > conversationAllowance.sourceDayMicroUsd
+    browserBaseline === 0 &&
+    (otherConversationsFromSource >= conversationAllowance.sourceDayConversations ||
+      sourceSpend + reservedMicroUsd > conversationAllowance.sourceDayMicroUsd)
   )
     return exhaust(database, conversation.id, 'source_spend');
   const conversationSpend = single(
     database
       .query<{ total: number }, [string]>(
-        `SELECT ${spentMicroUsd} AS total FROM conversation_operation WHERE conversation_id = ?`,
+        `SELECT ${spentMicroUsd} AS total FROM paid_attempt WHERE conversation_id = ? AND sequence > ${String(conversationBaseline(database, conversation.id))}`,
       )
       .get(conversation.id),
     'conversation spend',
@@ -395,7 +412,7 @@ function refuseReservation(
   const siteSpend = single(
     database
       .query<{ total: number }, [string]>(
-        `SELECT (SELECT ${spentMicroUsd} FROM provider_call WHERE utc_day = ?1) + (SELECT ${spentMicroUsd} FROM conversation_operation WHERE utc_day = ?1) AS total`,
+        `SELECT ${spentMicroUsd} AS total FROM paid_attempt WHERE utc_day = ?1`,
       )
       .get(utcDay),
     'site spend',
@@ -405,6 +422,8 @@ function refuseReservation(
   if (pause) return { kind: 'paused', ...pause };
   if (siteSpend + reservedMicroUsd > conversationAllowance.siteDayMicroUsd)
     return exhaust(database, conversation.id, 'site_spend');
+  const windowRefusal = refuseSiteWindow(database, reservedMicroUsd, now);
+  if (windowRefusal) return windowRefusal;
   // Proof: counting every non-completed operation instead of in-flight ones made four stopped conversations refuse the fifth as busy.
   const running = single(
     database
@@ -443,6 +462,7 @@ export function admitConversationOperation(
 ): ConversationAdmission {
   return database
     .transaction((): ConversationAdmission => {
+      recoverConversationOperations(database, request.now);
       const draft = database
         .query<
           {
@@ -544,7 +564,7 @@ export function admitConversationOperation(
       if (request.initial && visitorTurns > 0) return { kind: 'turn_limit' };
       if (!request.initial && visitorTurns === 0) return { kind: 'initial_required' };
       // Proof: removing this cap made the ninth-turn admission test start an operation.
-      if (visitorTurns >= conversationAllowance.visitorTurns)
+      if (effectiveVisitorTurns(database, conversation.id) >= conversationAllowance.visitorTurns)
         return exhaust(database, conversation.id, 'turns');
       const running = single(
         database
@@ -563,15 +583,47 @@ export function admitConversationOperation(
       const context = { scoping, brief: draft.brief, visitorTurns };
       let reservedMicroUsd: number | null = null;
       if (request.pricing.kind === 'paid') {
+        // Proof: disabling the paid-attempt cap admitted the eleventh interrupted operation.
+        if (
+          readAggregate(
+            database,
+            'count(*)',
+            "origin = 'conversation' AND conversation_id = ? AND sequence > ?",
+            [conversation.id, conversationBaseline(database, conversation.id)],
+          ) >= anonymousAllowance.attempts
+        )
+          return exhaust(database, conversation.id, 'conversation_spend');
         reservedMicroUsd = request.pricing.price(history, stage, context);
         if (!Number.isSafeInteger(reservedMicroUsd) || reservedMicroUsd <= 0)
           throw new Error('Conversation reservation must be a positive integer of micro-USD');
+        const browser = single(
+          database
+            .query<{ hash: string }, [string]>(
+              "SELECT COALESCE(binding.browser_hash, 'legacy:' || draft.id) AS hash FROM intake_draft AS draft LEFT JOIN intake_draft_browser AS binding ON binding.draft_id = draft.id WHERE draft.id = ?",
+            )
+            .get(draft.id),
+          'browser binding',
+        ).hash;
+        const rolling = refuseRollingAllowance(
+          database,
+          conversation.id,
+          browser,
+          request.sourceHashes ?? [request.sourceHash],
+          reservedMicroUsd,
+          request.now,
+        );
+        if (rolling) return rolling;
         const refusal = refuseReservation(
           database,
           conversation,
           request.sourceHash,
           reservedMicroUsd,
           request.now,
+          database
+            .query<{ after_sequence: number }, [string]>(
+              'SELECT after_sequence FROM testing_allowance WHERE browser_hash = ?',
+            )
+            .get(browser)?.after_sequence ?? 0,
         );
         // Proof: removing this admission refusal failed structured reservation participates in conversation ceiling.
         if (refusal) return refusal;
@@ -828,14 +880,17 @@ export function markConversationOperationUnknown(database: Database, id: string)
 }
 
 /**
- * Startup recovery: an interrupted process cannot prove final usage, so every in-flight
- * operation is settled at its reserved ceiling as by {@link markConversationOperationUnknown}.
+ * Settles only operations whose shared provider deadline elapsed. A recent operation may be
+ * owned by another live process, so startup and admission preserve its concurrency slot.
+ * Call admission recovery inside the immediate reservation transaction.
  */
-export function recoverConversationOperations(database: Database): void {
-  // Proof: matching no rows here left the restart test's operation `inflight` and unsettled.
-  database.run(
-    "UPDATE conversation_operation SET state = 'unknown', settlement = 'reserved_ceiling', settled_micro_usd = reserved_micro_usd WHERE state = 'inflight'",
-  );
+export function recoverConversationOperations(database: Database, now: number): void {
+  // Proof: removing the age predicate let a second process clear four live slots and admit a fifth; omitting recovery kept expired slots busy after 30 seconds.
+  database
+    .query(
+      "UPDATE conversation_operation SET state = 'unknown', settlement = 'reserved_ceiling', settled_micro_usd = reserved_micro_usd WHERE state = 'inflight' AND created_at <= ?",
+    )
+    .run(now - conversationDeadlineMilliseconds);
 }
 
 /**

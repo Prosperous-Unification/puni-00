@@ -31,6 +31,7 @@ import {
 
 import { requestBodyByteLimit } from './body-capacity';
 import { mintBrowserCheck, verifyBrowserCheck } from './conversation/browser-check';
+import { createProxyVerifier } from './conversation/proxy-trust';
 import {
   composeConversationRequest,
   defaultConversationReplyTokens,
@@ -60,6 +61,7 @@ import {
   readWebhookUrl,
 } from './guardrail-alerts';
 import { parseScopingEdit } from './scoping-edit';
+import { readTestingResetSecret } from './testing-reset-config';
 
 export interface WebsiteApiConfig {
   databasePath: string;
@@ -72,6 +74,8 @@ export interface WebsiteApiConfig {
   appBuildUrl?: string;
   operatorPassword?: string;
   secureCookies: boolean;
+  /** Preview-only operator credential for POST /testing/reset; delivered through a URL fragment. */
+  testingResetSecret?: string;
   demoAuth?: boolean;
   openRouterKey?: string;
   openRouterModel?: string;
@@ -94,6 +98,8 @@ export interface WebsiteApiConfig {
    * `https` app origin. Zero (or absent on plain-HTTP loopback) uses the socket address.
    */
   trustedProxyHops?: number;
+  /** Socket peers allowed to supply the configured forwarded hop; runtime deployments name these explicitly. */
+  trustedProxyPeers?: readonly string[];
   providerFetch?: ProviderFetch;
   /** `GUARDRAIL_WEBHOOK_URL`: an `https` ntfy-style target for alerts; unset records alerts only. */
   guardrailWebhookUrl?: string;
@@ -323,10 +329,18 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   if (new URL(config.appOrigin).protocol === 'https:' && config.trustedProxyHops === undefined)
     throw new Error('trustedProxyHops (TRUSTED_PROXY_HOPS) is required for an https app origin');
   const trustedProxyHops = config.trustedProxyHops ?? 0;
-  const store = (config.openStore ?? ((path: string) => new WebsiteStore(path)))(
-    config.databasePath,
+  const testingResetSecret = readTestingResetSecret(
+    config.testingResetSecret,
+    config.publicOrigin,
+    config.appOrigin,
+  );
+  const isTrustedProxy = createProxyVerifier(
+    config.trustedProxyPeers ?? ['127.0.0.1/32', '::1/128'],
   );
   const clock = config.clock ?? Date.now;
+  const store = (config.openStore ?? ((path: string) => new WebsiteStore(path, clock)))(
+    config.databasePath,
+  );
   let retentionSession: RetentionJournalSession | null = null;
   /** Set by close(); a stream deadline that fires later must not touch the closed store. */
   let isClosed = false;
@@ -360,6 +374,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return salt;
   }
   const hashSource = createSourceHasher(readDaySalt);
+  const browserCookie = config.secureCookies ? '__Host-puni_browser' : 'puni_browser';
   const draftCookie = config.secureCookies ? '__Host-puni_draft' : 'puni_draft';
   const replayCookie = config.secureCookies ? '__Host-puni_replay' : 'puni_replay';
   const operatorCookie = config.secureCookies ? '__Host-puni_operator' : 'puni_operator';
@@ -464,6 +479,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     clientAddress: string | undefined,
     now: number,
   ): { address: string; hash: string } | null {
+    // Proof: bypassing socket-peer verification admitted the forged-source mounted intake in proxy-trust.test.ts.
+    if (trustedProxyHops > 0 && !isTrustedProxy(clientAddress)) return null;
     const address = selectClientAddress(
       request.headers.get('x-forwarded-for'),
       clientAddress,
@@ -729,6 +746,10 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     admitted: Exclude<ConversationAdmission, { kind: 'started' }>,
     provider: ReturnType<typeof selectConversationProvider>['kind'],
   ): Response {
+    if (admitted.kind === 'rate_limited')
+      return json({ code: 'rate_limited' }, 429, {
+        'Retry-After': String(admitted.retryAfterSeconds),
+      });
     if (admitted.kind === 'completed')
       return replayReply(
         admitted.reply,
@@ -794,6 +815,39 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     const selected = requestSource(request, clientAddress, now);
     if (selected === null) return withCors(failure('source_unavailable', 400));
     const source = selected.hash;
+    if (path === '/testing/reset' && request.method === 'POST') {
+      // Proof: bypassing this Origin check made the foreign-Origin reset test issue a new allowance.
+      if (origin !== config.appOrigin) return withCors(failure('origin_forbidden', 403));
+      if (testingResetSecret === undefined) return withCors(failure('not_found', 404));
+      const supplied = request.headers.get('x-puni-test-reset');
+      // Proof: bypassing this comparison issued allowances for absent/wrong secrets in testing-reset.test.ts.
+      if (supplied === null || !equal(supplied, testingResetSecret))
+        return withCors(failure('testing_reset_forbidden', 403));
+      const resetRate = admitWindows([['testing-reset:site', 30]], now);
+      if (resetRate.kind !== 'admitted') return withCors(rateRefusal(resetRate));
+      const claim = draftClaim(request);
+      const draft = claim === null ? null : store.findDraft(digest(claim), now);
+      if (claim !== null && draft === null) return withCors(failure('draft_unavailable', 401));
+      const conversation = draft === null ? null : store.findConversation(draft.id);
+      const latest =
+        conversation === null ? null : store.findLatestConversationOperation(conversation.id);
+      // Proof: removing this abort left the provider signal live in the mounted active-reset test.
+      if (latest?.state === 'inflight') conversationAborts.get(latest.id)?.abort();
+      const browser = secret();
+      const browserHash = digest(browser);
+      store.registerBrowserClaim(browserHash, now);
+      if (!store.resetBrowserAllowance(claim === null ? null : digest(claim), browserHash, now))
+        return withCors(failure('draft_unavailable', 401));
+      return withCors(
+        new Response(null, {
+          status: 204,
+          headers: {
+            'Set-Cookie': cookie(browserCookie, browser, 31 * 24 * 60 * 60),
+            'Cache-Control': 'no-store',
+          },
+        }),
+      );
+    }
     // The general window runs before any store read; the day salt behind `source` is cached.
     // Proof: keying the general window on the path admitted the 121st request in the windowless-route test.
     const general = admitWindows(generalWindowKeys(source), now);
@@ -838,7 +892,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           status: 204,
           headers: {
             'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, X-Puni-CSRF',
+            'Access-Control-Allow-Headers': 'Content-Type, X-Puni-CSRF, X-Puni-Test-Reset',
           },
         }),
         origin,
@@ -872,6 +926,12 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const { description, protocol, startingChoice, startConversation } = intake.value;
       const priorClaim = draftClaim(request);
       const claim = secret();
+      const suppliedBrowser = readCookie(request, browserCookie);
+      // Proof: trusting a supplied unregistered cookie failed the forged browser identity fixture.
+      const browser =
+        suppliedBrowser !== null && store.hasBrowserClaim(digest(suppliedBrowser), now)
+          ? suppliedBrowser
+          : secret();
       const created = store.createDraft(
         crypto.randomUUID(),
         description,
@@ -880,6 +940,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         now + draftLifetime,
         source,
         protocol === 'scoping' ? { version: 1, startingChoice, startConversation } : undefined,
+        digest(browser),
       );
       // Proof: answering 201 with the claim cookie here put a Set-Cookie on the mounted draft-cap refusal.
       if (created.kind !== 'created') return attachSiteCors(capRefusal(created.kind, now));
@@ -888,6 +949,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         'Set-Cookie': cookie(draftCookie, claim, 24 * 60 * 60),
         'Cache-Control': 'no-store',
       });
+      headers.append('Set-Cookie', cookie(browserCookie, browser, 31 * 24 * 60 * 60));
       // Proof: omitting this replay-only cookie made the old receipt unrecoverable when a new intake replaced its claim.
       if (priorClaim && store.hasReplayClaim(digest(priorClaim), now))
         headers.append('Set-Cookie', cookie(replayCookie, priorClaim, 24 * 60 * 60));
@@ -956,7 +1018,11 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         challenge,
         stage: deriveStage(conversation?.state ?? 'open', visitorTurns),
         turns,
-        visitorTurnsRemaining: Math.max(0, conversationAllowance.visitorTurns - visitorTurns),
+        visitorTurnsRemaining: Math.max(
+          0,
+          conversationAllowance.visitorTurns -
+            (conversation ? store.effectiveVisitorTurns(conversation.id) : 0),
+        ),
         visitorTurnLimit: conversationAllowance.visitorTurns,
         provider,
         brief: draft.brief,
@@ -1045,6 +1111,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           : digest(`${initial ? 'initial' : 'message'}:${message}`);
       // Proof: using the browser's key for an initial operation made the replay test answer 429.
       const idempotencyKey = initial ? `initial:${draft.id}` : suppliedKey;
+      // Proof: reusing request-start time charged a slow body to the previous UTC day in the mounted admission-time test.
+      const admissionNow = clock();
       const provider = selectConversationProvider();
       // Only an initial attempt that would create the conversation row is checked; a stale check
       // sent with a retry or a replay is ignored because the row already exists.
@@ -1055,7 +1123,12 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         body['check'] !== undefined &&
         store.findConversation(draft.id) === null
       ) {
-        const verified = verifyBrowserCheck(body['check'], digest(claim), now, readDaySalt);
+        const verified = verifyBrowserCheck(
+          body['check'],
+          digest(claim),
+          admissionNow,
+          readDaySalt,
+        );
         if (verified.kind !== 'verified')
           return attachCors(failure('challenge_invalid', 403), origin);
         browserCheck = 'verified';
@@ -1078,7 +1151,12 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
             : { kind: 'closed' };
       const admitted = store.admitConversationOperation({
         claimHash: digest(claim),
-        sourceHash: source,
+        sourceHash: hashSource(selected.address, admissionNow),
+        // Proof: omitting yesterday's salted identity failed rolling-source admission across UTC midnight.
+        sourceHashes: [
+          hashSource(selected.address, admissionNow),
+          hashSource(selected.address, admissionNow - 86_400_000),
+        ],
         idempotencyKey,
         bodyHash,
         message,
@@ -1088,7 +1166,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         promptVersion: draft.scoping.version === 1 ? scopingPromptVersion : salesPromptVersion,
         pricing,
         browserCheck,
-        now,
+        now: admissionNow,
       });
       if (admitted.kind === 'paused') notePause(admitted.openedPauseId, 'site_spend', now);
       if (admitted.kind !== 'started') {

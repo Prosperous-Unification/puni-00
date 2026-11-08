@@ -465,7 +465,7 @@ export function readSiteSpend(database: Database, utcDay: string): number {
   const spent = 'COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0)';
   const row = database
     .query<{ total: number }, [string]>(
-      `SELECT (SELECT ${spent} FROM provider_call WHERE utc_day = ?1) + (SELECT ${spent} FROM conversation_operation WHERE utc_day = ?1) AS total`,
+      `SELECT ${spent} AS total FROM paid_attempt WHERE utc_day = ?1`,
     )
     .get(utcDay);
   if (!row) throw new Error('Site spend query returned no row');

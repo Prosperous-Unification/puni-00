@@ -31,5 +31,9 @@ export function websiteMigrations(): { name: string; directory: string }[] {
       directory: join(import.meta.dir, 'migrations/012_conversation_request'),
     },
     { name: '013_reply_failure', directory: join(import.meta.dir, 'migrations/013_reply_failure') },
+    {
+      name: '014_anonymous_admission',
+      directory: join(import.meta.dir, 'migrations/014_anonymous_admission'),
+    },
   ];
 }

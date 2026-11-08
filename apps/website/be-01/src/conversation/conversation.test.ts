@@ -387,7 +387,7 @@ function seedLegacyProviderCall(databasePath: string, microUsd: number): void {
         new Date().toISOString().slice(0, 10),
         microUsd,
         microUsd,
-        Date.now(),
+        Date.now() - 3_600_001,
       );
   } finally {
     database.close();
@@ -1242,20 +1242,21 @@ test('two racing conversations under a ceiling for one reach the provider once',
 
 test('a fourth conversation from one source today is refused', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Who uses it?' }));
-  const api = mountApi(paidConfig(fake.providerFetch));
+  let time = Date.now();
+  const api = mountApi(paidConfig(fake.providerFetch, { clock: () => time }));
   for (let index = 0; index < 3; index += 1) {
     const visitor = await beginVisitor(api);
     const response = await sendInitial(api, visitor);
     expect(response.status).toBe(200);
     await response.text();
+    time += 61_000;
   }
   const fourth = await beginVisitor(api);
   const refused = await sendInitial(api, fourth);
   expect(refused.status).toBe(429);
-  expect(await refused.json()).toEqual({ code: 'source_limit', exhaustedReason: 'source_spend' });
+  expect(await refused.json()).toEqual({ code: 'rate_limited' });
   expect(await readConversation(api, fourth.cookie)).toMatchObject({
-    stage: 'exhausted',
-    exhaustedReason: 'source_spend',
+    exhaustedReason: null,
   });
   const elsewhere = await beginVisitor(api);
   const accepted = await sendInitial(api, elsewhere, '198.51.100.20');
@@ -3175,18 +3176,20 @@ test('structured real deadline aborts buffered output at full reservation', asyn
 
 test('structured source permits three conversations per day and refuses the fourth', async () => {
   const fake = fakeOpenRouter(() => structuredReply('Confirmed'));
-  const config = paidConfig(fake.providerFetch);
+  let time = Date.now();
+  const config = paidConfig(fake.providerFetch, { clock: () => time });
   const api = mountApi(config);
   for (let index = 0; index < 3; index += 1) {
     const visitor = await beginScopingVisitor(api);
     const response = await sendInitial(api, visitor);
     expect(response.status).toBe(200);
     await response.text();
+    time += 61_000;
   }
   const fourth = await beginScopingVisitor(api);
   const response = await sendInitial(api, fourth);
   expect(response.status).toBe(429);
-  expect(await response.json()).toEqual({ code: 'source_limit', exhaustedReason: 'source_spend' });
+  expect(await response.json()).toEqual({ code: 'rate_limited' });
   expect(fake.bodies).toHaveLength(3);
   api.close();
 });
@@ -3520,4 +3523,217 @@ test('structured replay refuses a missing recorded prompt identity', () => {
       1,
     ),
   ).toThrow('prompt identity');
+});
+
+test('mounted repeated Stop refuses paid attempt eleven before contacting provider', async () => {
+  const transport = fakeOpenRouter(() => ({ hang: 'Thinking' }));
+  const config = paidConfig(transport.providerFetch, {
+    openRouterInputUsdPerMillion: 0.001,
+    openRouterOutputUsdPerMillion: 0.001,
+    openRouterInputCeilingUsdPerMillion: 0.001,
+    openRouterOutputCeilingUsdPerMillion: 0.001,
+  });
+  const api = mountApi(config);
+  try {
+    const visitor = await beginVisitor(api);
+    for (let attempt = 0; attempt < 10; attempt++)
+      await stopReply(api, visitor, sendInitial(api, visitor), visitor.initialKey);
+    const refusal = await sendInitial(api, visitor);
+    expect(refusal.status).toBe(429);
+    expect(await refusal.json()).toMatchObject({ code: 'conversation_limit' });
+    expect(transport.bodies).toHaveLength(10);
+  } finally {
+    api.close();
+  }
+});
+
+test('intake mints a registered host-only browser cookie and ignores a forged browser identity', async () => {
+  const api = mountApi(paidConfig(fakeOpenRouter(() => ({ reply: 'Ready' })).providerFetch));
+  try {
+    const intake = await api.fetch(
+      new Request('http://localhost:3101/intakes', {
+        method: 'POST',
+        headers: {
+          origin: publicOrigin,
+          'content-type': 'application/json',
+          cookie: 'puni_browser=attacker-selected',
+        },
+        body: JSON.stringify({ description: 'Build a booking tool' }),
+      }),
+    );
+    const cookies = intake.headers.getSetCookie();
+    const browser = cookies.find((cookie) => cookie.startsWith('puni_browser='));
+    expect(browser).toBeDefined();
+    expect(browser).toContain('HttpOnly');
+    expect(browser).toContain('SameSite=Lax');
+    expect(browser).not.toContain('Domain=');
+    expect(browser).not.toContain('attacker-selected');
+  } finally {
+    api.close();
+  }
+});
+
+async function beginBoundVisitor(api: Api, browser: string | null = null) {
+  const response = await api.fetch(
+    new Request('http://localhost:3101/intakes', {
+      method: 'POST',
+      headers: {
+        origin: publicOrigin,
+        'content-type': 'application/json',
+        ...(browser ? { cookie: browser } : {}),
+      },
+      body: JSON.stringify({ description: 'Build a booking tool' }),
+    }),
+  );
+  expect(response.status).toBe(201);
+  const cookies = response.headers.getSetCookie();
+  const draft = cookies.find((entry) => entry.startsWith('puni_draft='))?.split(';')[0];
+  const boundBrowser = cookies.find((entry) => entry.startsWith('puni_browser='))?.split(';')[0];
+  if (!draft || !boundBrowser) throw new Error('Expected draft and browser cookies');
+  const view = await readConversation(api, draft);
+  return {
+    browser: boundBrowser,
+    cookie: draft,
+    csrf: view.csrfToken,
+    initialKey: view.initialOperation.idempotencyKey,
+  };
+}
+
+test('mounted retained browser survives changed sources and missing browser cookie on existing draft', async () => {
+  let time = Date.now();
+  const fake = fakeOpenRouter(() => ({ reply: 'Who uses it?' }));
+  const api = mountApi(paidConfig(fake.providerFetch, { clock: () => time }));
+  try {
+    let browser: string | null = null;
+    for (let index = 0; index < 4; index++) {
+      const visitor = await beginBoundVisitor(api, browser);
+      if (browser !== null) expect(visitor.browser).toBe(browser);
+      browser = visitor.browser;
+      // The mounted request carries only the draft cookie; admission uses its saved binding.
+      const response = await sendInitial(api, visitor, `203.0.113.${String(index + 1)}`);
+      expect(response.status).toBe(index < 3 ? 200 : 429);
+      if (index === 3) {
+        expect(await response.json()).toEqual({ code: 'rate_limited' });
+        expect(Number(response.headers.get('retry-after'))).toBeGreaterThan(0);
+      } else await response.text();
+      time += 61_000;
+    }
+    expect(fake.bodies).toHaveLength(3);
+  } finally {
+    api.close();
+  }
+});
+
+test('mounted cleared browser cookie cannot renew a source across UTC midnight', async () => {
+  const midnight = Date.UTC(2026, 10, 9);
+  let time = midnight - 240_000;
+  const fake = fakeOpenRouter(() => ({ reply: 'Who uses it?' }));
+  const api = mountApi(paidConfig(fake.providerFetch, { clock: () => time }));
+  try {
+    for (let index = 0; index < 4; index++) {
+      if (index === 3) time = midnight + 1000;
+      const visitor = await beginBoundVisitor(api);
+      const response = await sendInitial(api, visitor, '203.0.113.81');
+      expect(response.status).toBe(index < 3 ? 200 : 429);
+      if (index === 3) expect(await response.json()).toEqual({ code: 'rate_limited' });
+      else await response.text();
+      time += 61_000;
+    }
+    expect(fake.bodies).toHaveLength(3);
+  } finally {
+    api.close();
+  }
+});
+
+test('refused draft caps cannot create orphan browser registrations', async () => {
+  let time = Date.now();
+  const config = paidConfig(fakeOpenRouter(() => ({ reply: 'Ready' })).providerFetch, {
+    clock: () => time,
+  });
+  const api = mountApi(config);
+  const intake = () =>
+    api.fetch(
+      new Request('http://localhost:3101/intakes', {
+        method: 'POST',
+        headers: { origin: publicOrigin, 'content-type': 'application/json' },
+        body: JSON.stringify({ description: 'A booking tool' }),
+      }),
+    );
+  try {
+    for (let count = 0; count < 20; count++) {
+      expect((await intake()).status).toBe(201);
+      time += 61_000;
+    }
+    const database = new Database(config.databasePath);
+    const before = database.query('SELECT count(*) AS count FROM browser_claim').get();
+    expect((await intake()).status).toBe(429);
+    expect(database.query('SELECT count(*) AS count FROM browser_claim').get()).toEqual(before);
+    database.close();
+  } finally {
+    api.close();
+  }
+});
+
+test('accepted intake refreshes browser registration through its original thirty-one-day boundary', async () => {
+  let time = Date.now();
+  const api = mountApi(
+    paidConfig(fakeOpenRouter(() => ({ reply: 'Ready' })).providerFetch, { clock: () => time }),
+  );
+  try {
+    const original = await beginBoundVisitor(api);
+    time += 30 * 86_400_000;
+    const active = await beginBoundVisitor(api, original.browser);
+    expect(active.browser).toBe(original.browser);
+    time += 86_400_000 + 1000;
+    const renewed = await beginBoundVisitor(api, active.browser);
+    expect(renewed.browser).toBe(original.browser);
+  } finally {
+    api.close();
+  }
+});
+
+test('slow request bodies reserve under the fresh admission time and UTC day', async () => {
+  const beforeMidnight = Date.UTC(2026, 10, 8, 23, 59, 45);
+  let time = beforeMidnight;
+  const config = paidConfig(fakeOpenRouter(() => ({ reply: 'Ready' })).providerFetch, {
+    clock: () => time,
+  });
+  const api = mountApi(config);
+  try {
+    const visitor = await beginVisitor(api);
+    const check = await solveCheck(api, visitor);
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        time = beforeMidnight + 31_000;
+        controller.enqueue(
+          new TextEncoder().encode(
+            JSON.stringify({ idempotencyKey: visitor.initialKey, initial: true, check }),
+          ),
+        );
+        controller.close();
+      },
+    });
+    const response = await api.fetch(
+      new Request('http://localhost:3101/conversation/stream', {
+        method: 'POST',
+        headers: {
+          origin: appOrigin,
+          cookie: visitor.cookie,
+          'content-type': 'application/json',
+          'x-puni-csrf': visitor.csrf,
+        },
+        body,
+      }),
+      visitorAddress,
+    );
+    expect(response.status).toBe(200);
+    await response.text();
+    const database = new Database(config.databasePath);
+    expect(database.query('SELECT admitted_at, utc_day FROM paid_attempt').all()).toEqual([
+      { admitted_at: beforeMidnight + 31_000, utc_day: '2026-11-09' },
+    ]);
+    database.close();
+  } finally {
+    api.close();
+  }
 });

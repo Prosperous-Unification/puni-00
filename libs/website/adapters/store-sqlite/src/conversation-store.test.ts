@@ -395,16 +395,16 @@ test('per-conversation and per-source spend ceilings exhaust with their reasons'
     );
   }
   // draft-1 is the source's first conversation today, so draft-2 and draft-3 make three.
-  converse(store, 'claim-2', 1);
-  converse(store, 'claim-3', 1);
+  converse(store, 'claim-2', 1, { now: day + 61_000 });
+  converse(store, 'claim-3', 1, { now: day + 122_000 });
   expect(
     store.admitConversationOperation(
       ask('claim-4', 'initial:draft-4', 'Request', { initial: true }),
     ),
-  ).toEqual({ kind: 'exhausted', reason: 'source_spend' });
+  ).toMatchObject({ kind: 'rate_limited' });
   expect(store.findConversation('draft-4')).toMatchObject({
-    state: 'exhausted',
-    exhaustedReason: 'source_spend',
+    state: 'open',
+    exhaustedReason: null,
   });
   // Proof: counting this conversation among the source's others refused its own next turn.
   expect(store.admitConversationOperation(ask('claim-2', 'key-2-turn-2', 'More'))).toMatchObject({
@@ -418,7 +418,7 @@ test('per-conversation and per-source spend ceilings exhaust with their reasons'
         pricing: paid(300_001),
       }),
     ),
-  ).toEqual({ kind: 'exhausted', reason: 'source_spend' });
+  ).toMatchObject({ kind: 'rate_limited' });
   store.close();
 });
 
@@ -638,7 +638,11 @@ test('ceiling-settled operations count fully against the source and site ceiling
   store.markConversationOperationUnknown(
     started(
       store,
-      ask('claim-2', 'initial:draft-2', 'R', { initial: true, pricing: paid(140_000) }),
+      ask('claim-2', 'initial:draft-2', 'R', {
+        initial: true,
+        pricing: paid(140_000),
+        now: day + 61_000,
+      }),
     ),
   );
   store.createDraft('draft-3', 'R', 'claim-3', day, day + 1_000_000, 'source-test');
@@ -647,7 +651,7 @@ test('ceiling-settled operations count fully against the source and site ceiling
     store.admitConversationOperation(
       ask('claim-3', 'initial:draft-3', 'R', { initial: true, pricing: paid(30_000) }),
     ),
-  ).toEqual({ kind: 'exhausted', reason: 'source_spend' });
+  ).toMatchObject({ kind: 'rate_limited' });
 
   seedLegacyAccount(databasePath, [
     { utcDay, reservedMicroUsd: 9_710_000, settledMicroUsd: 9_710_000 },
@@ -677,12 +681,15 @@ test('the brief reply becomes the draft brief unless the visitor saved one', () 
       'source-test',
     );
   for (const claim of ['claim-1', 'claim-2']) {
-    converse(store, claim, 1);
-    converse(store, claim, 2);
+    converse(store, claim, 1, { sourceHash: claim });
+    converse(store, claim, 2, { sourceHash: claim });
   }
   expect(store.updateBrief('claim-2', 'My own brief', day)).toBe(true);
   for (const claim of ['claim-1', 'claim-2']) {
-    const id = started(store, ask(claim, `brief-key-${claim}`, 'Third answer'));
+    const id = started(
+      store,
+      ask(claim, `brief-key-${claim}`, 'Third answer', { sourceHash: claim }),
+    );
     store.completeConversationOperation(id, '  Brief: a booking tool\n- users  ', 500, day, false);
   }
   expect(store.findDraft('claim-1', day)?.brief).toBe('Brief: a booking tool\n- users');
@@ -693,9 +700,9 @@ test('the brief reply becomes the draft brief unless the visitor saved one', () 
 
 /** Answers the third visitor turn of `claim` with `reply` and returns the operation id. */
 function answerBrief(store: WebsiteStore, claim: string, message: string, reply: string): string {
-  converse(store, claim, 1);
-  converse(store, claim, 2);
-  const id = started(store, ask(claim, `brief-key-${claim}`, message));
+  converse(store, claim, 1, { sourceHash: claim });
+  converse(store, claim, 2, { sourceHash: claim });
+  const id = started(store, ask(claim, `brief-key-${claim}`, message, { sourceHash: claim }));
   if (!store.completeConversationOperation(id, reply, 500, day, false))
     throw new Error('Completion refused');
   return id;
@@ -949,7 +956,7 @@ test('spend is charged to the source of the day each operation was admitted', ()
         pricing: paid(30_000),
       }),
     ),
-  ).toEqual({ kind: 'exhausted', reason: 'source_spend' });
+  ).toMatchObject({ kind: 'rate_limited' });
   store.close();
 });
 

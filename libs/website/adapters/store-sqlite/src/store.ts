@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import type { ProposalStatus, ScopingReply, SubmissionView } from '@website/contracts';
 import { Database } from 'bun:sqlite';
 
+import { effectiveVisitorTurns } from './anonymous-admission';
 import { busyTimeoutMilliseconds } from './checked-database';
 import {
   admitConversationOperation,
@@ -80,6 +81,7 @@ export type {
   ConversationRefusal,
   ConversationTurn,
 } from './conversation-store';
+export { conversationDeadlineMilliseconds } from './conversation-store';
 export { conversationAllowance } from './conversation-store';
 export type { DraftCleanupOutcome, DraftCleanupPlan } from './draft-retention';
 export { inspectExpiredDrafts, purgeExpiredDrafts } from './draft-retention';
@@ -225,7 +227,7 @@ export type DraftCreation = { kind: 'created'; siteCount: number } | { kind: Dra
 export class WebsiteStore {
   private readonly database: Database;
 
-  constructor(path: string) {
+  constructor(path: string, clock: () => number = Date.now) {
     mkdirSync(dirname(path), { recursive: true });
     this.database = new Database(path, { create: true });
     this.database.run('PRAGMA foreign_keys = ON');
@@ -256,8 +258,7 @@ export class WebsiteStore {
       }
     }
     backfillRetentionSubjects(this.database);
-    // Proof: deleting this recovery made the conversation restart test find `inflight`.
-    recoverConversationOperations(this.database);
+    recoverConversationOperations(this.database, clock());
   }
 
   /** See {@link admitConversationOperation}. */
@@ -439,16 +440,26 @@ export class WebsiteStore {
     expiresAt: number,
     sourceHash: string,
     scoping?: ScopingIntent,
+    browserHash?: string,
   ): DraftCreation {
     try {
       return this.database
         .transaction((): DraftCreation => {
           const siteCount = countDraft(this.database, sourceHash, now);
+          // Proof: removing this sweep kept the expired registrations, including the independently retained binding in the browser registry fixture.
+          this.database
+            .query('DELETE FROM browser_claim WHERE last_seen_at < ?')
+            .run(now - 31 * 86_400_000);
           this.database
             .query(
               'INSERT INTO intake_draft (id, description, claim_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
             )
             .run(id, description, claimHash, now, expiresAt);
+          this.database
+            .query('INSERT INTO intake_draft_browser (draft_id, browser_hash) VALUES (?, ?)')
+            .run(id, browserHash ?? `legacy:${id}`);
+          // Proof: moving registry issuance before countDraft created an orphan on mounted cap refusal.
+          if (browserHash !== undefined) this.registerBrowserClaim(browserHash, now);
           if (scoping) createScopingState(this.database, id, scoping, now);
           return { kind: 'created', siteCount };
         })
@@ -457,6 +468,109 @@ export class WebsiteStore {
       if (error instanceof DraftCapReached) return { kind: error.code };
       throw error;
     }
+  }
+
+  /** Registers only a server-minted opaque cookie digest; callers never register browser input. */
+  registerBrowserClaim(hash: string, now: number): void {
+    // Proof: ignoring conflict refresh rotated the active identity at its original 31-day boundary.
+    this.database
+      .query(
+        'INSERT INTO browser_claim (hash, last_seen_at) VALUES (?, ?) ON CONFLICT(hash) DO UPDATE SET last_seen_at = excluded.last_seen_at',
+      )
+      .run(hash, now);
+  }
+
+  /** A cookie is authoritative only when minted and used on an accepted intake in the last 31 days. */
+  hasBrowserClaim(hash: string, now = Date.now()): boolean {
+    // Proof: removing expiry accepted the expired registration before cleanup in anonymous-admission.test.ts.
+    return (
+      this.database
+        .query('SELECT 1 FROM browser_claim WHERE hash = ? AND last_seen_at > ?')
+        .get(hash, now - 31 * 86_400_000) !== null
+    );
+  }
+
+  /** Immutable allowance identity of a claimed draft, including the conservative legacy binding. */
+  findDraftBrowser(claimHash: string): string | null {
+    const row = this.database
+      .query<{ hash: string }, [string]>(
+        "SELECT COALESCE(binding.browser_hash, 'legacy:' || draft.id) AS hash FROM intake_draft AS draft LEFT JOIN intake_draft_browser AS binding ON binding.draft_id = draft.id WHERE draft.claim_hash = ?",
+      )
+      .get(claimHash);
+    return row?.hash ?? null;
+  }
+
+  /** Completed exchanges charged to the current scoped preview allowance. */
+  effectiveVisitorTurns(conversationId: string): number {
+    return effectiveVisitorTurns(this.database, conversationId);
+  }
+
+  /**
+   * Authorized preview-only mutation. Fences any active operation at its reservation before
+   * establishing sequence baselines and reopening the claimed conversation. History and every
+   * site financial/concurrency record survive. Only this operator boundary may rebind a draft.
+   * Returns false only when the supplied claim has no live draft; malformed registry state throws.
+   */
+  resetBrowserAllowance(claimHash: string | null, browserHash: string, now: number): boolean {
+    return this.database
+      .transaction(() => {
+        if (!this.hasBrowserClaim(browserHash, now))
+          throw new Error('Reset browser claim is not registered');
+        const draft =
+          claimHash === null
+            ? null
+            : this.database
+                .query<{ id: string }, [string, number]>(
+                  'SELECT id FROM intake_draft WHERE claim_hash = ? AND consumed_at IS NULL AND expires_at > ?',
+                )
+                .get(claimHash, now);
+        if (claimHash !== null && draft === null) return false;
+        const conversation = draft ? findConversation(this.database, draft.id) : null;
+        if (conversation) {
+          const inflight = this.database
+            .query<{ id: string }, [string]>(
+              "SELECT id FROM conversation_operation WHERE conversation_id = ? AND state = 'inflight'",
+            )
+            .all(conversation.id);
+          // Proof: omitting this fence left the prior operation in-flight in the preview-reset fixture.
+          for (const operation of inflight) {
+            if (!markConversationOperationUnknown(this.database, operation.id))
+              throw new Error('Reset operation fence failed');
+          }
+        }
+        const position = this.database
+          .query<{ sequence: number }, []>(
+            'SELECT COALESCE(MAX(sequence), 0) AS sequence FROM paid_attempt',
+          )
+          .get();
+        if (position === null) throw new Error('Missing reset accounting position');
+        if (draft)
+          this.database
+            .query(
+              'INSERT INTO intake_draft_browser (draft_id, browser_hash) VALUES (?, ?) ON CONFLICT(draft_id) DO UPDATE SET browser_hash = excluded.browser_hash',
+            )
+            .run(draft.id, browserHash);
+        this.database
+          .query(
+            'INSERT INTO testing_allowance (browser_hash, after_sequence, reset_at) VALUES (?, ?, ?) ON CONFLICT(browser_hash) DO UPDATE SET after_sequence = excluded.after_sequence, reset_at = excluded.reset_at',
+          )
+          .run(browserHash, position.sequence, now);
+        if (conversation) {
+          const turns = listConversationTurns(this.database, conversation.id).filter(
+            (turn) => turn.role === 'user',
+          ).length;
+          this.database
+            .query(
+              'INSERT INTO testing_conversation (conversation_id, after_sequence, visitor_turns) VALUES (?, ?, ?) ON CONFLICT(conversation_id) DO UPDATE SET after_sequence = excluded.after_sequence, visitor_turns = excluded.visitor_turns',
+            )
+            .run(conversation.id, position.sequence, turns);
+          this.database
+            .query("UPDATE conversation SET state = 'open', exhausted_reason = NULL WHERE id = ?")
+            .run(conversation.id);
+        }
+        return true;
+      })
+      .immediate();
   }
 
   /** The `proposal:email` key of {@link countProposal}, under the day salt of `now`. */
