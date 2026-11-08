@@ -2033,3 +2033,13 @@ retains both sets and the exact callback outcome, including rejection of
 transfers before consumption's first await, and complete-exclusion wiring stays
 the independently reviewed initial-ready unit. These finite integration proofs
 establish no new native image or R2 authority.
+
+## Registry S3 frontend epoch — 2026-11-08
+
+Published registry source G40f5094 retains the accepted main frontend code/common16 but adds the required direct S3 dependency. Its exact package5030/`275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf` and lock543082/`983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6` form the fifth named epoch `registry-s3-20261108`. The four older literal pairs and sixteen common inputs remain unchanged in all three independent owners. Admission remains common16 AND one complete pair, never independent alternatives.
+
+Only the existing production profile, fixture profile, fixture producer, profile test and HTTP test change. Independent expected literals stay in each owner/test; no shared expected-pin API, new source module, namespace wildcard or runtime expected identity is introduced. Actual package/lock, generated Node/Vite program, frozen ordinary corpus, inspectors and response hashes remain read-only. Unknown deeper failure stops this scope.
+
+Both test-only historical reconstruction owners first validate complete original fifth identity, remove one exact uniquely occurring package S3 line and four complete lock hunks (root declaration, AWS, Smithy, bowser), then validate the full fourth intermediate before existing0.13/20261104/0.12/before-CTT reversals. They retain all older intermediate and unique-hunk checks. Malformed/duplicate/missing inputs must reach the new reversal checks; omission evidence distinguishes invalid acceptance from redundant diagnostic refusal.
+
+The real producer captures HEAD. A normal clean candidate commit therefore precedes actual current Vite qualification. Preserve original actual captured byte strings/Git blobs, distinct canonical fixture, selected opening/closing observations, complete response inspectors and child/pipe/server/watcher settlement. Record the original G six-leaf77pass/152reported-fail prerequisite failure separately; those reports do not show152 executed safety negatives. Scoped local review and final exact published-head hosted leaves/other gates remain mandatory, with no local full-leaf replay or native/provider/runtime/adoption authority.

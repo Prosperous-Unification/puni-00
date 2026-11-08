@@ -18,3 +18,7 @@ Reverse only uniquely matched0.13 hunks and verify each historical intermediate.
 Literal admission checks and hosted actual-response qualification stay separate;
 no consumed private protocol is replayed. Scope remains the existing five source
 paths. A differing full response still requires separate design.
+
+## Registry S3 compatibility — 2026-11-08
+
+Registry source integration adds one fifth exact coupled epoch. Preserve earlier evidence and guards; independently qualify actual current Vite responses before hosted acceptance.

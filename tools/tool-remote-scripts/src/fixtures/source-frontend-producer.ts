@@ -138,6 +138,19 @@ const PAIRS = [
       sha256: '48b5cea4e2ac740d300f4e41cc705dfb5213210c4db378f8cdf65640fb695adb',
     },
   },
+  // Proof: omitting only this fifth member refused the unchanged actual pinned Vite positive in an owned source copy before Git/Node;
+  // this proves valid-input entry necessity, not invalid-input admission.
+  {
+    epoch: 'registry-s3-20261108',
+    'package.json': {
+      bytes: 5030,
+      sha256: '275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf',
+    },
+    'bun.lock': {
+      bytes: 543082,
+      sha256: '983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6',
+    },
+  },
 ];
 
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
