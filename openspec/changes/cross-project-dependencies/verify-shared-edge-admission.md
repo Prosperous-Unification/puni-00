@@ -180,3 +180,71 @@ retained markers, contention and forged descriptors through real launchers.
 The complete configured `tool-remote-scripts:test` target, Docker acceptance and
 exact-SHA host gate were not rerun for this fixture-only correction: local disk
 had approximately 423 MB free, and the parent integration owns the broad gate.
+
+## Fixture correction: READY failure retains child cleanup (2026-11-08)
+
+The original nonqualifying `f642f094` h4 gate failed the configure fixture's
+READY assertion at `edge-admission.test.ts:303`. That assertion preceded its
+cleanup `try/finally`; the same gap existed in six launcher contention cases and
+the independent-descriptor case. This establishes a fixture cleanup defect. It
+does not establish the cause of the later UNKNOWN STOP, final termination or
+other gate failures, which remain preserved separately.
+
+All eight cases now arm the same file-local child owner before readiness work.
+It starts original stdout/stderr reads concurrently, publishes the existing
+cooperative release on every body outcome, and joins the original exit and both
+streams before returning. Successful cleanup rethrows the identical primary
+failure; cleanup rejection retains it with the cleanup causes. Competing command
+outputs and exit are joined before their assertions. Existing READY polls
+(100 × 5 ms), assertions, argv, test deadlines and production admission guards
+are unchanged. Configure's private fake `id` still returns 1000 and reaches the
+root refusal before staging or host operations. Local execution used nonroot
+UID/GID 1000 and private state/lock/reader paths; no live host was touched.
+
+Two regressions use real private waiting flock/configure children and a deliberately
+absent READY observation through that same owner. They assert the original
+failure identity, cooperative release and original exit/stream settlements.
+The test's emergency release runs only after a failing settlement oracle, and
+never counts as the cleanup under proof.
+
+Observed TDD and R5:
+
+- Original body-before-cleanup coverage: both regressions failed because the
+  release file was absent; the outer fixture rescue then settled the children.
+- Restored coverage: 2 passed, 0 failed, 21 assertions. A watched reintroduction
+  of the coverage gap failed the same two oracles (not a timeout), then exact
+  byte restoration passed both again.
+- The first reviewed helper shape passed the complete owning file: 46 tests,
+  0 failures, 155 assertions, 14.14 s (the earlier 13.43 s run is historical).
+
+```sh
+bun test tools/tool-remote-scripts/src/edge-admission.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000
+```
+
+This local fixture repair does not qualify native custody, full remote acceptance,
+UNKNOWN retirement, deployment or the separately owned exact-SHA host gate.
+
+Independent review required two further fixture proofs. A real child now physically
+acknowledges cooperative release but keeps its original exit and both pipes open
+until a separate finish permit. The owner must remain pending at that acknowledged
+boundary, before any test-side settlement await. Bypassing its join failed the
+same pending oracle before outer rescue; exact restoration passed. The separate
+release-written promise establishes helper continuation ordering, while the actual
+child acknowledgment and finish gate establish the physical pending boundary.
+
+The four competing-command joins now retain all three original promises with
+`Promise.allSettled` before propagating failure. A controlled rejected read with
+pending exit and sibling-stream capabilities must not settle the helper early.
+The fail-fast omission failed that pending oracle before the test completed those
+capabilities; restoration passed. These are finite local fixture ownership proofs,
+not native custody, UNKNOWN settlement or a causal explanation of the h4 STOP.
+
+Final corrected source verification: the complete owning command above passed
+48 tests, 0 failures, 168 assertions in 14.69 s. Configured remote-scripts
+uncached typecheck and scoped ESLint passed. The final source was separately
+watched with three omissions: readiness outside cleanup (two release-oracle
+failures), owner return before original joins (physical child ACK pending oracle),
+and fail-fast competing observations (controlled original-promises pending oracle).
+Each omitted version exited 1 at its owning assertion before emergency rescue;
+each exact byte-restored version exited 0. Original intermediate failures and
+prior review receipts remain historical evidence, not final-source certificates.
