@@ -3,6 +3,11 @@ import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import {
+  quoteFixtureJson,
+  quoteFixtureString,
+  renderDockerFixture,
+} from './registry-fixture-source';
 import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
 import { runRegistryProcess } from './registry-process';
 
@@ -92,7 +97,7 @@ export async function rehearseRegistryPublisher(
     };
     const archive = join(import.meta.dir, 'fixtures/docker-29.1.3-containerd.oci.tar');
     const docker = join(directory, 'docker-fixture');
-    const script = `#!/usr/bin/python3\nimport sys,json,shutil\nif sys.argv[1:3]==['image','inspect'] and sys.argv[-1]==${JSON.stringify(imageId)}: print(${JSON.stringify(JSON.stringify(observed))})\nelif sys.argv[1:4]==['image','save','--output'] and sys.argv[-1]==${JSON.stringify(imageId)}: shutil.copyfile(${JSON.stringify(archive)},sys.argv[4])\nelse: sys.exit(23)\n`;
+    const script = renderDockerFixture(imageId, observed, archive);
     await writeFile(docker, script, { mode: 0o700 });
     const repositories = ['site', 'app', 'api'].map((service) => `puni-website-${service}`);
     const images = repositories.map((repository) => ({ repository, tag: 'fixture', imageId }));
@@ -128,7 +133,7 @@ export async function rehearseRegistryPublisher(
       const entry = join(directory, `entry-${mode}.ts`);
       await writeFile(
         entry,
-        `import {executeRegistryLifecycle} from ${JSON.stringify(join(import.meta.dir, 'registry-lifecycle-cli.ts'))};import {publishNativeDockerBundle} from ${JSON.stringify(join(import.meta.dir, 'registry-docker-publication.ts'))};import {executeRegistryCommand} from ${JSON.stringify(join(import.meta.dir, 'registry-journal.ts'))};const capacity=${JSON.stringify(capacity)};const ports={verifyConsumers:()=>Promise.resolve(),verifyImages:()=>Promise.resolve(),measureJournal:()=>Promise.resolve({usableBytes:capacity.usableBytes,usedBytes:0,totalInodes:100000,usedInodes:10,allocationUnitBytes:4096}),measureRegistry:()=>Promise.resolve(capacity),collectConsumers:()=>Promise.reject(new Error('Unexpected consumer read')),now:()=> '2026-10-25T12:00:00.000Z'};const authority=()=>request=>executeRegistryCommand(${JSON.stringify(journal)},request,ports);if(process.env.NODE_OPTIONS!==undefined || process.env.BUN_OPTIONS!==undefined)throw new Error('Loader environment leaked');console.log(JSON.stringify(await executeRegistryLifecycle(await Bun.stdin.json(),{publication:()=>Promise.resolve(${JSON.stringify(enrollment)}),deployment:()=>Promise.reject(new Error('unused')),environment:()=>Promise.reject(new Error('unused')),authority,publish:(enrollment,images)=>publishNativeDockerBundle(enrollment,images,{admit:()=>Promise.resolve({}),check:()=>Promise.resolve(),authority})})));`,
+        `import {executeRegistryLifecycle} from ${quoteFixtureString(join(import.meta.dir, 'registry-lifecycle-cli.ts'))};import {publishNativeDockerBundle} from ${quoteFixtureString(join(import.meta.dir, 'registry-docker-publication.ts'))};import {executeRegistryCommand} from ${quoteFixtureString(join(import.meta.dir, 'registry-journal.ts'))};const capacity=JSON.parse(${quoteFixtureJson(capacity)});const ports={verifyConsumers:()=>Promise.resolve(),verifyImages:()=>Promise.resolve(),measureJournal:()=>Promise.resolve({usableBytes:capacity.usableBytes,usedBytes:0,totalInodes:100000,usedInodes:10,allocationUnitBytes:4096}),measureRegistry:()=>Promise.resolve(capacity),collectConsumers:()=>Promise.reject(new Error('Unexpected consumer read')),now:()=> '2026-10-25T12:00:00.000Z'};const authority=()=>request=>executeRegistryCommand(JSON.parse(${quoteFixtureJson(journal)}),request,ports);if(process.env.NODE_OPTIONS!==undefined || process.env.BUN_OPTIONS!==undefined)throw new Error('Loader environment leaked');console.log(JSON.stringify(await executeRegistryLifecycle(await Bun.stdin.json(),{publication:()=>Promise.resolve(JSON.parse(${quoteFixtureJson(enrollment)})),deployment:()=>Promise.reject(new Error('unused')),environment:()=>Promise.reject(new Error('unused')),authority,publish:(enrollment,images)=>publishNativeDockerBundle(enrollment,images,{admit:()=>Promise.resolve({}),check:()=>Promise.resolve(),authority})})));`,
       );
       const build = await Bun.build({
         entrypoints: [entry],
@@ -147,7 +152,7 @@ export async function rehearseRegistryPublisher(
       const client = join(directory, `client-${mode}.ts`);
       await writeFile(
         client,
-        `import {callLifecycleArtifact} from ${JSON.stringify(join(privateRoot, 'deploy/website/k8s/registry-lifecycle.ts'))};process.env.NODE_OPTIONS='--no-warnings';process.env.BUN_OPTIONS='fixture-loader-must-not-cross';${mode === 'missing' ? 'delete process.env.REGISTRY_USER;delete process.env.REGISTRY_PASS;' : `process.env.REGISTRY_USER=${JSON.stringify(username)};process.env.REGISTRY_PASS=${JSON.stringify(mode === 'wrong' ? 'wrong-synthetic-password' : password)};`}const receipt=await callLifecycleArtifact(${JSON.stringify(pin)},${JSON.stringify({ command: 'publish-docker', registryUrl: enrollment.registryUrl, target: 'flux:website-dev', images })});console.log(JSON.stringify(receipt));`,
+        `import {callLifecycleArtifact} from ${quoteFixtureString(join(privateRoot, 'deploy/website/k8s/registry-lifecycle.ts'))};process.env.NODE_OPTIONS='--no-warnings';process.env.BUN_OPTIONS='fixture-loader-must-not-cross';${mode === 'missing' ? 'delete process.env.REGISTRY_USER;delete process.env.REGISTRY_PASS;' : `process.env.REGISTRY_USER=JSON.parse(${quoteFixtureJson(username)});process.env.REGISTRY_PASS=JSON.parse(${quoteFixtureJson(mode === 'wrong' ? 'wrong-synthetic-password' : password)});`}const receipt=await callLifecycleArtifact(JSON.parse(${quoteFixtureJson(pin)}),JSON.parse(${quoteFixtureJson({ command: 'publish-docker', registryUrl: enrollment.registryUrl, target: 'flux:website-dev', images })}));console.log(JSON.stringify(receipt));`,
       );
       const beforeAuthorized = authorized;
       const beforeDenied = denied;

@@ -1,17 +1,16 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { chmod, chown, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { chmod, chown, mkdir, readFile } from 'node:fs/promises';
 
 import { type } from 'arktype';
 
 import { measureVerifiedFilesystem } from './registry-capacity';
+import { pinFixtureFile, writeFixtureFile } from './registry-fixture-file';
 import type { RegistryConsumer } from './registry-journal';
 import { registryClusterFixture } from './registry-maintenance-cluster.fixture';
 import { parseRegistryMaintenanceInstallation } from './registry-maintenance-installation';
 import { registrySpecificationSha256 } from './registry-maintenance-observation';
 import { parseReaderConfiguration, verifyDockerSourceCoverage } from './registry-reader';
 
-const hash = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const home = '/root/task8-fixture';
 const registryPath = '/var/lib/puni-registry/registry/contents';
 const journalPath = '/var/lib/puni-registry/journal/contents';
@@ -30,13 +29,6 @@ export async function prepareRegistryHostFixture() {
     (await readFile('/etc/task8-namespace', 'utf8')) !== 'owned-private-proof\n'
   )
     throw new Error('Host fixture requires its owned chroot PID1');
-  const put = async (path: string, bytes: string, mode = 0o644) => {
-    await mkdir(dirname(path), { recursive: true, mode: 0o755 });
-    await writeFile(path, bytes, { flag: 'wx', mode });
-    await chmod(path, mode);
-    return { path, sha256: hash(bytes) };
-  };
-  const artifact = async (path: string) => ({ path, sha256: hash(await readFile(path)) });
   const cluster = registryClusterFixture();
   // Boundary: each observed native volume remains required even when unchecked tuple-index typing assumes all four exist.
   const measured: (Awaited<ReturnType<typeof measureVerifiedFilesystem>> | undefined)[] =
@@ -74,39 +66,43 @@ export async function prepareRegistryHostFixture() {
         },
       },
     });
-  const readonlyConfiguration = await put(
+  const readonlyConfiguration = await writeFixtureFile(
     '/etc/puni/registry-maintenance-readonly.yaml',
     configuration(registryPath, false),
   );
-  const deletionConfiguration = await put(
+  const deletionConfiguration = await writeFixtureFile(
     '/etc/puni/registry-maintenance-deletion.yaml',
     configuration(registryPath, true),
   );
-  const recoveryConfiguration = await put(
+  const recoveryConfiguration = await writeFixtureFile(
     '/etc/puni/registry-maintenance-recovery.yaml',
     configuration(recoveryPath, false),
   );
-  const recoveryDeletion = await put(
+  const recoveryDeletion = await writeFixtureFile(
     '/etc/puni/registry-maintenance-recovery-deletion.yaml',
     configuration(recoveryPath, true),
   );
-  const managementKubeconfig = await put(
+  const managementKubeconfig = await writeFixtureFile(
     '/etc/puni/registry-maintenance-management.kubeconfig',
     'synthetic-management',
     0o600,
   );
-  const productionKubeconfig = await put(
+  const productionKubeconfig = await writeFixtureFile(
     '/etc/puni/registry-maintenance-production.kubeconfig',
     'synthetic-production',
     0o600,
   );
-  const kubernetes = await put(
+  const kubernetes = await writeFixtureFile(
     '/usr/local/bin/k3s',
     '#!/bin/sh\nexec /usr/local/libexec/puni-registry-authority/bun /usr/local/libexec/puni-registry-maintenance/api.js "$@"\n',
     0o755,
   );
   await mkdir('/root/.puni/registry', { recursive: true, mode: 0o700 });
-  const password = await put('/root/.puni/registry/restic.password', randomUUID(), 0o600);
+  const password = await writeFixtureFile(
+    '/root/.puni/registry/restic.password',
+    randomUUID(),
+    0o600,
+  );
   const initialized = Bun.spawnSync(
     ['/root/.puni/tools/restic-0.19.1', 'init', '--repo', home + '/repository'],
     {
@@ -134,7 +130,7 @@ export async function prepareRegistryHostFixture() {
   const repositoryId = type({ id: /^[a-f0-9]{64}$/ }).assert(
     JSON.parse(inspectedRepository.stdout.toString()),
   ).id;
-  const backupConfiguration = await put(
+  const backupConfiguration = await writeFixtureFile(
     '/root/.puni/registry/backup.json',
     JSON.stringify({
       repositoryId,
@@ -155,7 +151,7 @@ export async function prepareRegistryHostFixture() {
           maximumFanout: 1000000,
         },
       },
-      binary: await artifact('/root/.puni/tools/restic-0.19.1'),
+      binary: await pinFixtureFile('/root/.puni/tools/restic-0.19.1'),
       password,
       environment: { RESTIC_REPOSITORY: home + '/repository' },
     }),
@@ -224,11 +220,13 @@ export async function prepareRegistryHostFixture() {
     kubernetes,
     managementKubeconfig,
     productionKubeconfig,
-    distribution: await artifact('/usr/local/libexec/puni-registry-maintenance/registry'),
+    distribution: await pinFixtureFile('/usr/local/libexec/puni-registry-maintenance/registry'),
     readonlyConfiguration,
     deletionConfiguration,
     backupConfiguration,
-    backupWorker: await artifact('/usr/local/libexec/puni-registry-maintenance/backup-worker.js'),
+    backupWorker: await pinFixtureFile(
+      '/usr/local/libexec/puni-registry-maintenance/backup-worker.js',
+    ),
     ordinary: {
       ...cluster.installed.ordinary,
       identityReceipt: receipt('registry'),
@@ -260,8 +258,8 @@ export async function prepareRegistryHostFixture() {
       stagedJournalMaximumBytes: staged.maximumBytes,
     },
   });
-  await put('/etc/puni/registry-maintenance.json', JSON.stringify(installed));
-  await put(
+  await writeFixtureFile('/etc/puni/registry-maintenance.json', JSON.stringify(installed));
+  await writeFixtureFile(
     home + '/kubernetes.json',
     JSON.stringify({
       resources: [...cluster.resources.values()].map((resource) => ({
@@ -271,22 +269,22 @@ export async function prepareRegistryHostFixture() {
     }),
     0o600,
   );
-  await put(
+  await writeFixtureFile(
     home + '/activation.json',
     JSON.stringify({ deployment: nextDeployment, guard: nextGuard }),
     0o600,
   );
-  const reader = await put(
+  const reader = await writeFixtureFile(
     '/usr/local/libexec/puni-registry-maintenance/consumer.js',
     `const request = JSON.parse(await Bun.stdin.text()); console.log(JSON.stringify({ protocol: request.protocol, registryId: request.registryId, id: request.id, source: request.source, revision: request.revision, role: request.role, sourceRevision: 'synthetic-native-host', references: [] }));\n`,
   );
   const readerPath = '/etc/puni/registry-fixture-reader.json';
-  const syntheticDocker = await put(
+  const syntheticDocker = await writeFixtureFile(
     '/usr/local/libexec/puni-registry-maintenance/synthetic-docker',
     '#!/bin/sh\nexit 65\n',
     0o755,
   );
-  const syntheticCatalog = await put(
+  const syntheticCatalog = await writeFixtureFile(
     '/etc/puni/registry-fixture-catalog.json',
     JSON.stringify({ fixture: 'synthetic-consumer-observation; not installed Docker evidence' }),
   );
@@ -306,7 +304,7 @@ export async function prepareRegistryHostFixture() {
       host: { machineId: installed.machineId, catalog: syntheticCatalog },
     },
   };
-  const readerArtifact = await put(readerPath, JSON.stringify(readerConfiguration));
+  const readerArtifact = await writeFixtureFile(readerPath, JSON.stringify(readerConfiguration));
   const consumer: RegistryConsumer = {
     id: 'fixture-host',
     owner: 'operator',
@@ -321,7 +319,7 @@ export async function prepareRegistryHostFixture() {
     new Map([[consumer.id, parseReaderConfiguration(readerConfiguration)]]),
     installed.registryId,
   );
-  await put(
+  await writeFixtureFile(
     '/etc/puni/registry-consumers.json',
     JSON.stringify({ schemaVersion: 1, registryId: installed.registryId, sources: [consumer] }),
   );

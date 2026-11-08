@@ -152,22 +152,24 @@ async function createFixture(fault = 'none') {
         if (fault === 'missing-log')
           return Promise.reject(Object.assign(new Error('missing'), { code: 'ENOENT' }));
         const receipt =
-          JSON.stringify({
-            restoreInterruption:
-              fault === 'mismatched-log'
-                ? { ...terminal, pid: 74 }
-                : fault === 'extra-log'
-                  ? { ...terminal, extra: true }
-                  : terminal,
-          }) + '\n';
+          JSON.stringify(
+            {
+              restoreInterruption:
+                fault === 'mismatched-log'
+                  ? { ...terminal, pid: 74 }
+                  : fault === 'extra-log'
+                    ? { ...terminal, extra: true }
+                    : terminal,
+            },
+            null,
+            fault === 'multiline-log' ? 2 : undefined,
+          ) + '\n';
         return Promise.resolve(
           fault === 'oversize-log'
             ? ' '.repeat(4097) + receipt
-            : fault === 'multiline-log'
-              ? receipt.replace('{', '{\n')
-              : fault === 'duplicate-log'
-                ? receipt.repeat(2)
-                : receipt,
+            : fault === 'duplicate-log'
+              ? receipt.repeat(2)
+              : receipt,
         );
       }
       if (path.startsWith('/proc/')) {
