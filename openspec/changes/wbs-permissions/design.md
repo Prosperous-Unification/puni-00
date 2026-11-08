@@ -319,7 +319,7 @@ person (P11) and may not bind a role above the granter's own effective role at t
 (no escalation); a role above contributor may be granted and reads as contributor, because
 the cap is evaluated, not stored. Revoking a credential, or the `deletePerson … cascade`
 that revokes it, deletes its grants in the same transaction with one `access_revoked` row
-each (origin `cascade`). _Amended 2026-11-08 (#891 review F1, decided by the coordinator):_
+each (origin `cascade`). _Amended 2026-11-08 (#891 review F1; assumed by the coordinator, overrulable by Dany by id):_
 re-keying an agent pool is a rotation, not a revocation: each person's new key receives a copy
 of the grants of the keys it replaces (same scope, role and origin, creator carried) in the
 re-key's transaction, before the old keys' grants are deleted, so leases and grants both

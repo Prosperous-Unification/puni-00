@@ -237,8 +237,8 @@ function revokePoolKeys(
   act: AuditedAct,
 ): void {
   const at = act.stamp.at;
-  // A revoked key holds no grant (`wbs-permissions` P17); a re-key's new keys
-  // start with none.
+  // A revoked key holds no grant (`wbs-permissions` P17); a re-key copies them
+  // to the successor keys before this delete (P17 as amended 2026-11-08).
   // Proof: with this call removed, `deletes the grants naming each revoked
   // key (wbs-permissions P17)` in `agent-pool.controller.db.test.ts` kept
   // both keys' grant rows; watched 2026-11-08.
