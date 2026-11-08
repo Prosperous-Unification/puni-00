@@ -69,7 +69,8 @@ test('the actual preload allows bounded cleanup beyond the ordinary test budget'
 
 test('the cleanup allowance is scoped, finite and does not change ordinary test deadlines', async () => {
   const preload = readFileSync(PRELOAD, 'utf8');
-  expect(preload).toMatch(/afterAll\(removeProcessRoot,\s*30_?000\);/);
+  // Proof: requiring 60s failed against the unchanged 30s production hook (2026-10-28).
+  expect(preload).toMatch(/afterAll\(removeProcessRoot,\s*60_?000\);/);
   expect(preload).not.toMatch(/\bsetDefaultTimeout\s*\(/);
   const inherited = await runFixture(cleanupFixture(0));
   expect(inherited.status).toBe(1);

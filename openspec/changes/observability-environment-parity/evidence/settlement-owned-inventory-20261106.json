@@ -1,0 +1,42 @@
+{
+  "actualQualification": false,
+  "availableMemoryBytes": 19733655552,
+  "borrowedDefinitions": [
+    "Refusal",
+    "assert_deadline",
+    "check_directory",
+    "check_inventory_directory",
+    "encode",
+    "inventory_roots",
+    "require",
+    "stable"
+  ],
+  "device": "66307",
+  "freeBytes": 211768070144,
+  "inventory": {
+    "digest": "f15b0151d699c20f0ecf985344047d4f1a34e3d67bf5cfa6efe5310427f70d60",
+    "entries": 6428,
+    "outsideBytes": 110546944,
+    "retainedBytes": 9496358912
+  },
+  "knownTermArithmetic": {
+    "K": "33554432",
+    "freeMinusThatKnownBackingOnly": "16292876288",
+    "initialBackingBeforeOtherFutureBytes": "195475193856",
+    "knownOldGMinimum": "141754548224",
+    "notAdmission": true,
+    "outsideCapBytes": 167772160,
+    "outsideCurrentOwnedBytes": 110546944,
+    "outsideRemainingBeforeUnqualifiedFutureAndCausalTerms": 57225216,
+    "stagingRetainedPlusFullReserveAndK": "9697685504"
+  },
+  "limitations": [
+    "No raw/ISO or retained file payload opened",
+    "No current full ledger authority or future settlement packet constructed",
+    "Fixed outside cap167772160 still requires complete future/causal terms; historical native future allowance is not transplanted",
+    "No source/request/service/flag/secret/policy changes; consumed native request is not parsed or replayed"
+  ],
+  "observedNs": "1793930596418493468",
+  "scope": "fresh metadata-only two-root diagnostic; no native admission",
+  "sourceSha256": "92c5011dac4c803c2f1e241f069f454d94c27ebdb17f9f5b199b5f7e6dd7ab7c"
+}

@@ -1,0 +1,842 @@
+{
+  "schema": "audit-status-inspection-verification-v1",
+  "recorded_at": "2026-11-06T05:48:54.537567+00:00",
+  "baseline": "5c5fecd58bc1a5a4bcc15b4a9be452a70ba44083",
+  "scope": "Fake native boundary and disposable bootstrap files only; no installed library or audit operation",
+  "source_pins": [
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/audit-status-inspection.py",
+      "bytes": 9442,
+      "sha256": "20ebfae763bdd9fcc2ffee03b64b72be5f00b17fb7e8b9a5a825ade73333ca16"
+    },
+    {
+      "path": "tools/tool-fleet/src/audit-status-inspection.test.ts",
+      "bytes": 28616,
+      "sha256": "b58b6e2e3dfbb3e73ce259c06393064419a8986913d9addba5a11cb676e784af"
+    },
+    {
+      "path": "tools/tool-fleet/project.json",
+      "bytes": 6250,
+      "sha256": "bdc8368bc3e3ac037ae25e3f8a89dc2df7f2a7b47d62117b3f4bd20460e64552"
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/audit-status-inspection-proposal.md",
+      "bytes": 6652,
+      "sha256": "7deccfe76988dc91f2fae713398670cd4040e388ba3cd734ab0a417a490d5f02"
+    }
+  ],
+  "proposal_prose_changed_after_cohort": true,
+  "tested_command_block_sha256": "6857adbdfd486a773765758041f3ce3a1723c8d20cc05229be807a31c12bb4ab",
+  "tested_command_block_preserved": true,
+  "final_cohort": {
+    "pass": 96,
+    "fail": 0,
+    "assertions": 262,
+    "seconds": 3.02,
+    "native_guard_omissions": 27,
+    "bootstrap_guard_omissions": 8,
+    "names": [
+      "status waiting rejects late-ready beyond the existing one-second window",
+      "status waiting rejects late-get beyond the existing one-second window",
+      "status waiting rejects deadline-ready beyond the existing one-second window",
+      "status waiting rejects deadline-get beyond the existing one-second window",
+      "status waiting rejects deadline-ack beyond the existing one-second window",
+      "fake native status contract: near-deadline",
+      "fake native status contract: main-success",
+      "fake native status contract: main-arguments",
+      "fake native status contract: success",
+      "fake native status contract: library-directory",
+      "fake native status contract: library-symlink",
+      "fake native status contract: library-owner",
+      "fake native status contract: library-group-write",
+      "fake native status contract: library-other-write",
+      "fake native status contract: Header",
+      "fake native status contract: Status",
+      "fake native status contract: Message",
+      "fake native status contract: Reply",
+      "fake native status contract: missing",
+      "fake native status contract: stat",
+      "fake native status contract: load",
+      "fake native status contract: open-failure",
+      "fake native status contract: request-negative",
+      "fake native status contract: request-zero",
+      "fake native status contract: get-negative",
+      "fake native status contract: received-short",
+      "fake native status contract: header-short",
+      "fake native status contract: header-overrun",
+      "fake native status contract: sequence",
+      "fake native status contract: short-error",
+      "fake native status contract: negative-error",
+      "fake native status contract: positive-error",
+      "fake native status contract: ack-status",
+      "fake native status contract: count",
+      "fake native status contract: kind",
+      "fake native status contract: short-status",
+      "fake native status contract: timeout",
+      "fake native status contract: request-exception",
+      "fake native status contract: selector-exception",
+      "fake native status contract: parse-exception",
+      "fake native status contract: register-exception",
+      "fake native status contract: select-exception",
+      "fake native status contract: get-exception",
+      "fake native status contract: serialization-cap",
+      "fake native status contract: serialization-exact",
+      "guard proof rejects omission of open-failure for open-failure",
+      "guard proof rejects omission of arguments for main-arguments",
+      "guard proof rejects omission of library-regular for library-directory",
+      "guard proof rejects omission of library-owner for library-owner",
+      "guard proof rejects omission of library-owner for library-group-write",
+      "guard proof rejects omission of library-owner for library-other-write",
+      "guard proof rejects omission of library-regular for library-symlink",
+      "guard proof rejects omission of uapi-size for Header",
+      "guard proof rejects omission of uapi-size for Status",
+      "guard proof rejects omission of reply-size for Message",
+      "guard proof rejects omission of reply-size for Reply",
+      "guard proof rejects omission of request-negative for request-negative",
+      "guard proof rejects omission of request-zero for request-zero",
+      "guard proof rejects omission of header for sequence",
+      "guard proof rejects omission of short-error for short-error",
+      "guard proof rejects omission of negative-error for negative-error",
+      "guard proof rejects omission of positive-error for positive-error",
+      "guard proof rejects omission of kind for kind",
+      "guard proof rejects omission of short-status for short-status",
+      "guard proof rejects omission of count for count",
+      "guard proof rejects omission of close for success",
+      "guard proof rejects omission of serialization for serialization-cap",
+      "guard proof rejects omission of get-negative for get-negative",
+      "guard proof rejects omission of timeout for timeout",
+      "guard proof rejects omission of timeout for late-ready",
+      "guard proof rejects omission of late-get for late-get",
+      "guard proof rejects omission of late-get for deadline-ack",
+      "captured-buffer bootstrap: success",
+      "captured-buffer bootstrap: metadata-directory",
+      "captured-buffer bootstrap: metadata-hardlink",
+      "captured-buffer bootstrap: metadata-empty",
+      "captured-buffer bootstrap: metadata-oversize",
+      "captured-buffer bootstrap: hash",
+      "captured-buffer bootstrap: short-read",
+      "captured-buffer bootstrap: declared-size",
+      "captured-buffer bootstrap: descriptor-race",
+      "captured-buffer bootstrap: descriptor-change",
+      "captured-buffer bootstrap: named-change",
+      "captured-buffer bootstrap: path-change",
+      "captured-buffer bootstrap: nofollow",
+      "captured-buffer bootstrap: missing",
+      "captured-buffer bootstrap: unreadable",
+      "captured-buffer bootstrap: no-reopen",
+      "bootstrap guard proof rejects omission of metadata for metadata-hardlink",
+      "bootstrap guard proof rejects omission of hash for hash",
+      "bootstrap guard proof rejects omission of length for declared-size",
+      "bootstrap guard proof rejects omission of descriptor for descriptor-change",
+      "bootstrap guard proof rejects omission of path for named-change",
+      "bootstrap guard proof rejects omission of close for success",
+      "bootstrap guard proof rejects omission of filename for success",
+      "bootstrap guard proof rejects omission of reopen for no-reopen"
+    ]
+  },
+  "commands": "Workdir: /home/df/.codex/worktrees/aa39/puni-00\nRED: PUNI119_EVIDENCE=/tmp/puni-task119-evidence bun test tools/tool-fleet/src/audit-status-inspection.test.ts --test-name-pattern 'status waiting'\nFINAL: PUNI119_EVIDENCE=/tmp/puni-task119-evidence bun test tools/tool-fleet/src/audit-status-inspection.test.ts\nLINT: bunx eslint tools/tool-fleet/src/audit-status-inspection.test.ts\nFORMAT: bunx prettier --check tools/tool-fleet/src/audit-status-inspection.test.ts tools/tool-fleet/project.json\nROUTING BEFORE/AFTER: NX_DAEMON=false bunx nx show projects --affected --files=openspec/changes/observability-environment-parity/evidence/audit-status-inspection.py\nPROPOSAL ROUTING: NX_DAEMON=false bunx nx show projects --affected --files=openspec/changes/observability-environment-parity/audit-status-inspection-proposal.md\nEach test child: /usr/bin/python3 -I -B -S -c <exact native-harness.py or bootstrap-harness.py>; stdin JSON source/case/mutation and actual proposal where needed; Bun.spawnSync timeout8000ms.\nCompatibility child (one only): /home/df/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/bin/python3.14 -I -B -S -c <exact native-harness.py>; stdin JSON frozen source/case=success; subprocess timeout8s.\nAST: /usr/bin/python3 -I -B -S; ast.parse of source, both exact harnesses and proposal bootstrap; no diagnostic execution.\nproposed-bootstrap.py.txt is evidence only; NEVER invoked as an administrator or without fake native boundaries.\n",
+  "parent_typecheck": {
+    "command": "PATH=/home/df/.bun/bin:$PATH bunx tsc --build --force tools/tool-fleet/tsconfig.json",
+    "exit": 0,
+    "log": {
+      "path": "/tmp/puni-task119-evidence/typecheck-parent.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "harnesses": {
+    "native-harness.py": "import ast, contextlib, ctypes, errno, hashlib, io, json, os, selectors, stat, struct, sys, tempfile, time, types\nrequest = json.loads(sys.stdin.read())\nsource = request['source']\ncase = request['case']\nmutation = request.get('mutation')\nclass BoundaryViolation(BaseException): pass\ncalls = []\nclock = [0.0]\nframes = []\nconfiguration = {'mode': stat.S_IFREG | 0o644, 'uid': 0, 'open': 73, 'request': 11,\n                 'select_delay': 0.0, 'get_delay': 0.0, 'ready': True, 'raise': None}\nreal_sizeof = ctypes.sizeof\nreal_stat = os.stat\nreal_open = os.open\nreal_close = os.close\nreal_read = os.read\nreal_fstat = os.fstat\nreal_lstat = os.lstat\nreal_exec = exec\nclass Function:\n    def __init__(self, name): self.name = name\n    def __call__(self, *arguments):\n        name = self.name\n        expected = {\n            'audit_open': ([], ctypes.c_int),\n            'audit_close': ([ctypes.c_int], None),\n            'audit_request_status': ([ctypes.c_int], ctypes.c_int),\n            'audit_get_reply': ([ctypes.c_int, ctypes.POINTER(namespace['Reply']), ctypes.c_int, ctypes.c_int], ctypes.c_int),\n        }\n        assert (self.argtypes, self.restype) == expected[name], 'prototype ' + name\n        calls.append([name, list(arguments) if name != 'audit_get_reply' else [arguments[0], 'reply', *arguments[2:]]])\n        if name == 'audit_open':\n            assert not arguments\n            ctypes.set_errno(errno.EACCES)\n            return configuration['open']\n        if name == 'audit_close':\n            assert arguments == (73,)\n            return None\n        assert arguments[0] == 73, 'fake descriptor escaped'\n        if name == 'audit_request_status':\n            if configuration['raise'] == 'request': raise RuntimeError('injected request exception')\n            ctypes.set_errno(errno.ESTALE)\n            return configuration['request']\n        assert arguments[2:] == (1, 0), 'get must be nonblocking without peek'\n        clock[0] += configuration['get_delay']\n        if configuration['raise'] == 'get': raise RuntimeError('injected reply exception')\n        frame = frames.pop(0)\n        if frame.get('return', 60) < 0:\n            ctypes.set_errno(errno.ESTALE)\n            return frame['return']\n        reply = arguments[1]._obj\n        reply.pointer = 1\n        reply.header = ctypes.cast(ctypes.c_void_p(1), ctypes.POINTER(namespace['Header']))\n        payload = struct.pack('=IHHII', frame.get('length', 60), frame.get('kind', 1000), 0, frame.get('sequence', 11), 0)\n        if frame.get('kind', 1000) == 2:\n            payload += struct.pack('=i', frame.get('error', 0))\n        else:\n            payload += struct.pack('=11I', *range(0xfffffff5, 0x100000000))\n        ctypes.memmove(ctypes.addressof(reply.message), payload, len(payload))\n        return frame.get('return', 60)\nclass Library:\n    def __init__(self): self.functions = {name: Function(name) for name in ('audit_open','audit_close','audit_request_status','audit_get_reply')}\n    def __getattr__(self, name):\n        if name not in self.functions: raise BoundaryViolation('unexpected native lookup: ' + name)\n        return self.functions[name]\ndef fake_cdll(path, **options):\n    assert path == '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0' and options == {'use_errno': True}\n    calls.append(['CDLL', path])\n    if configuration['raise'] == 'load': raise OSError(errno.ENOENT, 'injected missing library')\n    return Library()\ndef fake_stat(path, **options):\n    if path != '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0': raise BoundaryViolation('unexpected library stat')\n    assert options == {'follow_symlinks': False}\n    if configuration['raise'] == 'stat': raise OSError(errno.EACCES, 'injected unreadable library')\n    if configuration['raise'] == 'missing': raise FileNotFoundError(errno.ENOENT, 'injected absent library')\n    return types.SimpleNamespace(st_mode=configuration['mode'], st_uid=configuration['uid'])\nclass Selector:\n    def __init__(self):\n        if configuration['raise'] == 'selector': raise RuntimeError('injected selector creation exception')\n    def register(self, descriptor, event):\n        assert descriptor == 73 and event == selectors.EVENT_READ\n        calls.append(['register', descriptor])\n        if configuration['raise'] == 'register': raise RuntimeError('injected selector register exception')\n    def select(self, timeout):\n        assert 0 <= timeout <= 1.0\n        calls.append(['select', timeout])\n        clock[0] += configuration['select_delay']\n        if configuration['raise'] == 'select': raise RuntimeError('injected select exception')\n        return [object()] if configuration['ready'] else []\n    def close(self): calls.append(['selector-close'])\n# All diagnostic executions, including mutants, install these fail-closed boundaries first.\nctypes.CDLL = fake_cdll\nctypes.PyDLL = lambda *_args, **_options: (_ for _ in ()).throw(BoundaryViolation('unexpected PyDLL'))\nselectors.DefaultSelector = Selector\ntime.monotonic = lambda: clock[0]\nos.stat = fake_stat\nnamespace = {'__name__': 'audit_status_fixture', '__file__': '<audit-status-fixture>'}\nmutations = {\n 'open-failure': ('if descriptor < 0:', 'if False:'),\n 'arguments': ('if sys.argv[1:]:','if False:'),\n 'library-regular': ('if not stat.S_ISREG(identity.st_mode):', 'if False:'),\n 'library-owner': ('if identity.st_uid != 0 or identity.st_mode & 0o022:', 'if False:'),\n 'uapi-size': ('if ctypes.sizeof(Header) != 16 or ctypes.sizeof(Status) != 44:', 'if False:'),\n 'reply-size': ('if ctypes.sizeof(Message) != 8988 or ctypes.sizeof(Reply) != 9016:', 'if False:'),\n 'request-negative': ('if sequence < 0:', 'if False:'),\n 'request-zero': ('if sequence == 0:', 'if False:'),\n 'header': ('if (received < 16 or header.length < 16\\n                    or header.length > received or header.sequence != sequence):', 'if False:'),\n 'short-error': ('if header.length < 20:', 'if False:'),\n 'negative-error': ('if native_error < 0:', 'if False:'),\n 'positive-error': ('if native_error > 0:', 'if False:'),\n 'kind': ('if header.kind != AUDIT_GET:', 'if False:'),\n 'short-status': ('if header.length < 16 + ctypes.sizeof(Status):', 'if False:'),\n 'count': ('for _ in range(REPLY_COUNT):', 'for _ in range(REPLY_COUNT + 1):'),\n 'close': ('audit.audit_close(descriptor)', 'pass'),\n 'serialization': ('if len(encoded) > STREAM_BYTES:', 'if False:'),\n 'get-negative': ('if received < 0:', 'if False:'),\n 'timeout': ('if not ready or time.monotonic() >= deadline:', 'if False:'),\n 'late-get': (\"if time.monotonic() >= deadline:\\n                return unavailable('status-reply-timeout')\\n\", ''),\n}\nif mutation in mutations:\n    before, after = mutations[mutation]\n    assert source.count(before) == 1, 'mutation anchor ' + mutation\n    source = source.replace(before, after)\nreal_exec(compile(source, '<audit-status-fixture>', 'exec'), namespace)\nframes[:] = [{}]\nexpected_stage = None\nexpected_errno = None\nexpected_open = True\nexpected_request = True\nexpected_get = 1\nexpected_state = 'unavailable'\nexpected_exception = None\nif case in ('main-success','main-arguments'):\n    namespace['__name__'] = '__main__'\n    sys.argv = ['audit-status-inspection'] + (['unexpected'] if case == 'main-arguments' else [])\n    sink = types.SimpleNamespace(buffer=io.BytesIO())\n    print('EXERCISE ' + case)\n    with contextlib.redirect_stdout(sink):\n        try: real_exec(compile(source,'<audit-status-fixture>','exec'),namespace)\n        except SystemExit as fault: code = fault.code\n        else: raise AssertionError('main did not exit')\n    observation = json.loads(sink.buffer.getvalue())\n    assert code == (2 if case == 'main-arguments' else 0), (case,code,observation)\n    if case == 'main-arguments': assert observation == {'state':'unavailable','stage':'unsupported-arguments'} and not calls, (case,observation,calls)\n    else: assert observation['state'] == 'observed'\n    print('PASS ' + case)\n    sys.exit(0)\nif case == 'success': expected_state = 'observed'\nelif case == 'near-deadline': configuration['get_delay'] = 0.999; expected_state = 'observed'\nelif case in ('library-directory','library-symlink','library-owner','library-group-write','library-other-write'):\n    if case == 'library-directory': configuration['mode'] = stat.S_IFDIR | 0o755\n    if case == 'library-symlink': configuration['mode'] = stat.S_IFLNK | 0o777\n    if case == 'library-owner': configuration['uid'] = 1000\n    if case == 'library-group-write': configuration['mode'] |= 0o020\n    if case == 'library-other-write': configuration['mode'] |= 0o002\n    expected_stage = 'library-not-regular' if case in ('library-directory','library-symlink') else 'library-owner-or-write-mode'\n    expected_open = expected_request = False\n    expected_get = 0\nelif case in ('Header','Status','Message','Reply'):\n    target = namespace[case]\n    ctypes.sizeof = lambda value: real_sizeof(value) + 1 if value is target else real_sizeof(value)\n    expected_stage = 'unexpected-uapi-structure-size' if case in ('Header','Status') else 'unexpected-v3.1.2-reply-abi-size'\n    expected_open = expected_request = False\n    expected_get = 0\nelif case in ('missing','stat','load'):\n    configuration['raise'] = case\n    expected_stage = 'diagnostic-os-error'\n    expected_errno = errno.EACCES if case == 'stat' else errno.ENOENT\n    expected_open = expected_request = False\n    expected_get = 0\nelif case == 'open-failure':\n    configuration['open'] = -1\n    expected_stage, expected_errno = 'audit_open', errno.EACCES\n    expected_request = False\n    expected_get = 0\nelif case in ('request-negative','request-zero'):\n    configuration['request'] = -errno.EPERM if case == 'request-negative' else 0\n    expected_stage = 'audit_request_status' if case == 'request-negative' else 'request-short-return'\n    expected_errno = errno.EPERM if case == 'request-negative' else None\n    expected_get = 0\nelif case == 'get-negative':\n    frames[:] = [{'return': -errno.EBADF}]\n    expected_stage, expected_errno = 'audit_get_reply', errno.EBADF\nelif case in ('received-short','header-short','header-overrun','sequence'):\n    frames[:] = [dict({'received-short': {'return': 15}, 'header-short': {'length': 0}, 'header-overrun': {'length': 61}, 'sequence': {'sequence': 12}}[case])]\n    expected_stage = 'invalid-status-header'\nelif case in ('short-error','negative-error','positive-error','ack-status','count'):\n    frames[:] = [{'kind':2, 'length':20}]\n    if case == 'short-error': frames[0]['length'] = 19\n    if case == 'negative-error': frames[0]['error'] = -errno.EPERM\n    if case == 'positive-error': frames[0]['error'] = errno.EPERM\n    if case == 'ack-status': frames += [{}]; expected_state = 'observed'; expected_get = 2\n    if case == 'count': frames[:] = frames * 4 + [{}]; expected_get = 4\n    expected_stage = {'short-error':'short-netlink-status-error','negative-error':'kernel-status-response','positive-error':'invalid-positive-netlink-error','ack-status':None,'count':'status-response-count-cap'}[case]\n    if case == 'negative-error': expected_errno = errno.EPERM\nelif case == 'kind': frames[0]['kind'] = 1001; expected_stage = 'unexpected-response-type'\nelif case == 'short-status': frames[0]['length'] = 59; expected_stage = 'short-audit-status'\nelif case in ('timeout','late-ready','late-get','deadline-ready','deadline-get','deadline-ack'):\n    expected_stage = 'status-reply-timeout'\n    if case == 'timeout': configuration['ready'] = False; expected_get = 0\n    if case in ('late-ready','deadline-ready'): configuration['select_delay'] = 1.01 if case == 'late-ready' else 1.0; expected_get = 0\n    if case in ('late-get','deadline-get'): configuration['get_delay'] = 1.01 if case == 'late-get' else 1.0\n    if case == 'deadline-ack': configuration['get_delay'] = 0.6; frames[:] = [{'kind':2,'length':20},{}]; expected_get = 2\nelif case == 'parse-exception':\n    def refuse_copy(_payload): raise RuntimeError('injected status copy exception')\n    namespace['Status'].from_buffer_copy = refuse_copy\n    expected_stage, expected_exception = 'diagnostic-error', 'RuntimeError'\nelif case in ('request-exception','selector-exception','register-exception','select-exception','get-exception'):\n    configuration['raise'] = case.split('-')[0]\n    expected_stage, expected_exception = 'diagnostic-error', 'RuntimeError'\n    expected_get = 1 if case == 'get-exception' else 0\nelif case in ('serialization-cap','serialization-exact'):\n    observation = {'padding': ''}\n    empty = len((json.dumps(observation, sort_keys=True)+'\\n').encode())\n    observation['padding'] = 'x' * (65536 - empty + (1 if case == 'serialization-cap' else 0))\n    sink = types.SimpleNamespace(buffer=io.BytesIO())\n    print('EXERCISE ' + case)\n    with contextlib.redirect_stdout(sink):\n        try: namespace['emit'](observation)\n        except RuntimeError:\n            assert case == 'serialization-cap'\n            assert sink.buffer.getvalue() == b''\n        else:\n            assert case == 'serialization-exact', 'serialization guard did not refuse'\n            assert len(sink.buffer.getvalue()) == 65536\n    print('PASS ' + case)\n    sys.exit(0)\nelse: raise AssertionError('unknown case ' + case)\nsink = types.SimpleNamespace(buffer=io.BytesIO())\nprint('EXERCISE ' + case)\nwith contextlib.redirect_stdout(sink): code = namespace['run_worker']()\nobservation = json.loads(sink.buffer.getvalue())\nassert observation['state'] == expected_state, (case, observation, calls)\nassert code == (0 if expected_state == 'observed' else 2), (case, code)\nassert observation['subscription'] is False\nassert observation['purpose'] == 'status-only diagnostic; never operational qualification'\nif expected_stage is not None: assert observation['stage'] == expected_stage, (case, observation, calls)\nif expected_errno is not None: assert observation['errno'] == expected_errno, (case, observation)\nif expected_exception is not None: assert observation['exception'] == expected_exception\nnames = [call[0] for call in calls]\nassert names.count('audit_open') == int(expected_open), (case,calls)\nassert names.count('audit_request_status') == int(expected_request), (case,calls)\nassert names.count('audit_get_reply') == expected_get, (case,calls)\nassert names.count('audit_close') == int(expected_open and case != 'open-failure'), (case,calls)\nassert names.count('selector-close') == names.count('register'), (case,calls)\nif not expected_open: assert 'CDLL' not in names or case == 'load', (case,calls)\nif expected_state == 'observed':\n    assert observation['status'] == dict(zip((name for name, _ in namespace['Status']._fields_), range(0xfffffff5,0x100000000)))\n    assert len(observation['status']) == 11\nassert len(sink.buffer.getvalue()) <= 65536\nprint('PASS ' + case)",
+    "bootstrap-harness.py": "import ast, contextlib, ctypes, errno, hashlib, io, json, os, selectors, stat, struct, sys, tempfile, time, types\nrequest = json.loads(sys.stdin.read())\nsource = request['source']\ncase = request['case']\nmutation = request.get('mutation')\nclass BoundaryViolation(BaseException): pass\ncalls = []\nclock = [0.0]\nframes = []\nconfiguration = {'mode': stat.S_IFREG | 0o644, 'uid': 0, 'open': 73, 'request': 11,\n                 'select_delay': 0.0, 'get_delay': 0.0, 'ready': True, 'raise': None}\nreal_sizeof = ctypes.sizeof\nreal_stat = os.stat\nreal_open = os.open\nreal_close = os.close\nreal_read = os.read\nreal_fstat = os.fstat\nreal_lstat = os.lstat\nreal_exec = exec\nclass Function:\n    def __init__(self, name): self.name = name\n    def __call__(self, *arguments):\n        name = self.name\n        expected = {\n            'audit_open': ([], ctypes.c_int),\n            'audit_close': ([ctypes.c_int], None),\n            'audit_request_status': ([ctypes.c_int], ctypes.c_int),\n            'audit_get_reply': ([ctypes.c_int, ctypes.POINTER(namespace['Reply']), ctypes.c_int, ctypes.c_int], ctypes.c_int),\n        }\n        assert (self.argtypes, self.restype) == expected[name], 'prototype ' + name\n        calls.append([name, list(arguments) if name != 'audit_get_reply' else [arguments[0], 'reply', *arguments[2:]]])\n        if name == 'audit_open':\n            assert not arguments\n            ctypes.set_errno(errno.EACCES)\n            return configuration['open']\n        if name == 'audit_close':\n            assert arguments == (73,)\n            return None\n        assert arguments[0] == 73, 'fake descriptor escaped'\n        if name == 'audit_request_status':\n            if configuration['raise'] == 'request': raise RuntimeError('injected request exception')\n            ctypes.set_errno(errno.ESTALE)\n            return configuration['request']\n        assert arguments[2:] == (1, 0), 'get must be nonblocking without peek'\n        clock[0] += configuration['get_delay']\n        if configuration['raise'] == 'get': raise RuntimeError('injected reply exception')\n        frame = frames.pop(0)\n        if frame.get('return', 60) < 0:\n            ctypes.set_errno(errno.ESTALE)\n            return frame['return']\n        reply = arguments[1]._obj\n        reply.pointer = 1\n        reply.header = ctypes.cast(ctypes.c_void_p(1), ctypes.POINTER(namespace['Header']))\n        payload = struct.pack('=IHHII', frame.get('length', 60), frame.get('kind', 1000), 0, frame.get('sequence', 11), 0)\n        if frame.get('kind', 1000) == 2:\n            payload += struct.pack('=i', frame.get('error', 0))\n        else:\n            payload += struct.pack('=11I', *range(0xfffffff5, 0x100000000))\n        ctypes.memmove(ctypes.addressof(reply.message), payload, len(payload))\n        return frame.get('return', 60)\nclass Library:\n    def __init__(self): self.functions = {name: Function(name) for name in ('audit_open','audit_close','audit_request_status','audit_get_reply')}\n    def __getattr__(self, name):\n        if name not in self.functions: raise BoundaryViolation('unexpected native lookup: ' + name)\n        return self.functions[name]\ndef fake_cdll(path, **options):\n    assert path == '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0' and options == {'use_errno': True}\n    calls.append(['CDLL', path])\n    if configuration['raise'] == 'load': raise OSError(errno.ENOENT, 'injected missing library')\n    return Library()\ndef fake_stat(path, **options):\n    if path != '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0': raise BoundaryViolation('unexpected library stat')\n    assert options == {'follow_symlinks': False}\n    if configuration['raise'] == 'stat': raise OSError(errno.EACCES, 'injected unreadable library')\n    if configuration['raise'] == 'missing': raise FileNotFoundError(errno.ENOENT, 'injected absent library')\n    return types.SimpleNamespace(st_mode=configuration['mode'], st_uid=configuration['uid'])\nclass Selector:\n    def __init__(self):\n        if configuration['raise'] == 'selector': raise RuntimeError('injected selector creation exception')\n    def register(self, descriptor, event):\n        assert descriptor == 73 and event == selectors.EVENT_READ\n        calls.append(['register', descriptor])\n        if configuration['raise'] == 'register': raise RuntimeError('injected selector register exception')\n    def select(self, timeout):\n        assert 0 <= timeout <= 1.0\n        calls.append(['select', timeout])\n        clock[0] += configuration['select_delay']\n        if configuration['raise'] == 'select': raise RuntimeError('injected select exception')\n        return [object()] if configuration['ready'] else []\n    def close(self): calls.append(['selector-close'])\n# All diagnostic executions, including mutants, install these fail-closed boundaries first.\nctypes.CDLL = fake_cdll\nctypes.PyDLL = lambda *_args, **_options: (_ for _ in ()).throw(BoundaryViolation('unexpected PyDLL'))\nselectors.DefaultSelector = Selector\ntime.monotonic = lambda: clock[0]\nos.stat = fake_stat\nimport builtins\nos.stat = real_stat\nproposal = request['proposal']\ncommand = proposal.split(chr(96)*3+'sh\\n', 1)[1].split('\\n'+chr(96)*3, 1)[0]\nassert command.startswith('sudo /usr/bin/timeout --foreground --signal=KILL 5s /usr/bin/python3 -I -B -S -c ')\nbody = command.split(\" -c '\", 1)[1]\nassert body.endswith(\"\\n'\")\nbody = body[:-1]\ntree = ast.parse(body)\npins = {node.targets[0].id: node.value.value for node in tree.body if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) and isinstance(node.value, ast.Constant)}\nassert pins['expected'] == hashlib.sha256(source.encode()).hexdigest(), 'proposal pin must match frozen source'\nnamespace = {}\nframes[:] = [{}]\nopened = []\nclosed = []\nexecuted = []\nreal_builtin_open = builtins.open\nclass ForbiddenExec(BaseException): pass\nwith tempfile.TemporaryDirectory(prefix='audit-status-bootstrap-') as directory:\n    path = os.path.join(directory, 'inspection.py')\n    with real_builtin_open(path, 'wb') as stream: stream.write(source.encode())\n    if case == 'metadata-directory':\n        os.unlink(path); os.mkdir(path)\n    elif case == 'metadata-hardlink': os.link(path, path + '.link')\n    elif case == 'metadata-empty':\n        with real_builtin_open(path, 'wb'): pass\n    elif case == 'metadata-oversize':\n        with real_builtin_open(path, 'wb') as stream: stream.write(b'#' * 16385)\n    elif case == 'hash':\n        with real_builtin_open(path, 'wb') as stream: stream.write(b\"raise ForbiddenExec('unverified payload executed')\\n\" + source.encode())\n    elif case == 'nofollow':\n        os.rename(path, path + '.target'); os.symlink(path + '.target', path)\n    elif case == 'missing': os.unlink(path)\n    elif case == 'unreadable': os.chmod(path, 0)\n    for node in tree.body:\n        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name) and node.targets[0].id == 'path': node.value = ast.Constant(path)\n    def change_stat(entry, **changes):\n        names = ('st_dev','st_ino','st_uid','st_mode','st_nlink','st_size','st_mtime_ns','st_ctime_ns')\n        return types.SimpleNamespace(**{name: changes.get(name,getattr(entry,name)) for name in names})\n    stat_count = [0]\n    def tracked_open(name, flags, *arguments):\n        assert name == path, 'unexpected source open path'\n        assert not opened, 'forbidden source reopen'\n        descriptor = real_open(name, flags, *arguments)\n        opened.append(descriptor)\n        return descriptor\n    def tracked_read(descriptor, count):\n        assert descriptor in opened and count == 16385, 'source read must stay bounded'\n        payload = real_read(descriptor,count)\n        if case == 'short-read': return payload[:-1]\n        if case == 'descriptor-race': os.chmod(path,0o600)\n        if case == 'path-change':\n            os.rename(path,path+'.original')\n            with real_builtin_open(path,'wb') as stream: stream.write(source.encode())\n        return payload\n    def tracked_fstat(descriptor):\n        stat_count[0] += 1\n        identity = real_fstat(descriptor)\n        if case == 'declared-size': return change_stat(identity,st_size=identity.st_size+1)\n        if case == 'descriptor-change' and stat_count[0] == 2: return change_stat(identity,st_ino=identity.st_ino+1)\n        return identity\n    def tracked_lstat(name):\n        identity = real_lstat(name)\n        if case == 'declared-size': return change_stat(identity,st_size=identity.st_size+1)\n        if case == 'named-change': return change_stat(identity,st_ino=identity.st_ino+1)\n        return identity\n    def tracked_close(descriptor):\n        assert descriptor in opened and descriptor not in closed, 'source close count'\n        real_close(descriptor)\n        closed.append(descriptor)\n        if case == 'no-reopen':\n            with real_builtin_open(path,'wb') as stream: stream.write(b\"raise ForbiddenExec('mutable path reopened')\\n\")\n    def forbid_builtin_open(name, *_arguments, **_options): raise AssertionError('forbidden builtin source reopen')\n    def captured_exec(code, globals_):\n        global namespace\n        assert len(opened) == len(closed) == 1, 'source descriptor must close before exec'\n        try: real_fstat(opened[0])\n        except OSError as fault: assert fault.errno == errno.EBADF\n        else: raise AssertionError('source descriptor still readable at exec')\n        assert code.co_filename == '<audit-status-inspection>', 'synthetic compile filename'\n        assert globals_ == {'__name__':'__main__','__file__':'<audit-status-inspection>'}, 'synthetic source namespace'\n        assert sys.argv == ['audit-status-inspection']\n        namespace = globals_\n        namespace['ForbiddenExec'] = ForbiddenExec\n        executed.append('captured-buffer')\n        builtins.open = forbid_builtin_open\n        real_exec(code, globals_)\n    if mutation is not None:\n        class Omit(ast.NodeTransformer):\n            def visit_If(self,node):\n                self.generic_visit(node)\n                if mutation == 'metadata' and isinstance(node.test,ast.BoolOp) and any(isinstance(entry,ast.UnaryOp) for entry in node.test.values): return []\n                if isinstance(node.test,ast.BoolOp) and len(node.test.values) == 4 and isinstance(node.test.values[0],ast.Compare):\n                    position = {'length':0,'hash':1,'descriptor':2,'path':3}.get(mutation)\n                    if position is not None: node.test.values.pop(position)\n                return node\n            def visit_Call(self,node):\n                self.generic_visit(node)\n                if mutation == 'close' and isinstance(node.func,ast.Attribute) and node.func.attr == 'close': return ast.Constant(None)\n                if isinstance(node.func,ast.Name) and node.func.id == 'compile':\n                    if mutation == 'filename': node.args[1] = ast.Constant(path)\n                    if mutation == 'reopen': node.args[0] = ast.parse('os.read(os.open(path,os.O_RDONLY),16385)',mode='eval').body\n                return node\n        tree = Omit().visit(tree)\n    tree = ast.fix_missing_locations(tree)\n    os.open,os.read,os.close,os.fstat,os.lstat,os.stat = tracked_open,tracked_read,tracked_close,tracked_fstat,tracked_lstat,fake_stat\n    sink = types.SimpleNamespace(buffer=io.BytesIO())\n    refusal = None\n    code = None\n    print('EXERCISE bootstrap ' + case)\n    try:\n        with contextlib.redirect_stdout(sink):\n            try: real_exec(compile(tree,'<proposal-bootstrap>','exec'),{'exec':captured_exec})\n            except (OSError,RuntimeError) as fault: refusal = fault\n            except SystemExit as fault: code = fault.code\n    finally:\n        os.open,os.read,os.close,os.fstat,os.lstat,os.stat = real_open,real_read,real_close,real_fstat,real_lstat,real_stat\n        builtins.open = real_builtin_open\n        for descriptor in opened:\n            if descriptor not in closed: real_close(descriptor)\n        if case == 'unreadable': os.chmod(path,0o600)\n    if case in ('success','no-reopen'):\n        assert refusal is None and code == 0, (case,refusal,code)\n        assert executed == ['captured-buffer'] and len(opened) == len(closed) == 1\n        observation = json.loads(sink.buffer.getvalue())\n        assert observation['state'] == 'observed' and observation['subscription'] is False\n        assert [call[0] for call in calls].count('audit_request_status') == 1\n        assert [call[0] for call in calls].count('audit_close') == 1\n    else:\n        assert refusal is not None and code is None and not executed and not calls, (case,refusal,code,executed,calls)\n        if case.startswith('metadata-'): assert str(refusal) == 'inspection source metadata refused', (case,refusal)\n        elif case in ('nofollow','missing','unreadable'):\n            assert isinstance(refusal,OSError)\n            assert refusal.errno == {'nofollow':errno.ELOOP,'missing':errno.ENOENT,'unreadable':errno.EACCES}[case], (case,refusal)\n        else: assert str(refusal) == 'inspection source identity or hash refused', (case,refusal)\n        assert len(opened) == len(closed), (case,opened,closed)\nprint('PASS bootstrap ' + case)",
+    "proposed-bootstrap.py.txt": "import hashlib,os,stat,sys\npath=\"/home/df/.codex/worktrees/aa39/puni-00/openspec/changes/observability-environment-parity/evidence/audit-status-inspection.py\"\nexpected=\"20ebfae763bdd9fcc2ffee03b64b72be5f00b17fb7e8b9a5a825ade73333ca16\"\n# Proof: captured-buffer bootstrap nofollow/missing/unreadable refuses before execution.\nfd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK)\ntry:\n    before=os.fstat(fd)\n    # Proof: bootstrap guard proof rejects omission of metadata for metadata-hardlink.\n    if not stat.S_ISREG(before.st_mode) or before.st_nlink!=1 or not 0<before.st_size<=16384:\n        raise RuntimeError(\"inspection source metadata refused\")\n    payload=os.read(fd,16385)\n    after=os.fstat(fd)\n    named=os.lstat(path)\n    mark=lambda entry:(entry.st_dev,entry.st_ino,entry.st_uid,entry.st_mode,entry.st_nlink,entry.st_size,entry.st_mtime_ns,entry.st_ctime_ns)\n    # Proof: bootstrap hash/length/descriptor/path omissions fail their selected fault cases.\n    if len(payload)!=before.st_size or hashlib.sha256(payload).hexdigest()!=expected or mark(before)!=mark(after) or mark(before)!=mark(named):\n        raise RuntimeError(\"inspection source identity or hash refused\")\nfinally:\n    # Proof: bootstrap guard proof rejects omission of close for success.\n    os.close(fd)\nsys.argv=[\"audit-status-inspection\"]\n# Proof: bootstrap filename for success and reopen for no-reopen omissions fail.\nexec(compile(payload,\"<audit-status-inspection>\",\"exec\"),{\"__name__\":\"__main__\",\"__file__\":\"<audit-status-inspection>\"})\n"
+  },
+  "logs": [
+    {
+      "path": "/tmp/puni-task119-evidence/Header-omit-uapi-size.log",
+      "bytes": 849,
+      "sha256": "bf6099097da00cb1d389485756e19ad432918ac3f7a0a4ce8e12995b9e396202",
+      "content": "EXERCISE Header\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('Header', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/Header.log",
+      "bytes": 28,
+      "sha256": "2c7832d3c2e36f2fa738a58f4019d2c1076ed6723c1bdfddc6574307500bfd9b",
+      "content": "EXERCISE Header\nPASS Header\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/Message-omit-reply-size.log",
+      "bytes": 851,
+      "sha256": "a00d3e972f142b1a11b81f06ace15446746b200b2bbe68aa3dd22bb12b89c7ea",
+      "content": "EXERCISE Message\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('Message', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/Message.log",
+      "bytes": 30,
+      "sha256": "a4559434d4821563f1425af21fb5a0e7b1e8ce3340033b8e316085ba411cbf1e",
+      "content": "EXERCISE Message\nPASS Message\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/Reply-omit-reply-size.log",
+      "bytes": 847,
+      "sha256": "126e5d681b8806b2c9a208f62ca6f6a4734cd07ba99a3997772378ebf6ab7e51",
+      "content": "EXERCISE Reply\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('Reply', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/Reply.log",
+      "bytes": 26,
+      "sha256": "c296d1c9106f3623d7f6dcea9a77ee80d2cb831d572349dbd5d03732be98ec03",
+      "content": "EXERCISE Reply\nPASS Reply\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/Status-omit-uapi-size.log",
+      "bytes": 585,
+      "sha256": "6b6bc4043edd378cc5721bb0f440b4198ea64337c9b475d54fd1a2b8f97fccd3",
+      "content": "EXERCISE Status\nTraceback (most recent call last):\n  File \"<string>\", line 238, in <module>\nAssertionError: ('Status', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'stage': 'short-audit-status', 'state': 'unavailable', 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/Status.log",
+      "bytes": 28,
+      "sha256": "9631e6d09e65a4038210d64116bf9a49524ba5ffddf9e2d165ad616a51f44c30",
+      "content": "EXERCISE Status\nPASS Status\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/ack-status.log",
+      "bytes": 36,
+      "sha256": "b8c135601a595f650a25e4a5b84eae2fae39e70a9446fbd862284fde2d177ef1",
+      "content": "EXERCISE ack-status\nPASS ack-status\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/affected-after.log",
+      "bytes": 126,
+      "sha256": "1d405f2decd777f224853391cfc65d90b2dd41659fa6f1826365330d4a03469e",
+      "content": "[\"twilight-burokrat\",\"twilight-navigator\",\"twilight-dash\",\"wbs-be-01\",\"wbs-mcp-01\",\"tool-devsync\",\"tool-deploy\",\"tool-fleet\"]\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/affected-before.log",
+      "bytes": 113,
+      "sha256": "8661d4e0a02a0e651c78978b337da97bc09c6ad0f0f60190c0981ec1f7650aa7",
+      "content": "[\"twilight-burokrat\",\"twilight-navigator\",\"twilight-dash\",\"wbs-be-01\",\"wbs-mcp-01\",\"tool-devsync\",\"tool-deploy\"]\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/affected-proposal-after.log",
+      "bytes": 126,
+      "sha256": "1d405f2decd777f224853391cfc65d90b2dd41659fa6f1826365330d4a03469e",
+      "content": "[\"twilight-burokrat\",\"twilight-navigator\",\"twilight-dash\",\"wbs-be-01\",\"wbs-mcp-01\",\"tool-devsync\",\"tool-deploy\",\"tool-fleet\"]\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-declared-size-omit-length.log",
+      "bytes": 404,
+      "sha256": "1b3f9fb0ff9815e7acc2fedc1d07f1fed1f6413953fdbe1da2ad58fb88ff2209",
+      "content": "EXERCISE bootstrap declared-size\nTraceback (most recent call last):\n  File \"<string>\", line 228, in <module>\nAssertionError: ('declared-size', None, 0, ['captured-buffer'], [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-declared-size.log",
+      "bytes": 62,
+      "sha256": "74478bd000e57b3ee735110fc57d861ee8e0ae6ee5490688ac54146b4724d0a3",
+      "content": "EXERCISE bootstrap declared-size\nPASS bootstrap declared-size\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-descriptor-change-omit-descriptor.log",
+      "bytes": 412,
+      "sha256": "6763b5b87a666865f9df3fbd38d308a16d9e023de8b90f3830f739c96a02d9c3",
+      "content": "EXERCISE bootstrap descriptor-change\nTraceback (most recent call last):\n  File \"<string>\", line 228, in <module>\nAssertionError: ('descriptor-change', None, 0, ['captured-buffer'], [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-descriptor-change.log",
+      "bytes": 70,
+      "sha256": "db99e027a640458e5b33e557282df9811661c8b7617a9a09ae0fffc2c686fd15",
+      "content": "EXERCISE bootstrap descriptor-change\nPASS bootstrap descriptor-change\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-descriptor-race.log",
+      "bytes": 66,
+      "sha256": "b600a0560b0cdd45cc5998f9805190ed9c18ed5f022c97761c8068ff9de759fd",
+      "content": "EXERCISE bootstrap descriptor-race\nPASS bootstrap descriptor-race\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-hash-omit-hash.log",
+      "bytes": 297,
+      "sha256": "1f59c5a5da0387833bc47db5d09ac29b74300223886921965f59ba751d2332d7",
+      "content": "EXERCISE bootstrap hash\nTraceback (most recent call last):\n  File \"<string>\", line 211, in <module>\n  File \"<proposal-bootstrap>\", line 23, in <module>\n  File \"<string>\", line 185, in captured_exec\n  File \"<audit-status-inspection>\", line 1, in <module>\nForbiddenExec: unverified payload executed\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-hash.log",
+      "bytes": 44,
+      "sha256": "4da7f6f830562ea944014a35297ad4c31e9ac6e105878a10392d458128ba7f04",
+      "content": "EXERCISE bootstrap hash\nPASS bootstrap hash\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-metadata-directory.log",
+      "bytes": 72,
+      "sha256": "6cd31987a865448a6561583b7d3c6a55fe0fca7dc51c80698a2b5bcf0f6efeea",
+      "content": "EXERCISE bootstrap metadata-directory\nPASS bootstrap metadata-directory\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-metadata-empty.log",
+      "bytes": 64,
+      "sha256": "799ace779fdebc68c87cb14cbc162c638974e74569453bfe090e00b3db44dc7d",
+      "content": "EXERCISE bootstrap metadata-empty\nPASS bootstrap metadata-empty\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-metadata-hardlink-omit-metadata.log",
+      "bytes": 412,
+      "sha256": "053c580dc33055a1cb2fb274b9a1a4adc7563fdcd96b2a11fad64f281ca0a15c",
+      "content": "EXERCISE bootstrap metadata-hardlink\nTraceback (most recent call last):\n  File \"<string>\", line 228, in <module>\nAssertionError: ('metadata-hardlink', None, 0, ['captured-buffer'], [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-metadata-hardlink.log",
+      "bytes": 70,
+      "sha256": "e1cee8a7ca9a5b878ae96121cda6df998d633f45256d8753e7e4b42172c0bb05",
+      "content": "EXERCISE bootstrap metadata-hardlink\nPASS bootstrap metadata-hardlink\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-metadata-oversize.log",
+      "bytes": 70,
+      "sha256": "6d52f1df5561c88d47b83ede5fb6571386ebde8c5e0c3fb1386e407532b3e8bf",
+      "content": "EXERCISE bootstrap metadata-oversize\nPASS bootstrap metadata-oversize\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-missing.log",
+      "bytes": 50,
+      "sha256": "42fb19a7e5b53755aa37376de23f23dd9318ab4f53b3cf56c62d440968efaf21",
+      "content": "EXERCISE bootstrap missing\nPASS bootstrap missing\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-named-change-omit-path.log",
+      "bytes": 402,
+      "sha256": "efa605909691fa6f4c8bf088768ba4834820f152c4d827e4b547a9cece25d7f0",
+      "content": "EXERCISE bootstrap named-change\nTraceback (most recent call last):\n  File \"<string>\", line 228, in <module>\nAssertionError: ('named-change', None, 0, ['captured-buffer'], [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-named-change.log",
+      "bytes": 60,
+      "sha256": "e004cda854e81d97e0c4f4549f12a78ef9ab95f16a5fa2fe10a4e3b65780975b",
+      "content": "EXERCISE bootstrap named-change\nPASS bootstrap named-change\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-no-reopen-omit-reopen.log",
+      "bytes": 241,
+      "sha256": "cc1992ad96cc0955d374d73523cd6ffe2f76a04d3c3c1dfc3ef87933dc8eff80",
+      "content": "EXERCISE bootstrap no-reopen\nTraceback (most recent call last):\n  File \"<string>\", line 211, in <module>\n  File \"<proposal-bootstrap>\", line 1, in <module>\n  File \"<string>\", line 141, in tracked_open\nAssertionError: forbidden source reopen\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-no-reopen.log",
+      "bytes": 54,
+      "sha256": "a6e1f1f76a02a3a0ad799f639fb371e40c7764f60c046c540399b8ed09930e8e",
+      "content": "EXERCISE bootstrap no-reopen\nPASS bootstrap no-reopen\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-nofollow.log",
+      "bytes": 52,
+      "sha256": "9ebb48df6998d6220b51ffcf19400a0ab04ca4b4be014ae267c9b4856db89fd4",
+      "content": "EXERCISE bootstrap nofollow\nPASS bootstrap nofollow\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-path-change-omit-path.log",
+      "bytes": 58,
+      "sha256": "5c5970e912ca3b884f787eacae8d5fcb7dddd903f008529d56dbc4f961bfcef0",
+      "content": "EXERCISE bootstrap path-change\nPASS bootstrap path-change\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-path-change.log",
+      "bytes": 58,
+      "sha256": "5c5970e912ca3b884f787eacae8d5fcb7dddd903f008529d56dbc4f961bfcef0",
+      "content": "EXERCISE bootstrap path-change\nPASS bootstrap path-change\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-short-read.log",
+      "bytes": 56,
+      "sha256": "756d312f42af05aeb7eae09b46de13b8419970b05bcb5433c4519c44c7e6e968",
+      "content": "EXERCISE bootstrap short-read\nPASS bootstrap short-read\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-success-omit-close.log",
+      "bytes": 258,
+      "sha256": "737a274cc437f66e27b06898fcd535f72284fa28413fccb803f997f0359bd6a6",
+      "content": "EXERCISE bootstrap success\nTraceback (most recent call last):\n  File \"<string>\", line 211, in <module>\n  File \"<proposal-bootstrap>\", line 23, in <module>\n  File \"<string>\", line 174, in captured_exec\nAssertionError: source descriptor must close before exec\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-success-omit-filename.log",
+      "bytes": 244,
+      "sha256": "034afdfd7e641309255b136614129e603cbc460ec20e71fc07fc72147c5b5f16",
+      "content": "EXERCISE bootstrap success\nTraceback (most recent call last):\n  File \"<string>\", line 211, in <module>\n  File \"<proposal-bootstrap>\", line 23, in <module>\n  File \"<string>\", line 178, in captured_exec\nAssertionError: synthetic compile filename\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-success.log",
+      "bytes": 50,
+      "sha256": "cf2216933cd100d25678256a3a563b70f7a6d880894ce68651159f1388147f75",
+      "content": "EXERCISE bootstrap success\nPASS bootstrap success\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/bootstrap-unreadable.log",
+      "bytes": 56,
+      "sha256": "2f8a6a3c291aef7f2dffbbc439399ad541b05823262d107f41acbeee50ffe92d",
+      "content": "EXERCISE bootstrap unreadable\nPASS bootstrap unreadable\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/count-omit-count.log",
+      "bytes": 1235,
+      "sha256": "ead5d9cd409a43717ace644f59ff9d1db42273c2372447f893ac4a8acb8a99d6",
+      "content": "EXERCISE count\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('count', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/count.log",
+      "bytes": 26,
+      "sha256": "1c5b2c11578e0019c9e67d92d0f0794182c0e4e481d67dce4f719cdf10d73bb4",
+      "content": "EXERCISE count\nPASS count\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/deadline-ack-omit-late-get.log",
+      "bytes": 958,
+      "sha256": "9a9d3149a0a962dc7225c296844d9b42b15a45dce5aa7a0aeb8c9340d20dc572",
+      "content": "EXERCISE deadline-ack\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('deadline-ack', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['register', 73], ['select', 0.4], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/deadline-ack.log",
+      "bytes": 40,
+      "sha256": "cd399b4f2f489b023f7ac2f0364656725052ac41601865794e9fd5e924778152",
+      "content": "EXERCISE deadline-ack\nPASS deadline-ack\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/deadline-get.log",
+      "bytes": 40,
+      "sha256": "4005844f5405589176fbdb6df2dc7acc74d1d0481ef976ab55e6a1bda07e83b8",
+      "content": "EXERCISE deadline-get\nPASS deadline-get\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/deadline-ready.log",
+      "bytes": 44,
+      "sha256": "6ece4388974f8f36129b649f2f63ca0d35d5dd9b4b04a124a4cae8f6644af8a5",
+      "content": "EXERCISE deadline-ready\nPASS deadline-ready\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/development-bootstrap.log",
+      "bytes": 2626,
+      "sha256": "f5196fa774903783fe647e339f6fb055b9dd386b7b7c95599626adb78cee98fe",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/audit-status-inspection.test.ts:\n(pass) captured-buffer bootstrap: success [30.52ms]\n(pass) captured-buffer bootstrap: metadata-directory [27.40ms]\n(pass) captured-buffer bootstrap: metadata-hardlink [30.98ms]\n(pass) captured-buffer bootstrap: metadata-empty [28.73ms]\n(pass) captured-buffer bootstrap: metadata-oversize [42.86ms]\n(pass) captured-buffer bootstrap: hash [32.62ms]\n(pass) captured-buffer bootstrap: short-read [27.82ms]\n(pass) captured-buffer bootstrap: declared-size [29.97ms]\n(pass) captured-buffer bootstrap: descriptor-race [27.45ms]\n(pass) captured-buffer bootstrap: descriptor-change [26.62ms]\n(pass) captured-buffer bootstrap: path-change [33.56ms]\n(pass) captured-buffer bootstrap: nofollow [34.17ms]\n(pass) captured-buffer bootstrap: missing [27.39ms]\n(pass) captured-buffer bootstrap: unreadable [28.14ms]\n(pass) captured-buffer bootstrap: no-reopen [35.26ms]\n(pass) bootstrap guard proof rejects omission of metadata for metadata-hardlink [29.92ms]\n(pass) bootstrap guard proof rejects omission of hash for hash [28.98ms]\n(pass) bootstrap guard proof rejects omission of length for declared-size [29.15ms]\n(pass) bootstrap guard proof rejects omission of descriptor for descriptor-change [31.32ms]\n450 | }\n451 | \n452 | for (const [name, mutation, failure] of [['metadata-hardlink', 'metadata', 'AssertionError'], ['hash', 'hash', 'ForbiddenExec'], ['declared-size', 'length', 'AssertionError'], ['descriptor-change', 'descriptor', 'AssertionError'], ['path-change', 'path', 'AssertionError'], ['success', 'close', 'AssertionError'], ['success', 'filename', 'AssertionError'], ['no-reopen', 'reopen', 'AssertionError']] as const) {\n453 |   test(`bootstrap guard proof rejects omission of ${mutation} for ${name}`, () => {\n454 |     const execution = runBootstrap(name, mutation);\n455 |     expect(execution.code).toBe(1);\n                                 ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 0\n\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/audit-status-inspection.test.ts:455:28)\n(fail) bootstrap guard proof rejects omission of path for path-change [42.66ms]\n(pass) bootstrap guard proof rejects omission of close for success [28.32ms]\n(pass) bootstrap guard proof rejects omission of filename for success [32.13ms]\n(pass) bootstrap guard proof rejects omission of reopen for no-reopen [38.05ms]\n\n1 tests failed:\n(fail) bootstrap guard proof rejects omission of path for path-change [42.66ms]\n\n 22 pass\n 67 filtered out\n 1 fail\n 59 expect() calls\nRan 23 tests across 1 file. [750.00ms]\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/development-final-edges.log",
+      "bytes": 1353,
+      "sha256": "02b0b9f9870a2f333d37abc775e1934e5b186bf677799a610220655bf0e92315",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/audit-status-inspection.test.ts:\n(pass) fake native status contract: main-success [29.95ms]\n(pass) fake native status contract: main-arguments [31.13ms]\n(pass) fake native status contract: open-failure [39.27ms]\n(pass) fake native status contract: selector-exception [34.81ms]\n(pass) fake native status contract: parse-exception [29.92ms]\n(pass) guard proof rejects omission of open-failure for open-failure [34.48ms]\n(pass) guard proof rejects omission of arguments for main-arguments [28.07ms]\n(pass) captured-buffer bootstrap: named-change [28.83ms]\n(pass) bootstrap guard proof rejects omission of metadata for metadata-hardlink [34.62ms]\n(pass) bootstrap guard proof rejects omission of hash for hash [50.80ms]\n(pass) bootstrap guard proof rejects omission of length for declared-size [40.09ms]\n(pass) bootstrap guard proof rejects omission of descriptor for descriptor-change [39.35ms]\n(pass) bootstrap guard proof rejects omission of path for named-change [29.31ms]\n(pass) bootstrap guard proof rejects omission of close for success [30.91ms]\n(pass) bootstrap guard proof rejects omission of filename for success [28.31ms]\n(pass) bootstrap guard proof rejects omission of reopen for no-reopen [38.23ms]\n\n 16 pass\n 77 filtered out\n 0 fail\n 52 expect() calls\nRan 16 tests across 1 file. [576.00ms]\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/development-native.log",
+      "bytes": 4215,
+      "sha256": "bac78acd84b9aac369545d8438ff4ac22be0822f94f01310bb272516e6c07b49",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/audit-status-inspection.test.ts:\n(pass) status waiting rejects late-ready beyond the existing one-second window [29.39ms]\n(pass) status waiting rejects late-get beyond the existing one-second window [29.19ms]\n(pass) status waiting rejects deadline-ack beyond the existing one-second window [27.80ms]\n(pass) fake native status contract: success [38.41ms]\n(pass) fake native status contract: library-directory [27.42ms]\n(pass) fake native status contract: library-symlink [34.65ms]\n(pass) fake native status contract: library-owner [30.37ms]\n(pass) fake native status contract: library-group-write [27.94ms]\n(pass) fake native status contract: library-other-write [27.86ms]\n(pass) fake native status contract: Header [26.51ms]\n(pass) fake native status contract: Status [26.97ms]\n(pass) fake native status contract: Message [28.64ms]\n(pass) fake native status contract: Reply [30.73ms]\n(pass) fake native status contract: missing [37.68ms]\n(pass) fake native status contract: stat [33.80ms]\n(pass) fake native status contract: load [38.07ms]\n(pass) fake native status contract: open-failure [27.70ms]\n(pass) fake native status contract: request-negative [31.10ms]\n(pass) fake native status contract: request-zero [39.45ms]\n(pass) fake native status contract: get-negative [27.57ms]\n(pass) fake native status contract: received-short [29.95ms]\n(pass) fake native status contract: header-short [39.25ms]\n(pass) fake native status contract: header-overrun [30.22ms]\n(pass) fake native status contract: sequence [40.76ms]\n(pass) fake native status contract: short-error [28.04ms]\n(pass) fake native status contract: negative-error [32.01ms]\n(pass) fake native status contract: positive-error [40.09ms]\n(pass) fake native status contract: ack-status [35.18ms]\n(pass) fake native status contract: count [36.23ms]\n(pass) fake native status contract: kind [27.24ms]\n(pass) fake native status contract: short-status [35.31ms]\n(pass) fake native status contract: timeout [40.25ms]\n(pass) fake native status contract: request-exception [26.66ms]\n(pass) fake native status contract: register-exception [26.84ms]\n(pass) fake native status contract: select-exception [26.88ms]\n(pass) fake native status contract: get-exception [33.51ms]\n(pass) fake native status contract: serialization-cap [30.89ms]\n(pass) fake native status contract: serialization-exact [26.90ms]\n(pass) guard proof rejects omission of library-regular for library-directory [30.22ms]\n(pass) guard proof rejects omission of library-owner for library-owner [26.89ms]\n(pass) guard proof rejects omission of library-owner for library-group-write [26.94ms]\n(pass) guard proof rejects omission of uapi-size for Header [26.88ms]\n(pass) guard proof rejects omission of uapi-size for Status [31.42ms]\n(pass) guard proof rejects omission of reply-size for Message [30.31ms]\n(pass) guard proof rejects omission of reply-size for Reply [33.49ms]\n(pass) guard proof rejects omission of request-negative for request-negative [27.28ms]\n(pass) guard proof rejects omission of request-zero for request-zero [29.33ms]\n(pass) guard proof rejects omission of header for sequence [32.02ms]\n(pass) guard proof rejects omission of short-error for short-error [27.00ms]\n(pass) guard proof rejects omission of negative-error for negative-error [27.62ms]\n(pass) guard proof rejects omission of positive-error for positive-error [28.92ms]\n(pass) guard proof rejects omission of kind for kind [31.00ms]\n(pass) guard proof rejects omission of short-status for short-status [28.33ms]\n(pass) guard proof rejects omission of count for count [31.06ms]\n(pass) guard proof rejects omission of close for success [28.14ms]\n(pass) guard proof rejects omission of serialization for serialization-cap [27.30ms]\n(pass) guard proof rejects omission of get-negative for get-negative [27.29ms]\n(pass) guard proof rejects omission of timeout for timeout [28.61ms]\n(pass) guard proof rejects omission of timeout for late-ready [26.81ms]\n(pass) guard proof rejects omission of late-get for late-get [26.95ms]\n(pass) guard proof rejects omission of late-get for deadline-ack [29.18ms]\n\n 61 pass\n 0 fail\n 145 expect() calls\nRan 61 tests across 1 file. [1.90s]\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/final-cohort.log",
+      "bytes": 6601,
+      "sha256": "dee730f26c7394ef9c9059c07bb377a436598bae67a85caabae8edb28beaa691",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/audit-status-inspection.test.ts:\n(pass) status waiting rejects late-ready beyond the existing one-second window [30.48ms]\n(pass) status waiting rejects late-get beyond the existing one-second window [34.48ms]\n(pass) status waiting rejects deadline-ready beyond the existing one-second window [31.87ms]\n(pass) status waiting rejects deadline-get beyond the existing one-second window [28.03ms]\n(pass) status waiting rejects deadline-ack beyond the existing one-second window [27.61ms]\n(pass) fake native status contract: near-deadline [29.38ms]\n(pass) fake native status contract: main-success [41.99ms]\n(pass) fake native status contract: main-arguments [28.64ms]\n(pass) fake native status contract: success [28.18ms]\n(pass) fake native status contract: library-directory [34.21ms]\n(pass) fake native status contract: library-symlink [27.38ms]\n(pass) fake native status contract: library-owner [26.93ms]\n(pass) fake native status contract: library-group-write [26.98ms]\n(pass) fake native status contract: library-other-write [26.82ms]\n(pass) fake native status contract: Header [27.09ms]\n(pass) fake native status contract: Status [30.69ms]\n(pass) fake native status contract: Message [34.03ms]\n(pass) fake native status contract: Reply [28.59ms]\n(pass) fake native status contract: missing [36.06ms]\n(pass) fake native status contract: stat [31.99ms]\n(pass) fake native status contract: load [28.95ms]\n(pass) fake native status contract: open-failure [35.36ms]\n(pass) fake native status contract: request-negative [34.40ms]\n(pass) fake native status contract: request-zero [28.14ms]\n(pass) fake native status contract: get-negative [28.52ms]\n(pass) fake native status contract: received-short [27.77ms]\n(pass) fake native status contract: header-short [28.47ms]\n(pass) fake native status contract: header-overrun [34.22ms]\n(pass) fake native status contract: sequence [27.85ms]\n(pass) fake native status contract: short-error [28.28ms]\n(pass) fake native status contract: negative-error [30.40ms]\n(pass) fake native status contract: positive-error [29.36ms]\n(pass) fake native status contract: ack-status [37.87ms]\n(pass) fake native status contract: count [27.31ms]\n(pass) fake native status contract: kind [29.39ms]\n(pass) fake native status contract: short-status [42.29ms]\n(pass) fake native status contract: timeout [29.09ms]\n(pass) fake native status contract: request-exception [26.91ms]\n(pass) fake native status contract: selector-exception [27.93ms]\n(pass) fake native status contract: parse-exception [27.62ms]\n(pass) fake native status contract: register-exception [27.96ms]\n(pass) fake native status contract: select-exception [27.82ms]\n(pass) fake native status contract: get-exception [31.74ms]\n(pass) fake native status contract: serialization-cap [27.82ms]\n(pass) fake native status contract: serialization-exact [35.56ms]\n(pass) guard proof rejects omission of open-failure for open-failure [27.83ms]\n(pass) guard proof rejects omission of arguments for main-arguments [29.37ms]\n(pass) guard proof rejects omission of library-regular for library-directory [27.72ms]\n(pass) guard proof rejects omission of library-owner for library-owner [28.20ms]\n(pass) guard proof rejects omission of library-owner for library-group-write [40.57ms]\n(pass) guard proof rejects omission of library-owner for library-other-write [29.38ms]\n(pass) guard proof rejects omission of library-regular for library-symlink [28.76ms]\n(pass) guard proof rejects omission of uapi-size for Header [31.52ms]\n(pass) guard proof rejects omission of uapi-size for Status [31.94ms]\n(pass) guard proof rejects omission of reply-size for Message [33.17ms]\n(pass) guard proof rejects omission of reply-size for Reply [27.93ms]\n(pass) guard proof rejects omission of request-negative for request-negative [27.33ms]\n(pass) guard proof rejects omission of request-zero for request-zero [28.90ms]\n(pass) guard proof rejects omission of header for sequence [27.94ms]\n(pass) guard proof rejects omission of short-error for short-error [28.11ms]\n(pass) guard proof rejects omission of negative-error for negative-error [30.29ms]\n(pass) guard proof rejects omission of positive-error for positive-error [33.64ms]\n(pass) guard proof rejects omission of kind for kind [31.33ms]\n(pass) guard proof rejects omission of short-status for short-status [31.25ms]\n(pass) guard proof rejects omission of count for count [28.06ms]\n(pass) guard proof rejects omission of close for success [27.91ms]\n(pass) guard proof rejects omission of serialization for serialization-cap [27.83ms]\n(pass) guard proof rejects omission of get-negative for get-negative [27.59ms]\n(pass) guard proof rejects omission of timeout for timeout [31.15ms]\n(pass) guard proof rejects omission of timeout for late-ready [36.85ms]\n(pass) guard proof rejects omission of late-get for late-get [29.01ms]\n(pass) guard proof rejects omission of late-get for deadline-ack [36.02ms]\n(pass) captured-buffer bootstrap: success [42.58ms]\n(pass) captured-buffer bootstrap: metadata-directory [30.29ms]\n(pass) captured-buffer bootstrap: metadata-hardlink [27.25ms]\n(pass) captured-buffer bootstrap: metadata-empty [34.22ms]\n(pass) captured-buffer bootstrap: metadata-oversize [35.60ms]\n(pass) captured-buffer bootstrap: hash [28.05ms]\n(pass) captured-buffer bootstrap: short-read [27.81ms]\n(pass) captured-buffer bootstrap: declared-size [34.77ms]\n(pass) captured-buffer bootstrap: descriptor-race [28.57ms]\n(pass) captured-buffer bootstrap: descriptor-change [29.92ms]\n(pass) captured-buffer bootstrap: named-change [28.47ms]\n(pass) captured-buffer bootstrap: path-change [29.07ms]\n(pass) captured-buffer bootstrap: nofollow [26.99ms]\n(pass) captured-buffer bootstrap: missing [26.99ms]\n(pass) captured-buffer bootstrap: unreadable [27.18ms]\n(pass) captured-buffer bootstrap: no-reopen [36.00ms]\n(pass) bootstrap guard proof rejects omission of metadata for metadata-hardlink [29.45ms]\n(pass) bootstrap guard proof rejects omission of hash for hash [29.03ms]\n(pass) bootstrap guard proof rejects omission of length for declared-size [33.27ms]\n(pass) bootstrap guard proof rejects omission of descriptor for descriptor-change [42.92ms]\n(pass) bootstrap guard proof rejects omission of path for named-change [32.47ms]\n(pass) bootstrap guard proof rejects omission of close for success [51.60ms]\n(pass) bootstrap guard proof rejects omission of filename for success [31.70ms]\n(pass) bootstrap guard proof rejects omission of reopen for no-reopen [47.16ms]\n\n 96 pass\n 0 fail\n 262 expect() calls\nRan 96 tests across 1 file. [3.02s]\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/format-final.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+      "content": "Checking formatting...\nAll matched files use Prettier code style!\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/format-write.log",
+      "bytes": 70,
+      "sha256": "1e038d013d3846fefcef32259df566e355b2c59c12d42efd78576d258852bc70",
+      "content": "tools/tool-fleet/src/audit-status-inspection.test.ts 99ms (unchanged)\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/get-exception.log",
+      "bytes": 42,
+      "sha256": "2e5dfee55eef6a04b5c9c3c92906a424e3dcdcc1e0c4347fa96e392344801acf",
+      "content": "EXERCISE get-exception\nPASS get-exception\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/get-negative-omit-get-negative.log",
+      "bytes": 600,
+      "sha256": "85a4c6dfaae94b19eeac637d481261414c0317d5e40284912b789ea5cb5673f5",
+      "content": "EXERCISE get-negative\nTraceback (most recent call last):\n  File \"<string>\", line 238, in <module>\nAssertionError: ('get-negative', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'stage': 'invalid-status-header', 'state': 'unavailable', 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/get-negative.log",
+      "bytes": 40,
+      "sha256": "cdd0964b25973b54938ea40dbf51400b8e9ce9551c6f8e5940d972e0cf21a80f",
+      "content": "EXERCISE get-negative\nPASS get-negative\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/header-overrun.log",
+      "bytes": 44,
+      "sha256": "31b773209299ea0631ccf55c9af6c4a0cf43aada28291e7ced93f13b5f410303",
+      "content": "EXERCISE header-overrun\nPASS header-overrun\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/header-short.log",
+      "bytes": 40,
+      "sha256": "88fb63784f6302ba75370556739393cfba26b8615f2af4aa2a95b0b7177b419f",
+      "content": "EXERCISE header-short\nPASS header-short\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/kind-omit-kind.log",
+      "bytes": 845,
+      "sha256": "7105f17eb854519b591d7379a01baaee3e39e2ddf9148748d6dd4b1fe7e8ccb6",
+      "content": "EXERCISE kind\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('kind', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/kind.log",
+      "bytes": 24,
+      "sha256": "5ddb372393917774a6111d8cac17049c766223d77d8ffdb023a2f24d66240038",
+      "content": "EXERCISE kind\nPASS kind\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/late-get-omit-late-get.log",
+      "bytes": 853,
+      "sha256": "58cb3b8f2a4bd4f4c3f071b337080fc6d5b2ceb5cf7abe519811a8714163e0fa",
+      "content": "EXERCISE late-get\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('late-get', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/late-get.log",
+      "bytes": 32,
+      "sha256": "4191edfb2a59fcf4e04fab4b6b115518376ee381f18997c53097a6e4ed9de14a",
+      "content": "EXERCISE late-get\nPASS late-get\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/late-ready-omit-timeout.log",
+      "bytes": 358,
+      "sha256": "588434ec77b854f880a9f48fd8c2a4bf149676a271d3418a1959f5b01d1e669e",
+      "content": "EXERCISE late-ready\nTraceback (most recent call last):\n  File \"<string>\", line 244, in <module>\nAssertionError: ('late-ready', [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/late-ready.log",
+      "bytes": 36,
+      "sha256": "5c1fc6d898920448da8ff9a4e58eb9e609f425f03794f63aebf94658b5d4bc6c",
+      "content": "EXERCISE late-ready\nPASS late-ready\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/library-directory-omit-library-regular.log",
+      "bytes": 871,
+      "sha256": "ecab2386431750dda1cbbb711795f5fc4e557e0cbe9cae86b2b4ebc2caed5ec7",
+      "content": "EXERCISE library-directory\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('library-directory', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/library-directory.log",
+      "bytes": 50,
+      "sha256": "55f59f688f1a36b4beed7b359a7280506ef10cd9e52023acd4f35a172ada38dc",
+      "content": "EXERCISE library-directory\nPASS library-directory\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/library-group-write-omit-library-owner.log",
+      "bytes": 875,
+      "sha256": "dad585d1e9eed9f0d001d8075481790efbc8469b6ed41cbd6ab55684151766c6",
+      "content": "EXERCISE library-group-write\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('library-group-write', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/library-group-write.log",
+      "bytes": 54,
+      "sha256": "29e635bc91c098cb0aa9dc5883ae41f10ac5b0eb52be7660ba3888d5998be841",
+      "content": "EXERCISE library-group-write\nPASS library-group-write\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/library-other-write-omit-library-owner.log",
+      "bytes": 875,
+      "sha256": "c6fd042d73aedf95905516c3eb73cf2d7bb04cf5a147d39f6f0e0ccaf5eefbe1",
+      "content": "EXERCISE library-other-write\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('library-other-write', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/library-other-write.log",
+      "bytes": 54,
+      "sha256": "05b0f0aede8ebb699d9d553c4fb0b6ba7b820e6b064552ff7a7c80d8948ac2cb",
+      "content": "EXERCISE library-other-write\nPASS library-other-write\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/library-owner-omit-library-owner.log",
+      "bytes": 863,
+      "sha256": "ab6d2867fd3ca3e1a1e47fb2f7e6a0a27699f5209a4c309288e0b2a7ebb40f75",
+      "content": "EXERCISE library-owner\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('library-owner', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/library-owner.log",
+      "bytes": 42,
+      "sha256": "179fe50edd758c35a7e99bcce7618a61795b9ef99214f7edb2070933c9126fac",
+      "content": "EXERCISE library-owner\nPASS library-owner\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/library-symlink-omit-library-regular.log",
+      "bytes": 440,
+      "sha256": "4b6b5b1eb13991f5a59a25587bb6bda94ab4d4951aa9add94ffdbce06e0e031b",
+      "content": "EXERCISE library-symlink\nTraceback (most recent call last):\n  File \"<string>\", line 238, in <module>\nAssertionError: ('library-symlink', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'path': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'stage': 'library-owner-or-write-mode', 'state': 'unavailable', 'subscription': False, 'uid': 1000}, [])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/library-symlink.log",
+      "bytes": 46,
+      "sha256": "2f906886879f3ab8aa1afddd5bee07ec08788e8e8a8a114e1ffb0025548883a0",
+      "content": "EXERCISE library-symlink\nPASS library-symlink\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/lint-development.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content": ""
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/lint-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content": ""
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/load.log",
+      "bytes": 24,
+      "sha256": "d96bded0540eaddf16382ac3bd9509eeb61254b804bf32e93c110622b228d480",
+      "content": "EXERCISE load\nPASS load\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/main-arguments-omit-arguments.log",
+      "bytes": 637,
+      "sha256": "ba7512115b5562b2a00cd6666b0b0e82c7f76ffd9cc49b21c943ffd2539497cd",
+      "content": "EXERCISE main-arguments\nTraceback (most recent call last):\n  File \"<string>\", line 144, in <module>\nAssertionError: ('main-arguments', 0, {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000})\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/main-arguments.log",
+      "bytes": 44,
+      "sha256": "f6b2cc226b82c3a7574c2b0ebcef9fa7a71002f28b0159fe50ebb8427a7d6739",
+      "content": "EXERCISE main-arguments\nPASS main-arguments\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/main-success.log",
+      "bytes": 40,
+      "sha256": "c15f67ff5e3858c8524e83618877e1b6ca2411d22962c90de6b3776c6d145597",
+      "content": "EXERCISE main-success\nPASS main-success\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/manifest.log",
+      "bytes": 724,
+      "sha256": "2b816dba033bfe66c9484ecdca1977d754dcf1e0bdd73fcda3371a48e773a17f",
+      "content": "9442 20ebfae763bdd9fcc2ffee03b64b72be5f00b17fb7e8b9a5a825ade73333ca16 openspec/changes/observability-environment-parity/evidence/audit-status-inspection.py\n28616 b58b6e2e3dfbb3e73ce259c06393064419a8986913d9addba5a11cb676e784af tools/tool-fleet/src/audit-status-inspection.test.ts\n6250 bdc8368bc3e3ac037ae25e3f8a89dc2df7f2a7b47d62117b3f4bd20460e64552 tools/tool-fleet/project.json\n5942 6269eae44af58479874a5cc65b706ad9e9ff67c8bad4197ab1d0bddf453441c2 openspec/changes/observability-environment-parity/audit-status-inspection-proposal.md\nCounter({'(pass) fake native status contract': 40, 'guard': 27, '(pass) captured-buffer bootstrap': 16, 'bootstrap': 8, 'status': 5})\nnative guard omissions=27\nbootstrap guard omissions=8\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/missing.log",
+      "bytes": 30,
+      "sha256": "1365472ce9c64e21d480b9b5395b21c36c6d94c8765ac5b071f31e1357d5e88f",
+      "content": "EXERCISE missing\nPASS missing\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/near-deadline.log",
+      "bytes": 42,
+      "sha256": "db1f787595e4752b577c3f37b775044f31ae87592f493d08e68c21350c584a07",
+      "content": "EXERCISE near-deadline\nPASS near-deadline\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/negative-error-omit-negative-error.log",
+      "bytes": 723,
+      "sha256": "cb6834b537d0c2edc553c81d0eb56c8db4a7df2c5ee1b1ce9897c0f7ab4a2994",
+      "content": "EXERCISE negative-error\nTraceback (most recent call last):\n  File \"<string>\", line 238, in <module>\nAssertionError: ('negative-error', {'euid': 1000, 'exception': 'IndexError', 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'stage': 'diagnostic-error', 'state': 'unavailable', 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/negative-error.log",
+      "bytes": 44,
+      "sha256": "320b10eabd529c2b564058dfa813d8b3cf01463ece7bbf97735b7f328192d4fc",
+      "content": "EXERCISE negative-error\nPASS negative-error\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/open-failure-omit-open-failure.log",
+      "bytes": 529,
+      "sha256": "2c898db13770e645e2fd79eae6b7cded566f0a8dc9951c7de3da77954729aa3b",
+      "content": "EXERCISE open-failure\nTraceback (most recent call last):\n  File \"<string>\", line 238, in <module>\nAssertionError: ('open-failure', {'euid': 1000, 'exception': 'AssertionError', 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'stage': 'diagnostic-error', 'state': 'unavailable', 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [-1]], ['audit_close', [-1]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/open-failure.log",
+      "bytes": 40,
+      "sha256": "0db8895d41cc890737144588bde18347052c4c704e765d472eb1e84ec04e710d",
+      "content": "EXERCISE open-failure\nPASS open-failure\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/parse-exception.log",
+      "bytes": 46,
+      "sha256": "8f4cf9881af20123bd2788c5670cca2a997aaf9ae61329b304d2dc24282775ef",
+      "content": "EXERCISE parse-exception\nPASS parse-exception\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/positive-error-omit-positive-error.log",
+      "bytes": 723,
+      "sha256": "b0de0fd9b90fd49796e635f2e381c059402a6ed9433165edd190946f190c9587",
+      "content": "EXERCISE positive-error\nTraceback (most recent call last):\n  File \"<string>\", line 238, in <module>\nAssertionError: ('positive-error', {'euid': 1000, 'exception': 'IndexError', 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'stage': 'diagnostic-error', 'state': 'unavailable', 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/positive-error.log",
+      "bytes": 44,
+      "sha256": "add61b1e4e35a8d435f0fb7ee3e70d16272ad564e5a1a5e1ac9747a0a04a6b08",
+      "content": "EXERCISE positive-error\nPASS positive-error\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/python-final.log",
+      "bytes": 349,
+      "sha256": "a350f4ef83894dc2ca80b1354ca0076fcc2be28bd53a4b50aa007c7255517b2c",
+      "content": "Python 3.12.3 AST PASS diagnostic\nPython 3.12.3 AST PASS native harness\nPython 3.12.3 AST PASS bootstrap harness\nPython 3.12.3 AST PASS proposed bootstrap\nfrozen source bytes=9442 sha256=20ebfae763bdd9fcc2ffee03b64b72be5f00b17fb7e8b9a5a825ade73333ca16\nInstalled Python3.14 isolated fake-boundary success compatibility:\nEXERCISE success\nPASS success\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/received-short.log",
+      "bytes": 44,
+      "sha256": "108f27ace64f6f0d187a188f892d714ee5c1c2c86e454956ca725f8364ee7269",
+      "content": "EXERCISE received-short\nPASS received-short\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/register-exception.log",
+      "bytes": 52,
+      "sha256": "b2eb74953b23e10544810eb6dc229b2f74680822c08f8d5dea515ec0edd931be",
+      "content": "EXERCISE register-exception\nPASS register-exception\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/request-exception.log",
+      "bytes": 50,
+      "sha256": "2172af4d3cbf04bd9cde80dc6c2b0a1cbe789bb45a2dd1eaae58f14e5f7cc9ba",
+      "content": "EXERCISE request-exception\nPASS request-exception\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/request-negative-omit-request-negative.log",
+      "bytes": 608,
+      "sha256": "26d97270f674a0e02667eabe41c27cf89cb95884e0b6e087120030697b734c19",
+      "content": "EXERCISE request-negative\nTraceback (most recent call last):\n  File \"<string>\", line 238, in <module>\nAssertionError: ('request-negative', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'stage': 'invalid-status-header', 'state': 'unavailable', 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/request-negative.log",
+      "bytes": 48,
+      "sha256": "abacb457d9a6a2dc97250eb9eda0de746064b53b505b8ecf16db659f931cadf8",
+      "content": "EXERCISE request-negative\nPASS request-negative\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/request-zero-omit-request-zero.log",
+      "bytes": 600,
+      "sha256": "f683fed94420864d70215cbbd794141a5b055691ec566a243c39452d3560545f",
+      "content": "EXERCISE request-zero\nTraceback (most recent call last):\n  File \"<string>\", line 238, in <module>\nAssertionError: ('request-zero', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'stage': 'invalid-status-header', 'state': 'unavailable', 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/request-zero.log",
+      "bytes": 40,
+      "sha256": "29b56b51b5b6c80d91b7313db065002d46d61901ef7bf8afaf1e395368235804",
+      "content": "EXERCISE request-zero\nPASS request-zero\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/select-exception.log",
+      "bytes": 48,
+      "sha256": "ce6a0641d0c21cab6815f7f41e5b8ad64b445647cee904192cf55154df9641f3",
+      "content": "EXERCISE select-exception\nPASS select-exception\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/selector-exception.log",
+      "bytes": 52,
+      "sha256": "40bf5dfbac500a4b9797fa172f778287f72ae5e4f2f9e0037c8149132a0a54cc",
+      "content": "EXERCISE selector-exception\nPASS selector-exception\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/sequence-omit-header.log",
+      "bytes": 853,
+      "sha256": "65a5a57c5d16b43031a36ecaa35772c9f1c045184441f4434790cbe2826af234",
+      "content": "EXERCISE sequence\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('sequence', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/sequence.log",
+      "bytes": 32,
+      "sha256": "1be87f6699f12156b0c8d80ec2522b58d31b415b1f991d77e14139e0bd1197e7",
+      "content": "EXERCISE sequence\nPASS sequence\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/serialization-cap-omit-serialization.log",
+      "bytes": 154,
+      "sha256": "3d5c5d96e30850ce521f825b1c13910749ece580cfc69920ac1c889eaa81fada",
+      "content": "EXERCISE serialization-cap\nTraceback (most recent call last):\n  File \"<string>\", line 225, in <module>\nAssertionError: serialization guard did not refuse\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/serialization-cap.log",
+      "bytes": 50,
+      "sha256": "d711f33ea9d93e0ecb20b06be2448ba5e097b9c4cdae0cac90bb83ded40e2586",
+      "content": "EXERCISE serialization-cap\nPASS serialization-cap\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/serialization-exact.log",
+      "bytes": 54,
+      "sha256": "10a2e2cd28b9fef65500d584fdaae51a69438882351069059efa2c43152d2003",
+      "content": "EXERCISE serialization-exact\nPASS serialization-exact\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/short-error-omit-short-error.log",
+      "bytes": 717,
+      "sha256": "1a2d858a7d54bcc3e162a874418e24d3b2a28604d0ca6a18ffbefe761a9922d9",
+      "content": "EXERCISE short-error\nTraceback (most recent call last):\n  File \"<string>\", line 238, in <module>\nAssertionError: ('short-error', {'euid': 1000, 'exception': 'IndexError', 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'stage': 'diagnostic-error', 'state': 'unavailable', 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/short-error.log",
+      "bytes": 38,
+      "sha256": "186ea7e386c86816dc52aa7799b42a344a06811616c7ccf5703d2d10cfc1bd6c",
+      "content": "EXERCISE short-error\nPASS short-error\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/short-status-omit-short-status.log",
+      "bytes": 861,
+      "sha256": "8ae867188a25d342d728ab0b73b592de1ebd68031345536385565433e748eb49",
+      "content": "EXERCISE short-status\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('short-status', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/short-status.log",
+      "bytes": 40,
+      "sha256": "b46396fdf9b5c1964c0ce8b3d3cce7270e32020f5b1475ef2a4d8ba1d330437a",
+      "content": "EXERCISE short-status\nPASS short-status\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/stat.log",
+      "bytes": 24,
+      "sha256": "18139f9696d124029b98b352fd23105ee336ef9097148103497290862b0fec77",
+      "content": "EXERCISE stat\nPASS stat\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/success-omit-close.log",
+      "bytes": 329,
+      "sha256": "6231e8108c57ec8d74efdc879ea13588de8228b48fdec8c62f42c13513036978",
+      "content": "EXERCISE success\nTraceback (most recent call last):\n  File \"<string>\", line 245, in <module>\nAssertionError: ('success', [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/success.log",
+      "bytes": 30,
+      "sha256": "9e44488f8e7834470434bc1a743ce449d877c784a726b607a59af39b435370be",
+      "content": "EXERCISE success\nPASS success\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/timeout-omit-timeout.log",
+      "bytes": 851,
+      "sha256": "1f4d4725f4371070edb2958e7c7124bd6c46644dfa26b9cfd130cb0037d2f6be",
+      "content": "EXERCISE timeout\nTraceback (most recent call last):\n  File \"<string>\", line 234, in <module>\nAssertionError: ('timeout', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/timeout.log",
+      "bytes": 30,
+      "sha256": "94d2dcd493b89beb08d497936387563b26fdef8c0a81f223860942591eae88a5",
+      "content": "EXERCISE timeout\nPASS timeout\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/timing-red.log",
+      "bytes": 4668,
+      "sha256": "048ed088b859e5ad7dad4994b67578fc8d20852b7e213d9350510d527e4fea8b",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/audit-status-inspection.test.ts:\n246 | }\n247 | \n248 | for (const name of ['late-ready', 'late-get', 'deadline-ack']) {\n249 |   test(`status waiting rejects ${name} beyond the existing one-second window`, () => {\n250 |     const execution = runCase(name);\n251 |     expect(execution.log).toContain(`PASS ${name}`);\n                                ^\nerror: expect(received).toContain(expected)\n\nExpected to contain: \"PASS late-ready\"\nReceived: \"Traceback (most recent call last):\\n  File \\\"<string>\\\", line 207, in <module>\\nAssertionError: ('late-ready', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\\n\"\n\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/audit-status-inspection.test.ts:251:27)\n(fail) status waiting rejects late-ready beyond the existing one-second window [35.42ms]\n246 | }\n247 | \n248 | for (const name of ['late-ready', 'late-get', 'deadline-ack']) {\n249 |   test(`status waiting rejects ${name} beyond the existing one-second window`, () => {\n250 |     const execution = runCase(name);\n251 |     expect(execution.log).toContain(`PASS ${name}`);\n                                ^\nerror: expect(received).toContain(expected)\n\nExpected to contain: \"PASS late-get\"\nReceived: \"Traceback (most recent call last):\\n  File \\\"<string>\\\", line 207, in <module>\\nAssertionError: ('late-get', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\\n\"\n\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/audit-status-inspection.test.ts:251:27)\n(fail) status waiting rejects late-get beyond the existing one-second window [27.83ms]\n246 | }\n247 | \n248 | for (const name of ['late-ready', 'late-get', 'deadline-ack']) {\n249 |   test(`status waiting rejects ${name} beyond the existing one-second window`, () => {\n250 |     const execution = runCase(name);\n251 |     expect(execution.log).toContain(`PASS ${name}`);\n                                ^\nerror: expect(received).toContain(expected)\n\nExpected to contain: \"PASS deadline-ack\"\nReceived: \"Traceback (most recent call last):\\n  File \\\"<string>\\\", line 207, in <module>\\nAssertionError: ('deadline-ack', {'euid': 1000, 'library': '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0', 'purpose': 'status-only diagnostic; never operational qualification', 'state': 'observed', 'status': {'backlog': 4294967292, 'backlog_limit': 4294967290, 'backlog_wait_time': 4294967294, 'backlog_wait_time_actual': 4294967295, 'enabled': 4294967286, 'failure': 4294967287, 'feature_bitmap': 4294967293, 'lost': 4294967291, 'mask': 4294967285, 'pid': 4294967288, 'rate_limit': 4294967289}, 'subscription': False, 'uid': 1000}, [['CDLL', '/usr/lib/x86_64-linux-gnu/libaudit.so.1.0.0'], ['audit_open', []], ['audit_request_status', [73]], ['register', 73], ['select', 1.0], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['register', 73], ['select', 0.4], ['selector-close'], ['audit_get_reply', [73, 'reply', 1, 0]], ['audit_close', [73]]])\\n\"\n\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/audit-status-inspection.test.ts:251:27)\n(fail) status waiting rejects deadline-ack beyond the existing one-second window [27.17ms]\n\n 0 pass\n 55 filtered out\n 3 fail\n 3 expect() calls\nRan 3 tests across 1 file. [121.00ms]\n"
+    },
+    {
+      "path": "/tmp/puni-task119-evidence/typecheck-parent.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content": ""
+    }
+  ],
+  "limits": [
+    "Fake library/metadata/ABI, selectors and clock do not qualify installed native execution.",
+    "One-second post-request acceptance window is not a preemptive native or process deadline.",
+    "Outer five-second command timeout was not executed; it excludes sudo authentication and uninterruptible sleep.",
+    "65536-byte cap applies to serialized JSON only.",
+    "A real path rename changes descriptor ctime too; modeled identities isolate the path-only omission.",
+    "A separate Nx cache-key experiment was not run.",
+    "Full Fleet/app/browser/host/native campaigns were not repeated.",
+    "Runtime4/11, Task97, oldG/K, floors, history and pending administrator authorization remain unchanged."
+  ],
+  "review": {
+    "spec": "PASS",
+    "quality": "APPROVE WITH NONBLOCKING P3",
+    "report": "audit-status-inspection-functional-review-20261106.md",
+    "deferred": "Source line134 proof wording: readiness omission permits a read; remaining post-read guard still refuses status."
+  }
+}

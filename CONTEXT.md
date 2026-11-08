@@ -2564,6 +2564,10 @@ _Avoid_: matching observations, F9 acceptance, cold-start success
 
 ### Local fleet creation
 
+**Rehearsal horizon**:
+A source-bound declared time interval used to calculate a conditional rehearsal resource scenario. It does not observe or enforce runtime expiry.
+_Avoid_: lifetime bound, execution deadline, admission window
+
 **Creation attempt**:
 One invocation that tries to create a local fleet lab, identified independently of later invocations
 and bound to one Docker daemon.
@@ -2586,3 +2590,14 @@ _Avoid_: failed creation, absent resource
 **Reviewed-empty membership**:
 An explicit review assertion that no member of a named earlier test level belongs to the reviewed fixture scope. It carries no execution or certification claim.
 _Avoid_: unknown membership, passing Performance result
+
+**Repair source after failure**:
+A read-only observation of the original raw inode linked to a specific failed repair. It preserves the failed attempt and grants no repair or reservation-release authority.
+_Avoid_: postboot evidence, repair authority
+
+### Observability migration
+
+**Retained observation**:
+An identified set of stored telemetry selected to check history across a deployment change.
+Its continued availability is separate from current application health or migration readiness.
+_Avoid_: health checkpoint, restore receipt

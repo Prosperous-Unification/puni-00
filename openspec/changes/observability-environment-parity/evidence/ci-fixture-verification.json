@@ -1,0 +1,124 @@
+{
+  "scope": "test-only-ci-fixture-restoration",
+  "baseRevision": "5d4387f2c0f9c651292dfef4f3e5ff3d2124b4be",
+  "source": [
+    {
+      "path": "tools/tool-fleet/src/lab-guest-preparation.test.ts",
+      "sha256": "d81b8b42317a59d97611de9eb1325a2b1409b39f70c944ebb7a6d83301225b69",
+      "baseSha256": "1c319d1b7fe5849ad73a77841577ef2262d2226b7540ad1d1494df0f649db3f4",
+      "bytes": 123101,
+      "mode": 420
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-guest-preparation.py",
+      "sha256": "41ac461e9c804a4aee714f6fcf879359623b7aff036d9485efbe9ef844cb5b12",
+      "baseSha256": "41ac461e9c804a4aee714f6fcf879359623b7aff036d9485efbe9ef844cb5b12",
+      "bytes": 77266,
+      "mode": 420
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-allocation.py",
+      "sha256": "30af27c5b0f53efa9c82047a4191a415c7f9a8c2bc21ee296ccfd359e01e64f7",
+      "baseSha256": "30af27c5b0f53efa9c82047a4191a415c7f9a8c2bc21ee296ccfd359e01e64f7",
+      "bytes": 11878,
+      "mode": 420
+    }
+  ],
+  "reviewSha256": "a1751320e86035b46fe4e4d107a53331b3e258f517d56e34a78923898467543c",
+  "reportSha256": "dd48ff1a9736e59ad52a5fb5d508a386928ae017dcd5e103204b86ed4ca40577",
+  "checks": {
+    "ubuntu314-red": {
+      "args": [
+        "bun",
+        "test",
+        "--preload",
+        "./.superpowers/sdd/observability-environment-parity/ci-startup-aa1d/ubuntu314.preload.ts",
+        "tools/tool-fleet/src/lab-guest-preparation.test.ts",
+        "--test-name-pattern",
+        "guest lifecycle guard proof (guest-ready-invalid|guest-raw-changed)|guest geometry filter fault architecture |guest geometry installation word-size "
+      ],
+      "environment": {
+        "CI": "true",
+        "FORCE_COLOR": "1",
+        "TERM": "xterm",
+        "NO_COLOR": "absent",
+        "LD_LIBRARY_PATH": "/home/df/.codex/worktrees/aa39/puni-00/.superpowers/sdd/observability-environment-parity/ci-startup-aa1d/runtime/libffi/usr/lib/x86_64-linux-gnu"
+      },
+      "exit": 1,
+      "logBytes": 8892,
+      "logSha256": "004afb9b02fea567480effe1fb2574206897546c0cff0fa70248274aec42cd7d",
+      "failures": 4,
+      "role": "representative fixture failures before source edits"
+    },
+    "python312-green": {
+      "args": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-fleet/src/lab-guest-preparation.test.ts",
+        "--test-name-pattern",
+        "guest lifecycle guard proof (guest-ready-invalid|guest-raw-changed)|guest coordinator (success|raw-replace) |guest geometry filter fault (architecture|28) |guest geometry installation word-size |guest geometry admission (word-size|fault word-size) |guest fdset caller |guest source CLI emits literal"
+      ],
+      "environment": {
+        "CI": "true",
+        "FORCE_COLOR": "1",
+        "TERM": "xterm",
+        "NO_COLOR": "absent"
+      },
+      "exit": 0,
+      "logBytes": 1803,
+      "logSha256": "09a806177667b99a0a0d2f5f048a92c648bf2d44495bba968022ccf00ac67295",
+      "tests": 11,
+      "assertions": 45,
+      "failures": 0,
+      "seconds": 2.31
+    },
+    "ubuntu314-green": {
+      "args": [
+        "bun",
+        "test",
+        "--preload",
+        "./.superpowers/sdd/observability-environment-parity/ci-startup-aa1d/ubuntu314.preload.ts",
+        "tools/tool-fleet/src/lab-guest-preparation.test.ts",
+        "--test-name-pattern",
+        "guest lifecycle guard proof (guest-ready-invalid|guest-raw-changed)|guest coordinator (success|raw-replace) |guest geometry filter fault (architecture|28) |guest geometry installation word-size |guest geometry admission (word-size|fault word-size) |guest fdset caller |guest source CLI emits literal"
+      ],
+      "environment": {
+        "CI": "true",
+        "FORCE_COLOR": "1",
+        "TERM": "xterm",
+        "NO_COLOR": "absent",
+        "LD_LIBRARY_PATH": "/home/df/.codex/worktrees/aa39/puni-00/.superpowers/sdd/observability-environment-parity/ci-startup-aa1d/runtime/libffi/usr/lib/x86_64-linux-gnu"
+      },
+      "exit": 0,
+      "logBytes": 1804,
+      "logSha256": "16659480ff8c08604944ee66cdf1e1fc7caa4024ce9d4da1275380a399ff4515",
+      "tests": 11,
+      "assertions": 45,
+      "failures": 0,
+      "seconds": 4.25
+    },
+    "format": {
+      "args": ["bunx", "prettier", "--check", "tools/tool-fleet/src/lab-guest-preparation.test.ts"],
+      "exit": 0,
+      "logBytes": 66,
+      "logSha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    "lint": {
+      "args": ["bunx", "eslint", "tools/tool-fleet/src/lab-guest-preparation.test.ts"],
+      "exit": 0,
+      "logBytes": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "typecheck": {
+      "args": ["bunx", "tsc", "--build", "tools/tool-fleet/tsconfig.json"],
+      "exit": 0,
+      "logBytes": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "fullCiVerified": false,
+  "productionChanged": false,
+  "nativeExecution": false
+}

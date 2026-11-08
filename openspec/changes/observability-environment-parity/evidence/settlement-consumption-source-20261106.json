@@ -1,0 +1,60 @@
+{
+  "baseline": "d19f34c182255f61438a3a48837e62edf432bd04",
+  "coldApiCompatibilityPassed": 13,
+  "evidencePathMapping": {
+    "task-115-report.md": "author private report, published as settlement-consumption-source-20261106.md; other index entries use the evidence folder"
+  },
+  "finalFrozenSourceSha256": "6153546fabbeb4cde9c577b164d7249410420b8e7a5cbd5f15ba3625b32fbcc8",
+  "finalSourceBytes": 414602,
+  "finalTypecheck": {
+    "exitCode": 0,
+    "scope": "Final review1 frozen source/tests",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "frozenSourceSha256": "68e3833c1e59dd1bb1ce1aa7d2205b76bd40d162dcdb28cb817d2ed2726ee704",
+  "isolatedCorrection": {
+    "assertions": 6,
+    "failed": 0,
+    "passed": 1,
+    "scope": "mixed-only embedded Python; other frozen source/test bytes unchanged; original run bytes preserved",
+    "seconds": 0.74
+  },
+  "limits": [
+    "Outside qualification refuses before settlement latch/publication/raw drain; bootstrap first-access qualification remains separately unresolved.",
+    "No retained/native operation or real oldG credit",
+    "Kernel negative errno/INDEX/profile premises explicitly modeled",
+    "No repeated full Fleet/application/browser/host campaigns"
+  ],
+  "newConsumptionCasesPassed": 42,
+  "openSpec": {
+    "failed": 0,
+    "passed": 324
+  },
+  "parentTypecheck": {
+    "exitCode": 0,
+    "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scope": "frozen five files before isolated embedded Python fixture amendment; no TS/type/source change afterwards"
+  },
+  "publisherCompatibility": {
+    "failed": 0,
+    "passed": 22,
+    "seconds": 4.41
+  },
+  "reportSha256": "1b07721ce3038d6dc41e67f2fe10df147877087ddf7772b38fdef89ce754ef80",
+  "review": "Specification and quality approved after one R5 proof correction; no remaining findings.",
+  "reviewCorrection": {
+    "assertions": 39,
+    "failed": 0,
+    "passed": 8,
+    "scope": "Five new guarded/omitted attempt vectors plus three bounded regressions; actual protected setter witness, zero creates, worker AST unchanged.",
+    "seconds": 2.91
+  },
+  "reviewSha256": "a240fc1c4e7a3725c8fa9a444bbcc40ff409064a239c8eeccf4135cd22d936b6",
+  "suite": {
+    "assertions": 838,
+    "failed": 1,
+    "failure": "isolated mixed-fault fixture acquired second inherited-flags fault",
+    "passed": 175,
+    "seconds": 84.4
+  }
+}

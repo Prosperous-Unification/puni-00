@@ -195,3 +195,13 @@ The [Grafana legacy datasource API](https://grafana.com/docs/grafana/latest/deve
 remains available in Grafana 13 despite deprecation of `/api` routes. These helpers
 intentionally use the existing instance's API family; a future API migration needs
 separate review and live validation.
+
+For every later restore cycle, select a fresh `grafana-operation-<operation>.json`
+basename under the fixed evidence root using the
+[reviewed runtime helper contract](runbook-dev-observability-runtime.md).
+Capture, apply and rollback use the same new receipt for that cycle; preserve both
+existing dev receipts and every prior removed receipt. Existing capture files cannot
+be overwritten or reset for another cycle. Initial source capture requires
+`sdlc-metrics` to be the sole default with type `prometheus` and URL
+`http://victoriametrics:8428`; inventory hashing alone does not validate an initial
+baseline. Host helper activation remains a separate reviewed operation.

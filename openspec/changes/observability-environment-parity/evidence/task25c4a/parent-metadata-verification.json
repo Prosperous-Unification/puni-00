@@ -1,0 +1,37 @@
+{
+  "receiptSHA256": "423fb63da563714c9a345bc2e94679978b4b37c2fe3216920d67cb1c9fd7be63",
+  "verifiedBodies": [
+    {
+      "path": "/tmp/puni-helper-pin-20261027/proxy-tag.json",
+      "sha256": "sha256:7be40abfeb6ac9a81d0d4157a7cbf3aacc68a64a1780ca2efb160f1aea915177",
+      "bytes": 2385
+    },
+    {
+      "path": "/tmp/puni-helper-pin-20261027/proxy-linux-amd64-manifest.json",
+      "sha256": "sha256:9181bb55f3c04c86510af3526dda86baa9abc389ef988a3c4bb4879b32d8c21c",
+      "bytes": 2753
+    },
+    {
+      "path": "/tmp/puni-helper-pin-20261027/proxy-config.json",
+      "sha256": "sha256:403bc5ae35461509e3e08ee334645f37df3fdc9b391ee924fe533fc6b911ced1",
+      "bytes": 13205
+    },
+    {
+      "path": "/tmp/puni-helper-pin-20261027/tools-tag.json",
+      "sha256": "sha256:c57abce697e66feeb826922718738fe186b47779312d49d4e51e6fb9b8a6f34d",
+      "bytes": 2385
+    },
+    {
+      "path": "/tmp/puni-helper-pin-20261027/tools-linux-amd64-manifest.json",
+      "sha256": "sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd",
+      "bytes": 1052
+    },
+    {
+      "path": "/tmp/puni-helper-pin-20261027/tools-config.json",
+      "sha256": "sha256:1931b29061730f9c55dca0b88407d914e8794535a11ac0cc492b79b6d2bd9710",
+      "bytes": 1888
+    }
+  ],
+  "candidateSourceRevision": "391b6c5350121eaf94efea8f895cdc3751d83740",
+  "authority": "candidate metadata only; not committed pins, expanded bytes, runtime or admission"
+}

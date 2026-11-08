@@ -1,0 +1,25 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-runtime.test.ts:
+164 |     0o600,
+165 |   );
+166 |   try {
+167 |     await descriptor.writeFile(bytes);
+168 |     // Proof: injected resource-file fsync failure stopped the existing runner before direct creation (task6d durability fault).
+169 |     if (name.startsWith('observation-')) throw new Error('Injected observation fsync failure');
+                                                         ^
+error: Injected observation fsync failure
+      at appendResource (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/creation-resources.ts:169:52)
+      at async <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.ts:254:13)
+      at async <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:486:11)
+      at async consumeLines (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:447:13)
+      at async <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:495:17)
+      at async captureCreator (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:489:33)
+      at async capture (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.ts:287:13)
+      at async <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.test.ts:287:15)
+(fail) Task37 callback retains an exact transient before closure [45.61ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+Ran 1 test across 1 file. [250.00ms]

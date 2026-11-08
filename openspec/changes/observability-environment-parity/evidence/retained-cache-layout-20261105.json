@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "scope": "owned-retained-cache-reversible-relocation",
+  "recordedAt": "2026-11-05T05:45:28.717697+00:00",
+  "source": ".superpowers/sdd/observability-environment-parity/ci-startup-aa1d/runtime",
+  "destination": ".puni/fleet-labs/observability-baseline/retained-ci-runtime-aa1d",
+  "manifestSha256": "3a521d6a9cc1e33b96acdc9e4ad58dfe5d6433fb6918b63ba9c1c218052261c8",
+  "manifestBytes": 324357,
+  "members": 788,
+  "reviewSha256": "f7a71e232d45b57d289c4518fa40a73a80c2c9e7509af0f7171b775361c98809",
+  "unavoidableDirectoryChanges": [
+    {
+      "path": ".",
+      "field": "ctimeNs",
+      "before": "1793842621660671345",
+      "after": "1793857528679107116"
+    }
+  ],
+  "byteModeInodePreservationVerified": true,
+  "permittedOwnedCommandCount": 203,
+  "oldRuntimeCommandReferences": 0,
+  "firstRefusalRetained": "retained-cache-layout/first-refusal.json",
+  "deleted": false,
+  "compressed": false,
+  "runtimeTrustGranted": false,
+  "repairAuthority": false,
+  "fullRehearsalAuthority": false,
+  "before": [
+    {
+      "root": ".puni/fleet-labs/observability-baseline",
+      "allocatedBytes": 9457754112,
+      "entries": 689
+    },
+    {
+      "root": ".superpowers/sdd/observability-environment-parity",
+      "allocatedBytes": 134537216,
+      "entries": 5368
+    }
+  ],
+  "rollback": "After original ownership/no-use/absence checks, rename the same subtree from destination back to source; remeasure all allocated roots.",
+  "after": [
+    {
+      "root": ".puni/fleet-labs/observability-baseline",
+      "allocatedBytes": 9488916480,
+      "entries": 1557
+    },
+    {
+      "root": ".superpowers/sdd/observability-environment-parity",
+      "allocatedBytes": 103706624,
+      "entries": 4502
+    }
+  ],
+  "outsidePlannedBytes": 139948032,
+  "outsideCapBytes": 167772160,
+  "stagingWithReserveAndMaxStepBytes": 9686048768,
+  "stagingCapBytes": 10737418240
+}

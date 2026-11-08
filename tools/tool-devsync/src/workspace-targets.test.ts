@@ -986,6 +986,8 @@ describe('every cached target declares what it reads', () => {
     // entrypoint.ts, the fixtures directory and plan-export.v8.json (2026-10-14).
     // Proof: omitting the maintenance boot imports failed this scan naming
     // tool-remote-scripts and observability/src/index.ts plus store-sqlite/src/source.ts.
+    // Proof: missing Fleet control inputs failed this production oracle naming both
+    // repair-native-control.py and staging-native-control.py (2026-11-05).
     expect(undeclared).toBeEmpty();
   });
 });

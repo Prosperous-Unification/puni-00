@@ -1,0 +1,476 @@
+{
+  "schema": "observability-canonical-tool-fixture-verification-v1",
+  "recorded_at": "2026-11-06T07:12:32.211050+00:00",
+  "baseline": "b4b574edf8373c4d26c4b9c1a06616d206d51027",
+  "source_pins": [
+    {
+      "path": "tools/tool-fleet/src/lab-staging-native-control.test.ts",
+      "bytes": 66489,
+      "sha256": "1b1c664a4321fa86e31f4874177865ee98963437e68b270a594485ea3486d3a7"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-staging-native-cold-fixture.py",
+      "bytes": 8025,
+      "sha256": "76db118afab6231e464a8d31df140399950053fa269cd7e01bd488e936e6abb0"
+    }
+  ],
+  "preserved_source_pins": [
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
+      "bytes": 68193,
+      "sha256": "92c5011dac4c803c2f1e241f069f454d94c27ebdb17f9f5b199b5f7e6dd7ab7c"
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/staging-native-control.py",
+      "bytes": 30699,
+      "sha256": "e30a28472334fe23c5d39ae7f694a289b24eb9836463f28ae5078034d0e735f9"
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/staging-native-prepare-draft.py",
+      "bytes": 33242,
+      "sha256": "c9c2040f795372cfa99de0707c2fc68df5148e5929b23727a6f4601faac94b34"
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/staging-native-prepare-bootstrap.py",
+      "bytes": 3248,
+      "sha256": "7c23633b8e693fb5406f8947c0999fb21ddf286bc6085e75b1cb84089f9d0f03"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair.py",
+      "bytes": 124065,
+      "sha256": "2e6257aac4bfbd6e48d69abd94da5e3f7003d84aed0b5a26f542dadb0fd6bf66"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-worker.py",
+      "bytes": 117435,
+      "sha256": "6c8f8d284bd5e1b1c63894e198e6dfbe72633601f9374a4d7bbd9a57a29a158f"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-preparation.py",
+      "bytes": 55284,
+      "sha256": "3e78d2ea8aecced76bd82ea07fb006ce99a1b2212fec15fb805a8e8f7b27e8e8"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-guest-preparation.py",
+      "bytes": 80680,
+      "sha256": "6d180f9c1d2cd116ef314215a75c88774789d29daa882f81fbbf06a2e9263f2c"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-seed-preparation.py",
+      "bytes": 53199,
+      "sha256": "a226b0fb582fb41636d04e83c5e7e1a54640811cd16cee465341835aa7c24c88"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-allocation.py",
+      "bytes": 15534,
+      "sha256": "be25ffe1740848c2dad861d87f42123a1a1664c8ffc0df6aa0a3062cf4d13ea8"
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/audit-status-inspection.py",
+      "bytes": 9442,
+      "sha256": "20ebfae763bdd9fcc2ffee03b64b72be5f00b17fb7e8b9a5a825ade73333ca16"
+    },
+    {
+      "path": "tools/tool-fleet/src/audit-status-inspection.test.ts",
+      "bytes": 28616,
+      "sha256": "b58b6e2e3dfbb3e73ce259c06393064419a8986913d9addba5a11cb676e784af"
+    },
+    {
+      "path": "tools/tool-fleet/project.json",
+      "bytes": 6250,
+      "sha256": "bdc8368bc3e3ac037ae25e3f8a89dc2df7f2a7b47d62117b3f4bd20460e64552"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "bytes": 54276,
+      "sha256": "4ba0c82c0499b4f49f3cc138950eb4718df23b31d170708cb5fa5794db54bff4"
+    }
+  ],
+  "verified_index_entries": 21,
+  "log_index": [
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/symlink-red.log",
+      "bytes": 1177,
+      "sha256": "7109f7b1db19fec8d8d80544133c69456e48795d5bc0be321916b2b91ebd93d3"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/symlink-omission.log",
+      "bytes": 898,
+      "sha256": "f29059ad459d5024de10aaebd2f586295671db608b3507362c1e706c00a60090"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/frozen-cohort.log",
+      "bytes": 5694,
+      "sha256": "2a09ce847873d944b99d764a0903124e959b002786f74c147a735fb3f483730e"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/python314-compatibility.log",
+      "bytes": 457,
+      "sha256": "fe8517e736e41532bd4ddbe6102b8c44900ec27ab827a826fbb736642f7ba8a2"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/lint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/format.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/ast.log",
+      "bytes": 60,
+      "sha256": "2e4e402babef5cb12a18f70553148e4f732eab7c0b812806d77dc58d8ab2d789"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/freeze-metrics.log",
+      "bytes": 588,
+      "sha256": "c0c2459c204958dc2520a260464e60b6cccaa7bd0082c47e3c30eec26a3051b7"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/diagnose.py",
+      "bytes": 2564,
+      "sha256": "0f4a0b3fe9d440f881759c1debd6cf2ca5c29ca91ed1d53dc7535f721515e9fc"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/propose-caps.py",
+      "bytes": 1243,
+      "sha256": "cebc6f1fc799a84416f1dbdcf26421627f678f2f44f2cb50852a18c8f9efbe54"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/propose-caps-refined.py",
+      "bytes": 1249,
+      "sha256": "48fb4ae20420d103d72c8d915365dd04e51c28965c9e2b5abcbdef7b10b2dc24"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/candidate-provider.py",
+      "bytes": 8035,
+      "sha256": "ffc6d92aa636c4c8be2094aa073e97e9acec3e7ffc9bdca3d8dd803e0d0f52d9"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/freeze-metrics.ts",
+      "bytes": 1733,
+      "sha256": "3c00154f6df7b26c0c0b0a4355c6349871d8e733d8dbc85b58606fa1dbb4aa4b"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/python314.ts",
+      "bytes": 480,
+      "sha256": "b7d47d7b442fa348f60dc14efb9f6100244c1e627d6c00912946db208c41e2af"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-size-eisdir-red.log",
+      "bytes": 1184,
+      "sha256": "ab60f0495350c2b82e0a11428977c05ac186abf86a041462074d777ff0daae6a"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-green.log",
+      "bytes": 1052,
+      "sha256": "8d5350fbefb1175a144c07254f97e258b514308f5f54910e2d3c9cebd612f35a"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-lint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-format.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-metrics.log",
+      "bytes": 588,
+      "sha256": "1ef8ff05a4978c1dadb0418fa9787efa85437ae9dfb011e7376fffaf7ae24a1a"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-negative-metrics.log",
+      "bytes": 96,
+      "sha256": "45682cb6afa7b37e03c2ce868432a505813530a3b61f7683bbea283c32a37aac"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-payload-metrics.ts",
+      "bytes": 1123,
+      "sha256": "708c2ea86cabd4ff714203bf7b7ec7df0209162b5e568d7268f5006c3b922cc3"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/ast.log",
+      "bytes": 60,
+      "sha256": "2e4e402babef5cb12a18f70553148e4f732eab7c0b812806d77dc58d8ab2d789",
+      "content": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]\nAST-valid\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/format.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+      "content": "Checking formatting...\nAll matched files use Prettier code style!\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/freeze-metrics.log",
+      "bytes": 588,
+      "sha256": "c0c2459c204958dc2520a260464e60b6cccaa7bd0082c47e3c30eec26a3051b7",
+      "content": "{\n  \"ordinary\": {\n    \"normal\": 57221,\n    \"faulted\": 57344,\n    \"cap\": 57344\n  },\n  \"cold\": {\n    \"normal\": 8025,\n    \"faulted\": 8148,\n    \"cap\": 8192\n  },\n  \"canonical\": {\n    \"normal\": 8879,\n    \"strictOmission\": 8867,\n    \"timeoutMs\": 10000\n  },\n  \"typescript\": 63936\n}\n5f41494ba37e93a777f77b127e96465e94cfdda8f783c69dca0d83ffaafb663e 63936 lab-staging-native-control.test.ts\n76db118afab6231e464a8d31df140399950053fa269cd7e01bd488e936e6abb0 8025 lab-staging-native-cold-fixture.py\n4ba0c82c0499b4f49f3cc138950eb4718df23b31d170708cb5fa5794db54bff4 54276 lab-raw-repair-recovery.test.ts\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/frozen-cohort.log",
+      "bytes": 5694,
+      "sha256": "2a09ce847873d944b99d764a0903124e959b002786f74c147a735fb3f483730e",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/lab-staging-native-control.test.ts:\n(pass) finite staging entry compiles before importing its native helpers [38.86ms]\n(pass) native staging source state-replaced uses bounded ordinary ownership [878.19ms]\n(pass) native staging source omit-state-replaced uses bounded ordinary ownership [877.82ms]\n(pass) native staging source dead-start-cleanup uses bounded ordinary ownership [268.05ms]\n(pass) native staging source cold-runtime uses bounded ordinary ownership [2042.33ms]\n(pass) native staging source runtime-provider uses bounded ordinary ownership [1064.47ms]\n(pass) native staging source foreign-runtime uses bounded ordinary ownership [282.42ms]\n(pass) native staging source global-lifetime uses bounded ordinary ownership [1242.46ms]\n(pass) native staging source global-holder uses bounded ordinary ownership [462.57ms]\n(pass) native staging source global-dependency uses bounded ordinary ownership [502.33ms]\n(pass) native staging source startup uses bounded ordinary ownership [281.19ms]\n(pass) native staging source metadata uses bounded ordinary ownership [91.45ms]\n(pass) native staging source packets uses bounded ordinary ownership [77.96ms]\n(pass) native staging source positive uses bounded ordinary ownership [1237.68ms]\n(pass) native staging source request-purpose uses bounded ordinary ownership [266.72ms]\n(pass) native staging source request-version uses bounded ordinary ownership [261.99ms]\n(pass) native staging source request-role uses bounded ordinary ownership [261.61ms]\n(pass) native staging source request-fixture uses bounded ordinary ownership [509.21ms]\n(pass) native staging source fixture-nonempty uses bounded ordinary ownership [505.10ms]\n(pass) native staging source identity uses bounded ordinary ownership [1007.69ms]\n(pass) native staging source caps uses bounded ordinary ownership [1010.29ms]\n(pass) native staging source forged-pid uses bounded ordinary ownership [1016.58ms]\n(pass) native staging source forged-start uses bounded ordinary ownership [1022.52ms]\n(pass) native staging source stale-ready uses bounded ordinary ownership [1020.96ms]\n(pass) native staging source pidfd-start uses bounded ordinary ownership [1020.35ms]\n(pass) native staging source case-outcome uses bounded ordinary ownership [1005.02ms]\n(pass) native staging source complete-phase uses bounded ordinary ownership [1085.14ms]\n(pass) native staging source counter uses bounded ordinary ownership [1085.29ms]\n(pass) native staging source early-unlock uses bounded ordinary ownership [1001.39ms]\n(pass) native staging source lost-handoff uses bounded ordinary ownership [803.80ms]\n(pass) native staging source cleanup uses bounded ordinary ownership [876.63ms]\n(pass) native staging source private-stderr uses bounded ordinary ownership [871.45ms]\n(pass) native staging source trailing-stdout uses bounded ordinary ownership [874.86ms]\n(pass) native staging source output-overflow uses bounded ordinary ownership [871.74ms]\n(pass) native staging source packet-oversize uses bounded ordinary ownership [1009.35ms]\n(pass) native staging source SIGINT uses bounded ordinary ownership [735.67ms]\n(pass) native staging source SIGTERM uses bounded ordinary ownership [726.99ms]\n(pass) native staging source foreign-signal uses bounded ordinary ownership [805.65ms]\n(pass) native staging source stale-controller uses bounded ordinary ownership [802.07ms]\n(pass) native staging source wrong-controller uses bounded ordinary ownership [807.56ms]\n(pass) native staging source signal-timeout uses bounded ordinary ownership [7574.38ms]\n(pass) native staging source persistence uses bounded ordinary ownership [1082.07ms]\n(pass) native staging source foreign-ack uses bounded ordinary ownership [869.35ms]\n(pass) native staging source dead-foreign-enoent uses bounded ordinary ownership [1176.60ms]\n(pass) native staging source omit-request-purpose uses bounded ordinary ownership [1235.86ms]\n(pass) native staging source omit-request-version uses bounded ordinary ownership [1243.54ms]\n(pass) native staging source omit-request-fixture uses bounded ordinary ownership [1239.66ms]\n(pass) native staging source omit-fixture-nonempty uses bounded ordinary ownership [1262.41ms]\n(pass) native staging source omit-stale-ready uses bounded ordinary ownership [1241.23ms]\n(pass) native staging source omit-case-outcome uses bounded ordinary ownership [1242.03ms]\n(pass) native staging source omit-complete-phase uses bounded ordinary ownership [1257.19ms]\n(pass) native staging source omit-stale-controller uses bounded ordinary ownership [1235.70ms]\n(pass) native staging source omit-wrong-controller uses bounded ordinary ownership [1261.80ms]\n(pass) native staging source omit-cleanup uses bounded ordinary ownership [1240.40ms]\n(pass) native staging source omit-foreign-ack uses bounded ordinary ownership [1250.66ms]\n(pass) native staging source omit-dead-foreign-enoent uses bounded ordinary ownership [1255.35ms]\n(pass) selected fixed-tool canonical alias all-roles preserves physical admission [101.91ms]\n(pass) selected fixed-tool canonical alias missing preserves physical admission [68.30ms]\n(pass) selected fixed-tool canonical alias dangling preserves physical admission [67.50ms]\n(pass) selected fixed-tool canonical alias nonregular preserves physical admission [105.17ms]\n(pass) selected fixed-tool canonical alias post-symlink preserves physical admission [108.61ms]\n(pass) selected fixed-tool canonical alias post-type preserves physical admission [108.43ms]\n(pass) selected fixed-tool canonical alias size preserves physical admission [113.80ms]\n\n 63 pass\n 0 fail\n 216 expect() calls\nRan 63 tests across 1 file. [56.99s]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/lint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content": ""
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/python314-compatibility.log",
+      "bytes": 457,
+      "sha256": "fe8517e736e41532bd4ddbe6102b8c44900ec27ab827a826fbb736642f7ba8a2",
+      "content": "bun test v1.4.4 (38afee6c8)\n\n../../../../../../tmp/puni-task120-symlink-evidence/python314.test.ts:\n(pass) native staging source cold-runtime uses bounded ordinary ownership [2125.02ms]\n(pass) native staging source runtime-provider uses bounded ordinary ownership [1176.68ms]\n(pass) selected fixed-tool canonical alias all-roles preserves physical admission [178.64ms]\n\n 3 pass\n 60 filtered out\n 0 fail\n 16 expect() calls\nRan 3 tests across 1 file. [3.49s]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-format.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+      "content": "Checking formatting...\nAll matched files use Prettier code style!\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-green.log",
+      "bytes": 1052,
+      "sha256": "8d5350fbefb1175a144c07254f97e258b514308f5f54910e2d3c9cebd612f35a",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/lab-staging-native-control.test.ts:\n(pass) selected fixed-tool canonical alias all-roles preserves physical admission [99.90ms]\n(pass) selected fixed-tool canonical alias missing preserves physical admission [70.28ms]\n(pass) selected fixed-tool canonical alias dangling preserves physical admission [71.17ms]\n(pass) selected fixed-tool canonical alias nonregular preserves physical admission [106.24ms]\n(pass) selected fixed-tool canonical alias post-symlink preserves physical admission [111.44ms]\n(pass) selected fixed-tool canonical alias post-type preserves physical admission [108.15ms]\n(pass) selected fixed-tool canonical alias size preserves physical admission [121.97ms]\nsize actual-directory dependency, boundary omitted=false, child exit=1\nsize actual-directory dependency, boundary omitted=true, child exit=0\n(pass) canonical size omission rejects an actual directory read before capture [106.47ms]\n\n 8 pass\n 56 filtered out\n 0 fail\n 52 expect() calls\nRan 8 tests across 1 file. [826.00ms]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-lint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content": ""
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-metrics.log",
+      "bytes": 588,
+      "sha256": "1ef8ff05a4978c1dadb0418fa9787efa85437ae9dfb011e7376fffaf7ae24a1a",
+      "content": "{\n  \"ordinary\": {\n    \"normal\": 57221,\n    \"faulted\": 57344,\n    \"cap\": 57344\n  },\n  \"cold\": {\n    \"normal\": 8025,\n    \"faulted\": 8148,\n    \"cap\": 8192\n  },\n  \"canonical\": {\n    \"normal\": 9019,\n    \"strictOmission\": 9007,\n    \"timeoutMs\": 10000\n  },\n  \"typescript\": 66489\n}\n1b1c664a4321fa86e31f4874177865ee98963437e68b270a594485ea3486d3a7 66489 lab-staging-native-control.test.ts\n76db118afab6231e464a8d31df140399950053fa269cd7e01bd488e936e6abb0 8025 lab-staging-native-cold-fixture.py\n4ba0c82c0499b4f49f3cc138950eb4718df23b31d170708cb5fa5794db54bff4 54276 lab-raw-repair-recovery.test.ts\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-fix-negative-metrics.log",
+      "bytes": 96,
+      "sha256": "45682cb6afa7b37e03c2ce868432a505813530a3b61f7683bbea283c32a37aac",
+      "content": "{\n  \"negativePayloadBytes\": 9469,\n  \"boundaryOmittedPayloadBytes\": 9337,\n  \"timeoutMs\": 10000\n}\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/review-size-eisdir-red.log",
+      "bytes": 1184,
+      "sha256": "ab60f0495350c2b82e0a11428977c05ac186abf86a041462074d777ff0daae6a",
+      "content": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/lab-staging-native-control.test.ts:\n1057 |   const program = canonicalFixture\n1058 |     .replace('provider=sys.argv[0]', 'provider=' + JSON.stringify(runtimeProvider))\n1059 |     .replace('    try:captured=control.verify_file(pin,capture=True)[1]', directoryReadFault + '    try:captured=control.verify_file(pin,capture=True)[1]');\n1060 |   const child = Bun.spawnSync(['/usr/bin/python3', '-I', '-S', '-B', '-c', program, source.replace('staging-native-control.py', 'repair-native-control.py'), 'size', 'pin-identity'], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', timeout: 10000 });\n1061 |   expect(child.stdout.toString()).toContain('EXERCISE injected actual directory read');\n1062 |   expect(child.exitCode).not.toBe(0);\n                                    ^\nerror: expect(received).not.toBe(expected)\n\nExpected: not 0\n\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/lab-staging-native-control.test.ts:1062:30)\n(fail) canonical size omission rejects an actual directory read before capture [60.23ms]\n\n 0 pass\n 63 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [88.00ms]\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/symlink-omission.log",
+      "bytes": 898,
+      "sha256": "f29059ad459d5024de10aaebd2f586295671db608b3507362c1e706c00a60090",
+      "content": "returncode 1\nEXERCISE real symlink: /tmp/task120-symlink-56oxr94o/true target /tmp/task120-symlink-56oxr94o/payload lstat (41471, 29230685, 66307, 1, 1000, 1000, 7, 1793947918, 1793947918, 1793947918) stat (33261, 29230684, 66307, 1, 1000, 1000, 26936, 1793947918, 1793947918, 1793947918)\n\nTraceback (most recent call last):\n  File \"<string>\", line 553, in <module>\n  File \"/tmp/staging-native-fixture-c547zibe/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 382, in verify_environment\n  File \"<string>\", line 58, in observed\n  File \"/tmp/staging-native-fixture-c547zibe/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 300, in verify_file\n  File \"<string>\", line 38, in <lambda>\n  File \"<string>\", line 84, in <lambda>\nOSError: [Errno 40] Too many levels of symbolic links: '/tmp/task120-symlink-56oxr94o/true'\n\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/symlink-red.log",
+      "bytes": 1177,
+      "sha256": "7109f7b1db19fec8d8d80544133c69456e48795d5bc0be321916b2b91ebd93d3",
+      "content": "returncode 1\nEXERCISE real symlink: /tmp/task120-symlink-3va3hdma/true target /tmp/task120-symlink-3va3hdma/payload lstat (41471, 29230685, 66307, 1, 1000, 1000, 7, 1793947908, 1793947908, 1793947908) stat (33261, 29230684, 66307, 1, 1000, 1000, 26936, 1793947908, 1793947908, 1793947908)\n\nTraceback (most recent call last):\n  File \"<string>\", line 551, in <module>\n  File \"/tmp/staging-native-fixture-hhb_3pcn/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 382, in verify_environment\n  File \"<string>\", line 58, in observed\n  File \"/tmp/staging-native-fixture-hhb_3pcn/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 297, in verify_file\n  File \"/tmp/staging-native-fixture-hhb_3pcn/openspec/changes/observability-environment-parity/evidence/repair-native-control.py\", line 100, in require\nstaging_shared_control.Refusal: pin-identity\npin /usr/bin/true want/got=((0, 493, 1, 26936), (0, 493, 1, 7))\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<string>\", line 552, in <module>\nAssertionError: ('version', 'pin-identity')\n\n"
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/typecheck-parent-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content": ""
+    },
+    {
+      "path": "/tmp/puni-task120-symlink-evidence/typecheck-parent.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content": ""
+    }
+  ],
+  "test_rosters": {
+    "frozen-cohort.log": [
+      "finite staging entry compiles before importing its native helpers",
+      "native staging source state-replaced uses bounded ordinary ownership",
+      "native staging source omit-state-replaced uses bounded ordinary ownership",
+      "native staging source dead-start-cleanup uses bounded ordinary ownership",
+      "native staging source cold-runtime uses bounded ordinary ownership",
+      "native staging source runtime-provider uses bounded ordinary ownership",
+      "native staging source foreign-runtime uses bounded ordinary ownership",
+      "native staging source global-lifetime uses bounded ordinary ownership",
+      "native staging source global-holder uses bounded ordinary ownership",
+      "native staging source global-dependency uses bounded ordinary ownership",
+      "native staging source startup uses bounded ordinary ownership",
+      "native staging source metadata uses bounded ordinary ownership",
+      "native staging source packets uses bounded ordinary ownership",
+      "native staging source positive uses bounded ordinary ownership",
+      "native staging source request-purpose uses bounded ordinary ownership",
+      "native staging source request-version uses bounded ordinary ownership",
+      "native staging source request-role uses bounded ordinary ownership",
+      "native staging source request-fixture uses bounded ordinary ownership",
+      "native staging source fixture-nonempty uses bounded ordinary ownership",
+      "native staging source identity uses bounded ordinary ownership",
+      "native staging source caps uses bounded ordinary ownership",
+      "native staging source forged-pid uses bounded ordinary ownership",
+      "native staging source forged-start uses bounded ordinary ownership",
+      "native staging source stale-ready uses bounded ordinary ownership",
+      "native staging source pidfd-start uses bounded ordinary ownership",
+      "native staging source case-outcome uses bounded ordinary ownership",
+      "native staging source complete-phase uses bounded ordinary ownership",
+      "native staging source counter uses bounded ordinary ownership",
+      "native staging source early-unlock uses bounded ordinary ownership",
+      "native staging source lost-handoff uses bounded ordinary ownership",
+      "native staging source cleanup uses bounded ordinary ownership",
+      "native staging source private-stderr uses bounded ordinary ownership",
+      "native staging source trailing-stdout uses bounded ordinary ownership",
+      "native staging source output-overflow uses bounded ordinary ownership",
+      "native staging source packet-oversize uses bounded ordinary ownership",
+      "native staging source SIGINT uses bounded ordinary ownership",
+      "native staging source SIGTERM uses bounded ordinary ownership",
+      "native staging source foreign-signal uses bounded ordinary ownership",
+      "native staging source stale-controller uses bounded ordinary ownership",
+      "native staging source wrong-controller uses bounded ordinary ownership",
+      "native staging source signal-timeout uses bounded ordinary ownership",
+      "native staging source persistence uses bounded ordinary ownership",
+      "native staging source foreign-ack uses bounded ordinary ownership",
+      "native staging source dead-foreign-enoent uses bounded ordinary ownership",
+      "native staging source omit-request-purpose uses bounded ordinary ownership",
+      "native staging source omit-request-version uses bounded ordinary ownership",
+      "native staging source omit-request-fixture uses bounded ordinary ownership",
+      "native staging source omit-fixture-nonempty uses bounded ordinary ownership",
+      "native staging source omit-stale-ready uses bounded ordinary ownership",
+      "native staging source omit-case-outcome uses bounded ordinary ownership",
+      "native staging source omit-complete-phase uses bounded ordinary ownership",
+      "native staging source omit-stale-controller uses bounded ordinary ownership",
+      "native staging source omit-wrong-controller uses bounded ordinary ownership",
+      "native staging source omit-cleanup uses bounded ordinary ownership",
+      "native staging source omit-foreign-ack uses bounded ordinary ownership",
+      "native staging source omit-dead-foreign-enoent uses bounded ordinary ownership",
+      "selected fixed-tool canonical alias all-roles preserves physical admission",
+      "selected fixed-tool canonical alias missing preserves physical admission",
+      "selected fixed-tool canonical alias dangling preserves physical admission",
+      "selected fixed-tool canonical alias nonregular preserves physical admission",
+      "selected fixed-tool canonical alias post-symlink preserves physical admission",
+      "selected fixed-tool canonical alias post-type preserves physical admission",
+      "selected fixed-tool canonical alias size preserves physical admission"
+    ],
+    "python314-compatibility.log": [
+      "native staging source cold-runtime uses bounded ordinary ownership",
+      "native staging source runtime-provider uses bounded ordinary ownership",
+      "selected fixed-tool canonical alias all-roles preserves physical admission"
+    ],
+    "review-fix-green.log": [
+      "selected fixed-tool canonical alias all-roles preserves physical admission",
+      "selected fixed-tool canonical alias missing preserves physical admission",
+      "selected fixed-tool canonical alias dangling preserves physical admission",
+      "selected fixed-tool canonical alias nonregular preserves physical admission",
+      "selected fixed-tool canonical alias post-symlink preserves physical admission",
+      "selected fixed-tool canonical alias post-type preserves physical admission",
+      "selected fixed-tool canonical alias size preserves physical admission",
+      "canonical size omission rejects an actual directory read before capture"
+    ]
+  },
+  "diagnostic_harnesses": {
+    "diagnose.py": "import pathlib,subprocess,sys\nroot=pathlib.Path('/home/df/.codex/worktrees/aa39/puni-00')\ns=(root/'tools/tool-fleet/src/lab-staging-native-control.test.ts').read_text();cold=(root/'tools/tool-fleet/src/lab-staging-native-cold-fixture.py').read_text()\nprovider=cold.split('\\n# Worker entry follows the runtime provider.\\n')[0]\nfixture=s.split('const fixture = String.raw`')[1].split('`;')[0].replace('${runtimeProvider}',provider)\ninjection='''\nphysical_fixture=tempfile.TemporaryDirectory(prefix='task120-symlink-')\nphysical_root=Path(physical_fixture.name);physical_target=physical_root/'payload';physical_link=physical_root/'true'\nphysical_target.write_bytes(Path('/usr/bin/true').read_bytes());physical_target.chmod(0o755);physical_link.symlink_to('payload')\nprint('EXERCISE real symlink:',str(physical_link),'target',str(physical_target),'lstat',tuple(physical_link.lstat()),'stat',tuple(physical_link.stat()),flush=True)\ndef selected_tool(path):return physical_link if str(path)=='/usr/bin/true' else path\nphysical_lstat,physical_stat,physical_open,physical_io_open,physical_resolve=installed_lstat,installed_stat,installed_open,installed_io_open,installed_resolve\ninstalled_lstat=lambda path,*args,**kwargs:physical_lstat(selected_tool(path),*args,**kwargs)\ninstalled_stat=lambda path,*args,**kwargs:physical_stat(selected_tool(path),*args,**kwargs)\ninstalled_open=lambda path,*args,**kwargs:physical_open(selected_tool(path),*args,**kwargs)\ninstalled_io_open=lambda path,*args,**kwargs:physical_io_open(selected_tool(path),*args,**kwargs)\ninstalled_resolve=lambda path,*args,**kwargs:physical_resolve(Path(selected_tool(path)),*args,**kwargs)\n'''\nfixture=fixture.replace('source_path, mode = Path(sys.argv[1]), sys.argv[2]',injection+'source_path, mode = Path(sys.argv[1]), sys.argv[2]')\nif len(sys.argv)>1 and sys.argv[1]=='omission':\n    injection='''    diagnostic_require=control.require\n    control.require=lambda predicate,category:diagnostic_require(predicate,category) if category!='pin-identity' else None\n'''\n    fixture=fixture.replace(\"    with control.select_purpose('staging-channel'):\\n        # Prime\",injection+\"    with control.select_purpose('staging-channel'):\\n        # Prime\")\ncompleted=subprocess.run(['/usr/bin/python3','-I','-S','-B','-c',fixture,str(root/'openspec/changes/observability-environment-parity/evidence/staging-native-control.py'),'runtime-provider',cold],capture_output=True,text=True,timeout=20)\nprint('returncode',completed.returncode);print(completed.stdout);print(completed.stderr);sys.exit(completed.returncode)\n",
+    "freeze-metrics.ts": "import { readFileSync } from 'node:fs';\nimport { createHash } from 'node:crypto';\nconst root='/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src';\nconst harness=readFileSync(root+'/lab-staging-native-control.test.ts','utf8');\nconst cold=readFileSync(root+'/lab-staging-native-cold-fixture.py','utf8');\nconst boundary='\\n# Worker entry follows the runtime provider.\\n';\nconst provider=cold.slice(0,cold.indexOf(boundary));\nconst fixture=harness.split('const fixture = String.raw`')[1].split('`;')[0].replace('${runtimeProvider}',provider);\nconst fault=\"\\n    if str(path).startswith('/usr/'):observed=change_stat(observed,st_uid=1234,st_nlink=3,st_mode=observed.st_mode|0o022)\\n\";\nconst canonical=harness.split('const canonicalFixture = String.raw`')[1].split('`;')[0];\nconst canonicalProgram=canonical.replace('provider=sys.argv[0]','provider='+JSON.stringify(provider));\nconst omittedProgram=canonical.replace('provider=sys.argv[0]','provider='+JSON.stringify(provider.replace('os.path.realpath(path,strict=True)','os.path.realpath(path)')));\nconsole.log(JSON.stringify({ordinary:{normal:Buffer.byteLength(fixture),faulted:Buffer.byteLength(fixture)+Buffer.byteLength(fault),cap:57344},cold:{normal:Buffer.byteLength(cold),faulted:Buffer.byteLength(cold)+Buffer.byteLength(fault),cap:8192},canonical:{normal:Buffer.byteLength(canonicalProgram),strictOmission:Buffer.byteLength(omittedProgram),timeoutMs:10000},typescript:Buffer.byteLength(harness)},null,2));\nfor(const name of ['lab-staging-native-control.test.ts','lab-staging-native-cold-fixture.py','lab-raw-repair-recovery.test.ts']) {const bytes=readFileSync(root+'/'+name);console.log(createHash('sha256').update(bytes).digest('hex')+' '+bytes.byteLength+' '+name);}\n",
+    "python314.ts": "import { readFileSync } from 'node:fs';\nconst path='/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/lab-staging-native-control.test.ts';\nconst source=readFileSync(path,'utf8').replaceAll('import.meta.url',JSON.stringify('file://'+path)).replaceAll('import.meta.dir',JSON.stringify(path.slice(0,path.lastIndexOf('/')))).replaceAll(\"'/usr/bin/python3'\",\"'/home/df/.local/bin/python3.14'\");\nawait Bun.write('/tmp/puni-task120-symlink-evidence/python314.test.ts',source);\n",
+    "review-fix-payload-metrics.ts": "import { readFileSync } from 'node:fs';\nconst root='/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src';\nconst harness=readFileSync(root+'/lab-staging-native-control.test.ts','utf8');\nconst cold=readFileSync(root+'/lab-staging-native-cold-fixture.py','utf8');\nconst provider=cold.split('\\n# Worker entry follows the runtime provider.\\n')[0];\nconst canonical=harness.split('const canonicalFixture = String.raw`')[1].split('`;')[0].replace('provider=sys.argv[0]','provider='+JSON.stringify(provider));\nconst dependency=harness.split('const directoryReadFault = String.raw`')[1].split('`;')[0];\nconst negative=canonical.replace('    try:captured=control.verify_file(pin,capture=True)[1]',dependency+'    try:captured=control.verify_file(pin,capture=True)[1]');\nconst boundary=\"        if (fault,failure.errno) not in (('post-symlink',errno.ELOOP),('nonregular',errno.EISDIR),('post-type',errno.EISDIR)):raise\\n\";\nconst omitted=negative.replace(boundary,'');\nconsole.log(JSON.stringify({negativePayloadBytes:Buffer.byteLength(negative),boundaryOmittedPayloadBytes:Buffer.byteLength(omitted),timeoutMs:10000},null,2));\n"
+  },
+  "hosted_observation": {
+    "run": 42173274072,
+    "pin": "/usr/bin/true",
+    "expectedBytes": 35288,
+    "observedNamedBytes": 7,
+    "physicalHostedTypeAndTarget": "not captured; owned real symlink reproduces discrepancy only"
+  },
+  "cohorts": {
+    "initialFrozen": {
+      "pass": 63,
+      "fail": 0,
+      "assertions": 216,
+      "seconds": 56.99,
+      "meaning": "56existing staging plus7canonical cases, before scoped proof-only correction"
+    },
+    "physicalPython314": {
+      "pass": 3,
+      "fail": 0,
+      "assertions": 16,
+      "seconds": 3.49,
+      "meaning": "runtime-provider/cold-runtime/all-roles; unchanged positive/provider branches"
+    },
+    "finalAffectedCanonical": {
+      "pass": 8,
+      "fail": 0,
+      "filtered": 56,
+      "assertions": 52,
+      "seconds": 0.826,
+      "componentInvocations": 15
+    },
+    "finalParentFleetTypecheck": {
+      "command": "PATH=/home/df/.bun/bin:$PATH bunx tsc --build --force tools/tool-fleet/tsconfig.json",
+      "exitCode": 0,
+      "log": {
+        "path": "/tmp/puni-task120-symlink-evidence/typecheck-parent-final.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "actualScriptBytes": {
+    "ordinary": {
+      "normal": 57221,
+      "faulted": 57344,
+      "cap": 57344
+    },
+    "cold": {
+      "normal": 8025,
+      "faulted": 8148,
+      "cap": 8192
+    },
+    "isolatedCanonical": {
+      "normal": 9019,
+      "strictOmission": 9007,
+      "timeoutMs": 10000
+    },
+    "isolatedDirectoryFault": {
+      "guardPresent": 9469,
+      "guardOmitted": 9337,
+      "timeoutMs": 10000
+    },
+    "typescriptArtifact": 66489
+  },
+  "review": {
+    "initial": "REQUEST CHANGES: size omission could accept EISDIR without changed-byte capture",
+    "fixRound": 1,
+    "finding": "P2 addressed by exact fault/errno guard plus actual directory-read negative and owning omission",
+    "finalSpecification": "PASS",
+    "finalQuality": "PASS",
+    "newFindings": [],
+    "initialReport": "ci-canonical-tools-review-20261106.md",
+    "finalReport": "ci-canonical-tools-re-review-20261106.md"
+  },
+  "limits": [
+    "Exact hosted file type/canonical target is unrecorded; no GNU or runner-specific target name is assumed.",
+    "Only fixed conditional tool-provider mappings and isolated proof tests changed; actual native admission/NOFOLLOW/type/size/hash predicates remain unchanged.",
+    "ELOOP/EISDIR/missing-file owning omissions cross real guarded open/read boundaries and show remaining defense in depth; only wrong-size omission returns changed bytes.",
+    "Preserved63-case cohort plus8-case scoped proof amendment; no single full final-source cohort is claimed.",
+    "No unchanged56/recovery/audit/fullFleet/app/browser/native campaign repeated.",
+    "No fixed tool binary execution by new canonical tests; no admin/service/VM/retained operation or consumed request replay.",
+    "Whole-input qualification remainsfalse; runtime4/11/Task97OPEN, oldG/K/floors/history unchanged.",
+    "Fresh hosted acceptance of the next published commit remains required."
+  ],
+  "reviewedDraftReconstruction": {
+    "baseline": "b4b574edf8373c4d26c4b9c1a06616d206d51027",
+    "patch": "diff --git a/tools/tool-fleet/src/lab-staging-native-cold-fixture.py b/tools/tool-fleet/src/lab-staging-native-cold-fixture.py\nindex f691bc62c..6af242c86 100644\n--- a/tools/tool-fleet/src/lab-staging-native-cold-fixture.py\n+++ b/tools/tool-fleet/src/lab-staging-native-cold-fixture.py\n@@ -1,18 +1,20 @@\n \n import io, os, sys, types\n from pathlib import Path\n os.uname=lambda:os.uname_result(('Linux','','7.0.11-76070011-generic','fixture','x86_64'))\n # Proof: missing3.12 RED; runtime-provider preserves native guards over current interpreter bytes.\n physical_stdlib=str(Path(os.__file__).parent)\n physical_executable=str(Path(sys.executable).resolve())\n runtime_aliases=[('/usr/bin/python3.12',physical_executable),('/usr/lib/python3.12/',physical_stdlib+'/')]\n+tools=['/usr/bin/'+name for name in ('python3.12','systemd-run','systemctl','git','true')]+['/usr/lib/x86_64-linux-gnu/'+name for name in ('ld-linux-x86-64.so.2','libc.so.6')]\n+runtime_aliases+=[(path,os.path.realpath(path,strict=True)) for path in tools[1:]]\n # Proof: packaged hook RED rejects /etc/python3.14; exact alias passes while foreign-runtime still refuses.\n configuration='/etc/'+Path(physical_stdlib).name+'/sitecustomize.py'\n runtime_aliases.append(('/etc/python3.12/sitecustomize.py',configuration))\n with open('/proc/self/maps',encoding='ascii') as stream:\n     for row in stream:\n         fields=row.split(maxsplit=5)\n         if len(fields)==6:\n             physical=fields[5].strip()\n             if physical.startswith(sys.base_prefix+'/lib/libpython'):\n                 alias=('/usr/lib/x86_64-linux-gnu/'+Path(physical).name,physical)\n@@ -51,21 +53,21 @@ def observed_runtime(control):\n             rejected=sorted(path for path in paths if not control.is_runtime_path(path) or path.endswith(' (deleted)'))\n             failure.add_note('fixture runtime count='+str(len(paths))+' rejected: '+repr([path[:256] for path in rejected[:16]]))\n         raise\n \n def observe_files(control):\n     verify=control.verify_file\n     def observed(pin,**keywords):\n         try:return verify(pin,**keywords)\n         except control.Refusal as failure:\n             before=os.lstat(pin['path'])\n-            failure.add_note('pin '+pin['path'][:256]+' want/got='+repr(((pin['uid'],pin['mode'],1,pin['bytes']),(before.st_uid,before.st_mode&0o7777,before.st_nlink,before.st_size))))\n+            failure.add_note('pin '+pin['path'][:256]+' w/g='+repr(((pin['uid'],pin['mode'],1,pin['bytes']),(before.st_uid,before.st_mode&0o7777,before.st_nlink,before.st_size))))\n             raise\n     control.verify_file=observed\n \n # Worker entry follows the runtime provider.\n import hashlib, importlib.util, json, os, signal, stat, sys, types\n from pathlib import Path\n root, request_path, request_sha, nonce, phase, omitted, mapped, bootstrap, *worker_args=sys.argv[1:]\n root=Path(root);request=json.loads(Path(request_path).read_bytes());initial=[]\n platform_path='/usr/lib/python3.12/platform.py'\n sys.version_info=(3,12,0)\ndiff --git a/tools/tool-fleet/src/lab-staging-native-control.test.ts b/tools/tool-fleet/src/lab-staging-native-control.test.ts\nindex e52de950a..a8777e6c4 100644\n--- a/tools/tool-fleet/src/lab-staging-native-control.test.ts\n+++ b/tools/tool-fleet/src/lab-staging-native-control.test.ts\n@@ -32,23 +32,22 @@ const providerEnd = coldWorker.indexOf(providerBoundary);\n if (\n   Buffer.byteLength(coldWorker) > 8192 ||\n   providerEnd <= 0 ||\n   coldWorker.includes(providerBoundary, providerEnd + 1)\n ) {\n   throw new Error('bounded cold fixture must contain exactly one runtime-provider boundary');\n }\n const runtimeProvider = coldWorker.slice(0, providerEnd);\n \n const fixture = String.raw`${runtimeProvider}\n-import array, builtins, copy, ctypes, encodings.ascii, hashlib, importlib.util, io, json, os\n-from pathlib import Path\n-import fcntl, resource, select, shutil, signal, socket, stat, subprocess, sys, tempfile, time, types\n+import array, builtins, copy, ctypes, encodings.ascii, hashlib, importlib.util, json\n+import fcntl, resource, select, shutil, signal, socket, stat, subprocess, tempfile, time\n def fault_metadata(path,fault):\n     lstat,fstat=os.lstat,os.fstat\n     def changed(selected,observed):\n         if map_runtime_path(selected)!=path:return observed\n         return change_stat(observed,**({'st_nlink':2} if fault=='links' else {'st_mode':observed.st_mode|0o020}))\n     os.lstat=lambda selected,*args,**kwargs:changed(selected,lstat(selected,*args,**kwargs))\n     os.fstat=lambda descriptor:changed(os.readlink('/proc/self/fd/'+str(descriptor)),fstat(descriptor))\n source_path, mode = Path(sys.argv[1]), sys.argv[2]\n omit=mode.startswith('omit-')\n if omit:mode=mode.removeprefix('omit-')\n@@ -77,22 +76,20 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:\n     state.mkdir(parents=True, mode=0o700)\n     state.chmod(0o700)\n     request_path = packet / ('request-' + nonce + '.json')\n     fixtures = {}\n     for label in staging.LABELS:\n         path = packet / ('staging-' + nonce + '-' + label)\n         path.mkdir(mode=0o700)\n         observed = path.stat()\n         fixtures[label] = dict(path=str(path), device=str(observed.st_dev),\n             inode=str(observed.st_ino), owner=os.geteuid(), mode='0700')\n-    tools = ['/usr/bin/python3.12','/usr/bin/systemd-run','/usr/bin/systemctl','/usr/bin/git','/usr/bin/true',\n-        '/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2','/usr/lib/x86_64-linux-gnu/libc.so.6']\n     def pin(path):\n         path = Path(path)\n         payload = path.read_bytes()\n         observed = path.stat()\n         return dict(path=str(path), sha256=hashlib.sha256(payload).hexdigest(), bytes=len(payload),\n             uid=os.geteuid() if str(path).startswith(str(root)+'/') else 0, mode=stat.S_IMODE(observed.st_mode))\n     native = os.uname()\n     request = dict(schemaVersion=2, purpose='staging-channel', root=str(root), state=str(state),\n         outside=str(packet.parent), packet=str(packet), nonce=nonce, commit='b'*40,\n         fixtures=fixtures, pins=[pin(root / relatives[0])] + [pin(root / relative) for relative in relatives[2:]] + [pin(root / relatives[1])] + [pin(path) for path in tools],\n@@ -497,21 +494,21 @@ with tempfile.TemporaryDirectory(prefix='staging-native-fixture-') as directory:\n                 else:sys.modules['sitecustomize']=previous\n             print('watched foreign startup-hook omission reached actual runtime closure')\n             sys.exit(0)\n         if mode=='runtime-provider':\n             native_pin=request['pins'][8]\n             assert native_pin['path']=='/usr/bin/python3.12' and native_pin['uid']==0\n             assert native_pin['sha256']==hashlib.sha256(Path(physical_executable).read_bytes()).hexdigest()\n             modeled_version=control.sys.version_info;modeled_samefile=control.os.path.samefile;modeled_uname=os.uname\n             original_require=control.require;original_pin=copy.deepcopy(native_pin)\n             before_lstat,before_fstat=os.lstat,os.fstat\n-            # Proof: owner/link/mode/kernel omissions reach source capture.\n+            # Proof: owner/link/mode/kernel omissions hit source capture.\n             for fault,category in (('version','runtime-binding'),('executable','runtime-binding'),('hash','pin-hash'),('owner','pin-identity'),('links','pin-identity'),('mode','pin-identity'),('kernel','kernel-binding')):\n                 try:\n                     if fault=='version':control.sys.version_info=(3,14,0)\n                     elif fault=='executable':control.os.path.samefile=lambda *_:False\n                     elif fault=='hash':native_pin['sha256']='f'*64\n                     elif fault in ('links','mode'):fault_metadata(native_pin['path'],fault)\n                     elif fault=='kernel':os.uname=lambda:os.uname_result(('Linux','','foreign','fixture','x86_64'))\n                     else:native_pin['uid']=1\n                     try:control.verify_environment(request,time.monotonic()+3)\n                     except control.Refusal as failure:assert str(failure)==category,(fault,str(failure))\n@@ -918,10 +915,126 @@ for (const mode of [\n         'foreign-runtime',\n         'dead-start-cleanup',\n       ].includes(mode)\n     ) {\n       expect(report).toContain('watched');\n     } else {\n       expect(report).toContain(`bounded actual-path negative: ${mode}`);\n     }\n   }, 25000);\n }\n+\n+const canonicalFixture = String.raw`\n+import errno, hashlib, importlib.util, os, shutil, stat, sys, tempfile\n+from pathlib import Path\n+source,fault,omission=sys.argv[1:]\n+# This exact existing role family is asserted against the imported production tuple below.\n+roles=['/usr/bin/'+name for name in ('python3.12','systemd-run','systemctl','git','true')]+['/usr/lib/x86_64-linux-gnu/'+name for name in ('ld-linux-x86-64.so.2','libc.so.6')]\n+with tempfile.TemporaryDirectory(prefix='task120-canonical-') as directory:\n+    root=Path(directory);selected={};payloads={};targets={}\n+    for index,role in enumerate(roles[1:]):\n+        target=root/('payload'+str(index));target.write_bytes(Path(role).read_bytes());target.chmod(0o755)\n+        link=root/('role'+str(index));link.symlink_to(target.name)\n+        selected[role]=str(link);payloads[role]=target.read_bytes();targets[role]=target\n+    role='/usr/bin/true';target=targets[role];link=Path(selected[role])\n+    if fault=='missing':link.unlink()\n+    if fault=='dangling':target.unlink()\n+    if fault=='nonregular':target.unlink();target.mkdir(mode=0o755)\n+    realpath=os.path.realpath\n+    os.path.realpath=lambda path,*args,**keywords:realpath(selected.get(str(path),path),*args,**keywords)\n+    provider=sys.argv[0]\n+    try:exec(compile(provider,'<selected-system-provider>','exec'))\n+    except FileNotFoundError:\n+        assert fault in ('missing','dangling') and omission=='none'\n+        print('protected strict canonical resolution');sys.exit(0)\n+    if fault in ('missing','dangling'):\n+        assert omission=='strict'\n+        try:os.open(role,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)\n+        except FileNotFoundError:print('EXERCISE strict omission reached actual missing open');sys.exit(0)\n+        raise AssertionError('missing canonical tool opened')\n+    specification=importlib.util.spec_from_file_location('canonical_control',source)\n+    control=importlib.util.module_from_spec(specification);specification.loader.exec_module(control)\n+    assert tuple(tools)==control.TOOLS==tuple(roles)\n+    def pinned(selected):\n+        payload=payloads[selected] if selected in payloads else Path(physical_executable).read_bytes()\n+        return dict(path=selected,sha256=hashlib.sha256(payload).hexdigest(),bytes=len(payload),uid=0,mode=0o755)\n+    if fault=='all-roles':\n+        for selected in roles:\n+            pin=pinned(selected);captured=control.verify_file(pin,capture=True)[1]\n+            assert captured==(payloads[selected] if selected in payloads else Path(physical_executable).read_bytes())\n+            if selected in targets:\n+                observed=os.lstat(selected);physical=installed_lstat(targets[selected])\n+                assert (observed.st_dev,observed.st_ino,observed.st_size,observed.st_mtime_ns,observed.st_ctime_ns)==(physical.st_dev,physical.st_ino,physical.st_size,physical.st_mtime_ns,physical.st_ctime_ns)\n+        replacement=root/'foreign';replacement.write_bytes(b'foreign canonical selection')\n+        link.unlink();link.symlink_to(replacement.name)\n+        assert control.verify_file(pinned(role),capture=True)[1]==payloads[role]\n+        owned=root/'owned';owned.write_bytes(b'owned')\n+        assert os.lstat(owned).st_uid==installed_lstat(owned).st_uid\n+        print('EXERCISE all7 exact canonical roles captured; alias retarget preserves selected inode; owned path stays real');sys.exit(0)\n+    pin=pinned(role)\n+    if fault=='post-symlink':\n+        replacement=root/'replacement';replacement.write_bytes(payloads[role]);replacement.chmod(0o755)\n+        target.unlink();target.symlink_to(replacement.name)\n+    if fault=='post-type':target.unlink();target.mkdir(mode=0o755)\n+    if fault=='size':\n+        payload=payloads[role]+b'x';target.write_bytes(payload)\n+        pin['sha256']=hashlib.sha256(payload).hexdigest()\n+    if omission!='none':\n+        require=control.require\n+        control.require=lambda predicate,category:require(predicate,category) if category!='pin-identity' else None\n+    try:captured=control.verify_file(pin,capture=True)[1]\n+    except control.Refusal as failure:\n+        assert omission=='none' and str(failure)=='pin-identity'\n+        print('protected canonical '+fault);sys.exit(0)\n+    except OSError as failure:\n+        assert omission=='pin-identity'\n+        assert failure.errno==(errno.ELOOP if fault=='post-symlink' else errno.EISDIR)\n+        print('EXERCISE identity omission reached actual '+('NOFOLLOW ELOOP' if fault=='post-symlink' else 'directory read EISDIR'));sys.exit(0)\n+    assert fault=='size' and omission=='pin-identity' and captured==payloads[role]+b'x'\n+    print('EXERCISE identity omission captured actual wrong-size bytes')\n+`;\n+\n+for (const fault of [\n+  'all-roles',\n+  'missing',\n+  'dangling',\n+  'nonregular',\n+  'post-symlink',\n+  'post-type',\n+  'size',\n+]) {\n+  test(`selected fixed-tool canonical alias ${fault} preserves physical admission`, () => {\n+    // Proof: real canonical type/size faults refuse; omissions reach actual open/read/capture.\n+    for (const omission of fault === 'all-roles'\n+      ? ['none']\n+      : ['none', fault === 'missing' || fault === 'dangling' ? 'strict' : 'pin-identity']) {\n+      const provider =\n+        omission === 'strict'\n+          ? runtimeProvider.replace('os.path.realpath(path,strict=True)', 'os.path.realpath(path)')\n+          : runtimeProvider;\n+      if (omission === 'strict') expect(provider).not.toBe(runtimeProvider);\n+      const program = canonicalFixture.replace(\n+        'provider=sys.argv[0]',\n+        'provider=' + JSON.stringify(provider),\n+      );\n+      const child = Bun.spawnSync(\n+        [\n+          '/usr/bin/python3',\n+          '-I',\n+          '-S',\n+          '-B',\n+          '-c',\n+          program,\n+          source.replace('staging-native-control.py', 'repair-native-control.py'),\n+          fault,\n+          omission,\n+        ],\n+        { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', timeout: 10000 },\n+      );\n+      expect(child.stderr.toString()).toBe('');\n+      expect(child.exitCode).toBe(0);\n+      expect(child.stdout.toString()).toContain(\n+        fault === 'all-roles' || omission !== 'none' ? 'EXERCISE' : 'protected',\n+      );\n+    }\n+  });\n+}\n",
+    "expectedSourceHashes": {
+      "tools/tool-fleet/src/lab-staging-native-control.test.ts": "5f41494ba37e93a777f77b127e96465e94cfdda8f783c69dca0d83ffaafb663e",
+      "tools/tool-fleet/src/lab-staging-native-cold-fixture.py": "76db118afab6231e464a8d31df140399950053fa269cd7e01bd488e936e6abb0"
+    },
+    "proofCorrectionPatch": "--- a/tools/tool-fleet/src/lab-staging-native-control.test.ts\n+++ b/tools/tool-fleet/src/lab-staging-native-control.test.ts\n@@ -980,21 +980,22 @@\n         pin['sha256']=hashlib.sha256(payload).hexdigest()\n     if omission!='none':\n         require=control.require\n         control.require=lambda predicate,category:require(predicate,category) if category!='pin-identity' else None\n     try:captured=control.verify_file(pin,capture=True)[1]\n     except control.Refusal as failure:\n         assert omission=='none' and str(failure)=='pin-identity'\n         print('protected canonical '+fault);sys.exit(0)\n     except OSError as failure:\n         assert omission=='pin-identity'\n-        assert failure.errno==(errno.ELOOP if fault=='post-symlink' else errno.EISDIR)\n+        # Proof: actual EISDIR in size omission fails; omitting this guard falsely accepts it.\n+        if (fault,failure.errno) not in (('post-symlink',errno.ELOOP),('nonregular',errno.EISDIR),('post-type',errno.EISDIR)):raise\n         print('EXERCISE identity omission reached actual '+('NOFOLLOW ELOOP' if fault=='post-symlink' else 'directory read EISDIR'));sys.exit(0)\n     assert fault=='size' and omission=='pin-identity' and captured==payloads[role]+b'x'\n     print('EXERCISE identity omission captured actual wrong-size bytes')\n `;\n \n for (const fault of [\n   'all-roles',\n   'missing',\n   'dangling',\n   'nonregular',\n@@ -1031,10 +1032,73 @@\n         { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', timeout: 10000 },\n       );\n       expect(child.stderr.toString()).toBe('');\n       expect(child.exitCode).toBe(0);\n       expect(child.stdout.toString()).toContain(\n         fault === 'all-roles' || omission !== 'none' ? 'EXERCISE' : 'protected',\n       );\n     }\n   });\n }\n+\n+const directoryReadFault = String.raw`\n+    read=os.read\n+    def read_directory(descriptor,limit):\n+        if os.readlink('/proc/self/fd/'+str(descriptor))==str(target):\n+            directory=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)\n+            try:\n+                print('EXERCISE injected actual directory read',flush=True)\n+                return read(directory,limit)\n+            finally:os.close(directory)\n+        return read(descriptor,limit)\n+    os.read=read_directory\n+`;\n+\n+test('canonical size omission rejects an actual directory read before capture', () => {\n+  const boundary =\n+    \"        if (fault,failure.errno) not in (('post-symlink',errno.ELOOP),('nonregular',errno.EISDIR),('post-type',errno.EISDIR)):raise\\n\";\n+  for (const omitted of [false, true]) {\n+    const program = canonicalFixture\n+      .replace('provider=sys.argv[0]', 'provider=' + JSON.stringify(runtimeProvider))\n+      .replace(\n+        '    try:captured=control.verify_file(pin,capture=True)[1]',\n+        directoryReadFault + '    try:captured=control.verify_file(pin,capture=True)[1]',\n+      );\n+    const selected = omitted ? program.replace(boundary, '') : program;\n+    if (omitted) expect(selected).not.toBe(program);\n+    const child = Bun.spawnSync(\n+      [\n+        '/usr/bin/python3',\n+        '-I',\n+        '-S',\n+        '-B',\n+        '-c',\n+        selected,\n+        source.replace('staging-native-control.py', 'repair-native-control.py'),\n+        'size',\n+        'pin-identity',\n+      ],\n+      { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', timeout: 10000 },\n+    );\n+    expect(child.stdout.toString()).toContain('EXERCISE injected actual directory read');\n+    expect(child.stdout.toString()).not.toContain('captured actual wrong-size bytes');\n+    if (omitted) {\n+      expect(child.exitCode).toBe(0);\n+      expect(child.stderr.toString()).toBe('');\n+      expect(child.stdout.toString()).toContain(\n+        'identity omission reached actual directory read EISDIR',\n+      );\n+    } else {\n+      expect(child.exitCode).not.toBe(0);\n+      expect(child.stderr.toString()).toContain('IsADirectoryError');\n+      expect(child.stdout.toString()).not.toContain(\n+        'identity omission reached actual directory read EISDIR',\n+      );\n+    }\n+    console.info(\n+      'size actual-directory dependency, boundary omitted=' +\n+        String(omitted) +\n+        ', child exit=' +\n+        String(child.exitCode),\n+    );\n+  }\n+});\n",
+    "purpose": "Reproduce the exact initial63-case cohort and subsequent scoped proof correction; source patches are historical evidence, not executable authority."
+  }
+}
