@@ -1,0 +1,196 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+202 |         inputHash: 'input',
+203 |         questionHashes: { pri: 'same', time: 'same' },
+204 |       },
+205 |       { solverVersion: '0.4.0', budgetMs: 1000 },
+206 |     ),
+207 |   ).toThrow();
+          ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  pri: {
+    kind: "request",
+    request: {
+      wireVersion: 5,
+      contractVersion: "18+0.4.0",
+      solverVersion: "0.4.0",
+      budgetMs: 1000,
+      stageBudgetSplit: [ 0.6, 0.25, 0.15 ],
+      quantum: 48,
+      horizonUnits: 58,
+      slices: [
+        {
+          workItemKey: "b",
+          key: "b\u0000",
+          durationUnits: 48,
+          width: 1,
+          personId: null,
+          poolIds: [],
+          priorityWeight: 1,
+          notBeforeUnits: 0,
+          deadlineUnits: null,
+          workItemIsMilestone: false,
+          demands: [],
+        }
+      ],
+      edges: [],
+      pools: {},
+      resources: {},
+      elsewhere: {},
+      scope: {
+        kind: "connected-stage",
+        projectId: "B",
+        inputHash: "input",
+        questionHash: "same",
+        originOrdinal: 0,
+        projects: [
+          {
+            projectId: "A",
+            rank: 0,
+            anchorOrdinal: 0,
+          }, {
+            projectId: "B",
+            rank: 1,
+            anchorOrdinal: 0,
+          }, {
+            projectId: "C",
+            rank: 2,
+            anchorOrdinal: 0,
+          }
+        ],
+        fixed: [
+          {
+            projectId: "A",
+            key: "a\u0000",
+            start: 0,
+            finish: 0.2,
+          }, {
+            projectId: "C",
+            key: "c\u0000",
+            start: 1.2,
+            finish: 2.2,
+          }
+        ],
+        boundaries: [
+          {
+            localKey: "b\u0000",
+            foreignProjectId: "A",
+            foreignKey: "a\u0000",
+            relationshipId: "ab",
+            type: "FS",
+            direction: "incoming",
+            minimumStartUnits: 10,
+          }
+        ],
+        occupancy: [],
+      },
+      movementReferenceOffsets: {
+        "b\u0000": 10,
+      },
+      feasibleBaselineOffsets: null,
+      seedOffsets: {
+        "b\u0000": 10,
+      },
+      objective: "pri",
+    },
+  },
+  time: {
+    kind: "request",
+    request: {
+      wireVersion: 5,
+      contractVersion: "18+0.4.0",
+      solverVersion: "0.4.0",
+      budgetMs: 1000,
+      stageBudgetSplit: [ 0.6, 0.25, 0.15 ],
+      quantum: 48,
+      horizonUnits: 58,
+      slices: [
+        {
+          workItemKey: "b",
+          key: "b\u0000",
+          durationUnits: 48,
+          width: 1,
+          personId: null,
+          poolIds: [],
+          priorityWeight: 1,
+          notBeforeUnits: 0,
+          deadlineUnits: null,
+          workItemIsMilestone: false,
+          demands: [],
+        }
+      ],
+      edges: [],
+      pools: {},
+      resources: {},
+      elsewhere: {},
+      scope: {
+        kind: "connected-stage",
+        projectId: "B",
+        inputHash: "input",
+        questionHash: "same",
+        originOrdinal: 0,
+        projects: [
+          {
+            projectId: "A",
+            rank: 0,
+            anchorOrdinal: 0,
+          }, {
+            projectId: "B",
+            rank: 1,
+            anchorOrdinal: 0,
+          }, {
+            projectId: "C",
+            rank: 2,
+            anchorOrdinal: 0,
+          }
+        ],
+        fixed: [
+          {
+            projectId: "A",
+            key: "a\u0000",
+            start: 0,
+            finish: 0.2,
+          }, {
+            projectId: "C",
+            key: "c\u0000",
+            start: 1.2,
+            finish: 2.2,
+          }
+        ],
+        boundaries: [
+          {
+            localKey: "b\u0000",
+            foreignProjectId: "A",
+            foreignKey: "a\u0000",
+            relationshipId: "ab",
+            type: "FS",
+            direction: "incoming",
+            minimumStartUnits: 10,
+          }
+        ],
+        occupancy: [],
+      },
+      movementReferenceOffsets: {
+        "b\u0000": 10,
+      },
+      feasibleBaselineOffsets: null,
+      seedOffsets: {
+        "b\u0000": 10,
+      },
+      objective: "time",
+    },
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:207:5)
+(fail) objective-specific full identities refuse crossed responses and survive terminal preparation [6.96ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [208.00ms]

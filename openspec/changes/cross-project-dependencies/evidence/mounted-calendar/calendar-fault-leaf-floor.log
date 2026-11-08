@@ -1,0 +1,46 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:
+(pass) isolated mounted calendars preserve fractional FS boundary from both project targets [365.43ms]
+{"level":"error","time":1792720294268,"service":"be-01","err":{"occurrence_id":"AE_EQPGPWV27QZDK686N6TGY0QJ3R","fingerprint":"fp1_f74879387e4cad94b25eb3bdb927adf9","stack":["Error: workdays must be zero or more, got -1","    at addWorkdays (/tmp/puni-calendar-62/libs/wbs/domain/domain/src/workday.ts:398:15)","    at datesOf (/tmp/puni-calendar-62/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:472:15)","    at <anonymous> (/tmp/puni-calendar-62/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:9989:13)","    at map (native:1:11)","    at projectTree (/tmp/puni-calendar-62/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:9904:6)","    at presentConnectedTree (/tmp/puni-calendar-62/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:9445:16)","    at treeWithin (/tmp/puni-calendar-62/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1953:22)","    at async <anonymous> (/tmp/puni-calendar-62/libs/wbs/application/core/src/http/work-item.routes.ts:560:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+67 |   const answer = await harness.call(
+68 |     'ada',
+69 |     'GET',
+70 |     `/api/projects/${projectId}/work-items?full=true`,
+71 |   );
+72 |   expect(answer.status).toBe(200);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at read (/tmp/puni-calendar-62/apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:72:25)
+      at async <anonymous> (/tmp/puni-calendar-62/apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:105:18)
+(fail) isolated mounted Wednesday floor binds after short Monday predecessor [422.42ms]
+(pass) isolated mounted weekend floor and deadline use the Wednesday anchor [433.56ms]
+(pass) isolated mounted missing connected anchor stays explicit and unrelated undated project stays outside [535.07ms]
+(pass) shared mounted calendars preserve fractional FS boundary from both project targets [395.23ms]
+{"level":"error","time":1792720295987,"service":"be-01","err":{"occurrence_id":"AE_G7FKM7XCFXR65641219JTN0P55","fingerprint":"fp1_f74879387e4cad94b25eb3bdb927adf9","stack":["Error: workdays must be zero or more, got -1","    at addWorkdays (/tmp/puni-calendar-62/libs/wbs/domain/domain/src/workday.ts:398:15)","    at datesOf (/tmp/puni-calendar-62/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:472:15)","    at <anonymous> (/tmp/puni-calendar-62/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:9989:13)","    at map (native:1:11)","    at projectTree (/tmp/puni-calendar-62/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:9904:6)","    at presentConnectedTree (/tmp/puni-calendar-62/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:9445:16)","    at treeWithin (/tmp/puni-calendar-62/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1953:22)","    at async <anonymous> (/tmp/puni-calendar-62/libs/wbs/application/core/src/http/work-item.routes.ts:560:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+67 |   const answer = await harness.call(
+68 |     'ada',
+69 |     'GET',
+70 |     `/api/projects/${projectId}/work-items?full=true`,
+71 |   );
+72 |   expect(answer.status).toBe(200);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at read (/tmp/puni-calendar-62/apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:72:25)
+      at async <anonymous> (/tmp/puni-calendar-62/apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:105:18)
+(fail) shared mounted Wednesday floor binds after short Monday predecessor [354.31ms]
+(pass) shared mounted weekend floor and deadline use the Wednesday anchor [327.52ms]
+(pass) shared mounted missing connected anchor stays explicit and unrelated undated project stays outside [348.25ms]
+
+ 6 pass
+ 2 fail
+ 52 expect() calls
+Ran 8 tests across 1 file. [7.28s]

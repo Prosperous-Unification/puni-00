@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+35 |     onBorrowedUnitOfWork: () => {
+36 |       writerTurns += 1;
+37 |     },
+38 |     onFanoutCapture: () => {
+39 |       observedCaptures += 1;
+40 |       if (refusingObservations) throw new Error('refused authority reached fan-out capture');
+                                               ^
+error: refused authority reached fan-out capture
+      at onFanoutCapture (/tmp/puni-machine-writer/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:40:43)
+      at <anonymous> (/tmp/puni-machine-writer/libs/wbs/adapters/store-sqlite/src/source.ts:129:37)
+      at <anonymous> (/tmp/puni-machine-writer/libs/wbs/application/core/src/module/plan-commands/composition.ts:95:51)
+      at async <anonymous> (/tmp/puni-machine-writer/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:441:41)
+      at async <anonymous> (/tmp/puni-machine-writer/libs/wbs/application/core/src/module/plan-commands/composition.ts:137:34)
+      at async <anonymous> (/tmp/puni-machine-writer/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) machine direct runner refuses current credential missing before capture [1175.36ms]
+35 |     onBorrowedUnitOfWork: () => {
+36 |       writerTurns += 1;
+37 |     },
+38 |     onFanoutCapture: () => {
+39 |       observedCaptures += 1;
+40 |       if (refusingObservations) throw new Error('refused authority reached fan-out capture');
+                                               ^
+error: refused authority reached fan-out capture
+      at onFanoutCapture (/tmp/puni-machine-writer/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:40:43)
+      at <anonymous> (/tmp/puni-machine-writer/libs/wbs/adapters/store-sqlite/src/source.ts:129:37)
+      at <anonymous> (/tmp/puni-machine-writer/libs/wbs/application/core/src/module/plan-commands/composition.ts:95:51)
+      at async <anonymous> (/tmp/puni-machine-writer/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:441:41)
+      at async <anonymous> (/tmp/puni-machine-writer/libs/wbs/application/core/src/module/plan-commands/composition.ts:137:34)
+      at async <anonymous> (/tmp/puni-machine-writer/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) consent direct runner refuses current credential missing before capture [413.01ms]
+
+ 0 pass
+ 87 filtered out
+ 2 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [8.32s]

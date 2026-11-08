@@ -1,0 +1,31 @@
+$ bun test apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts -t remote unfinished FS
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+{"level":"error","time":1792660759287,"service":"be-01","err":{"occurrence_id":"AE_0AHSQKKEY1V9ZZ8KCF3MFENXWT","fingerprint":"fp1_5bf8ad490a71e4f99bc64027da210f87","stack":["Error: connected tree projection is unsupported","    at tree (/tmp/puni-start-admission/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2120:19)","    at async announceTree (/tmp/puni-start-admission/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8771:29)","    at async execute (/tmp/puni-start-admission/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:553:49)","    at async <anonymous> (/tmp/puni-start-admission/libs/wbs/application/core/src/http/work-item.routes.ts:571:31)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+38 | test('remote unfinished FS is excluded from startable and refused by claim until completion', async () => {
+39 |   const before = await startable();
+40 |   expect(before.status).toBe(200);
+41 |   expect((before.body as { leaves: unknown[] }).leaves).toEqual([]);
+42 |   const refused = await claim();
+43 |   expect(refused).toMatchObject({ status: 409 });
+                       ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "status": 409,
++   "body": "Internal Server Error",
++   "status": 500,
+  }
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-start-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:43:19)
+(fail) remote unfinished FS is excluded from startable and refused by claim until completion [349.95ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [2.50s]

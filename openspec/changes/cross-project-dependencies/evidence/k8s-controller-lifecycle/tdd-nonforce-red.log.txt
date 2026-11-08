@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+545 |     expect(deleted.map((entry) => entry.preconditions)).toEqual([
+546 |       { uid: 'backup-pod-uid' },
+547 |       { uid: 'backup-job-uid' },
+548 |     ]);
+549 |     expect(deleted.every((entry) => entry.propagationPolicy === 'Orphan')).toBe(true);
+550 |     expect(deleted.every((entry) => !('gracePeriodSeconds' in entry))).toBe(true);
+                                                                             ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:550:72)
+(fail) mounted drain deletes actual UID descendants with UID-preconditioned orphan deletion [3490.79ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [3.54s]

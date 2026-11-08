@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/incident-mounted-probe.test.ts:
+{"level":"error","time":1792666737768,"service":"be-01","err":{"occurrence_id":"AE_ZZEX070JCBER381VN1CW7H1D1S","fingerprint":"fp1_e36d08e2a14784daeddf3e06cd5c1754","stack":["Error: connected tree projection is unsupported","    at tree (/tmp/puni-incident-handdown/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2112:19)","    at async announceTree (/tmp/puni-incident-handdown/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8863:29)","    at async execute (/tmp/puni-incident-handdown/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:552:49)","    at async <anonymous> (/tmp/puni-incident-handdown/libs/wbs/application/core/src/http/work-item.routes.ts:569:31)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+3 | afterEach(close);
+4 | test('disposable actual mounted connected first-child positive probe',async()=>{
+5 |  const fixture=await mixed();const before=tables();
+6 |  const response=await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`,{commands:[{kind:'createWorkItem',parentId:fixture.owner.workItemId,name:'Mounted child'}]});
+7 |  const body=await response.text();
+8 |  expect({status:response.status,body,changed:JSON.stringify(before)!==JSON.stringify(tables())}).toMatchObject({status:200,changed:true});
+                                                                                                     ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "body": "Internal Server Error",
+    "changed": true,
+-   "status": 200,
++   "status": 500,
+  }
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/incident-mounted-probe.test.ts:8:98)
+(fail) disposable actual mounted connected first-child positive probe [620.10ms]
+
+ 0 pass
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [2.92s]

@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+(pass) HTTP authored external edge propagates real calendar unavailability through generated MCP [3572.11ms]
+(pass) HTTP authored external edge retains Fast placement when real optimizer admission refuses [3527.55ms]
+(pass) MCP authored external edge propagates real calendar unavailability through generated MCP [6223.66ms]
+(pass) MCP authored external edge retains Fast placement when real optimizer admission refuses [3914.00ms]
+(pass) generated MCP preserves real connected terminal optimization tree [4440.01ms]
+(pass) generated MCP preserves real connected required-engine-unavailable tree [3744.60ms]
+(pass) HTTP rejects unsupported addTypedDependency at the shared shape boundary [3526.83ms]
+(pass) MCP rejects unsupported addTypedDependency at the shared shape boundary [3482.16ms]
+(pass) HTTP rejects unsupported updateTypedDependency at the shared shape boundary [3431.79ms]
+(pass) MCP rejects unsupported updateTypedDependency at the shared shape boundary [3433.39ms]
+
+ 10 pass
+ 62 filtered out
+ 0 fail
+ 79 expect() calls
+Ran 10 tests across 1 file. [41.85s]

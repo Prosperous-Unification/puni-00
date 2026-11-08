@@ -7,6 +7,7 @@ import type { CapturedScheduleAsk, LiveScheduleAsk, ScheduleAsk, ScheduleRead } 
 import { readChain, scheduleInputOfCaptured, SharedPeopleReader } from '@wbs/core';
 import { SavedPlanResource } from '@wbs/core/module/saved-plans/saved-plan.resource';
 import { SavedPlanService } from '@wbs/core/module/saved-plans/saved-plans.feature';
+import { scheduleResolved } from '@wbs/domain';
 import { schedule, sliceKey } from '@wbs/domain';
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { createScheduler } from '@wbs/runtime-portable';
@@ -30,6 +31,7 @@ import { readGeneration } from './optimization-generation';
 import { storeOptimizedOutcomeAndRecord } from './optimized-outcome';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
+import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { SavedPlanRepository } from './saved-plan';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { scheduleInputHash } from './schedule-input-hash';
@@ -56,6 +58,7 @@ const admitted = {
 const fast = createScheduler(
   (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
     schedule(rows, edges, slices, floors, pools, reach, deadlines, typed, undefined, elsewhere),
+  scheduleResolved,
 );
 
 function write(statement: string): void {
@@ -152,6 +155,7 @@ function snapshots(
               undefined,
               elsewhere,
             ),
+          scheduleResolved,
           readCaptured === undefined
             ? undefined
             : {
@@ -239,6 +243,8 @@ describe('the chain snapshot', () => {
     expect(await reader.readProject('absent')).toEqual({ kind: 'not_found' });
     write('DROP TRIGGER project_organization_frozen_update');
     write("UPDATE project_organization SET organization_id = 'org-b' WHERE resource_id = 'a3'");
+    // Keep abbreviation metadata coherent so this fault reaches the reference guard.
+    write("UPDATE project_abbreviation SET namespace = 'org:org-b' WHERE project_id = 'a3'");
     expect((await failureOf(reader.readProject('a3'))).message).toContain(
       'references outside its organization',
     );
@@ -271,6 +277,8 @@ describe('the chain snapshot', () => {
     write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     write('DROP TRIGGER project_organization_frozen_delete');
     write("DELETE FROM project_organization WHERE resource_id = 'a3'");
+    // An unmapped root uses the legacy namespace; ownership itself is the injected fault.
+    write("UPDATE project_abbreviation SET namespace = 'legacy' WHERE project_id = 'a3'");
     expect((await failureOf(reader.readProject('a3'))).message).toContain(
       'project ownership is absent',
     );
@@ -279,6 +287,7 @@ describe('the chain snapshot', () => {
   it('borrows staged mode without committing or closing the caller transaction', async () => {
     const connection = openConnection(path);
     const transaction = drizzleReadTransaction(connection.db);
+    const lifetime = createReadSnapshotLifetime();
     transaction.begin();
     try {
       connection.db.run(sql`UPDATE organization SET shared_people = 0 WHERE id = 'org-a'`);
@@ -292,6 +301,7 @@ describe('the chain snapshot', () => {
         readable,
         'a3',
         { schedulerOf: () => fast },
+        lifetime,
       );
       const isolated = await readChain(snapshot, 'a3');
       if (isolated.kind !== 'scheduled') throw new Error('expected isolated staged read');
@@ -299,9 +309,11 @@ describe('the chain snapshot', () => {
       expect(canonicalScheduleInput(isolated.input)).toBe(
         canonicalScheduleInput(scheduleInputOfCaptured(isolated.reads)),
       );
+      lifetime.expire();
       transaction.rollback();
       expect(await start()).toBe(3);
     } finally {
+      lifetime.expire();
       connection.close();
     }
   });
@@ -874,12 +886,13 @@ describe('detached live snapshot guards', () => {
       schedulerOf: () => ({
         supports: (engine) => fast.supports(engine),
         read,
+        readResolvedFast: fast.readResolvedFast,
       }),
     });
     const observed = await store.readAggregate('ada', access);
     expect(observed.kind).toBe('shared');
     if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
-    expect(observed.entries.map(({ plan }) => plan.project.id)).toEqual(['a1', 'a2', 'a3', 'a4']);
+    expect(observed.entries.map(({ projectId }) => projectId)).toEqual(['a1', 'a2', 'a3', 'a4']);
     expect(schedules).toBe(4);
   });
   it('captures persisted blockage facts in the aggregate entry from its snapshot', async () => {
@@ -889,20 +902,23 @@ describe('detached live snapshot guards', () => {
     );
     const observed = await livePlans().readAggregate('ada', access);
     if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
-    expect(observed.entries.find(({ plan }) => plan.project.id === 'a2')?.plan.blockages).toEqual([
+    const upstream = observed.entries.find(({ projectId }) => projectId === 'a1');
+    const target = observed.entries.find(({ projectId }) => projectId === 'a2');
+    if (upstream?.plan.kind !== 'shared' || target?.plan.kind !== 'shared')
+      throw new Error('expected ordinary shared members');
+    expect(target.plan.blockages).toEqual([
       { workItemId: 'a2', stepId: 'a2-s0', blockedAt: 123456 },
     ]);
-    expect(observed.entries.find(({ plan }) => plan.project.id === 'a1')?.plan.blockages).toEqual(
-      [],
-    );
+    expect(upstream.plan.blockages).toEqual([]);
   });
   it('keeps the incoming basis and full input identity across rename and unrelated rank changes', async () => {
     const store = livePlans();
     const target = async () => {
       const observed = await store.readAggregate('ada', access);
       if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
-      const entry = observed.entries.find(({ plan }) => plan.project.id === 'a3');
-      if (entry?.plan.chain.kind !== 'scheduled') throw new Error('target schedule unavailable');
+      const entry = observed.entries.find(({ projectId }) => projectId === 'a3');
+      if (entry?.plan.kind !== 'shared' || entry.plan.chain.kind !== 'scheduled')
+        throw new Error('target schedule unavailable');
       return { basis: entry.basis, inputHash: scheduleInputHash(entry.plan.chain.input) };
     };
     const before = await target();

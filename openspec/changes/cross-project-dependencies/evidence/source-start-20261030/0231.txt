@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+    "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$",
+    "--timeout=320000"
+  ],
+  "pid": 3130613,
+  "exit": 0,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 134.83662180497777,
+  "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+  "stderrSHA256": "d9ef382220d18fb7085ff09bbe272e030b47b38dbdf361ae76068d054ec7110d"
+}

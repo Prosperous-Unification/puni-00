@@ -56,7 +56,16 @@ test('mounts the production import path and returns the typed 201 summary', asyn
     created: summary.created,
     solutionRef: summary.solutionRef,
   });
-  expect(imports).toHaveBeenCalledWith(document, 'actor', { kind: 'legacy' });
+  expect(imports).toHaveBeenCalledWith(document, {
+    kind: 'human',
+    principal: {
+      id: 'actor',
+      username: 'actor',
+      scopes: ['read', 'write'],
+      organizationOperation: { kind: 'mutation', expected: { kind: 'absent' } },
+    },
+    expectedAccess: { kind: 'legacy' },
+  });
 });
 
 test('returns mounted document paths and admitted conflicts through declared refusals', async () => {

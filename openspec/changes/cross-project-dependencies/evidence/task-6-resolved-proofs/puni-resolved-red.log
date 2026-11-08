@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-connected.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module './resolved-schedule-input' from '/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/schedule-connected.test.ts'
+-------------------------------
+
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [33.00ms]

@@ -1,0 +1,23 @@
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_REFUSED: record-replacement before start and after exact repair
+(pass) source restoration refuses same-byte gateway record replacement [72405.90ms]
+
+ 1 pass
+ 20 filtered out
+ 0 fail
+ 479 expect() calls
+Ran 1 test across 1 file. [72.47s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses same-byte gateway record replacement","exitCode":0,"signal":null,"stdoutEof":true,"stderrEof":true}
+(pass) isolated source restoration refuses same-byte gateway record replacement [72485.86ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 20 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [72.49s]

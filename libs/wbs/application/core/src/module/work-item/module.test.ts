@@ -5,6 +5,8 @@ import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../../ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installWorkItem } from './check';
@@ -27,6 +29,8 @@ async function seeded() {
   return {
     broadcast,
     requirements: {
+      dependencyContext: createLocalDependencyContext(stores),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       workItems: stores.workItems,
       stepParallels: stores.stepParallels,
       projects: stores.projects,
@@ -64,6 +68,9 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     stepParallelStore: DiBag.createProvider(() => stores.stepParallels, {
+      factoryReturnKind: 'sync-value',
+    }),
+    admitConnectedOptimization: DiBag.createProvider(() => undefined, {
       factoryReturnKind: 'sync-value',
     }),
     livePlans: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
@@ -107,6 +114,12 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+      factoryReturnKind: 'sync-value',
+    }),
+    externalDependencyAuthoring: DiBag.createProvider(() => INACTIVE_EXTERNAL_DEPENDENCIES, {
+      factoryReturnKind: 'sync-value',
+    }),
+    dependencyContext: DiBag.createProvider(() => createLocalDependencyContext(stores), {
       factoryReturnKind: 'sync-value',
     }),
     editAdmission: DiBag.createProvider(() => CREATOR_ADMISSION, {
@@ -154,8 +167,8 @@ describe('the Work item module', () => {
     });
     if (!first.ok || !second.ok) throw new Error('fixture work items were refused');
     const proposed = await workItems.addTypedDependency(PROJECT, OWNER, {
-      predecessor: { scope: 'whole', workItemId: first.value.id },
-      successor: { scope: 'whole', workItemId: second.value.id },
+      predecessor: { projectId: PROJECT, scope: 'whole', workItemId: first.value.id },
+      successor: { projectId: PROJECT, scope: 'whole', workItemId: second.value.id },
       type: 'SF',
     });
     expect(proposed).toEqual({ ok: false, reason: 'unsupported_relationship_type' });
@@ -176,8 +189,8 @@ describe('the Work item module', () => {
     });
     if (!first.ok || !second.ok) throw new Error('fixture work items were refused');
     const typed = await workItems.addTypedDependency(PROJECT, OWNER, {
-      predecessor: { scope: 'whole', workItemId: first.value.id },
-      successor: { scope: 'whole', workItemId: second.value.id },
+      predecessor: { projectId: PROJECT, scope: 'whole', workItemId: first.value.id },
+      successor: { projectId: PROJECT, scope: 'whole', workItemId: second.value.id },
       type: 'SS',
     });
     expect(typed.ok).toBe(true);

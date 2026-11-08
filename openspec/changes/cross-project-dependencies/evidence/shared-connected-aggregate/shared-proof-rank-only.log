@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-live.controller.db.test.ts:
+{"level":"error","time":1792670794200,"service":"be-01","err":{"occurrence_id":"AE_Z65AM4YXE0R890A4YFT0XWJPET","fingerprint":"fp1_3e8c4982aef634fc6313e4218099f211","stack":["Error: external dependency remote-fs requires connected capture","    at captureLocalTypedDependency (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/service/local-typed-dependency.ts:12:15)","    at map (native:1:11)","    at readPlanInputValuesIn (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts:232:6)","    at async <anonymous> (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:323:30)","    at async <anonymous> (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:520:36)","    at async readChain (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/service/shared-people.ts:48:61)","    at async readLiveAggregateIn (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:553:25)","    at async observe (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:380:32)","    at async sharedTreesWithin (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1918:48)","    at async readProjects (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/service/person-load.feature.ts:266:48)","    at async readPerson (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/service/person-load.feature.ts:178:33)","    at async <anonymous> (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/http/person-load.routes.ts:37:33)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792670794255,"service":"be-01","err":{"occurrence_id":"AE_2A6ZSNEWY0MFF514YM7WFCVT5J","fingerprint":"fp1_f2c8275bc580a2cdb204e56f35b09664","stack":["Error: external dependency remote-fs requires connected capture","    at captureLocalTypedDependency (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/service/local-typed-dependency.ts:12:15)","    at map (native:1:11)","    at readPlanInputValuesIn (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts:232:6)","    at async <anonymous> (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:323:30)","    at async <anonymous> (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:520:36)","    at async readChain (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/service/shared-people.ts:48:61)","    at async readLiveAggregateIn (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:553:25)","    at async observe (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:380:32)","    at async sharedTreesWithin (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1918:48)","    at async rollUps (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/service/space.resource.ts:325:47)","    at async <anonymous> (/tmp/puni-shared-connected-impl/libs/wbs/application/core/src/http/space.routes.ts:115:36)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+982 |     ['2026-10-19','2026-10-21','2026-10-23'],
+983 |   ] as const) {
+984 |     harness.sqlite.query('UPDATE project SET start_date=? WHERE id=?').run(anchor,remote.projectId);
+985 |     const load = await harness.call('ada','GET',loadPath);
+986 |     const rolled = await harness.call('ada','GET',rollPath);
+987 |     expect(load.status).toBe(200);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-shared-connected-impl/apps/wbs/be-01/src/controller/cross-project-live.controller.db.test.ts:987:25)
+(fail) shared aggregate load and selected Space refresh foreign-only facts with target caches warm [2341.94ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [16.69s]

@@ -1,0 +1,85 @@
+Fault: src/components/wbs/plan-chart-input.ts
+Replace: dependency.predecessor.captured === undefined &&
+        dependency.successor.captured === undefined,
+With: dependency.predecessor.captured === dependency.predecessor.captured,
+Command: ['bunx', 'vitest', 'run', 'src/components/wbs/persisted-remote-dependencies.test.tsx', '--maxWorkers=1', '--no-file-parallelism', '--testTimeout=30000', '--hookTimeout=30000', '-t', 'excludes captured foreign endpoints|keeps the mounted chart available']
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /home/df/.codex/worktrees/1d51/puni-00/apps/wbs/fe-01
+
+stderr | src/components/wbs/persisted-remote-dependencies.test.tsx > keeps the mounted chart available with captured foreign endpoints absent from its rows
+GanttDataError: unknown chart work item remote-row
+    at leavesUnder (/home/df/.codex/worktrees/1d51/puni-00/apps/wbs/fe-01/src/components/wbs/typed-gantt-arrows.ts:51:41)
+    at endsOf (/home/df/.codex/worktrees/1d51/puni-00/apps/wbs/fe-01/src/components/wbs/typed-gantt-arrows.ts:65:5)
+    at resolveTypedGanttArrows (/home/df/.codex/worktrees/1d51/puni-00/apps/wbs/fe-01/src/components/wbs/typed-gantt-arrows.ts:114:26)
+    at layOutGantt (/home/df/.codex/worktrees/1d51/puni-00/apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts:2634:17)
+    at /home/df/.codex/worktrees/1d51/puni-00/apps/wbs/fe-01/src/components/wbs/gantt-panel.tsx:4323:31
+    at mountMemo (/home/df/.codex/worktrees/1d51/puni-00/node_modules/react-dom/cjs/react-dom-client.development.js:8777:23)
+    at Object.useMemo (/home/df/.codex/worktrees/1d51/puni-00/node_modules/react-dom/cjs/react-dom-client.development.js:26216:18)
+    at process.env.NODE_ENV.exports.useMemo (/home/df/.codex/worktrees/1d51/puni-00/node_modules/react/cjs/react.development.js:1251:34)
+    at GanttRenderer (/home/df/.codex/worktrees/1d51/puni-00/apps/wbs/fe-01/src/components/wbs/gantt-panel.tsx:4323:17)
+    at Object.react_stack_bottom_frame (/home/df/.codex/worktrees/1d51/puni-00/node_modules/react-dom/cjs/react-dom-client.development.js:25904:20) {
+  [stack]: [Getter/Setter],
+  [message]: 'unknown chart work item remote-row',
+  name: 'GanttDataError'
+}
+
+The above error occurred in the <GanttRenderer> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, FaultBoundary.
+
+the Gantt panel could not draw this plan unknown chart work item remote-row AE_4Y7NHEKJ1Y84445W21WBCJQK8N nothing
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (35 tests | 2 failed | 33 skipped) 797ms
+   × excludes captured foreign endpoints from local chart input while retaining local relationships 361ms
+   × keeps the mounted chart available with captured foreign endpoints absent from its rows 433ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > excludes captured foreign endpoints from local chart input while retaining local relationships
+AssertionError: expected [ 'external', 'local' ] to deeply equal [ 'local' ]
+
+- Expected
++ Received
+
+  [
++   "external",
+    "local",
+  ]
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:174:5
+    172|       },
+    173|     ]).map(({ id }) => id),
+    174|   ).toEqual(['local']);
+       |     ^
+    175| });
+    176| it('refuses an absent stable work-item target visibly', async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > keeps the mounted chart available with captured foreign endpoints absent from its rows
+AssertionError: expected null not to be null
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:207:58
+    205|   fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    206|   expect(await screen.findByRole('region', { name: 'Gantt chart' })).t…
+    207|   expect(document.querySelector('[data-gantt-bar]')).not.toBeNull();
+       |                                                          ^
+    208|   expect(document.querySelector('[data-gantt-arrow]')).toBeNull();
+    209| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 33 skipped (35)
+   Start at  00:17:55
+   Duration  8.83s (import 58%, transform 26%, tests 9%, environment 6%, setup 1%)
+
+  Transform  transforming modules took 2.31s · 26% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+
+
+AUDIT_EXIT=1

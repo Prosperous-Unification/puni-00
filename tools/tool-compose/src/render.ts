@@ -79,7 +79,10 @@ export function previewContext(
     // tierComposeContext produces (see its doc comment) — a preview default
     // just needs *some* valid env_file entry, not the real per-tier
     // allowlisting a real deploy applies.
-    INIT: env['INIT'] ?? (container.startsWith('be-01-') ? '    init: true\n' : ''),
+    // Proof: removing the gateway branch failed both rendered gateway preview init tests.
+    INIT:
+      env['INIT'] ??
+      (container.startsWith('be-01-') || container.startsWith('gw-01-') ? '    init: true\n' : ''),
     ENV_FILES: env['ENV_FILES'] ?? '    env_file:\n      - /home/puni1/wbs/be-01.env\n',
     ENVIRONMENT: env['ENVIRONMENT'] ?? '',
     VOLUMES: env['VOLUMES'] ?? '    volumes:\n      - /home/puni1/wbs/data:/data\n',

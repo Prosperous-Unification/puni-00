@@ -1,0 +1,35 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+133 |   const graph = resolveConnectedDependencyGraph(await scope.reader.read(['a']));
+134 |   expect(
+135 |     graph.graph.edges
+136 |       .filter((edge) => edge.provenance === 'legacy')
+137 |       .map((edge) => edge.predecessor),
+138 |   ).toEqual([
+          ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+      "at": 0,
+      "leafId": "A",
+    },
+    {
+-     "at": 1,
++     "at": 0,
+      "leafId": "B",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:138:5)
+(fail) reads each project with its own reach, steps, estimate presence and unreduced holds [2.46ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [135.00ms]

@@ -1,0 +1,29 @@
+bun test tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000 -t runtime refuses unreadable
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:
+
+tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts:
+147 |   let refused = false;
+148 |   try {
+149 |     await promise;
+150 |   } catch (cause) {
+151 |     refused = true;
+152 |     if (excludes) expect(String(cause)).not.toContain(message);
+                                                  ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "callback entered"
+Received: "Error: callback entered"
+
+      at refuses (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts:152:45)
+      at async <anonymous> (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts:38:13)
+(fail) runtime refuses unreadable trusted state [1.45ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 2 files. [52.00ms]
+
+exit 1

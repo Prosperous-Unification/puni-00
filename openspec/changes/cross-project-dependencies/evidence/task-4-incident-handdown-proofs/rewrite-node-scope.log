@@ -1,0 +1,66 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+106 |       from: formatStepNodeId({ workItemId: fixture.owner.workItemId, stepId: id }),
+107 |       to: formatStepNodeId({ workItemId: created.value.id, stepId: id }),
+108 |     })),
+109 |   );
+110 |   const mapped = await incidentRows(owner);
+111 |   expect(mapped).toEqual(
+                       ^
+error: expect(received).toEqual(expected)
+
+@@ -24,12 +24,11 @@
+        "workItemId": "3d1f9a54-cbd5-412a-a660-d6cc3c440ae7",
+      },
+      "projectId": "2db3034b-66fe-495d-a005-6eab920fe8ee",
+      "successor": {
+        "projectId": "2db3034b-66fe-495d-a005-6eab920fe8ee",
+-       "scope": "node",
+-       "stepId": "a643e28a-9526-49d1-9b74-ff9cc1b20829",
++       "scope": "whole",
+        "workItemId": "da5c341e-aa5c-4ec9-b825-7f2b62a1e395",
+      },
+      "type": "SS",
+    },
+    {
+@@ -51,12 +50,11 @@
+    },
+    {
+      "id": "outgoing-1",
+      "predecessor": {
+        "projectId": "2db3034b-66fe-495d-a005-6eab920fe8ee",
+-       "scope": "node",
+-       "stepId": "a643e28a-9526-49d1-9b74-ff9cc1b20829",
++       "scope": "whole",
+        "workItemId": "da5c341e-aa5c-4ec9-b825-7f2b62a1e395",
+      },
+      "projectId": "76126b00-a29c-428c-b42f-0d071b888b1b",
+      "successor": {
+        "projectId": "76126b00-a29c-428c-b42f-0d071b888b1b",
+@@ -68,12 +66,11 @@
+    },
+    {
+      "id": "outgoing-2",
+      "predecessor": {
+        "projectId": "2db3034b-66fe-495d-a005-6eab920fe8ee",
+-       "scope": "node",
+-       "stepId": "a643e28a-9526-49d1-9b74-ff9cc1b20829",
++       "scope": "whole",
+        "workItemId": "da5c341e-aa5c-4ec9-b825-7f2b62a1e395",
+      },
+      "projectId": "3164ab36-bf07-4c23-a527-40e0229d92a9",
+      "successor": {
+        "projectId": "3164ab36-bf07-4c23-a527-40e0229d92a9",
+
+- Expected  - 6
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:111:18)
+(fail) mixed incident handdown preserves scopes steps both owners history and local retained rows through nested undo redo [503.40ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [2.58s]

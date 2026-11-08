@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/src/dependency-runtime.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+SyntaxError: Export named 'parseDependencyRuntimeCapability' not found in module '/tmp/puni-dependency-cli/libs/wbs/domain/contracts/src/dependency-runtime.ts'.
+-------------------------------
+
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [21.00ms]

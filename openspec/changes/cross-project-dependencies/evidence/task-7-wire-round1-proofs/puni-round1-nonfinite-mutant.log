@@ -1,0 +1,59 @@
+
+> nx run wbs-solver-py:test
+
+> python3 -m unittest discover -s tests -t tests
+
+.............................wbs-solver: unexpected arguments ['--search-workers', '0']; usage: wbs-solver [--version | --search-workers COUNT [--child-deadline-epoch-ms EPOCH_MS]]
+...wbs-solver: empty request: expected one JSON object on stdin
+.................FFF..................................................................................................................................................................................................................................
+======================================================================
+FAIL: test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization (test_connected.ConnectedStage.test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization) (token='NaN')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/tests/test_connected.py", line 216, in test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization
+    self.assertEqual(child.returncode, 64, child.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 64 : b''
+
+======================================================================
+FAIL: test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization (test_connected.ConnectedStage.test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization) (token='Infinity')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/tests/test_connected.py", line 216, in test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization
+    self.assertEqual(child.returncode, 64, child.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 64 : b''
+
+======================================================================
+FAIL: test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization (test_connected.ConnectedStage.test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization) (token='1e309')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/tests/test_connected.py", line 216, in test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization
+    self.assertEqual(child.returncode, 64, child.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 64 : b''
+
+----------------------------------------------------------------------
+Ran 276 tests in 41.734s
+
+FAILED (failures=3)
+Warning: command "python3 -m unittest discover -s tests -t tests" exited with non-zero status code
+
+
+ NX   Running target test for project wbs-solver-py failed
+
+Failed tasks:
+
+- wbs-solver-py:test
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      42.1s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     42.1s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-solver-py:test    42.1s

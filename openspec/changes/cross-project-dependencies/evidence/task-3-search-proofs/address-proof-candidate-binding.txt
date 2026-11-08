@@ -1,0 +1,80 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+167 |     '/api/project-addresses/projects?cursor=bad',
+168 |     `/api/project-addresses/projects?q=${'a'.repeat(201)}`,
+169 |     `/api/projects/${selected}/address-references?reference=010`,
+170 |     `/api/projects/${selected}/address-references?reference=010&revision=x&revision=y`,
+171 |   ])
+172 |     expect(await h.call('ada', 'GET', path)).toEqual({
+                                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "invalid_query",
++     "addressRevision": "qar1:083097a72157378e4a2da0f74fd144eb6c29808287d3873025b9163332578eb8",
++     "candidates": [
++       {
++         "endpoint": {
++           "scope": "node",
++           "stepId": "70c2c129-e281-44cb-a49d-63fd051c3032",
++           "workItemId": "leaf",
++         },
++         "name": "leaf",
++         "number": "010",
++         "projectId": "631aad63-3de8-4574-8894-644936100da2",
++         "reference": "AX.010.s1-dev",
++         "step": {
++           "code": "dev",
++           "id": "70c2c129-e281-44cb-a49d-63fd051c3032",
++           "name": "Dev",
++           "ordinal": 1,
++           "position": 10,
++         },
++         "stepNodeId": "sn1.leaf.70c2c129-e281-44cb-a49d-63fd051c3032",
++         "workItemId": "leaf",
++       },
++       {
++         "endpoint": {
++           "scope": "node",
++           "stepId": "f973a623-af3b-4a19-8462-892c32bf4655",
++           "workItemId": "leaf",
++         },
++         "name": "leaf",
++         "number": "010",
++         "projectId": "631aad63-3de8-4574-8894-644936100da2",
++         "reference": "AX.010.s2-qa",
++         "step": {
++           "code": "qa",
++           "id": "f973a623-af3b-4a19-8462-892c32bf4655",
++           "name": "QA",
++           "ordinal": 2,
++           "position": 20,
++         },
++         "stepNodeId": "sn1.leaf.f973a623-af3b-4a19-8462-892c32bf4655",
++         "workItemId": "leaf",
++       },
++     ],
++     "nextCursor": null,
++     "project": {
++       "abbreviation": "AX",
++       "name": "Alpha",
++       "projectId": "631aad63-3de8-4574-8894-644936100da2",
++     },
+    },
+-   "status": 400,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 50
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:172:46)
+(fail) refuses malformed queries and cursor reuse across query project organization and kind [149.14ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [2.24s]

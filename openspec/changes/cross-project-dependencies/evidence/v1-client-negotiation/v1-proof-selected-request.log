@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/dependency-admission.integration.test.ts:
+(fail) dual offers explicitly select V1 and retained presence keeps that exact admission [5003.73ms]
+  ^ this test timed out after 5000ms.
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+Ran 1 test across 1 file. [11.80s]

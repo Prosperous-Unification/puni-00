@@ -4,6 +4,7 @@ import type {
   OptimizerAvailability,
   Scheduler,
 } from '@wbs/core';
+import { scheduleResolved } from '@wbs/domain';
 import { schedule } from '@wbs/domain';
 import { createScheduler } from '@wbs/runtime-portable';
 
@@ -53,7 +54,7 @@ const fast: FastScheduler = (
   );
 
 /** Fast-only scheduler for isolated service fixtures. */
-export const fastScheduler = createScheduler(fast);
+export const fastScheduler = createScheduler(fast, scheduleResolved);
 
 /**
  * One reader in, both halves of the optimizer's wiring out.
@@ -76,7 +77,8 @@ export const fastScheduler = createScheduler(fast);
  * what this knows; there is nothing else for the predicate to consult.
  */
 export function optimizerWiring(optimized: OptimizedScheduleAdapter | undefined): OptimizerWiring {
-  const scheduler = optimized === undefined ? fastScheduler : createScheduler(fast, optimized);
+  const scheduler =
+    optimized === undefined ? fastScheduler : createScheduler(fast, scheduleResolved, optimized);
   return { scheduler, available: () => scheduler.supports('optimized') };
 }
 export type { OptimizerAvailability } from '@wbs/core';

@@ -1,0 +1,27 @@
+# CI frontend/devsync correction review
+
+Reviewed commit `b8cfcba79f2bbed6df881dabebf2d76f67a5a60f` against `b01b1938a` in `/tmp/puni-ci-frontend-devsync`, 2026-10-22. Read-only review of source; this report is the only authored file.
+
+**Decision: approve bounded integration onto the feature branch containing the base. No packet-introduced correctness defect found. Do not treat this as approval to merge the feature to main or as a green full gate.**
+
+## Findings, ranked
+
+1. **P1, existing branch gate blocker:** the production policy pilot fails with `undeclared binary content at openspec/changes/cross-project-dependencies/evidence/task-6-3-admission-proofs/activation.log`. Fresh targeted run reached 61 assertions and failed at `apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts:488`. This is outside the correction's seven-file delta. The log has identical Git blob `9a28c0df718e807a5b20b5c57d6595e6a631ab4e` at base and reviewed head. Registration tuple, mapping-schema, and committed index checks passed before production lint refused the binary. Fix or integrate the separate evidence-policy correction before claiming the branch gate passes.
+2. **P2, unresolved verification limitation:** `/tmp/puni-devsync-unsandboxed.log` records 894 pass, 1 fail, 895 tests. The poller test at `src/poller.test.ts:971` returned code 46 and `target objects still borrow source repository`; its probe checks `.git/objects/info/alternates`. `/tmp/puni-poller-independent.log` records the same test passing alone, 1 pass / 25 filtered / 0 fail. An isolated pass does not supersede the full-suite failure or establish its cause. The correction changes neither the poller nor its tests. The reviewed clone currently has no alternates file, but that cannot establish its state during the earlier run.
+
+## Correctness and inventory assessment
+
+- `fake-project-api.test.ts:156` now expects `fake-1` and `fake-2` in addition to every existing field. This matches `refusing-api.ts:739-760`: the real checked fake boundary adds positional codes before `clientFromShapes` validates the response and `stepViewOf` projects it. The assertion remains exact and still proves invalid mutation leaves the steps unchanged; it does not relax response validation.
+- The three new service-kind entries describe pure/captured support calculations: connected stage preparation/publication selection, readiness projection, and owner-tree projection. Inspected implementations and production callers; none owns a persistent store or a solver process. Classification does not change execution or weaken candidate discovery. `service-kinds.test.ts:232-245` still compares the complete sorted policy inventory to tracked source candidates exactly; suffix exclusion and missing-root/absent-policy/unreadable-policy negative tests remain active.
+- `dependency-lookup` is implemented by `openDependencyLookup`, composed by plain functions, with no `module.ts` or production `di-bag` import. Its addition to `UNSEALED` is consistent with existing policy. That exemption still refuses adding a module file, introducing a DI Bag import, or naming a nonexistent module.
+- All ten declared external consumers match compiler-resolved production imports. The README lists all four module member files, and mapping and boundary identities agree. The policy baseline's four mode/blob/path tuples exactly match `git ls-tree -r 67a80399326e9861c0cdc9f598f9823cd08f8e8d -- apps/wbs/fe-01/src/modules/dependency-lookup`; Git history confirms that SHA is the first touch since the pilot freeze. No false inventory pass was found.
+- Local `origin/main` is `e2ae536b2dbe5fa96f824e91dce355ce3fabf914`, with common ancestor `cbcd36ac613cc06bee4d700a8adddbbb04d2111f`. Its divergent changes are documentation and do not overlap this packet. The dependency-lookup module is absent on that main revision. This is a correction for the existing feature branch, not a self-contained commit to cherry-pick onto main. Remote refs were inspected locally, not fetched during this review.
+
+## Fresh checks
+
+- From `apps/wbs/fe-01`: `TZ=UTC bunx vitest run --config vitest.node.config.ts src/testing/fake-project-api.test.ts --maxWorkers=1`: **13 pass**, exit 0.
+- From `tools/tool-devsync`: `bun test --preload ../test/scratch/preload.ts src/module-labels.test.ts src/service-kinds.test.ts src/frontend-module-graph.test.ts --timeout=30000`: **34 pass**, 39 assertions, exit 0. The initial invocation omitted the target's 30-second timeout and failed only the sealing test on Bun's default 5-second timeout; the corrected invocation passed that test in 13.87 seconds.
+- From `apps/twilight-structure/twilight-burokrat/cli`: `bun test --preload ../../../../tools/test/scratch/preload.ts src/policy/pilot-policy.test.ts --test-name-pattern 'pins exact pre-index tuples and passes observe lint from external trust' --timeout=120000`: **1 fail**, 23 filtered, 61 assertions, exit 1, existing binary-evidence blocker above.
+- `git diff --check b01b1938a b8cfcba79`: exit 0. `git status --short`: empty after verification.
+
+No full canonical host gate, broad frontend suite, lint, typecheck, build, or network refresh was run in this bounded review. No new mutation proof was claimed; existing negatives were inspected and the service inventory negative tests ran. Full CI success remains unverified and contradicted by the named failures above.

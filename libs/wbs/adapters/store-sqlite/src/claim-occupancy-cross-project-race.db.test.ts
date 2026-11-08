@@ -6,13 +6,17 @@ import type { ClaimStore, PlanCommand, ResourceUnits, Scope } from '@wbs/core';
 import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 /**
  * `wbs-shared-occupancy` task 3.2: two claims in projects A and B of one
@@ -34,7 +38,10 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-occupancy-cross-project-race-'));
   dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath });
+  source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+  });
 });
 
 afterEach(async () => {
@@ -61,16 +68,23 @@ async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
     clock: clockOf({ now: () => 1_000, newId: () => crypto.randomUUID() }),
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
   await source.stores.users.create(
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const projects = [
-    (await graph.projects.create('A', F)).project.id,
-    (await graph.projects.create('B', F)).project.id,
+  const created = [
+    expectCreated(await graph.projects.create('A', F)),
+    expectCreated(await graph.projects.create('B', F)),
   ] as const;
+  const projects = [created[0].project.id, created[1].project.id] as const;
+  const firstA = created[0].steps.at(0);
+  const firstB = created[1].steps.at(0);
+  if (firstA === undefined || firstB === undefined)
+    throw new Error('race fixture project omitted its first workflow step');
+  const stepIds = [firstA.id, firstB.id] as const;
   for (const id of ['claire', 'codex']) {
     await source.stores.directory.addPerson({ id, name: id, kind: 'agent' }, [], { at: 1, by: F });
     const bound = await source.stores.directory.patchPerson(id, { accountId: F }, { at: 1, by: F });
@@ -107,13 +121,18 @@ async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
       },
     });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: options.broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
       servicesOver(
         { ...scope.stores, claims: gated(scope.stores.claims) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
       ),
   });
   const leaves: string[] = [];
@@ -129,13 +148,14 @@ async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
     kind: 'claimWorkItem',
     workItemId: leaves[index] ?? '',
     personId: index === 0 ? 'claire' : 'codex',
+    steps: [stepIds[index]],
   });
   /** Each leaf's units: its largest copy, one per leaf however many steps it claimed. */
   const held = () =>
     source.db.all<{ units: number }>(
       sql`SELECT max(o.units) AS units FROM claim_occupancy AS o JOIN claim AS c ON c.id = o.claim_id GROUP BY c.work_item_id ORDER BY units`,
     );
-  return { projects, leaves, runner, claim, held };
+  return { projects, leaves, runner, claim, held, stepIds };
 }
 
 describe('two projects claim a shared resource at once', () => {
@@ -186,7 +206,7 @@ describe('two projects claim a shared resource at once', () => {
   }
 
   it('applies exactly one across two connections', async () => {
-    const { projects, leaves, held } = await seeded(null);
+    const { projects, leaves, held, stepIds } = await seeded(null);
     const barrier = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2);
     const state = new Int32Array(barrier);
     const workers = [0, 1].map(
@@ -208,6 +228,7 @@ describe('two projects claim a shared resource at once', () => {
           barrier,
           projectId: projects[index === 0 ? 0 : 1],
           workItemId: leaves[index],
+          stepId: index === 0 ? stepIds[0] : stepIds[1],
           personId: index === 0 ? 'claire' : 'codex',
           actorId: F,
         });

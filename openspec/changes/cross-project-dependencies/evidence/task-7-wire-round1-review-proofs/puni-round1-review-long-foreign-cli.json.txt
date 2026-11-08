@@ -1,0 +1,1 @@
+{"exitCode":64,"stdout":"","stderr":"wbs-solver: occupancy[0] exceeds the safe quantization range\n"}

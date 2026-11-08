@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "sourceSha": "a2e156b76fe20d7aa587fb7ce5aaf289a70f5886",
+  "mainSha": "df8b9bcc3529abb6e78adfbf2b871a4ead33a03a",
+  "recordedAt": "2026-10-24T04:44:18.533330+00:00",
+  "runtime": {
+    "name": "bun",
+    "version": "1.4.4",
+    "sha256": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235"
+  },
+  "checks": {
+    "initialDirectUnit": {
+      "passed": 83,
+      "failed": 2,
+      "cause": "configured MCP prepare omitted; ignored generated document was stale"
+    },
+    "prepare": {
+      "target": "wbs-mcp-01:prepare",
+      "cache": "skipped",
+      "seconds": 2.6
+    },
+    "preparedUnit": {
+      "passed": 85,
+      "failed": 0,
+      "assertions": 567,
+      "files": 7,
+      "seconds": 17.58
+    },
+    "configuredInfra": {
+      "tasks": 13,
+      "cache": "skipped",
+      "seconds": 17.8
+    },
+    "openspec": {
+      "passed": 285,
+      "failed": 0
+    }
+  },
+  "logs": {
+    "initialUnit": {
+      "name": "puni-integration-a2e-unit.log",
+      "sha256": "94007531600b11f6a582dcfe4d098a79108452762ce6ca4940e0784580abc8cd",
+      "bytes": 77632
+    },
+    "prepare": {
+      "name": "puni-integration-a2e-mcp-prepare.log",
+      "sha256": "f599a29bf10fa0cee9a1cf9f7b592dc241e5b273153b1a9b252add72e9acd759",
+      "bytes": 319
+    },
+    "unit": {
+      "name": "puni-integration-a2e-prepared-unit.log",
+      "sha256": "40b282e07635de5e455ef3fc93176689de14640bef111c1c9d9623f3496aa709",
+      "bytes": 8852
+    },
+    "static": {
+      "name": "puni-integration-a2e-static.log",
+      "sha256": "7e7ad843f8bd9cef26933a3b298c66e52a10cc7cb8b1406eef82836d395ce886",
+      "bytes": 4597
+    },
+    "openspec": {
+      "name": "puni-integration-a2e-openspec.json",
+      "sha256": "8c6a769c31fbf5ba9f2b5357cbbf3a88fb92fbdc72dcbe57d12e179b4be02e22",
+      "bytes": 277070
+    }
+  },
+  "limits": [
+    "canonical final exact-SHA host gate unrun",
+    "new required CI verdict pending",
+    "old checkpoint browser race repaired but hosted rerun unverified",
+    "earlier peer and cleanup incidents unreproduced",
+    "participant restoration/handoff/compatible controllers incomplete",
+    "production activation and deployment unperformed"
+  ]
+}

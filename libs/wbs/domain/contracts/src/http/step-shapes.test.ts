@@ -81,6 +81,7 @@ test('declares the full step response and each usage count and assumed-assignee 
     ['dependencyIds', 'error'],
     ['error', 'nodes'],
     ['error'],
+    ['error', 'required'],
   ]);
   // Proof: removing the sparse refusal or its node workItemId independently failed this test (2026-10-17).
   expect(variants.at(4)).toMatchObject({

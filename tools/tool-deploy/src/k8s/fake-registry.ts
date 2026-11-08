@@ -37,7 +37,11 @@ export function fakeRegistry(
           return new Response('', { status: 401 });
         }
       }
-      const digest = new URL(request.url).pathname.split('/').at(-1) ?? '';
+      const pathname = new URL(request.url).pathname;
+      const repository = /^\/v2\/(.+)\/(?:manifests|blobs)\/[^/]+$/.exec(pathname)?.[1];
+      if (repository === undefined || !(repository in images))
+        return new Response('', { status: 404 });
+      const digest = pathname.split('/').at(-1) ?? '';
       const body = blobs.get(digest);
       if (body === undefined) return new Response('', { status: 404 });
       return new Response(options.lie === true ? `${body} ` : body);

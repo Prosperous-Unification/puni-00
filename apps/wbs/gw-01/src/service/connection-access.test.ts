@@ -57,7 +57,9 @@ function harness(check: CheckProjectAccess) {
     check,
     timers,
     signal: connection.signal,
-    onRevoked: (subscription) => revoked.push({ subscription, at: timers.now }),
+    onRevoked: (subscription) => {
+      revoked.push({ subscription, at: timers.now });
+    },
     onUnauthenticated: () => closes.push('unauthenticated'),
     onUnavailable: () => closes.push('unavailable'),
   });
@@ -83,7 +85,9 @@ describe('ConnectionAccess', () => {
       },
       timers,
       signal: new AbortController().signal,
-      onRevoked: () => revoked.push(timers.now),
+      onRevoked: () => {
+        revoked.push(timers.now);
+      },
       onUnauthenticated: () => undefined,
       onUnavailable: () => undefined,
     });
@@ -114,7 +118,9 @@ describe('ConnectionAccess', () => {
         }),
       timers,
       signal: new AbortController().signal,
-      onRevoked: (subscription) => revoked.push({ subscription, at: timers.now }),
+      onRevoked: (subscription) => {
+        revoked.push({ subscription, at: timers.now });
+      },
       onUnauthenticated: () => undefined,
       onUnavailable: () => undefined,
     });
@@ -233,4 +239,26 @@ describe('ConnectionAccess', () => {
     await timers.advanceTo(LEASE_RENEW_MS * 4);
     expect(checks).toBe(1);
   });
+});
+
+it('reports a rejected asynchronous revocation and retires its lease', async () => {
+  const timers = new ManualTimers();
+  const failure = new Error('revocation delivery infrastructure failed');
+  const reported: unknown[] = [];
+  const access = new ConnectionAccess({
+    check: () => Promise.resolve('denied'),
+    timers,
+    signal: new AbortController().signal,
+    onRevoked: () => Promise.reject(failure),
+    onUnauthenticated: () => {
+      throw new Error('unexpected authentication refusal');
+    },
+    onUnavailable: (caught) => {
+      reported.push(caught);
+    },
+  });
+  access.hold('project:held', 'held');
+  await timers.advanceTo(LEASE_RENEW_MS);
+  expect(reported).toEqual([failure]);
+  expect(timers.pendingCount).toBe(0);
 });

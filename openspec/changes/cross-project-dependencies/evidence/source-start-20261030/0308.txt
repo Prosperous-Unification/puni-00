@@ -1,0 +1,161 @@
+{
+  "limits": "Existing CI75min unchanged; no timing run beyond already authorized consumers",
+  "actualIndividualReceipts": [
+    {
+      "epoch": "older20",
+      "label": "ordinary-dev-gateway",
+      "name": "source restoration refuses dev gateway database opener",
+      "elapsedSeconds": 83.2822964329971
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-00",
+      "name": "source restoration refuses absent and copied phases before genuine continuation",
+      "elapsedSeconds": 144.28778872697148
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-01",
+      "name": "source restoration refuses released original context",
+      "elapsedSeconds": 92.17648973304313
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-02",
+      "name": "source restoration refuses missing gateway record and terminal repair",
+      "elapsedSeconds": 89.35313772503287
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-03",
+      "name": "source restoration refuses unreadable gateway record",
+      "elapsedSeconds": 74.08203398494516
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-04",
+      "name": "source restoration refuses same-byte gateway record replacement",
+      "elapsedSeconds": 72.49797065998428
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-05",
+      "name": "source restoration refuses gateway record rebased through public summary",
+      "elapsedSeconds": 79.65483608900104
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-06",
+      "name": "source restoration refuses dev MCP database opener",
+      "elapsedSeconds": 90.58021301100962
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-07",
+      "name": "source restoration refuses dev frontend database opener",
+      "elapsedSeconds": 88.1951434200164
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-08",
+      "name": "source restoration refuses dev Nx helper database opener",
+      "elapsedSeconds": 122.20315401197877
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-09",
+      "name": "source restoration refuses foreign dev database opener",
+      "elapsedSeconds": 112.19062885502353
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-10",
+      "name": "source restoration refuses changed dev backend start ticks",
+      "elapsedSeconds": 96.07788755302317
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-11",
+      "name": "source restoration refuses null dev backend executable",
+      "elapsedSeconds": 106.71049336192664
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-12",
+      "name": "source restoration refuses source backend as prod opener",
+      "elapsedSeconds": 100.33977260999382
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-13",
+      "name": "source restoration refuses backend drift during source HTTP",
+      "elapsedSeconds": 100.84735334606376
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-14",
+      "name": "source restoration refuses gateway drift during source HTTP",
+      "elapsedSeconds": 102.33237181499135
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-15",
+      "name": "source restoration refuses solver drift during source HTTP",
+      "elapsedSeconds": 104.67643474694341
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-16",
+      "name": "source restoration refuses source drift after authority return",
+      "elapsedSeconds": 110.29826285294257
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-17",
+      "name": "source restoration refuses missing actual source ready publication",
+      "elapsedSeconds": 126.03151455998886
+    },
+    {
+      "epoch": "older20",
+      "label": "ordinary-18",
+      "name": "source restoration refuses late fence drift after final source observation",
+      "elapsedSeconds": 122.77572590694763
+    },
+    {
+      "epoch": "refined-current",
+      "label": "refined-00",
+      "name": "source restoration retains original gateway authority through ready",
+      "elapsedSeconds": 113.67954926204402
+    },
+    {
+      "epoch": "refined-current",
+      "label": "refined-01",
+      "name": "source restoration refuses absent and copied phases before genuine continuation",
+      "elapsedSeconds": 134.87176467501558
+    },
+    {
+      "epoch": "refined-current",
+      "label": "refined-02",
+      "name": "source restoration refuses wrong selected source before intent and start",
+      "elapsedSeconds": 124.48216182296164
+    },
+    {
+      "epoch": "single-observer-current",
+      "label": "single-observer-00",
+      "name": "source restoration refuses listener replacement after actual ready publication",
+      "elapsedSeconds": 118.09995037701447
+    },
+    {
+      "epoch": "single-observer-current",
+      "label": "single-observer-01",
+      "name": "source restoration refuses late fence drift after final source observation",
+      "elapsedSeconds": 109.19707377802115
+    }
+  ],
+  "actualOlder20SumSeconds": 2018.5935094028246,
+  "actualCurrentFollowup5SumSeconds": 600.3304999150569,
+  "mixedEpochUnique23ProjectedSeconds": 2351.8604946839623,
+  "olderSourceCISeconds": 2157.063,
+  "combinedMixedEpochProjectedSeconds": 4508.923494683962,
+  "qualification": "Mixed-epoch sum only; no actual current23-case full-file or CI capacity qualification"
+}

@@ -43,6 +43,11 @@ export default defineConfig({
   test: {
     ...base.test,
     environment: 'node',
+    // Cold backend-config imports in the origin probe compete with every worker.
+    // Proof: removing this bound made configured test:unit fail that probe with
+    // ETIMEDOUT before its first import completed; four workers passed all
+    // 82 files / 1012 tests with the same 20-second probe bound (2026-10-23).
+    maxWorkers: 4,
     include: [...NODE_SUITES],
     setupFiles: [],
   },

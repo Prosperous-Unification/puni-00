@@ -1,0 +1,432 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-remote-predecessor/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (96 tests | 3 failed | 93 skipped) 4506ms
+   × edits persisted remote predecessor whole scope on desktop 1705ms
+   × edits persisted remote predecessor node scope on desktop 1412ms
+   × edits persisted remote predecessor descendant-step scope on desktop 1387ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor whole scope on desktop
+AssertionError: expected "vi.fn()" to be called with arguments: [ 'p1', 'external', { …(3) }, …(2) ]
+
+Received:
+
+  1st vi.fn() call:
+
+@@ -1,11 +1,12 @@
+  [
+    "p1",
+    "external",
+    {
+      "projectId": "remote-stable",
+-     "scope": "whole",
++     "scope": "node",
++     "stepId": "remote-dev",
+      "workItemId": "remote-row",
+    },
+    {
+      "scope": "whole",
+      "workItemId": "w1",
+
+
+Number of calls: 1
+
+
+Ignored nodes: comments, script, style
+<html>
+  <head />
+  <body>
+    <div>
+      <section
+        class="flex min-h-0 flex-1 flex-col"
+        data-project-id="p1"
+        data-slice-count="1"
+      >
+        <div
+          aria-busy="false"
+          aria-label="Plan"
+          class="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"
+          data-toolbar="true"
+          role="toolbar"
+        >
+          <span
+            style="position: relative; display: inline-block;"
+          >
+            <button
+              aria-expanded="false"
+              aria-haspopup="menu"
+              aria-label="Freeze #"
+              class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
+              data-hint="Freeze the numbering as it stands, or release every frozen row"
+              style=""
+              type="button"
+            >
+              Freeze #
+            </button>
+          </span>
+          <button
+            class="inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"
+            data-takes-the-focus=""
+            style=""
+            type="button"
+          >
+            Add work item
+          </button>
+          <button
+            aria-label="Collapse all"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+            data-hint="Close every branch"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              fill="none"
+              focusable="false"
+              height="1em"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="1em"
+            >
+              <path
+                d="M7 4l5 5 5-5"
+              />
+              <path
+                d="M7 20l5-5 5 5"
+              />
+            </svg>
+          </button>
+          <button
+            aria-label="Expand all"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+            data-hint="Open every branch"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              fill="none"
+              focusable="false"
+              height="1em"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="1em"
+            >
+              <path
+                d="M7 9l5-5 5 5"
+              />
+              <path
+                d="M7 15l5 5 5-5"
+              />
+            </svg>
+          </button>
+          <button
+            aria-label="Arrange by schedule"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+            data-hint="Put every sibling in the order its bar starts"
+            style=""
+            type="button"
+ ...
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1032:24
+    1030|       fireEvent.click(details.getByRole('button', { name: 'Save' }));
+    1031|       await waitFor(() => {
+    1032|         expect(update).toHaveBeenCalledWith(
+       |                        ^
+    1033|           'p1',
+    1034|           'external',
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor node scope on desktop
+AssertionError: expected "vi.fn()" to be called with arguments: [ 'p1', 'external', { …(4) }, …(2) ]
+
+Received:
+
+  1st vi.fn() call:
+
+@@ -2,11 +2,11 @@
+    "p1",
+    "external",
+    {
+      "projectId": "remote-stable",
+      "scope": "node",
+-     "stepId": "remote-test",
++     "stepId": "remote-dev",
+      "workItemId": "remote-row",
+    },
+    {
+      "scope": "whole",
+      "workItemId": "w1",
+
+
+Number of calls: 1
+
+
+Ignored nodes: comments, script, style
+<html>
+  <head />
+  <body>
+    <div>
+      <section
+        class="flex min-h-0 flex-1 flex-col"
+        data-project-id="p1"
+        data-slice-count="1"
+      >
+        <div
+          aria-busy="false"
+          aria-label="Plan"
+          class="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"
+          data-toolbar="true"
+          role="toolbar"
+        >
+          <span
+            style="position: relative; display: inline-block;"
+          >
+            <button
+              aria-expanded="false"
+              aria-haspopup="menu"
+              aria-label="Freeze #"
+              class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
+              data-hint="Freeze the numbering as it stands, or release every frozen row"
+              style=""
+              type="button"
+            >
+              Freeze #
+            </button>
+          </span>
+          <button
+            class="inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"
+            data-takes-the-focus=""
+            style=""
+            type="button"
+          >
+            Add work item
+          </button>
+          <button
+            aria-label="Collapse all"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+            data-hint="Close every branch"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              fill="none"
+              focusable="false"
+              height="1em"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="1em"
+            >
+              <path
+                d="M7 4l5 5 5-5"
+              />
+              <path
+                d="M7 20l5-5 5 5"
+              />
+            </svg>
+          </button>
+          <button
+            aria-label="Expand all"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+            data-hint="Open every branch"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              fill="none"
+              focusable="false"
+              height="1em"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="1em"
+            >
+              <path
+                d="M7 9l5-5 5 5"
+              />
+              <path
+                d="M7 15l5 5 5-5"
+              />
+            </svg>
+          </button>
+          <button
+            aria-label="Arrange by schedule"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+            data-hint="Put every sibling in the order its bar starts"
+            style=""
+            type="button"
+ ...
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1032:24
+    1030|       fireEvent.click(details.getByRole('button', { name: 'Save' }));
+    1031|       await waitFor(() => {
+    1032|         expect(update).toHaveBeenCalledWith(
+       |                        ^
+    1033|           'p1',
+    1034|           'external',
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor descendant-step scope on desktop
+AssertionError: expected "vi.fn()" to be called with arguments: [ 'p1', 'external', { …(4) }, …(2) ]
+
+Received:
+
+  1st vi.fn() call:
+
+@@ -1,12 +1,12 @@
+  [
+    "p1",
+    "external",
+    {
+      "projectId": "remote-stable",
+-     "scope": "descendant-step",
+-     "stepId": "remote-test",
++     "scope": "node",
++     "stepId": "remote-dev",
+      "workItemId": "remote-row",
+    },
+    {
+      "scope": "whole",
+      "workItemId": "w1",
+
+
+Number of calls: 1
+
+
+Ignored nodes: comments, script, style
+<html>
+  <head />
+  <body>
+    <div>
+      <section
+        class="flex min-h-0 flex-1 flex-col"
+        data-project-id="p1"
+        data-slice-count="1"
+      >
+        <div
+          aria-busy="false"
+          aria-label="Plan"
+          class="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"
+          data-toolbar="true"
+          role="toolbar"
+        >
+          <span
+            style="position: relative; display: inline-block;"
+          >
+            <button
+              aria-expanded="false"
+              aria-haspopup="menu"
+              aria-label="Freeze #"
+              class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
+              data-hint="Freeze the numbering as it stands, or release every frozen row"
+              style=""
+              type="button"
+            >
+              Freeze #
+            </button>
+          </span>
+          <button
+            class="inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"
+            data-takes-the-focus=""
+            style=""
+            type="button"
+          >
+            Add work item
+          </button>
+          <button
+            aria-label="Collapse all"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+            data-hint="Close every branch"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              fill="none"
+              focusable="false"
+              height="1em"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="1em"
+            >
+              <path
+                d="M7 4l5 5 5-5"
+              />
+              <path
+                d="M7 20l5-5 5 5"
+              />
+            </svg>
+          </button>
+          <button
+            aria-label="Expand all"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+            data-hint="Open every branch"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              fill="none"
+              focusable="false"
+              height="1em"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="1em"
+            >
+              <path
+                d="M7 9l5-5 5 5"
+              />
+              <path
+                d="M7 15l5 5 5-5"
+              />
+            </svg>
+          </button>
+          <button
+            aria-label="Arrange by schedule"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
+            data-hint="Put every sibling in the order its bar starts"
+            style=""
+            type="button"
+ ...
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1032:24
+    1030|       fireEvent.click(details.getByRole('button', { name: 'Save' }));
+    1031|       await waitFor(() => {
+    1032|         expect(update).toHaveBeenCalledWith(
+       |                        ^
+    1033|           'p1',
+    1034|           'external',
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 93 skipped (96)
+   Start at  05:32:51
+   Duration  11.10s (tests 41%, import 39%, transform 15%, environment 4%, setup 1%)

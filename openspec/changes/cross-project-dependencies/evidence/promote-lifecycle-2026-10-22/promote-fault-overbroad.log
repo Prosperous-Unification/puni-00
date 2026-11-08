@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+{"level":"error","time":1792702636379,"service":"be-01","err":{"occurrence_id":"AE_9VM4JZ7EJBK4R403AWXBH9W2YJ","fingerprint":"fp1_32529a2b708f2f6638983d35edf8f67e","stack":["Error: external dependency predecessor has a surviving successor","    at <anonymous> (/tmp/puni-promote-lifecycle/libs/wbs/adapters/store-sqlite/src/typed-dependency.ts:590:21)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+1270 |           commands: [
+1271 |             { kind: 'deleteWorkItem', workItemId: fixture.owner.workItemId, strategy: 'promote' },
+1272 |           ],
+1273 |         })
+1274 |       ).status,
+1275 |     ).toBe(200);
+             ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-promote-lifecycle/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:1275:7)
+(fail) synthetic mounted promote replay preserves surviving child incidents [833.44ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 17 expect() calls
+Ran 1 test across 1 file. [3.73s]

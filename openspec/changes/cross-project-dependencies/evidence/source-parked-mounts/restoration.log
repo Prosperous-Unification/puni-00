@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts:
+(pass) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: none [7168.24ms]
+
+ 1 pass
+ 92 filtered out
+ 0 fail
+ 2135 expect() calls
+Ran 1 test across 1 file. [7.31s]

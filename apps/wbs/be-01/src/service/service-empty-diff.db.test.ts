@@ -4,6 +4,9 @@ import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { expectCreated } from '@wbs/core/testing/expect-created';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
@@ -31,7 +34,7 @@ import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { fastScheduler } from './optimizer-wiring';
 
@@ -149,12 +152,20 @@ beforeEach(async () => {
   );
 
   projects = new ProjectService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
+    dependencyContext: createLocalDependencyContext({
+      projects: projectStore,
+      workItems: workItemStore,
+      estimates: new EstimateRepository(db, OPEN),
+      dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
+    }),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
@@ -181,7 +192,7 @@ beforeEach(async () => {
     broadcast: recordingBroadcaster(),
   });
 
-  const created = await projects.create('Rewire the shed', ownerId);
+  const created = expectCreated(await projects.create('Rewire the shed', ownerId));
   projectId = created.project.id;
   steps = created.steps;
   await projects.update(projectId, ownerId, { startDate: '2026-09-01' });

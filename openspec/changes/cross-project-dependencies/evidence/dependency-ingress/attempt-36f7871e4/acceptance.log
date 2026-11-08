@@ -1,0 +1,1 @@
+{"state":"passed","image":"caddy:2.10.2@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83","fixtureId":"cbb49fe24c3a1ead22205e2c259939eaed4bdf2431d2a94974d1d9e14af951e6","initialPort":"33139","restartedPort":"33140","serving503":true,"unselectedPreserved":true,"restartPersistence":true}

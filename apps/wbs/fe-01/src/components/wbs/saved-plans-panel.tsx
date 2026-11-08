@@ -8,7 +8,7 @@ import type {
   SavedPlanSideRef,
 } from '../../lib/saved-plan-api';
 import { savedPlanFailureCode } from '../../lib/saved-plan-api';
-import { compareRefusal, resolveSideSchedules } from '../../lib/saved-plan-compare';
+import { compareRefusal } from '../../lib/saved-plan-compare';
 import type { SavedPlanSaveState } from '../../lib/saved-plan-save';
 import { saveOf, useSavedPlanSave } from '../../lib/saved-plan-save';
 import type { SavedPlans } from '../../modules/saved-plans/contract';
@@ -244,7 +244,7 @@ export function SavedPlansPanel({
               left,
               right,
               diff: reply.body.diff,
-              schedules: resolveSideSchedules(left, right, reply.body.diff, rows),
+              summaries: { left: reply.body.left, right: reply.body.right },
               rows,
               livePlanRevision: askedAt,
             };
@@ -291,7 +291,7 @@ export function SavedPlansPanel({
     return () => {
       cancelled = true;
     };
-    // `rows` is deliberately absent. It is read for the schedule fallback and
+    // `rows` is deliberately absent. It is read for
     // the side names, and a broadcast that changes it must not re-run a
     // comparison the reader is looking at (AC #4). `asked` is how they get the
     // newer one: the affordance below bumps it, this effect re-runs, and the

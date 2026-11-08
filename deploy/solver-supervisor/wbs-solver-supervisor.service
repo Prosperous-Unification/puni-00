@@ -3,11 +3,15 @@ Description=WBS host-owned solver supervisor
 
 [Service]
 Type=simple
-ExecStart=/home/puni1/.local/lib/wbs-solver/bun /home/puni1/.local/lib/wbs-solver/solver-supervisor.js --config=/home/puni1/.config/wbs-solver/solver-supervisor.json
+Environment=WBS_EDGE_STATE=/home/puni1/wbs/state
+KillMode=control-group
+ExecStart=/home/puni1/.local/lib/wbs-solver/bun /home/puni1/.local/lib/wbs-solver/solver-supervisor.js --config=/home/puni1/.config/wbs-solver/solver-supervisor.json --admission=policy
 # A terminated Bun listener leaves its socket inode behind. Remove it before a
 # restart so readiness checks cannot accept the previous process's dead socket.
 ExecStopPost=/bin/rm -f %t/wbs-solver/supervisor.sock
 Restart=always
+# Proof: installed-prevent removal failed the exact host artifact test in install.test.ts.
+RestartPreventExitStatus=78
 RestartSec=1s
 RuntimeDirectory=wbs-solver
 RuntimeDirectoryMode=0750

@@ -1,0 +1,57 @@
+# Connected solver wire correction: independent re-review
+
+**Verdict: changes required.** The original six reproductions are corrected, but two blockers remain in the corrected checkpoint: the new validator breaks bundled callers, and preparation can still return a terminal whose exact retained request the rebuilt Python receiver rejects.
+
+Reviewed `/tmp/puni-cross-solver-wire` at original `05a5b85d59f9358e0b93bb95ceb854d07b6fcb67` plus correction `388fb5410fe1198282a105c83e4c263dbaaf284d`. All nine entries in `/tmp/puni-connected-solver-wire-round1-sha256.txt` match before and after review. Only the excluded root-owned `project-address-shapes.ts` is dirty. No source, Git, or WBS mutation was performed by this review. The original probes remain unchanged; adapted probes and a deliberate ownership mutant use separately named `/tmp` copies.
+
+1. **P1 — runtime schema loading makes the configured Bun artifact unusable.** `libs/wbs/domain/contracts/solver/src/validate-connected-solver-request.ts:9–10` reads `../solver-wire.v5.json` relative to `import.meta.url` at module initialization. Bun retains that read in its output but resolves the URL relative to the bundle. The existing local `revalidateSolverResult` import reaches this module through `build-connected-solver-request`, so callers fail even when no connected request is prepared.
+
+   Actual reproduction:
+
+   ```sh
+   bun build /tmp/puni-wire-round1-review-probes/local-entry.ts --target=bun --outfile=/tmp/puni-wire-round1-review-probes/bundled/local-entry.js
+   bun /tmp/puni-wire-round1-review-probes/bundled/local-entry.js
+   ```
+
+   The entry imports the existing local revalidator and prints its type. Build succeeds; execution exits 1 with `ENOENT` opening `/tmp/puni-wire-round1-review-probes/solver-wire.v5.json`. The new artifact test proves the same entry runs from source, then asserts that the bundle runs: **1 pass / 1 real assertion failure**, expected exit 0, received 1. Evidence: `/tmp/puni-round1-review-artifact.log` and `/tmp/puni-wire-round1-review-probes/artifact.test.ts`.
+
+   `apps/wbs/be-01/project.json` configures `bun build ... --target=bun --outdir=dist/apps/wbs/be-01`; its only explicit JSON asset copy is the public-email-policy directory. It does not ship this schema at the new relative location. This is an artifact-loading failure, not a compilation failure. The current Dockerfile copies `libs` and runs `src/main.ts`, so I do **not** claim the source-run Docker image was demonstrated broken. The configured bundled artifact still must work.
+
+   Bundle the normative schema as an explicit JSON module/dependency, or provide and test a deliberately shipped asset with correct artifact resolution. Prefer avoiding a new runtime filesystem dependency in this contracts module. Do not catch ENOENT and weaken validation. Add a test that executes a built artifact through an existing local caller and a connected preparation caller; successful `bun build` alone is insufficient.
+
+2. **P1 — Bun and Python disagree on a retained foreign-only occupancy interval, so the terminal is not a completely validated request.** In `validate-connected-solver-request.ts:81–86`, Bun skips holders whose person has no local positive-duration slice before checking quantization. Python `validate.py:413–429` scales and checks **all** retained occupancy first, then filters by local people. The newly added Python range refusal therefore has no equivalent preparation refusal for such a holder.
+
+   Reproduction uses the ordinary valid A→B→C 0.2/1/1.2 stage, changes C's duration to finite `1e15`, gives C the person `foreign-only-person`, switches the stage to shared mode, and retains C's real finish `1000000000000001.2`. Local B has no such person. Both dependency coordinates determining the contradictory window remain unchanged. Preparation returns `boundary-infeasible` with **lower 10, upper 9, horizon 58**, retained holder C at `1.2 → 1000000000000001.2`, and empty `elsewhere`. Sending the **exact retained request** to the rebuilt installed 0.4 CLI returns **exit 64**, empty stdout, and `occupancy[0] exceeds the safe quantization range`.
+
+   This is a remaining instance of original findings 2/5, not a complaint that foreign evidence is retained. Retaining it is required. Evidence: `/tmp/puni-wire-round1-review-probes/complete-request.test.ts`, `/tmp/puni-round1-review-complete-request.log`, exact request `/tmp/puni-round1-review-long-foreign-request.json`, and exact process outcome `/tmp/puni-round1-review-long-foreign-cli.json`. The watched test reaches the terminal and then fails its actual exit-code assertion: expected 0, received 64.
+
+   Make the accepted numeric domain and filtering order consistent before either request or terminal is returned. If the receiver requires every retained holder's quantization to fit, preparation must return the modeled **horizon-overflow** failure for this finite representability case before classification. If only locally effective occupancy is quantized, both sides must apply that rule consistently while still validating all retained real ownership/placement evidence and preserving nonfinite/giant-integer refusal requirements. Do not drop foreign holder evidence to make the request pass. Add a builder-to-installed-CLI test for the long foreign-only holder; independent TS and Python tests did not catch the disagreement.
+
+**Original findings and fresh verification**
+
+- Objective identity: the pair API now requires distinct `{ pri, time }` hashes and builds each objective separately. Revalidation reconstructs only the requested objective. Permanent tests cover crossed unknown responses in both directions, equal-hash refusal, and distinct identities retained on both terminal requests. The adapted original crossed-response probe passes.
+- Complete request validation: the original malformed budget and fractional-origin cases now throw before terminal classification. The normal 10/9 stage remains a terminal with full stage/request/evidence. The schema and semantic validation are invoked before the contradiction loop. This closes the two original examples, but finding 2 above prevents claiming complete receiver parity.
+- Nonfinite evidence: installed CLI rejects NaN, Infinity, -Infinity, and exponent-overflow `1e309` in fixed and occupancy fields with exit 64 and empty stdout. Recursive parsing refusal is limited to nonfinite floats; occupancy range checks compare against the safe limit before `math.isfinite`, correctly handling the tested **401-digit finite JSON integer** without `OverflowError`.
+- Declared witness: the installed CLI returns exit 64, empty stdout, and a diagnostic without traceback for the invalid full-model witness. The handler catches modeled `RequestRejected`; existing `ModelInvalid`/`SolveFailed` handlers remain separate. The later lexicographic failure mappings are unchanged.
+- Finite incoming/outgoing bound and movement-reference extremes now return typed horizon-overflow. The builder catches only `ConnectedBoundaryOverflow` and rethrows unrelated errors. The long foreign-only occupancy case above remains missing from this consistency guarantee.
+- Ownership R5 proof: the new production CLI cases reject unknown local and foreign endpoints and mismatched foreign owner. I repeated the ownership mutation independently in `/tmp/puni-wire-round1-owner-sandbox`, removing **only** the `foreignProjectId` comparison. The configured Python target ran **276 tests with one actual assertion failure**, precisely the owner subcase (exit 0 instead of 64). `/tmp/puni-round1-review-owner-mutant.log`. The frozen source was never mutated.
+- Active-boundary UNKNOWN: the permanent test now retains an incoming bound and a feasible initial model while `_configure` returns UNKNOWN. It asserts `unknown` and no offsets. This test passes in the fresh complete Python run. The recorded conditional-relabel mutation fails that actual assertion.
+
+Commands/results run during this re-review:
+
+- Configured uncached `wbs-contracts:test`: **516 pass, 0 fail**, `/tmp/puni-round1-review-contracts.log`.
+- Configured uncached `wbs-solver-py:test` with `PATH=/tmp/puni-solver-wire-venv/bin:$PATH`, `NX_DAEMON=false`, `NX_ISOLATE_PLUGINS=false`: **276 tests OK**, `/tmp/puni-round1-review-python.log`.
+- Configured uncached `wbs-contracts:typecheck` and `wbs-contracts:lint`: both successful; `/tmp/puni-round1-review-{typecheck,lint}.log`.
+- `bun test /tmp/puni-wire-round1-review-probes/seams.test.ts /tmp/puni-round1-installed.test.ts`: **11 pass, 0 fail, 49 assertions**, `/tmp/puni-round1-review-seams.log`. The copied original probes change only the pair API and the expected modeled throws for malformed trusted preparation. Original files/logs remain immutable.
+- Artifact probe: **1 pass / 1 fail**, as finding 1.
+- Complete-request parity probe: **0 pass / 1 fail**, as finding 2.
+- Fresh installed `--version`: **0.4.0**. Installed CLI probes above execute the rebuilt `.venv-solver/bin/wbs-solver`, not just source imports. The configured rebuild log `/tmp/puni-round1-setup-final.log` records Python 3.14.7, 0.4.0, and a feasible golden request; I inspected it rather than repeating installation.
+- The normative v5 schema, checked-in Python copy, and installed schema remain byte-identical. This correction changes no wire schema, including historical generations 1–4. The nine-file manifest and source status were checked again after probes.
+
+**Mutation evidence audit**
+
+The worker's eleven named mutation logs contain substantive failures in executed tests, not import failures or zero-test runs. `/tmp/puni-round1-ts-validator-mutant.log` shows malformed budget returning a terminal; the first assertion fails before the later fractional-origin assertion, so it is not evidence that both independently executed under that single mutation. `/tmp/puni-round1-ts-semantic-mutant.log` lists nine accepted corruptions after the semantic block is bypassed; that proves the block-level negative and is not a separate mutation of each constituent predicate. `/tmp/puni-round1-identity-mutant.log` fails equal-hash refusal. Boundary/reference mutation logs fail through production throws where typed outcomes are expected.
+
+Python ownership, recursive nonfinite rejection, occupancy quantization, giant-integer check order, post-parse witness handling, and active-boundary UNKNOWN logs contain the claimed assertions: respectively exit 0 instead of 64; three nonfinite acceptances; exit 1 instead of 64 after numeric overflow; exit 1 instead of 64 for the 401-digit integer; exit 1 instead of 64 for the witness; and boundary-infeasible instead of unknown. Fresh restored suites and the manifest match the corrected source. I independently repeated ownership; I did not repeat every recorded mutation. The three algebraically masked formula terms and their honest original proof limits remain unchanged.
+
+**Scope remains bounded.** This is not full backend or feature acceptance. Active backend wire-4/0.3 fixtures remain the explicit integration follow-up. No full backend suite/typecheck, Docker smoke, browser test, end-to-end publication/cache path, OpenSpec validation, or h2/h4 gate was run here. Domain publication/materialization, persisted certificates, hashing/cache/retry, and live selection integration remain outside this source checkpoint. The green focused suites do not close tasks 7.1–7.4 or authorize feature activation.

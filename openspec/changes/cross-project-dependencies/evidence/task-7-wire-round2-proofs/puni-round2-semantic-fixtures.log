@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+(pass) complete connected request validation rejects cross-field corruption before a terminal [8.04ms]
+
+ 1 pass
+ 18 filtered out
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [200.00ms]

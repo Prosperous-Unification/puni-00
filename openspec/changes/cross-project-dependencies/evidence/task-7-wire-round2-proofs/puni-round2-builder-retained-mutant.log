@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+91 |   }
+92 |   // Proof: moving this check below local-person filtering let a foreign-only
+93 |   // 1e15-day holder reach a terminal that the installed CLI refused with 64.
+94 |   const unsafeHolder = findUnrepresentableOccupancy(request.scope.occupancy, request.quantum);
+95 |   if (unsafeHolder !== null)
+96 |     throw new Error(`connected occupancy ${unsafeHolder} exceeds safe quantization range`);
+                                                                                              ^
+error: connected occupancy c\u0000 exceeds safe quantization range
+      at validateConnectedSolverRequest (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/validate-connected-solver-request.ts:96:90)
+      at buildConnectedSolverRequest (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts:265:3)
+      at buildConnectedSolverRequestPair (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts:323:10)
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:479:16)
+(fail) foreign-only retained occupancy overflows before the 10/9 terminal is classified [5.07ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+Ran 1 test across 1 file. [190.00ms]

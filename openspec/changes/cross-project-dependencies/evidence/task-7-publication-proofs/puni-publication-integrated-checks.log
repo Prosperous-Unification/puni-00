@@ -1,0 +1,38 @@
+
+ NX   Running targets typecheck, lint for project wbs-domain:
+
+- wbs-domain
+
+
+
+> nx run wbs-domain:lint
+
+> bunx eslint libs/wbs/domain/domain/src
+
+(node:2590630) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[0m
+[4m/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/domain/domain/src/index.ts[24m
+  [2m11:1[22m  [31merror[39m  Run autofix to sort these exports!  [2msimple-import-sort/exports[22m
+
+[31m[1m✖ 1 problem (1 error, 0 warnings)[22m[39m
+[31m[1m  1 error and 0 warnings potentially fixable with the `--fix` option.[22m[39m
+[0m
+Warning: command "bunx eslint libs/wbs/domain/domain/src" exited with non-zero status code
+> nx run wbs-domain:typecheck
+
+> bunx tsc --build --force libs/wbs/domain/domain/tsconfig.json
+
+
+
+
+ NX   Running targets typecheck, lint for project wbs-domain failed
+
+Failed tasks:
+
+- wbs-domain:lint
+
+  Run duration:      8.7s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     8.4s (1 task)
+  Recoverable time:  334ms (4% of the run)

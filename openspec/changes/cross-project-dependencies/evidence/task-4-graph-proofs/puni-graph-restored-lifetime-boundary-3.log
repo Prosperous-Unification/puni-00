@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+(pass) checks lifetime for an empty observation and immediately after every awaited boundary [2.00ms]
+
+ 1 pass
+ 15 filtered out
+ 0 fail
+ 13 expect() calls
+Ran 1 test across 1 file. [137.00ms]

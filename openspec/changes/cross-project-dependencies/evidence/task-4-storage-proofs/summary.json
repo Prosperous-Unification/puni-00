@@ -1,0 +1,379 @@
+[
+  {
+    "fault": "owner",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'rejects cross-project'",
+    "observed": [
+      "Expected to contain: \"successor\"",
+      "Received: \"(resolved)\"",
+      "(fail) rejects cross-project mismatched endpoints and foreign organizations [119.31ms]"
+    ]
+  },
+  {
+    "fault": "work-item-evidence",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'refuses missing work-item'",
+    "observed": [
+      "Expected to contain: \"outside project\"",
+      "Received: \"(resolved)\"",
+      "(fail) refuses missing work-item and organization evidence on reads [122.22ms]"
+    ]
+  },
+  {
+    "fault": "step-evidence",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'refuses missing steps'",
+    "observed": [
+      "Expected to contain: \"step a outside project a\"",
+      "Received: \"(resolved)\"",
+      "(fail) refuses missing steps and mismatched recorded organization evidence on reads [117.11ms]"
+    ]
+  },
+  {
+    "fault": "organization-evidence",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'refuses missing work-item'",
+    "observed": [
+      "Expected to contain: \"organization\"",
+      "Received: \"(resolved)\"",
+      "(fail) refuses missing work-item and organization evidence on reads [180.68ms]"
+    ]
+  },
+  {
+    "fault": "organization-row-evidence",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'refuses missing steps'",
+    "observed": [
+      "Expected to contain: \"inconsistent organization\"",
+      "Received: \"(resolved)\"",
+      "(fail) refuses missing steps and mismatched recorded organization evidence on reads [139.18ms]"
+    ]
+  },
+  {
+    "fault": "duplicate-physical-id",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'refuses a duplicated physical identity'",
+    "observed": [
+      "Expected to contain: \"duplicate unified dependency\"",
+      "Received: \"(resolved)\"",
+      "(fail) refuses a duplicated physical identity instead of deduplicating corrupt rows [128.28ms]"
+    ]
+  },
+  {
+    "fault": "duplicate-physical-key",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'refuses duplicate trusted endpoint keys'",
+    "observed": [
+      "Expected to contain: \"duplicate unified dependency\"",
+      "Received: \"(resolved)\"",
+      "(fail) refuses duplicate trusted endpoint keys even when physical uniqueness is corrupted [119.27ms]"
+    ]
+  },
+  {
+    "fault": "predecessor-delete",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'protects surviving external successors'",
+    "observed": [
+      "Expected to contain: \"surviving successor\"",
+      "Received: \"(resolved)\"",
+      "(fail) protects surviving external successors and permits deleting both ends [123.59ms]"
+    ]
+  },
+  {
+    "fault": "immutable-owner",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/typed-dependency.db.test.ts -t 'refuses moving a typed dependency'",
+    "observed": [
+      "Expected to contain: \"cannot move\"",
+      "Received: \"typed dependency d444babf-db10-44cb-825e-7d8cef298798 has inconsistent successor ownership\"",
+      "(fail) TypedDependencyRepository > refuses moving a typed dependency to another project without changing rows or revisions [200.39ms]"
+    ]
+  },
+  {
+    "fault": "capture-external",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'refuses external rows in'",
+    "observed": [
+      "Expected to contain: \"external\"",
+      "Received: \"(resolved)\"",
+      "(fail) refuses external rows in the historical single-project capture [159.53ms]"
+    ]
+  },
+  {
+    "fault": "history-partial",
+    "exit": 1,
+    "command": "bun test libs/wbs/application/core/src/service/compensating.test.ts -t 'refuses partial scoped history'",
+    "observed": [
+      "Expected substring: \"typed dependency\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) refuses partial scoped history and malformed new scoped history [0.54ms]"
+    ]
+  },
+  {
+    "fault": "history-successor-owner",
+    "exit": 1,
+    "command": "bun test libs/wbs/application/core/src/service/compensating.test.ts -t 'refuses partial scoped history'",
+    "observed": [
+      "Expected substring: \"typed dependency\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) refuses partial scoped history and malformed new scoped history [0.56ms]"
+    ]
+  },
+  {
+    "fault": "fixture-owner",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts -t 'refuses successor-owner'",
+    "observed": [
+      "Expected: true",
+      "Received: false",
+      "(fail) refuses successor-owner disagreement and owner changes [0.43ms]"
+    ]
+  },
+  {
+    "fault": "fixture-immutable-owner",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts -t 'refuses successor-owner'",
+    "observed": [
+      "Expected: true",
+      "Received: false",
+      "(fail) refuses successor-owner disagreement and owner changes [0.49ms]"
+    ]
+  },
+  {
+    "fault": "fixture-predecessor-delete",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts -t 'protects a surviving external'",
+    "observed": [
+      "Expected: true",
+      "Received: false",
+      "(fail) protects a surviving external successor before removing any doomed links [0.56ms]"
+    ]
+  },
+  {
+    "fault": "incident-project-boundary",
+    "exit": 1,
+    "command": "bun test libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts -t 'passes typed links'",
+    "observed": [
+      "Received function did not throw",
+      "Received value: Promise { <resolved> }",
+      "(fail) the admitted working batch baseline > passes typed links through the batch and refuses cross-project and closed access [10.31ms]"
+    ]
+  },
+  {
+    "fault": "down-external-retention",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'down refuses external'",
+    "observed": [
+      "Expected substring: \"external dependencies remain\"",
+      "Received function did not throw",
+      "Received value: [ \"20261022211000_add_external_dependencies\" ]",
+      "(fail) down refuses external rows and preserves local rows and their audit when empty [117.44ms]"
+    ]
+  },
+  {
+    "fault": "typed_dependency_cross_identity_insert",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [86.63ms]"
+    ]
+  },
+  {
+    "fault": "typed_dependency_cross_endpoints_insert",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [99.34ms]"
+    ]
+  },
+  {
+    "fault": "typed_dependency_cross_identity_update",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [100.22ms]"
+    ]
+  },
+  {
+    "fault": "typed_dependency_cross_endpoints_update",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [84.31ms]"
+    ]
+  },
+  {
+    "fault": "external_dependency_cross_identity_insert",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [86.60ms]"
+    ]
+  },
+  {
+    "fault": "external_dependency_cross_endpoints_insert",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [90.68ms]"
+    ]
+  },
+  {
+    "fault": "external_dependency_cross_identity_update",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [94.73ms]"
+    ]
+  },
+  {
+    "fault": "external_dependency_cross_endpoints_update",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [102.66ms]"
+    ]
+  },
+  {
+    "fault": "foreign-key-predecessor_project_id",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces endpoint and organization foreign keys'",
+    "observed": [
+      "Expected substring: \"FOREIGN KEY constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces endpoint and organization foreign keys and referenced ownership updates [122.01ms]"
+    ]
+  },
+  {
+    "fault": "foreign-key-successor_project_id",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces endpoint and organization foreign keys'",
+    "observed": [
+      "Expected substring: \"FOREIGN KEY constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces endpoint and organization foreign keys and referenced ownership updates [115.60ms]"
+    ]
+  },
+  {
+    "fault": "foreign-key-predecessor_work_item_id",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces endpoint and organization foreign keys'",
+    "observed": [
+      "Expected substring: \"FOREIGN KEY constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces endpoint and organization foreign keys and referenced ownership updates [99.55ms]"
+    ]
+  },
+  {
+    "fault": "foreign-key-successor_work_item_id",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces endpoint and organization foreign keys'",
+    "observed": [
+      "Expected substring: \"FOREIGN KEY constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces endpoint and organization foreign keys and referenced ownership updates [132.22ms]"
+    ]
+  },
+  {
+    "fault": "foreign-key-predecessor_step_id",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces endpoint and organization foreign keys'",
+    "observed": [
+      "Expected substring: \"FOREIGN KEY constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces endpoint and organization foreign keys and referenced ownership updates [123.16ms]"
+    ]
+  },
+  {
+    "fault": "foreign-key-successor_step_id",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces endpoint and organization foreign keys'",
+    "observed": [
+      "Expected substring: \"FOREIGN KEY constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces endpoint and organization foreign keys and referenced ownership updates [177.43ms]"
+    ]
+  },
+  {
+    "fault": "sql-predecessor-scope",
+    "exit": 0,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": []
+  },
+  {
+    "fault": "sql-successor-scope",
+    "exit": 0,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": []
+  },
+  {
+    "fault": "sql-type",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": [
+      "Expected substring: \"CHECK constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [108.43ms]"
+    ]
+  },
+  {
+    "fault": "sql-predecessor-step",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": [
+      "Expected substring: \"CHECK constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [130.47ms]"
+    ]
+  },
+  {
+    "fault": "sql-successor-step",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": [
+      "Expected substring: \"CHECK constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [152.60ms]"
+    ]
+  },
+  {
+    "fault": "sql-different-projects",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": [
+      "Expected substring: \"CHECK constraint failed\"",
+      "Received message: \"FOREIGN KEY constraint failed\"",
+      "(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [152.77ms]"
+    ]
+  },
+  {
+    "fault": "sql-id-null",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": [
+      "Expected substring: \"NOT NULL constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [151.59ms]"
+    ]
+  },
+  {
+    "fault": "sql-unique-endpoints",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": [
+      "(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [112.66ms]"
+    ]
+  }
+]

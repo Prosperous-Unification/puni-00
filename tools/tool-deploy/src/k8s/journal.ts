@@ -1,12 +1,13 @@
 import { closeSync, fsyncSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { assertControllerLifecycle, assertControllerProgress } from './controller-lifecycle';
 import { assertMigrationCapture, migrationIdentityOf } from './migration-capture';
 import { isReleasePhase, type ReleaseRequest, type ReleaseState, TERMINAL_PHASES } from './release';
 import { assertReplayProgress } from './replay-receipt';
 
 /** Bumped when a stored field changes meaning; an older coordinator refuses a newer journal. */
-const JOURNAL_SCHEMA = 3;
+const JOURNAL_SCHEMA = 4;
 
 /** One write of the journal: the request it binds and the state it reached. */
 export interface JournalRecord {
@@ -46,7 +47,13 @@ export function parseJournal(path: string, text: string): JournalRecord {
   }
   // Proof: bypassing this legacy-version route made `refuses a legacy in-flight journal`
   // report a generic unsupported schema instead of the required prior-executor procedure.
-  if (isRecord(parsed) && (parsed['schemaVersion'] === 1 || parsed['schemaVersion'] === 2)) {
+  // Proof: legacy-schema3 removal lost the prior-executor recovery procedure in the schema-3 refusal test.
+  if (
+    isRecord(parsed) &&
+    (parsed['schemaVersion'] === 1 ||
+      parsed['schemaVersion'] === 2 ||
+      parsed['schemaVersion'] === 3)
+  ) {
     throw new Error(
       `release journal ${path} has a legacy migration capture or replay progress; use the prior executor/manual recovery`,
     );
@@ -94,10 +101,18 @@ export function parseJournal(path: string, text: string): JournalRecord {
       migrationIdentityOf(request as unknown as ReleaseRequest, state['transactionId']),
     );
   }
+  const controllers = state['controllers'];
+  // Proof: journal-history-required bypass lost the missing/malformed controller lifecycle diagnostic.
+  if (!isRecord(controllers) || Object.keys(controllers).sort().join(',') !== 'forward,rollback')
+    throw new Error(`release journal ${path} is missing controller lifecycle`);
+  for (const interval of Object.values(controllers))
+    if (interval !== null) assertControllerLifecycle(interval);
   // Boundary: the record was produced by `JSON.stringify` of these same types in `write`, and
   // the discriminating fields above were checked; the rest is carried verbatim.
   const record = parsed as unknown as JournalRecord;
   // Proof: skipping disk replay validation returns corrupted progress in the resume refusal fixtures.
+  // Proof: journal-progress-validation omission admitted missing source drain/restore acknowledgments from disk.
+  assertControllerProgress(record.state, record.request);
   assertReplayProgress(record.state, record.request);
   return record;
 }

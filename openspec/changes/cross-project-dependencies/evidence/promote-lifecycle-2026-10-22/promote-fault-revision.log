@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+1346 |         ).status,
+1347 |       ).toBe(200);
+1348 |       const beforeRefusal = readTables();
+1349 |       const pushesBefore = [...pushes];
+1350 |       const refusal = await fixture.request(`${route}/undo`);
+1351 |       expect(refusal.status).toBe(409);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 200
+
+      at <anonymous> (/tmp/puni-promote-lifecycle/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:1351:30)
+(fail) synthetic mounted promote stale preserves surviving child incidents [940.65ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 30 expect() calls
+Ran 1 test across 1 file. [3.83s]

@@ -7,19 +7,26 @@ import { scratchSync } from '@tools/test-scratch';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import type { DependencyBinaryObservation } from './dependency-observation';
 import {
   authorizationServerOfRendered,
   BACKEND_TASK_SCRIPT,
   backendTaskJob,
   type BackendTaskReport,
   captureFromReport,
+  executeRelease,
   jobName,
   kubectlEffects,
+  LeaseLostError,
   parseLease,
   parseTaskReport,
   run,
 } from './execute';
+import { CrashSignal, FakeCluster } from './fake-cluster';
+import { fileJournal, type JournalRecord } from './journal';
 import { sealMigrationCapture } from './migration-capture';
+import type { ConfigDigestReader } from './registry';
+import type { ReleaseIdentity, ReleaseRequest } from './release';
 
 const CAPTURE_ID = {
   target: 'k8s:uid-lab:wbs-solver:wbs-data:/data/wbs.sqlite',
@@ -64,6 +71,34 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
+  it('loads rollback admission below the schema Job memory limit', () => {
+    // Proof: FORCE_COLOR=1 made numeric console.log output fail finite parsing (CI run 39935383258).
+    const child = Bun.spawnSync({
+      cmd: [
+        'bun',
+        '-e',
+        "await import('@wbs/store-sqlite/migrate-down'); process.stdout.write(String(process.resourceUsage().maxRSS));",
+      ],
+      cwd: BACKEND,
+      env: { ...process.env, FORCE_COLOR: '1' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stdout = child.stdout.toString();
+    const diagnostic = JSON.stringify({
+      exitCode: child.exitCode,
+      signal: child.signalCode,
+      stdout,
+      stderr: child.stderr.toString(),
+    });
+    expect(child.exitCode, diagnostic).toBe(0);
+    const peakKiB = Number(stdout);
+    expect(Number.isFinite(peakKiB), diagnostic).toBe(true);
+    expect(peakKiB, diagnostic).toBeGreaterThan(0);
+    // Proof: restoring the contracts barrel import fails this actual rollback import budget.
+    expect(peakKiB, diagnostic).toBeLessThan(384 * 1024);
+  }, 30_000);
+
   it('refuses a legacy --to-only candidate before taking a capture snapshot', () => {
     const root = scratchSync('wbs-k3s-legacy-capability-');
     roots.push(root);
@@ -289,7 +324,7 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
       PUNI_CAPTURE_ATTEMPT: CAPTURE_ID.attempt,
       PUNI_CAPTURE_CANDIDATE: CAPTURE_ID.candidate,
     };
-    expect(() => task(rollbackEnv, root)).toThrow();
+    expect(taskError(rollbackEnv, root)).toContain('CHECK constraint failed');
     expect(task({ DB_PATH: db, PUNI_TASK: 'status' }, root).applied).toEqual(migrated);
     const blocked = new Database(db);
     expect(blocked.query('SELECT allowed FROM lab_rollback_control WHERE id = 1').get()).toEqual({
@@ -885,6 +920,7 @@ describe('parseLease', () => {
     const lease = parseLease(
       JSON.stringify({
         metadata: {
+          uid: 'lease-uid',
           resourceVersion: '42',
           annotations: { 'puni.dev/journal': '/j.json', 'puni.dev/parked': 'rollback-failed' },
         },
@@ -896,6 +932,8 @@ describe('parseLease', () => {
       }),
     );
     expect(lease).toEqual({
+      uid: 'lease-uid',
+      journalRequired: false,
       holder: 'tx#run',
       renewedAtMs: Date.parse('2026-09-18T05:00:00.000Z'),
       durationSeconds: 20,
@@ -972,6 +1010,9 @@ describe('replay Jobs through kubectl', () => {
       'recursiveReadOnly',
       'defaults',
       'status',
+      'empty-logs',
+      'diagnostic-exit',
+      'diagnostic-spawn',
     ] as const) {
       it(`binds reused replay ${task} Job output to its image and command: ${fault}`, async () => {
         const root = scratchSync('wbs-replay-job-');
@@ -991,7 +1032,9 @@ describe('replay Jobs through kubectl', () => {
             {},
             command,
           ),
-          status: fault === 'status' ? { failed: 1 } : { succeeded: 1 },
+          status: ['status', 'empty-logs', 'diagnostic-exit', 'diagnostic-spawn'].includes(fault)
+            ? { failed: 1 }
+            : { succeeded: 1 },
         };
         const pod = (
           observed['spec'] as {
@@ -1033,7 +1076,7 @@ describe('replay Jobs through kubectl', () => {
         writeFileSync(join(root, 'observed.json'), JSON.stringify(observed));
         writeFileSync(
           kubectl,
-          `#!/usr/bin/env bash\ncase "$*" in\n*"get job"*"-o name"*) echo job/reused ;;\n*"get job"*) cat '${root}/observed.json' ;;\n*"logs"*) echo '[]' ;;\n*) echo "unexpected $*" >&2; exit 1 ;;\nesac\n`,
+          `#!/usr/bin/env bash\ncase "$*" in\n*"get job"*"-o name"*) echo job/reused ;;\n*"get job"*) cat '${root}/observed.json' ;;\n*"get pods"*) printf '%s\\n' "$@" > '${root}/pod-args'; ${fault === 'diagnostic-exit' ? "echo 'pod status API unavailable' >&2; exit 42" : "echo 'task-pod Failed task 137 OOMKilled'"} ;;\n*"logs"*) ${fault === 'empty-logs' ? ':' : fault === 'diagnostic-spawn' ? `rm '${kubectl}'; echo 'original task output'` : "echo '[]'"} ;;\n*) echo "unexpected $*" >&2; exit 1 ;;\nesac\n`,
         );
         chmodSync(kubectl, 0o755);
         const effects = kubectlEffects({
@@ -1056,11 +1099,557 @@ describe('replay Jobs through kubectl', () => {
             : effects.observeReplayCapabilities('tx', image);
         if (fault === 'none' || fault === 'defaults')
           expect(await observe()).toEqual(task === 'inventory' ? [] : { image, capabilities: [] });
-        else
-          expect(await rejection(observe())).toContain(
-            fault === 'status' ? 'failed' : 'replay Job',
+        else {
+          const failure = await rejection(observe());
+          expect(failure).toContain(
+            ['status', 'empty-logs', 'diagnostic-exit', 'diagnostic-spawn'].includes(fault)
+              ? `job ${jobName(task === 'inventory' ? 'replay-inventory' : 'replay-kinds', 'tx')} failed:`
+              : 'replay Job',
           );
+          if (fault === 'diagnostic-spawn') {
+            expect(failure).toContain('original task output');
+            expect(failure).toContain('pod status unavailable:');
+            expect(failure).toContain('ENOENT');
+          } else if (['status', 'empty-logs', 'diagnostic-exit'].includes(fault)) {
+            expect(readFileSync(join(root, 'pod-args'), 'utf8').trim().split('\n')).toEqual([
+              '--context',
+              'lab',
+              '-n',
+              'wbs-solver',
+              'get',
+              'pods',
+              '-l',
+              `batch.kubernetes.io/job-name=${jobName(task === 'inventory' ? 'replay-inventory' : 'replay-kinds', 'tx')}`,
+              '-o',
+              'custom-columns=NAME:.metadata.name,PHASE:.status.phase,REASON:.status.reason,CONTAINER:.status.containerStatuses[*].name,EXIT:.status.containerStatuses[*].state.terminated.exitCode,TERMINATED:.status.containerStatuses[*].state.terminated.reason,WAITING:.status.containerStatuses[*].state.waiting.reason',
+            ]);
+            if (fault === 'diagnostic-exit') {
+              expect(failure).toContain('[]');
+              expect(failure).toContain('pod status (kubectl exit 42):');
+              expect(failure).toContain('pod status API unavailable');
+            } else {
+              expect(failure).toContain('task-pod Failed task 137 OOMKilled');
+            }
+          }
+        }
       });
     }
   }
+});
+
+/** API fixture executes the emitted command locally; it never pretends to enforce a Kubernetes mount. */
+function observationKubectl(root: string, fault = '') {
+  const path = join(root, 'kubectl-observation');
+  const log = join(root, 'observation-calls.jsonl');
+  writeFileSync(log, '');
+  const backend = BACKEND;
+  writeFileSync(
+    path,
+    `#!${process.execPath}
+import {appendFileSync,chmodSync,existsSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
+import {join} from 'node:path';
+const root=${JSON.stringify(root)};
+const fault=existsSync(join(root,'observation-fault'))?readFileSync(join(root,'observation-fault'),'utf8'):${JSON.stringify(fault)};
+const args=process.argv.slice(2);
+appendFileSync(${JSON.stringify(log)},JSON.stringify(args)+'\\n');
+const emit=(value)=>console.log(JSON.stringify(value));
+if(args.includes('create')) {
+ const job=JSON.parse(await Bun.stdin.text());
+ if(existsSync(join(root,'admitted-images'))&&!JSON.parse(readFileSync(join(root,'admitted-images'),'utf8')).includes(job.spec.template.spec.containers[0].image)) throw new Error('image not admitted');
+ job.metadata.uid='uid-'+job.metadata.name;
+ job.spec.template.spec.serviceAccount=job.spec.template.spec.serviceAccountName;
+ job.status={succeeded:1,failed:0,conditions:[{type:'Complete',status:'True'}]};
+ writeFileSync(join(root,job.metadata.name+'.api.json'),JSON.stringify(job));
+ writeFileSync(join(root,'last-job'),job.metadata.name);
+ emit(job);
+} else if(args.includes('get')&&args.includes('job')) {
+ const name=args[args.indexOf('job')+1];
+ const stored=join(root,name+'.api.json');
+ if(!existsSync(stored)) {if(fault==='stale') emit({kind:'Job'});process.exit(0);}
+ emit(JSON.parse(readFileSync(stored,'utf8')));
+} else if(args.includes('get')&&args.includes('pods')) {
+ const name=readFileSync(join(root,'last-job'),'utf8');
+ const job=JSON.parse(readFileSync(join(root,name+'.api.json'),'utf8'));
+ const spec=job.spec.template.spec;
+ if(fault==='pod-image') spec.containers[0].image='foreign';
+ const pod={metadata:{name:'pod-'+name,namespace:job.metadata.namespace,uid:'pod-uid-'+name,labels:job.spec.template.metadata.labels,ownerReferences:[{apiVersion:'batch/v1',kind:'Job',name,uid:job.metadata.uid,controller:true}]},spec,status:{phase:'Succeeded',containerStatuses:[{name:'task',image:spec.containers[0].image,imageID:'containerd://'+spec.containers[0].image,restartCount:0,state:{terminated:{exitCode:0,reason:'Completed'}},volumeMounts:[{name:'source',mountPath:'/data',readOnly:true,recursiveReadOnly:fault==='recursive-status'?'Disabled':'Enabled'}]}]}};
+ if(fault==='config-status') pod.status.containerStatuses[0].image='sha256:'+(spec.containers[0].image.endsWith('a'.repeat(64))?'c':'d').repeat(64);
+ emit({items:[pod]});
+} else if(args.includes('logs')) {
+ const name=readFileSync(join(root,'last-job'),'utf8');
+ const job=JSON.parse(readFileSync(join(root,name+'.api.json'),'utf8'));
+ const purpose=name.split('-')[2];
+ if(fault==='malformed-'+purpose) {console.log('{}');process.exit(0);}
+ if(fault==='stalled-'+purpose) {await Bun.sleep(5000);console.log(JSON.stringify({protocol:'wbs-dependency-runtime',version:1,role:'backend',semantics:[]}));process.exit(0);}
+ if(fault==='failed-'+purpose) process.exit(7);
+ let cwd=${JSON.stringify(backend)};
+ if(fault==='missing-'+purpose||fault==='unreadable-'+purpose) {
+  cwd=join(root,'binary-'+purpose);mkdirSync(join(cwd,'src'),{recursive:true});
+  if(fault==='unreadable-'+purpose) {
+   if(process.getuid()===0) throw new Error('unreadable fixture requires nonroot');
+   const cli=join(cwd,'src/dependency-capabilities-cli.ts');
+   writeFileSync(cli,'console.log("must not execute")');chmodSync(cli,0);
+  }
+ }
+ const child=Bun.spawnSync(job.spec.template.spec.containers[0].command,{cwd,env:{...process.env,DB_PATH:join(root,'nonexistent.sqlite')},stdout:'pipe',stderr:'pipe'});
+ if(child.exitCode!==0) {process.stderr.write(child.stderr);process.exit(child.exitCode);}
+ process.stdout.write(child.stdout);
+} else {throw new Error('unmodeled observation kubectl call '+JSON.stringify(args));}
+`,
+  );
+  chmodSync(path, 0o755);
+  return { path, log };
+}
+function observationEffects(
+  root: string,
+  fault = '',
+  stateDir = root,
+  readConfigDigest: ConfigDigestReader | undefined = () =>
+    Promise.resolve(`sha256:${'c'.repeat(64)}`),
+) {
+  const kubectl = observationKubectl(root, fault);
+  return {
+    kubectl,
+    effects: kubectlEffects({
+      readConfigDigest,
+      kubectl: kubectl.path,
+      kubeconfig: null,
+      context: 'lab',
+      namespaces: { app: 'wbs', backend: 'wbs-solver' },
+      stateDir,
+      overlay: root,
+      anonymousProjectsStatus: 200,
+      rolloutTimeoutSeconds: 5,
+      jobTimeoutSeconds: 1,
+      drainTimeoutMs: 1000,
+      leaseDurationSeconds: 20,
+      log: () => undefined,
+    }),
+  };
+}
+const dependencyImage = `registry/wbs-be-01@sha256:${'a'.repeat(64)}`;
+
+/** Real executor and binary adapter; the remaining cluster effects retain their stateful model. */
+function mountedBinaryRelease(root: string, equalImages = false) {
+  const identity = (fill: string, backendFill = fill): ReleaseIdentity => ({
+    sourceSha: fill.repeat(40),
+    images: {
+      backend: `registry/wbs-be-01@sha256:${backendFill.repeat(64)}`,
+      gateway: `registry/wbs-gw-01@sha256:${fill.repeat(64)}`,
+      frontend: `registry/wbs-fe-01@sha256:${fill.repeat(64)}`,
+      mcp: `registry/wbs-mcp-01@sha256:${fill.repeat(64)}`,
+    },
+  });
+  const previous = identity('a');
+  const candidate = identity('b', equalImages ? 'a' : 'b');
+  const request: ReleaseRequest = {
+    environment: 'local',
+    cluster: { context: 'lab', uid: 'uid-lab' },
+    namespaces: { app: 'wbs', backend: 'wbs-solver' },
+    release: candidate,
+    expectedCurrent: previous,
+    admission: { package: 'pkg', activation: 'act' },
+    flux: {
+      namespace: 'flux-system',
+      kustomization: 'wbs',
+      gitRepository: 'deploy',
+      desiredRevision: 'c'.repeat(40),
+      previousRevision: 'd'.repeat(40),
+    },
+    recovers: null,
+  };
+  const fake = new FakeCluster(previous, ['0001_init'], 'd'.repeat(40));
+  fake.sourceImages.set('d'.repeat(40), previous);
+  fake.sourceImages.set('c'.repeat(40), candidate);
+  for (const image of [previous.images.backend, candidate.images.backend])
+    fake.migrationsByImage.set(image, [
+      { name: '0001_init', hash: 'hash-0001_init', downSha256: 'down-1' },
+    ]);
+  const { effects, kubectl } = observationEffects(root);
+  writeFileSync(join(root, 'admitted-images'), '[]');
+  const admit = fake.admitBackendImages.bind(fake);
+  fake.admitBackendImages = async (images) => {
+    await admit(images);
+    writeFileSync(join(root, 'admitted-images'), JSON.stringify(images));
+  };
+  const observedWhileServing: boolean[] = [];
+  const observations: DependencyBinaryObservation[] = [];
+  fake.observeDependencyBinaries = async (attempt, incoming, retained) => {
+    observedWhileServing.push(fake.backendReplicas === 1 && fake.writesOpen && !fake.fluxSuspended);
+    const observed = await effects.observeDependencyBinaries(attempt, incoming, retained);
+    observations.push(...observed);
+    return observed;
+  };
+  const durable = fileJournal(join(root, 'release.json'));
+  const journal = {
+    path: durable.path,
+    crashAfter: null as string | null,
+    read: () => durable.read(),
+    get stored() {
+      return readFileSync(durable.path, 'utf8');
+    },
+    write(entry: JournalRecord) {
+      durable.write(entry);
+      if (this.crashAfter === entry.state.phase) {
+        this.crashAfter = null;
+        throw new CrashSignal(`crashed after ${entry.state.phase}`);
+      }
+    },
+  };
+  const execute = (heartbeatMs = 3_600_000) =>
+    executeRelease(request, journal, fake, () => undefined, {
+      clock: fake.clock,
+      sleep: async (ms) => {
+        fake.now += ms;
+        await Promise.resolve();
+      },
+      heartbeatMs,
+    });
+  const manifests = () =>
+    readFileSync(kubectl.log, 'utf8')
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as string[])
+      .filter((call) => call.includes('create')).length;
+  return {
+    fake,
+    journal,
+    execute,
+    request,
+    kubectl,
+    observedWhileServing,
+    observations,
+    manifests,
+  };
+}
+
+describe('release binary preflight through the mounted kubectl adapter', () => {
+  for (const equalImages of [false, true])
+    it(`observes ${equalImages ? 'equal digests independently' : 'both exact digests'} before interrupting serving`, async () => {
+      const root = scratchSync('k8s-release-binary-');
+      roots.push(root);
+      const fixture = mountedBinaryRelease(root, equalImages);
+      expect((await fixture.execute()).phase).toBe('lease-released');
+      expect(fixture.observedWhileServing).toEqual([true]);
+      expect(fixture.manifests()).toBe(2);
+      expect(fixture.observations.map((observation) => observation.capability)).toEqual([
+        {
+          image: fixture.request.release.images.backend,
+          semantics: ['cross-project-dependencies-v1'],
+        },
+        {
+          image: fixture.request.expectedCurrent.images.backend,
+          semantics: ['cross-project-dependencies-v1'],
+        },
+      ]);
+      for (const [index, role] of ['candidate', 'previous'].entries()) {
+        const evidence = fixture.observations[index].evidence;
+        expect(evidence.jobName).toStartWith(`wbs-dep-${role}-`);
+        expect(evidence.jobUid).toBe(`uid-${evidence.jobName}`);
+        expect(evidence.podUid).toBe(`pod-uid-${evidence.jobName}`);
+        expect(evidence.commandSha256).toMatch(/^[a-f0-9]{64}$/);
+      }
+      expect(
+        new Set(fixture.observations.map((observation) => observation.evidence.observationId)).size,
+      ).toBe(2);
+      expect(existsSync(join(root, 'nonexistent.sqlite'))).toBe(false);
+    });
+
+  it('refuses Lease loss during binary observation before protected effects', async () => {
+    const root = scratchSync('k8s-release-binary-lease-');
+    roots.push(root);
+    const fixture = mountedBinaryRelease(root);
+    const observe = fixture.fake.observeDependencyBinaries.bind(fixture.fake);
+    fixture.fake.observeDependencyBinaries = async (...args) => {
+      const observations = await observe(...args);
+      fixture.fake.seedLease('foreign#run', '/state/foreign.json');
+      return observations;
+    };
+    const refused = await fixture.execute().then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(refused).toBeInstanceOf(LeaseLostError);
+    expect(fixture.fake.calls.filter((call) => !call.endsWith('Lease'))).toEqual([
+      'observeCluster',
+      'admitBackendImages',
+    ]);
+    expect(fixture.journal.read()?.state.phase).toBe('images-admitted');
+    expect(fixture.fake.backendReplicas).toBe(1);
+    expect(fixture.fake.writesOpen).toBe(true);
+    expect(fixture.fake.fluxSuspended).toBe(false);
+    expect(fixture.fake.lease?.holder).toBe('foreign#run');
+  });
+
+  for (const resumes of [false, true])
+    it(`retains sticky heartbeat loss after successful binary observation${resumes ? ' on interrupted resume' : ''}`, async () => {
+      const root = scratchSync('k8s-release-binary-heartbeat-');
+      roots.push(root);
+      const fixture = mountedBinaryRelease(root);
+      if (resumes) {
+        fixture.journal.crashAfter = 'writes-closed';
+        const interrupted = await fixture.execute().then(
+          () => null,
+          (cause: unknown) => cause,
+        );
+        expect(interrupted).toBeInstanceOf(CrashSignal);
+      }
+      let observing = false;
+      let injected = false;
+      let renewedAfterObservation = false;
+      let retainedJournal = resumes ? fixture.journal.stored : '';
+      const renew = fixture.fake.renewLease.bind(fixture.fake);
+      fixture.fake.renewLease = async (holder) => {
+        if (observing && !injected) {
+          injected = true;
+          throw new Error('heartbeat response lost during binary observation');
+        }
+        await renew(holder);
+        if (injected && !observing) renewedAfterObservation = true;
+      };
+      const observe = fixture.fake.observeDependencyBinaries.bind(fixture.fake);
+      fixture.fake.observeDependencyBinaries = async (...args) => {
+        if (!resumes) retainedJournal = fixture.journal.stored;
+        observing = true;
+        const observations = await observe(...args);
+        observing = false;
+        return observations;
+      };
+      const serving = {
+        images: { ...fixture.fake.images },
+        replicas: fixture.fake.backendReplicas,
+        open: fixture.fake.writesOpen,
+        flux: fixture.fake.fluxSuspended,
+      };
+      fixture.fake.calls.splice(0);
+      const refused = await fixture.execute(1).then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(injected).toBe(true);
+      expect(renewedAfterObservation).toBe(true);
+      expect(refused).toBeInstanceOf(LeaseLostError);
+      expect(fixture.fake.calls.filter((call) => !call.endsWith('Lease'))).toEqual(
+        resumes ? ['admitBackendImages'] : ['observeCluster', 'admitBackendImages'],
+      );
+      expect(fixture.journal.stored).toBe(retainedJournal);
+      expect({
+        images: fixture.fake.images,
+        replicas: fixture.fake.backendReplicas,
+        open: fixture.fake.writesOpen,
+        flux: fixture.fake.fluxSuspended,
+      }).toEqual(serving);
+    });
+
+  for (const role of ['candidate', 'previous'])
+    for (const fault of ['missing', 'unreadable', 'malformed', 'stalled'])
+      it(`refuses ${fault} ${role} before serving interruption or generic rollback`, async () => {
+        const root = scratchSync('k8s-release-binary-refusal-');
+        roots.push(root);
+        const fixture = mountedBinaryRelease(root, true);
+        writeFileSync(join(root, 'observation-fault'), `${fault}-${role}`);
+        const started = Date.now();
+        expect(await rejection(fixture.execute())).not.toBe('resolved');
+        expect(fixture.observedWhileServing).toEqual([true]);
+        expect(fixture.fake.backendReplicas).toBe(1);
+        expect(fixture.fake.writesOpen).toBe(true);
+        expect(fixture.fake.fluxSuspended).toBe(false);
+        expect(fixture.journal.read()?.state.phase).toBe('images-admitted');
+        expect(fixture.fake.calls.filter((call) => !call.endsWith('Lease'))).toEqual([
+          'observeCluster',
+          'admitBackendImages',
+        ]);
+        expect(fixture.fake.lease).not.toBeNull();
+        if (fault === 'stalled') expect(Date.now() - started).toBeLessThan(3000);
+      });
+
+  for (const phase of ['smoke-passed', 'writes-closed', 'rollback-started'])
+    it(`reobserves and refreshes admission on resume from ${phase} before any protected effect`, async () => {
+      const root = scratchSync('k8s-release-binary-resume-');
+      roots.push(root);
+      const fixture = mountedBinaryRelease(root);
+      if (phase === 'rollback-started') fixture.fake.faults.set('migrate', new Error('abort'));
+      fixture.journal.crashAfter = phase;
+      const interrupted = await fixture.execute().then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(interrupted).toBeInstanceOf(CrashSignal);
+      expect(fixture.manifests()).toBe(2);
+      const durable = fixture.journal.stored;
+      const serving = {
+        images: { ...fixture.fake.images },
+        replicas: fixture.fake.backendReplicas,
+        open: fixture.fake.writesOpen,
+        flux: fixture.fake.fluxSuspended,
+      };
+      const leaseUid = fixture.fake.lease?.uid;
+      fixture.fake.approved = [];
+      writeFileSync(join(root, 'admitted-images'), '[]');
+      writeFileSync(join(root, 'observation-fault'), 'missing-previous');
+      fixture.fake.calls.splice(0);
+      expect(await rejection(fixture.execute())).toMatch(/not found/i);
+      expect(fixture.manifests()).toBe(4);
+      expect(fixture.fake.approved).toEqual([
+        fixture.request.release.images.backend,
+        fixture.request.expectedCurrent.images.backend,
+      ]);
+      expect(fixture.journal.stored).toBe(durable);
+      expect(fixture.fake.calls.filter((call) => !call.endsWith('Lease'))).toEqual([
+        'admitBackendImages',
+      ]);
+      expect(fixture.fake.lease?.uid).toBe(leaseUid);
+      expect(fixture.fake.lease?.parked).toBeNull();
+      expect({
+        images: fixture.fake.images,
+        replicas: fixture.fake.backendReplicas,
+        open: fixture.fake.writesOpen,
+        flux: fixture.fake.fluxSuspended,
+      }).toEqual(serving);
+    });
+});
+describe('dependency observations through kubectlEffects', () => {
+  it('passes the injected config reader to store observations before kubectl', async () => {
+    const root = scratchSync('k8s-config-store-');
+    roots.push(root);
+    const { effects, kubectl } = observationEffects(root, '', root, () =>
+      Promise.reject(new Error('store config unavailable')),
+    );
+    expect(await rejection(effects.observeDependencyStore('tx', dependencyImage))).toContain(
+      'store config unavailable',
+    );
+    expect(readFileSync(kubectl.log, 'utf8')).toBe('');
+  });
+
+  it('resolves distinct verified configs for candidate and previous through the injected reader', async () => {
+    const root = scratchSync('k8s-config-adapter-');
+    roots.push(root);
+    const previous = `registry/wbs-be-01@sha256:${'b'.repeat(64)}`;
+    const reads: string[] = [];
+    const { effects } = observationEffects(root, 'config-status', root, (ref, timeoutMs) => {
+      expect(timeoutMs).toBeGreaterThan(0);
+      expect(timeoutMs).toBeLessThanOrEqual(1000);
+      reads.push(ref);
+      return Promise.resolve(`sha256:${(ref === dependencyImage ? 'c' : 'd').repeat(64)}`);
+    });
+    expect(
+      (await effects.observeDependencyBinaries('tx', dependencyImage, previous)).map(
+        (observation) => observation.evidence.image,
+      ),
+    ).toEqual([dependencyImage, previous]);
+    expect(reads).toEqual([dependencyImage, previous]);
+  });
+  it('refuses candidate config substitution for the retained image with matching imageID', async () => {
+    const root = scratchSync('k8s-config-substitution-');
+    roots.push(root);
+    const { effects } = observationEffects(root, 'config-status');
+    expect(
+      await rejection(
+        effects.observeDependencyBinaries(
+          'tx',
+          dependencyImage,
+          `registry/wbs-be-01@sha256:${'b'.repeat(64)}`,
+        ),
+      ),
+    ).toContain('status image differs');
+  });
+
+  it('independently invokes equal images with fresh roles while backend remains live', async () => {
+    const root = scratchSync('k8s-dependency-adapter-');
+    roots.push(root);
+    const { effects, kubectl } = observationEffects(root);
+    const observations = await effects.observeDependencyBinaries(
+      'tx',
+      dependencyImage,
+      dependencyImage,
+    );
+    expect(observations.map((observation) => observation.capability)).toEqual([
+      { image: dependencyImage, semantics: ['cross-project-dependencies-v1'] },
+      { image: dependencyImage, semantics: ['cross-project-dependencies-v1'] },
+    ]);
+    expect(new Set(observations.map((observation) => observation.evidence.jobName)).size).toBe(2);
+    expect(
+      new Set(observations.map((observation) => observation.evidence.observationId)).size,
+    ).toBe(2);
+    const calls = readFileSync(kubectl.log, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as string[]);
+    expect(calls.filter((call) => call.includes('create'))).toHaveLength(2);
+    expect(
+      calls
+        .filter((call) => call.includes('logs'))
+        .every(
+          (call) =>
+            call.includes('-c') &&
+            !call.includes('--all-containers') &&
+            call.some((argument) => argument.startsWith('pod-')),
+        ),
+    ).toBe(true);
+    expect(
+      calls.every(
+        (call) => !call.some((argument) => /writer=true|scale|patch|delete|cronjob/.test(argument)),
+      ),
+    ).toBe(true);
+    expect(existsSync(join(root, 'nonexistent.sqlite'))).toBe(false);
+  });
+  it('pins distinct candidate and previous images and preserves each manifest', async () => {
+    const root = scratchSync('k8s-dependency-images-');
+    roots.push(root);
+    const { effects } = observationEffects(root);
+    const previous = `registry/wbs-be-01@sha256:${'b'.repeat(64)}`;
+    const observations = await effects.observeDependencyBinaries('tx', dependencyImage, previous);
+    expect(observations.map((observation) => observation.evidence.image)).toEqual([
+      dependencyImage,
+      previous,
+    ]);
+    for (const observation of observations) {
+      const manifest = JSON.parse(
+        readFileSync(join(root, observation.evidence.jobName + '.json'), 'utf8'),
+      ) as { spec: { template: { spec: { containers: { image: string }[] } } } };
+      expect(manifest.spec.template.spec.containers[0]?.image).toBe(observation.evidence.image);
+    }
+  });
+  it('refuses a lost evidence directory before creating the observation Job', async () => {
+    const root = scratchSync('k8s-dependency-persist-');
+    roots.push(root);
+    const { effects, kubectl } = observationEffects(root, '', join(root, 'absent'));
+    expect(
+      await rejection(effects.observeDependencyBinaries('tx', dependencyImage, dependencyImage)),
+    ).toContain('ENOENT');
+    expect(readFileSync(kubectl.log, 'utf8')).not.toContain('"create"');
+  });
+  for (const role of ['candidate', 'previous'])
+    for (const fault of ['malformed', 'missing', 'unreadable', 'failed', 'stalled'])
+      it(`refuses independent ${fault} ${role}`, async () => {
+        const root = scratchSync('k8s-dependency-adapter-fault-');
+        roots.push(root);
+        const { effects } = observationEffects(root, `${fault}-${role}`);
+        const started = Date.now();
+        expect(
+          await rejection(
+            effects.observeDependencyBinaries('tx', dependencyImage, dependencyImage),
+          ),
+        ).not.toBe('resolved');
+        if (fault === 'stalled') expect(Date.now() - started).toBeLessThan(2500);
+      });
+  for (const fault of ['stale', 'pod-image'])
+    it(`refuses ${fault} at adapter boundary`, async () => {
+      const root = scratchSync('k8s-dependency-adapter-fault-');
+      roots.push(root);
+      const { effects } = observationEffects(root, fault);
+      expect(
+        await rejection(effects.observeDependencyBinaries('tx', dependencyImage, dependencyImage)),
+      ).not.toBe('resolved');
+    });
+  it('requires effective recursive readonly evidence before reading source logs', async () => {
+    const root = scratchSync('k8s-dependency-mount-');
+    roots.push(root);
+    const { effects, kubectl } = observationEffects(root, 'recursive-status');
+    expect(await rejection(effects.observeDependencyStore('tx', dependencyImage))).toContain(
+      'recursive readonly',
+    );
+    expect(readFileSync(kubectl.log, 'utf8')).not.toContain('"logs"');
+  });
 });

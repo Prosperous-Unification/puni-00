@@ -102,6 +102,27 @@ export function bundleFilesFor(root: string): BundleFile[] {
 }
 
 export { writeAtomic } from './atomic';
+export {
+  buildDependencyCapabilityCommand,
+  decodeDependencyCapabilities,
+  decodeRoleDependencyCapabilities,
+  type DependencyCapabilityObservation,
+  type DependencyCapabilityRole,
+} from './dependency-capability';
+export {
+  buildDependencyInventoryCommand,
+  decodeDormantDependencies,
+  type DormantDependencyStore,
+} from './dependency-inventory';
+export { observeDependencyCapabilities, probeDependencyCapabilities } from './dependency-preflight';
+export {
+  assertInstalledControllerAdmission,
+  assertNoEdgeOwner,
+  buildInstalledControllerAdmission,
+  requireInheritedEdgeLock,
+  retainUnknownControllerObservation,
+  withEdgeAdmission,
+} from './edge-admission';
 export { withLock } from './lock';
 export { parseAcceptBreaking } from './mcp-preflight';
 export { decodeSolverSupervisorConfig } from './solver-supervisor-config';
@@ -112,3 +133,4 @@ export {
   SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_SOCKET,
 } from './solver-supervisor-install-contract';
+export { storedSnapshotCommand } from './sqlite-probe';

@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/command-normalizers.test.ts:
+(pass) normalizes all step-node commands to the original pair [20.16ms]
+(pass) refuses conflicting, missing and invalid step addresses [6.48ms]
+(pass) preserves priority absence null and number [1.20ms]
+(pass) defaults missing assignee to null [0.22ms]
+(pass) refuses missing and nonboolean blockage intent before dispatch [0.46ms]
+(pass) bounds a claim’s run to 1 to 256 characters and keeps steps and parent as given [2.78ms]
+(pass) refuses an empty step list on a claim and a release [0.62ms]
+(pass) a claim’s resources (wbs-resources R4) > keeps absent absent and each entry as given [0.92ms]
+(pass) a claim’s resources (wbs-resources R4) > refuses resources naming one resource twice [0.50ms]
+(pass) a claim’s resources (wbs-resources R4) > refuses an empty list, a non-list, a malformed entry and units outside 1 to the bound [2.41ms]
+(pass) scoped typed endpoint addresses > preserves an explicit project for every endpoint spelling [2.24ms]
+256 |     for (const scope of ['whole', 'node', 'descendant-step']) {
+257 |       const endpoint = { projectId: 'owner', scope, workItemId: 'work-item/a', ...(scope === 'whole' ? {} : { stepId: 'step/a' }) };
+258 |       expect(normalize(endpoint)).toEqual(endpoint);
+259 |       for (const field of scope === 'whole' ? ['projectId', 'workItemId'] : ['projectId', 'workItemId', 'stepId']) {
+260 |         for (const malformed of ['', ' ', ' padded '])
+261 |           expect(() => normalize({ ...endpoint, [field]: malformed })).toThrow('invalid_typed_endpoint');
+                                                                             ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "invalid_typed_endpoint"
+
+Received function did not throw
+Received value: {
+  scope: "whole",
+  projectId: " padded ",
+  workItemId: "work-item/a",
+}
+
+      at <anonymous> (/tmp/puni-external-command-contracts/libs/wbs/application/core/src/service/command-normalizers.test.ts:261:72)
+(fail) scoped typed endpoint addresses > explicit identities are nonempty opaque strings without surrounding whitespace [2.44ms]
+(pass) scoped typed endpoint addresses > refuses malformed project addresses and explicitly scoped batch aliases [1.00ms]
+
+ 12 pass
+ 1 fail
+ 127 expect() calls
+Ran 13 tests across 1 file. [12.66s]

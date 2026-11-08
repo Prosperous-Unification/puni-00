@@ -1,0 +1,24 @@
+Injected stage-grammar; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+209 |   );
+210 | });
+211 | 
+212 | test('invalid external diagnostic coordinates fail closed without retaining their values', async () => {
+213 |   // Controlled untyped JS boundary faults exercise runtime checks despite internal literal unions.
+214 |   expect(() => new FixtureFailure('PRIVATE_STAGE' as FixtureStage, new Error('opaque'))).toThrow(
+                                                                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "fixture stage invalid"
+Received message: "fixture acceptance failed"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:214:90)
+(fail) invalid external diagnostic coordinates fail closed without retaining their values [0.29ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [45.00ms]

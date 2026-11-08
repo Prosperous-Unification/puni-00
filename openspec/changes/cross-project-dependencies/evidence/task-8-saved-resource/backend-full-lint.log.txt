@@ -1,0 +1,25 @@
+
+> nx run wbs-be-01:lint
+
+> bunx eslint apps/wbs/be-01/src
+
+Warning: command "bunx eslint apps/wbs/be-01/src" exited with non-zero status code
+
+
+ NX   Running target lint for project wbs-be-01 failed
+
+Failed tasks:
+
+- wbs-be-01:lint
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      1m 3s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     1m 3s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-be-01:lint    1m 3s

@@ -1,0 +1,40 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-cross-capture')
+folder=root/'libs/wbs/adapters/store-sqlite/src'
+chain=folder/'chain-snapshot.ts'; lifetime=folder/'read-snapshot-lifetime.ts'; uow=folder/'sqlite-unit-of-work.ts'; saved=folder/'saved-plan-capture.ts'
+def remove_entry(s):
+ a=s.index('export async function readChainSnapshotIn');b=s.index('  lifetime.assertOpen();',a)
+ return s[:b]+s[b:].replace('  lifetime.assertOpen();','',1)
+def remove_raw(s):
+ a=s.index('  const scheduler = options.schedulerOf(');b=s.index('lifetime.assertOpen();',a)
+ return s[:b]+s[b:].replace('lifetime.assertOpen();','',1)
+def remove_observe(s):
+ a=s.index('  async function observe');b=s.index('options.lifetime.assertOpen();',a)
+ return s[:b]+s[b:].replace('options.lifetime.assertOpen();','',1)
+def shared(s):
+ s=s.replace('  return {\n    run<T>', '  const lifetime = createReadSnapshotLifetime();\n  return {\n    run<T>')
+ return s.replace('          const lifetime = createReadSnapshotLifetime();','')
+def resume(s):
+ a=s.index('  await captureRead.afterFirstRead(');b=s.index('  lifetime.assertOpen();',a)
+ return s[:b]+s[b:].replace('  lifetime.assertOpen();','',1)
+checks=[
+('expire',lifetime,lambda s:s.replace('open = false;','void open;'), 'source borrowed readers expire after success'),
+('snapshot-acquisition',chain,remove_entry,'transaction snapshot and raw cache'),
+('cache-callback',chain,remove_raw,'transaction snapshot and raw cache'),
+('borrowed-entry',chain,remove_observe,'source borrowed readers expire after success'),
+('borrowed-acquisition',chain,lambda s:s.replace("  if (options.kind === 'borrowed') options.lifetime.assertOpen();",''),'borrowed live reader'),
+('shared-lifetime',uow,shared,'source borrowed readers expire after success'),
+('continuation',saved,resume,'suspended first-plan-read'),
+]
+for name,path,mutate,pattern in checks:
+ original=path.read_text(); changed=mutate(original)
+ if changed==original: raise RuntimeError('missed mutation '+name)
+ target='connected-plan-capture.db.test.ts' if name=='borrowed-acquisition' else 'read-snapshot-lifetime.db.test.ts'
+ try:
+  path.write_text(changed)
+  completed=subprocess.run(['bun','test',str(Path('libs/wbs/adapters/store-sqlite/src')/target),'--test-name-pattern',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+  Path('/tmp/capture-negative-lifetime-'+name+'.log').write_text(completed.stdout)
+  if '(fail)' not in completed.stdout or '0 fail' in completed.stdout or completed.returncode==0: raise RuntimeError('no observed named test failure '+name+'\n'+completed.stdout)
+  print(name,completed.stdout[-650:])
+ finally:path.write_text(original)

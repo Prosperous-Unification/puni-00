@@ -5,6 +5,7 @@ import {
   documentBudget,
   type DocumentDemand,
   documentDemand,
+  documentExternalMappingRequest,
   type DocumentMeasureDefinition,
   documentMeasureDefinition,
   type DocumentMeasureEstimate,
@@ -16,15 +17,17 @@ import {
   type DocumentResourceCapacity,
   documentResourceCapacity,
   type DocumentTypedDependency,
-  documentTypedDependencyRequest,
   documentV4TypedDependencyRequest,
+  documentV10TypedDependencyRequest,
+  documentV12TypedDependencyRequest,
   type ImportedAttempt,
+  PLAN_DOCUMENT_EXTERNAL_VERSION,
   PLAN_DOCUMENT_VERSION,
-  type PlanDocument,
   planDocumentHeaderRequest,
   type PlanDocumentImport,
   type PlanDocumentRequest,
   planDocumentRequest,
+  type PlanDocumentV11 as PlanDocument,
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
@@ -54,8 +57,13 @@ import type {
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Project } from '../../ports/project-store';
 import { isBudgetFactor } from '../../ports/project-values';
-import type { MeasureReads, PlanDocumentReads } from '../../ports/shared-people-values';
+import type {
+  LivePlanExportRead,
+  MeasureReads,
+  PlanDocumentReads,
+} from '../../ports/shared-people-values';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
+import { projectConnectedDocument } from './connected-document';
 import type {
   ExportedProject,
   PlanDocumentClassification,
@@ -157,6 +165,26 @@ export class PlanDocumentService {
     return {
       ok: true,
       value: buildDocument(project, coded.value, reads, this.options.clock.now()),
+    };
+  }
+
+  /** Serializes a closed connected observation without IO or scheduling admission. */
+  exportConnectedCaptured(
+    project: ExportedProject,
+    tree: WorkItemTree,
+    captured: Extract<LivePlanExportRead, { kind: 'connected' }>,
+  ): PlanDocumentExport {
+    if (captured.projectId !== project.id) throw new Error('connected export target mismatch');
+    const local = this.exportCaptured(project, tree, captured.document);
+    if (!local.ok) return local;
+    const evidence = projectConnectedDocument(captured, project.id);
+    return {
+      ok: true,
+      value: {
+        ...local.value,
+        document: { ...local.value.document, version: PLAN_DOCUMENT_EXTERNAL_VERSION },
+        ...evidence,
+      },
     };
   }
 
@@ -722,13 +750,34 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 8 &&
     version !== 9 &&
     version !== 10 &&
-    version !== PLAN_DOCUMENT_VERSION
+    version !== PLAN_DOCUMENT_VERSION &&
+    version !== PLAN_DOCUMENT_EXTERNAL_VERSION
   ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
   }
   const checked = await validateSchema(planDocumentRequest, input);
   if (checked.issues !== undefined) {
     return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
+  }
+  // Proof: forcing this historical screen false made mounted v1, v2 and v3 imports return 201 with new projects instead of refusing typedDependencies[0] (2026-10-22).
+  if (version < PLAN_DOCUMENT_EXTERNAL_VERSION && Array.isArray(checked.value.typedDependencies)) {
+    for (const [at, entry] of checked.value.typedDependencies.entries()) {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) continue;
+      for (const side of ['predecessor', 'successor'] as const) {
+        const endpoint: unknown = Reflect.get(entry, side);
+        if (
+          typeof endpoint === 'object' &&
+          endpoint !== null &&
+          !Array.isArray(endpoint) &&
+          ('kind' in endpoint || 'projectId' in endpoint || 'workItemId' in endpoint)
+        )
+          return {
+            ok: false,
+            code: 'invalid_typed_dependency',
+            path: `typedDependencies[${String(at)}]`,
+          };
+      }
+    }
   }
   const blockages = checked.value.stepBlockages;
   const stepBlockages: PlanDocumentImport['stepBlockages'] = [];
@@ -805,10 +854,12 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       // Proof: selecting the v5 schema for v4 made the explicit legacy
       // conversion accept SS in "version 5 classifies SS and FF while version 4
       // keeps its FS-only conversion" (2026-09-28).
-      const parsed = await validateSchema(
-        version === 4 ? documentV4TypedDependencyRequest : documentTypedDependencyRequest,
-        entry,
-      );
+      const parsed =
+        version === 4
+          ? await validateSchema(documentV4TypedDependencyRequest, entry)
+          : version < PLAN_DOCUMENT_EXTERNAL_VERSION
+            ? await validateSchema(documentV10TypedDependencyRequest, entry)
+            : await validateSchema(documentV12TypedDependencyRequest, entry);
       // Proof (2026-09-28): bypassing schema refusal made the unknown-type
       // memory import throw on an undefined relationship in preparation.
       if (parsed.issues !== undefined)
@@ -818,6 +869,59 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
           path: `typedDependencies[${String(at)}]${pathOf(parsed.issues[0]?.path) === 'body' ? '' : `.${pathOf(parsed.issues[0]?.path)}`}`,
         };
       typedDependencies.push(parsed.value);
+    }
+  }
+  const externalMappings: PlanDocumentImport['externalMappings'] = [];
+  const rawMappings = checked.value.externalMappings;
+  if (
+    version < PLAN_DOCUMENT_EXTERNAL_VERSION &&
+    rawMappings !== undefined &&
+    (!Array.isArray(rawMappings) || rawMappings.length > 0)
+  )
+    return { ok: false, code: 'invalid_typed_dependency', path: 'externalMappings' };
+  if (version === PLAN_DOCUMENT_EXTERNAL_VERSION && rawMappings !== undefined) {
+    if (!Array.isArray(rawMappings))
+      return { ok: false, code: 'invalid_typed_dependency', path: 'externalMappings' };
+    const declared = new Set(
+      typedDependencies.flatMap(({ predecessor }) =>
+        'kind' in predecessor && predecessor.kind === 'external'
+          ? [
+              JSON.stringify([
+                predecessor.projectId,
+                predecessor.workItemId,
+                predecessor.scope,
+                'stepId' in predecessor ? predecessor.stepId : null,
+              ]),
+            ]
+          : [],
+      ),
+    );
+    const used = new Set<string>();
+    for (const [at, mapping] of rawMappings.entries()) {
+      const prefix = `externalMappings[${String(at)}]`;
+      const parsed = await validateSchema(documentExternalMappingRequest, mapping);
+      if (parsed.issues !== undefined)
+        return {
+          ok: false,
+          code: 'invalid_typed_dependency',
+          path: `${prefix}.${pathOf(parsed.issues[0]?.path)}`,
+        };
+      const { source, destination } = parsed.value;
+      const key = JSON.stringify([
+        source.projectId,
+        source.workItemId,
+        source.scope,
+        'stepId' in source ? source.stepId : null,
+      ]);
+      // Proof: removing declaration membership made the wrong-source v11 mapping test return ok:true instead of refusing externalMappings[0].source (2026-10-22).
+      if (!declared.has(key) || used.has(key))
+        // Proof: forcing used.has false made the duplicate v11 mapping test return ok:true instead of refusing externalMappings[1].source (2026-10-22).
+        return { ok: false, code: 'invalid_typed_dependency', path: `${prefix}.source` };
+      // Proof: forcing scope agreement false made the v11 mapping test return ok:true instead of refusing externalMappings[0].destination.scope (2026-10-22).
+      if (source.scope !== destination.scope)
+        return { ok: false, code: 'invalid_typed_dependency', path: `${prefix}.destination.scope` };
+      used.add(key);
+      externalMappings.push(parsed.value);
     }
   }
   const steps: PlanDocumentImport['steps'] = [];
@@ -877,6 +981,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       settings: { ...settings, timezone, budgetFactor: measured.budgetFactor },
       steps,
       typedDependencies,
+      externalMappings,
       stepBlockages,
       workItems,
     },

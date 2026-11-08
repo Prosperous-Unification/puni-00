@@ -1,6 +1,7 @@
 import type { ChargedEstimate, EstimateUnit } from '@wbs/domain/estimate';
 import type { WorkItemStatus } from '@wbs/domain/progress';
 
+import type { PlanRead } from '@/lib/wbs-api';
 import type { EstimateMethod, PriorityBandView, SliceView } from '@/lib/wbs-api';
 
 /** One estimate's three points, as a row carries them into an export. */
@@ -213,7 +214,7 @@ export interface PlanExport {
   /** The day the plan starts, or null while it is not on a calendar at all. */
   startDate: string | null;
   /** Why be-01 could not produce calendar dates for the plan. */
-  scheduleError: 'calendar_range' | 'cycle' | null;
+  scheduleError: PlanRead['scheduleError'];
   steps: readonly (NamedEntry & { estimateUnit?: EstimateUnit })[];
   teams: readonly NamedEntry[];
   /** The tag vocabulary, for the Tags column — `teams`' shape, one dimension over. */

@@ -1,0 +1,187 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-connected.test.ts:
+(pass) resolved connected placement > interleaves A.design B.build A.test [2.90ms]
+(pass) resolved connected placement > rank precedes local priority only among eligible nodes [0.46ms]
+(pass) resolved connected placement > bytewise project identity breaks equal ranks [0.24ms]
+(pass) resolved connected placement > retains fractional FS inequalities including negative FF weights [0.16ms]
+(pass) resolved connected placement > retains fractional SS inequalities including negative FF weights [1.27ms]
+(pass) resolved connected placement > retains fractional FF inequalities including negative FF weights [0.16ms]
+(pass) resolved connected placement > local adapter and pinned replay preserve placement [0.46ms]
+(pass) resolved connected placement > refuses missing graph facts instead of changing node meaning [0.12ms]
+(pass) resolved connected placement > refuses extra graph facts instead of changing node meaning [0.12ms]
+(pass) resolved connected placement > refuses duplicate graph facts instead of changing node meaning [0.04ms]
+(pass) resolved connected placement > refuses step graph facts instead of changing node meaning [0.02ms]
+(pass) resolved connected placement > refuses position graph facts instead of changing node meaning [0.01ms]
+(pass) resolved connected placement > refuses endpoint graph facts instead of changing node meaning [0.02ms]
+(pass) resolved connected placement > refuses foreign-endpoint graph facts instead of changing node meaning [0.02ms]
+71 | it.each(['ownership', 'rank', 'nonfinite'] as const)('refuses missing or invalid connected %s even for one node', (fault) => {
+72 |   const input = connected(inputOf([row('a', 0)], [slice('a')]));
+73 |   if (fault === 'ownership') input.order.projectIdByWorkItem.delete('a');
+74 |   if (fault === 'rank') input.order.rankByProject.delete('A');
+75 |   if (fault === 'nonfinite') input.order.rankByProject.set('A', NaN);
+76 |   expect(() => scheduleResolved(input)).toThrow('resolved order');
+                                             ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "resolved order"
+
+Received function did not throw
+Received value: {
+  slices: Map(1) {
+    "a\u0000build": {
+      workItemId: "a",
+      stepId: "build",
+      duration: 1,
+      effort: 1,
+      width: 1,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: 1,
+      latestStart: 0,
+      latestFinish: 1,
+      float: 0,
+      critical: true,
+      personId: "shared",
+      boundBy: "projectStart",
+      resourcePredecessorId: null,
+      capacityPredecessorIds: [],
+      capacityTeamId: null,
+      lateBy: null,
+    },
+  },
+  workItems: Map(1) {
+    "a": {
+      duration: 1,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: 1,
+      latestStart: 0,
+      latestFinish: 1,
+      float: 0,
+      critical: true,
+    },
+  },
+  waitingForPerson: 0,
+  waitingForCapacity: 0,
+  eventsVisited: 0,
+}
+
+      at <anonymous> (/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/schedule-connected.test.ts:76:41)
+(fail) refuses missing or invalid connected ownership even for one node [0.30ms]
+71 | it.each(['ownership', 'rank', 'nonfinite'] as const)('refuses missing or invalid connected %s even for one node', (fault) => {
+72 |   const input = connected(inputOf([row('a', 0)], [slice('a')]));
+73 |   if (fault === 'ownership') input.order.projectIdByWorkItem.delete('a');
+74 |   if (fault === 'rank') input.order.rankByProject.delete('A');
+75 |   if (fault === 'nonfinite') input.order.rankByProject.set('A', NaN);
+76 |   expect(() => scheduleResolved(input)).toThrow('resolved order');
+                                             ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "resolved order"
+
+Received function did not throw
+Received value: {
+  slices: Map(1) {
+    "a\u0000build": {
+      workItemId: "a",
+      stepId: "build",
+      duration: 1,
+      effort: 1,
+      width: 1,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: 1,
+      latestStart: 0,
+      latestFinish: 1,
+      float: 0,
+      critical: true,
+      personId: "shared",
+      boundBy: "projectStart",
+      resourcePredecessorId: null,
+      capacityPredecessorIds: [],
+      capacityTeamId: null,
+      lateBy: null,
+    },
+  },
+  workItems: Map(1) {
+    "a": {
+      duration: 1,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: 1,
+      latestStart: 0,
+      latestFinish: 1,
+      float: 0,
+      critical: true,
+    },
+  },
+  waitingForPerson: 0,
+  waitingForCapacity: 0,
+  eventsVisited: 0,
+}
+
+      at <anonymous> (/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/schedule-connected.test.ts:76:41)
+(fail) refuses missing or invalid connected rank even for one node [0.13ms]
+71 | it.each(['ownership', 'rank', 'nonfinite'] as const)('refuses missing or invalid connected %s even for one node', (fault) => {
+72 |   const input = connected(inputOf([row('a', 0)], [slice('a')]));
+73 |   if (fault === 'ownership') input.order.projectIdByWorkItem.delete('a');
+74 |   if (fault === 'rank') input.order.rankByProject.delete('A');
+75 |   if (fault === 'nonfinite') input.order.rankByProject.set('A', NaN);
+76 |   expect(() => scheduleResolved(input)).toThrow('resolved order');
+                                             ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "resolved order"
+
+Received function did not throw
+Received value: {
+  slices: Map(1) {
+    "a\u0000build": {
+      workItemId: "a",
+      stepId: "build",
+      duration: 1,
+      effort: 1,
+      width: 1,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: 1,
+      latestStart: 0,
+      latestFinish: 1,
+      float: 0,
+      critical: true,
+      personId: "shared",
+      boundBy: "projectStart",
+      resourcePredecessorId: null,
+      capacityPredecessorIds: [],
+      capacityTeamId: null,
+      lateBy: null,
+    },
+  },
+  workItems: Map(1) {
+    "a": {
+      duration: 1,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: 1,
+      latestStart: 0,
+      latestFinish: 1,
+      float: 0,
+      critical: true,
+    },
+  },
+  waitingForPerson: 0,
+  waitingForCapacity: 0,
+  eventsVisited: 0,
+}
+
+      at <anonymous> (/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/schedule-connected.test.ts:76:41)
+(fail) refuses missing or invalid connected nonfinite even for one node [0.10ms]
+(pass) rejects a violated resolved FS real boundary [0.31ms]
+(pass) rejects a violated resolved SS real boundary [0.18ms]
+(pass) rejects a violated resolved FF real boundary [0.11ms]
+
+ 17 pass
+ 3 fail
+ 22 expect() calls
+Ran 20 tests across 1 file. [33.00ms]

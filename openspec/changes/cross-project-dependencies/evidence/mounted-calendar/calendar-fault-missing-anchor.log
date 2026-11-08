@@ -1,0 +1,46 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:
+(pass) isolated mounted calendars preserve fractional FS boundary from both project targets [337.37ms]
+(pass) isolated mounted Wednesday floor binds after short Monday predecessor [282.32ms]
+(pass) isolated mounted weekend floor and deadline use the Wednesday anchor [290.12ms]
+{"level":"error","time":1792720331134,"service":"be-01","err":{"occurrence_id":"AE_WZWYJXDA65DAHT65Y6BCAFMRNX","fingerprint":"fp1_9d8818c3ccf6ced63652ae4ce13c8853","stack":["Error: connected stage: active project anchor","    at requireFact (/tmp/puni-calendar-62/libs/wbs/domain/domain/src/canonical-connected-stage-input.ts:18:29)","    at canonicalConnectedStageInput (/tmp/puni-calendar-62/libs/wbs/domain/domain/src/canonical-connected-stage-input.ts:107:5)","    at buildConnectedOptimizationStage (/tmp/puni-calendar-62/libs/wbs/application/core/src/service/connected-optimization.ts:149:3)","    at selectConnectedOptimizations (/tmp/puni-calendar-62/libs/wbs/application/core/src/service/connected-optimization.ts:273:19)","    at deriveConnectedPlan (/tmp/puni-calendar-62/libs/wbs/application/core/src/service/connected-plan.ts:246:22)","    at readConnectedLivePlanIn (/tmp/puni-calendar-62/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:612:22)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+67 |   const answer = await harness.call(
+68 |     'ada',
+69 |     'GET',
+70 |     `/api/projects/${projectId}/work-items?full=true`,
+71 |   );
+72 |   expect(answer.status).toBe(200);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at read (/tmp/puni-calendar-62/apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:72:25)
+      at async <anonymous> (/tmp/puni-calendar-62/apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:175:20)
+(fail) isolated mounted missing connected anchor stays explicit and unrelated undated project stays outside [349.37ms]
+(pass) shared mounted calendars preserve fractional FS boundary from both project targets [303.42ms]
+(pass) shared mounted Wednesday floor binds after short Monday predecessor [304.26ms]
+(pass) shared mounted weekend floor and deadline use the Wednesday anchor [290.66ms]
+{"level":"error","time":1792720332384,"service":"be-01","err":{"occurrence_id":"AE_V2BFRQMHCP7WDDR0H3ZKGEY0X5","fingerprint":"fp1_9d8818c3ccf6ced63652ae4ce13c8853","stack":["Error: connected stage: active project anchor","    at requireFact (/tmp/puni-calendar-62/libs/wbs/domain/domain/src/canonical-connected-stage-input.ts:18:29)","    at canonicalConnectedStageInput (/tmp/puni-calendar-62/libs/wbs/domain/domain/src/canonical-connected-stage-input.ts:107:5)","    at buildConnectedOptimizationStage (/tmp/puni-calendar-62/libs/wbs/application/core/src/service/connected-optimization.ts:149:3)","    at selectConnectedOptimizations (/tmp/puni-calendar-62/libs/wbs/application/core/src/service/connected-optimization.ts:273:19)","    at deriveConnectedPlan (/tmp/puni-calendar-62/libs/wbs/application/core/src/service/connected-plan.ts:246:22)","    at readConnectedLivePlanIn (/tmp/puni-calendar-62/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:612:22)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+67 |   const answer = await harness.call(
+68 |     'ada',
+69 |     'GET',
+70 |     `/api/projects/${projectId}/work-items?full=true`,
+71 |   );
+72 |   expect(answer.status).toBe(200);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at read (/tmp/puni-calendar-62/apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:72:25)
+      at async <anonymous> (/tmp/puni-calendar-62/apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts:175:20)
+(fail) shared mounted missing connected anchor stays explicit and unrelated undated project stays outside [351.67ms]
+
+ 6 pass
+ 2 fail
+ 52 expect() calls
+Ran 8 tests across 1 file. [5.74s]

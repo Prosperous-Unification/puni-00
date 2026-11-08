@@ -679,7 +679,7 @@ export interface GanttPlan {
   personNames: ReadonlyMap<string, string>;
   /**
    * Every holder a slice's {@link GanttSlice.elsewhereHolder} can name, by
-   * {@link elsewhereHolderKey}; empty for a plan nothing outranks.
+   * {@link elsewhereHolderKey}; empty when no foreign person floor is displayed.
    */
   elsewhereHolders: ReadonlyMap<string, ElsewhereHolderLabel>;
   /** Team names by id, used to name the pool that actually bound a slice. */
@@ -2892,8 +2892,8 @@ function floorWordsOf(
       }
       return personFloorWords(personName, predecessor, rowNames, stepsById);
     }
-    // The person is booked in a project ranked above this one
-    // (`share-people-across-projects`, ADR 0034): the sentence names them, the
+    // The person is held in another project, through a ranked booking
+    // (ADR 0034) or a connected person predecessor: the sentence names them, the
     // holding work item by the number its own plan prints, and that project.
     case 'elsewhere': {
       const holder = slice.elsewhereHolder;

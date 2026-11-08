@@ -1,0 +1,61 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:
+51 |     expect(snapshot(path)).toEqual(before);
+52 |   });
+53 | for (const args of [[], ['activate'], ['remove'], ['inspect', 'extra']])
+54 |   it(`refuses arguments ${JSON.stringify(args)}`, () => {
+55 |     const execution = inspect(database(), args);
+56 |     expect(execution.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:56:36)
+(fail) refuses arguments [] [2387.02ms]
+51 |     expect(snapshot(path)).toEqual(before);
+52 |   });
+53 | for (const args of [[], ['activate'], ['remove'], ['inspect', 'extra']])
+54 |   it(`refuses arguments ${JSON.stringify(args)}`, () => {
+55 |     const execution = inspect(database(), args);
+56 |     expect(execution.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:56:36)
+(fail) refuses arguments ["activate"] [2393.38ms]
+51 |     expect(snapshot(path)).toEqual(before);
+52 |   });
+53 | for (const args of [[], ['activate'], ['remove'], ['inspect', 'extra']])
+54 |   it(`refuses arguments ${JSON.stringify(args)}`, () => {
+55 |     const execution = inspect(database(), args);
+56 |     expect(execution.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:56:36)
+(fail) refuses arguments ["remove"] [2718.76ms]
+51 |     expect(snapshot(path)).toEqual(before);
+52 |   });
+53 | for (const args of [[], ['activate'], ['remove'], ['inspect', 'extra']])
+54 |   it(`refuses arguments ${JSON.stringify(args)}`, () => {
+55 |     const execution = inspect(database(), args);
+56 |     expect(execution.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:56:36)
+(fail) refuses arguments ["inspect","extra"] [4860.73ms]
+
+ 0 pass
+ 15 filtered out
+ 4 fail
+ 4 expect() calls
+Ran 4 tests across 1 file. [14.64s]

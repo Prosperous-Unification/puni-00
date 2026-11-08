@@ -1,5 +1,12 @@
 import { randomBytes } from 'node:crypto';
 
+import type { DependencyClientRefusal } from '@wbs/contracts';
+import { openConnection } from '@wbs/store-sqlite/db';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
+
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-capability';
+import { admitDependencyClient } from '../runtime/dependency-client';
 import { importMachineGrantKeys, type MachineGrantKey } from '../runtime/machine-grant';
 import { LocalOidcIssuers } from './local-oidc-issuer';
 import { addAgentPerson, issueApiKey, revokeMachineCredential } from './machine-credential-fixture';
@@ -50,7 +57,21 @@ let trustedIssuerId: string | undefined;
 const grantKeys: { current: MachineGrantKey; previous: MachineGrantKey | null } =
   await importMachineGrantKeys({ current: randomBytes(32).toString('base64url'), previous: null });
 
+const dependencyCapability =
+  process.env['MCP_TEST_DEPENDENCY_CAPABILITY'] === 'unsupported'
+    ? INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY
+    : BACKEND_DEPENDENCY_CAPABILITY;
+
 const h = OrganizationHarness.openComposedWith({
+  dependencyCapability,
+  admitDependencyClient: (claim): DependencyClientRefusal | null => {
+    const connection = openConnection(h.databasePath());
+    try {
+      return admitDependencyClient(connection.db, dependencyCapability, claim);
+    } finally {
+      connection.close();
+    }
+  },
   trustedIssuers: { fetch: issuers.fetch, configuredIssuer: null },
   machineGrants: {
     secret,
@@ -79,6 +100,10 @@ function issuedBy(personId: string): string {
 }
 
 async function fixture(request: Request, path: string): Promise<Response | undefined> {
+  if (request.method === 'POST' && path === '/__fixture/enable-dependencies') {
+    seedDependencyAuthority(h.databasePath());
+    return Response.json({ state: 'ENABLED' });
+  }
   if (request.method === 'POST' && path === '/__fixture/activate') {
     h.activate();
     const registered = await h.call('dany', 'POST', '/api/organization/trusted-issuers', {

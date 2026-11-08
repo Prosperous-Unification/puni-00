@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/caddy-target.test.ts:
+19 |     'bun run tools/tool-remote-scripts/caddy/run.ts',
+20 |   );
+21 |   expect(project.targets['test'].options.command).toContain('bun test src ');
+22 |   // Proof: omitting either explicit local acceptance suite from this target fails this configured-command test.
+23 |   expect(project.targets['test'].options.command).toContain('test/solver-drain-transport.test.ts');
+24 |   expect(project.targets['test'].options.command).toContain('test/solver-drain-fixture.test.ts');
+                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "test/solver-drain-fixture.test.ts"
+Received: "bun test src test/solver-drain-transport.test.ts --preload ../test/scratch/preload.ts --timeout=10000"
+
+      at <anonymous> (/tmp/puni-solver-drain-acceptance/tools/tool-remote-scripts/src/caddy-target.test.ts:24:51)
+(fail) requires real Caddy boundaries in the CI and host test target [0.37ms]
+(pass) refuses a native Caddy override in CI before starting the suite [20.36ms]
+(pass) refuses an absent native development binary before starting the suite [15.84ms]
+(pass) refuses failed required image preparation before starting the suite [16.86ms]
+
+ 3 pass
+ 1 fail
+ 12 expect() calls
+Ran 4 tests across 1 file. [87.00ms]

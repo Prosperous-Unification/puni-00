@@ -1,0 +1,26 @@
+import {readFileSync,writeFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+const path='libs/wbs/application/core/src/module/work-item/work-item.resource.ts';
+const clean=readFileSync(path,'utf8');
+const evidence='openspec/changes/cross-project-dependencies/evidence/mounted-displaced-stage/';
+const reconstructed="{ ...selection.stage, starts: new Map([...placement.combined.slices].map(([key, slice]) => [key, slice.earliestStart])), finishes: new Map([...placement.combined.slices].map(([key, slice]) => [key, slice.earliestFinish])) }";
+for(const fault of ['helper-final-placement','live-callback-final-placement']) {
+ let mutated;
+ if(fault==='helper-final-placement') {
+   const needle="input: { kind: 'connected', stage: selection.stage }";
+   if(clean.split(needle).length!==2) throw Error('helper target ambiguity');
+   mutated=clean.replace(needle,`input: { kind: 'connected', stage: ${reconstructed} }`);
+ } else {
+   const needle='input: observation.input,';
+   const replacement="input: { kind: 'connected', stage: { ...observation.input.stage, starts: new Map([...captured.projection.placement.combined.slices].map(([key, slice]) => [key, slice.earliestStart])), finishes: new Map([...captured.projection.placement.combined.slices].map(([key, slice]) => [key, slice.earliestFinish])) } },";
+   if(clean.split(needle).length!==2) throw Error('callback target ambiguity');
+   mutated=clean.replace(needle,replacement);
+ }
+ try {
+  writeFileSync(path,mutated);
+  const run=spawnSync('bun',['test','apps/wbs/be-01/src/services-connected.db.test.ts','-t','displaced','--timeout=15000'],{encoding:'utf8'});
+  writeFileSync(evidence+fault+'.log.txt',run.stdout+run.stderr+`\nWatched exit: ${run.status}\n`);
+  console.log(fault,run.status,(run.stdout+run.stderr).slice(-600));
+  if(run.status===0 || run.status===null) throw Error(fault+' survived or interrupted');
+ } finally {writeFileSync(path,clean)}
+}

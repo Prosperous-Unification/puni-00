@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+(pass) bound first-child incident transition derives both directions and retains exact creation evidence [604.04ms]
+(pass) bound structural capability refuses existing-destination instead of admitting an arbitrary node retarget [444.23ms]
+(pass) bound structural capability refuses foreign-destination instead of admitting an arbitrary node retarget [396.21ms]
+(pass) bound structural capability refuses detached-child instead of admitting an arbitrary node retarget [393.33ms]
+(pass) restricted readable remote successor permits derived handdown while ordinary foreign typed editing refuses [720.27ms]
+(pass) incident transition rolls back every table and held announcement on after-detach [389.74ms]
+(pass) incident transition rolls back every table and held announcement on after-structure [385.05ms]
+(pass) incident transition rolls back every table and held announcement on second-reattach [394.31ms]
+(pass) incident transition rolls back every table and held announcement on final-graph-delivery [410.95ms]
+(pass) incident final graph result refuses node_on_parent atomically with held announcements [371.08ms]
+(pass) incident final graph result refuses cycle atomically with held announcements [368.92ms]
+(pass) incident final graph result refuses self_node atomically with held announcements [386.94ms]
+(pass) incident transition refuses delivery after its genuine retained refresh resumes across graph closure [333.27ms]
+(pass) incident enumeration refuses wrong-owner delivery through the real scoped adapter boundary [327.92ms]
+(pass) incident enumeration refuses foreign-source-project delivery through the real scoped adapter boundary [365.32ms]
+(pass) modeled structural refusal makes the compound capability refuse at its top level and rolls back detached links [325.13ms]
+(pass) mounted fresh incident restoration models a deleting remote endpoint [397.31ms]
+(pass) mounted undo incident restoration models a deleting remote endpoint [469.96ms]
+(pass) mounted redo incident restoration models a deleting remote endpoint [574.58ms]
+(pass) incident pending-state read cannot return after its observation closes [329.02ms]
+(pass) synthetic mounted successor deletion removes only owned links and restores exact identities through undo redo [659.63ms]
+(pass) synthetic mounted promote replay preserves surviving child incidents [743.60ms]
+(pass) synthetic mounted promote stale preserves surviving child incidents [662.60ms]
+(pass) synthetic mounted promote outgoing preserves surviving child incidents [661.64ms]
+
+ 24 pass
+ 0 fail
+ 433 expect() calls
+Ran 24 tests across 1 file. [14.79s]

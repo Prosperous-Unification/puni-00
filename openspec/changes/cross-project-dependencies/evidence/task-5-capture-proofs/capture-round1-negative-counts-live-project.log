@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:
+58 |   await source.uow.run(async () => {
+59 |     const before=queries.length;
+60 |     released.release();
+61 |     if (pending===undefined) throw new Error('missing paused read');
+62 |     expect((await pending).message).toContain('closed');
+63 |     expect(queries.length-before).toBe(0);
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 4
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:63:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) live project first response refuses before SQL after success [132.96ms]
+
+ 0 pass
+ 81 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.20s]

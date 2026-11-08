@@ -1,0 +1,71 @@
+diff --git a/out/scope.js b/out/scope.js
+index ed17995b473f7742000c25184e3ce4abb518f141..211506ecf1335a23415b84e1bae1082cb9122697 100644
+--- a/out/scope.js
++++ b/out/scope.js
+@@ -6,7 +6,7 @@ import { RootModule, bindModule } from "./module.js";
+ import { nodesByRegisteredId, parseNode, registerNodeId, schemaKindOf, withId } from "./parse.js";
+ import { Alias } from "./roots/alias.js";
+ import { CompiledFunction, NodeCompiler } from "./shared/compile.js";
+-import { $ark } from "./shared/registry.js";
++import { $ark, registeredReference } from "./shared/registry.js";
+ import { Traversal } from "./shared/traversal.js";
+ import { arkKind, hasArkKind, isNode } from "./shared/utils.js";
+ const schemaBranchesOf = (schema) => isArray(schema) ? schema
+@@ -44,7 +44,39 @@ const bindPrecompilation = (references, precompiler, owningScope) => {
+         node.precompilation = precompilation;
+     }
+ };
+-const precompileReferences = (references) => new CompiledFunction().return(references.reduce((js, node) => {
++const precompileReferences = (references, owningScope) => {
++    const currentById = new Map(references.map(node => [node.id, node]));
++    const eligibility = new Map();
++    const canReuse = node => {
++        if (!(node.precompilation && (!owningScope || node.$ !== owningScope)))
++            return false;
++        const kinds = node.hasKind("union") ? ["Allows", "Apply", "Optimistic"] : ["Allows", "Apply"];
++        for (const kind of kinds) {
++            if (!Object.hasOwn(node, `traverse${kind}`) || typeof node[`traverse${kind}`] !== "function")
++                throwInternalError(`Compiled traversal missing ${node.id}${kind}`);
++        }
++        if (currentById.get(node.id) !== node || node.isCyclic || node.hasKind("alias"))
++            return false;
++        const state = eligibility.get(node);
++        if (state !== undefined)
++            return state === "eligible";
++        eligibility.set(node, "visiting");
++        for (const reference of Object.values(node.referencesById)) {
++            if (reference === node)
++                continue;
++            if (currentById.get(reference.id) !== reference || !canReuse(reference)) {
++                eligibility.set(node, "ineligible");
++                return false;
++            }
++        }
++        eligibility.set(node, "eligible");
++        return true;
++    };
++    return new CompiledFunction().return(references.reduce((js, node) => {
++    if (canReuse(node)) {
++        const kinds = node.hasKind("union") ? ["Allows", "Apply", "Optimistic"] : ["Allows", "Apply"];
++        return js + kinds.map(kind => `${node.id}${kind}: ${registeredReference(node[`traverse${kind}`])},\n`).join("");
++    }
+     const allowsCompiler = new NodeCompiler({ kind: "Allows" }).indent();
+     node.compile(allowsCompiler);
+     const allowsJs = allowsCompiler.write(`${node.id}Allows`);
+@@ -62,6 +94,7 @@ const precompileReferences = (references) => new CompiledFunction().return(refer
+     const optimisticJs = optimisticCompiler.write(`${node.id}Optimistic`);
+     return `${result}${optimisticJs},\n`;
+ }, "{\n") + "}");
++};
+ export class BaseScope {
+     config;
+     resolvedConfig;
+@@ -339,7 +372,7 @@ export class BaseScope {
+             Object.assign(this.resolutions, this._exportedResolutions);
+             this.references = Object.values(this.referencesById);
+             if (!this.resolvedConfig.jitless) {
+-                const precompiler = precompileReferences(this.references);
++                const precompiler = precompileReferences(this.references, this);
+                 this.precompilation = precompiler.write(rootScopeFnName, 4);
+                 bindPrecompilation(this.references, precompiler, this);
+             }

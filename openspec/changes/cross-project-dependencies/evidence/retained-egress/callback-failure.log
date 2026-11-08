@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/service/delivery.test.ts:
+252 |   const delivery = new SocketDelivery({
+253 |     admit: () => Promise.resolve('incompatible'), write: () => 'sent',
+254 |     signal: new AbortController().signal, timers: systemTimers, capacity: 1, deadlineMs: 100,
+255 |     onRetired: () => { throw new Error('retirement infrastructure failed'); },
+256 |   });
+257 |   await expect(delivery.send('incompatible')).rejects.toThrow('retirement infrastructure failed');
+                                                            ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-egress-1031/apps/wbs/gw-01/src/service/delivery.test.ts:257:55)
+(fail) incompatible retirement callback failures remain observable to the producer [1.49ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.15s]

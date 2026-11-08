@@ -218,3 +218,51 @@ capability. The literal-path fault coverage limit above remains explicit.
 Independent source review approved the bounded seven-file package/probe scope and
 replayed9 focused cases/44 assertions. The subsequent comment/receipt update records
 this new evaluator evidence; host apply and canonical gate remain unverified.
+
+## Required sandbox tool restored on h4claw (2026-10-31)
+
+The normal isolated gate printed candidate
+`021ac3867e7af7d84ce38af1b45a115e209743c0`, completed frozen installation
+and OpenSpec validation (310 passed, zero failed), then exited127 because
+`bwrap` was absent. No full-gate success follows from that attempt.
+
+The existing pinned fleet controller and operator transport verified the target
+identity and inspected the exact Ubuntu Bubblewrap archive before installation:
+version `0.11.1-1ubuntu0.3`, amd64, 51032 bytes, SHA256
+`d3a6c1b6b0e0474eaed6dbd055c0d601fd875af153976a0dc4aae75f4ea10868`.
+The control archive contained only package metadata and checksums; the payload
+contained the mode0755 executable and documentation/completions. It supplied no
+maintainer scripts, policy files, service definitions or privileged file modes.
+Existing `busybox-static` supplied both working BusyBox paths and was excluded
+from the repair.
+
+A fresh dependency simulation required exactly one new Bubblewrap package,
+zero upgrades and zero removals. The reviewed operation reverified the private
+local archive and executable absence, then used `dpkg --install` on that archive.
+Simulation and installation both exited0; normal man-db trigger processing is
+recorded. The existing package-manager locks serialized package work. A preceding
+canonical status check as `puni1` reported no holder/waiters; that was a snapshot,
+not an acquired heavy-work lease. No root-owned gate record was introduced.
+
+Availability readbacks as `puni1` passed: installed state/version
+`ii  0.11.1-1ubuntu0.3`, executable `/usr/bin/bwrap`, version
+`bubblewrap 0.11.1`, and both `/bin/busybox true` and `/usr/bin/busybox true` exit0.
+The original controller execution exited0 with all15 tasks successful.
+
+Earlier preparation failures remain separate: a YAML condition was rejected
+before the package helper; an APT local-file simulation with `--no-download`
+exited100 before installation. A read-only comparison showed its repository
+archive selection despite the local argument. Neither supplies install evidence.
+The successful final operation used the exact inspected local archive directly,
+without downloads, force options, dependency fixes or automatic recovery.
+
+Private actual report: `/tmp/puni-h4-bwrap-restoration-actual-20261031.md`,
+SHA256 `3308c2d1e8e6d568a6faeb7aeb0fa33fdf1e83225c448ec4b000f94d004f6ff9`.
+Final operation log SHA256:
+`78227bf389fd3f098e0f8a8e974480ff54226e8830c04c7914195ae7d031f617`.
+Independent final-operation review SHA256:
+`9cc9e29c33dc6afc6b8aca0afd04d36d4fbc00479e2b2ee39ac5f1ab1d85d564`.
+
+This restores tool availability only. The full role was not applied, so its
+twice-apply convergence remains unverified. Namespace capability and a subsequent
+exact-SHA canonical gate remain unqualified; no sandbox policy was changed.

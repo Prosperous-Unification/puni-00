@@ -1,0 +1,17 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-command-access.controller.db.test.ts:
+(pass) active mounted queued external add revalidates successor edit access [848.50ms]
+(pass) active mounted queued external update revalidates successor edit access [683.01ms]
+(pass) active mounted queued external remove revalidates successor edit access [684.54ms]
+
+apps/wbs/be-01/src/controller/cross-project-incident-replay.controller.db.test.ts:
+(pass) mounted compound first-child replay preserves restricted incident ownership and exact receipts through undo redo [981.91ms]
+(pass) mounted compound first-child replay refuses changed creation audit after its inverse patch [1009.18ms]
+(pass) mounted compound undo refuses queued structural project edit revocation atomically [920.24ms]
+(pass) mounted compound redo refuses queued structural project edit revocation atomically [921.19ms]
+
+ 7 pass
+ 0 fail
+ 222 expect() calls
+Ran 7 tests across 2 files. [9.66s]

@@ -1,0 +1,47 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/solver-supervisor-peer.proc.test.ts:
+90 |           expect(errors).toEqual([]);
+91 |           expect(JSON.parse(stdout)).toEqual({ type: 'started', pid: client.pid });
+92 |         } else {
+93 |           expect(runs).toBe(0);
+94 |           expect(stdout).toBe('');
+95 |           expect(errors.map(error => error.message)).toEqual([
+                                                          ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "supervisor peer credentials: accepted socket has no file descriptor",
++   "supervisor peer credentials: SO_PEERCRED getsockopt failed",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/solver-supervisor-peer.proc.test.ts:95:54)
+(fail) Bun 1.4.4 source production listener authenticates separate client: missing-fd [15.08ms]
+90 |           expect(errors).toEqual([]);
+91 |           expect(JSON.parse(stdout)).toEqual({ type: 'started', pid: client.pid });
+92 |         } else {
+93 |           expect(runs).toBe(0);
+94 |           expect(stdout).toBe('');
+95 |           expect(errors.map(error => error.message)).toEqual([
+                                                          ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "supervisor peer credentials: accepted socket has no file descriptor",
++   "supervisor peer credentials: SO_PEERCRED getsockopt failed",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/solver-supervisor-peer.proc.test.ts:95:54)
+(fail) Bun 1.4.4 built production listener authenticates separate client: missing-fd [29.17ms]
+
+ 0 pass
+ 4 filtered out
+ 2 fail
+ 15 expect() calls
+Ran 2 tests across 1 file. [77.00ms]

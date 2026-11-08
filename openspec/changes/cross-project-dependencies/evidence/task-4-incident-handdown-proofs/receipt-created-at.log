@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+344 |           ? 'external dependency endpoint changed'
+345 |           : 'incident transition refused: stale_undo',
+346 |       );
+347 |     } else {
+348 |       expect(outcome).toBeInstanceOf(Error);
+349 |       expect(outcome instanceof Error ? outcome.message : '').toContain(
+                                                                    ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "journal incident receipt is malformed"
+Received: "journal incident receipt does not describe its exact node mapping"
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:349:63)
+(fail) compound undo refuses missing-created-at atomically after an earlier patch [567.26ms]
+
+ 0 pass
+ 24 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [2.90s]

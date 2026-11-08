@@ -1,0 +1,24 @@
+Injected creator-receipt-privacy; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/solver-drain-fixture.test.ts:
+176 |       ],
+177 |       { env: { ...process.env, WBS_EDGE_STATE: edge }, stdout: 'ignore', stderr: 'ignore' },
+178 |     );
+179 |     expect(await child.exited).toBe(1);
+180 |     const receipt = await readFile(join(root, 'refused.json'), 'utf8');
+181 |     expect(receipt).not.toContain('MALFORMED_PRIVATE_SENTINEL');
+                              ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "MALFORMED_PRIVATE_SENTINEL"
+Received: "{\"pid\":2290633,\"reason\":\"startup-error\",\"error\":\"SyntaxError: JSON Parse error: Unexpected identifier \\\"MALFORMED_PRIVATE_SENTINEL\\\"\"}"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/solver-drain-fixture.test.ts:181:25)
+(fail) creator malformed manifest diagnostic never retains JSON payloads [78.18ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [193.00ms]

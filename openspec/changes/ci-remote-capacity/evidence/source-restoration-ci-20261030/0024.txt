@@ -1,0 +1,15 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts", "--test-name-pattern=fresh\\ fixed\\ leaves\\ preserve\\ real\\ canonical\\ Bun\\ discovery\\ including\\ future\\ and\\ collision\\ files$"], "pid": 3318047, "exit": 0, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 0.36415035906247795, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "bb25e6e959f545e287d3141d44bfc4aea89a662b313f59222e639beb931eb31e"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:
+(pass) fresh fixed leaves preserve real canonical Bun discovery including future and collision files [304.55ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=3
+
+ 1 pass
+ 37 filtered out
+ 0 fail
+ 27 expect() calls
+Ran 1 test across 1 file. [360.00ms]
+

@@ -1,0 +1,94 @@
+[solver-image-smoke] supervisor authenticated and accepted /app/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json
+[solver-image-smoke] supervisor authenticated and accepted shared-person
+[solver-image-smoke] supervisor authenticated and accepted connected-feasible
+[solver-image-smoke] supervisor authenticated and accepted connected-fractional
+[solver-image-smoke] cleanup-complete 1fdb0bee-dd68-4066-8953-ea4cccd5a217
+342 |         ['a1-long\u0000a1-s', 2, 4],
+343 |         ['a1-short\u0000a1-s', 1, 2],
+344 |       ],
+345 |     );
+346 |     await readTree();
+347 |     assert.deepEqual(ledger(), settled);
+                 ^
+AssertionError: Expected values to be strictly deep-equal:
++ actual - expected
+... Skipped lines
+
+  [
+    [
+      {
+        admission_state: 'open',
+        cancel_epoch: 0,
+...
+    [],
+-   [],
+    [
+      {
++       admitted_deadline_at: 1792773254327,
++       attempt_token: 'e4a96367-a6ba-450a-89bc-bbef9c228208',
+        budget_ms: 30000,
++       cancel_requested_at: null,
+        contract_version: '18+0.4.0',
++       generation: 1,
++       heartbeat_at: 1792773204327,
++       lifecycle: 'starting',
++       objective: 'pri',
++       owner_id: '5d1d4975-9049-436e-8a98-9a048c422b04',
++       pid: null,
++       project_id: '11111111-1111-4111-8111-111111111111',
++       started_at: 1792773204327
++     },
++     {
++       admitted_deadline_at: 1792773254339,
++       attempt_token: 'abd41fd7-e1f0-4bd4-952c-aa16d3be5b4b',
++       budget_ms: 30000,
++       cancel_requested_at: null,
++       contract_version: '18+0.4.0',
++       generation: 1,
++       heartbeat_at: 1792773204339,
++       lifecycle: 'starting',
++       objective: 'time',
++       owner_id: '5d1d4975-9049-436e-8a98-9a048c422b04',
++       pid: null,
++       project_id: '11111111-1111-4111-8111-111111111111',
++       started_at: 1792773204339
++     }
++   ],
++   [
++     {
++       budget_ms: 30000,
++       contract_version: '18+0.4.0',
+        created_at: 1792773203815,
+        failure_reason: null,
+        generation: 1,
+        input_hash: 'a4ea251409cb7600f9c657a4789ad103b131dbf9546c6988c8db9649726ef411',
+        objective: 'pri',
+
+ generatedMessage: true,
+     actual: [
+  [
+    [Object ...]
+  ], [], [
+    [Object ...], [Object ...]
+  ], [
+    [Object ...], [Object ...]
+  ], [
+    [Object ...], [Object ...], [Object ...], [Object ...], [Object ...], [Object ...], [Object ...]
+  ]
+],
+   expected: [
+  [
+    [Object ...]
+  ], [], [], [
+    [Object ...], [Object ...]
+  ], [
+    [Object ...], [Object ...], [Object ...], [Object ...], [Object ...], [Object ...], [Object ...]
+  ]
+],
+   operator: "deepStrictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at runComposedImageScenario (/app/apps/wbs/be-01/scripts/connected-composed-image-scenario.ts:347:12)
+
+Bun v1.4.2 (Linux x64)

@@ -1,0 +1,33 @@
+{
+  "sha": "5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd",
+  "bystanderId": "96e70e17fffe823d395925c2f5f2b37fb847ca2497eaece3f718fc612b74cac2",
+  "bystanderBefore": "96e70e17fffe823d395925c2f5f2b37fb847ca2497eaece3f718fc612b74cac2 {\"Dead\":false,\"Error\":\"\",\"ExitCode\":0,\"FinishedAt\":\"0001-01-01T00:00:00Z\",\"OOMKilled\":false,\"Paused\":false,\"Pid\":339386,\"Restarting\":false,\"Running\":true,\"StartedAt\":\"2026-10-23T09:34:23.141183199Z\",\"Status\":\"running\"} {\"MaximumRetryCount\":0,\"Name\":\"no\"}",
+  "bystanderAfter": "96e70e17fffe823d395925c2f5f2b37fb847ca2497eaece3f718fc612b74cac2 {\"Dead\":false,\"Error\":\"\",\"ExitCode\":0,\"FinishedAt\":\"0001-01-01T00:00:00Z\",\"OOMKilled\":false,\"Paused\":false,\"Pid\":339386,\"Restarting\":false,\"Running\":true,\"StartedAt\":\"2026-10-23T09:34:23.141183199Z\",\"Status\":\"running\"} {\"MaximumRetryCount\":0,\"Name\":\"no\"}",
+  "bystanderRemoved": true,
+  "faults": [
+    {
+      "fault": "network-stall",
+      "exitCode": 1,
+      "createdId": "3e39fbc91763d9d0139366eff07b0f9321ca1eb62bec934cb857e7b81754f704",
+      "cleanupComplete": true,
+      "bystanderUnchanged": true,
+      "sourceVerified": true
+    },
+    {
+      "fault": "container-stall",
+      "exitCode": 1,
+      "createdId": "d2112a4f12b79347194bbf14458a83b637bc0469ffc40c8b59ccf760016874ff",
+      "cleanupComplete": true,
+      "bystanderUnchanged": true,
+      "sourceVerified": true
+    },
+    {
+      "fault": "network-before-stall",
+      "exitCode": 1,
+      "createdId": "not-created",
+      "cleanupComplete": false,
+      "bystanderUnchanged": true,
+      "sourceVerified": true
+    }
+  ]
+}

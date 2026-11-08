@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:
+(pass) number-only edits refresh dependency labels without retargeting or foreign events [413.38ms]
+
+ 1 pass
+ 8 filtered out
+ 0 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [3.34s]

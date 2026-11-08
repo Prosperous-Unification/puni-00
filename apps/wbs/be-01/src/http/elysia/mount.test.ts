@@ -476,7 +476,7 @@ describe('endpoint metadata and asynchronous boundaries', () => {
   });
   test('rejects resolver principal mismatches before handler invocation', async () => {
     let calls = 0;
-    for (const requirement of ['internal', 'signed-in'] as const) {
+    for (const requirement of ['internal', 'mcp-internal', 'mcp-dedicated', 'signed-in'] as const) {
       const shape = defineEndpointShape({
         ...echoShape,
         policies: [{ kind: 'identity', require: requirement }],
@@ -495,7 +495,7 @@ describe('endpoint metadata and asynchronous boundaries', () => {
             Promise.resolve({
               ok: true,
               principal:
-                requirement === 'internal'
+                requirement !== 'signed-in'
                   ? { id: 'ada', username: 'Ada', scopes: ['read'] }
                   : { kind: 'internal' },
             }),
@@ -1537,3 +1537,33 @@ test('refuses a resource declaration whose user identity policy was lost', async
     new Error('Organization resource lacks a user identity: postApiProjects'),
   ]);
 });
+
+for (const requirement of ['internal', 'mcp-internal', 'mcp-dedicated'] as const)
+  test(`delivers an internal principal for the ${requirement} service policy`, async () => {
+    const shape = defineEndpointShape({
+      ...echoShape,
+      policies: [{ kind: 'identity', require: requirement }],
+    });
+    const seen: string[] = [];
+    const app = mountEndpoints(
+      [
+        bind(shape, (input) => {
+          seen.push(input.principal.kind);
+          return Promise.resolve({ ok: true, status: 200, body: { echoed: input.body.text } });
+        }),
+      ],
+      {
+        appOrigin: origin,
+        reportUnexpectedFailure: () => undefined,
+        // Secret acceptance/refusal is covered by the production machine-grant identity tests.
+        resolveIdentity: (requested) => {
+          expect(requested).toBe(requirement);
+          return Promise.resolve({ ok: true, principal: { kind: 'internal' } });
+        },
+      },
+    );
+    const response = await app.handle(request('{"text":"service"}'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ echoed: 'service' });
+    expect(seen).toEqual(['internal']);
+  });

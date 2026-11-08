@@ -67,7 +67,9 @@ describe('parseSolverResponse framing', () => {
   });
 
   it('rejects an unknown status', () => {
-    const parsed = parseSolverResponse('{"wireVersion":4,"status":"optimal"}\n');
+    const parsed = parseSolverResponse(
+      '{"wireVersion":5,"scope":{"kind":"local"},"status":"optimal"}\n',
+    );
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) {
       expect(parsed.failure).toBe('schema-violation');
@@ -76,7 +78,9 @@ describe('parseSolverResponse framing', () => {
   });
 
   it('rejects an unknown key', () => {
-    const parsed = parseSolverResponse('{"wireVersion":4,"status":"infeasible","solveMs":12}\n');
+    const parsed = parseSolverResponse(
+      '{"wireVersion":5,"scope":{"kind":"local"},"status":"infeasible","solveMs":12}\n',
+    );
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) {
       expect(parsed.failure).toBe('schema-violation');
@@ -85,7 +89,7 @@ describe('parseSolverResponse framing', () => {
   });
 
   it('rejects a missing key', () => {
-    const parsed = parseSolverResponse('{"wireVersion":4}\n');
+    const parsed = parseSolverResponse('{"wireVersion":5,"scope":{"kind":"local"}}\n');
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) {
       expect(parsed.failure).toBe('schema-violation');
@@ -105,7 +109,7 @@ describe('parseSolverResponse framing', () => {
 /**
  * The corpus is the oracle. `violation()` is hand-written rather than driven by
  * a JSON Schema validator, so the thing that keeps it from drifting away from
- * `solver-wire.v4.json` is the manifest's own contract: a consumer that accepts
+ * `solver-wire.v5.json` is the manifest's own contract: a consumer that accepts
  * a message the schema rejects, or rejects one it accepts, fails here.
  */
 

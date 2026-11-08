@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+437 |       missed.push(`${message.source}: accepted`);
+438 |     } catch (cause) {
+439 |       if (!message.test(String(cause))) missed.push(`${message.source}: ${String(cause)}`);
+440 |     }
+441 |   }
+442 |   expect(missed).toEqual([]);
+                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "projects are inconsistent: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:442:18)
+(fail) complete connected request validation rejects cross-field corruption before a terminal [8.79ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [212.00ms]

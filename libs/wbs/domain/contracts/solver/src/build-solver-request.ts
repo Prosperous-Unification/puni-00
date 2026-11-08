@@ -176,11 +176,11 @@ export function buildSolverRequest(
   }
   // Proof: removing compatibility preflight failed all three SQLite initial,
   // queued and manual Retry negatives (0 pass / 3 fail).
-  if (spawn.solverVersion !== '0.3.0') {
+  if (spawn.solverVersion !== '0.4.0') {
     return {
       ok: false,
       failure: 'incompatible-solver',
-      detail: `solver ${spawn.solverVersion} does not accept wire 4; expected 0.3.0`,
+      detail: `solver ${spawn.solverVersion} does not accept wire 5; expected 0.4.0`,
     };
   }
   const bookings = quantiseElsewhere(plan.elsewhere);
@@ -241,6 +241,7 @@ export function buildSolverRequest(
     ok: true,
     request: {
       wireVersion: SOLVER_WIRE_VERSION,
+      scope: { kind: 'local' },
       // Both halves, and the schema's `$comment` holds the argument for both:
       // the solver's version describes none of the durations, the leaf
       // expansion or the baseline, all of which Bun produced.

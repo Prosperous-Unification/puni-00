@@ -30,8 +30,8 @@ import { McpSessionStore } from './session-store';
  * markers agree (M13), and mcp-01 reaches `/internal/mcp/*` with the dedicated secret alone
  * (task 3.7).
  *
- * The tests share one backend and run in order. The claim names its person: the plan branch
- * this slice is built on predates main's #758, under which `claimWorkItem` defaults it.
+ * The tests share one backend and run in order. Both person assertions select the same
+ * initial workflow step; later steps retain their normal readiness prerequisites.
  */
 setDefaultTimeout(60_000);
 
@@ -266,7 +266,13 @@ describe('a headless agent on /mcp', () => {
 
     const created = await call('postApiProjects', { name: 'Fleet' });
     expect(created.isError).toBe(false);
-    ids.project = (JSON.parse(created.text) as { project: { id: string } }).project.id;
+    const project = JSON.parse(created.text) as {
+      project: { id: string };
+      steps: { id: string }[];
+    };
+    ids.project = project.project.id;
+    const firstStep = project.steps.at(0);
+    if (firstStep === undefined) throw new Error('created project has no first workflow step');
     const leaf = await call('postApiProjectsByIdCommands', {
       id: ids.project,
       commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Leaf' }],
@@ -277,14 +283,23 @@ describe('a headless agent on /mcp', () => {
     // The token is pinned to claire: another person of the same account is refused.
     const asOther = await call('postApiProjectsByIdCommands', {
       id: ids.project,
-      commands: [{ kind: 'claimWorkItem', workItemId: ids.leaf, personId: 'vics-agent' }],
+      commands: [
+        {
+          kind: 'claimWorkItem',
+          workItemId: ids.leaf,
+          personId: 'vics-agent',
+          steps: [firstStep.id],
+        },
+      ],
     });
     expect(asOther.isError).toBe(true);
     const claimed = await call('postApiProjectsByIdCommands', {
       id: ids.project,
-      commands: [{ kind: 'claimWorkItem', workItemId: ids.leaf, personId: 'claire' }],
+      commands: [
+        { kind: 'claimWorkItem', workItemId: ids.leaf, personId: 'claire', steps: [firstStep.id] },
+      ],
     });
-    expect(claimed.isError).toBe(false);
+    expect(claimed.isError, claimed.text).toBe(false);
 
     const claims = await call('getApiProjectsByIdClaims', { id: ids.project });
     expect(claims.isError).toBe(false);
@@ -293,7 +308,7 @@ describe('a headless agent on /mcp', () => {
         claims: { holder: { personId: string }; leaseExpiresAt: number | null }[];
       }
     ).claims;
-    // One claim per step of the leaf, every one claire's and leased, as a raw key's would be.
+    // The selected first workflow step is held by claire and leased, as a raw key's would be.
     expect(listedClaims.length).toBeGreaterThan(0);
     expect(new Set(listedClaims.map((claim) => claim.holder.personId))).toEqual(
       new Set(['claire']),

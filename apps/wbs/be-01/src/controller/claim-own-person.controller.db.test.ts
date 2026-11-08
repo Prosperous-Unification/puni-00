@@ -13,6 +13,7 @@ const T = 1_900_000_000_000;
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let projectId: string;
+let stepId: string;
 let leaf: string;
 let codexKey: string;
 
@@ -36,7 +37,11 @@ beforeEach(async () => {
   h.activate();
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectId = (created.body as { project: { id: string } }).project.id;
+  const plan = created.body as { project: { id: string }; steps: { id: string }[] };
+  projectId = plan.project.id;
+  const firstStep = plan.steps.at(0);
+  if (firstStep === undefined) throw new Error('project omitted its first workflow step');
+  stepId = firstStep.id;
   const rows = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
@@ -76,6 +81,7 @@ const claim = (): Record<string, unknown> => ({
   kind: 'claimWorkItem',
   workItemId: leaf,
   runId: 'run-1',
+  steps: [stepId],
 });
 
 /** Every claim row as (person, run, lease expiry), in id order. */

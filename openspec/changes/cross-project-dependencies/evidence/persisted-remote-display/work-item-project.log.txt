@@ -1,0 +1,34 @@
+Command: ['bunx', 'vitest', 'run', 'src/components/wbs/persisted-remote-dependencies.test.tsx', '--maxWorkers=1', '--no-file-parallelism', '-t', 'leaves another project']
+Injected fault: if (url.searchParams.get('project') !== null && url.searchParams.get('project') !== projectId) -> if (false)
+
+ RUN  v5.0.0 /tmp/puni-remote-display-proof/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (12 tests | 1 failed | 11 skipped) 342ms
+   × leaves another project’s stable work-item link untouched 340ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 skipped (12)
+   Start at  11:53:25
+   Duration  7.25s (import 59%, transform 27%, environment 8%, tests 5%, setup 1%)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > leaves another project’s stable work-item link untouched
+AssertionError: expected '?view=plan' to be '?project=other&workItem=absent&view=p…' // Object.is equality
+
+Expected: "?project=other&workItem=absent&view=plan"
+Received: "?view=plan"
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:179:34
+    177|   render(<WbsTableOverClient projectId="p1" projectServices={projectSe…
+    178|   await screen.findByLabelText('Name of 010');
+    179|   expect(window.location.search).toBe('?project=other&workItem=absent&…
+       |                                  ^
+    180|   expect(screen.queryByRole('alert')).toBeNull();
+    181| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

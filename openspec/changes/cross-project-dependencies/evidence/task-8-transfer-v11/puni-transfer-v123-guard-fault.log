@@ -1,0 +1,147 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:
+212 |         successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+213 |       },
+214 |     ];
+215 |     const before = sqliteState();
+216 |     const answer = await h.call('ada', 'POST', '/api/projects/import', document);
+217 |     expect(answer).toMatchObject({
+                         ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "invalid_typed_dependency",
+-     "path": "typedDependencies[0]",
++     "created": {
++       "externalSystems": [
++         "Tracker",
++       ],
++       "people": [
++         "Kat",
++       ],
++       "services": [
++         "Billing API",
++       ],
++       "tags": [
++         "Release",
++       ],
++       "teams": [
++         "Billing",
++       ],
++       "types": [
++         "Milestone",
++       ],
++     },
++     "projectId": "ffffebc0-cf32-488c-a95d-ab5ce98446ff",
++     "rows": 1,
++     "solutionRef": "none",
+    },
+-   "status": 400,
++   "status": 201,
+  }
+
+- Expected  - 3
++ Received  + 24
+
+      at <anonymous> (/tmp/puni-transfer-v11/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:217:20)
+(fail) mounted v1 refuses a disguised external prerequisite without writes or events [573.45ms]
+212 |         successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+213 |       },
+214 |     ];
+215 |     const before = sqliteState();
+216 |     const answer = await h.call('ada', 'POST', '/api/projects/import', document);
+217 |     expect(answer).toMatchObject({
+                         ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "invalid_typed_dependency",
+-     "path": "typedDependencies[0]",
++     "created": {
++       "externalSystems": [
++         "Tracker",
++       ],
++       "people": [
++         "Kat",
++       ],
++       "services": [
++         "Billing API",
++       ],
++       "tags": [
++         "Release",
++       ],
++       "teams": [
++         "Billing",
++       ],
++       "types": [
++         "Milestone",
++       ],
++     },
++     "projectId": "6caf52dd-9836-4059-90c9-6f5a8dcd83a3",
++     "rows": 1,
++     "solutionRef": "none",
+    },
+-   "status": 400,
++   "status": 201,
+  }
+
+- Expected  - 3
++ Received  + 24
+
+      at <anonymous> (/tmp/puni-transfer-v11/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:217:20)
+(fail) mounted v2 refuses a disguised external prerequisite without writes or events [489.03ms]
+212 |         successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+213 |       },
+214 |     ];
+215 |     const before = sqliteState();
+216 |     const answer = await h.call('ada', 'POST', '/api/projects/import', document);
+217 |     expect(answer).toMatchObject({
+                         ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "invalid_typed_dependency",
+-     "path": "typedDependencies[0]",
++     "created": {
++       "externalSystems": [
++         "Tracker",
++       ],
++       "people": [
++         "Kat",
++       ],
++       "services": [
++         "Billing API",
++       ],
++       "tags": [
++         "Release",
++       ],
++       "teams": [
++         "Billing",
++       ],
++       "types": [
++         "Milestone",
++       ],
++     },
++     "projectId": "0ad8ba66-dd1d-4858-9035-7e94cc479347",
++     "rows": 1,
++     "solutionRef": "none",
+    },
+-   "status": 400,
++   "status": 201,
+  }
+
+- Expected  - 3
++ Received  + 24
+
+      at <anonymous> (/tmp/puni-transfer-v11/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:217:20)
+(fail) mounted v3 refuses a disguised external prerequisite without writes or events [505.33ms]
+
+ 0 pass
+ 35 filtered out
+ 3 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [3.69s]

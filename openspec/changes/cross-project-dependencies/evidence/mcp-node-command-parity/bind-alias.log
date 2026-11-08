@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+599 |       const fixture = await openFixture();
+600 |       try {
+601 |         const commands = nodeCommands(fixture, encoded);
+602 |         const before = await fixture.inspect();
+603 |         const reply = await submit(fixture, transport, commands);
+604 |         expect(reply.status).toBe(200);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 0
+
+      at <anonymous> (/tmp/puni-mcp-node-parity/apps/wbs/mcp-01/src/connected-command-parity.test.ts:604:30)
+(fail) MCP node split binds dotted successor alias and derives FS placement [3612.01ms]
+
+ 0 pass
+ 24 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [6.17s]

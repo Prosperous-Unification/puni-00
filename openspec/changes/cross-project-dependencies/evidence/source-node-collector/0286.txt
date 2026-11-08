@@ -1,0 +1,67 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:
+329 |   try{
+330 |    const child=Bun.spawn([node,'-e',collector,'--','source-writer','observe',String(target.pid)],{env:{PATH:'/usr/local/bin:/usr/bin:/bin',LC_ALL:'C'},cwd:'/',stdin:'ignore',stdout:'pipe',stderr:'pipe',signal:AbortSignal.timeout(20000),killSignal:'SIGKILL'});
+331 |    const receipts=await Promise.allSettled([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
+332 |    const [exit,stdout,stderr]=receipts;if(exit.status!=='fulfilled'||stdout.status!=='fulfilled'||stderr.status!=='fulfilled')throw new AggregateError(receipts,'writer original child custody unproved');
+333 |    expect(child.signalCode).toBeNull();
+334 |    if(fault==='short'){expect(exit.value).toBe(0);expect(stderr.value).toBe('');expect(stdout.value.startsWith('PASS\0before\0PROC\0')).toBe(true);expect(stdout.value.endsWith(['DONE','source-writer','2',''].join('\0'))).toBe(true);expect(stdout.value.split('\0').filter(token=>token==='PROC')).toHaveLength(2);}
+                                                                                                                                              ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:334:137)
+(fail) actual source writer handles short byte progress at its output boundary [210.30ms]
+330 |    const child=Bun.spawn([node,'-e',collector,'--','source-writer','observe',String(target.pid)],{env:{PATH:'/usr/local/bin:/usr/bin:/bin',LC_ALL:'C'},cwd:'/',stdin:'ignore',stdout:'pipe',stderr:'pipe',signal:AbortSignal.timeout(20000),killSignal:'SIGKILL'});
+331 |    const receipts=await Promise.allSettled([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
+332 |    const [exit,stdout,stderr]=receipts;if(exit.status!=='fulfilled'||stdout.status!=='fulfilled'||stderr.status!=='fulfilled')throw new AggregateError(receipts,'writer original child custody unproved');
+333 |    expect(child.signalCode).toBeNull();
+334 |    if(fault==='short'){expect(exit.value).toBe(0);expect(stderr.value).toBe('');expect(stdout.value.startsWith('PASS\0before\0PROC\0')).toBe(true);expect(stdout.value.endsWith(['DONE','source-writer','2',''].join('\0'))).toBe(true);expect(stdout.value.split('\0').filter(token=>token==='PROC')).toHaveLength(2);}
+335 |    else{expect(exit.value).toBe(1);expect(stderr.value).toContain('source output write progress refused');expect(stdout.value).not.toContain('DONE\0');}
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:335:28)
+(fail) actual source writer handles zero byte progress at its output boundary [210.39ms]
+actual source census second-probe absent outcome observed
+(pass) actual source census second probe models absent explicitly [56.44ms]
+345 |   const discovery="const actualReaddir=fs.readdirSync.bind(fs);fs.readdirSync=(path,...rest)=>path==='/proc'?['4194304']:actualReaddir(path,...rest);";
+346 |   const secondProbe=fault==='absent'?'':`const actualProbe=fs.lstatSync.bind(fs);fs.lstatSync=(path,...rest)=>{if(path==='/proc/4194304/stat'){const failure=new Error('forced census second-probe ${fault}');failure.code='${fault}';throw failure;}return actualProbe(path,...rest);};`;
+347 |   const collector=SOURCE_NODE_COLLECTOR.replace(marker,marker+discovery+secondProbe);
+348 |   const receipt=await runActualReceipt(launcherWithCollector(collector),'cleanup',['4194303','4194303','4194303','1']);
+349 |   if(fault==='absent'){expect(receipt.code).toBe(0);expect(receipt.stderr).toBe('');expect(receipt.tokens.slice(-2)).toEqual(['REAPED','source-actual-finite']);}
+350 |   else{expect(receipt.code).toBe(1);expect(receipt.tokens).not.toContain('DONE');expect(receipt.tokens).not.toContain('REAPED');expect(receipt.stderr).toContain('source collector session refused');}
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:350:29)
+(fail) actual source census second probe models EACCES explicitly [56.67ms]
+345 |   const discovery="const actualReaddir=fs.readdirSync.bind(fs);fs.readdirSync=(path,...rest)=>path==='/proc'?['4194304']:actualReaddir(path,...rest);";
+346 |   const secondProbe=fault==='absent'?'':`const actualProbe=fs.lstatSync.bind(fs);fs.lstatSync=(path,...rest)=>{if(path==='/proc/4194304/stat'){const failure=new Error('forced census second-probe ${fault}');failure.code='${fault}';throw failure;}return actualProbe(path,...rest);};`;
+347 |   const collector=SOURCE_NODE_COLLECTOR.replace(marker,marker+discovery+secondProbe);
+348 |   const receipt=await runActualReceipt(launcherWithCollector(collector),'cleanup',['4194303','4194303','4194303','1']);
+349 |   if(fault==='absent'){expect(receipt.code).toBe(0);expect(receipt.stderr).toBe('');expect(receipt.tokens.slice(-2)).toEqual(['REAPED','source-actual-finite']);}
+350 |   else{expect(receipt.code).toBe(1);expect(receipt.tokens).not.toContain('DONE');expect(receipt.tokens).not.toContain('REAPED');expect(receipt.stderr).toContain('source collector session refused');}
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:350:29)
+(fail) actual source census second probe models EIO explicitly [52.02ms]
+
+ 1 pass
+ 14 filtered out
+ 4 fail
+ 27 expect() calls
+Ran 5 tests across 1 file. [620.00ms]

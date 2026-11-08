@@ -1,0 +1,9 @@
+{
+  "pid": 3044105,
+  "exit": 1,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "stdoutSHA256": "516771f19423c872fb21c9a6047f469bae3cc198890f526a9c2a3cf6b491ecde",
+  "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/wbs-client.test.ts:
+(pass) buildRequest > substitutes path parameters and puts the rest in the query string [0.48ms]
+(pass) buildRequest > splits path from body for a write, and sends only what was given [0.11ms]
+(pass) buildRequest > forwards the caller token as Bearer authentication [0.03ms]
+(pass) buildRequest > adds a basic-auth header only when WBS_BASIC_AUTH is set [0.19ms]
+(pass) buildRequest > escapes a path parameter rather than letting it change the path [0.03ms]
+(pass) buildRequest > treats an explicit undefined as an omitted input, but sends null [0.03ms]
+(pass) buildRequest > models an undeclared input with only its correction details and makes no request [1.30ms]
+(pass) buildRequest > models a missing path input with only its correction details and makes no request [0.20ms]
+(pass) buildRequest > models a non-scalar URL input with only its correction details and makes no request [0.16ms]
+(pass) buildRequest > does not send a body for an operation that declares none [0.03ms]
+(pass) callTool > returns be-01’s JSON body unedited on success [0.26ms]
+(pass) callTool > reports a 204 as no content rather than as a parse failure [0.10ms]
+(pass) callTool > carries be-01’s refusal code verbatim, with the status [0.25ms]
+(pass) callTool > keeps the rest of a refusal body, not only the code [0.10ms]
+(pass) callTool > types a 401 from be-01 as an upstream credential rejection [0.20ms]
+(pass) callTool > separates the deployment gate’s 401 even when its credential is missing [0.24ms]
+(pass) callTool > treats a Bearer challenge as an upstream rejection [0.13ms]
+(pass) callTool > throws an unexpected response failure for a secret-bearing 500 body [0.13ms]
+(pass) callTool > throws when a secret-bearing 2xx body is not JSON rather than returning agent content [0.16ms]
+(pass) callTool > does not call be-01 at all when the request cannot be built [0.24ms]
+(pass) claims V1 for protected tools and preserves typed backend incompatibility [0.16ms]
+
+ 21 pass
+ 0 fail
+ 62 expect() calls
+Ran 21 tests across 1 file. [84.00ms]

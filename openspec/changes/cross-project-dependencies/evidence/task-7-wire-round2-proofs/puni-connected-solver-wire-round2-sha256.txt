@@ -1,0 +1,5 @@
+9f15c5876062a14756dfb31e83e38156ca348ca443e6130e95cf97fea1efcfe2  libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts
+b64eb511646271a0ae137a742303a66079716f47ccf1dd48678765f666e4174b  libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts
+a0cc1a2db5a12be4e8fbe1331d9b51d0128cddc3c9d89d9ca71893aabb877af4  libs/wbs/domain/contracts/solver/src/validate-connected-solver-request.ts
+c4680807dad120b1ca23e5ca14344042eda30e734afc1a521c2d76bec7fb6968  libs/wbs/domain/contracts/solver/src/bundled-solver-runtime.test.ts
+c33ecd3c10cd6a80f52f0837daa3f0823abc1958843db3b20e121fd06b53f945  libs/wbs/domain/contracts/solver/src/fixtures/bundled-solver-entry.ts

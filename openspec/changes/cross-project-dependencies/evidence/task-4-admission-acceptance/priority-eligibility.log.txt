@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+{"level":"error","time":1792693376360,"service":"be-01","err":{"occurrence_id":"AE_BT3YGKARPNMX9KRHNE10FCMZJ9","fingerprint":"fp1_5729e35be21cb5b28948b43233c4e0e2","stack":["TypeError: Cannot destructure property 'finish' from null or undefined value","    at placeSlices (/tmp/puni-command-proofs/libs/wbs/domain/domain/src/schedule.ts:1890:26)","    at scheduleResolved (/tmp/puni-command-proofs/libs/wbs/domain/domain/src/schedule.ts:3568:7)","    at readSchedule (/tmp/puni-command-proofs/libs/wbs/adapters/runtime-portable/src/scheduler.ts:67:24)","    at treeIsolated (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2278:46)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+3308 |         successor: { scope: 'whole', workItemId: fixture.owner.workItemId },
+3309 |         type: 'FS',
+3310 |       },
+3311 |     ],
+3312 |   });
+3313 |   expect(response.status).toBe(200);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-command-proofs/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:3313:27)
+(fail) mounted low priority prerequisite finishes before its high priority successor starts [438.92ms]
+
+ 0 pass
+ 116 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [3.29s]

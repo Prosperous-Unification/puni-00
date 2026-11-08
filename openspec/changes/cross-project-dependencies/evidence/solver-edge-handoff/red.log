@@ -1,0 +1,256 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+60 |   };
+61 | }
+62 |
+63 | test('solver command remaps the verified inherited lock to child FD3 through the real child path', async () => {
+64 |   const host = await fixture();
+65 |   expect(await host.run()).toMatchObject({ code: 0 });
+                                ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "code": 0,
++   "code": 1,
++   "output":
++ "2 | import { runSolverBindingCommand } from "/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts";
++ 3 | const outcome = await runSolverBindingCommand({ cwd: "/tmp/solver-edge-command-dFWTZq", argv: [process.execPath, "/tmp/solver-edge-command-dFWTZq/child.ts"], edgeLock: 'inherit' });
++                                           ^
++ error: 144 |  * Validates an inherited open description and obtains its existing advisory lock.
++ 145 |  * Proof: skipping this call failed two forged-descriptor and one independent-open
++ 146 |  * production CLI negative; inheriting the actual locked description stayed admitted.
++ 147 |  */
++ 148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {
++ 149 |   const inherited = fstatSync(descriptor);
++                           ^
++ EBADF: bad file descriptor, fstat
++  syscall: "fstat",
++    errno: -9,
++     code: "EBADF"
++
++       at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:149:21)
++       at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)
++       at /tmp/solver-edge-command-dFWTZq/child.ts:3:7
++
++ Bun v1.4.2 (Linux x64)
++
++       at /tmp/solver-edge-command-dFWTZq/launcher.ts:3:39
++
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
+  }
+
+- Expected  - 1
++ Received  + 28
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:65:28)
+(fail) solver command remaps the verified inherited lock to child FD3 through the real child path [88.97ms]
+53 |       ]);
+54 |       return { code, output: stdout + stderr };
+55 |     },
+56 |     async expectUnreached() {
+57 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+58 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:58:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:16)
+(fail) missing inherited descriptor refuses before launching solver command [94.89ms]
+53 |       ]);
+54 |       return { code, output: stdout + stderr };
+55 |     },
+56 |     async expectUnreached() {
+57 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+58 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:58:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:16)
+(fail) invalid inherited descriptor refuses before launching solver command [93.19ms]
+53 |       ]);
+54 |       return { code, output: stdout + stderr };
+55 |     },
+56 |     async expectUnreached() {
+57 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+58 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:58:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:16)
+(fail) foreign inherited descriptor refuses before launching solver command [108.47ms]
+53 |       ]);
+54 |       return { code, output: stdout + stderr };
+55 |     },
+56 |     async expectUnreached() {
+57 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+58 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:58:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:16)
+(fail) independent inherited descriptor refuses before launching solver command [108.88ms]
+83 |       if (shape === 'directory') await mkdir(path);
+84 |       else if (shape === 'dangling') await symlink('absent', path);
+85 |       else { await writeFile(path, '{bad'); if (shape === 'unreadable') await chmod(path, 0); }
+86 |       const attempt = await host.run();
+87 |       expect(attempt.code).not.toBe(0);
+88 |       expect(attempt.output).toContain('owner admission closed');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner admission closed"
+Received: "2 | import { runSolverBindingCommand } from \"/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts\";\n3 | const outcome = await runSolverBindingCommand({ cwd: \"/tmp/solver-edge-command-xnQeZ4\", argv: [process.execPath, \"/tmp/solver-edge-command-xnQeZ4/child.ts\"], edgeLock: 'inherit' });\n                                          ^\nerror: 144 |  * Validates an inherited open description and obtains its existing advisory lock.\n145 |  * Proof: skipping this call failed two forged-descriptor and one independent-open\n146 |  * production CLI negative; inheriting the actual locked description stayed admitted.\n147 |  */\n148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {\n149 |   const inherited = fstatSync(descriptor);\n                          ^\nEBADF: bad file descriptor, fstat\n syscall: \"fstat\",\n   errno: -9,\n    code: \"EBADF\"\n\n      at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:149:21)\n      at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)\n      at /tmp/solver-edge-command-xnQeZ4/child.ts:3:7\n\nBun v1.4.2 (Linux x64)\n\n      at /tmp/solver-edge-command-xnQeZ4/launcher.ts:3:39\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:88:30)
+(fail) edge-owner.json malformed refuses inherited solver command [48.62ms]
+83 |       if (shape === 'directory') await mkdir(path);
+84 |       else if (shape === 'dangling') await symlink('absent', path);
+85 |       else { await writeFile(path, '{bad'); if (shape === 'unreadable') await chmod(path, 0); }
+86 |       const attempt = await host.run();
+87 |       expect(attempt.code).not.toBe(0);
+88 |       expect(attempt.output).toContain('owner admission closed');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner admission closed"
+Received: "2 | import { runSolverBindingCommand } from \"/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts\";\n3 | const outcome = await runSolverBindingCommand({ cwd: \"/tmp/solver-edge-command-CRZgbX\", argv: [process.execPath, \"/tmp/solver-edge-command-CRZgbX/child.ts\"], edgeLock: 'inherit' });\n                                          ^\nerror: 144 |  * Validates an inherited open description and obtains its existing advisory lock.\n145 |  * Proof: skipping this call failed two forged-descriptor and one independent-open\n146 |  * production CLI negative; inheriting the actual locked description stayed admitted.\n147 |  */\n148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {\n149 |   const inherited = fstatSync(descriptor);\n                          ^\nEBADF: bad file descriptor, fstat\n syscall: \"fstat\",\n   errno: -9,\n    code: \"EBADF\"\n\n      at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:149:21)\n      at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)\n      at /tmp/solver-edge-command-CRZgbX/child.ts:3:7\n\nBun v1.4.2 (Linux x64)\n\n      at /tmp/solver-edge-command-CRZgbX/launcher.ts:3:39\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:88:30)
+(fail) edge-owner.json unreadable refuses inherited solver command [52.36ms]
+83 |       if (shape === 'directory') await mkdir(path);
+84 |       else if (shape === 'dangling') await symlink('absent', path);
+85 |       else { await writeFile(path, '{bad'); if (shape === 'unreadable') await chmod(path, 0); }
+86 |       const attempt = await host.run();
+87 |       expect(attempt.code).not.toBe(0);
+88 |       expect(attempt.output).toContain('owner admission closed');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner admission closed"
+Received: "2 | import { runSolverBindingCommand } from \"/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts\";\n3 | const outcome = await runSolverBindingCommand({ cwd: \"/tmp/solver-edge-command-FBErPc\", argv: [process.execPath, \"/tmp/solver-edge-command-FBErPc/child.ts\"], edgeLock: 'inherit' });\n                                          ^\nerror: 144 |  * Validates an inherited open description and obtains its existing advisory lock.\n145 |  * Proof: skipping this call failed two forged-descriptor and one independent-open\n146 |  * production CLI negative; inheriting the actual locked description stayed admitted.\n147 |  */\n148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {\n149 |   const inherited = fstatSync(descriptor);\n                          ^\nEBADF: bad file descriptor, fstat\n syscall: \"fstat\",\n   errno: -9,\n    code: \"EBADF\"\n\n      at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:149:21)\n      at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)\n      at /tmp/solver-edge-command-FBErPc/child.ts:3:7\n\nBun v1.4.2 (Linux x64)\n\n      at /tmp/solver-edge-command-FBErPc/launcher.ts:3:39\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:88:30)
+(fail) edge-owner.json directory refuses inherited solver command [42.75ms]
+83 |       if (shape === 'directory') await mkdir(path);
+84 |       else if (shape === 'dangling') await symlink('absent', path);
+85 |       else { await writeFile(path, '{bad'); if (shape === 'unreadable') await chmod(path, 0); }
+86 |       const attempt = await host.run();
+87 |       expect(attempt.code).not.toBe(0);
+88 |       expect(attempt.output).toContain('owner admission closed');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner admission closed"
+Received: "2 | import { runSolverBindingCommand } from \"/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts\";\n3 | const outcome = await runSolverBindingCommand({ cwd: \"/tmp/solver-edge-command-NGuMvh\", argv: [process.execPath, \"/tmp/solver-edge-command-NGuMvh/child.ts\"], edgeLock: 'inherit' });\n                                          ^\nerror: 144 |  * Validates an inherited open description and obtains its existing advisory lock.\n145 |  * Proof: skipping this call failed two forged-descriptor and one independent-open\n146 |  * production CLI negative; inheriting the actual locked description stayed admitted.\n147 |  */\n148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {\n149 |   const inherited = fstatSync(descriptor);\n                          ^\nEBADF: bad file descriptor, fstat\n syscall: \"fstat\",\n   errno: -9,\n    code: \"EBADF\"\n\n      at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:149:21)\n      at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)\n      at /tmp/solver-edge-command-NGuMvh/child.ts:3:7\n\nBun v1.4.2 (Linux x64)\n\n      at /tmp/solver-edge-command-NGuMvh/launcher.ts:3:39\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:88:30)
+(fail) edge-owner.json dangling refuses inherited solver command [53.04ms]
+83 |       if (shape === 'directory') await mkdir(path);
+84 |       else if (shape === 'dangling') await symlink('absent', path);
+85 |       else { await writeFile(path, '{bad'); if (shape === 'unreadable') await chmod(path, 0); }
+86 |       const attempt = await host.run();
+87 |       expect(attempt.code).not.toBe(0);
+88 |       expect(attempt.output).toContain('owner admission closed');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner admission closed"
+Received: "2 | import { runSolverBindingCommand } from \"/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts\";\n3 | const outcome = await runSolverBindingCommand({ cwd: \"/tmp/solver-edge-command-oAIBp6\", argv: [process.execPath, \"/tmp/solver-edge-command-oAIBp6/child.ts\"], edgeLock: 'inherit' });\n                                          ^\nerror: 144 |  * Validates an inherited open description and obtains its existing advisory lock.\n145 |  * Proof: skipping this call failed two forged-descriptor and one independent-open\n146 |  * production CLI negative; inheriting the actual locked description stayed admitted.\n147 |  */\n148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {\n149 |   const inherited = fstatSync(descriptor);\n                          ^\nEBADF: bad file descriptor, fstat\n syscall: \"fstat\",\n   errno: -9,\n    code: \"EBADF\"\n\n      at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:149:21)\n      at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)\n      at /tmp/solver-edge-command-oAIBp6/child.ts:3:7\n\nBun v1.4.2 (Linux x64)\n\n      at /tmp/solver-edge-command-oAIBp6/launcher.ts:3:39\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:88:30)
+(fail) edge-owner.pending malformed refuses inherited solver command [43.44ms]
+83 |       if (shape === 'directory') await mkdir(path);
+84 |       else if (shape === 'dangling') await symlink('absent', path);
+85 |       else { await writeFile(path, '{bad'); if (shape === 'unreadable') await chmod(path, 0); }
+86 |       const attempt = await host.run();
+87 |       expect(attempt.code).not.toBe(0);
+88 |       expect(attempt.output).toContain('owner admission closed');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner admission closed"
+Received: "2 | import { runSolverBindingCommand } from \"/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts\";\n3 | const outcome = await runSolverBindingCommand({ cwd: \"/tmp/solver-edge-command-P7XYI6\", argv: [process.execPath, \"/tmp/solver-edge-command-P7XYI6/child.ts\"], edgeLock: 'inherit' });\n                                          ^\nerror: 144 |  * Validates an inherited open description and obtains its existing advisory lock.\n145 |  * Proof: skipping this call failed two forged-descriptor and one independent-open\n146 |  * production CLI negative; inheriting the actual locked description stayed admitted.\n147 |  */\n148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {\n149 |   const inherited = fstatSync(descriptor);\n                          ^\nEBADF: bad file descriptor, fstat\n syscall: \"fstat\",\n   errno: -9,\n    code: \"EBADF\"\n\n      at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:149:21)\n      at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)\n      at /tmp/solver-edge-command-P7XYI6/child.ts:3:7\n\nBun v1.4.2 (Linux x64)\n\n      at /tmp/solver-edge-command-P7XYI6/launcher.ts:3:39\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:88:30)
+(fail) edge-owner.pending unreadable refuses inherited solver command [43.19ms]
+83 |       if (shape === 'directory') await mkdir(path);
+84 |       else if (shape === 'dangling') await symlink('absent', path);
+85 |       else { await writeFile(path, '{bad'); if (shape === 'unreadable') await chmod(path, 0); }
+86 |       const attempt = await host.run();
+87 |       expect(attempt.code).not.toBe(0);
+88 |       expect(attempt.output).toContain('owner admission closed');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner admission closed"
+Received: "2 | import { runSolverBindingCommand } from \"/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts\";\n3 | const outcome = await runSolverBindingCommand({ cwd: \"/tmp/solver-edge-command-VfrNI4\", argv: [process.execPath, \"/tmp/solver-edge-command-VfrNI4/child.ts\"], edgeLock: 'inherit' });\n                                          ^\nerror: 144 |  * Validates an inherited open description and obtains its existing advisory lock.\n145 |  * Proof: skipping this call failed two forged-descriptor and one independent-open\n146 |  * production CLI negative; inheriting the actual locked description stayed admitted.\n147 |  */\n148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {\n149 |   const inherited = fstatSync(descriptor);\n                          ^\nEBADF: bad file descriptor, fstat\n syscall: \"fstat\",\n   errno: -9,\n    code: \"EBADF\"\n\n      at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:149:21)\n      at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)\n      at /tmp/solver-edge-command-VfrNI4/child.ts:3:7\n\nBun v1.4.2 (Linux x64)\n\n      at /tmp/solver-edge-command-VfrNI4/launcher.ts:3:39\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:88:30)
+(fail) edge-owner.pending directory refuses inherited solver command [51.91ms]
+83 |       if (shape === 'directory') await mkdir(path);
+84 |       else if (shape === 'dangling') await symlink('absent', path);
+85 |       else { await writeFile(path, '{bad'); if (shape === 'unreadable') await chmod(path, 0); }
+86 |       const attempt = await host.run();
+87 |       expect(attempt.code).not.toBe(0);
+88 |       expect(attempt.output).toContain('owner admission closed');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner admission closed"
+Received: "2 | import { runSolverBindingCommand } from \"/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts\";\n3 | const outcome = await runSolverBindingCommand({ cwd: \"/tmp/solver-edge-command-ZLjFVk\", argv: [process.execPath, \"/tmp/solver-edge-command-ZLjFVk/child.ts\"], edgeLock: 'inherit' });\n                                          ^\nerror: 144 |  * Validates an inherited open description and obtains its existing advisory lock.\n145 |  * Proof: skipping this call failed two forged-descriptor and one independent-open\n146 |  * production CLI negative; inheriting the actual locked description stayed admitted.\n147 |  */\n148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {\n149 |   const inherited = fstatSync(descriptor);\n                          ^\nEBADF: bad file descriptor, fstat\n syscall: \"fstat\",\n   errno: -9,\n    code: \"EBADF\"\n\n      at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:149:21)\n      at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)\n      at /tmp/solver-edge-command-ZLjFVk/child.ts:3:7\n\nBun v1.4.2 (Linux x64)\n\n      at /tmp/solver-edge-command-ZLjFVk/launcher.ts:3:39\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:88:30)
+(fail) edge-owner.pending dangling refuses inherited solver command [58.95ms]
+53 |       ]);
+54 |       return { code, output: stdout + stderr };
+55 |     },
+56 |     async expectUnreached() {
+57 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+58 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:58:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:99:14)
+(fail) symlink canonical state refuses verified solver command [59.55ms]
+53 |       ]);
+54 |       return { code, output: stdout + stderr };
+55 |     },
+56 |     async expectUnreached() {
+57 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+58 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:58:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:107:14)
+(fail) symlink canonical lock refuses verified solver command [58.57ms]
+
+ 0 pass
+ 15 fail
+ 35 expect() calls
+Ran 15 tests across 1 file. [1060.00ms]
