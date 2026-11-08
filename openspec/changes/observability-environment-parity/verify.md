@@ -7474,3 +7474,44 @@ Publication integration: the first ordinary push was refused as non-fast-forward
 Hosted CI at f62b4f8ea (workspace 42393301389, infra-check 42393301387) failed only `tool-fleet:test`, with 13 refusals in `lab-guest-preparation.test.ts`. A detached checkout of f62b4f8ea reproduced both causes locally with `env -u CLAUDECODE bun test tools/tool-fleet/src/lab-guest-preparation.test.ts`: `guest production worker success` and `durable` refused `seed-unexpected-fd` at the worker's `require_descriptors` because the Task 121 Popen wrapper passed the handoff pipe to every child, including the production worker that the `workerLifecycle` controls launch; `guest review I2 failure evidence fsync` and `flush` hit `RecursionError` because their fixture rebinds the globals `sync` and `synced` that the Task 121 fsync witness also used, so the witness called itself.
 
 Two fixture-only edits: `workerLifecycle` replaces `pass_fds=(handoff_read,)` with `pass_fds=()` (the fixture child that reads the pipe still receives it through `lifecycle`), and the Task 121 witness names become `native_sync` and `evidence_synced`. Both proofs are recorded as comments beside the edits. Whole file after the edits: 257 pass, 0 fail in 52.56 s; Prettier clean. Production Python, CI routing and the Task 121 delayed-fsync controls are unchanged. Hosted acceptance of this head is recorded by the CI run on the pushed commit.
+
+### Task79 follow-up — child-origin process-reader readiness (2026-11-08)
+
+Actual-main `81b33beaecc9906ed97ced5c848616bc2c566c68` workspace run
+`42453145095`, job `128646534279`, failed only
+`Task79 actual process reader refuses oversized argv without unbounded capture`.
+The real reader returned the Bun executable and empty arguments immediately after
+spawn instead of throwing `route-process-size`. The test had no child-startup
+barrier; a startup race is the bounded hypothesis, not a reproduced kernel-phase
+claim. An unchanged local baseline passed; the hosted failure remains evidence.
+
+The owning fixture now validates its exact 9000-byte argument in the intended
+eval, installs its existing timer, and writes one fixed `READY\n` token. The parent
+accepts exactly a six-byte readiness frame and refuses oversized chunks,
+malformed framing, EOF or early child
+exit, and bounds fixture startup with a two-second watchdog inside the unchanged
+test budget. Only child-origin readiness admits the unchanged real
+`localObserverContext().readProcess(child.pid)` refusal assertion. Finally clears
+the watchdog, kills and joins the original child, then cancels/releases its reader.
+No fixed sleep establishes readiness; production reader, 8192-byte limit, 9000-byte
+argument, operation deadlines and test deadline are unchanged.
+
+Focused verification in the isolated `integration/route-process-ready-20261108`
+worktree:
+
+- `bun test tools/tool-observability-stack/src/dev/route-provider.test.ts`: final
+  26 pass, 0 fail, 59 assertions, 1.87 seconds.
+- The same selected oversized-argv test with only the actual production
+  `length > 8192` refusal omitted: exit 1 at the original `toThrow` assertion;
+  byte-identical restoration: exit 0. Production SHA256 before/after is
+  `2de91ecc2fa19e9d4c6c55be048f4ec0039b09a06f1bdc128a1614c941866c3f`.
+- Named ESLint and configured owning `tsc --build --force` passed. The first lint
+  attempt reported two style errors and lacked an Nx graph; corrected string/void
+  formatting and generated the owning graph before the clean final named check.
+
+Private raw proof, restored test, owning-file and static receipts live under
+`/tmp/puni-route-process-ready-evidence-20261108`; original CI raw/full artifact is
+under `/tmp/puni-pr-delivery-actual-main-20261108`. This restores the existing
+fixture contract. No full suite/host gate, native harness, retained state, process
+reader behavior, deployment or CI rerun was performed by this worker. Final
+formatting/docs checks and independent review are recorded by the publisher.

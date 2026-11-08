@@ -23,14 +23,50 @@ import {
 const roots: string[] = [];
 test('Task79 actual process reader refuses oversized argv without unbounded capture', async () => {
   const child = Bun.spawn(
-    [process.execPath, '--eval', 'setInterval(()=>{},1000)', '--', 'x'.repeat(9000)],
-    { stdout: 'ignore', stderr: 'ignore' },
+    [
+      process.execPath,
+      '--eval',
+      "if(!process.argv.includes('x'.repeat(9000)))throw new Error('fixture argv');setInterval(()=>{},1000);process.stdout.write('READY\\n')",
+      '--',
+      'x'.repeat(9000),
+    ],
+    { stdout: 'pipe', stderr: 'ignore' },
   );
+  const reader = child.stdout.getReader();
+  let readinessTimer: ReturnType<typeof setTimeout> | undefined;
   try {
+    // CI observed empty argv immediately after spawn. Wait for the intended eval,
+    // not PID existence; this watchdog bounds fixture startup inside the test budget.
+    await Promise.race([
+      (async () => {
+        const ready = new Uint8Array(6);
+        let length = 0;
+        while (length < ready.length) {
+          const chunk = await reader.read();
+          if (chunk.done || chunk.value.length > ready.length - length)
+            throw new Error('fixture readiness framing');
+          ready.set(chunk.value, length);
+          length += chunk.value.length;
+        }
+        expect(new TextDecoder().decode(ready)).toBe('READY\n');
+      })(),
+      child.exited.then((exit) => {
+        throw new Error(`fixture exited before readiness: ${String(exit)}`);
+      }),
+      new Promise<never>((_, reject) => {
+        readinessTimer = setTimeout(() => {
+          reject(new Error('fixture readiness timeout'));
+        }, 2000);
+      }),
+    ]);
+    // Proof: omitting the production 8192-byte guard makes this same assertion fail.
     expect(() => localObserverContext().readProcess(child.pid)).toThrow('route-process-size');
   } finally {
-    child.kill();
+    clearTimeout(readinessTimer);
+    child.kill('SIGKILL');
     await child.exited;
+    await reader.cancel();
+    reader.releaseLock();
   }
 });
 async function expectRefusal(operation: Promise<unknown>, category: string) {
