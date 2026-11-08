@@ -1,0 +1,75 @@
+{
+  "sourceHead": "021a6ac3bd664765bf35c4e64bee7803594150d0",
+  "testedMerge": "7391f5a5dd9119c9fdb73500cd90aafd2696e890",
+  "base": "617d81e7afdf9e7bb48c592c8b81fa834975eaac",
+  "workflow": {
+    "id": 42179928044,
+    "url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/42179928044",
+    "status": "completed",
+    "conclusion": "failure"
+  },
+  "workspace": {
+    "job": 127767585765,
+    "startedAt": "2026-11-06T07:19:44Z",
+    "completedAt": "2026-11-06T08:46:00Z",
+    "failedTask": "tool-fleet:test",
+    "selectedProjects": 53,
+    "dependencyTasks": 9,
+    "nxCommandElapsedMilliseconds": 4960080,
+    "cacheHits": 0,
+    "cacheTasks": 142,
+    "fleet": {
+      "pass": 5695,
+      "existingOptInSkips": 7,
+      "fail": 1,
+      "tests": 5703,
+      "files": 132,
+      "assertions": 16870,
+      "elapsedSeconds": 1582.75,
+      "failedCase": "guest coordinator group joins native pipes, original files and durable ACK",
+      "caseElapsedMilliseconds": 430.46,
+      "observedException": "BrokenPipeError: [Errno32] Broken pipe while sending initial ACK",
+      "expectedFailureCategory": "raw-terminal-invalid",
+      "actualFailureCategory": "raw-interrupted",
+      "productionStack": [
+        "lab-guest-preparation.py:1076 coordinator",
+        "lab-raw-preparation.py:930 coordinate_attempt",
+        "lab-raw-preparation.py:554 send_frame"
+      ],
+      "fullRehearsalAuthority": false
+    }
+  },
+  "otherVerdicts": {
+    "twilight": "success",
+    "pixels": "success",
+    "infraCheck": "success",
+    "codeql": "success",
+    "gate": "failure"
+  },
+  "standaloneFleetSameSource": {
+    "workflow": 42179927892,
+    "job": 127766925434,
+    "pass": 5696,
+    "existingOptInSkips": 7,
+    "fail": 0,
+    "tests": 5703,
+    "files": 132,
+    "assertions": 16873,
+    "elapsedSeconds": 1046.57
+  },
+  "artifacts": {
+    "jobLog": {
+      "bytes": 225184,
+      "sha256": "8351a287e56e1adfe650165a9db7fe1bebe75d023a7c250cd45ad0bc940c090b"
+    },
+    "fullNxArtifact": {
+      "id": 13488709386,
+      "name": "nx-gate-log-workspace-1",
+      "file": "nx-gate.log",
+      "bytes": 5011748,
+      "sha256": "d615553d3496556b323d22c15100b1ec8a50e13198fc2ed7863a508c2f6a193f",
+      "url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/42179928044/artifacts/13488709386"
+    }
+  },
+  "scope": "Actual hosted source-test failure, not native qualification or observability runtime acceptance. No test rerun or workflow restart during acquisition."
+}

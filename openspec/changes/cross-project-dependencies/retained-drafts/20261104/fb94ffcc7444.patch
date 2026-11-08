@@ -1,0 +1,392 @@
+From fb94ffcc74442a814eb5c896097e087f641ad5b8 Mon Sep 17 00:00:00 2001
+From: Dany Fedorov <fedorov.dda@gmail.com>
+Date: Fri, 23 Oct 2026 15:56:45 +0300
+Subject: [PATCH] ci(pixels): schedule cross-project delivery with bounded
+ headroom
+
+---
+ .github/workflows/ci.yml                      | 13 +++-
+ .../25-minute-restoration.log.txt             | 23 +++++++
+ .../command-removal.log.txt                   | 23 +++++++
+ .../condition-flip.log.txt                    | 23 +++++++
+ .../duplicate-command.log.txt                 | 23 +++++++
+ .../cross-project-dependencies/tasks.md       |  7 +++
+ .../verify-ci-browser-delivery.md             | 60 +++++++++++++++++++
+ .../cross-project-dependencies/verify.md      |  8 +++
+ .../changes/pixels-shard-capacity/proposal.md |  6 +-
+ .../specs/pixels-shard-capacity/spec.md       |  4 +-
+ .../changes/pixels-shard-capacity/tasks.md    |  5 ++
+ .../changes/pixels-shard-capacity/verify.md   | 11 ++++
+ .../src/hooks/pixels-workflow.test.ts         | 12 +++-
+ 13 files changed, 209 insertions(+), 9 deletions(-)
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/25-minute-restoration.log.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/command-removal.log.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/condition-flip.log.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/duplicate-command.log.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/verify-ci-browser-delivery.md
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 534074adfad5c757af8c027bad1bd208d5a6f527..1990fbeb55fd9a22c4bc59ae0b4f58d675a7c9cd 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1096,8 +1096,9 @@ jobs:
+     # cases passed, one skipped and none failed; 2/4 needed 21m03s for layout. The real
+     # Playwright listing gives 164 cases on 1/4, 138 on 1/6, and 80 on 1/8.
+     # Eight moves the 58-case Gantt file off shard 1, leaving more room for setup
+-    # and its organization check. This changes partition capacity, not retries,
+-    # worker count or the finite job budget. Hosted completion remains unproved.
++    # and its organization check. Run 39951248349 still canceled shard 3 after
++    # a ten-minute Chromium install and 112 passing cases. A finite 35-minute
++    # budget retains setup headroom; workers and retries stay unchanged.
+     # Evidence: openspec/changes/pixels-shard-capacity/verify.md.
+     strategy:
+       fail-fast: false
+@@ -1107,7 +1108,7 @@ jobs:
+         # Proof: removing shard 8 made the production-workflow oracle fail with
+         # expected [1..8], received [1..7] (2026-10-23).
+         shard: [1, 2, 3, 4, 5, 6, 7, 8]
+-    timeout-minutes: 25
++    timeout-minutes: 35
+     steps:
+       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+ 
+@@ -1139,6 +1140,12 @@ jobs:
+         if: ${{ matrix.shard == 1 }}
+         run: bunx nx run wbs-fe-01:e2e-organization
+ 
++      # The ordinary config excludes this dedicated real-stack spec. Shard 4
++      # had 31 ordinary cases and a 5m40s hosted job in run 39902390852.
++      - name: Cross-project dependency delivery
++        if: ${{ matrix.shard == 4 }}
++        run: bunx nx run wbs-fe-01:e2e-cross-project
++
+       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+         if: always()
+         with:
+diff --git a/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/25-minute-restoration.log.txt b/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/25-minute-restoration.log.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..82b7a55f6093eafc988db8ffbda6d4a25fb09044
+--- /dev/null
++++ b/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/25-minute-restoration.log.txt
+@@ -0,0 +1,23 @@
++bun test v1.4.2 (744846f84)
++
++tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:
++59 | 
++60 |     // Proof (2026-10-23): deleting production matrix shard 8 failed on [1..7];
++61 |     // reverting only Layout gate's denominator to /4 failed on its run command.
++62 |     // Enabling fail-fast failed false/true; lowering the cap failed 25/20.
++63 |     expect(shardJob?.strategy?.['fail-fast']).toBe(false);
++64 |     expect(shardJob?.['timeout-minutes']).toBe(35);
++                                               ^
++error: expect(received).toBe(expected)
++
++Expected: 35
++Received: 25
++
++      at <anonymous> (/tmp/puni-ci-cross-project-browser/tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:64:43)
++(fail) the CI pixels gate > runs every browser shard and makes the stable pixels check depend on them [1.94ms]
++
++ 0 pass
++ 9 filtered out
++ 1 fail
++ 2 expect() calls
++Ran 1 test across 1 file. [48.00ms]
+diff --git a/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/command-removal.log.txt b/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/command-removal.log.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..173622616869ea8c0c06285fe9f7688b592c9f30
+--- /dev/null
++++ b/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/command-removal.log.txt
+@@ -0,0 +1,23 @@
++bun test v1.4.2 (744846f84)
++
++tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:
++66 |     expect(shardJob?.name).toBe('pixels shard ${{ matrix.shard }}/8');
++67 |     expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/8');
++68 |     // Proof: deleting the dedicated step failed this production-workflow oracle with an absent run command (c2-review-pixels-fault).
++69 |     expect(organizationStep?.run).toBe('bunx nx run wbs-fe-01:e2e-organization');
++70 |     expect(organizationStep?.if).toBe('${{ matrix.shard == 1 }}');
++71 |     expect(crossProjectSteps).toHaveLength(1);
++                                   ^
++error: expect(received).toHaveLength(expected)
++
++Expected length: 1
++Received length: 0
++
++      at <anonymous> (/tmp/puni-ci-cross-project-browser/tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:71:31)
++(fail) the CI pixels gate > runs every browser shard and makes the stable pixels check depend on them [1.95ms]
++
++ 0 pass
++ 9 filtered out
++ 1 fail
++ 8 expect() calls
++Ran 1 test across 1 file. [66.00ms]
+diff --git a/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/condition-flip.log.txt b/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/condition-flip.log.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..dd7a3b63d84cb5a39f12f06f33bd813ca7a553a3
+--- /dev/null
++++ b/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/condition-flip.log.txt
+@@ -0,0 +1,23 @@
++bun test v1.4.2 (744846f84)
++
++tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:
++67 |     expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/8');
++68 |     // Proof: deleting the dedicated step failed this production-workflow oracle with an absent run command (c2-review-pixels-fault).
++69 |     expect(organizationStep?.run).toBe('bunx nx run wbs-fe-01:e2e-organization');
++70 |     expect(organizationStep?.if).toBe('${{ matrix.shard == 1 }}');
++71 |     expect(crossProjectSteps).toHaveLength(1);
++72 |     expect(crossProjectSteps?.[0]?.if).toBe('${{ matrix.shard == 4 }}');
++                                            ^
++error: expect(received).toBe(expected)
++
++Expected: "${{ matrix.shard == 4 }}"
++Received: "${{ matrix.shard != 4 }}"
++
++      at <anonymous> (/tmp/puni-ci-cross-project-browser/tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:72:40)
++(fail) the CI pixels gate > runs every browser shard and makes the stable pixels check depend on them [3.10ms]
++
++ 0 pass
++ 9 filtered out
++ 1 fail
++ 9 expect() calls
++Ran 1 test across 1 file. [77.00ms]
+diff --git a/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/duplicate-command.log.txt b/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/duplicate-command.log.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..84293136bd31a41498773d568124211a7412b8a0
+--- /dev/null
++++ b/openspec/changes/cross-project-dependencies/evidence/ci-browser-delivery/duplicate-command.log.txt
+@@ -0,0 +1,23 @@
++bun test v1.4.2 (744846f84)
++
++tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:
++66 |     expect(shardJob?.name).toBe('pixels shard ${{ matrix.shard }}/8');
++67 |     expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/8');
++68 |     // Proof: deleting the dedicated step failed this production-workflow oracle with an absent run command (c2-review-pixels-fault).
++69 |     expect(organizationStep?.run).toBe('bunx nx run wbs-fe-01:e2e-organization');
++70 |     expect(organizationStep?.if).toBe('${{ matrix.shard == 1 }}');
++71 |     expect(crossProjectSteps).toHaveLength(1);
++                                   ^
++error: expect(received).toHaveLength(expected)
++
++Expected length: 1
++Received length: 2
++
++      at <anonymous> (/tmp/puni-ci-cross-project-browser/tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:71:31)
++(fail) the CI pixels gate > runs every browser shard and makes the stable pixels check depend on them [1.55ms]
++
++ 0 pass
++ 9 filtered out
++ 1 fail
++ 8 expect() calls
++Ran 1 test across 1 file. [60.00ms]
+diff --git a/openspec/changes/cross-project-dependencies/tasks.md b/openspec/changes/cross-project-dependencies/tasks.md
+index 35fa18bfc257ba5991f327723a6dc22ea783cdb8..a15a1154fbb9e2927d54c5ee111706ae0c90b087 100644
+--- a/openspec/changes/cross-project-dependencies/tasks.md
++++ b/openspec/changes/cross-project-dependencies/tasks.md
+@@ -742,3 +742,10 @@ Ordinary application source retains watcher delivery. Parent tasks stay open.
+ ### Task 9.2 bounded local successor scope browser acceptance (2026-10-23)
+ 
+ - [x] Separate desktop node-to-whole and phone whole-to-node fixtures prove accepted HTTP save, authoritative tree installation, reload/reopen and exact SQLite persistence. Independent desktop/phone persisted-successor serializer faults fail the reopened selector. Independent Astra review approved this bounded packet. See [bounded browser evidence](verify-9-2-successor-scope-browser.md). Parent 9.2 and production authoring activation remain open.
++
++### Bounded CI browser delivery scheduling — 2026-10-23
++
++- [x] Schedule the existing dedicated cross-project real-stack browser target exactly once on shard 4, preserve ordinary-suite exclusion, and pin a finite 35-minute shard budget with watched workflow faults. See [bounded CI receipt](verify-ci-browser-delivery.md).
++
++This closes scheduling only. Parent 5.2/11.x, exact-head hosted browser completion,
++the canonical host gate and production activation remain open.
+diff --git a/openspec/changes/cross-project-dependencies/verify-ci-browser-delivery.md b/openspec/changes/cross-project-dependencies/verify-ci-browser-delivery.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..f2c25f45ccff784f753c2ad4e3f18b84b13c9166
+--- /dev/null
++++ b/openspec/changes/cross-project-dependencies/verify-ci-browser-delivery.md
+@@ -0,0 +1,60 @@
++# Bounded CI browser delivery scheduling
++
++Date: 2026-10-23. Base: `f7957a5390f20b715ff63857277b9efd8dd2ac23`.
++Branch: `proof/ci-cross-project-browser`.
++
++The production `pixels_shard` job now runs
++`bunx nx run wbs-fe-01:e2e-cross-project` exactly once, with
++`${{ matrix.shard == 4 }}`. The ordinary Playwright config already excludes
++`cross-project-refresh.real.spec.ts`; its dedicated config retains one worker
++and zero retries. Eight ordinary shards, organization acceptance on shard 1,
++disabled fail-fast and the stable required aggregate are preserved.
++
++Shard 4 had 31 ordinary cases and a 5m40s job in hosted run
++[39902390852](https://github.com/Prosperous-Unification/puni-00/actions/runs/39902390852).
++The finite shard budget rises from 25 to 35 minutes because later run
++[39951248349](https://github.com/Prosperous-Unification/puni-00/actions/runs/39951248349)
++canceled shard 3 after ten minutes installing Chromium and 112 passing cases.
++These prior hosted observations motivated scheduling; they do not prove the new
++candidate's hosted completion.
++
++## Watched production-workflow negatives
++
++The initial amended oracle failed on the original 25-minute budget. After
++raising only that budget it failed on zero dedicated commands. The complete
++workflow then passed. Each following independent fault changed the actual
++`.github/workflows/ci.yml`, ran the same production-workflow oracle and was restored:
++
++| Injected fault                 | Observed failure              | Evidence                                                                    |
++| ------------------------------ | ----------------------------- | --------------------------------------------------------------------------- |
++| Remove dedicated run command   | Expected length 1, received 0 | [command removal](evidence/ci-browser-delivery/command-removal.log.txt)     |
++| Duplicate dedicated command    | Expected length 1, received 2 | [duplicate command](evidence/ci-browser-delivery/duplicate-command.log.txt) |
++| Invert condition to shard != 4 | Expected == 4, received != 4  | [condition inversion](evidence/ci-browser-delivery/condition-flip.log.txt)  |
++| Restore 25-minute timeout      | Expected 35, received 25      | [old budget](evidence/ci-browser-delivery/25-minute-restoration.log.txt)    |
++
++Each mutation exited 1 with 0 pass / 1 fail. Adjacent `Proof:` comments record
++the observed faults. Command:
++`bun test --preload ./tools/test/scratch/preload.ts --timeout=10000 tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts -t 'runs every browser shard'`.
++
++## Local verification
++
++- Focused `pixels-workflow`, `gate-workflow` and `pr-merge-base` Bun suites with
++  the scratch preload and 10-second timeout: exit 0, **62 pass / 0 fail,
++  429 assertions**.
++- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-git-hooks:lint --skip-nx-cache`:
++  exit 0, configured target executed successfully.
++- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-git-hooks:typecheck --skip-nx-cache`:
++  exit 0, configured target executed successfully.
++
++Standalone `actionlint` is unavailable on this machine and is not a configured
++required gate for this workflow. The production YAML oracle and changed-file
++Prettier validate the local workflow shape; hosted CI remains necessary.
++No browser run, full Nx gate, full-repository format check, secrets/migration CI
++or canonical `bin/h2puni-gate.sh <sha>` ran in this bounded packet. No complete CI,
++host gate, product activation or full parent Task 5.2/11.x completion is claimed.
++Normal commit hooks, changed-file format, whitespace and OpenSpec validation
++outcomes are recorded below after execution. No push or integration is performed.
++
++- `bunx openspec validate --all --json`: exit 0, **274 passed / 0 failed**
++  (256 changes, 18 specs).
++- Changed-file Prettier check and `git diff --check`: exit 0.
+diff --git a/openspec/changes/cross-project-dependencies/verify.md b/openspec/changes/cross-project-dependencies/verify.md
+index 5a8bdac976e887a117fce0f6e5f492b14a4750f6..7146c2b453364ed03620ee05afc57b0df7916eba 100644
+--- a/openspec/changes/cross-project-dependencies/verify.md
++++ b/openspec/changes/cross-project-dependencies/verify.md
+@@ -6989,3 +6989,11 @@ whitespace checks passed.
+ Independent Astra review approved the corrected bounded evidence packet.
+ The parent checkbox remains open for the integrated exact-SHA host gate.
+ Activation stays with Tasks 10.x.
++
++## Bounded CI browser delivery scheduling — 2026-10-23
++
++[The CI receipt](verify-ci-browser-delivery.md) records the dedicated real-stack
++browser target on shard 4, the finite 35-minute budget and independent watched
++production-workflow faults. It establishes scheduling and local workflow checks;
++exact-head hosted browser completion, full CI, the host gate and production
++activation remain unproved by this packet.
+diff --git a/openspec/changes/pixels-shard-capacity/proposal.md b/openspec/changes/pixels-shard-capacity/proposal.md
+index 3ff6a004def8cdfd1e1b41a1317aab7d7e452d29..82d2a13939812c68f2ac8e6b2bfbe32e94394ebd 100644
+--- a/openspec/changes/pixels-shard-capacity/proposal.md
++++ b/openspec/changes/pixels-shard-capacity/proposal.md
+@@ -1,14 +1,14 @@
+ ## Why
+ 
+-Hosted CI run 39898917880 canceled browser shard 1/4 at its 25-minute job limit while the layout gate was still running, with 160 cases passed, one skipped and none failed. Shard 2/4 needed 21m03s for layout alone. The four-way partition no longer leaves reliable setup and organization-check headroom.
++Hosted CI run 39898917880 canceled browser shard 1/4 at its 25-minute job limit while the layout gate was still running, with 160 cases passed, one skipped and none failed. Shard 2/4 needed 21m03s for layout alone. The four-way partition no longer leaves reliable setup and organization-check headroom. Later eight-shard run 39951248349 canceled shard 3 after a ten-minute Chromium install and 112 passing cases; eight partitions still need bounded setup headroom.
+ 
+ ## What Changes
+ 
+-Run the same browser suite across eight file shards, retaining the stable required `pixels` verdict. Record measured partition sizes and hosted timings so the capacity choice can be reviewed.
++Run the same browser suite across eight file shards, retaining the stable required `pixels` verdict. Raise the finite job timeout from 25 to 35 minutes and run the existing dedicated cross-project browser target once on lightly loaded shard 4. Record measured partition sizes and hosted timings so the capacity choice can be reviewed.
+ 
+ ## Non-Goals
+ 
+-Changing browser behavior, worker count, retries, test selection, required verdicts, organization coverage or job timeouts.
++Changing browser behavior, worker count, retries, ordinary-suite test selection, required verdicts, organization coverage or product activation.
+ 
+ ## Constraints
+ 
+diff --git a/openspec/changes/pixels-shard-capacity/specs/pixels-shard-capacity/spec.md b/openspec/changes/pixels-shard-capacity/specs/pixels-shard-capacity/spec.md
+index 215bc0a0ecbb3dc66567ec1956fb20f02c75a299..40ccb389c82b7dc95daeda39513ddf1a11d66e5d 100644
+--- a/openspec/changes/pixels-shard-capacity/specs/pixels-shard-capacity/spec.md
++++ b/openspec/changes/pixels-shard-capacity/specs/pixels-shard-capacity/spec.md
+@@ -2,13 +2,15 @@
+ 
+ ### Requirement: Complete eight-way browser partition
+ 
+-When the browser stack is affected, CI SHALL schedule shards 1 through 8 with matching `/8` display names and Playwright shard arguments, retaining the 25-minute job budget and disabled fail-fast.
++When the browser stack is affected, CI SHALL schedule shards 1 through 8 with matching `/8` display names and Playwright shard arguments, with a finite 35-minute job budget and disabled fail-fast.
+ 
+ #### Scenario: Every partition is scheduled
+ 
+ - **WHEN** the production workflow selects browser checks
+ - **THEN** its matrix contains exactly shards 1 through 8 and each layout invocation uses that shard with total 8
+ - **AND** the activated organization check runs on shard 1
++- **AND** the existing `bunx nx run wbs-fe-01:e2e-cross-project` command runs exactly once, conditioned on shard 4
++- **AND** ordinary Playwright selection continues to exclude the dedicated cross-project spec
+ 
+ ### Requirement: Stable required browser verdict
+ 
+diff --git a/openspec/changes/pixels-shard-capacity/tasks.md b/openspec/changes/pixels-shard-capacity/tasks.md
+index 63b1fd72aa401e95d858e3ed67ef170671361fc5..d5c3db9841dd41ddfc948d66a1cbd9a96d05be4e 100644
+--- a/openspec/changes/pixels-shard-capacity/tasks.md
++++ b/openspec/changes/pixels-shard-capacity/tasks.md
+@@ -6,3 +6,8 @@
+ ## 2. Focused verification
+ 
+ - [x] 2.1 Run the focused workflow suites, configured tool-git-hooks lint/typecheck, changed-file formatting, OpenSpec validation and normal commit hooks; record results and unavailable full hosted evidence in `verify.md`.
++
++## 3. Bounded CI delivery amendment
++
++- [x] 3.1 Pin the 35-minute timeout and exactly one cross-project browser command on shard 4 in the production workflow oracle; watch the original workflow fail, implement, and watch independent command removal, duplicate command, condition inversion and 25-minute restoration fail.
++- [x] 3.2 Run focused workflow tests, lint/typecheck, format and OpenSpec checks; record the bounded receipt and every unavailable check. Hosted completion remains pending.
+diff --git a/openspec/changes/pixels-shard-capacity/verify.md b/openspec/changes/pixels-shard-capacity/verify.md
+index a882c5e3efaabdde1aa2f85ce77ac5b4ab9a41b5..5f3d1957a422f4120743c934aad3ceefa14a1ff1 100644
+--- a/openspec/changes/pixels-shard-capacity/verify.md
++++ b/openspec/changes/pixels-shard-capacity/verify.md
+@@ -100,3 +100,14 @@ spec sync and full hosted gates remain pending and block archive/release accepta
+ The implementation is committed from `5328162f7` through this evidence commit;
+ normal hooks run during commit and their actual outcome is reported to the parent.
+ No push is authorized for this worktree.
++
++## Bounded CI delivery amendment — 2026-10-23
++
++The earlier 25-minute statements above describe the original eight-shard packet.
++Run [39951248349](https://github.com/Prosperous-Unification/puni-00/actions/runs/39951248349)
++later canceled shard 3 after a ten-minute Chromium install and 112 passing cases.
++The amended contract uses 35 finite minutes and adds the existing dedicated
++cross-project target once on shard 4, retaining eight partitions, one worker, zero
++retries and disabled fail-fast. The ordinary config already excludes its spec.
++See the [bounded CI receipt](../cross-project-dependencies/verify-ci-browser-delivery.md)
++for fresh local checks, watched production-workflow faults and remaining hosted gates.
+diff --git a/tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts b/tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts
+index f6d64e8e880428495f3a52fa6f0d14c8b46747ad..ed283dd485544ae38e50f1f540e47d1063a56e1e 100644
+--- a/tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts
++++ b/tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts
+@@ -50,21 +50,29 @@ describe('the CI pixels gate', () => {
+     const organizationStep = shardJob?.steps?.find(
+       ({ name }) => name === 'Activated organization context',
+     );
++    const crossProjectSteps = shardJob?.steps?.filter(
++      ({ run }) => run === 'bunx nx run wbs-fe-01:e2e-cross-project',
++    );
+     const artifactStep = shardJob?.steps?.find(({ uses }) =>
+       uses?.startsWith('actions/upload-artifact@'),
+     );
+ 
+     // Proof (2026-10-23): deleting production matrix shard 8 failed on [1..7];
+     // reverting only Layout gate's denominator to /4 failed on its run command.
+-    // Enabling fail-fast failed false/true; lowering the cap failed 25/20.
++    // Enabling fail-fast failed false/true.
++    // Proof (2026-10-23): restoring the production 25-minute budget failed 35/25.
+     expect(shardJob?.strategy?.['fail-fast']).toBe(false);
+-    expect(shardJob?.['timeout-minutes']).toBe(25);
++    expect(shardJob?.['timeout-minutes']).toBe(35);
+     expect(shardJob?.strategy?.matrix?.shard).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+     expect(shardJob?.name).toBe('pixels shard ${{ matrix.shard }}/8');
+     expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/8');
+     // Proof: deleting the dedicated step failed this production-workflow oracle with an absent run command (c2-review-pixels-fault).
+     expect(organizationStep?.run).toBe('bunx nx run wbs-fe-01:e2e-organization');
+     expect(organizationStep?.if).toBe('${{ matrix.shard == 1 }}');
++    // Proof (2026-10-23): removing the production command failed length 1/0;
++    // duplicating it failed 1/2; flipping its shard condition failed == 4 / != 4.
++    expect(crossProjectSteps).toHaveLength(1);
++    expect(crossProjectSteps?.[0]?.if).toBe('${{ matrix.shard == 4 }}');
+     expect(artifactStep?.with?.name).toBe(
+       'wbs-table-screenshot-${{ matrix.shard }}-${{ github.run_attempt }}',
+     );
+-- 
+2.43.0
+

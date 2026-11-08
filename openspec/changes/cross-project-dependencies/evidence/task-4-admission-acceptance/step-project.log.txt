@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+407 |           };
+408 |       const service = new WorkItemService({
+409 |         ...authoredStores,
+410 |         ...(stepDelivery === undefined ? {} : { typedDependencies: new Proxy(authoredStores.typedDependencies, {
+411 |           get(target, key) {
+412 |             if (key === 'add' || key === 'update') return () => { throw new Error('misdelivered step reached storage'); };
+                                                                                  ^
+error: misdelivered step reached storage
+      at <anonymous> (/tmp/puni-command-proofs/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:412:77)
+      at <anonymous> (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6783:43)
+      at async withDependencyContext (/tmp/puni-command-proofs/libs/wbs/application/core/src/ports/dependency-context.ts:86:27)
+(fail) admitted add refuses step-project misdelivery before storage [386.76ms]
+
+ 0 pass
+ 115 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [3.08s]

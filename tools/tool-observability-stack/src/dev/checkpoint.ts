@@ -34,6 +34,11 @@ export function readCheckpoint(path: string, initialize = false): ProbeObservati
     writeFileSync(path, JSON.stringify({ state: 'empty' }), { flag: 'wx', mode: 0o600 });
   // Proof: actual absent path and mode-000 file throw independently, never produce empty state.
   const text = readFileSync(path, 'utf8');
+  return parseCheckpoint(text);
+}
+
+/** Parses already-read bounded checkpoint text without reopening a pathname; preserves explicit empty state and observation validation. */
+export function parseCheckpoint(text: string): ProbeObservation | undefined {
   // Proof: actual missing/malformed/oversized/future checkpoint tests fail when boundary validation is bypassed.
   if (Buffer.byteLength(text) > 8192) throw new Error('Checkpoint exceeds size bound');
   // Proof: bypassing schema validation accepts the corrupt state tag in the malformed checkpoint test.

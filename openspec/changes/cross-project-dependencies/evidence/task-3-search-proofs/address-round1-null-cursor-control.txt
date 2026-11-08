@@ -1,0 +1,13 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+(pass) rejects present JSON null discovery cursor for token "a" [153.52ms]
+(pass) rejects present JSON null discovery cursor for token "010" [90.92ms]
+(pass) rejects present JSON null discovery cursor for token "" [95.38ms]
+(pass) rejects present JSON null selected project cursor [88.78ms]
+
+ 4 pass
+ 16 filtered out
+ 0 fail
+ 8 expect() calls
+Ran 4 tests across 1 file. [2.61s]

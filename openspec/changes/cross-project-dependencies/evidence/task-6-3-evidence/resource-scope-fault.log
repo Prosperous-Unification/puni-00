@@ -1,0 +1,106 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+784 |   );
+785 |   harness.sqlite.run(
+786 |     "INSERT INTO claim_occupancy(claim_id,resource_id,units) VALUES ('remote-claim','machine',7)",
+787 |   );
+788 |   observedAttemptProjects.clear();
+789 |   expect(await startable()).toMatchObject({
+                                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "leaves": [
++     "claimed": [],
++     "doesNotFit": [
+        {
+-         "fits": true,
++         "assignees": [
++           {
++             "name": "Executor",
++             "personId": "executor",
++             "stepId": "452fa6d1-2b92-40dc-ba3b-33285bdf8011",
++           },
++         ],
++         "exhausted": {
++           "asked": 2,
++           "free": -5,
++           "name": "Machine",
++           "resourceId": "machine",
++           "shortfall": 7,
++           "unitLabel": "slots",
++         },
++         "fits": false,
++         "name": "target-leaf",
++         "number": "010",
++         "numberIsFrozen": false,
+          "stepIds": [
+            "452fa6d1-2b92-40dc-ba3b-33285bdf8011",
+          ],
++         "subtreeClaim": null,
++         "teams": [],
++         "unfinishedPredecessorIds": [],
+          "workItemId": "target-leaf",
+        },
+      ],
++     "leaves": [],
+      "occupancyScope": "project",
++     "prerequisites": [
++       {
++         "canFinish": true,
++         "canStart": true,
++         "finishBlockers": [],
++         "startBlockers": [],
++         "started": false,
++         "stepId": "452fa6d1-2b92-40dc-ba3b-33285bdf8011",
++         "workItemId": "target-leaf",
++       },
++       {
++         "canFinish": true,
++         "canStart": false,
++         "finishBlockers": [],
++         "startBlockers": [
++           {
++             "provenance": "workflow",
++             "relationshipId": null,
++             "stepId": "452fa6d1-2b92-40dc-ba3b-33285bdf8011",
++             "type": "FS",
++             "workItemId": "target-leaf",
++           },
++         ],
++         "started": false,
++         "stepId": "1203cb1b-232c-4883-9bba-6d01330d68c9",
++         "workItemId": "target-leaf",
++       },
++     ],
+      "resources": [
+        {
+          "capacity": 2,
+-         "free": 2,
+-         "occupied": 0,
++         "free": -5,
++         "kind": "divisible",
++         "name": "Machine",
++         "occupied": 7,
+          "resourceId": "machine",
++         "unitLabel": "slots",
+        },
+      ],
++     "subtreeClaims": [],
+    },
+    "status": 200,
+  }
+
+- Expected  - 4
++ Received  + 59
+
+      at <anonymous> (/tmp/puni-63-evidence/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:789:29)
+(fail) shared-person peer discovery retains exact project-local resource occupancy [555.03ms]
+
+ 0 pass
+ 36 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [4.60s]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address.controller.db.test.ts:
+115 |
+116 | it('rejects forged trusted namespaces before rendering project labels', async () => {
+117 |   const project = await create();
+118 |   h.sqlite.run('DROP TRIGGER project_abbreviation_scope_update');
+119 |   h.sqlite.run("UPDATE project_abbreviation SET namespace = 'org:org-b' WHERE project_id = ?", [project.id]);
+120 |   expect((await h.call('ada', 'GET', `/api/projects/${project.id}`)).status).toBe(500);
+                                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/tmp/puni-cross-api/apps/wbs/be-01/src/controller/project-address.controller.db.test.ts:120:78)
+(fail) rejects forged trusted namespaces before rendering project labels [481.72ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.53s]

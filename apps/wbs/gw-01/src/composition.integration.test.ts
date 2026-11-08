@@ -45,6 +45,8 @@ afterEach(async () => {
 function startProduction(token: string) {
   const calls: { url: string; cookie: string | null; secret: string | null }[] = [];
   const app = buildGateway(oidcConfig(), (url, init) => {
+    if (url.endsWith('/internal/gateway/dependency-admission'))
+      return Promise.resolve(new Response(null, { status: 204 }));
     const headers = new Headers(init?.headers);
     calls.push({ url, cookie: headers.get('cookie'), secret: headers.get('x-internal-auth') });
     const proves = headers.get('cookie') === `__Host-wbs_access=${token}`;

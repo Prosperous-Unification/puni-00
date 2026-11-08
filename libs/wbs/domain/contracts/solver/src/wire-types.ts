@@ -1,5 +1,5 @@
 /**
- * The TypeScript binding of `solver-wire.v4.json`.
+ * The TypeScript binding of `solver-wire.v5.json`.
  *
  * The schema is the contract and the Python side reads the very same file, so
  * nothing here may be authored independently of it. Every vocabulary below is
@@ -9,7 +9,7 @@
  */
 
 /** `#/$defs/wireVersion` — a `const`, so the type is the literal. */
-export const SOLVER_WIRE_VERSION = 4;
+export const SOLVER_WIRE_VERSION = 5;
 export type SolverWireVersion = typeof SOLVER_WIRE_VERSION;
 
 /**
@@ -62,16 +62,89 @@ export type SolverObjectiveValues = Readonly<Record<SolverObjectiveTerm, SolverO
 export type SolverResponse =
   | {
       readonly wireVersion: SolverWireVersion;
+      readonly scope: SolverLocalScope;
       readonly status: 'feasible';
       readonly offsets: SolverOffsetMap;
       readonly objectiveValues: SolverObjectiveValues;
     }
   | {
       readonly wireVersion: SolverWireVersion;
+      readonly scope: SolverLocalScope;
       readonly status: Exclude<SolverResponseStatus, 'feasible'>;
       readonly offsets?: undefined;
       readonly objectiveValues?: undefined;
     };
+
+/** Connected response echoes only the exact stage identity, never its constraints. */
+export type ConnectedSolverResponse =
+  | {
+      readonly wireVersion: SolverWireVersion;
+      readonly scope: SolverConnectedScopeIdentity;
+      readonly status: 'feasible';
+      readonly offsets: SolverOffsetMap;
+      readonly objectiveValues: SolverObjectiveValues;
+    }
+  | {
+      readonly wireVersion: SolverWireVersion;
+      readonly scope: SolverConnectedScopeIdentity;
+      readonly status: 'unknown' | 'infeasible' | 'boundary-infeasible';
+      readonly offsets?: undefined;
+      readonly objectiveValues?: undefined;
+    };
+
+export type SolverWireResponse = SolverResponse | ConnectedSolverResponse;
+export const CONNECTED_SOLVER_RESPONSE_STATUSES = [
+  'feasible',
+  'unknown',
+  'infeasible',
+  'boundary-infeasible',
+] as const;
+
+/** Closed connected arm property set, including all distinct witness fields. */
+export const CONNECTED_SOLVER_REQUEST_KEYS = [
+  'wireVersion',
+  'contractVersion',
+  'solverVersion',
+  'objective',
+  'budgetMs',
+  'stageBudgetSplit',
+  'quantum',
+  'horizonUnits',
+  'slices',
+  'edges',
+  'pools',
+  'resources',
+  'elsewhere',
+  'scope',
+  'movementReferenceOffsets',
+  'feasibleBaselineOffsets',
+  'seedOffsets',
+] as const;
+
+/** Connected scope facts required to reconstruct fixed-boundary provenance. */
+export const CONNECTED_SOLVER_SCOPE_KEYS = [
+  'kind',
+  'projectId',
+  'inputHash',
+  'questionHash',
+  'originOrdinal',
+  'projects',
+  'fixed',
+  'boundaries',
+  'occupancy',
+] as const;
+
+/** The two signed bound members are conditional on boundary direction. */
+export const SOLVER_BOUNDARY_KEYS = [
+  'localKey',
+  'foreignProjectId',
+  'foreignKey',
+  'relationshipId',
+  'type',
+  'direction',
+  'minimumStartUnits',
+  'maximumStartUnits',
+] as const;
 
 /**
  * The property names `#/$defs/response` admits. The branch is
@@ -83,6 +156,7 @@ export const SOLVER_RESPONSE_KEYS = [
   'status',
   'offsets',
   'objectiveValues',
+  'scope',
 ] as const;
 export type SolverResponseKey = (typeof SOLVER_RESPONSE_KEYS)[number];
 
@@ -193,10 +267,11 @@ export const SOLVER_REQUEST_KEYS = [
   'fastHint',
   'elsewhere',
   'resources',
+  'scope',
 ] as const;
 export type SolverRequestKey = (typeof SOLVER_REQUEST_KEYS)[number];
 
-export interface SolverRequest {
+export interface SolverRequestCommon {
   readonly wireVersion: SolverWireVersion;
   readonly contractVersion: string;
   readonly solverVersion: string;
@@ -209,8 +284,6 @@ export interface SolverRequest {
   readonly edges: readonly SolverEdge[];
   /** Pool id to capacity. A pool of 0 slots is a plan of Infinity dates, so capacity floors at 1. */
   readonly pools: Readonly<Record<string, number>>;
-  readonly baselineOffsets: SolverOffsetMap;
-  readonly fastHint: SolverOffsetMap;
   readonly elsewhere: SolverElsewhere;
   /**
    * Resource id to stated capacity, for the resources some slice demands
@@ -219,5 +292,80 @@ export interface SolverRequest {
   readonly resources: Readonly<Record<string, number>>;
 }
 
+export interface SolverLocalScope {
+  readonly kind: 'local';
+}
+
+export interface SolverConnectedScopeIdentity {
+  readonly kind: 'connected-stage';
+  readonly projectId: string;
+  readonly inputHash: string;
+  readonly questionHash: string;
+}
+
+export interface SolverConnectedScope extends SolverConnectedScopeIdentity {
+  readonly originOrdinal: number;
+  readonly projects: readonly {
+    readonly projectId: string;
+    readonly rank: number;
+    readonly anchorOrdinal: number | null;
+  }[];
+  readonly fixed: readonly {
+    readonly projectId: string;
+    readonly key: string;
+    readonly start: number;
+    readonly finish: number;
+  }[];
+  readonly boundaries: readonly SolverBoundary[];
+  readonly occupancy: readonly {
+    readonly personId: string;
+    readonly projectId: string;
+    readonly key: string;
+    readonly start: number;
+    readonly finish: number;
+  }[];
+}
+
+/** Wire 5 makes local and connected evidence separate required arms. */
+export type SolverWireRequest = SolverRequestCommon &
+  (
+    | {
+        readonly scope: SolverLocalScope;
+        readonly baselineOffsets: SolverOffsetMap;
+        readonly fastHint: SolverOffsetMap;
+      }
+    | {
+        readonly scope: SolverConnectedScope;
+        readonly movementReferenceOffsets: SolverOffsetMap;
+        readonly feasibleBaselineOffsets: SolverOffsetMap | null;
+        readonly seedOffsets: SolverOffsetMap | null;
+      }
+  );
+
+export type SolverRequest = SolverRequestCommon & {
+  readonly scope: SolverLocalScope;
+  readonly baselineOffsets: SolverOffsetMap;
+  readonly fastHint: SolverOffsetMap;
+};
+export type LocalSolverRequest = SolverRequest;
+export type ConnectedSolverRequest = SolverRequestCommon & {
+  readonly scope: SolverConnectedScope;
+  readonly movementReferenceOffsets: SolverOffsetMap;
+  readonly feasibleBaselineOffsets: SolverOffsetMap | null;
+  readonly seedOffsets: SolverOffsetMap | null;
+};
+
 /** Fixed, half-open person bookings in integer solver units. */
 export type SolverElsewhere = Readonly<Record<string, readonly (readonly [number, number])[]>>;
+
+/** An incident resolved pair, retaining its authored identity and signed integer bound. */
+export type SolverBoundary = {
+  readonly localKey: string;
+  readonly foreignProjectId: string;
+  readonly foreignKey: string;
+  readonly relationshipId: string;
+  readonly type: 'FS' | 'SS' | 'FF';
+} & (
+  | { readonly direction: 'incoming'; readonly minimumStartUnits: number }
+  | { readonly direction: 'outgoing'; readonly maximumStartUnits: number }
+);

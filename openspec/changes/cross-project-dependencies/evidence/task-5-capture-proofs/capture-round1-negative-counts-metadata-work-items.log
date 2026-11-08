@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:
+58 |       release();
+59 |     },
+60 |   };
+61 | }
+62 | async function failureOf(reading: Promise<unknown>): Promise<Error> {
+63 |   try {
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:63:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) project work-items continuation performs zero expired SQL after success [159.95ms]
+
+ 0 pass
+ 81 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.39s]

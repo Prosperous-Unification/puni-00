@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts:
+77 |
+78 | it('protects a surviving external successor before removing any doomed links', async () => {
+79 |   const local = link('local', 'a', 'b');
+80 |   const external = { ...link('external', 'a', 'c'), predecessor: { projectId: 'remote', scope: 'whole' as const, workItemId: 'a' } };
+81 |   const store = inMemoryTypedDependencies([local, external]);
+82 |   expect(await refuses(() => store.removeAllFor(['a'], stamp))).toBe(true);
+                                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts:82:65)
+(fail) protects a surviving external successor before removing any doomed links [0.56ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [132.00ms]

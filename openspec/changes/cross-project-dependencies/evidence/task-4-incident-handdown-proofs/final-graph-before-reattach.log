@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+360 |       const failure: unknown = await operation.then(
+361 |         (value) => value,
+362 |         (error: unknown) => error,
+363 |       );
+364 |       expect(failure).toBeInstanceOf(Error);
+365 |       expect(failure instanceof Error ? failure.message : '').toContain('injected');
+                                                                    ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "injected"
+Received: "expect(received).toEqual(expected)\n\n  [\n    \"ancestor\",\n-   \"incoming\",\n-   \"outgoing-1\",\n-   \"outgoing-2\",\n    \"unrelated\",\n    \"whole\",\n  ]\n\n- Expected  - 3\n+ Received  + 0\n"
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:365:63)
+(fail) incident transition rolls back every table and held announcement on final-graph-delivery [544.08ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [2.88s]

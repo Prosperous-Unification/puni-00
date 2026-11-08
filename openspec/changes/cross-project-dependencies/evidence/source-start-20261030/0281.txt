@@ -1,0 +1,49 @@
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_LISTENER_PUBLISHED: actual original ready publication returned before replacement activation
+223 |             }
+224 |             return snapshot;
+225 |           },
+226 |         );
+227 |         try {
+228 |           await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow(
+                                                                                     ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts:228:80)
+(fail) source restoration refuses listener replacement after actual ready publication [143575.93ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 568 expect() calls
+Ran 1 test across 1 file. [143.64s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses listener replacement after actual ready publication","exitCode":1,"signal":null,"stdoutEof":true,"stderrEof":true}
+60 |       // This receipt follows the ORIGINAL child exit and both EOF joins, with
+61 |       // normal exit0/1 and null signal; an outcome line alone proves no custody.
+62 |       process.stderr.write(
+63 |         `SOURCE_RESTORATION_INNER_CUSTODY: ${JSON.stringify({ name, exitCode: exit.value, signal: null, stdoutEof: true, stderrEof: true })}\n`,
+64 |       );
+65 |       expect(exit.value).toBe(0);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:65:26)
+(fail) isolated source restoration refuses listener replacement after actual ready publication [143658.93ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [143.67s]

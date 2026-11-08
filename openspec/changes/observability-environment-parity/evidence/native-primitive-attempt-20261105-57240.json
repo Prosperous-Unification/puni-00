@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "scope": "Second distinct native primitive startup attempt, not accepted",
+  "nonce": "57240c5db8bcb845905f5af5d40769a5",
+  "sourceCommit": "0295e79d1e2bb173a0a5a9e6518dfb9961d00416",
+  "request": {
+    "sha256": "b7e18276605df2e3b5998e926bd102e4ff3a74ad28d41dc96c14c404ea5eb2f1",
+    "bytes": 32768,
+    "dev": 66307,
+    "inode": 18891413,
+    "mode": "0600",
+    "uid": 1000,
+    "sourceDigest": "f306d127719500db1667ff255d5d96c90fa401b7c2d8cb4913b5d6fce703fc1f",
+    "pins": 84,
+    "runtimePins": 70,
+    "review": "independent proper-host closed-schema/FD/source/Git/runtime/kernel/inventory/ledger/capacity approval"
+  },
+  "preparation": {
+    "inventoryEntries": 6251,
+    "inventoryDigest": "3bad07dab840867bb8d8c669856b08ebcb56e9c320c07e7bd590844d09d85400",
+    "retainedBytes": 9488928768,
+    "outsideBytes": 105512960,
+    "grossReservationBytes": 0,
+    "initialAvailableMemoryBytes": 18452885504,
+    "freeBytes": 214294761472,
+    "projectedControlMetadataBytes": 630784,
+    "metadataMaximum": 1048576,
+    "operatorStatusFailure": "Extra whole-tree gitstatus under128MiBAS failed threadedlstat before request creation; separate fresh clean-tree check passed. Production exactHEAD/blob checks unchanged."
+  },
+  "attempt": {
+    "originalToolSession": 46778,
+    "exitCode": 1,
+    "category": "helper-refused-unavailable",
+    "closedRefusalFrameReceived": true,
+    "readinessBinding": "unavailable",
+    "workerBinding": "unavailable",
+    "counter": "unavailable",
+    "fixtureDirectory": "absent",
+    "accepted": false,
+    "retryPerformed": false,
+    "startedToExitMicroseconds": 661954,
+    "terminalReads": 2,
+    "unitState": "not-found/inactive/dead,PID0,blankInvocation/ControlGroup",
+    "journalEmitter2226": "user manager, not worker identity"
+  },
+  "failureArtifact": {
+    "bytes": 530,
+    "sha256": "4857b716bb62d07f2847bbf661ae8a154865c55702538664b7b2f2ab1ad3e492",
+    "stdout": {
+      "bytes": 256,
+      "complete": true,
+      "sha256": "fb73dc5d923da6a51b1c62f7151de79d56dea7c0d1ad0a3bf8ddccd1459572c6"
+    },
+    "stderr": {
+      "bytes": 48,
+      "complete": true,
+      "sha256": "159b77c2c412a7577ce24e41ccfd16829d24512d418275d37fbaadd94bc882f4"
+    }
+  },
+  "privateCapture": {
+    "path": "repair-native-controls/attempt-57240c5db8bcb845905f5af5d40769a5.json",
+    "bytes": 6091,
+    "sha256": "7f7e4397bb268e2193a9a4c9dd8fe315717e8f96bdcd09aaaf2c51ff38575693",
+    "contents": "exact original CLI result, failure artifact, lossless4-event journal and two terminal observations"
+  },
+  "diagnosis": {
+    "inferenceOnly": "Tainted stderr identity matches exact public-source process-effective-limits message; no authenticated category/authority follows",
+    "independentReproduction": "Correctly bounded owned process proc rows have trailing column padding; current regex rejects all4 while horizontal trailingwhitespace matches exact values",
+    "next": "Fix precise proc-format handling with negative proofs and scoped review before another source-bound nonce",
+    "oldDfeCause": "unavailable, not reconstructed"
+  },
+  "nativeQualified": false,
+  "repairOrVmExecuted": false,
+  "fullObservabilityAccepted": false
+}

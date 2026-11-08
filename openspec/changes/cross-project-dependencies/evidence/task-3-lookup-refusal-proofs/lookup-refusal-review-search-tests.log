@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+(pass) alphabetic prefix is bounded and organization scoped [165.92ms]
+(pass) numeric input is not external discovery [92.75ms]
+(pass) selected project scopes steps and work items and caps flattened candidates [103.73ms]
+(pass) manual punctuation and lowercase resolve and malformed syntax precedes stale [97.06ms]
+(pass) foreign and absent addresses have identical refusal [89.59ms]
+(pass) refuses malformed queries and cursor reuse across query project organization and kind [115.85ms]
+(pass) keeps exact Unicode name matching and literal punctuation [90.83ms]
+(pass) refuses duplicate numbers and missing endpoints without changing database state [108.82ms]
+(pass) changes revision for leafhood and uncoded step order but keeps label-only edits [95.57ms]
+{"level":"error","time":1792628246136,"service":"be-01","err":{"occurrence_id":"AE_HRJY1X59VEQ9MY2KDWXZSQN2SS","fingerprint":"fp1_6ede04e5df4fd5bc07a25357d9edc0e0","stack":["Error: project 97a1841e-bb6f-46c5-afcd-34e9e4bf6153 abbreviation is missing","    at decodeProjectAbbreviation (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at searchProjects (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:108:32)","    at <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/service/project-address-search.ts:181:32)","    at async withSnapshot (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:49:29)","    at async <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/http/project-address.routes.ts:20:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792628246140,"service":"be-01","err":{"occurrence_id":"AE_5TC2FY6GRR01B7ZQDSPXKCTJ3M","fingerprint":"fp1_3008a7520977e5b57eb54a9b564baaee","stack":["Error: project 97a1841e-bb6f-46c5-afcd-34e9e4bf6153 abbreviation is missing","    at decodeProjectAbbreviation (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at capture (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:143:21)","    at <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/service/project-address-search.ts:215:33)","    at withSnapshot (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:49:29)","    at async <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/http/project-address.routes.ts:38:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) fails missing abbreviation evidence visibly even outside the discovery match [93.11ms]
+(pass) viewer can discover a restricted project and leaf steps belong to that project [90.60ms]
+(pass) legacy authority keeps duplicate organization codes as separate explicit choices [166.12ms]
+(pass) rejects impossible and malformed endpoint continuation coordinates [93.15ms]
+(pass) rejects present JSON null discovery cursor for token "a" [81.90ms]
+(pass) rejects present JSON null discovery cursor for token "010" [79.52ms]
+(pass) rejects present JSON null discovery cursor for token "" [94.97ms]
+(pass) rejects present JSON null selected project cursor [80.06ms]
+(pass) rejects array cursor scope before current revision checks [94.72ms]
+(pass) rejects array cursor scope before stale revision checks [89.52ms]
+{"level":"error","time":1792628247096,"service":"be-01","err":{"occurrence_id":"AE_YHFHCPQ58H6RKSFZ6SPT7HSWVR","fingerprint":"fp1_2e4c48b628b5d65770836361d5db20de","stack":["Error: malformed project address placement","    at capture (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:170:19)","    at <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/service/project-address-search.ts:215:33)","    at withSnapshot (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:49:29)","    at async <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/http/project-address.routes.ts:38:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) fails malformed frozen placement evidence visibly during mounted candidate lookup [85.85ms]
+
+libs/wbs/domain/contracts/src/http/infrastructure-shapes.test.ts:
+(pass) declares public health JSON and Prometheus text without request input [0.40ms]
+(pass) every GET shape declares the adapter invalid-body refusal as a 400 [1.68ms]
+(pass) health distinguishes ready, migration and dependency states while retaining commit metadata [0.56ms]
+
+ 23 pass
+ 0 fail
+ 175 expect() calls
+Ran 23 tests across 2 files. [4.30s]

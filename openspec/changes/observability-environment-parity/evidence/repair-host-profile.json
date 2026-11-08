@@ -1,0 +1,52 @@
+{
+  "availableBackingBytes": 220938399744,
+  "candidateBackingFits": true,
+  "candidateHostGrossBytes": 141754548224,
+  "candidateInitialRequiredBytes": 195441639424,
+  "cluster4096FactsSatisfied": true,
+  "dataWrite": false,
+  "fullRehearsalAuthorized": false,
+  "guestAuthorized": false,
+  "procOptions": "rw\nbsddf\nnogrpid\nblock_validity\ndioread_nolock\nnodiscard\ndelalloc\nnowarn_on_error\njournal_checksum\nbarrier\nauto_da_alloc\nuser_xattr\nacl\nnoquota\nresuid=0\nresgid=0\nerrors=remount-ro\ncommit=5\nmin_batch_time=0\nmax_batch_time=15000\ni_version\nstripe=0\ndata=ordered\ninode_readahead_blks=32\ninit_itable=10\nmax_dir_size_kb=0\nprefetch_block_bitmaps",
+  "procOptionsSha256": "b277e6fbbab23bf8388b53ed3eedf1ec2755cf7ab9ed1c5d54d035b98e959f03",
+  "profile": {
+    "dataMode": "data=ordered",
+    "delalloc": true,
+    "dioreadNolock": true,
+    "inodeExtentsOnly": true
+  },
+  "rawFlags": {
+    "contentRead": false,
+    "device": "66307",
+    "flags": 524288,
+    "inode": "21891946",
+    "metadataUnchanged": true,
+    "rawWrite": false
+  },
+  "recordedNs": "1793848217402963800",
+  "repairAuthorized": false,
+  "schemaVersion": 1,
+  "scope": "read-only-repair-host-qualification",
+  "selectedMount": {
+    "device": "259:3",
+    "filesystem": "ext4",
+    "mount": "/",
+    "options": "rw,noatime",
+    "root": "/",
+    "source": "/dev/nvme0n1p3",
+    "superOptions": "rw,errors=remount-ro"
+  },
+  "unchangedInitialBackingFloorBytes": 53687091200,
+  "witness": {
+    "allocatedBytes": 4096,
+    "blockBytes": 4096,
+    "bytes": 79,
+    "device": "66307",
+    "fragmentBytes": 4096,
+    "inode": "21892480",
+    "inodeFlags": 524288,
+    "path": "/home/df/.codex/worktrees/aa39/puni-00/.puni/fleet-labs/observability-baseline/guest-request-7fed3c66307751937d0d354a22d44da1/request.sha256",
+    "readOnlyOpen": true,
+    "unchanged": true
+  }
+}

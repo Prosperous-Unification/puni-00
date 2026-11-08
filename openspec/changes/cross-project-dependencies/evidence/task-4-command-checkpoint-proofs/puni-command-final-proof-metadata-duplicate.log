@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+227 |   const message = defect === 'missing-from' ? 'journal external revisions are malformed'
+228 |     : defect === 'non-list' ? 'journal external revisions are not a list'
+229 |     : defect === 'invalid-revision' ? 'journal external revision is malformed'
+230 |     : defect === 'duplicate' ? 'journal external revisions contain a duplicate'
+231 |     : 'journal external revision coverage is not exact';
+232 |   expect(failure instanceof Error ? failure.message : failure).toBe(message);
+                                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: "journal external revisions contain a duplicate"
+Received: "journal external revision coverage is not exact"
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:232:64)
+(fail) real SQLite replay refuses duplicate trusted external metadata without partial effects [404.06ms]
+
+ 0 pass
+ 53 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [2.47s]

@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/service-kinds.test.ts:
+(pass) a file that declares its kind by suffix owes no policy entry, wherever it lives [22.33ms]
+(pass) candidates are the non-test TypeScript files under the roots and nothing else [15.07ms]
+(pass) a service root that tracks nothing is refused, not read as an empty inventory [10.60ms]
+(pass) a workspace Git cannot read is refused, not read as an empty inventory [1.76ms]
+(pass) an absent policy is refused, naming the file [0.61ms]
+(pass) an unreadable policy is refused, naming the file [0.47ms]
+(pass) a policy that is not JSON is refused, naming the file [0.51ms]
+(pass) a policy that fails the schema is refused with the failing field [1.87ms]
+(pass) a policy that classifies one path twice is refused, naming the path [0.72ms]
+(pass) a well-formed policy at the same fixture location is read, not refused [0.37ms]
+(pass) an empty policy is well formed, so the inventory comparison is what catches it [0.29ms]
+(pass) a kind asserted without the field that makes it checkable is named [0.10ms]
+(pass) every entry but a re-export shim owes a written rationale [0.08ms]
+(pass) every backend service file with no kind suffix is classified exactly once [19.99ms]
+(pass) each kind carries the field that keeps it honest [0.51ms]
+(pass) every entry that is not a re-export shim states its rationale [0.34ms]
+(pass) no entry classifies a file that already declares its kind by suffix [0.40ms]
+
+ 17 pass
+ 0 fail
+ 19 expect() calls
+Ran 17 tests across 1 file. [251.00ms]

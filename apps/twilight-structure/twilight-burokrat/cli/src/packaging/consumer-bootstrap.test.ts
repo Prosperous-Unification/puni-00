@@ -30,7 +30,7 @@ const workspace = resolve(import.meta.dir, '../../../../../..');
 const bootstrapSource = join(workspace, 'infra/ci/burokrat');
 const trustedWorkflow = join(workspace, '.github/workflows/trusted-wiki.yml');
 const compatibilityRoute = join(workspace, 'bin/tool-wiki-package-lint.sh');
-const packedTarball = join(workspace, 'dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz');
+const packedTarball = join(workspace, 'dist/twilight-burokrat-pack/twilight-burokrat-0.2.0.tgz');
 const scratchRoots: string[] = [];
 
 function scratch(prefix: string): string {
@@ -73,12 +73,12 @@ interface Registry {
   stop: () => void;
 }
 
-/** A minimal npm registry serving one tarball as `twilight-burokrat@0.1.0`. */
+/** A minimal npm registry serving one tarball as `twilight-burokrat@0.2.0`. */
 function serveRegistry(tarball: string): Registry {
   const bytes = readFileSync(tarball);
   const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
   const requests: string[] = [];
-  const tarballPath = '/twilight-burokrat/-/twilight-burokrat-0.1.0.tgz';
+  const tarballPath = '/twilight-burokrat/-/twilight-burokrat-0.2.0.tgz';
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
@@ -88,11 +88,11 @@ function serveRegistry(tarball: string): Registry {
       if (path === '/twilight-burokrat') {
         return Response.json({
           name: 'twilight-burokrat',
-          'dist-tags': { latest: '0.1.0' },
+          'dist-tags': { latest: '0.2.0' },
           versions: {
-            '0.1.0': {
+            '0.2.0': {
               name: 'twilight-burokrat',
-              version: '0.1.0',
+              version: '0.2.0',
               bin: { 'twilight-burokrat': 'dist/bin.mjs' },
               dist: {
                 tarball: new URL(tarballPath, request.url).href,
@@ -294,7 +294,7 @@ async function packHostileTarball(sentinels: string): Promise<string> {
     join(source, 'package.json'),
     `${JSON.stringify({
       name: 'twilight-burokrat',
-      version: '0.1.0',
+      version: '0.2.0',
       bin: { 'twilight-burokrat': 'dist/bin.mjs' },
       scripts: {
         preinstall: touch('hostile-package-preinstall'),
@@ -313,7 +313,7 @@ async function packHostileTarball(sentinels: string): Promise<string> {
     plainEnvironment(source),
   );
   expect(packed.exitCode, packed.stderr).toBe(0);
-  return join(destination, 'twilight-burokrat-0.1.0.tgz');
+  return join(destination, 'twilight-burokrat-0.2.0.tgz');
 }
 
 let registry: Registry;
@@ -340,7 +340,7 @@ beforeAll(async () => {
   const hostilePin = scratch('twilight-burokrat-hostile-pin-');
   write(
     join(hostilePin, 'package.json'),
-    `${JSON.stringify({ name: 'hostile', private: true, dependencies: { 'twilight-burokrat': '0.1.0' } })}\n`,
+    `${JSON.stringify({ name: 'hostile', private: true, dependencies: { 'twilight-burokrat': '0.2.0' } })}\n`,
   );
   await pinLock(hostilePin, hostileRegistry.url);
   hostileLock = join(hostilePin, 'bun.lock');
@@ -432,7 +432,7 @@ function writeHostileInstallInputs(root: string, label: string): void {
     `${JSON.stringify({
       name: 'hostile',
       private: true,
-      dependencies: { 'twilight-burokrat': '0.1.0' },
+      dependencies: { 'twilight-burokrat': '0.2.0' },
       trustedDependencies: ['twilight-burokrat'],
       scripts: { preinstall: touch('preinstall'), postinstall: touch('postinstall') },
     })}\n`,
@@ -605,7 +605,7 @@ describe('package-backed trusted admission', () => {
     const bootstrap = await runWorkflowStep(runner, 'Bootstrap trusted package', {}, {});
     expect(bootstrap.exitCode, bootstrap.stderr).toBe(0);
     expect(runner.outputs.get('route')).toBe('installed-package');
-    expect(runner.outputs.get('package')).toBe('twilight-burokrat@0.1.0');
+    expect(runner.outputs.get('package')).toBe('twilight-burokrat@0.2.0');
     expect(runner.outputs.get('integrity')).toBe(registry.integrity);
     const sha = await checkOutCandidate(runner);
     const verify = await runWorkflowStep(
@@ -635,7 +635,7 @@ describe('package-backed trusted admission', () => {
       sourceSha: sha,
       package: {
         name: 'twilight-burokrat',
-        version: '0.1.0',
+        version: '0.2.0',
         integrity: registry.integrity,
         toolkitIdentity: installedManifest.toolkitIdentity,
       },
@@ -847,7 +847,7 @@ describe('root compatibility route', () => {
   }
 
   test('routes to the installed executable and keeps the inactive and certified states', async () => {
-    const root = routeRoot('0.1.0');
+    const root = routeRoot('0.2.0');
     const installed = await run(
       ['bun', 'install', '--ignore-scripts', '--registry', registry.url],
       root,
@@ -876,7 +876,7 @@ describe('root compatibility route', () => {
   }, 300_000);
 
   test('a root without an exact pin refuses', async () => {
-    for (const pin of [undefined, '^0.1.0']) {
+    for (const pin of [undefined, '^0.2.0']) {
       const root = routeRoot(pin);
       const refused = await run(
         ['bash', join(root, 'bin/tool-wiki-package-lint.sh'), 'working', root, 'HEAD'],
@@ -889,15 +889,15 @@ describe('root compatibility route', () => {
   });
 
   test('a package lint that calls the route again is refused instead of recursing', async () => {
-    const root = routeRoot('0.1.0');
+    const root = routeRoot('0.2.0');
     const counter = join(root, 'depth');
     const packageRoot = join(root, 'node_modules/twilight-burokrat');
-    write(join(packageRoot, 'package.json'), '{"name":"twilight-burokrat","version":"0.1.0"}\n');
+    write(join(packageRoot, 'package.json'), '{"name":"twilight-burokrat","version":"0.2.0"}\n');
     write(
       join(packageRoot, 'dist/bin.mjs'),
       [
         "import { existsSync, readFileSync, writeFileSync } from 'node:fs';",
-        "if (process.argv[2] === '--version') { process.stdout.write('0.1.0\\n'); process.exit(0); }",
+        "if (process.argv[2] === '--version') { process.stdout.write('0.2.0\\n'); process.exit(0); }",
         `const counter = ${JSON.stringify(counter)};`,
         "const depth = existsSync(counter) ? Number(readFileSync(counter, 'utf8')) + 1 : 1;",
         'writeFileSync(counter, String(depth));',

@@ -1,0 +1,155 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+316 |       access,
+317 |     ),
+318 |     runner.undoWithin(fixture.projectId, principal, access),
+319 |     runner.redoWithin(fixture.projectId, principal, access),
+320 |   ])
+321 |     expect(await pending).toEqual({ ok: false, error: 'insufficient_scope' });
+                                ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "error": "insufficient_scope",
+-   "ok": false,
++   "ok": true,
++   "redoable": false,
++   "results": [],
++   "undoable": true,
+  }
+
+- Expected  - 2
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:321:27)
+(fail) direct authenticated runner entries refuse read-only principals before opening any write graph [344.77ms]
+
+# Unhandled error between tests
+-------------------------------
+21 | 	prepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {
+22 | 		let stmt;
+23 | 		try {
+24 | 			stmt = this.client.query(query.sql);
+25 | 		} catch (e) {
+26 | 			throw new DrizzleQueryError(query.sql, query.params, e);
+              ^
+DrizzleQueryError: Failed query: SELECT m.role AS role,
+      c.strategy AS strategy, c.auth0_connection AS auth0Connection, c.login_slug AS loginSlug,
+      p.max_session_seconds AS maxSessionSeconds,
+      p.reauthenticate_after_seconds AS reauthenticateAfterSeconds,
+      l.user_id AS lifecycleUserId, l.opened_at AS openedAt,
+      l.reauthenticated_at AS reauthenticatedAt
+    FROM organization_membership m
+    LEFT JOIN organization_sso_connection c ON c.organization_id = m.organization_id
+      AND c.enforced = 1 AND c.proven_at IS NOT NULL
+    LEFT JOIN organization_session_policy p ON p.organization_id = m.organization_id
+    LEFT JOIN browser_auth_association a ON a.kind = 'oidc' AND a.credential_digest = ?
+    LEFT JOIN browser_auth_lifecycle l ON l.session_digest = a.session_digest
+    WHERE m.organization_id = ? AND m.user_id = ?
+    ORDER BY c.login_slug
+params: ,org-a,88d3ac30-064a-4b38-b254-f7b666b6945e
+  query: "SELECT m.role AS role,\n      c.strategy AS strategy, c.auth0_connection AS auth0Connection, c.login_slug AS loginSlug,\n      p.max_session_seconds AS maxSessionSeconds,\n      p.reauthenticate_after_seconds AS reauthenticateAfterSeconds,\n      l.user_id AS lifecycleUserId, l.opened_at AS openedAt,\n      l.reauthenticated_at AS reauthenticatedAt\n    FROM organization_membership m\n    LEFT JOIN organization_sso_connection c ON c.organization_id = m.organization_id\n      AND c.enforced = 1 AND c.proven_at IS NOT NULL\n    LEFT JOIN organization_session_policy p ON p.organization_id = m.organization_id\n    LEFT JOIN browser_auth_association a ON a.kind = 'oidc' AND a.credential_digest = ?\n    LEFT JOIN browser_auth_lifecycle l ON l.session_digest = a.session_digest\n    WHERE m.organization_id = ? AND m.user_id = ?\n    ORDER BY c.login_slug",
+ params: [
+  null, "org-a", "88d3ac30-064a-4b38-b254-f7b666b6945e"
+],
+
+      at prepareQuery (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)
+      at all (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:330:33)
+      at readAccessFacts (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/organization-access.ts:240:19)
+      at resolve (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/organization-access.ts:140:18)
+      at async resolve (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/command-access.ts:25:47)
+      at async <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:419:40)
+      at async <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/application/core/src/module/plan-commands/composition.ts:109:32)
+      at async <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+
+19 | 		this.client.exec(query);
+20 | 	}
+21 | 	prepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {
+22 | 		let stmt;
+23 | 		try {
+24 | 			stmt = this.client.query(query.sql);
+                           ^
+RangeError: Cannot use a closed database
+      at [prepareOwned] (bun:sqlite:330:37)
+      at query (bun:sqlite:347:31)
+      at prepareQuery (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)
+      at all (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:330:33)
+      at readAccessFacts (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/organization-access.ts:240:19)
+      at resolve (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/organization-access.ts:140:18)
+      at async resolve (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/command-access.ts:25:47)
+      at async <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:419:40)
+      at async <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/application/core/src/module/plan-commands/composition.ts:109:32)
+      at async <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+21 | 	prepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {
+22 | 		let stmt;
+23 | 		try {
+24 | 			stmt = this.client.query(query.sql);
+25 | 		} catch (e) {
+26 | 			throw new DrizzleQueryError(query.sql, query.params, e);
+              ^
+DrizzleQueryError: Failed query: ROLLBACK
+params:
+  query: "ROLLBACK",
+ params: [],
+
+      at prepareQuery (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)
+      at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:323:33)
+      at <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:59:16)
+
+19 | 		this.client.exec(query);
+20 | 	}
+21 | 	prepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {
+22 | 		let stmt;
+23 | 		try {
+24 | 			stmt = this.client.query(query.sql);
+                           ^
+RangeError: Cannot use a closed database
+      at [prepareOwned] (bun:sqlite:330:37)
+      at query (bun:sqlite:347:31)
+      at prepareQuery (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)
+      at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:323:33)
+      at <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:59:16)
+-------------------------------
+
+
+# Unhandled error between tests
+-------------------------------
+21 | 	prepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {
+22 | 		let stmt;
+23 | 		try {
+24 | 			stmt = this.client.query(query.sql);
+25 | 		} catch (e) {
+26 | 			throw new DrizzleQueryError(query.sql, query.params, e);
+              ^
+DrizzleQueryError: Failed query: BEGIN IMMEDIATE
+params:
+  query: "BEGIN IMMEDIATE",
+ params: [],
+
+      at prepareQuery (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)
+      at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:323:33)
+      at <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:42:12)
+
+19 | 		this.client.exec(query);
+20 | 	}
+21 | 	prepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {
+22 | 		let stmt;
+23 | 		try {
+24 | 			stmt = this.client.query(query.sql);
+                           ^
+RangeError: Cannot use a closed database
+      at [prepareOwned] (bun:sqlite:330:37)
+      at query (bun:sqlite:347:31)
+      at prepareQuery (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)
+      at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:323:33)
+      at <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:42:12)
+-------------------------------
+
+
+ 0 pass
+ 60 filtered out
+ 1 fail
+ 2 errors
+ 4 expect() calls
+Ran 1 test across 1 file. [2.60s]

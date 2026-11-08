@@ -1,0 +1,24 @@
+Injected configured-diagnostics; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/caddy-target.test.ts:
+29 |   );
+30 |   expect(project.targets['test'].options.command).toContain(
+31 |     'test/source-exclusion-topology.test.ts',
+32 |   );
+33 |   expect(project.targets['test'].options.command).toContain('test/source-exclusion-native.test.ts');
+34 |   expect(project.targets['test'].options.command).toContain('test/fixture-failure.test.ts');
+                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "test/fixture-failure.test.ts"
+Received: "bun test src test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts test/source-exclusion-transport.test.ts test/source-exclusion-topology.test.ts test/source-exclusion-native.test.ts --preload ../test/scratch/preload.ts --timeout=10000"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/caddy-target.test.ts:34:51)
+(fail) requires real Caddy boundaries in the CI and host test target [0.41ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [33.00ms]

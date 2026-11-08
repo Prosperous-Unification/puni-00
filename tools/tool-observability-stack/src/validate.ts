@@ -3,15 +3,21 @@ import { join } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
+import { parseReviewedDifferences } from './configuration/parity';
+
 export interface ValidationResult {
   file: string;
   ok: boolean;
   error?: string;
 }
 
-async function validateDashboardJson(path: string): Promise<ValidationResult> {
+async function validateJson(path: string): Promise<ValidationResult> {
   try {
     const raw = await readFile(path, 'utf8');
+    if (path.endsWith('/configuration/reviewed-differences.json')) {
+      parseReviewedDifferences(raw);
+      return { file: path, ok: true };
+    }
     const parsed = JSON.parse(raw) as { uid?: unknown; panels?: unknown };
     if (typeof parsed.uid !== 'string') return { file: path, ok: false, error: 'missing uid' };
     if (!Array.isArray(parsed.panels))
@@ -42,7 +48,7 @@ export async function validateTree(rootDir: string): Promise<ValidationResult[]>
         ? (f as { parentPath: string }).parentPath
         : rootDir;
     const full = join(parent, f.name);
-    if (f.name.endsWith('.json')) out.push(await validateDashboardJson(full));
+    if (f.name.endsWith('.json')) out.push(await validateJson(full));
     else if (f.name.endsWith('.yml') || f.name.endsWith('.yaml'))
       out.push(await validateYaml(full));
   }

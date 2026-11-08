@@ -1,0 +1,17 @@
+libs/wbs/application/core/src/service/project-address-search.ts(71,61): error TS2345: Argument of type '{ abbreviation: unknown; projectId: unknown; } | null' is not assignable to parameter of type 'AddressProjectKey | null'.
+  Type '{ abbreviation: unknown; projectId: unknown; }' is not assignable to type 'AddressProjectKey'.
+    Types of property 'abbreviation' are incompatible.
+      Type 'unknown' is not assignable to type 'string'.
+apps/wbs/be-01/src/controller/organization-context.controller.db.test.ts(104,5): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '("deleteApiOrganizationDomainsById" | "deleteApiOrganizationInvitationsById" | "deleteApiOrganizationMembersByUserId" | "deleteApiOrganizationProvisioningTokensById" | ... 110 more ... | "putApiOrganizationSession-policy")[]' is not assignable to parameter of type '("deleteApiOrganizationDomainsById" | "deleteApiOrganizationInvitationsById" | "deleteApiOrganizationMembersByUserId" | "deleteApiOrganizationProvisioningTokensById" | ... 107 more ... | "putApiOrganizationSession-policy")[]'.
+      Type '"deleteApiOrganizationDomainsById" | "deleteApiOrganizationInvitationsById" | "deleteApiOrganizationMembersByUserId" | "deleteApiOrganizationProvisioningTokensById" | ... 110 more ... | "putApiOrganizationSession-policy"' is not assignable to type '"deleteApiOrganizationDomainsById" | "deleteApiOrganizationInvitationsById" | "deleteApiOrganizationMembersByUserId" | "deleteApiOrganizationProvisioningTokensById" | ... 107 more ... | "putApiOrganizationSession-policy"'.
+        Type '"getApiProjectAddressesProjects"' is not assignable to type '"deleteApiOrganizationDomainsById" | "deleteApiOrganizationInvitationsById" | "deleteApiOrganizationMembersByUserId" | "deleteApiOrganizationProvisioningTokensById" | ... 107 more ... | "putApiOrganizationSession-policy"'.
+libs/wbs/application/core/src/service/project-address-search.ts(71,61): error TS2345: Argument of type '{ abbreviation: unknown; projectId: unknown; } | null' is not assignable to parameter of type 'AddressProjectKey | null'.
+  Type '{ abbreviation: unknown; projectId: unknown; }' is not assignable to type 'AddressProjectKey'.
+    Types of property 'abbreviation' are incompatible.
+      Type 'unknown' is not assignable to type 'string'.
+libs/wbs/application/core/src/service/project-address-search.ts(71,61): error TS2345: Argument of type '{ abbreviation: unknown; projectId: unknown; } | null' is not assignable to parameter of type 'AddressProjectKey | null'.
+  Type '{ abbreviation: unknown; projectId: unknown; }' is not assignable to type 'AddressProjectKey'.
+    Types of property 'abbreviation' are incompatible.
+      Type 'unknown' is not assignable to type 'string'.

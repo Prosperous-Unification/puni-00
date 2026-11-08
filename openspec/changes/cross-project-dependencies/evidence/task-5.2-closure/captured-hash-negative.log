@@ -1,0 +1,58 @@
+
+> nx run wbs-fe-01:e2e-cross-project --grep successor-only dated
+
+> bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "successor-only dated"
+
+(node:1545568) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:1546722) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 1 test using 1 worker
+
+(node:1546872) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:445:1 › successor-only dated trees install the upstream estimate revision (10.9s)
+
+
+  1) apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:445:1 › successor-only dated trees install the upstream estimate revision
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      526 |     );
+      527 |     expect(committed.status(), await committed.text()).toBe(200);
+    > 528 |     await expect.poll(() => captured).toBe(true);
+          |                                       ^
+      529 |     await expect(first.page.locator('[data-start]').first()).toHaveText('8 Sep');
+      530 |     await expect(first.page.locator('[data-finish]').first()).toHaveText('8 Sep');
+      531 |     await expect(first.page.locator('body')).toHaveAttribute(
+        at /home/df/wd/puni/puni-00/.worktrees/task52-date-refresh/apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:528:39
+
+    Error Context: test-results/cross-project-refresh.real-8cd0d--upstream-estimate-revision/error-context.md
+
+  1 failed
+    apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:445:1 › successor-only dated trees install the upstream estimate revision
+Warning: command "bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "successor-only dated"" exited with non-zero status code
+
+
+ NX   Running target e2e-cross-project for project wbs-fe-01 failed
+
+Failed tasks:
+
+- wbs-fe-01:e2e-cross-project
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      19.4s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     19.4s (1 task)
+  Recoverable time:  <1ms

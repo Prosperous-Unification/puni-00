@@ -1,0 +1,73 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+76 |   };
+77 | }
+78 |
+79 | test('solver command remaps the verified inherited lock to child FD3 through the real child path', async () => {
+80 |   const host = await fixture();
+81 |   expect(await host.run()).toMatchObject({ code: 0 });
+                                ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "code": 0,
++   "code": 1,
++   "output":
++ "2 | import { runSolverBindingCommand } from "/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts";
++ 3 | const outcome = await runSolverBindingCommand({ cwd: "/tmp/solver-edge-command-Hj5sL6", argv: [process.execPath, "/tmp/solver-edge-command-Hj5sL6/child.ts"], env: { WBS_EDGE_LOCK_FD: 'forged', WBS_EDGE_STATE: '/wrong' }, edgeLock: 'inherit' });
++                                           ^
++ error: 145 |  * Proof: skipping this call failed two forged-descriptor and one independent-open
++ 146 |  * production CLI negative; inheriting the actual locked description stayed admitted.
++ 147 |  */
++ 148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {
++ 149 |   const inherited = fstatSync(descriptor);
++ 150 |   const expected = statSync(lockPath);
++                          ^
++ ENOENT: no such file or directory, stat '/wrong/edge.lock'
++     path: "/wrong/edge.lock",
++  syscall: "stat",
++    errno: -2,
++     code: "ENOENT"
++
++       at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:150:20)
++       at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)
++       at /tmp/solver-edge-command-Hj5sL6/child.ts:3:7
++
++ Bun v1.4.2 (Linux x64)
++
++       at /tmp/solver-edge-command-Hj5sL6/launcher.ts:3:39
++
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
+  }
+
+- Expected  - 1
++ Received  + 29
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:81:28)
+(fail) solver command remaps the verified inherited lock to child FD3 through the real child path [43.95ms]
+(pass) missing inherited descriptor refuses before launching solver command [23.62ms]
+(pass) invalid inherited descriptor refuses before launching solver command [24.06ms]
+(pass) foreign inherited descriptor refuses before launching solver command [25.26ms]
+(pass) independent inherited descriptor refuses before launching solver command [22.53ms]
+(pass) unsafe inherited descriptor refuses before launching solver command [22.08ms]
+(pass) edge-owner.json malformed refuses inherited solver command [22.40ms]
+(pass) edge-owner.json unreadable refuses inherited solver command [24.63ms]
+(pass) edge-owner.json directory refuses inherited solver command [25.75ms]
+(pass) edge-owner.json dangling refuses inherited solver command [23.19ms]
+(pass) edge-owner.pending malformed refuses inherited solver command [21.89ms]
+(pass) edge-owner.pending unreadable refuses inherited solver command [22.65ms]
+(pass) edge-owner.pending directory refuses inherited solver command [34.32ms]
+(pass) edge-owner.pending dangling refuses inherited solver command [21.95ms]
+(pass) symlink canonical state refuses verified solver command [23.02ms]
+(pass) symlink canonical lock refuses verified solver command [26.31ms]
+(pass) missing canonical state refuses before child launch [25.74ms]
+(pass) directory canonical state refuses before child launch [27.30ms]
+(pass) unreadable canonical state refuses before child launch [28.11ms]
+
+ 18 pass
+ 1 fail
+ 68 expect() calls
+Ran 19 tests across 1 file. [519.00ms]

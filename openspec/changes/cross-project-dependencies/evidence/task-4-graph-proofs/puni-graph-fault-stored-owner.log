@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+238 | });
+239 |
+240 | it('rejects malformed owner, unrelated incident rows and conflicting stored identities', async () => {
+241 |   const owner = observation();
+242 |   owner.relationships.push({ ...link('bad', 'b', 'a'), projectId: 'b' });
+243 |   await expect(owner.reader.read(['a'])).rejects.toThrow(/owner.*bad/);
+                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:243:50)
+(fail) rejects malformed owner, unrelated incident rows and conflicting stored identities [1.61ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [133.00ms]

@@ -69,7 +69,7 @@ describe('buildPackage', () => {
     const packageManifest = JSON.parse(
       await readFile(join(packageRoot, 'dist/package-manifest.json'), 'utf8'),
     ) as Record<string, unknown>;
-    expect(packageManifest).toMatchObject({ packageVersion: '0.1.0', schemaVersion: 1 });
+    expect(packageManifest).toMatchObject({ packageVersion: '0.2.0', schemaVersion: 1 });
     expect(packageManifest['sourceRevision']).toMatch(/^[0-9a-f]{40}$/);
     expect(packageManifest['toolkitIdentity']).toMatch(/^[0-9a-f]{64}$/);
     expect(packageManifest['toolkitIdentity']).toBe(
@@ -83,7 +83,7 @@ describe('buildPackage', () => {
 
     const version = invoke(executable, ['--version'], externalRoot);
     expect(version.exitCode, version.stderr.toString()).toBe(0);
-    expect(version.stdout.toString()).toBe('0.1.0\n');
+    expect(version.stdout.toString()).toBe('0.2.0\n');
 
     const unknown = invoke(executable, ['not-a-command'], externalRoot);
     expect(unknown.exitCode).not.toBe(0);
@@ -410,7 +410,7 @@ describe('buildPackage', () => {
     );
 
     await buildPackage(packageRoot);
-    expect(invoke(executable, ['--version'], externalRoot).stdout.toString()).toBe('0.1.0\n');
+    expect(invoke(executable, ['--version'], externalRoot).stdout.toString()).toBe('0.2.0\n');
     // Proof: under the 20-second limit this test took 19458.92ms in the h2puni gate on fd0a777c
     // and timed out at 20039.60ms in the gate on d748f1a7 (2026-09-20), after the rule model added
     // five runs of the built binary to its two builds. A limit a loaded host reaches is a gate

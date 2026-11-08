@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-command-access.controller.db.test.ts:
+183 |         const links = readLinks(fixture);
+184 |         const sent = [...pushes];
+185 |         release();
+186 |         await held;
+187 |         const response = await pending;
+188 |         expect(response.status).toBe(403);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-successor-edit-revalidation/apps/wbs/be-01/src/controller/cross-project-dependency-command-access.controller.db.test.ts:188:33)
+(fail) active mounted queued external add revalidates successor edit access [741.26ms]
+183 |         const links = readLinks(fixture);
+184 |         const sent = [...pushes];
+185 |         release();
+186 |         await held;
+187 |         const response = await pending;
+188 |         expect(response.status).toBe(403);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-successor-edit-revalidation/apps/wbs/be-01/src/controller/cross-project-dependency-command-access.controller.db.test.ts:188:33)
+(fail) active mounted queued external update revalidates successor edit access [629.18ms]
+183 |         const links = readLinks(fixture);
+184 |         const sent = [...pushes];
+185 |         release();
+186 |         await held;
+187 |         const response = await pending;
+188 |         expect(response.status).toBe(403);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-successor-edit-revalidation/apps/wbs/be-01/src/controller/cross-project-dependency-command-access.controller.db.test.ts:188:33)
+(fail) active mounted queued external remove revalidates successor edit access [615.64ms]
+
+ 0 pass
+ 3 fail
+ 76 expect() calls
+Ran 3 tests across 1 file. [5.04s]
+
+Exit: 1

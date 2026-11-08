@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+253 |   const sqlite = openDatabase(path);
+254 |   try {
+255 |     sqlite.run('DROP TRIGGER external_dependency_cross_identity_insert');
+256 |     sqlite.run("INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('external','org','a','b','a','whole','b','whole','FS')");
+257 |   } finally { sqlite.close(); }
+258 |   expect(await rejection(repository().listByProject('b'))).toContain('duplicate unified dependency');
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "duplicate unified dependency"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:258:60)
+(fail) refuses a duplicated physical identity instead of deduplicating corrupt rows [128.28ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.38s]

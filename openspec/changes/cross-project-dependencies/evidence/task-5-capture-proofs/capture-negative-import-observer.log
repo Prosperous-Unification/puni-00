@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/import-performance.db.test.ts:
+158 |     // One project, bands, capacity, marker, team patch, person insert and subtree
+159 |     // transaction, 500 label patches, and the response tree's unified typed read:
+160 |     // 8 + 500 wrappers. Stack/boundary diagnostics observed the last read before COMMIT.
+161 |     // Proof: omitting the native transaction observer reported 0 instead of 508,
+162 |     // hiding its 1,016 SAVEPOINT/RELEASE controls from the admitted total.
+163 |     expect(nativeTransactions).toBe(508);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 508
+Received: 0
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/import-performance.db.test.ts:163:32)
+(fail) measures preparation and admitted SQLite work separately for exactly 500 rows [386.28ms]
+
+ 0 pass
+ 1 fail
+ 13 expect() calls
+Ran 1 test across 1 file. [2.46s]

@@ -1,0 +1,120 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:
+650 |     const compared = await as(
+651 |       tokens['ada'],
+652 |       `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=current`,
+653 |     );
+654 |     expect(compared.status).toBe(501);
+655 |     expect(await compared.json()).toEqual({
+                                        ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": "input",
+    "error": "unsupported_body_version",
+    "savedPlanId": "sp-1",
+    "supported": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
++     9,
+    ],
+    "version": 9999,
+  }
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:655:35)
+(fail) the saved-plan routes > refuses a plan written by a newer node instead of crashing on it [2253.18ms]
+(pass) the saved-plan routes > the permission matrix > unrestricted: anonymous against all six routes [1461.34ms]
+(pass) the saved-plan routes > the permission matrix > unrestricted: owner against all six routes [1700.06ms]
+(pass) the saved-plan routes > the permission matrix > unrestricted: ada against all six routes [1265.94ms]
+(pass) the saved-plan routes > the permission matrix > unrestricted: mallory against all six routes [1077.62ms]
+{"level":"error","time":1792689519165,"service":"be-01","err":{"occurrence_id":"AE_52FFGF020EXERPSFVS24FRHV2F","fingerprint":"fp1_e50167304e520e9d4fa54ebc8d15c031","stack":["Error: the counting unit of work has no stores; something asked it for typedDependencies","    at get (/tmp/puni-saved-resource/libs/wbs/application/core/src/testing/writes-fixture.ts:52:19)","    at createDependencyContext (/tmp/puni-saved-resource/libs/wbs/application/core/src/service/dependency-context.ts:41:32)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/composition.ts:264:30)","    at async run (/tmp/puni-saved-resource/libs/wbs/application/core/src/testing/writes-fixture.ts:64:26)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/composition.ts:210:38)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/admitted-write.ts:56:47)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/http/project.routes.ts:341:40)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+795 |           if (column === 'restricted') {
+796 |             const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
+797 |               method: 'PATCH',
+798 |               body: JSON.stringify({ restricted: true }),
+799 |             });
+800 |             expect(restricted.status).toBe(200);
+                                            ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:800:39)
+(fail) the saved-plan routes > the permission matrix > restricted: anonymous against all six routes [1010.16ms]
+{"level":"error","time":1792689519798,"service":"be-01","err":{"occurrence_id":"AE_C4244V66KDAKVHEMJBPZ5DV13P","fingerprint":"fp1_e50167304e520e9d4fa54ebc8d15c031","stack":["Error: the counting unit of work has no stores; something asked it for typedDependencies","    at get (/tmp/puni-saved-resource/libs/wbs/application/core/src/testing/writes-fixture.ts:52:19)","    at createDependencyContext (/tmp/puni-saved-resource/libs/wbs/application/core/src/service/dependency-context.ts:41:32)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/composition.ts:264:30)","    at async run (/tmp/puni-saved-resource/libs/wbs/application/core/src/testing/writes-fixture.ts:64:26)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/composition.ts:210:38)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/admitted-write.ts:56:47)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/http/project.routes.ts:341:40)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+795 |           if (column === 'restricted') {
+796 |             const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
+797 |               method: 'PATCH',
+798 |               body: JSON.stringify({ restricted: true }),
+799 |             });
+800 |             expect(restricted.status).toBe(200);
+                                            ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:800:39)
+(fail) the saved-plan routes > the permission matrix > restricted: owner against all six routes [631.60ms]
+{"level":"error","time":1792689520623,"service":"be-01","err":{"occurrence_id":"AE_4DFWK4A5G7BGSER20NG0QM4D50","fingerprint":"fp1_e50167304e520e9d4fa54ebc8d15c031","stack":["Error: the counting unit of work has no stores; something asked it for typedDependencies","    at get (/tmp/puni-saved-resource/libs/wbs/application/core/src/testing/writes-fixture.ts:52:19)","    at createDependencyContext (/tmp/puni-saved-resource/libs/wbs/application/core/src/service/dependency-context.ts:41:32)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/composition.ts:264:30)","    at async run (/tmp/puni-saved-resource/libs/wbs/application/core/src/testing/writes-fixture.ts:64:26)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/composition.ts:210:38)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/admitted-write.ts:56:47)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/http/project.routes.ts:341:40)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+795 |           if (column === 'restricted') {
+796 |             const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
+797 |               method: 'PATCH',
+798 |               body: JSON.stringify({ restricted: true }),
+799 |             });
+800 |             expect(restricted.status).toBe(200);
+                                            ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:800:39)
+(fail) the saved-plan routes > the permission matrix > restricted: ada against all six routes [825.20ms]
+{"level":"error","time":1792689521731,"service":"be-01","err":{"occurrence_id":"AE_SEVNE3K86BKG06S3BJMBX53K7V","fingerprint":"fp1_e50167304e520e9d4fa54ebc8d15c031","stack":["Error: the counting unit of work has no stores; something asked it for typedDependencies","    at get (/tmp/puni-saved-resource/libs/wbs/application/core/src/testing/writes-fixture.ts:52:19)","    at createDependencyContext (/tmp/puni-saved-resource/libs/wbs/application/core/src/service/dependency-context.ts:41:32)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/composition.ts:264:30)","    at async run (/tmp/puni-saved-resource/libs/wbs/application/core/src/testing/writes-fixture.ts:64:26)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/composition.ts:210:38)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/admitted-write.ts:56:47)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/http/project.routes.ts:341:40)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+795 |           if (column === 'restricted') {
+796 |             const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
+797 |               method: 'PATCH',
+798 |               body: JSON.stringify({ restricted: true }),
+799 |             });
+800 |             expect(restricted.status).toBe(200);
+                                            ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:800:39)
+(fail) the saved-plan routes > the permission matrix > restricted: mallory against all six routes [1107.96ms]
+{"level":"error","time":1792689522440,"service":"be-01","err":{"occurrence_id":"AE_JZH8VC72T6FA8BAN77HG3JFN4D","fingerprint":"fp1_e50167304e520e9d4fa54ebc8d15c031","stack":["Error: the counting unit of work has no stores; something asked it for typedDependencies","    at get (/tmp/puni-saved-resource/libs/wbs/application/core/src/testing/writes-fixture.ts:52:19)","    at createDependencyContext (/tmp/puni-saved-resource/libs/wbs/application/core/src/service/dependency-context.ts:41:32)","    at <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/composition.ts:264:30)","    at async run (/tmp/puni-saved-resource/libs/wbs/application/core/src/testing/writes-fixture.ts:64:26)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/composition.ts:210:38)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/module/plan-commands/admitted-write.ts:56:47)","    at async <anonymous> (/tmp/puni-saved-resource/libs/wbs/application/core/src/http/project.routes.ts:341:40)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+881 |     it('says nothing when the save is refused', async () => {
+882 |       const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
+883 |         method: 'PATCH',
+884 |         body: JSON.stringify({ restricted: true }),
+885 |       });
+886 |       expect(restricted.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:886:33)
+(fail) the saved-plan routes > the broadcast > says nothing when the save is refused [709.06ms]
+
+ 4 pass
+ 34 filtered out
+ 6 fail
+ 11 expect() calls
+Ran 10 tests across 1 file. [34.25s]

@@ -1,0 +1,192 @@
+{
+  "project": "gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3",
+  "root": "/tmp/gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-OOdC1o",
+  "network": "gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-net",
+  "image": "docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+  "sha": "8abd0e98db8e3e9906d82b40598a0bed3d2da91b",
+  "observations": [
+    {
+      "label": "no-init-prepublication-refusal",
+      "proof": {
+        "id": "e5a2b3e7f764673cb72c9efda22c4211aa4d09f18a6e3a2afb643ea2683c706b",
+        "files": ["deploy.lock"]
+      }
+    },
+    {
+      "label": "live-processes-and-stubborn-child",
+      "proof": {
+        "topology": "PID                 PPID                COMMAND\n310137              310112              /sbin/docker-init -- bun /probe.ts parent\n310205              310137              bun /probe.ts parent\n310215              310205              /usr/local/bin/bun /probe.ts child\n",
+        "id": "7df608ed8ef005f2d19f4bf5652ac7d2cfb0bac93387add2874b94d77e709817",
+        "parent": {
+          "role": "parent",
+          "pid": 7,
+          "ppid": 1,
+          "start": "34527082",
+          "nonce": "50afe484-3226-4a5c-874d-f6202293a072"
+        },
+        "child": {
+          "role": "child",
+          "pid": 10,
+          "ppid": 7,
+          "start": "34527083",
+          "nonce": "50afe484-3226-4a5c-874d-f6202293a072"
+        }
+      }
+    },
+    {
+      "label": "live-processes-and-stubborn-child",
+      "proof": {
+        "topology": "PID                 PPID                COMMAND\n310297              310270              /sbin/docker-init -- bun /probe.ts parent\n310411              310297              bun /probe.ts parent\n310440              310411              /usr/local/bin/bun /probe.ts child\n",
+        "id": "1bfeffe3e24971b543055c5291f46c61700507a331b82b06ca4b1af65681ccd4",
+        "parent": {
+          "role": "parent",
+          "pid": 7,
+          "ppid": 1,
+          "start": "34527101",
+          "nonce": "361a3093-5346-4160-b5da-ac6e3f831738"
+        },
+        "child": {
+          "role": "child",
+          "pid": 10,
+          "ppid": 7,
+          "start": "34527101",
+          "nonce": "361a3093-5346-4160-b5da-ac6e3f831738"
+        }
+      }
+    },
+    {
+      "label": "host-process-identities-gone",
+      "proof": [
+        {
+          "pid": "310137",
+          "start": "34527071"
+        },
+        {
+          "pid": "310205",
+          "start": "34527082"
+        },
+        {
+          "pid": "310215",
+          "start": "34527083"
+        },
+        {
+          "pid": "310297",
+          "start": "34527092"
+        },
+        {
+          "pid": "310411",
+          "start": "34527101"
+        },
+        {
+          "pid": "310440",
+          "start": "34527101"
+        }
+      ]
+    },
+    {
+      "label": "physical-exclusion",
+      "proof": {
+        "completion": {
+          "format": "dependency-gateway-complete",
+          "version": 1,
+          "attempt": "4c50643c-2e6f-494e-b67a-1d412ab84538",
+          "intentSha256": "49810bd215fd6a39a3b623aa8e398f2f707b6f033b7ec1dabb4744f2f58ac58d",
+          "cohort": {
+            "blue": {
+              "id": "7df608ed8ef005f2d19f4bf5652ac7d2cfb0bac93387add2874b94d77e709817",
+              "name": "/gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-gw-01-blue",
+              "image": "sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+              "imageRef": "docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+              "service": "gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-gw-01-blue",
+              "project": "gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3",
+              "network": "gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-net",
+              "networkId": "b197a15b3b53bd94b432829945e7dadcb92db52d63b696b786bba0d61f17b983",
+              "restartPolicy": {
+                "name": "no",
+                "maximumRetryCount": 0
+              },
+              "restartCount": 0,
+              "state": {
+                "running": false,
+                "paused": false,
+                "restarting": false,
+                "dead": false,
+                "oomKilled": false,
+                "pid": 0,
+                "status": "exited",
+                "startedAt": "2026-10-23T09:24:11.371594055Z",
+                "finishedAt": "2026-10-23T09:24:12.457415537Z",
+                "exitCode": 143,
+                "error": ""
+              }
+            },
+            "green": {
+              "id": "1bfeffe3e24971b543055c5291f46c61700507a331b82b06ca4b1af65681ccd4",
+              "name": "/gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-gw-01-green",
+              "image": "sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+              "imageRef": "docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+              "service": "gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-gw-01-green",
+              "project": "gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3",
+              "network": "gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-net",
+              "networkId": "b197a15b3b53bd94b432829945e7dadcb92db52d63b696b786bba0d61f17b983",
+              "restartPolicy": {
+                "name": "no",
+                "maximumRetryCount": 0
+              },
+              "restartCount": 0,
+              "state": {
+                "running": false,
+                "paused": false,
+                "restarting": false,
+                "dead": false,
+                "oomKilled": false,
+                "pid": 0,
+                "status": "exited",
+                "startedAt": "2026-10-23T09:24:11.594562872Z",
+                "finishedAt": "2026-10-23T09:24:12.819075471Z",
+                "exitCode": 143,
+                "error": ""
+              }
+            }
+          }
+        },
+        "intent": "{\"format\":\"dependency-gateway-intent\",\"version\":1,\"attempt\":\"4c50643c-2e6f-494e-b67a-1d412ab84538\",\"environment\":\"prod\",\"root\":\"/tmp/gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-OOdC1o\",\"network\":\"gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-net\",\"sha\":\"8abd0e98db8e3e9906d82b40598a0bed3d2da91b\",\"cohort\":{\"blue\":{\"id\":\"7df608ed8ef005f2d19f4bf5652ac7d2cfb0bac93387add2874b94d77e709817\",\"name\":\"/gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-gw-01-blue\",\"image\":\"sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4\",\"imageRef\":\"docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4\",\"service\":\"gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-gw-01-blue\",\"project\":\"gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3\",\"network\":\"gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-net\",\"networkId\":\"b197a15b3b53bd94b432829945e7dadcb92db52d63b696b786bba0d61f17b983\",\"restartPolicy\":{\"name\":\"always\",\"maximumRetryCount\":0},\"restartCount\":0,\"state\":{\"running\":true,\"paused\":false,\"restarting\":false,\"dead\":false,\"oomKilled\":false,\"pid\":310137,\"status\":\"running\",\"startedAt\":\"2026-10-23T09:24:11.371594055Z\",\"finishedAt\":\"0001-01-01T00:00:00Z\",\"exitCode\":0,\"error\":\"\"}},\"green\":{\"id\":\"1bfeffe3e24971b543055c5291f46c61700507a331b82b06ca4b1af65681ccd4\",\"name\":\"/gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-gw-01-green\",\"image\":\"sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4\",\"imageRef\":\"docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4\",\"service\":\"gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-gw-01-green\",\"project\":\"gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3\",\"network\":\"gateway-proof-51d1dcc6-37df-434e-ad05-cd064c5432e3-net\",\"networkId\":\"b197a15b3b53bd94b432829945e7dadcb92db52d63b696b786bba0d61f17b983\",\"restartPolicy\":{\"name\":\"always\",\"maximumRetryCount\":0},\"restartCount\":0,\"state\":{\"running\":true,\"paused\":false,\"restarting\":false,\"dead\":false,\"oomKilled\":false,\"pid\":310297,\"status\":\"running\",\"startedAt\":\"2026-10-23T09:24:11.594562872Z\",\"finishedAt\":\"0001-01-01T00:00:00Z\",\"exitCode\":0,\"error\":\"\"}}}}\n",
+        "closedSessions": 6,
+        "refusedFreshChallenges": 4,
+        "bystander": "d05b06c8c87e5932ebac933a18d2f58642e3a79f7448ccd77c6f620fc6c6baff"
+      }
+    },
+    {
+      "label": "external-restart-refused",
+      "proof": {
+        "id": "7df608ed8ef005f2d19f4bf5652ac7d2cfb0bac93387add2874b94d77e709817"
+      }
+    },
+    {
+      "label": "empty-cohort",
+      "proof": {
+        "format": "dependency-gateway-complete",
+        "version": 1,
+        "attempt": "b3cb4e76-f3ed-46ac-a8f8-102caaf219f6",
+        "intentSha256": "a5c1a67451ee9ef29519dc02dbd5ec43408ce2460be6bac11cfcd2ad550e1cc3",
+        "cohort": {
+          "blue": null,
+          "green": null
+        }
+      }
+    },
+    {
+      "label": "cleanup",
+      "proof": {
+        "ids": [
+          "d05b06c8c87e5932ebac933a18d2f58642e3a79f7448ccd77c6f620fc6c6baff",
+          "7df608ed8ef005f2d19f4bf5652ac7d2cfb0bac93387add2874b94d77e709817",
+          "1bfeffe3e24971b543055c5291f46c61700507a331b82b06ca4b1af65681ccd4"
+        ],
+        "networkId": "b197a15b3b53bd94b432829945e7dadcb92db52d63b696b786bba0d61f17b983",
+        "complete": true
+      }
+    }
+  ],
+  "cleanupFailures": []
+}

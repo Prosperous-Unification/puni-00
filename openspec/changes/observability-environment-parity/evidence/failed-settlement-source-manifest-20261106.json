@@ -1,0 +1,212 @@
+{
+  "baseline": "4c0a1aef699806e9a3b870dde7a5cda0ef7038ad",
+  "captureContract": {
+    "_REPAIR_SOURCES_BYTES": 786432,
+    "_REPAIR_SOURCE_BYTES": 131072,
+    "_REPAIR_SOURCE_NAMES": [
+      "lab-raw-repair.py",
+      "lab-raw-preparation.py",
+      "lab-repair-worker.py",
+      "lab-seed-preparation.py",
+      "lab-guest-preparation.py",
+      "lab-raw-allocation.py"
+    ]
+  },
+  "files": {
+    "lab-failed-settlement-source.test.ts": {
+      "allocatedBytes": 12288,
+      "bytes": 12202,
+      "sha256": "a13155f9f5fc1b7921aea2cb4dcc62305b45f2fddda17ba3c96056454a01899b"
+    },
+    "lab-failed-settlement.test.ts": {
+      "allocatedBytes": 53248,
+      "bytes": 52780,
+      "sha256": "263b116c6ade1bbccb88dc3e805f779cba1a4b8e5cd56c7db8bd5bef5231a15f"
+    },
+    "lab-guest-preparation.py": {
+      "allocatedBytes": 81920,
+      "bytes": 80680,
+      "sha256": "6d180f9c1d2cd116ef314215a75c88774789d29daa882f81fbbf06a2e9263f2c"
+    },
+    "lab-raw-preparation.py": {
+      "allocatedBytes": 57344,
+      "bytes": 55284,
+      "sha256": "3e78d2ea8aecced76bd82ea07fb006ce99a1b2212fec15fb805a8e8f7b27e8e8"
+    },
+    "lab-raw-repair-cli.ts": {
+      "allocatedBytes": 4096,
+      "bytes": 1531,
+      "sha256": "3660a9a36600a84e553deee32f2c745a96ba59f352058a3d8c8cfde6311f1c4a"
+    },
+    "lab-raw-repair.py": {
+      "allocatedBytes": 114688,
+      "bytes": 114265,
+      "sha256": "472c50fe321df0073079547e43642868d76146e862d354638618a8551eff7162"
+    },
+    "lab-raw-repair.ts": {
+      "allocatedBytes": 8192,
+      "bytes": 6643,
+      "sha256": "08541ff04c21a911ad43f5812a86f607b22af3b0e9b654a52a25b20031d9aef4"
+    },
+    "lab-repair-lineage.py": {
+      "allocatedBytes": 20480,
+      "bytes": 18162,
+      "sha256": "58fdac698e5bb2102b7f7c86f880a46699afab6e39e4420f8591754da4048ecd"
+    },
+    "lab-repair-lineage.test.ts": {
+      "allocatedBytes": 12288,
+      "bytes": 9283,
+      "sha256": "174489e2efe3f3f1a2d2ca514339edab44b6cfb0e854bd11fe37d433bffd6d89"
+    },
+    "lab-repair-worker.py": {
+      "allocatedBytes": 90112,
+      "bytes": 88016,
+      "sha256": "b7638390360c700ba76ea2144fc6dac8210fb5467024ef76254e8ddbd0994bad"
+    },
+    "lab-seed-preparation.py": {
+      "allocatedBytes": 53248,
+      "bytes": 53199,
+      "sha256": "a226b0fb582fb41636d04e83c5e7e1a54640811cd16cee465341835aa7c24c88"
+    }
+  },
+  "observedUtc": "2026-11-06T00:46:30Z",
+  "preserved": {
+    "lab-raw-preparation.py:check_terminal": {
+      "bodyPreserved": true,
+      "sourceSha256": "a18b995aff9605949c821aea2b76c8537169058c9525bb5edbf9dc1a33b1459b"
+    },
+    "lab-raw-preparation.py:client_limits": {
+      "bodyPreserved": true,
+      "sourceSha256": "c2e8fda337afad4237cb2a15ea101eed9e86f29e289977ff3e7fd07d4f2ca0e9"
+    },
+    "lab-raw-preparation.py:coordinate_attempt": {
+      "bodyPreserved": true,
+      "sourceSha256": "4f0a50f5839509defde8839254653aa0363b7061ed4dc9048f92c225d377bc88"
+    },
+    "lab-raw-preparation.py:service_arguments": {
+      "bodyPreserved": true,
+      "sourceSha256": "818a90afc350ea437cd5ddeb6340ea8501103ce24ce52e5d6a39be4fe1b257fb"
+    },
+    "lab-raw-preparation.py:worker_limits": {
+      "bodyPreserved": true,
+      "sourceSha256": "f1f90763317ae96ef713da55217ca469c8d782438ed1f2c5daa45f879d91979b"
+    },
+    "lab-raw-repair.py:check_profile": {
+      "bodyPreserved": true,
+      "sourceSha256": "9c97e8d9f52775fa82a9cc3bf5c428ddd86f5d8c55999facc14e55eebc2f0ec6"
+    },
+    "lab-raw-repair.py:check_request": {
+      "bodyPreserved": true,
+      "sourceSha256": "401126f4ec31e0a65170f198f78cde3559a59a532357e4da433c37f03f0c9238"
+    },
+    "lab-raw-repair.py:check_reservation": {
+      "bodyPreserved": true,
+      "sourceSha256": "e08f340fd0f7eb61ae679ebc83819f2b49733446ce2896a2003351a2548f7f20"
+    },
+    "lab-raw-repair.py:make_reservation": {
+      "bodyPreserved": true,
+      "sourceSha256": "c706b8afe6a447100ce4ae2d3a1a72c588b464d255af94b96bd8788193a29d1b"
+    },
+    "lab-raw-repair.py:produce_repair": {
+      "onlyAccountingAdapterChanged": true,
+      "sourceSha256": "e8d0b15b2b46279ff22cb689d8a21817f476d458d24c231924e1c24a66eafa49"
+    },
+    "lab-raw-repair.py:read_release": {
+      "bodyPreserved": true,
+      "sourceSha256": "530676fe8ecca15978a5512d9ec88910050d9ec07eeb2bd02209c4eca3fafade"
+    },
+    "lab-raw-repair.py:worker": {
+      "bodyPreserved": true,
+      "sourceSha256": "c08246a0bd1c7c753cdeb541fb1d9876dcfc846523d17069410ebb52ed6e27d5"
+    },
+    "lab-repair-worker.py:AlignedBuffer": {
+      "bodyPreserved": true,
+      "sourceSha256": "2941ab7da5ffb5cec0480eb6df7ea63181873cd0dc14320a332df4cb703c7541"
+    },
+    "lab-repair-worker.py:ForkedWriter": {
+      "bodyPreserved": true,
+      "sourceSha256": "a82aecacfdc40f81ff5971ae706da99a0abb138674b0a63f2ede7ab2191757da"
+    },
+    "lab-repair-worker.py:PrivatePipe": {
+      "bodyPreserved": true,
+      "sourceSha256": "ec57f9bc5f370e7ab8ea4bf1bac54f92a4ed79fdd28d2c38f3e1909fec8a35d1"
+    },
+    "lab-repair-worker.py:allocate_block": {
+      "bodyPreserved": true,
+      "sourceSha256": "dbea59ca2cb1a95b35dc994eae792d1ba1748891e028257b48759e040cdcf9d7"
+    },
+    "lab-repair-worker.py:confine_child": {
+      "bodyPreserved": true,
+      "sourceSha256": "193bf5f26b4dedd6a339d073014a471ab0e088ddc0e98b4ed9dea0dc3394dc87"
+    },
+    "lab-repair-worker.py:drive_writer": {
+      "bodyPreserved": true,
+      "sourceSha256": "cf1561af879c0ee43e7233f1c915b304dd3f009b8933c3a7802b1ae9ce19916f"
+    },
+    "lab-repair-worker.py:install_spawn_filter": {
+      "bodyPreserved": true,
+      "sourceSha256": "a455a5a2f7dffdcca10e5452bea896388f0656893d7082a9537d309d5e27664d"
+    },
+    "lab-repair-worker.py:native_call": {
+      "bodyPreserved": true,
+      "sourceSha256": "6c6acf37469f29bc0203d82f412b9dac0a54fc72f6b2a7bcba260269b70836d1"
+    },
+    "lab-repair-worker.py:rewrite_step": {
+      "bodyPreserved": true,
+      "sourceSha256": "a7e83baa992991fcde1be6cea4e8172c5a7ca90b7ae5f5dd9cd2d7cdbf09f9cc"
+    },
+    "lab-repair-worker.py:spawn_filter": {
+      "bodyPreserved": true,
+      "sourceSha256": "7f3281f531fa9cc57343e49cc702d9fda761a2e54e691ea2b97bfdc4ecc7ad79"
+    },
+    "lab-repair-worker.py:start_writer": {
+      "bodyPreserved": true,
+      "sourceSha256": "67bd81859a36e618bde498392c440c21728d3385bef3641998a744975d376167"
+    },
+    "lab-repair-worker.py:write_ranges": {
+      "bodyPreserved": true,
+      "sourceSha256": "b6dd02df0ba3695cad13ea016d4a28daeb66c37d532874ddb7b13e82e146ff1f"
+    },
+    "openspec/changes/observability-environment-parity/evidence/repair-native-control.py": {
+      "byteIdentical": true,
+      "sha256": "92c5011dac4c803c2f1e241f069f454d94c27ebdb17f9f5b199b5f7e6dd7ab7c"
+    },
+    "tools/tool-fleet/src/lab-raw-allocation.py": {
+      "byteIdentical": true,
+      "sha256": "be25ffe1740848c2dad861d87f42123a1a1664c8ffc0df6aa0a3062cf4d13ea8"
+    }
+  },
+  "roles": {
+    "lab-guest-preparation.py": {
+      "bytes": 80680,
+      "rounded4096": 81920,
+      "sha256": "6d180f9c1d2cd116ef314215a75c88774789d29daa882f81fbbf06a2e9263f2c"
+    },
+    "lab-raw-allocation.py": {
+      "bytes": 15534,
+      "rounded4096": 16384,
+      "sha256": "be25ffe1740848c2dad861d87f42123a1a1664c8ffc0df6aa0a3062cf4d13ea8"
+    },
+    "lab-raw-preparation.py": {
+      "bytes": 55284,
+      "rounded4096": 57344,
+      "sha256": "3e78d2ea8aecced76bd82ea07fb006ce99a1b2212fec15fb805a8e8f7b27e8e8"
+    },
+    "lab-raw-repair.py": {
+      "bytes": 114265,
+      "rounded4096": 114688,
+      "sha256": "472c50fe321df0073079547e43642868d76146e862d354638618a8551eff7162"
+    },
+    "lab-repair-worker.py": {
+      "bytes": 88016,
+      "rounded4096": 90112,
+      "sha256": "b7638390360c700ba76ea2144fc6dac8210fb5467024ef76254e8ddbd0994bad"
+    },
+    "lab-seed-preparation.py": {
+      "bytes": 53199,
+      "rounded4096": 53248,
+      "sha256": "a226b0fb582fb41636d04e83c5e7e1a54640811cd16cee465341835aa7c24c88"
+    }
+  },
+  "sourceBytes": 406978
+}

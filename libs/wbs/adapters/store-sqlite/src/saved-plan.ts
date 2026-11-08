@@ -330,6 +330,7 @@ export class SavedPlanRepository implements SavedPlanStore {
               scoped.organizationId,
               scoped.actorId,
               { savedPlan: 'save' },
+              scoped.role,
             );
             // Proof: skipping this refusal made `reclassifies a removed actor
             // inside the saved-plan save transaction` answer written instead
@@ -756,6 +757,7 @@ export class SavedPlanRepository implements SavedPlanStore {
           scoped.organizationId,
           scoped.actorId,
           { savedPlan: scoped.operation },
+          scoped.role,
         );
         // Proof: bypassing this refusal made the store-path removed-actor
         // touch answer "touched" instead of "forbidden"; watched 2026-09-28.

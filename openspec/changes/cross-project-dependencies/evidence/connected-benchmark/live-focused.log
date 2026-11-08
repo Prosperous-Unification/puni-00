@@ -1,0 +1,76 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-benchmark.test.ts:
+(pass) the leveled pass, at the size of a real plan > measures CPU work without charging a descheduled interval [30.25ms]
+(pass) the leveled pass, at the size of a real plan > also measures elapsed time spent blocked inside a schedule call [30.50ms]
+(pass) the leveled pass, at the size of a real plan > is the plan it claims to be, so the budget below measures something [28.81ms]
+{"metric":"process-cpu-ms","samples":[9.786,9.625,14.728,4.13,8.577]}
+(pass) the leveled pass, at the size of a real plan > schedules 600 slices in under 20ms of process CPU [19.15ms]
+(skip) the leveled pass, at the size of a real plan > certifies 600 slices in under 20ms elapsed
+
+libs/wbs/domain/domain/src/schedule-connected-benchmark.test.ts:
+{"metric":"connected-domain-schedule","shape":"sparse","projects":202,"relationships":101,"deriveMs":2.835444999999993}
+(pass) sparse connected fixture retains its graph density and complete scheduled projections [13.70ms]
+{"metric":"connected-domain-schedule","shape":"dense","projects":26,"relationships":300,"deriveMs":0.8528089999999793}
+(pass) dense connected fixture retains its graph density and complete scheduled projections [1.95ms]
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+(pass) captures both incident directions once with local projection and own labels [175.87ms]
+(pass) shared closure alternates person bridges and incoming dependencies without rank cutoff [148.02ms]
+(pass) concurrent predecessor edit yields one coherent state until next observation [129.13ms]
+(pass) refuses missing required ownership [114.83ms]
+(pass) snapshot capability expires when callback closes [106.49ms]
+(pass) connected isolated cache publication stays invisible through sequential selections [130.77ms]
+(pass) borrowed capture sees staged writes and preserves owner transaction [102.95ms]
+(pass) refuses absent required project evidence [100.26ms]
+(pass) refuses malformed required project evidence [111.02ms]
+(pass) refuses unreadable required project evidence [103.63ms]
+(pass) capture never admits solver work or writes events [105.52ms]
+(pass) requires existing admitted organization authority even for cached components [101.54ms]
+(pass) memoizes complete project capture across component targets [104.20ms]
+(pass) owned connected success closes exactly once after ending transaction [102.68ms]
+(pass) owned connected refusal closes exactly once after ending transaction [115.36ms]
+(pass) owned connected throw closes exactly once after ending transaction [108.72ms]
+(pass) refuses missing component rank rather than synthesizing priority [131.32ms]
+(pass) refuses a project lost by the full-input reader after topology admission [124.17ms]
+(pass) refuses inconsistent identity evidence inside production capture [105.63ms]
+(pass) refuses inconsistent local-projection evidence inside production capture [106.06ms]
+(pass) borrowed live reader refuses acquisition and reads after its one-way scope expires [103.21ms]
+(pass) concurrent component requests read every full project input once [104.29ms]
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+(pass) actual isolated live route captures remote readiness without a calendar [129.64ms]
+(pass) connected export refuses instead of returning an incomplete document [112.55ms]
+(pass) remote hold changes the connected proxy reading in the next observation [127.35ms]
+(pass) shared aggregate reuses one detached connected read with explicit member identity [134.64ms]
+(pass) a shared person peer selects the same external component from either target [141.94ms]
+(pass) alternating person and external bridges select one component from every rank [201.72ms]
+(pass) remote SS attempt evidence crosses actual SQLite live capture [135.58ms]
+(pass) unconnected isolated routing query count is independent of local edges [217.67ms]
+(pass) execution observation captures FS prerequisites without invoking any scheduler [131.82ms]
+(pass) execution observation rechecks membership and activation before materializing foreign evidence [119.24ms]
+(pass) execution observation refuses foreign and absent targets alike [120.82ms]
+(pass) borrowed service claim sees staged remote completion and collects its normal announcement [139.64ms]
+(pass) foreign holder labels remain captured after closure and subsequent live renames [157.71ms]
+(pass) shared aggregate schedules disconnected external components once each [170.47ms]
+(pass) shared aggregate captures calendars links and metadata in one observation [158.15ms]
+(pass) borrowed shared aggregate sees staged relationships and expires without owning the transaction [168.93ms]
+(pass) shared aggregate unavailable calendar allocates no durable solver or execution work [147.41ms]
+(pass) shared aggregate unavailable optimized allocates no durable solver or execution work [152.81ms]
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:
+{"metric":"connected-capture","shape":"sparse","projects":202,"relationships":101,"captureQueries":10303,"totalQueries":10517,"captureMs":1344.5466699999997,"deriveMs":29.95438599999943}
+{"metric":"connected-live-aggregate","shape":"sparse","projects":202,"relationships":101,"totalQueries":13532,"captureSamples":[{"queries":10303,"elapsedMs":985.6580109999995}],"deriveSamples":[12.123249000000214],"aggregateMs":1180.340053,"fullCapturedProjects":202,"scheduledComponents":1}
+(pass) sparse: captures each required project once; closure includes incident and shared person bridges; lookup page bounds never truncate scheduling closure [3653.55ms]
+{"metric":"connected-capture","shape":"dense","projects":26,"relationships":300,"captureQueries":5897,"totalQueries":5935,"captureMs":191.112043000001,"deriveMs":5.313264000000345}
+{"metric":"connected-live-aggregate","shape":"dense","projects":26,"relationships":300,"totalQueries":6464,"captureSamples":[{"queries":5897,"elapsedMs":139.14997200000107}],"deriveSamples":[2.235134000000471],"aggregateMs":178.4185010000001,"fullCapturedProjects":26,"scheduledComponents":1}
+(pass) dense: captures each required project once; closure includes incident and shared person bridges; lookup page bounds never truncate scheduling closure [741.95ms]
+
+1 tests skipped:
+(skip) the leveled pass, at the size of a real plan > certifies 600 slices in under 20ms elapsed
+
+ 48 pass
+ 1 skip
+ 0 fail
+ 3086 expect() calls
+Ran 49 tests across 5 files. [12.05s]

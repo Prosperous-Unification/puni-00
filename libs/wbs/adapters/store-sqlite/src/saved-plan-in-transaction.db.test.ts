@@ -224,7 +224,10 @@ describe('a saved plan is independent of the batch beside it', () => {
     it(`survives a batch that ends in ${outcome}`, async () => {
       const process = openConnection(path);
       const coordinator = new WriteCoordinator();
-      const uow = sqliteUnitOfWork(process.db, coordinator, buildStores(process.db, OPEN));
+      const uow = sqliteUnitOfWork(process.db, coordinator, {
+        createScope: () => ({ stores: buildStores(process.db, OPEN) }),
+        createRepairScope: () => ({ stores: buildStores(process.db, OPEN) }),
+      });
       const plans = new SavedPlanRepository({ openConnection: () => openConnection(path) });
 
       // Collected into an array rather than assigned to a nullable local, for

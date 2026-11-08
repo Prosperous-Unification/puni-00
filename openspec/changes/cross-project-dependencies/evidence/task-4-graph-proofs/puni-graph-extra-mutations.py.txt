@@ -1,0 +1,32 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-cross-graph')
+core=root/'libs/wbs/application/core/src/service/connected-dependency-graph.ts'
+domain=root/'libs/wbs/domain/domain/src/connected-step-node.ts'
+cases=[
+('stale-incidents', core, "export class ConnectedDependencyGraphReader {", "export class ConnectedDependencyGraphReader {\n  private readonly retainedIncidents = new Map<string, readonly StoredTypedDependency[]>();", 'const incidents = new Map<string, readonly StoredTypedDependency[]>();', 'const incidents = this.retainedIncidents;', 'libs/wbs/application/core/src/service/connected-dependency-graph.test.ts', 'observes staged changes freshly'),
+('stale-graph', core, "export class ConnectedDependencyGraphReader {", "export class ConnectedDependencyGraphReader {\n  private retained: ConnectedDependencyGraphState | undefined;", '    this.authority.assertActive();', '    if (this.retained !== undefined) return this.retained;\n    this.authority.assertActive();', 'libs/wbs/application/core/src/service/connected-dependency-graph.test.ts', 'reobserves staged estimate anchors'),
+('project-cycle-refusal', domain, '  return { graph, projectIdByWorkItem, relationships };', "  if (input.external.some((left) => input.external.some((right) => left.predecessor.projectId === right.successor.projectId && left.successor.projectId === right.predecessor.projectId))) throw new Error('project-level cycle');\n  return { graph, projectIdByWorkItem, relationships };", None, None, 'libs/wbs/domain/domain/src/connected-step-node.test.ts', 'accepts A.design'),
+]
+for name,path,before,after,second,secondafter,testfile,testname in cases:
+ original=path.read_text();modified=original.replace(before,after,1)
+ if second is not None: modified=modified.replace(second,secondafter,1)
+ if name=='stale-graph':
+  modified=modified.replace('    return {\n      projects,', '    const captured: ConnectedDependencyGraphState = {\n      projects,',1)
+  # Current prettier layout returns single-line object or multiline: use the exact final read return.
+  old="    return { projects, external: relationships.filter((dependency) => dependency.predecessor.projectId !== dependency.successor.projectId) };"
+  if old in modified: modified=modified.replace(old,"    const captured: ConnectedDependencyGraphState = { projects, external: relationships.filter((dependency) => dependency.predecessor.projectId !== dependency.successor.projectId) };\n    this.retained = captured;\n    return captured;",1)
+  else:
+   marker="\n  /** The actual node-cycle decision"
+   position=modified.index(marker)
+   modified=modified[:position].rsplit('\n  }',1)[0]+'\n    this.retained = captured;\n    return captured;\n  }\n'+modified[position:]
+ try:
+  path.write_text(modified)
+  run=subprocess.run(['bun','test',testfile,'-t',testname],cwd=root,capture_output=True,text=True)
+  Path(f'/tmp/puni-graph-fault-{name}.log').write_text(run.stdout+run.stderr)
+  if run.returncode==0 or '(fail)' not in run.stdout+run.stderr: raise Exception(f'{name}: no test failure: '+run.stdout+run.stderr)
+ finally: path.write_text(original)
+ green=subprocess.run(['bun','test',testfile,'-t',testname],cwd=root,capture_output=True,text=True)
+ Path(f'/tmp/puni-graph-restored-{name}.log').write_text(green.stdout+green.stderr)
+ if green.returncode: raise Exception(name+': restored failure')
+ print(name,run.returncode,green.returncode)

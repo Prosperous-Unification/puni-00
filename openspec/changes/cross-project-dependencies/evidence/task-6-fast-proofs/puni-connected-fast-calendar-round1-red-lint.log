@@ -1,0 +1,15 @@
+
+/tmp/puni-cross-fast-calendar/libs/wbs/application/core/src/module/work-item/work-item.resource.ts
+   1:1  error  Run autofix to sort these imports!                                                     simple-import-sort/imports
+  14:3  error  'chargedDemandsOf' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  14:3  error  'chargedDemandsOf' is defined but never used                                           unused-imports/no-unused-imports
+  21:3  error  'deadlineOffsetsOf' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  21:3  error  'deadlineOffsetsOf' is defined but never used                                          unused-imports/no-unused-imports
+  27:3  error  'effectiveTeamsOf' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  92:3  error  'withoutHeldSubtrees' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  92:3  error  'withoutHeldSubtrees' is defined but never used                                        unused-imports/no-unused-imports
+  93:3  error  'workdaysBetween' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  93:3  error  'workdaysBetween' is defined but never used                                            unused-imports/no-unused-imports
+
+✖ 10 problems (10 errors, 0 warnings)
+  5 errors and 0 warnings potentially fixable with the `--fix` option.

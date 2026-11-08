@@ -1,0 +1,24 @@
+Injected captured-metadata; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+134 |   });
+135 |   const contents = JSON.stringify([
+136 |     summarizeFixtureFailure(staged),
+137 |     summarizeFixtureFailure(command),
+138 |   ]);
+139 |   expect(contents).not.toContain('PRIVATE_');
+                             ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "PRIVATE_"
+Received: "[{\"stage\":\"fixture-tag-negative\",\"chain\":[{\"category\":\"fixture-stage\",\"fingerprint\":\"fc60ac602c3508d9b3afe083c1c18c5f1e1a189dd03026cf5039ac65dd7aa770\",\"stage\":\"PRIVATE_STAGE_AFTER_CHECK\"},{\"category\":\"unclassified\",\"fingerprint\":\"f72f3ec3510c5fd53fc54dfa2022a893fe8ddbb7b6f82ab6d3bbd27090d56627\"}]},{\"stage\":\"solver-fixture\",\"chain\":[{\"category\":\"command-exit\",\"fingerprint\":\"3709a03525be2333c7240492f473ef847557bb309ee7341f896fd43854075780\",\"command\":\"docker-network-connect\",\"status\":17}]}]"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:139:24)
+(fail) diagnostic metadata is captured once before closed-value validation [0.78ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [41.00ms]

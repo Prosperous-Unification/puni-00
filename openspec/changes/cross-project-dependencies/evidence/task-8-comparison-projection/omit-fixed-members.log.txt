@@ -1,0 +1,276 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:
+135 |       variants: {
+136 |         pri: { state: 'pending' },
+137 |         time: { state: 'ready', questionHash: 'question', chosen: 'optimized', proof: 'proven' },
+138 |       },
+139 |     });
+140 |     expect(captured.stages[0]?.boundary.fixed).toEqual([
+                                                     ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "finish": 3,
+-     "projectAbbreviation": "B",
+-     "projectId": "B",
+-     "projectName": "Beta",
+-     "start": 1,
+-     "stepId": "build",
+-     "stepName": "Build",
+-     "workItemId": "b",
+-     "workItemName": "b",
+-   },
+- ]
++ []
+
+- Expected  - 13
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-saved-comparison-c/libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:140:48)
+(fail) historical comparison side projection > retains captured context and exact stage boundaries when the diff is empty [15.66ms]
+(pass) historical comparison side projection > marks legacy input unknown while explicit input9 local stays local [3.74ms]
+(pass) historical comparison side projection > retains unavailable scope and absence without manufacturing stages [5.88ms]
+(pass) historical comparison side projection > preserves boundary and plan terminal outcomes distinctly without losing a present schedule [8.27ms]
+(pass) historical comparison side projection > detaches summaries from caller changes and never needs live capabilities [5.55ms]
+(pass) historical comparison side projection > preserves pending without inferring readiness or changing selection [8.86ms]
+(pass) historical comparison side projection > preserves retrying without inferring readiness or changing selection [6.07ms]
+(pass) historical comparison side projection > preserves idle without inferring readiness or changing selection [4.56ms]
+(pass) historical comparison side projection > preserves failed without inferring readiness or changing selection [4.63ms]
+(pass) historical comparison side projection > preserves corrupt without inferring readiness or changing selection [5.90ms]
+(pass) historical comparison side projection > preserves baseline without inferring readiness or changing selection [4.80ms]
+(pass) historical comparison side projection > preserves quantisation-floor without inferring readiness or changing selection [6.93ms]
+(pass) historical comparison side projection > retains captured idle project labels without manufacturing an idle stage [5.47ms]
+(pass) historical comparison side projection > refuses missing captured project labels rather than inventing them [3.95ms]
+367 |         input.dependencyHistory.projects = input.dependencyHistory.projects.filter(
+368 |           (project) => project.projectId !== 'B',
+369 |         );
+370 |       if (missing === 'row') input.dependencyHistory.projects[1].workItems = [];
+371 |       if (missing === 'step') input.dependencyHistory.projects[1].steps = [];
+372 |       expect(() => summarizeSavedComparisonSide({ ...side, input }, { kind: 'current' })).toThrow(
+                                                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /captured .* label/
+
+Received function did not throw
+Received value: {
+  source: {
+    kind: "current",
+  },
+  schedule: {
+    present: true,
+    algorithmId: "retired-connected-algorithm",
+  },
+  provenance: {
+    kind: "connected",
+    targetProjectId: "A",
+    mode: "isolated",
+    placementState: {
+      kind: "scheduled",
+    },
+    projects: [
+      {
+        projectId: "A",
+        name: "Alpha",
+        abbreviation: "A",
+      }, {
+        projectId: "B",
+        name: "Beta",
+        abbreviation: "B",
+      }
+    ],
+    idleProjects: [],
+    stages: [
+      {
+        projectId: "A",
+        name: "Alpha",
+        abbreviation: "A",
+        engine: "optimized",
+        objective: "time",
+        observation: {
+          inputHash: "input",
+          contractVersion: "1",
+          budgetMs: 100,
+          quantum: 1,
+          wireVersion: 1,
+        },
+        selected: "time",
+        variants: {
+          pri: {
+            state: "pending",
+          },
+          time: {
+            state: "ready",
+            questionHash: "question",
+            proof: "proven",
+            chosen: "optimized",
+          },
+        },
+        boundary: {
+          kind: "connected-stage",
+          projectId: "A",
+          format: "connected-stage-v1",
+          canonical: "{\"kind\":\"connected-stage\",\"projectId\":\"A\",\"mode\":\"isolated\",\"originOrdinal\":20727,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":20727},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":20728}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"design\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"test\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":2,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"design\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"test\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"fs\"},{\"predecessor\":{\"leafId\":\"b\",\"at\":0},\"successor\":{\"leafId\":\"a\",\"at\":1},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"ss\"}],\"relationships\":[{\"id\":\"fs\",\"type\":\"FS\",\"predecessor\":[\"A\",\"node\",\"a\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]},{\"id\":\"ss\",\"type\":\"SS\",\"predecessor\":[\"B\",\"node\",\"b\",\"build\"],\"successor\":[\"A\",\"node\",\"a\",\"test\"]},{\"id\":\"ff\",\"type\":\"FF\",\"predecessor\":[\"A\",\"descendant-step\",\"root\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]}],\"notBefore\":[],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000design\",0],[\"a\\u0000test\",3],[\"b\\u0000build\",1]],\"finishes\":[[\"a\\u0000design\",1],[\"a\\u0000test\",4],[\"b\\u0000build\",3]]}",
+          originOrdinal: 20727,
+          fixed: [],
+        },
+      }, {
+        projectId: "B",
+        name: "Beta",
+        abbreviation: "B",
+        engine: "optimized",
+        objective: "pri",
+        observation: {
+          inputHash: "input",
+          contractVersion: "1",
+          budgetMs: 100,
+          quantum: 1,
+          wireVersion: 1,
+        },
+        selected: "pri",
+        variants: {
+          pri: {
+            state: "ready",
+            questionHash: "question",
+            proof: "proven",
+            chosen: "optimized",
+          },
+          time: {
+            state: "idle",
+          },
+        },
+        boundary: {
+          kind: "connected-stage",
+          projectId: "B",
+          format: "connected-stage-v1",
+          canonical: "{\"kind\":\"connected-stage\",\"projectId\":\"B\",\"mode\":\"isolated\",\"originOrdinal\":20727,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":20727},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":20728}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"design\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"test\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":2,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"design\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"test\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"fs\"},{\"predecessor\":{\"leafId\":\"b\",\"at\":0},\"successor\":{\"leafId\":\"a\",\"at\":1},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"ss\"}],\"relationships\":[{\"id\":\"fs\",\"type\":\"FS\",\"predecessor\":[\"A\",\"node\",\"a\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]},{\"id\":\"ss\",\"type\":\"SS\",\"predecessor\":[\"B\",\"node\",\"b\",\"build\"],\"successor\":[\"A\",\"node\",\"a\",\"test\"]},{\"id\":\"ff\",\"type\":\"FF\",\"predecessor\":[\"A\",\"descendant-step\",\"root\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]}],\"notBefore\":[],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000design\",1],[\"a\\u0000test\",4],[\"b\\u0000build\",1]],\"finishes\":[[\"a\\u0000design\",2],[\"a\\u0000test\",5],[\"b\\u0000build\",3]]}",
+          originOrdinal: 20727,
+          fixed: [],
+        },
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/puni-saved-comparison-c/libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:372:91)
+(fail) historical comparison side projection > refuses missing captured row labels rather than inventing them [3.75ms]
+367 |         input.dependencyHistory.projects = input.dependencyHistory.projects.filter(
+368 |           (project) => project.projectId !== 'B',
+369 |         );
+370 |       if (missing === 'row') input.dependencyHistory.projects[1].workItems = [];
+371 |       if (missing === 'step') input.dependencyHistory.projects[1].steps = [];
+372 |       expect(() => summarizeSavedComparisonSide({ ...side, input }, { kind: 'current' })).toThrow(
+                                                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /captured .* label/
+
+Received function did not throw
+Received value: {
+  source: {
+    kind: "current",
+  },
+  schedule: {
+    present: true,
+    algorithmId: "retired-connected-algorithm",
+  },
+  provenance: {
+    kind: "connected",
+    targetProjectId: "A",
+    mode: "isolated",
+    placementState: {
+      kind: "scheduled",
+    },
+    projects: [
+      {
+        projectId: "A",
+        name: "Alpha",
+        abbreviation: "A",
+      }, {
+        projectId: "B",
+        name: "Beta",
+        abbreviation: "B",
+      }
+    ],
+    idleProjects: [],
+    stages: [
+      {
+        projectId: "A",
+        name: "Alpha",
+        abbreviation: "A",
+        engine: "optimized",
+        objective: "time",
+        observation: {
+          inputHash: "input",
+          contractVersion: "1",
+          budgetMs: 100,
+          quantum: 1,
+          wireVersion: 1,
+        },
+        selected: "time",
+        variants: {
+          pri: {
+            state: "pending",
+          },
+          time: {
+            state: "ready",
+            questionHash: "question",
+            proof: "proven",
+            chosen: "optimized",
+          },
+        },
+        boundary: {
+          kind: "connected-stage",
+          projectId: "A",
+          format: "connected-stage-v1",
+          canonical: "{\"kind\":\"connected-stage\",\"projectId\":\"A\",\"mode\":\"isolated\",\"originOrdinal\":20727,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":20727},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":20728}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"design\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"test\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":2,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"design\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"test\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"fs\"},{\"predecessor\":{\"leafId\":\"b\",\"at\":0},\"successor\":{\"leafId\":\"a\",\"at\":1},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"ss\"}],\"relationships\":[{\"id\":\"fs\",\"type\":\"FS\",\"predecessor\":[\"A\",\"node\",\"a\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]},{\"id\":\"ss\",\"type\":\"SS\",\"predecessor\":[\"B\",\"node\",\"b\",\"build\"],\"successor\":[\"A\",\"node\",\"a\",\"test\"]},{\"id\":\"ff\",\"type\":\"FF\",\"predecessor\":[\"A\",\"descendant-step\",\"root\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]}],\"notBefore\":[],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000design\",0],[\"a\\u0000test\",3],[\"b\\u0000build\",1]],\"finishes\":[[\"a\\u0000design\",1],[\"a\\u0000test\",4],[\"b\\u0000build\",3]]}",
+          originOrdinal: 20727,
+          fixed: [],
+        },
+      }, {
+        projectId: "B",
+        name: "Beta",
+        abbreviation: "B",
+        engine: "optimized",
+        objective: "pri",
+        observation: {
+          inputHash: "input",
+          contractVersion: "1",
+          budgetMs: 100,
+          quantum: 1,
+          wireVersion: 1,
+        },
+        selected: "pri",
+        variants: {
+          pri: {
+            state: "ready",
+            questionHash: "question",
+            proof: "proven",
+            chosen: "optimized",
+          },
+          time: {
+            state: "idle",
+          },
+        },
+        boundary: {
+          kind: "connected-stage",
+          projectId: "B",
+          format: "connected-stage-v1",
+          canonical: "{\"kind\":\"connected-stage\",\"projectId\":\"B\",\"mode\":\"isolated\",\"originOrdinal\":20727,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":20727},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":20728}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"design\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"test\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":2,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"design\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"test\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"fs\"},{\"predecessor\":{\"leafId\":\"b\",\"at\":0},\"successor\":{\"leafId\":\"a\",\"at\":1},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"ss\"}],\"relationships\":[{\"id\":\"fs\",\"type\":\"FS\",\"predecessor\":[\"A\",\"node\",\"a\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]},{\"id\":\"ss\",\"type\":\"SS\",\"predecessor\":[\"B\",\"node\",\"b\",\"build\"],\"successor\":[\"A\",\"node\",\"a\",\"test\"]},{\"id\":\"ff\",\"type\":\"FF\",\"predecessor\":[\"A\",\"descendant-step\",\"root\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]}],\"notBefore\":[],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000design\",1],[\"a\\u0000test\",4],[\"b\\u0000build\",1]],\"finishes\":[[\"a\\u0000design\",2],[\"a\\u0000test\",5],[\"b\\u0000build\",3]]}",
+          originOrdinal: 20727,
+          fixed: [],
+        },
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/puni-saved-comparison-c/libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:372:91)
+(fail) historical comparison side projection > refuses missing captured step labels rather than inventing them [3.79ms]
+
+ 13 pass
+ 3 fail
+ 29 expect() calls
+Ran 16 tests across 1 file. [404.00ms]

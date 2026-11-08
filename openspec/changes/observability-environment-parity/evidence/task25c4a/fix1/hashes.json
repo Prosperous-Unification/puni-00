@@ -1,0 +1,46 @@
+{
+  "base": "9f4bb094d2430440d3007da06d6ac24fc22828b2",
+  "files": {
+    "tools/tool-fleet/src/creation-resources.ts": "24e437b6e5ccf2af3302a6d89dac889da4e3d306dd1846f9475553578d0caea3",
+    "tools/tool-fleet/src/k3d-resource-caller.test.ts": "6a3fcfe755c4224f0f15a7963a46c16c8f952bc5fd277f9ac7357c6ceb499f84",
+    "tools/tool-fleet/src/fixtures/k3d-creation-v1.json": "db977f285b4397a9e8a9b55844f7d2c88a193e787dd3e245f333d16270ef46a4"
+  },
+  "historicalFixtureUnchangedFromBase": true,
+  "logs": [
+    {
+      "name": "red.log",
+      "rawSha256": "29dfdcb89d9f852dfa9d89862e54e18232fed02e7d5f694892d5d524b56b17cc",
+      "retainedSha256": "29dfdcb89d9f852dfa9d89862e54e18232fed02e7d5f694892d5d524b56b17cc"
+    },
+    {
+      "name": "green.log",
+      "rawSha256": "832aa9be24065884a8fc453cbdaef74ce7c366806621f5c78abbcf75e68c9390",
+      "retainedSha256": "832aa9be24065884a8fc453cbdaef74ce7c366806621f5c78abbcf75e68c9390"
+    },
+    {
+      "name": "fault.log",
+      "rawSha256": "4ccaea05b74c7b96ea24a8db7f1249a58e1ce6fddc4cec223d1248ebaf64b99e",
+      "retainedSha256": "4ccaea05b74c7b96ea24a8db7f1249a58e1ce6fddc4cec223d1248ebaf64b99e"
+    },
+    {
+      "name": "focused.log",
+      "rawSha256": "74f8a23d059cfe24103a46593d79e504f539158fc4ddd186a8b3bcc57de0eae4",
+      "retainedSha256": "74f8a23d059cfe24103a46593d79e504f539158fc4ddd186a8b3bcc57de0eae4"
+    },
+    {
+      "name": "focused-restored.log",
+      "rawSha256": "c4bef853151c04ba6593be5f3b0abdaf7d2060c05ec00e4873b03a801e81e900",
+      "retainedSha256": "c4bef853151c04ba6593be5f3b0abdaf7d2060c05ec00e4873b03a801e81e900"
+    },
+    {
+      "name": "lint.log",
+      "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "retainedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "typecheck.log",
+      "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "retainedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

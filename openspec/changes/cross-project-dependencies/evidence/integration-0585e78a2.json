@@ -1,0 +1,64 @@
+{
+  "format": "cross-project-integrated-replay",
+  "version": 1,
+  "head": "0585e78a2ada1f725c83f7d2a1ecb4a23e82d9c9",
+  "date": "2026-10-24",
+  "runtime": {
+    "version": "1.4.4",
+    "sha256": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235"
+  },
+  "checks": {
+    "producerReplay": {
+      "head": "2d1152ac92d9a001f76430592791dd6fa4d6d76a",
+      "exit": 0,
+      "passed": 125,
+      "failed": 0,
+      "assertions": 202
+    },
+    "browserReplay": {
+      "exit": 0,
+      "passed": 10,
+      "failed": 0,
+      "workers": 1,
+      "retries": 0,
+      "ownedPortsClosed": [7500, 7501, 7600]
+    },
+    "infrastructureStatic": {
+      "exit": 0,
+      "tasks": 6,
+      "cache": "skipped"
+    },
+    "openSpec": {
+      "exit": 0,
+      "passed": 280,
+      "failed": 0
+    }
+  },
+  "logs": [
+    {
+      "check": "producerReplay",
+      "filename": "puni-integration-2d115-bun144.log",
+      "sha256": "3bf8bde0ae9cd4b2346a092ab7cc3b10a435d448277143854b1c3c04b1c281d4"
+    },
+    {
+      "check": "browserReplay",
+      "filename": "puni-browser-ff-integrated-bun144.log",
+      "sha256": "32ec4cb3ae8f1f827cb97033b29601688303ee788c65f485413eb8cc77e5303a"
+    },
+    {
+      "check": "infrastructureStatic",
+      "filename": "puni-integration-static-0585e78a2.log",
+      "sha256": "189b5f984aeb5107dda60f7315c7684a3ec3d5a3cf9d2881ec8ff2866b770409"
+    },
+    {
+      "check": "openSpec",
+      "filename": "puni-openspec-integrated-0585e78a2.json",
+      "sha256": "a532f5595642f53eee25210e7e4aff20e7dc2ba6e070340158074f8b544d44a5"
+    }
+  ],
+  "limits": [
+    "No production activation or deployment",
+    "No full exact-SHA host gate or final CI conclusion",
+    "Historical Bun 1.4.2 mutation evidence remains separate"
+  ]
+}

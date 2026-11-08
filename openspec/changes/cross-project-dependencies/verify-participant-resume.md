@@ -1,0 +1,341 @@
+# Participant restoration — local implementation evidence
+
+Baseline `5e954ba39398b50db96276a0eff2356538a24259`, worktree
+`/tmp/puni-participant-resume`, branch `feat/dependency-participant-resume`.
+Bun 1.4.4 (`38afee6c8`). This is an incremental implementation checkpoint,
+not completed P2b-3 acceptance or host authorization. Shared design/tasks/verify
+remain parent-owned.
+
+## Current source boundary
+
+The existing fenced-only activation entry still returns its original summary
+and discards restoration observations. A distinct internal path captures provisional
+read-only monitors under the original complete/source/solver scopes and mints an
+opaque original WeakMap key only after physical finalizers and fenced-complete
+readback. A separate private WeakSet consumes it once. Copied/serialized/expired
+objects cannot recreate authority. Descriptor ownership transfers only to that
+actual key and releases without deleting durable evidence.
+
+A new store observer uses fresh existing-only read-only SQLite connections,
+original canonical parent/main identities, complete migration captures and the
+full expected-authority union: selected exact ENABLED receipts, nonselected
+DISABLED. Every SQLite/main FD closes before any awaited owner/census boundary.
+The shared solver restoration sequence preserves P2a's activation:not-performed
+contract and parked checks; its new readiness closure can later inspect the same
+runtime without treating running application participants as parked.
+
+Source restart input monitors are captured while the original observation/token
+is live. The new monitor remains bound to the same outer owner after source
+exclusion expires; it does not revive that token. Its MCP OpenAPI hash comes from
+an actual separately invoked pinned emitter. Cold APIs stay strict. The running
+scanner preserves all original inputs and original directory dev/inode/mode,
+relaxing metadata only for direct parents of present fixed generated roots with
+unchanged filtered membership. The output roster is PROVISIONAL until the required
+actual pinned startup measurement and Astra High review. No measured production
+output roster is claimed here.
+
+## Fresh checkpoint output
+
+- Original decoder/owner-record/DB-anchor baseline: 25 pass, 45 assertions, 137ms,
+  `/tmp/puni-participant-baseline.log`.
+- Native Docker-shape transition tests: 11 pass, including exact ID/config/mount/
+  network/alias, manual start/address changes, no-op/restart and original retry count.
+  `/tmp/puni-participant-transition-green.log`.
+- Existing solver restoration suite after extraction: 41 pass, 149 assertions,
+  2.64s, `/tmp/puni-participant-solver-extraction.log`.
+- Separate cold/running tree: 12 pass, 11 assertions, 1.386s,
+  `/tmp/puni-participant-source-tree-green.log`. Includes wrong/missing OpenAPI,
+  unknown/modified/replaced inputs, parent swap, aliases and stale dist. A readable
+  regular `.nx` root first passed the old scanner; the new directory-contract
+  negative was observed RED before correction.
+- Native pinned emitter plus original-token expiry/retained-owner test: 1 pass,
+  3 assertions, 2.70s, `/tmp/puni-participant-source-inputs-green.log`.
+- Actual SQLite store observer after the original finalizers: 1 pass,
+  119 assertions, 51.31s, `/tmp/puni-participant-stores-green.log`; genuine receipt
+  tampering and expired ownership refuse. No supplied activation-success value.
+- First finalized preparation replay: 2 pass, 263 assertions, 101.30s,
+  `/tmp/puni-participant-preparation-initial.log` (before product image preflight).
+- Updated one-shot preparation with immutable image preflight and complete native
+  readonly solver-mount projection: 1 pass, 130 assertions, 56.24s,
+  `/tmp/puni-participant-preparation-image-green.log`.
+- Product image/launch negatives: all 12 initially observed RED before their
+  respective checks, then 12 pass, 24 assertions, 14.06s,
+  `/tmp/puni-participant-image-readiness-green.log`. An independent positive accepts
+  actual fixture image/launch observations. Image labels are trusted pinned-builder
+  provenance, not independent measurement of loaded JavaScript.
+- Native host process snapshot: 6 pass, 7 assertions, 207ms,
+  `/tmp/puni-participant-process-green.log`. This is the non-root source-compatible
+  procfs observation path, not the required root product namespace proof.
+- Distinct health/capability decoders: 14 pass, 23 assertions, 41ms,
+  `/tmp/puni-participant-health-green.log`. Product commit:null and exact source SHA
+  are separate exact contracts, with private parser excerpts/cause chains removed.
+- First configured graph-loaded lint/typecheck/build checkpoint: 7 targets pass
+  (4 cache hits), 18.2s, `/tmp/puni-participant-first-static.log`. Later product
+  image/health additions still need their configured replay.
+
+Native delayed Unix socket and native emitter pipe writes failed under the tool
+sandbox, then passed as narrowly authorized scratch-only tests outside it. Initial
+failed outputs are retained in `/tmp/puni-participant-solver-baseline*.log` and
+`/tmp/puni-participant-source-inputs-debug.log`; those failures do not prove source
+regressions or successful native acceptance.
+
+## Approved interface corrections and unresolved acceptance
+
+The parent-approved product health ruling preserves the existing application
+contract: prod images omit Git and report explicit commit:null. Actual immutable
+image Config.Labels.WBS_SHA must independently equal the owner SHA; source health
+continues requiring exact checkout SHA. No app/build behavior or fallback changed.
+The private root product process observer must use the existing bounded exact-ID
+Docker exec session/ACK/reap contract, explicit host NSpid mapping, actual listener
+FD ownership and exact current collector opener joins. The privileged collector
+must stay unchanged.
+
+Automatic approval review rejected the disposable privileged `sudo unshare`
+probe before execution because it exceeds the retained no-host/live-action scope.
+Exact command/reason are in private `/tmp/puni-participant-namespace-rejection.md`.
+The required root-owned process/private PID+network namespace proof is UNRUN;
+no retry, indirect path, default unit/build/CI/gate execution or substitute fake ACK
+is authorized. The standalone bounded fixture/cleanup is being prepared for review
+before any later permission step.
+
+Remaining: exact solver→BE→GW→source orchestration, process/socket/HTTP/readiness
+composition, original-policy restoration, typed retained records, actual startup
+output measurement, production-path watched mutations, composed success/failure
+matrix, final configured checks, bundle smoke and independent review. No public
+restoration CLI, serving write/reload, active policy, handoff, owner retirement or
+ordinary-controller change exists in this checkpoint. P2b-4 and P3 remain mandatory.
+
+## Incremental checkpoint replay
+
+Configured graph-loaded Nx lint/typecheck/build after the image/health additions:
+7 targets pass, 4 dependency cache hits, 18.0s,
+`/tmp/puni-participant-checkpoint-static3.log`. The preceding replay failed one
+unsafe array-spread lint diagnostic; the actual checked string projection fixes it
+without changing the accepted launch contract. Formatting check passes in
+`/tmp/puni-participant-checkpoint-format2.log`.
+
+`tools/tool-remote-scripts/rehearsals/participant-root-process.sh` is a manual,
+non-executable review artifact, absent from every project target. It requires an
+explicit argument and independently authorized root invocation; it never escalates
+itself. Its C init/child lifecycle has independent alarm and outer timeout bounds,
+private PID/network/mount namespaces and exact scratch-file cleanup. Only shell
+syntax and C `-fsyntax-only` have run. It is NOT an acceptance fixture yet: the
+non-root coordinator, actual namespace/socket joins, production observer protocol
+and negative matrix remain to be added and independently reviewed. No namespace
+command in this artifact has executed. The retained automatic-review rejection
+still applies, including indirect/default CI execution.
+
+## Consumed-context and source socket follow-up
+
+The internal `assertParticipantRestorationContext` boundary checks the original
+context-to-key identity, successful one-shot consumption, retained key membership,
+live original owner, deadline and original pending/fenced-complete record snapshots.
+A spread copy refuses. Real SQLite one-shot replay: 1 pass, 130 assertions, 68.45s,
+`/tmp/puni-participant-context-green.log`. Omitting that provenance guard admitted
+the copy and failed at `Missing expected rejection` after 75.14s,
+`/tmp/puni-participant-context-watch.log`; original source restored.
+
+The source UID socket observer joins each actual TCP/TCP6 LISTEN inode to exactly
+one application FD and brackets namespaces, process identity and FD ownership.
+The native positive uses an owned loopback child. Its foreign-process negative
+uses another stable child in the same network namespace, with no listener FD.
+Breaking the inode-to-FD lookup failed that exact negative with `Missing expected
+rejection`, `/tmp/puni-participant-listener-watch2.log`; restored code passes,
+`/tmp/puni-participant-listener-green2.log`. An earlier mutation attempt against the
+test runner itself remained green because its transient descriptors caused an
+earlier refusal; that attempt is not claimed as proof. No root product observer,
+namespace rehearsal, actual participant restart or complete readiness is implied.
+
+Follow-up configured graph-loaded lint/typecheck/build: 7 targets pass, 4 dependency
+cache hits, 18.7s, `/tmp/puni-participant-context-listener-static2.log`. The first
+follow-up lint failed unnecessary indexed-access guards; `.at()` now preserves
+explicit external-field validation under the actual compiler settings. Fresh
+restored native listener case after that refactor passes 1 test, 5 assertions,
+`/tmp/puni-participant-listener-green3.log`. The product split is frozen by
+`/tmp/puni-product-process-split-ruling.md`; its new observer files and the manual
+rehearsal are reserved for the separately dispatched worker. No privilege grant is
+inferred from that split.
+
+## Source effective configuration before SQL
+
+The restart monitor now captures actual private configuration files by original
+independent size/hash pins before its emitter or irreversible SQL work, with the
+actual inherited container environment taking precedence. It retains fixed BE/GW/
+MCP/FE port and route associations, and rechecks them alongside original immutable
+inputs under the retained outer owner. It does not execute dotenv, expose private
+credentials or infer target identity from successful health. MCP/Vite's explicit
+application port defaults are modeled; BE/GW's actual schemas require PORT.
+
+Actual monitor/token-expiry replay passes 1 test, 4 assertions, 1.258s,
+`/tmp/puni-source-restoration-configuration-monitor-green.log`. Full genuine SQLite
+preparation with the role-config fixture passes 1 test, 130 assertions, 68.50s,
+`/tmp/puni-source-restoration-configuration-preparation.log`. Fenced-only activation
+still does not capture restart configuration or start participants.
+
+The actual preparation path refuses an independently pinned source GW pointing
+at prod before the activation shell is entered: 1 test, 38 assertions, 16.61s,
+`/tmp/puni-source-restoration-preflight-green.log`. Omitting only that target guard
+reaches the forbidden SQL shell and fails Expected 0 calls / Received 1 after
+16.52s, `/tmp/puni-source-restoration-preflight-watch.log`; source restored.
+The pinned-file negative catches a credential-only byte change despite unchanged
+role routes. Removing original size/hash checks fails at Missing expected
+rejection, `/tmp/puni-source-config-private-watch.log`; absent and unreadable
+private files both refuse. Inherited environment text must not be unquoted as
+though it came from dotenv: its quoted-target negative first failed with Missing
+expected exception and now passes. Final focused configuration selection: 12 pass,
+6 assertions, 150ms, `/tmp/puni-source-config-final-green.log`.
+
+Actual full source startup, the generated output roster, four live source role
+readiness and the privileged product native rehearsal remain UNVERIFIED. These
+configuration checks do not complete P2b-3 acceptance.
+
+Configured graph-loaded checks after this source slice: lint/typecheck/build,
+7 targets pass, 4 dependency cache hits, 18.5s,
+`/tmp/puni-source-restoration-configuration-static2.log`. The first configured run reported a lint failure without detailed diagnostics;
+scoped autofix was limited to changed files and the configured replay executed
+the changed project targets. Existing solver-restoration regression passes
+41 tests, 149 assertions, 3.25s, `/tmp/puni-source-config-solver-regression.log`.
+
+## Participant evidence label boundary
+
+Five typed closed activation-evidence labels now describe the planned participant
+restore/start/ready/policy/final records. `captureEdgeRecord` admits only those
+additional fixed filenames; restoring-policy authority still accepts only the
+existing solver-restore-intent grammar. No record decoder or readiness/activation
+success constructor was introduced, and orchestration does not yet publish these
+records. Readback plus policy tests: 37 pass, 136 assertions,
+`/tmp/puni-participant-record-labels-final-green.log`. The readback test first failed
+on the previously unsupported participant label. Widening restoration authority
+specifically to participant-start-intent failed at the eighth decoder assertion,
+`/tmp/puni-participant-record-restoring-new-label-watch.log`; source restored.
+Configured graph lint/typecheck/build: 7 targets pass, 4 dependency cache hits,
+27.9s, `/tmp/puni-participant-records-static2.log`.
+
+## Closed product metadata composition seam
+
+Imported the separately owned initial metadata module checkpoint `590f4f4b7` as
+local `25e2d9756`; that worker retains all implementation/proof ownership. The
+internal complete-activation transport now requires `spawnProductMetadata` and
+the public production factory constructs its fixed adapter. Public request fields
+and generic Docker transports remain unchanged. The base fixture explicitly
+refuses all three raw metadata request kinds; dedicated native fixtures must
+supply controlled actual children. There is no optional mapping or native fallback.
+The original prepared context retains this same required internal composition.
+
+All three explicit fixture-refusal tests first failed with the absent field,
+then pass: 3 tests, 3 assertions, 2.34s,
+`/tmp/puni-product-transport-composition-green2.log`. A mistaken initial fixture
+insertion under request instead of ports was caught by the same tests and
+corrected before commit; no request field was retained. Configured graph checks:
+7 targets lint/typecheck/build pass, 4 dependency cache hits, 18.3s,
+`/tmp/puni-product-transport-composition-static2.log`. Actual generated bundle
+imports successfully, `/tmp/puni-product-transport-composition-bundle.log`.
+
+The separately owned initial metadata files fail formatting check and remain
+subject to that worker's formatted final delta. This wiring checkpoint does not
+claim their complete native matrix, observer source acceptance, actual Docker,
+root namespace rehearsal or live-image compatibility. Those are still outstanding.
+
+## Independent native HTTP and full inventory observations
+
+The raw numeric HTTP transport and inventory comparison are independent helpers;
+they are not yet wired into the restart/readiness orchestrator. No helper returns
+a live activation/startup/readiness grant. Full selected endpoint/listener/address
+bracketing and post-helper collector joins remain required.
+
+On Bun1.4.4 an actual owned proxy test showed `fetch(proxy: '')` still used ambient
+HTTP_PROXY. The separate control in `/tmp/puni-http-proxy-characterization.log`
+reached the proxy while node:http.request reached the owned numeric endpoint.
+The reader now uses node:http with agent disabled, exact numeric address/port,
+fixed GET paths and Connection:close. It rejects unspecified/scoped/mapped targets,
+non200 status, unsupported metadata/encoding, oversized bodies and malformed
+UTF-8; deadline abort uses the original remaining budget. Both actual request and
+response close events are joined before success or ordinary refusal returns.
+Raw HTTP observations still require exact role decoding and actual process joins.
+
+Native source socket, HTTP and inventory selection passes 17 tests, 35 assertions,
+1.490s, `/tmp/puni-participant-http-inventory-final-green.log`. HTTP covers actual
+proxy routing, redirect refusal, body bound, invalid bytes, stalled response,
+healthy-looking truncated Content-Length and actual close at return. The truncated
+fixture initially timed out because its server-side half-close was not drained;
+`/tmp/puni-http-close-diagnostic.log` showed the client request/response both closed.
+Explicit owned server socket drain/destroy fixed the fixture without weakening the
+reader. A plain builtin export monkeypatch did not instrument Bun named imports;
+the isolated child instead wraps the actual native constructor via the module
+loader and returns real clients/streams. Dispatched/close counters verify that
+this instrumentation actually ran.
+
+Watched HTTP omissions, with source restored each time:
+
+- Drop incremental body cap, strict UTF-8, exact status: their actual response
+  negatives fail with Missing expected rejection in
+  `/tmp/puni-participant-http-watch-{body-cap,utf8,status}.log`.
+- Drop deadline abort: independent fixture EOF arrives at1.5s, and the100ms budget
+  assertion fails at1502ms, `/tmp/puni-participant-http-watch-deadline.log`.
+- Drop final close join: success returns with actual requestClosed0 instead of1,
+  and second refusal with1 instead of2,
+  `/tmp/puni-participant-http-close-watch.log`. No polling grace was used.
+- Unspecified and mapped addresses reached the owned IPv4 endpoint before their
+  checks; native RED outputs are `/tmp/puni-participant-http-{wildcard,mapped}-red.log`.
+
+The inventory helper preserves every native State, Config and NetworkSettings
+field, normalizing only mount ordering. Selected bindings are restricted to the
+three supplied selected IDs; the future coordinator derives them from its genuine context, and only decoded terminal managed solver rows may be
+removed. Its Docker-shaped unit projections are not native process/startup proof.
+Separately dropping State, Config or NetworkSettings admits that parked-peer drift;
+dropping membership/duplicate/selection/managed-removal checks admits its dedicated
+fault. Each observed negative failed in
+`/tmp/puni-participant-inventory-watch-*.log`. Whole transition-monitor integration
+and actual running participant proofs remain outstanding.
+
+Configured graph checks initially found optional Bun TCP port types; those now
+throw on absence instead of asserting/defaulting. The first successful configured
+replay is `/tmp/puni-participant-http-inventory-static2.log` (7targets,5cachehits,
+18.7s). Independent HTTP/inventory leaf bundles build and import successfully;
+`/tmp/puni-participant-http-inventory-bundle-smoke.log`. The final uncached configured
+checkpoint is recorded below after execution. Actual four-role source startup,
+source process/output roster, production observer namespace/image acceptance,
+full orchestrator/public wrapper and collector-opener joins remain UNVERIFIED.
+
+Final bounded freeze evidence: actual raw TCP supplies absent headers without
+Bun.serve's automatic application/octet-stream default. Missing/long Content-Type
+and unsupported encoding cases now pass. Final native selection:20 pass,
+35 assertions,1.359s, `/tmp/puni-participant-http-inventory-frozen-green.log`.
+Configured uncached lint/typecheck/build all7 targets pass in20.1s,
+`/tmp/puni-participant-http-inventory-uncached.log`; final test-fixture corrections
+then pass scoped ESLint/Prettier and uncached configured typecheck in4.8s,
+`/tmp/puni-participant-http-inventory-final-types.log`. Leaf bundle import smoke
+passes in `/tmp/puni-participant-http-inventory-bundle-smoke.log`.
+
+No product observer was integrated beyond the earlier raw metadata interface
+checkpoint. The source four-role measurement artifact and actual measurement,
+full restart/public wrapper, exact role HTTP/process/collector joins and full
+P2b3 acceptance are separate OPEN milestones. Privileged/native image rehearsals
+remain unrun after the retained automatic-review rejection. No remote/host gate
+or live activation action was performed by this worker.
+
+### Groundwork review: exact refined metadata dependency
+
+Replaced only `docker-product-metadata.ts` and its test with byte-identical versions from frozen product source `c01d9470f83d6e59678092194b0f3f8d8b133ac2`. The required internal synchronous raw-child seam and production factory remain unchanged; the product observer is not imported. The adapter pins `/usr/bin/docker --host unix:///var/run/docker.sock`, refuses ambient `DOCKER_*`, reserves the original deadline and starts cleanup at first refusal.
+
+Fresh Bun1.4.4 metadata replay: 17 passed, 0 failed, 36 assertions, 11.57s (`/tmp/puni-participant-metadata-refined.log`). Required base-fixture raw mapping refusal: 3 passed, 3 assertions (`/tmp/puni-participant-metadata-refined-composition.log`). Uncached configured Nx lint/typecheck/build plus dependencies passed (`/tmp/puni-participant-metadata-refined-static.log`). Exact file identity was checked against the frozen source object. No Docker invocation or privileged/native image rehearsal was performed. Source output/profile allowances remain provisional and unmeasured; this does not complete participant restoration.
+
+### Groundwork review: surviving store monitor lifetime proofs
+
+One genuine SQLite activation/preparation is consumed under its original live outer owner after constituent finalizers. The new lifetime test independently mutates and restores a valid non-authority migration row, the nonselected dev DISABLED marker, the original prod main inode (same-byte copy), and its canonical parent (same original main inode hard-linked into the replacement parent). Each production store inspection refuses with sanitized restoration-store-readback attribution and no cause. Every healthy/refusal boundary checks unchanged actual Docker command history, byte-identical edge policy, all three selected participants still stopped, and no SQLite/main/WAL/SHM descriptor at awaited owner assertions or return. The complete ledger fault deletes a valid row, so artifact hash validation cannot substitute for full original-ledger equality.
+
+Fresh final restored-source replay after the redundant fixture-finally null assertion was removed: 1 passed, 0 failed, 225 assertions, 45.74s (`/tmp/puni-participant-stores-lifetime-final2.log`), explicit300s per-test bound. Initial positive was55.85s; its per-descriptor assertion count was consolidated and is not counted as separate safety scenarios. Exact independent omissions all produced Missing expected rejection: post-finalizer full-ledger comparison79.57s; post-finalizer nonselected dormant inspection61.73s; original main inode55.65s; original parent inode53.98s (`/tmp/puni-participant-stores-watch-{ledger,dormant,main,parent}.log`). Omitting only the post-finalizer selected read-only SQLite close exposed actual descriptors and failed the empty-FD assertion at an awaited owner boundary46.34s (`/tmp/puni-participant-stores-watch-close.log`). Source was restored in finally after every omission. Adjacent production Proof comments identify these faults.
+
+No store behavior changed. No participant was started or restart policy restored. Source native four-role profile remains unmeasured and its output-parent allowances provisional. No native namespace/Docker/SSH/host action was executed; complete P2b3 and P2b4/P3 remain open.
+
+Uncached configured Nx lint/typecheck/build and four dependency tasks passed in16.0s (`/tmp/puni-participant-stores-lifetime-static-final.log`). The earlier configured lint failure was the redundant fixture null throw inside finally; the final exact test and configured replay above include its correction.
+
+### Source process opened-executable object join
+
+The native source-only process observer now fstats its actual opened executable descriptor and compares device/inode/size/mtime/ctime to the captured named executable before hashing bytes. Its existing named-object metadata readback after hashing remains unchanged. Every descriptor still closes in finally before success or sanitized refusal; no collector exemption, role/profile admission, public callback or kernel permission change is introduced.
+
+TDD used two actual owned copies of `/bin/sleep`: byte equality and distinct inodes are independently checked, one is executed, and an isolated module IO boundary redirects only `/proc/<ownedPID>/exe` open to the other's real descriptor while all proc metadata remains actual. Before the fix it incorrectly accepted the substituted inode (`/tmp/puni-participant-executable-red.log`). With the join, named success, same-byte/different-inode refusal and injected descriptor read failure each close the actual descriptor; a subsequent actual descriptor.stat must produce EBADF. Strong-held fixture handles prevent garbage collection from masking missing explicit close.
+
+Watched exact object-join omission reproduced replacement accepted=true (`/tmp/puni-participant-executable-watch-final.log`,63ms); watched executable-close-only omission produced closed=0 for all three outcomes (`/tmp/puni-participant-executable-close-watch2.log`,70ms). The earlier broad close omission instead triggered Bun's GC close error and is not the claimed exact lifecycle proof. Every mutation restored source in finally. Final restored process/FD/listener replay: 8 passed,0 failed,16 assertions,670ms (`/tmp/puni-participant-executable-final2.log`). Uncached configured Nx lint/typecheck/build plus four dependency tasks passed15.8s (`/tmp/puni-participant-executable-static-final.log`). Initial static failures were fixture import order and an overly generic child stdio type; corrected before the final replay. Actual source observer leaf bundle and import smoke passed (`/tmp/puni-participant-executable-bundle.log`).
+
+This proves the source observer's executable-object association using owned unprivileged tiny processes only. It does not measure the actual source four-role launcher/profile, production image process observer or whole restoration orchestration. No Docker, SSH, root, namespace or live application action was performed. Native profiling remains unmeasured/provisional and prior privileged-rehearsal rejection remains in force.

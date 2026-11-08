@@ -1,0 +1,507 @@
+{
+  "distinct": 99,
+  "files": {
+    "tools/tool-fleet/src/lab-raw-repair.test.ts": 13,
+    "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts": 45,
+    "tools/tool-fleet/src/lab-repair-lineage.test.ts": 7,
+    "tools/tool-fleet/src/lab-raw-repair-source.test.ts": 31,
+    "tools/tool-fleet/src/lab-failed-settlement-source.test.ts": 3
+  },
+  "cases": {
+    "snapshot preserves adjacent native nanoseconds and refuses lossy or open identities": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "2.85ms"
+    },
+    "native repair snapshot guards protect logical admission": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "133.50ms"
+    },
+    "native repair capacity guards protect logical admission": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "129.65ms"
+    },
+    "repair producer request refuses before the next authority": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "125.99ms"
+    },
+    "repair producer history refuses before the next authority": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "130.15ms"
+    },
+    "repair producer evidence refuses before the next authority": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "126.08ms"
+    },
+    "repair producer initial-capacity refuses before the next authority": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "127.63ms"
+    },
+    "repair source CLI uses literal closed diagnostics under terminal color modes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "215.45ms"
+    },
+    "repair ready success binds the original durable reservation before ACK": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "149.28ms"
+    },
+    "repair trusted worker success preserves mutation and counter order": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "156.80ms"
+    },
+    "repair trusted worker snapshot preserves mutation and counter order": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "153.18ms"
+    },
+    "repair source envelope refuses extra authority and malformed producer outcomes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "1.26ms"
+    },
+    "repair outer coordinator success preserves original durability and cleanup": {
+      "file": "tools/tool-fleet/src/lab-raw-repair.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "298.24ms"
+    },
+    "repair recovery validates both captures through the complete conditional settlement reader": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "282.14ms"
+    },
+    "repair recovery traverses actual coordinator and worker observations before writing": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "494.36ms"
+    },
+    "repair recovery observation:shape refuses; watched repair-shape-invalid omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "748.90ms"
+    },
+    "repair recovery observation:claim refuses; watched repair-recovery-observation omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "717.93ms"
+    },
+    "repair recovery observation:map-bool refuses; watched repair-recovery-map omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "758.25ms"
+    },
+    "repair recovery observation:map-accounting refuses; watched repair-recovery-map omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "767.55ms"
+    },
+    "repair recovery observation:join refuses; watched repair-recovery-history-join omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "751.03ms"
+    },
+    "repair recovery observation:time refuses; watched repair-recovery-history-join omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "726.10ms"
+    },
+    "repair recovery capture:shape refuses; watched repair-shape-invalid omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "726.68ms"
+    },
+    "repair recovery capture:availability refuses; watched repair-recovery-capture omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "724.00ms"
+    },
+    "repair recovery capture:binding refuses; watched repair-recovery-capture-join omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "738.00ms"
+    },
+    "repair recovery capture:reference refuses; watched repair-recovery-capture-reference omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "741.60ms"
+    },
+    "repair recovery capture:terminal refuses; watched repair-recovery-capture-terminal omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "718.69ms"
+    },
+    "repair recovery nonce refuses; watched repair-recovery-nonce omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "712.33ms"
+    },
+    "repair recovery existing-nonce refuses; watched repair-recovery-nonce omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "766.59ms"
+    },
+    "repair recovery semantic-depth refuses; watched repair-recovery-depth omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "770.61ms"
+    },
+    "repair recovery semantic-path refuses; watched repair-recovery-request omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "684.92ms"
+    },
+    "repair recovery inheritance refuses; watched repair-recovery-inheritance omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "789.85ms"
+    },
+    "repair recovery capture-selection refuses; watched repair-recovery-selection omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "735.08ms"
+    },
+    "repair recovery missing-K refuses; watched repair-recovery-settlement omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "770.27ms"
+    },
+    "repair recovery history-roles refuses; watched repair-recovery-history-roles omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "754.70ms"
+    },
+    "repair recovery unqualified refuses; watched recovery-qualification omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "669.84ms"
+    },
+    "repair recovery outside refuses; watched repair-recovery-outside-bound omission crosses its boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "745.00ms"
+    },
+    "repair recovery missing preserves refusal before relation credit": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "270.47ms"
+    },
+    "repair recovery unreadable preserves refusal before relation credit": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "302.60ms"
+    },
+    "repair recovery malformed preserves refusal before relation credit": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "285.39ms"
+    },
+    "repair recovery capture:snapshot preserves refusal before relation credit": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "261.63ms"
+    },
+    "repair recovery continues through seed history after successful successor mutation": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "574.65ms"
+    },
+    "repair recovery failed successor retains new G plus K and refuses second settlement before consumption": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "1041.21ms"
+    },
+    "repair recovery failed successor history validates its one immutable predecessor": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "1049.90ms"
+    },
+    "repair recovery coordinator-map stops before write; watched repair-recovery-current-map omission writes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "956.13ms"
+    },
+    "repair recovery worker-map stops before write; watched repair-recovery-current-map omission writes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "955.38ms"
+    },
+    "repair recovery current-settlement stops before write; watched repair-recovery-settlement omission writes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "981.59ms"
+    },
+    "repair recovery original-reused stops before write; watched repair-recovery-original-live omission writes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "961.48ms"
+    },
+    "repair recovery capture-replacement stops before write; watched repair-evidence-changed omission writes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "958.48ms"
+    },
+    "repair recovery capture-open-race stops before write; watched repair-evidence-changed omission writes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "960.05ms"
+    },
+    "repair recovery prewrite-relation-dependency stops before write; watched repair-recovery-observation-changed omission writes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "1024.80ms"
+    },
+    "repair recovery source-replacement stops before write; watched repair-source-changed omission writes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "1003.87ms"
+    },
+    "repair recovery lock-released stops before write; watched repair-lock-invalid omission writes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "937.24ms"
+    },
+    "repair recovery ready-capacity stops before write; watched repair-memory-floor omission writes": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "1014.73ms"
+    },
+    "repair recovery original-live refuses the actual current terminal observation": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "348.41ms"
+    },
+    "repair recovery original-foreign refuses the actual current terminal observation": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "348.73ms"
+    },
+    "repair recovery v1-marked rejects relabel before readonly admission; watched omission crosses": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "722.80ms"
+    },
+    "repair recovery v1-settled rejects relabel before readonly admission; watched omission crosses": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "767.98ms"
+    },
+    "continued lineage requests refuses unsafe production admission": {
+      "file": "tools/tool-fleet/src/lab-repair-lineage.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "77.84ms"
+    },
+    "repair production coordinator valid excludes substituted repository caches": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "260.05ms"
+    },
+    "repair production worker valid excludes substituted repository caches": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "364.50ms"
+    },
+    "repair production coordinator admits the exact source-limits boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "262.35ms"
+    },
+    "repair production worker admits the exact source-limits boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "374.81ms"
+    },
+    "repair production coordinator admits the exact request-limit boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "257.83ms"
+    },
+    "repair production worker admits the exact request-limit boundary": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "377.91ms"
+    },
+    "repair production coordinator request encodings whitespace-request preserve source admission": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "260.72ms"
+    },
+    "repair production worker request encodings whitespace-request preserve source admission": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "359.05ms"
+    },
+    "repair production coordinator request encodings reordered-request preserve source admission": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "276.32ms"
+    },
+    "repair production worker request encodings reordered-request preserve source admission": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "357.64ms"
+    },
+    "repair production coordinator duplicate members duplicate-json refuse; watched hook omission admits": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "410.60ms"
+    },
+    "repair production worker duplicate members duplicate-json refuse; watched hook omission admits": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "564.35ms"
+    },
+    "repair production coordinator duplicate members duplicate-nested-json refuse; watched hook omission admits": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "413.90ms"
+    },
+    "repair production worker duplicate members duplicate-nested-json refuse; watched hook omission admits": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "569.32ms"
+    },
+    "repair recovery coordinator admits the distinct closed bootstrap variant": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "265.53ms"
+    },
+    "repair recovery worker admits the distinct closed bootstrap variant": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "372.53ms"
+    },
+    "repair recovery unknown metadata role refuses before helper import": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "163.08ms"
+    },
+    "repair recovery bootstrap recovery-depth-dependency refuses; watched repair-recovery-depth omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "395.67ms"
+    },
+    "repair recovery bootstrap recovery-foreign refuses; watched repair-recovery-roles omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "411.71ms"
+    },
+    "repair recovery bootstrap recovery-history-foreign refuses; watched repair-recovery-roles omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "413.56ms"
+    },
+    "repair recovery bootstrap recovery-duplicate refuses; watched repair-recovery-paths omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "423.97ms"
+    },
+    "repair recovery bootstrap recovery-limit refuses; watched repair-recovery-canonical omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "434.19ms"
+    },
+    "repair recovery bootstrap whitespace-request refuses; watched repair-recovery-canonical omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "414.52ms"
+    },
+    "repair recovery bootstrap request-shape refuses; watched repair-source-request-shape omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "404.31ms"
+    },
+    "repair recovery bootstrap request-schema refuses; watched repair-source-request-shape omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "428.11ms"
+    },
+    "repair recovery bootstrap snapshot-owner refuses; watched repair-source-snapshot-invalid omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "421.78ms"
+    },
+    "repair recovery bootstrap pin-bytes refuses; watched repair-source-pin-invalid omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "438.59ms"
+    },
+    "repair recovery bootstrap missing required relation field refuses before imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "208.15ms"
+    },
+    "repair recovery bootstrap duplicate-json retains both duplicate and canonical defenses": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "316.19ms"
+    },
+    "repair recovery bootstrap duplicate-nested-json retains both duplicate and canonical defenses": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "283.52ms"
+    },
+    "settlement stdin bootstrap valid": {
+      "file": "tools/tool-fleet/src/lab-failed-settlement-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "152.38ms"
+    },
+    "settlement stdin bootstrap worker-bootstrap": {
+      "file": "tools/tool-fleet/src/lab-failed-settlement-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "245.68ms"
+    },
+    "settlement API uses bounded stdin and refuses v1 or mixed authority envelopes": {
+      "file": "tools/tool-fleet/src/lab-failed-settlement-source.test.ts",
+      "log": "44-final-physical314-cohort.log",
+      "timing": "2.38ms"
+    },
+    "continued lineage typed-post-boot protects the original target before handoff": {
+      "file": "tools/tool-fleet/src/lab-repair-lineage.test.ts",
+      "log": "49-final-failed-case-recheck.log",
+      "timing": "152.30ms"
+    },
+    "continued lineage seed-route protects the original target before handoff": {
+      "file": "tools/tool-fleet/src/lab-repair-lineage.test.ts",
+      "log": "49-final-failed-case-recheck.log",
+      "timing": "151.60ms"
+    },
+    "continued lineage original-pins protects the original target before handoff": {
+      "file": "tools/tool-fleet/src/lab-repair-lineage.test.ts",
+      "log": "49-final-failed-case-recheck.log",
+      "timing": "150.49ms"
+    },
+    "continued lineage guest-success protects the original target before handoff": {
+      "file": "tools/tool-fleet/src/lab-repair-lineage.test.ts",
+      "log": "49-final-failed-case-recheck.log",
+      "timing": "191.47ms"
+    },
+    "continued lineage success protects the original target before handoff": {
+      "file": "tools/tool-fleet/src/lab-repair-lineage.test.ts",
+      "log": "49-final-failed-case-recheck.log",
+      "timing": "153.53ms"
+    },
+    "continued lineage provenance-source protects the original target before handoff": {
+      "file": "tools/tool-fleet/src/lab-repair-lineage.test.ts",
+      "log": "49-final-failed-case-recheck.log",
+      "timing": "158.38ms"
+    },
+    "repair recovery v1-pending rejects relabel before readonly admission; watched omission crosses": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-recovery.test.ts",
+      "log": "51-pending-final-recheck.log",
+      "timing": "472.40ms"
+    },
+    "repair recovery bootstrap recovery-selection refuses; watched repair-recovery-selection omission imports": {
+      "file": "tools/tool-fleet/src/lab-raw-repair-source.test.ts",
+      "log": "53-bootstrap-selection-proof.log",
+      "timing": "414.48ms"
+    }
+  }
+}

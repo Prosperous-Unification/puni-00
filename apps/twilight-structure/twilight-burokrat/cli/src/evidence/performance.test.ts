@@ -843,7 +843,7 @@ describe('complete check Performance evidence', () => {
     // `toolkit runtime closure differs from toolkit.json` and empty stdout; under 1.4.2 it passed.
     const tarballs = join(packageRoot, 'packed');
     await packPackage(packageRoot, tarballs);
-    const tarball = join(tarballs, 'twilight-burokrat-0.1.0.tgz');
+    const tarball = join(tarballs, 'twilight-burokrat-0.2.0.tgz');
     const installation = Bun.spawnSync([process.execPath, 'add', '--ignore-scripts', tarball], {
       cwd: consumer,
       env: { ...process.env, BUN_TMPDIR: consumer, BUN_INSTALL_CACHE_DIR: join(consumer, 'cache') },

@@ -1,0 +1,114 @@
+compose-final-focused.log — final 8 lines
+(pass) rejects mutable references before invoking Docker [0.43ms]
+(pass) actual missing CLI refuses rather than manufacturing support [13.93ms]
+(pass) actual unreadable CLI refuses rather than manufacturing support [13.11ms]
+
+ 209 pass
+ 0 fail
+ 3887 expect() calls
+Ran 209 tests across 5 files. [17.72s]
+
+compose-backend-conformance.log — final 8 lines
+apps/wbs/be-01/src/dependency-capabilities-cli.test.ts:
+(pass) advertises frozen empty support without database configuration or migrations [12.25ms]
+(pass) refuses capability arguments [11.92ms]
+
+ 24 pass
+ 0 fail
+ 69 expect() calls
+Ran 24 tests across 2 files. [54.22s]
+
+compose-lint.log — final 20 lines
+
+> nx run tool-remote-scripts:lint
+
+> bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test
+
+
+
+
+ NX   Successfully ran target lint for project tool-remote-scripts
+
+
+  Run duration:      6.4s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     6.4s (1 task)
+  Recoverable time:  <1ms
+
+compose-typecheck.log — final 20 lines
+
+> nx run tool-remote-scripts:typecheck
+
+> bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project tool-remote-scripts
+
+
+  Run duration:      266ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     256ms (1 task)
+  Recoverable time:  <1ms
+
+compose-build.log — final 25 lines
+
+> bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js
+
+[32mBundled 17 modules in 10ms[0m
+
+  [34msolver-supervisor.js[0m  56.48 KB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js
+
+[32mBundled 5 modules in 11ms[0m
+
+  [34mcheck-installed-solver.js[0m  20.1 KB  [2m(entry point)[0m
+
+
+
+
+ NX   Successfully ran target build for project tool-remote-scripts and 3 tasks it depends on
+
+
+Output of 3 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      243ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     223ms (3 tasks)
+  Recoverable time:  <1ms
+
+compose-docker-timeout-rerun.log — final 12 lines
+bun test v1.4.2 (744846f84)
+
+src/lib/docker.test.ts:
+(pass) boots local backend configuration from the rendered environment and keeps OIDC callback origin authoritative [7761.22ms]
+
+ 1 pass
+ 127 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [7.78s]
+
+Complete permitted source suite — final 20 lines
+(pass) SupervisorOneAttemptChannel > reads a fragmented start, one decision, one kill, and newline-framed replies [1.52ms]
+(pass) SupervisorOneAttemptChannel > rejects bytes buffered after start before container creation [0.38ms]
+(pass) SupervisorOneAttemptChannel > counts every received byte and rejects an unterminated oversize frame [0.38ms]
+(pass) SupervisorOneAttemptChannel > rejects malformed, extra-field, duplicate, and out-of-phase controls [1.48ms]
+(pass) SupervisorOneAttemptChannel > maps EOF and the bind timer to lifecycle controls [1.14ms]
+
+2 tests skipped:
+(skip) managed solver exceptional cleanup with real Docker > removes a merely created container when timer setup fails
+(skip) managed solver exceptional cleanup with real Docker > waits and removes after the real container has already stopped
+
+
+1 tests failed:
+(fail) boots local backend configuration from the rendered environment and keeps OIDC callback origin authoritative [10177.56ms]
+  ^ this test timed out after 10000ms.
+
+ 824 pass
+ 2 skip
+ 1 fail
+ 5806 expect() calls
+Ran 827 tests across 44 files. [274.85s]

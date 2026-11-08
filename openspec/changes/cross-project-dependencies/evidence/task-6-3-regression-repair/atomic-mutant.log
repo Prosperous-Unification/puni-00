@@ -1,0 +1,89 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:
+236 |         };
+237 |         const refused = await run([
+238 |           { kind: 'patchWorkItem', workItemId: leaf(1), patch: { name: 'Staged rename' } },
+239 |           claim(0, 'a0', { steps: undefined }),
+240 |         ]);
+241 |         expect(refused).toMatchObject({ ok: false, at: 1, reason: 'prerequisites_unmet' });
+                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "at": 1,
+-   "ok": false,
+-   "reason": "prerequisites_unmet",
++   "ok": true,
++   "redoable": false,
++   "results": [
++     {
++       "index": 0,
++       "kind": "patchWorkItem",
++     },
++     {
++       "acquired": [],
++       "alreadyHeld": false,
++       "assignedStepIds": [],
++       "claimIds": [
++         "cdac80b3-db4e-44f5-bc07-e0c5e0cc603d",
++         "e0152675-1f16-484e-966e-4842c387aecb",
++       ],
++       "index": 1,
++       "kind": "claimWorkItem",
++     },
++   ],
++   "undoable": true,
+  }
+
+- Expected  - 3
++ Received  + 20
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:241:25)
+(fail) claim occupancy on the memory store > refuses all unfinished steps atomically, rolling back an earlier staged command [64.11ms]
+236 |         };
+237 |         const refused = await run([
+238 |           { kind: 'patchWorkItem', workItemId: leaf(1), patch: { name: 'Staged rename' } },
+239 |           claim(0, 'a0', { steps: undefined }),
+240 |         ]);
+241 |         expect(refused).toMatchObject({ ok: false, at: 1, reason: 'prerequisites_unmet' });
+                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "at": 1,
+-   "ok": false,
+-   "reason": "prerequisites_unmet",
++   "ok": true,
++   "redoable": false,
++   "results": [
++     {
++       "index": 0,
++       "kind": "patchWorkItem",
++     },
++     {
++       "acquired": [],
++       "alreadyHeld": false,
++       "assignedStepIds": [],
++       "claimIds": [
++         "531a2e5c-676e-4770-be47-c4dbc710793f",
++         "f5fd026f-8697-4500-b03e-fe186eabfc69",
++       ],
++       "index": 1,
++       "kind": "claimWorkItem",
++     },
++   ],
++   "undoable": true,
+  }
+
+- Expected  - 3
++ Received  + 20
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:241:25)
+(fail) claim occupancy on the sqlite store > refuses all unfinished steps atomically, rolling back an earlier staged command [197.96ms]
+
+ 0 pass
+ 68 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [2.38s]

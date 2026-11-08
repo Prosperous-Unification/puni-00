@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+{"level":"error","time":1792719283429,"service":"be-01","err":{"occurrence_id":"AE_E07XAN4WZKHWV9KCDK51AVPG52","fingerprint":"fp1_57d60e0eb007b2058c92eaf6bfcf09ea","stack":["Error: read snapshot is closed","    at assertOpen (/tmp/puni-postclose-proof/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.ts:12:28)","    at readConnectedCaptured (/tmp/puni-postclose-proof/libs/wbs/adapters/store-sqlite/src/captured-scheduler.ts:78:24)","    at placement (/tmp/puni-postclose-proof/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:632:19)","    at selectConnectedProject (/tmp/puni-postclose-proof/libs/wbs/application/core/src/service/connected-plan-projection.ts:125:7)","    at captureConnectedHistory (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/connected-history.ts:147:18)","    at captureAndAttempt (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:652:44)","    at async captureSchedulePlan (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:571:32)","    at async save (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:500:33)","    at async savePlan (/tmp/puni-postclose-proof/libs/wbs/application/core/src/module/saved-plans/save-plan.ts:81:33)","    at async <anonymous> (/tmp/puni-postclose-proof/libs/wbs/application/core/src/http/saved-plan.routes.ts:176:27)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+
+apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:
+185 |   });
+186 |   try {
+187 |     const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+188 |       name: 'Read only',
+189 |     });
+190 |     expect(saved.status).toBe(201);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 201
+Received: 500
+
+      at <anonymous> (/tmp/puni-postclose-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:190:26)
+(fail) enabled connected capture never enters solver admission or changes durable optimization state [324.62ms]
+
+ 0 pass
+ 4 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.29s]
+
+Observed process exit: 1

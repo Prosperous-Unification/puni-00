@@ -1,0 +1,38 @@
+{
+  "baseline": "4c0a1aef699806e9a3b870dde7a5cda0ef7038ad",
+  "currentSourceIntegration": {
+    "assertions": 39,
+    "failed": 0,
+    "logSha256": "ebb73ec1b58ce8b2f0abb612e1d9231952a7247c1a80972212ff27798f843340",
+    "passed": 12,
+    "seconds": 6.31
+  },
+  "independentReviewSha256": "a6902e5607c33ed1b87bfdd194725b26dc1c909dc245899bf49487e6a5c38951",
+  "isolatedBaselineFilesUnchanged": 391,
+  "isolatedCampaign": {
+    "assertions": 192,
+    "failed": 0,
+    "logSha256": "7162d3fdce0dac15be630c3c6d46faf4f9e84338b94ece2e08da00bebf60949a",
+    "passed": 63,
+    "seconds": 56.25
+  },
+  "limits": [
+    "Hosted CI green unverified",
+    "Metadata-bounds CI timeout not reproduced or fixed",
+    "No native service qualification or retained operation"
+  ],
+  "source": {
+    "tools/tool-fleet/src/lab-staging-channel.test.ts": {
+      "bytes": 30560,
+      "sha256": "c8622035347ef0302ec678d07fd905df8feff20c7099fe693b70c4d4a059cc3c"
+    },
+    "tools/tool-fleet/src/lab-staging-native-cold-fixture.py": {
+      "bytes": 7338,
+      "sha256": "b657083fc3bcdffa9e018c6e5983eda9359bbc5e132278b1a241b35462f2e44c"
+    },
+    "tools/tool-fleet/src/lab-staging-native-control.test.ts": {
+      "bytes": 56780,
+      "sha256": "80178418628050c7c0bd58a75541a4541b7e55f0af024e67477ad0ad6994b1ab"
+    }
+  }
+}

@@ -1,17 +1,34 @@
-# Workspace gate time budget
-
 ## Problem
 
-PR 787 run 40959508633 exhausted its 90-minute workspace allowance twice. Attempt 1 completed test/typecheck/build in 76m28s, lint in 8m58s and source lint in 34.5s, then cancellation interrupted solver smoke. Attempt 2 completed test/typecheck/build in 80m32s and was cancelled during lint. Both required aggregates were nonpassing; retained logs show no failing-test markers, not a completed second lint verdict.
+Cold workspace runs have exhausted historical60/90-minute allowances and left
+required checks unfinished. Increasing a cap does not repair independent test
+failures or establish a completed gate verdict. The retained observations and
+local proofs live in [verification](verify.md).
 
 ## Outcome
 
-Give only gate_workspace a finite 120-minute job timeout, allowing the existing required checks to finish. Align its existing production-entrypoint assertion and observe exact-head hosted CI plus the canonical host gate before release acceptance. 120 is a chosen finite allowance, not an already measured completed duration.
+Retain the implemented whole-project partition: dedicated backend, remote and
+frontend ownership plus residual workspace coverage, with the fixed remote
+execution layout governed by ci-remote-capacity. Preserve exact validated
+selection, runtime phases, provision, commands, annotations, logs and reduction.
+Carry main's finite120-minute allowance for gate_workspace; dedicated runtime
+jobs retain their existing90-minute ceilings and phase limits. The residual workspace phase receives 105 minutes inside its unchanged 120-minute job, preserving the same 15-minute reserve as the dedicated 90/75 budgets. Required non-Nx
+checks retain their30-minute job, and Twilight remains75 minutes.
 
 ## Non-goals
 
-No check removal, command/scope/verdict change, parallelism change, other timeout change, Tool Wiki activation change, application/authentication implementation, R2 architecture merge or production deployment.
+No check removal, target/dependency/assertion/cache/retry change, new partition,
+command-scope change, unrelated timeout change, Tool Wiki activation or product
+architecture/deployment adoption. The fixed remote exception keeps one logical
+owner and complete canonical coverage; its own bounded contract governs physical
+leaves. A configured allowance is not measured hosted capacity.
 
 ## Constraints
 
-Preserve the current 75-minute Twilight allowance and every other parsed workflow value. Use the existing policy test, not a new mirroring test. Retain all earlier 60/90-minute evidence and both new failed attempts. The higher cap can cost up to 30 additional hosted runner minutes per workspace job; expiry still cannot yield a passing gate.
+Keep immutable base/head and target-specific selection. Full mode covers every
+non-Twilight project, including future residual projects. Each runner preserves
+original failure, annotations and always-on logs. The stable reducer rejects any
+required failure, cancellation, timeout, absence or unexplained skip. Preserve
+all historical60/90-minute evidence without relabeling it. Require exact-head
+cold hosted CI and the canonical host gate before release acceptance. The raised
+workspace ceiling can cost up to30 additional hosted runner minutes per job.

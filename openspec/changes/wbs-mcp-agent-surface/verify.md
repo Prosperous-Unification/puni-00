@@ -2676,6 +2676,78 @@ be-01, store-sqlite and devsync code did not change in that round, so their runs
 Not run: the h2puni gate (the caller runs it), fe-01, gw-01, mcp-01's suites (untouched), the
 k3d lab (`lab.ts` changed; it needs a cluster), and any deploy on a host.
 
+## Fresh-main artifact policy reconciliation (2026-10-28)
+
+Private merge: tested checkpoint `766ce699dc14eb9a157f8b7ad2b4fe2b91380fe7` and main
+`25b873b1d49c2d2cd3e130958af682e309e9f844`. This joins M8 with artifact-only startup:
+the emitter writes required `x-wbs-human-only-operations` into the same document;
+runtime validates that list without importing the contract validators. Explicit fixture
+overrides remain intentional. Actual emitted union: 156 endpoints, 49 human-only entries,
+79 tools. Historical finite parser captures remain evidence of their earlier exact sources,
+not post-merge behavior equivalence.
+
+TDD: the owning emitter test first failed on expected policy records versus `undefined`
+(terminal `4c478b`, 0 pass/1 fail); it passed after emission was implemented. The actual
+consumer then failed at its explicit unimplemented seam (`a4313c`, 0 pass/2 fail), followed
+by the combined emitter/consumer GREEN (22 pass, 83 expectations).
+
+Five finite producer/consumer omissions were watched failing through actual owning paths:
+omitting emitted tags exposed `getMembers` in a generated subset; missing-list-as-empty
+returned protected tools; removing the record guard gave null an incidental destructuring
+error instead of the modeled refusal; removing field validation admitted an empty operation
+identity; removing unmatched-policy refusal accepted a deleted protected operation. Every
+case exited 1 at its named assertion, then restored exact original source bytes. Receipt and
+raw logs: `/tmp/puni-r18-freshmain-reconcile-20261028/policy-omission-receipt.json` and
+`omit-policy-{emission,required-list,record,fields,unmatched}.log`. Restored GREEN:
+54 pass, 206 expectations across `artifact-policy`, `generated-document`,
+`startup-document` and `document-from-shapes` tests. This qualifies these finite guard
+groups, not old comparison/admission harnesses or every field predicate independently.
+
+Focused union evidence, with raw logs in that private directory:
+
+| Owner/check                                                                                                | Observed result                                                                                        |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Seven MCP artifact, startup, tool, token and limit owners (`mcp-focused-green.log`)                        | 126 pass, 1537 expectations                                                                            |
+| SQLite initialization, pool, unpooled claim, capability and writer-authority owners (`sqlite-focused.log`) | 66 pass, 5852 expectations                                                                             |
+| Migration/index/identity joins (`joins-focused.log`)                                                       | 117 pass, 4506 expectations                                                                            |
+| Six migration conflict owners (`migration-conflicts.log`)                                                  | 77 pass, 565 expectations                                                                              |
+| Pooled snapshot/launcher lifetimes (`schedule-pool-lifetimes.log`)                                         | 10 pass, 27 expectations                                                                               |
+| AgentPool controller (`agent-pool-combined-green.log`)                                                     | 20 pass, 210 expectations                                                                              |
+| Exact fresh-main upgrade (`fresh-main-upgrade.log`)                                                        | 1 pass, 654 expectations; full 100-migration main ledger to 104, restoring only four feature additions |
+| Existing positive pool-swarm owner (`pool-swarm-union-green.log`)                                          | 1 pass, 4 wrapper expectations, including equality and non-vacuity of more than 100 child checks       |
+
+The new main remove-persons route initially answered 500 because it passed an id where the
+runner requires the original authenticated principal; the owning RED preceded that one-argument
+fix. Pool fixtures initially met `prerequisites_unmet` by claiming every workflow step; the
+controller fixture now selects the actual first step and the agent forwards the eligible
+`startable.stepIds` it already read. Production prerequisite checks remain intact. The swarm's
+positive owner failed before that forwarding change and passed after it. The first redirect
+test's sandbox loopback EPERM was retained as setup evidence, then its exact local-loopback
+rerun and the combined MCP owner passed. No guard, assertion or time bound was relaxed.
+
+All sixteen merge conflicts were resolved individually. Main pooling retains borrow invalidation,
+no retained transaction, idle drain on source close and outstanding-loan close on later release;
+the four direct unpooled claim tests retain native-close assertions. All 104 migration identities
+and both upstream pool up/down pairs are retained.
+
+Scoped static checks passed using actual nonempty compiler programs with
+`bunx tsc --noEmit --incremental false -p`: contracts/spec, SQLite/spec, be-01/spec,
+mcp-01/lib and spec, fe-01/app and spec, and Dash CLI/lib and spec. The original
+137-file lint process exhausted Node's default 4 GiB heap; the same 137 files then
+passed in eight owning-project invocations, with the initial failure retained.
+The fresh Nx graph was present, so module-boundary rules were exercised. OpenSpec
+validation passed this change (1/1); its existing agent-pool length warning and
+unrelated archive-readiness informational messages remain explicit.
+
+Policy receipt SHA256:
+`aff846d0426d7030e52d46341dd9040ad4a4eaa040e10179ee3188f2b2049774`.
+Independent five-proof review:
+`/tmp/puni-r18-freshmain-policy-five-proofs-actual-independent-review-20261028.md`,
+SHA256 `5bf84911ab64adfd0d6dfff9535b2d63cb5e5abc9f107c1442719035be97d256`.
+Final integration gate/CI remain the integration owner's next checks, not results
+of this slice. No deployment, activation, complete native restoration or full
+public parity acceptance follows.
+
 ## Slice 16 — 7.0 (the raw-key `/api` suites on MCP)
 
 No production behaviour changed: `/api` still admits a `wbs_mk_` bearer until 7.1. Agents in
@@ -2774,6 +2846,32 @@ through consent; that is 7.3's (M12).
 Not run: mcp-01's suites (no mcp-01 file changed), Dash's other suites (one comment changed),
 fe-01 and its e2e, the h2puni gate, and anything on a host.
 
+## Private feature reconciliation with main6bf1a34e9
+
+The private dependency feature combined main
+`6bf1a34e9226b7dece5ff122b2e2b2a3d6f6910f` with feature checkpoint
+`cfc67b0e902255a02dad610158bf01546aed5f83`. Both reviewed historical
+verification sections above remain exact. The resolved compute claim retains the
+ready-step guard/selection and main's forwarded MCP call.
+
+A separate new human-session helper initially omitted steps. Its actual public
+409 response reported `prerequisites_unmet` with a workflow FS blocker; omitted
+steps select all unfinished steps. Only that helper now selects the existing
+`firstStepId`, preserving the dany/codex/claire-key identity assertion and all
+production guards. The temporary response diagnostic was restored exactly.
+
+Final focused checks passed: controller/helper group87/292, swarm7/138 and
+activated-server3/17, plus owning backend/module typecheck, scoped configured
+lint/format and OpenSpec309/309. The initial87-case86/1 epoch and swarm's missing
+generated-OpenAPI setup failure remain separate. The declared MCP prepare target
+produced the ignored OpenAPI artifact before the credited swarm run.
+
+Independent final review report SHA256:
+`0b66c8730420e77d40b9239763806bef91e0394787ec410de88a8c98161dab63`.
+All original outer command processes/streams joined. Incoming helper detached
+inner pipe drains were not independently qualified or rewritten. No native/full
+host gate, main merge, deployment or full dependency-feature acceptance follows.
+
 ## Slice 17 — 7.0 remaining suites
 
 No production behaviour changed: `/api` still admits a `wbs_mk_` bearer and a trusted
@@ -2871,6 +2969,52 @@ Not run, and why:
 - mcp-01's and Dash's suites: no file of theirs changed;
 - `twilight-burokrat:test`: no `project.json` or docs index changed;
 - the h2puni gate, and anything on a host.
+
+## R20 private incoming-main reconciliation
+
+The private candidate combines reviewed CI checkpoint `1da108de6ed986ce5786a7a33aef41be8d532884` with main `8fd51f869bd4a4e69d224366c248c1625c7acce4`. The CI checkpoint completed normal hooks and was backed up on the owned integration and CI branches. R20 preserved every feature assertion, explicit first-step admission, both complete verification appendices and incoming forwarded-grant/fixed-clock/OIDC migrations. Six production-file deltas are comments only.
+
+Normal declared backend test execution passed 83 tests/464 assertions across six overlap files, then 153 tests/758 assertions across five other incoming files: 236 tests, zero failures and 1222 assertions. The declared producer preceded both consumers; no manual preparation was substituted. Backend/module types, scoped lint/format, whitespace and required `openspec validate --all --json` passed (310/310). All original processes and both output streams joined.
+
+The additional `openspec validate wbs-mcp-agent-surface --strict` check remains FAILED with exit 1. Its warning-producing requirements and all five delta specs are byte-identical to the feature HEAD, with unchanged relevant MAIN text and installed-tool identity. The installed strict contract fails on the retained requirement-length warning; archive INFO remains unresolved. This is not a strict PASS or archive-readiness claim. No specification or predicate was changed to hide the failure.
+
+Independent final review: `/tmp/puni-r20-final-independent-review-20261029.md`, SHA256 `644c367f279e370df17aad36c7d7339214a1a19fe0a095e97fdc1b4c498f8665`; exact source/evidence manifest `1708c955ccdda73ec9c2caeda9877448c89b734fd58b36ae10ea737c145dba07`. Root records this linkage as a separate documentation delta. Normal private merge checkpoint/publication follow; current hosted CI, full host/native/restoration acceptance, architectural MAIN adoption and deployment remain open.
+
+## R20 swarm refresh observation correction (2026-10-29)
+
+The CI positive rehearsal returned the expected stale-credential refusal followed by success,
+but its global exactly-one completed-helper assertion failed with two HTTP 401 events and
+two subsequent helper issuances. The SDK can issue background GET and tool POST requests
+independently through the same helper fetch. The rehearsal now requires at least one actual
+completed `after_401` helper issuance, retaining the exact refusal-to-success outcomes,
+401 evidence, four-call heartbeat bound, per-request single resend and all lease/revocation
+checks. The retained CI report lacks request identities; its exact interleaving remains unknown.
+The earlier one-refresh timeline above remains evidence of that historical run.
+
+Existing boot validation passed both cases (2 pass, 0 fail, 6 wrapper assertions). The existing
+`--fault=skip-reimport` run exited 1: all three selected recoveries returned stale-credential
+refusal then `helper_failed:1`; dependent later failures remain in its full report. This is
+grouped recovery coverage, not an isolated completed-helper observation proof.
+
+The one new dependency proof suppressed only the actual `helper_issued` emission when
+`why === 'after_401'`, preserving helper execution, parsed headers, header update and resend.
+The unchanged positive rehearsal then exited 1 with exactly three recovery failures: each
+still observed `[tool_error:machine_credential_refused, ok]` and HTTP 401, but only the original
+connect issuance. Exact agent restoration passed the same positive with 136 of 136 checks.
+Both proof children exited normally with null signals, joined stdout/stderr EOFs and no
+120-second watchdog expiry. Independent actual evidence review accepted this finite pair.
+
+Commands: `bunx nx run wbs-mcp-01:prepare`; `bun test
+apps/wbs/mcp-01/src/pool-swarm.boot.test.ts`; and the existing
+`bun apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts --fault=skip-reimport`. The proof and
+restoration used that same rehearsal without a fault argument under a private 120-second
+direct-child watchdog. The earlier direct skip-reimport run had its existing per-operation
+bounds and settled normally; it did not inherit the boot wrapper's whole-run timeout.
+
+Private original streams, child/tool settlement receipts, tested sources, exact mutation and
+restoration are pinned in `/tmp/puni-r20-mcp-swarm-correction-20261029/one-pair-actual-audit.json`,
+SHA256 `11c23a7d8884e8114b78c5c5210cdafc46cd72ef3240d3fc981a105590503fb3`. No broader
+concurrency reproduction, production refresh change, native/full gate or deployment is claimed.
 
 ## Slice 18 — REST off
 
@@ -3068,6 +3212,188 @@ Commands after the review (laptop, `env -u CLAUDECODE`, 2026-10-30, merged with 
 The suites ran before the `{ cause }` lint fix in `loadResourceConfiguration`; after it, its
 file (`runtime-wbs.test.ts`, 8 pass) and Dash's typecheck and lint were rerun.
 
+## Private main4fec union preparation (2026-10-30)
+
+The private integration checkout now holds an uncommitted union of feature
+947f44515913864be3bb7a489a13e4361ed5d851 and main
+4fec7f2ba93876ccb749f6a78b072945cee7813c. The sole textual conflict was this
+verification record's independently appended histories; both are preserved above.
+Their reported checks belong to their original branches/epochs and do not
+establish combined acceptance.
+
+Astra's read-only direction identifies the feature role-ceiling suite's raw
+machine API transport as incompatible with main's intentional M9 refusal. The
+bounded reconciliation must preserve its authorization/no-effects assertions
+through MCP, retain main's raw-bearer refusal tests, feature startup/dependency
+admission and main's stored workload audience checks. Actual tests, scoped checks
+and independent source review of this union are pending. No private commit,
+publication, architectural main merge, deployment or host action is claimed.
+
+## Private main4fec compatibility verification (2026-10-30)
+
+The uncommitted union's bounded reconciliation is independently source-reviewed
+and its final ordinary evidence accepted. Only three test fixture files required
+manual code changes. Restricted-project tests request a real grant before their
+complete no-effects snapshots, then exercise the existing forwarded path. The
+parity backend issues actual grants and the parity caller uses the production
+MachineCaller forwarding branch. Main's raw-bearer401 suite, feature scopes,
+complete snapshots, lifecycle assertions, per-case bounds, startup/dependency
+admission and stored workload audience checks remain preserved. No production
+source required manual reconciliation.
+
+Independent source review SHA256:
+`def72743a4a88ebf0a025646a4b3d5f93028a2740802ba61180273cb80c0fd42`.
+Final actual audit:
+`f0746fc10d4271e70dece895a75dcfef5c479141044e841d05fc0f98062b92f6`.
+Exact final checkpoint:
+`21abcd067fb70e926d2a79de23c50f4a46cc1286ef34027e362f1372fdfac4c1`.
+Independent membership ledger:
+`f2e14bd55da999c361715defb7d68bda53144845b5bff9976ae8e682796816b0`.
+
+| Accepted selected owners                | Unique cases | Files |
+| --------------------------------------- | -----------: | ----: |
+| Authentication and grants               |          199 |     8 |
+| Dependency boot/client                  |           25 |     2 |
+| Dash MCP/capacity/runtime               |           20 |     4 |
+| MCP non-parity selected owners          |           47 |     3 |
+| Final coherent connected-command parity |           81 |     1 |
+| Total                                   |          372 |    18 |
+
+The actual final parity command was
+`bun test ./apps/wbs/mcp-01/src/connected-command-parity.test.ts --timeout=10000`.
+Original PID3735591 exited normally0 with both actual pipe EOFs in241.903s,
+81 passes/0 failures/980 assertions. All three frozen source hashes matched
+before and after. Declared `bunx nx run wbs-mcp-01:prepare` preceded consumers.
+Owning five-project/module types completed seven tasks with zero cache hits;
+final affected BE/MCP types completed three tasks with zero cache hits. Scoped
+lint/format and all310 OpenSpec items passed;712 warnings remain recorded.
+Package and lock bodies are unchanged.
+
+The first role baseline failed eight401 expectations; the first forwarded setup
+then failed seven snapshots because grant issuance itself emits an audit record.
+Moving real issuance before snapshots preserves the complete effect oracle. The
+initial MCP invocation remains48 passes/80 failures; only its47 completed
+non-parity cases are credited. An intermediate81-pass parity run overlapped a
+test-fixture edit and remains MIXED/UNQUALIFIED. It was not credited again; the
+final coherent run above is the accepted parity evidence. Exact membership
+avoids double-counting focused checks or repeated names.
+
+The in-memory parity fixture intentionally retains its existing unlimited traffic
+behavior. This does not qualify M10/production-default limits, the public token
+endpoint or outer MCP authentication. Backend real-grant/current-credential and
+server scope checks remain exercised. An outer exit/EOF receipt does not by
+itself independently qualify every detached inner drain.
+
+Normal private commit hooks are still required after this evidence update. This
+is not hosted CI, full workspace/h2 gate, source-policy/initial-handoff/native
+acceptance, deployment or architectural main adoption. The separate initializer
+fault campaign remains unexecuted pending explicit user approval. PR630 stays
+held/draft at its existing head; no publication or host action follows here.
+
+## Full backend discovery and six-fixture correction (2026-10-30)
+
+One fresh full owning backend target on the clean private64dc6c85 checkpoint
+failed: `bunx nx run wbs-be-01:test --skip-nx-cache`. Original3775831 settled
+exit1 with both actual output EOFs in2111.629s. Bun reported4885 passes,
+82 failures,3 explicit opt-in skips,104267 assertions and4970 tests across
+322 files. Exact observed file membership matched all322 prelaunch source pins;
+source/manifests remained unchanged. This invocation is FAILED, not green.
+The skips were two opt-in real-Docker proofs and one opt-in solver-orphan proof;
+their environment gates were not enabled.
+
+Failures were26 import-current-authority,47 command-current-authority,
+8 claim-lease-integration and1 cross-project-history-neighbors. Their causes
+were65 direct raw-key principal setup refusals,8 queued raw-key timeouts,
+8 mounted claim401 responses and1 history401. Main's M9 refusal was correct.
+The correction preserves that refusal and changes only test transport/setup.
+
+Astra direction48da12289750d1d908092cde80b5a4abaa465f609d22150b26df853327475fe0
+bounded six existing test/fixture paths. The shared helper now requests an actual
+mounted grant, verifies it through the configured authority and calls
+AuthService.admitMachineGrant, rather than casting proof or authenticating a raw
+machine key. Browser string handling and raw callWith stay byte-identical.
+Machine grant issuance occurs before snapshots, afterResolve arming and writer
+holds; the same retained grant reaches the original current-authority checks.
+Existing consent-marker tests remain lower-layer tests. One typed optional
+machineGrants pass-through in cross-project-dependency-fixture enables only the
+history caller; no global fixture default or production authorization changed.
+
+Independent source/actual review SHA256:
+`ed54beede35ae3e7444394b1fc987b6b57a32a4a5fba7fd5815bfbf6cec932db`.
+Final six-source pin packet:
+`0db4a2ad18b517d8e555e8f2cbd4cbca4cafc6b874159f08a8fe827280d610b7`.
+
+| Current focused verification    | Outcome                                       |
+| ------------------------------- | --------------------------------------------- |
+| Four complete owning files      | 188 passes/0 failures/1403 assertions,64.305s |
+| Actual grant/M9 controls        | 68 passes/0 failures/291 assertions,44.406s   |
+| Backend/module configured types | Two tasks passed, cache skipped               |
+| Six-file lint and formatting    | Passed                                        |
+| OpenSpec                        | 310 passed/0 failed;712 warnings retained     |
+
+The ordered188 case names match the old full-run owners exactly, and all82
+previously failed names now pass. Original processes and both actual pipe EOFs
+joined; frozen six-source hashes matched after checks. Original raw-key401,
+credential/consent/retained-authority, full-snapshot/no-effects and15s queue
+bounds remain unchanged. No source was edited during the final focused runs.
+
+This is bounded repair evidence. It does not turn the old full invocation into
+a current full-backend PASS or combine old passing names into one coherent green
+run. A fresh coherent full backend target is justified before full-backend
+acceptance; the exact final combined CI can supply it. Normal private checkpoint
+hooks, full workspace/host gate, native/controller acceptance and deployment
+remain separate. No fault campaign or Source/CI/initializer execution grant is
+provided here; the initializer24 explicit-approval question remains pending.
+
+## Full backend regression under the observed file-creation mask (2026-10-30)
+
+The complete backend target on clean private checkpoint
+`804dc7fed43e8d569b83df31ce7c1b7acc63f434` completed successfully:
+`bunx nx run wbs-be-01:test --skip-nx-cache`. The original process exited0;
+both actual captured PIPEs reached EOF before the receipt finalized at2003.527s.
+Nx completed the test target and its MCP-document prerequisite with cache skipped.
+
+| Observed full-target result | Count     |
+| --------------------------- | --------- |
+| Passed                      | 4967      |
+| Failed                      | 0         |
+| Explicit opt-in skips       | 3         |
+| Tests / files               | 4970 /322 |
+| Assertions                  | 104610    |
+
+Independent parsing found the same complete ordered4970 case identities and322
+file identities as the earlier failed64dc run. All82 formerly failed cases now
+pass. The six correction pins, two manifest pins and322 test-source pins matched
+before, after and current source; these overlapping groups are not330 distinct
+files. The owning worktree remained clean at804dc7f until source custody released.
+The three unchanged skips require the real-Docker host-restore opt-in or a solver
+orphan image; those native scenarios did not execute.
+
+This run inherited file-creation mask `0077` from the capture launch shell,
+instead of the observed ordinary local `0002`. It proves the coherent804dc7f
+backend regression result in that actual context. It does not establish
+identical normal-context behavior, canonical CI, the required exact-SHA host
+gate, native handoff or deployment acceptance. The same invocation settled
+without source edits, signals, environment changes or a restart. No automatic
+full rerun is requested. Future private capture files must use explicit exclusive
+`0600` creation while preserving the caller's inherited mask and environment.
+
+The actual original exit and separate PIPE EOFs were checked against the capture
+implementation and raw logs; they do not establish an arbitrary descendant or
+inner-drain census. Independent actual review SHA256:
+`651e8130fa7db3ab2ba0d0510a058d0a8e99797635e00f20d3e022563b437192`.
+Original receipt SHA256:
+`5b5bba76bbe18f6d7bd88b0d9c349a501e2c692f34811ed3e7db51d585cfc5c9`.
+Complete report SHA256:
+`7ff77becf6b5d5d7f2b47e64a3e5022b760e869cec641c5ed9dfb4bef853ab74`.
+Independent ordered-membership ledger SHA256:
+`25f69cd7208a4b793dfab00fd5c49503036b9c5923f0dca8cd27d525bfeb5a8c`.
+
+The old full run remains FAILED4885/82/3; the earlier188+68 focused cases retain
+their separate evidence epochs. No fault campaign ran or gained authorization
+here. The initializer24 explicit-approval question remains pending, and the
+architectural PR630/main/deployment holds remain unchanged.
+
 ## Slice 19 — task 3.8: consent tokens must carry `token_use`
 
 - **Change:** `consentClaimsOf` (`apps/wbs/mcp-01/src/oauth.ts`) refuses any `token_use` but
@@ -3082,6 +3408,52 @@ file (`runtime-wbs.test.ts`, 8 pass) and Dash's typecheck and lint were rerun.
   expects a re-signed token without `token_use` to be refused. With the pre-3.8 guard
   `use !== undefined &&` restored, it received `"admitted"` and failed (1 fail); with the fix,
   1 pass. Watched 2026-10-30 (`env -u CLAUDECODE bun test src/oauth.test.ts -t "of any use but consent"`).
+
+## Private main7e0 compatibility closure (2026-10-31)
+
+The private57e36e01 candidate includes the reviewed producer and now carries an
+uncommitted union with fresh main7e0c05d82175b1a374e39d26fc08d3a9349069f5.
+Strict consent token_use refusal, including undefined, and the new negative are
+preserved alongside private deep imports. Main's outer workspace120 change is
+retained without changing the rest of the parsed private workflow.
+
+A naturally stale private capacity expectation failed:5pass/1fail/69assertions,
+Expected90/Received120. Only its workspace expectation changed to120; the remote
+90 assertion and all other controls remain. Final owning evidence is343 distinct
+passes,0 failures and1578 assertions:capacity6/112,OAuth279/1173 and gate
+entrypoints58/293. Configured MCP/Burokrat/hooks lib+spec types, four-file ESLint
+and five-file formatting passed. Six original targets and their collectors
+joined normal0/null signal with both actual PIPE EOFs; all16 source/docs/manifest
+inputs matched before/after. No source changed under these final checks.
+
+Final49-artifact manifest:
+`8743e035c19588e1042bfbd89f2b6a97b898e217e0481018d0739253266eb592`;
+final report:
+`815d5a49b8d532c2b2075d20fdb47bdad51a0c76d073b7abe408518c502ad4f7`;
+baseline12-artifact manifest:
+`d527b9276603453376664613a9fb9c3b39b22ba66940ee9aa328b3ff21dca3b0`.
+Independent bounded source/actual review:
+`48176cecb61a5a373c36f711d7b693468bbf93074512a7785a74e03027e0bf14`.
+Its sole Minor wording ambiguity, remote pair versus leaves, is corrected in the
+workspace spec. No Critical or Important issue was waived.
+
+The duplicate gate-workflow routing suite was not run: complete parsed workflow
+equivalence except the outer budget plus full capacity/gate owners cover this
+bounded change. MCP-main/OpenAPI producer and another full backend target were
+not needed for the changed admission helper. Trusted-modules input for the gate
+scratch fixture names this checkout's installed node_modules; explicit negative
+overrides remain effective. Tool Wiki native activation is not thereby proven.
+
+The separate Origin24 campaign is complete in its recorded scope; the new reader
+implementation, frozen43 campaigns, exact combined hosted CI/canonical host gate,
+native/controller/handoff and architectural main/deployment adoption remain open.
+No historical0077 backend, failed run or old proof epoch is upgraded here.
+
+Root final validation: `bunx openspec validate --all --json` passed310/310,
+with no failures; raw report SHA256
+`6fed5bf72fec14f32173403b36675c70c283edbe5d20d10d328341b572505ec0`.
+All five reviewed source hashes still match; both Git whitespace checks and
+final three-document formatting passed. This supports a private checkpoint only.
 
 ## Slice 20 — confidential DCR clients (task 3.9)
 
@@ -3234,6 +3606,88 @@ per-test counts were lost with the log file); `nx run-many -t typecheck lint -p 
 wbs-core wbs-fe-01` succeeded; the oidc-identity suite ran 81 pass and fe-01's auth-form 31
 pass; Prettier clean; `openspec validate --all` 304 of 304; Burokrat `check-indexes` exit 0.
 
+## Private main reconciliation (2026-10-31)
+
+Both private and incoming histories above were preserved. Their results qualify
+the recorded revisions, not the uncommitted combined tree. Current component
+results and remaining qualification limits live in the
+[canonical credential reconciliation record](../wbs-machine-credentials/verify.md#private-main-reconciliation-2026-10-31).
+That record does not establish fleet migration or deployment readiness.
+
+## Private integration of current main, 2026-11-01
+
+This is ordinary verification of the private integration of
+`5b2c255ce52925bedf3d7a318fe06ae136521c18` with freshly fetched main
+`e05656fcab3c64c8ed44bde461e925a72971dbd4`. It includes main's confidential
+client fixes and supported Python runner/fanout fixture updates. It does not
+record architectural main adoption, deployment, hosted connector acceptance or
+completion of the separate cross-project dependency rollout.
+
+Both complete verification histories above were retained. The CI conflict was
+misleading context matching: main's workspace header matched the private checks
+job. Root retained the complete private executable workflow and carried only
+compatible evidence/comments. A fresh whole parsed-YAML comparison with private
+HEAD passed, including checks at 30 minutes and workspace at 120 minutes. Its
+first diagnostic summary referenced a nonexistent matrix key after the equality
+check; that command failed and supplies no passing command result. The corrected
+whole equality command exited 0. No gate/profile/budget/routing change was
+introduced to make the merge pass.
+
+The merged fanout test retains both explicit project ranks and the private
+principal-object caller contract, with all existing endpoint assertions.
+Incoming migration and rollback bytes were not edited. Production MCP changes
+compose confidential client authentication, atomic code exchange and fail-closed
+refresh with the private deep-import/artifact boundary and current WBS authority;
+client authentication does not substitute for credential, person, organization
+or family checks in the actual writer turn.
+
+Only the organization boot test received a new executor edit. Its three public
+queued-write cases remain, and three independent confidential SDK post-client
+cases now use the same real mounted writer controls after consent, exchange and
+refresh. Persisted credential/family bindings are checked. Unchanged credentials
+commit; revoked or wrong-family credentials refuse without tool publication.
+The incoming Grace SDK case still follows Dany's removal. No production guard
+omission was executed or credited; historical proof comments remain historical.
+
+### Actual current checks
+
+- `NX_DAEMON=false NX_TUI=false bunx nx run-many -t test,typecheck,lint -p wbs-mcp-01 --skip-nx-cache`
+  exited 0, including configured document preparation and all MCP targets.
+  The original session settled after 9 minutes 48 seconds. Nx suppressed output
+  of successful tasks, so no Bun count is inferred from that result.
+- The complete `ci-capacity-workflow.test.ts` and `gate-workflow.test.ts` owning
+  files passed 24/0 with 502 assertions under Bun's configured 10-second budget.
+- The complete fanout command owning file passed all three cases with 20
+  assertions after actual backend document preparation.
+- Exact 20 non-SQL merged-path formatting and migration-pair lint exited 0.
+
+The implementation evidence manifest is
+`/tmp/puni-ad15-mcp-integration-evidence-20261101.json`, SHA256
+`32b5a3b4a80de725c19271663a798874e9c92e63403c5e6c50afc4e67fe0094e`.
+The reviewed 22-path freeze is
+`/tmp/puni-ad15-mcp-source-freeze-20261101.json`, SHA256
+`212dbffb20a9641f6ca5e74ea263e092931d33e964fc907320016b0ef4a44e77`.
+Those identify the source before this Root-owned evidence append.
+
+Independent Astra review
+`/tmp/puni-ad15-mcp-independent-review-20261101.md`, SHA256
+`8c958517b2301613fa4872021de7a2ff41b6c2481beb84fba153ae047236b266`,
+returned private-integration GO with no actionable findings. It checked all 22
+source hashes, evidence bindings, complete parsed workflow and both retained
+histories. A fresh whole organization boot suite passed **36/0 with 928
+assertions**, including every confidential refreshed queued-write case. The
+reviewer's usage interruption preceded its test launch; after the user asked
+to continue, one original owning run launched and settled. No duplicate test
+was started to compensate for silence.
+
+All original implementation and reviewer handles settled. Qualified observations
+found no remaining own MCP fixture processes; a diagnostic self-match was
+corrected rather than reported as an application defect. These observations do
+not qualify unrelated/native descendant behavior. No full backend sweep, new
+fault campaign, held Reader38/separate43 operation, host/native action or deploy
+supplied this evidence. Exact combined-candidate CI/canonical gate and all
+remaining rollout/architectural-main/native/deployment obligations stay open.
+
 ## Launch gate fixture synchronization repair (2026-10-29)
 
 The actual `wbs-mcp-01:test` target at `9f3d50b0f` failed two top-level tests on h2puni:
@@ -3359,3 +3813,7 @@ release checks remain the owning task's responsibility; the older failed host re
 successful public receipt remain unchanged.
 
 _Merge note 2026-11-01 (integration/puni-launch-funnel-main-20261101): the swarm re-key assertion above was superseded by main's effeb1017 form, which requires a completed `after_401` helper refresh without a global event count; the in-flight model decoration below is unchanged and carried forward._
+
+## Private integration of launch-gate fixture history — 2026-11-01
+
+This reconciliation preserves both appended evidence histories from private e3400cc78 and pinned main1bc28733. Historical traces keep their original source bindings. Current source retains main's startup GET EOF barrier and disabled fixture SSE reconnects alongside the private claim's exact `steps: leaf.stepIds`. The in-flight model is main's admission/release barrier implementation. Main's final merge note supersedes the old exact global re-key event-count assertion: current rehearsal checks refusal-to-success, HTTP401 and completed `helper_issued` with reason `after_401`. The historical explicit probe_finished claim does not describe current driver source. Combined-tree checks remain pending; this documentation merge supplies no new runtime or delivery evidence.

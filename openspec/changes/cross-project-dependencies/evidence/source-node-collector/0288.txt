@@ -1,0 +1,6 @@
+bun test v1.4.4 (38afee6c8)
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+
+error: regex "^actual source collector function boundary refuses link-utf8$" matched 0 tests. Searched 1 file (skipping 43 tests) [26.00ms]

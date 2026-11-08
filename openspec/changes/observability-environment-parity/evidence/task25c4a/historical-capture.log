@@ -1,0 +1,9 @@
+bun test v1.4.4 (38afee6c8)
+
+../../../../../../tmp/task37-historical-source/tools/tool-fleet/src/k3d-resource-caller.test.ts:
+(pass) Task37 capture historical baseline receipt without modifying its bytes [1610.47ms]
+
+ 1 pass
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.74s]

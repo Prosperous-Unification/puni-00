@@ -1,0 +1,8 @@
+32f72fc699a1dd5c680a5cbc8b4de6274f655cf2f0fb3364b196034362d6f7d2  apps/wbs/be-01/src/testing/captured-scheduler-fixture.ts
+ae7b61cbced00e5d7c57f7a77cbd70542a7cd125bc7dbaa92fdbfcb50829cc89  libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts
+f8f9f67c8f1b5b42420def2316be948f5f2a2e825db4a81fa815ed991d893bcc  libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts
+416ee8da4f5edae3e68589b8b454cec907adb3ebcc9c4c906ee1be8a64f4b681  libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts
+f447107ccaa670d135fc874b7eebfaa8dd5ea36201a44cff57f0e7e7c53d3a80  libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts
+f13f082f132e7553c42cbb3173f6b286a94ff5ed929502b4e333e55c5db17a40  libs/wbs/adapters/store-sqlite/src/connected-plan-capture.ts
+3e62c0b4f91cd365d4f57928a325b7370be16958a51940f3c010ed75115c2820  libs/wbs/application/core/src/service/connected-readiness.test.ts
+d4bc4e146c89bf4caa1c20d1f6aba2a475ae19bd14fb1748873a0f4a167aedb9  libs/wbs/application/core/src/service/shared-people.test.ts

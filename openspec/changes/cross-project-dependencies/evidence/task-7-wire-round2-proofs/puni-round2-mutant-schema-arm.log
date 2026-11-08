@@ -1,0 +1,566 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+215 |   expect(() =>
+216 |     buildConnectedSolverRequestPair(stage(), identity, {
+217 |       solverVersion: '0.4.0',
+218 |       budgetMs: 0,
+219 |     }),
+220 |   ).toThrow(/budgetMs/);
+          ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /budgetMs/
+
+Received function did not throw
+Received value: {
+  pri: {
+    kind: "boundary-infeasible",
+    stage: {
+      kind: "connected-stage",
+      projectId: "B",
+      mode: "isolated",
+      originOrdinal: 0,
+      projects: [
+        {
+          projectId: "A",
+          rank: 0,
+          anchorOrdinal: 0,
+        }, {
+          projectId: "B",
+          rank: 1,
+          anchorOrdinal: 0,
+        }, {
+          projectId: "C",
+          rank: 2,
+          anchorOrdinal: 0,
+        }
+      ],
+      input: {
+        rows: [
+          {
+            id: "a",
+            parentId: null,
+            position: 0,
+            priority: 0,
+            frozenNumber: null,
+          }, {
+            id: "b",
+            parentId: null,
+            position: 1,
+            priority: 0,
+            frozenNumber: null,
+          }, {
+            id: "c",
+            parentId: null,
+            position: 2,
+            priority: 0,
+            frozenNumber: null,
+          }
+        ],
+        slices: [
+          {
+            workItemId: "a",
+            stepId: null,
+            days: 0.2,
+            width: 1,
+            personId: null,
+            poolIds: [],
+          }, {
+            workItemId: "b",
+            stepId: null,
+            days: 1,
+            width: 1,
+            personId: null,
+            poolIds: [],
+          }, {
+            workItemId: "c",
+            stepId: null,
+            days: 1,
+            width: 1,
+            personId: null,
+            poolIds: [],
+          }
+        ],
+        graph: {
+          nodes: [
+            {
+              kind: "boundary",
+              workItemId: "a",
+              at: 0,
+            }, {
+              kind: "boundary",
+              workItemId: "b",
+              at: 0,
+            }, {
+              kind: "boundary",
+              workItemId: "c",
+              at: 0,
+            }
+          ],
+          edges: [
+            {
+              predecessor: {
+                leafId: "a",
+                at: 0,
+              },
+              successor: {
+                leafId: "b",
+                at: 0,
+              },
+              provenance: "authored",
+              relationshipId: "ab",
+              type: "FS",
+            }, {
+              predecessor: {
+                leafId: "b",
+                at: 0,
+              },
+              successor: {
+                leafId: "c",
+                at: 0,
+              },
+              provenance: "authored",
+              relationshipId: "bc",
+              type: "FS",
+            }
+          ],
+        },
+        notBefore: Map {},
+        deadlines: Map {},
+        poolSizes: Map {},
+        resourceCapacities: Map {},
+        elsewhere: Map {},
+        order: {
+          kind: "connected",
+          projectIdByWorkItem: Map(3) {
+            "a": "A",
+            "b": "B",
+            "c": "C",
+          },
+          rankByProject: Map(3) {
+            "A": 0,
+            "B": 1,
+            "C": 2,
+          },
+        },
+      },
+      relationships: [
+        {
+          id: "ab",
+          type: "FS",
+          predecessor: {
+            scope: "whole",
+            projectId: "A",
+            workItemId: "a",
+          },
+          successor: {
+            scope: "whole",
+            projectId: "B",
+            workItemId: "b",
+          },
+        }, {
+          id: "bc",
+          type: "FS",
+          predecessor: {
+            scope: "whole",
+            projectId: "B",
+            workItemId: "b",
+          },
+          successor: {
+            scope: "whole",
+            projectId: "C",
+            workItemId: "c",
+          },
+        }
+      ],
+      starts: Map(3) {
+        "a\u0000": 0,
+        "b\u0000": 0.2,
+        "c\u0000": 1.2,
+      },
+      finishes: Map(3) {
+        "a\u0000": 0.2,
+        "b\u0000": 1.2,
+        "c\u0000": 2.2,
+      },
+    },
+    request: {
+      wireVersion: 5,
+      contractVersion: "18+0.4.0",
+      solverVersion: "0.4.0",
+      budgetMs: 0,
+      stageBudgetSplit: [ 0.6, 0.25, 0.15 ],
+      quantum: 48,
+      horizonUnits: 58,
+      slices: [
+        {
+          workItemKey: "b",
+          key: "b\u0000",
+          durationUnits: 48,
+          width: 1,
+          personId: null,
+          poolIds: [],
+          priorityWeight: 1,
+          notBeforeUnits: 0,
+          deadlineUnits: null,
+          workItemIsMilestone: false,
+          demands: [],
+        }
+      ],
+      edges: [],
+      pools: {},
+      resources: {},
+      elsewhere: {},
+      scope: {
+        kind: "connected-stage",
+        projectId: "B",
+        inputHash: "input",
+        questionHash: "pri-hash",
+        originOrdinal: 0,
+        projects: [
+          {
+            projectId: "A",
+            rank: 0,
+            anchorOrdinal: 0,
+          }, {
+            projectId: "B",
+            rank: 1,
+            anchorOrdinal: 0,
+          }, {
+            projectId: "C",
+            rank: 2,
+            anchorOrdinal: 0,
+          }
+        ],
+        fixed: [
+          {
+            projectId: "A",
+            key: "a\u0000",
+            start: 0,
+            finish: 0.2,
+          }, {
+            projectId: "C",
+            key: "c\u0000",
+            start: 1.2,
+            finish: 2.2,
+          }
+        ],
+        boundaries: [
+          {
+            localKey: "b\u0000",
+            foreignProjectId: "A",
+            foreignKey: "a\u0000",
+            relationshipId: "ab",
+            type: "FS",
+            direction: "incoming",
+            minimumStartUnits: 10,
+          }, {
+            localKey: "b\u0000",
+            foreignProjectId: "C",
+            foreignKey: "c\u0000",
+            relationshipId: "bc",
+            type: "FS",
+            direction: "outgoing",
+            maximumStartUnits: 9,
+          }
+        ],
+        occupancy: [],
+      },
+      movementReferenceOffsets: {
+        "b\u0000": 10,
+      },
+      feasibleBaselineOffsets: null,
+      seedOffsets: {
+        "b\u0000": 10,
+      },
+      objective: "pri",
+    },
+    evidence: {
+      kind: "contradictory-bounds",
+      key: "b\u0000",
+      lower: 10,
+      upper: 9,
+      contributors: [ "floor:0", "horizon:58", "ab:incoming:10", "bc:outgoing:9" ],
+    },
+  },
+  time: {
+    kind: "boundary-infeasible",
+    stage: {
+      kind: "connected-stage",
+      projectId: "B",
+      mode: "isolated",
+      originOrdinal: 0,
+      projects: [
+        {
+          projectId: "A",
+          rank: 0,
+          anchorOrdinal: 0,
+        }, {
+          projectId: "B",
+          rank: 1,
+          anchorOrdinal: 0,
+        }, {
+          projectId: "C",
+          rank: 2,
+          anchorOrdinal: 0,
+        }
+      ],
+      input: {
+        rows: [
+          {
+            id: "a",
+            parentId: null,
+            position: 0,
+            priority: 0,
+            frozenNumber: null,
+          }, {
+            id: "b",
+            parentId: null,
+            position: 1,
+            priority: 0,
+            frozenNumber: null,
+          }, {
+            id: "c",
+            parentId: null,
+            position: 2,
+            priority: 0,
+            frozenNumber: null,
+          }
+        ],
+        slices: [
+          {
+            workItemId: "a",
+            stepId: null,
+            days: 0.2,
+            width: 1,
+            personId: null,
+            poolIds: [],
+          }, {
+            workItemId: "b",
+            stepId: null,
+            days: 1,
+            width: 1,
+            personId: null,
+            poolIds: [],
+          }, {
+            workItemId: "c",
+            stepId: null,
+            days: 1,
+            width: 1,
+            personId: null,
+            poolIds: [],
+          }
+        ],
+        graph: {
+          nodes: [
+            {
+              kind: "boundary",
+              workItemId: "a",
+              at: 0,
+            }, {
+              kind: "boundary",
+              workItemId: "b",
+              at: 0,
+            }, {
+              kind: "boundary",
+              workItemId: "c",
+              at: 0,
+            }
+          ],
+          edges: [
+            {
+              predecessor: {
+                leafId: "a",
+                at: 0,
+              },
+              successor: {
+                leafId: "b",
+                at: 0,
+              },
+              provenance: "authored",
+              relationshipId: "ab",
+              type: "FS",
+            }, {
+              predecessor: {
+                leafId: "b",
+                at: 0,
+              },
+              successor: {
+                leafId: "c",
+                at: 0,
+              },
+              provenance: "authored",
+              relationshipId: "bc",
+              type: "FS",
+            }
+          ],
+        },
+        notBefore: Map {},
+        deadlines: Map {},
+        poolSizes: Map {},
+        resourceCapacities: Map {},
+        elsewhere: Map {},
+        order: {
+          kind: "connected",
+          projectIdByWorkItem: Map(3) {
+            "a": "A",
+            "b": "B",
+            "c": "C",
+          },
+          rankByProject: Map(3) {
+            "A": 0,
+            "B": 1,
+            "C": 2,
+          },
+        },
+      },
+      relationships: [
+        {
+          id: "ab",
+          type: "FS",
+          predecessor: {
+            scope: "whole",
+            projectId: "A",
+            workItemId: "a",
+          },
+          successor: {
+            scope: "whole",
+            projectId: "B",
+            workItemId: "b",
+          },
+        }, {
+          id: "bc",
+          type: "FS",
+          predecessor: {
+            scope: "whole",
+            projectId: "B",
+            workItemId: "b",
+          },
+          successor: {
+            scope: "whole",
+            projectId: "C",
+            workItemId: "c",
+          },
+        }
+      ],
+      starts: Map(3) {
+        "a\u0000": 0,
+        "b\u0000": 0.2,
+        "c\u0000": 1.2,
+      },
+      finishes: Map(3) {
+        "a\u0000": 0.2,
+        "b\u0000": 1.2,
+        "c\u0000": 2.2,
+      },
+    },
+    request: {
+      wireVersion: 5,
+      contractVersion: "18+0.4.0",
+      solverVersion: "0.4.0",
+      budgetMs: 0,
+      stageBudgetSplit: [ 0.6, 0.25, 0.15 ],
+      quantum: 48,
+      horizonUnits: 58,
+      slices: [
+        {
+          workItemKey: "b",
+          key: "b\u0000",
+          durationUnits: 48,
+          width: 1,
+          personId: null,
+          poolIds: [],
+          priorityWeight: 1,
+          notBeforeUnits: 0,
+          deadlineUnits: null,
+          workItemIsMilestone: false,
+          demands: [],
+        }
+      ],
+      edges: [],
+      pools: {},
+      resources: {},
+      elsewhere: {},
+      scope: {
+        kind: "connected-stage",
+        projectId: "B",
+        inputHash: "input",
+        questionHash: "time-hash",
+        originOrdinal: 0,
+        projects: [
+          {
+            projectId: "A",
+            rank: 0,
+            anchorOrdinal: 0,
+          }, {
+            projectId: "B",
+            rank: 1,
+            anchorOrdinal: 0,
+          }, {
+            projectId: "C",
+            rank: 2,
+            anchorOrdinal: 0,
+          }
+        ],
+        fixed: [
+          {
+            projectId: "A",
+            key: "a\u0000",
+            start: 0,
+            finish: 0.2,
+          }, {
+            projectId: "C",
+            key: "c\u0000",
+            start: 1.2,
+            finish: 2.2,
+          }
+        ],
+        boundaries: [
+          {
+            localKey: "b\u0000",
+            foreignProjectId: "A",
+            foreignKey: "a\u0000",
+            relationshipId: "ab",
+            type: "FS",
+            direction: "incoming",
+            minimumStartUnits: 10,
+          }, {
+            localKey: "b\u0000",
+            foreignProjectId: "C",
+            foreignKey: "c\u0000",
+            relationshipId: "bc",
+            type: "FS",
+            direction: "outgoing",
+            maximumStartUnits: 9,
+          }
+        ],
+        occupancy: [],
+      },
+      movementReferenceOffsets: {
+        "b\u0000": 10,
+      },
+      feasibleBaselineOffsets: null,
+      seedOffsets: {
+        "b\u0000": 10,
+      },
+      objective: "time",
+    },
+    evidence: {
+      kind: "contradictory-bounds",
+      key: "b\u0000",
+      lower: 10,
+      upper: 9,
+      contributors: [ "floor:0", "horizon:58", "ab:incoming:10", "bc:outgoing:9" ],
+    },
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:220:5)
+(fail) malformed complete requests never become prepared boundary findings [3.22ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [186.00ms]

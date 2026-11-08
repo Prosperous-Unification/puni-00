@@ -1,0 +1,90 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+562 |       await scope.stores.workItems.patch(fixture.owner.workItemId,{notes:'preceding patch must roll back'},{at:20,by:fixture.principal.id});
+563 |       const outcome=await opened.context.incidents.run(owner,fixture.principal.id,{kind:'fresh',fromWorkItemId:fixture.owner.workItemId,toWorkItemId:'refused-child'},{at:20,by:fixture.principal.id},()=>Promise.resolve({ok:false as const,detail:'controlled structural refusal'}));
+564 |       return {commit:outcome.ok,value:outcome};
+565 |     }finally{opened.close();grant.expire();}
+566 |   });
+567 |   expect({transition,changed:JSON.stringify(readTables())!==JSON.stringify(before)}).toMatchObject({transition:{ok:false,reason:'structure_refused',value:{ok:false,detail:'controlled structural refusal'}},changed:false});
+                                                                                           ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "changed": false,
++   "changed": true,
+    "transition": {
+-     "ok": false,
++     "evidence": {
++       "externalBefore": [
++         {
++           "projectId": "41a382f0-d377-4f36-9d7b-3d334719efc7",
++           "revision": 1,
++           "workItemId": "438d616d-ff49-40db-aee4-027d5aba6d35",
++         },
++       ],
++       "receipts": [
++         {
++           "from": {
++             "createdAt": 10,
++             "createdBy": "7d688819-4776-4191-87f9-61f4c4f1c844",
++             "dependency": {
++               "id": "outgoing",
++               "predecessor": {
++                 "projectId": "1a068203-8c10-4944-9f6d-53e128c7fc67",
++                 "scope": "node",
++                 "stepId": "842c60d5-44f1-4e7b-8a99-e524384eebd0",
++                 "workItemId": "81e1594c-c55e-449b-8787-de5d66bc4989",
++               },
++               "projectId": "41a382f0-d377-4f36-9d7b-3d334719efc7",
++               "successor": {
++                 "projectId": "41a382f0-d377-4f36-9d7b-3d334719efc7",
++                 "scope": "whole",
++                 "workItemId": "438d616d-ff49-40db-aee4-027d5aba6d35",
++               },
++               "type": "FS",
++             },
++           },
++           "to": {
++             "createdAt": 10,
++             "createdBy": "7d688819-4776-4191-87f9-61f4c4f1c844",
++             "dependency": {
++               "id": "outgoing",
++               "predecessor": {
++                 "projectId": "1a068203-8c10-4944-9f6d-53e128c7fc67",
++                 "scope": "node",
++                 "stepId": "842c60d5-44f1-4e7b-8a99-e524384eebd0",
++                 "workItemId": "refused-child",
++               },
++               "projectId": "41a382f0-d377-4f36-9d7b-3d334719efc7",
++               "successor": {
++                 "projectId": "41a382f0-d377-4f36-9d7b-3d334719efc7",
++                 "scope": "whole",
++                 "workItemId": "438d616d-ff49-40db-aee4-027d5aba6d35",
++               },
++               "type": "FS",
++             },
++           },
++         },
++       ],
++     },
++     "ok": true,
+      "reason": "structure_refused",
+      "value": {
+        "detail": "controlled structural refusal",
+        "ok": false,
+      },
+    },
+  }
+
+- Expected  - 2
++ Received  + 55
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:567:86)
+(fail) modeled structural refusal makes the compound capability refuse at its top level and rolls back detached links [574.85ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 10 expect() calls
+Ran 1 test across 1 file. [3.87s]

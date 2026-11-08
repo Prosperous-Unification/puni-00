@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:
+(pass) new saved body integrity > accepts detached complete connected bodies and retains the supplied bytes [4.76ms]
+(pass) new saved body integrity > refuses missing frozen target slice identity and scheduling fields [10.13ms]
+(pass) new saved body integrity > refuses missing, foreign or mismatched target placement membership [19.31ms]
+(pass) new saved body integrity > refuses altered selected offsets, spans and dates with an intact captured composite [15.82ms]
+(pass) new saved body integrity > validates the captured target anchor rather than using another project calendar [6.47ms]
+102 |     const emptyHistory = readSavedDependencyHistory({ ...history, projects: history.projects.map((project) => ({ ...project, startDate: null, workItems: [] })), relationships: [], ownership: [], readiness: [], graph: { nodes: [], edges: [] } });
+103 |     const emptyInput = canonicalisePlanInputV9({ ...planFixtureRows, project: { ...planFixtureRows.project, id: 'A', startDate: null } }, emptyHistory);
+104 |     const empty = { workItems: {}, slices: {}, waitingForPerson: 0, waitingForCapacity: 0 };
+105 |     const emptyBody = { ...schedule, ...empty, connection: { ...evidence, originOrdinal: null, baseline: empty, composite: empty, stages: [], idleProjects: ['A', 'B'] } };
+106 |     expect(read(JSON.stringify(emptyInput), JSON.stringify(emptyBody))).toBeNull();
+107 |     expect(read(JSON.stringify(emptyInput), JSON.stringify({ ...emptyBody, waitingForPerson: 1 }))).toMatchObject({ reason: 'body_invalid', body: 'schedule' });
+                                                                                                          ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:107:101)
+(fail) new saved body integrity > accepts a genuinely empty connected component without inventing an anchor or stage [1.36ms]
+(pass) new saved body integrity > reports correctly hashed malformed new JSON as typed body_invalid [0.23ms]
+(pass) new saved body integrity > refuses mismatched targets, missing connection and local input with connected schedule [2.43ms]
+(pass) new saved body integrity > requires absent schedules for unavailable connected context and preserves local schedule1 reads [1.99ms]
+(pass) new saved body integrity > refuses missing selected evidence and malformed timings without replaying schedules [1.40ms]
+
+ 9 pass
+ 1 fail
+ 40 expect() calls
+Ran 10 tests across 1 file. [369.00ms]

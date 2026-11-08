@@ -1,0 +1,14 @@
+
+ NX   Nx was denied permission to create a plugin worker socket. Running plugins in the main process instead.
+
+Plugins that expect isolation may misbehave, and this is slower than a worker.
+Nx was denied permission to use its unix socket under /tmp/.nx or ~/.nx.
+To fix this, do one of the following:
+  - In `~/.codex/config.toml`, set `sandbox_workspace_write.network_access` to true and add /tmp/.nx or ~/.nx to `sandbox_workspace_write.writable_roots`. Codex has no setting that scopes sockets to a path, and `network_access` also grants general network access, so this is a broader grant than the other agents need.
+  - Get permission to create sockets under /tmp/.nx or ~/.nx, or set NX_SOCKET_DIR to a directory you do have permission for.
+See https://nx.dev/docs/kb/nx-sandbox-unix-sockets for details.
+
+
+ NX   JSON output created in /tmp
+
+/tmp/command-round1-graph.json

@@ -9,7 +9,9 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from '../plan-commands/composition';
@@ -69,6 +71,7 @@ async function seeded() {
   let stamps = 0;
   let ids = 0;
   const requirements = {
+    dependencyContext: createLocalDependencyContext(stores),
     ...stores,
     admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
@@ -222,6 +225,7 @@ it('reads the admitted sparse store and rolls a preceding patch back with its jo
     ]);
   const before = await snapshot();
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: {
       run: (act) =>
         source.uow.run(async (scope) => {
@@ -236,7 +240,11 @@ it('reads the admitted sparse store and rolls a preceding patch back with its jo
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope, announcements) => {
-      return servicesOver(scope.stores, { ...requirements, broadcast: announcements });
+      return servicesOver(scope.stores, {
+        ...requirements,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        broadcast: announcements,
+      });
     },
   });
   expect(
@@ -423,11 +431,16 @@ it('preserves empty-policy move undo and redo while unrelated facts survive', as
   );
   const graph = servicesOver(fixture.source.stores, fixture.requirements);
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: fixture.source.uow,
     announcements: fixture.broadcast,
     publicServices: graph,
     batchServices: (scope, broadcast) =>
-      servicesOver(scope.stores, { ...fixture.requirements, broadcast }),
+      servicesOver(scope.stores, {
+        ...fixture.requirements,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        broadcast,
+      }),
   });
   expect(
     (await runner.run('p', 'owner', [{ kind: 'moveWorkItem', workItemId: 'moving', ...move }])).ok,

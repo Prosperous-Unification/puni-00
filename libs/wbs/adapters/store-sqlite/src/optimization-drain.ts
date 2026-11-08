@@ -7,6 +7,7 @@ import { auditOnUpdate } from './audit';
 import {
   dependency,
   estimate,
+  externalDependency,
   optimizationGeneration,
   optimizedScheduleCache,
   project,
@@ -22,6 +23,17 @@ import {
 
 /** The handle a caller's own transaction hands to the helpers below. */
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
+/** Throws naming the external relationship before destructive drain state can commit. */
+function assertProjectUnreferenced(tx: Transaction, projectId: string): void {
+  const reference = tx
+    .select({ id: externalDependency.id })
+    .from(externalDependency)
+    .where(eq(externalDependency.predecessorProjectId, projectId))
+    .get();
+  if (reference !== undefined)
+    throw new Error(`project ${projectId} has externally referenced predecessor ${reference.id}`);
+}
 
 /**
  * Phase 1 of the two-phase cancel-and-drain (tasks.md 3.9b).
@@ -84,6 +96,9 @@ type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0
  * `updatedAt` and nothing else, so a retirement triggered by a deploy supplies
  * the same instant it always did.
  *
+ * Whole-project deletion refuses external predecessor references before any
+ * drain write; named contract retirement leaves those relationships intact.
+ *
  * Returns the number of slot rows the caller must still wait for. Zero means
  * finish may run immediately; it does not mean finish has run.
  */
@@ -95,6 +110,9 @@ export function beginOptimizationDrain(
 ): number {
   return db.transaction((tx) => {
     if (contractVersion === undefined) {
+      // Proof: removing this call committed marker/audit, queue deletion and
+      // generation/slot cancellation in installed and raw begin tests (2026-10-22).
+      assertProjectUnreferenced(tx, projectId);
       // `isNull` for the same reason the slot stamp carries one: the marker
       // records when the deletion was FIRST requested, and a reader judging how
       // long a drain has been stuck needs that instant rather than the instant
@@ -225,8 +243,8 @@ export type OptimizationDrainFinish = 'finished' | 'waiting' | 'open' | 'absent'
  * row already gone, and never deletes on a view of the world that has moved.
  *
  * **What the delete takes.** The project arm explicitly removes its owned
- * estimates, access, work items and steps before its root; the work-item
- * delete cascades valid local legacy and typed dependencies. The
+ * incoming external relationships, estimates, access, work items and steps before
+ * its root; the work-item delete cascades valid local legacy and typed dependencies. The
  * migrated schema deliberately restricts deletion of a populated root. Root
  * cascades then remove optimizer, placement and history rows, preserving shared
  * directory entries and unrelated projects. Incident sparse step policy is
@@ -297,6 +315,10 @@ function finishDrainIn(
     // Proof: bypassing this counted-slot fence deleted a populated project
     // while its child still occupied capacity instead of returning `waiting`.
     if (outstanding() > 0) return 'waiting';
+
+    // Proof: removing this call reached the first-cleanup estimate trigger
+    // instead of the external-reference refusal in raw finalization (2026-10-22).
+    assertProjectUnreferenced(tx, projectId);
 
     // Proof: independently bypassing either ownership refusal made the raw
     // finalizer return `finished` and erase a bystander-owned dependency edge.
@@ -399,6 +421,11 @@ function finishDrainIn(
     // Proof: omitting any one of these four deletes made installed populated
     // finish fail; broadening each predicate independently erased a bystander
     // estimate, access row, work item or step in the mounted retention tests.
+    // Proof: broadening this delete erased C→D in the installed successor
+    // cleanup fixture; late step failure restored both links (2026-10-22).
+    // Incoming links belong to the deleted successor; surviving predecessors
+    // retain their facts and revisions. This lifecycle has no undo journal.
+    tx.delete(externalDependency).where(eq(externalDependency.successorProjectId, projectId)).run();
     tx.delete(estimate).where(inArray(estimate.workItemId, ownedWorkItems)).run();
     tx.delete(projectAccess).where(eq(projectAccess.projectId, projectId)).run();
     tx.delete(workItem).where(eq(workItem.projectId, projectId)).run();
@@ -406,6 +433,14 @@ function finishDrainIn(
     tx.delete(project).where(eq(project.id, projectId)).run();
     return 'finished';
   }
+
+  // A project drain also retires contracts first. Refuse before that retirement
+  // can commit a reclaimed slot or generation ahead of project finalization.
+  const target = tx.select().from(project).where(eq(project.id, projectId)).get();
+  // Proof: bypassing this pending-project defense committed retirement and
+  // lost slot/generation before raw reclaim refused the project (2026-10-22).
+  if (target !== undefined && target.optimizationDeletePendingAt !== null)
+    assertProjectUnreferenced(tx, projectId);
 
   const generation = tx
     .select()

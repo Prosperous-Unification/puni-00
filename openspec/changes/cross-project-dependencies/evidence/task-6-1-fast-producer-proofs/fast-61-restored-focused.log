@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-connected.test.ts:
+(pass) resolved connected placement > interleaves A.design B.build A.test [18.02ms]
+(pass) resolved connected placement > rank precedes local priority only among eligible nodes [1.92ms]
+(pass) resolved connected placement > bytewise project identity breaks equal ranks [1.47ms]
+(pass) resolved connected placement > retains fractional FS inequalities including negative FF weights [0.74ms]
+(pass) resolved connected placement > retains fractional SS inequalities including negative FF weights [4.66ms]
+(pass) resolved connected placement > retains fractional FF inequalities including negative FF weights [0.53ms]
+(pass) resolved connected placement > Fast producer retains FS boundary with predecessor 0.3 and successor 0.7 [1.03ms]
+(pass) resolved connected placement > Fast producer retains SS boundary with predecessor 3 and successor 0.5 [0.69ms]
+(pass) resolved connected placement > Fast producer retains FF boundary with predecessor 0.7 and successor 0.3 [0.50ms]
+(pass) resolved connected placement > Fast producer retains FF boundary with predecessor 0.3 and successor 0.7 [0.75ms]
+(pass) resolved connected placement > local adapter and pinned replay preserve placement [1.69ms]
+(pass) resolved connected placement > refuses missing graph facts instead of changing node meaning [0.52ms]
+(pass) resolved connected placement > refuses extra graph facts instead of changing node meaning [0.28ms]
+(pass) resolved connected placement > refuses duplicate graph facts instead of changing node meaning [0.11ms]
+(pass) resolved connected placement > refuses step graph facts instead of changing node meaning [0.06ms]
+(pass) resolved connected placement > refuses position graph facts instead of changing node meaning [0.04ms]
+(pass) resolved connected placement > refuses endpoint graph facts instead of changing node meaning [0.19ms]
+(pass) resolved connected placement > refuses foreign-endpoint graph facts instead of changing node meaning [0.10ms]
+(pass) refuses missing or invalid connected ownership even for one node [0.44ms]
+(pass) refuses missing or invalid connected rank even for one node [0.23ms]
+(pass) refuses missing or invalid connected nonfinite even for one node [0.16ms]
+(pass) rejects a violated resolved FS real boundary [1.07ms]
+(pass) rejects a violated resolved SS real boundary [0.65ms]
+(pass) rejects a violated resolved FF real boundary [0.37ms]
+(pass) preserves connected pinned chronology when rank prefers the later booking [0.67ms]
+(pass) local priority cannot admit a successor before its lower priority prerequisite [0.98ms]
+(pass) keeps zero-duration stepless boundaries and refuses a step in their place [0.65ms]
+(pass) empty connected component accepts required empty maps [0.28ms]
+
+ 28 pass
+ 0 fail
+ 42 expect() calls
+Ran 28 tests across 1 file. [109.00ms]

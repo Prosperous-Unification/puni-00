@@ -500,6 +500,33 @@ export interface OutcomeWrite {
  */
 export type OutcomeWriteResult = 'stored' | 'superseded' | 'already-recorded';
 
+/** Shared admission, ownership, enablement and timestamp fences for both physical outcome stores. */
+export function currentOutcomeWriter(
+  tx: OptimizedOutcomeTransaction,
+  claim: SlotClaim,
+  admittedCancelEpoch: number,
+  now: number,
+): { readonly startedAt: number } | null {
+  const held = heldSolverSlot(tx, claim);
+  if (held === null) return null;
+  if (
+    !admissionStillCurrent(tx, {
+      projectId: claim.projectId,
+      contractVersion: claim.contractVersion,
+      generation: claim.generation,
+      admittedCancelEpoch,
+    })
+  ) {
+    return null;
+  }
+  if (!optimizationStillEnabled(tx, claim.projectId)) return null;
+  if (now < held.startedAt) {
+    throw new Error('outcome timestamp predates the solver slot that produced it');
+  }
+
+  return held;
+}
+
 /**
  * The write half of tasks.md 4.1: a conditional insert of one attempt's
  * outcome, guarded by all four conditions inside one transaction.
@@ -541,22 +568,8 @@ export function storeOptimizedOutcomeIn(
   write: OutcomeWrite,
 ): OutcomeWriteResult {
   const { claim, outcome } = write;
-  const held = heldSolverSlot(tx, claim);
+  const held = currentOutcomeWriter(tx, claim, write.admittedCancelEpoch, write.now);
   if (held === null) return 'superseded';
-  if (
-    !admissionStillCurrent(tx, {
-      projectId: claim.projectId,
-      contractVersion: claim.contractVersion,
-      generation: claim.generation,
-      admittedCancelEpoch: write.admittedCancelEpoch,
-    })
-  ) {
-    return 'superseded';
-  }
-  if (!optimizationStillEnabled(tx, claim.projectId)) return 'superseded';
-  if (write.now < held.startedAt) {
-    throw new Error('outcome timestamp predates the solver slot that produced it');
-  }
 
   const storedOutcome = {
     generation: claim.generation,
@@ -679,7 +692,7 @@ interface LiveBudgetKey {
  * Called only after an insert that actually landed. On the
  * `already-recorded` path nothing was added, so nothing can have gone over.
  */
-function enforceLiveBudgetBound(tx: OptimizedOutcomeTransaction, key: LiveBudgetKey): void {
+export function enforceLiveBudgetBound(tx: OptimizedOutcomeTransaction, key: LiveBudgetKey): void {
   const live = tx
     .select({ budgetMs: optimizedScheduleCache.budgetMs })
     .from(optimizedScheduleCache)

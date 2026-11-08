@@ -1,0 +1,78 @@
+from pathlib import Path
+import hashlib,json,stat,subprocess,re
+P=Path('/tmp/puni-source-start-20261029/lint-one-pair');R=Path('/home/df/.codex/worktrees/f7f1/puni-00')
+sha=lambda body:hashlib.sha256(body).hexdigest()
+# Closed immutable packet. No CLI selection or alternate source roots.
+packet=json.loads((P/'packet.json').read_text());rows=json.loads((P/'recipes.json').read_text());assert len(rows)==1
+source=R/'tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts'
+def body(pin,mutant=None):
+ path=Path(pin['path']) if pin.get('absolute') else R/pin['path'];status=path.lstat()
+ if not stat.S_ISREG(status.st_mode) or stat.S_IMODE(status.st_mode)!=pin['mode']:raise RuntimeError('source regular/mode custody drift')
+ raw=path.read_bytes()
+ if sha(raw)!=(mutant if mutant is not None else pin['sha256']):raise RuntimeError('source byte custody drift')
+ return raw
+if sha((P/'recipes.json').read_bytes())!=packet['recipesSHA256'] or sha(Path(__file__).read_bytes())!=packet['driverSHA256']:raise RuntimeError('sealed protocol pin drift')
+if sha(Path('/tmp/puni-source-start-20261029/run.py').read_bytes())!=packet['runnerSHA256']:raise RuntimeError('original runner pin drift')
+sourcepin=next(pin for pin in packet['controls'] if R/pin['path']==source and not pin.get('absolute'))
+def controls(mutant=None):
+ for pin in packet['controls']:body(pin,mutant if pin is sourcepin else None)
+for path in packet['future']:
+ try:Path(path).lstat()
+ except FileNotFoundError:continue
+ raise RuntimeError('fresh proof receipt path required')
+controls()
+original=body(sourcepin)
+originalstat=source.lstat()
+identity=(originalstat.st_dev,originalstat.st_ino)
+def source_identity():
+ current=source.lstat()
+ if (current.st_dev,current.st_ino)!=identity:raise RuntimeError('source inode custody drift; RETAIN')
+ return {'device':current.st_dev,'inode':current.st_ino,'mode':stat.S_IMODE(current.st_mode),'size':current.st_size,'mtimeNs':current.st_mtime_ns,'ctimeNs':current.st_ctime_ns}
+source_identity()
+def run(row,phase):
+ label=f"{row['index']:02d}-{row['id']}-{phase}"
+ args=['python3','/tmp/puni-source-start-20261029/run.py', 'lint-one-pair/'+label,'bun','test','--preload','./tools/test/scratch/preload.ts','./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts','--test-name-pattern=^isolated '+row['consumer']+'$','--timeout=320000']
+ child=subprocess.Popen(args,cwd=R,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+ out,err=child.communicate()
+ with (P/(label+'.driver.stdout')).open('xb') as stream:stream.write(out)
+ with (P/(label+'.driver.stderr')).open('xb') as stream:stream.write(err)
+ wrapper={'pid':child.pid,'exit':child.returncode if child.returncode>=0 else None,'signal':-child.returncode if child.returncode<0 else None,'stdoutEOF':True,'stderrEOF':True,'stdoutSHA256':sha(out),'stderrSHA256':sha(err)}
+ with (P/(label+'.wrapper.json')).open('x') as stream:stream.write(json.dumps(wrapper,indent=2)+'\n')
+ receipt=json.loads((P/(label+'.json')).read_text());raw=(P/(label+'.stderr')).read_bytes()
+ if sha(raw)!=receipt['stderrSHA256'] or sha((P/(label+'.stdout')).read_bytes())!=receipt['stdoutSHA256']:raise RuntimeError('original stream receipt mismatch; RETAIN')
+ expected=1 if phase=='fault' else 0
+ if wrapper['exit']!=expected or wrapper['signal'] is not None or receipt['exit']!=expected or receipt['signal'] is not None or not receipt['stdoutEOF'] or not receipt['stderrEOF']:raise RuntimeError('original custody/status unexpected; RETAIN')
+ text=raw.decode()
+ prefix='SOURCE_RESTORATION_INNER_CUSTODY: '
+ custody=[json.loads(line[len(prefix):]) for line in text.splitlines() if line.startswith(prefix)]
+ if custody!=[{'name':row['consumer'],'exitCode':expected,'signal':None,'stdoutEof':True,'stderrEof':True}]:raise RuntimeError('inner original custody unexpected; RETAIN')
+ outcome='fail' if phase=='fault' else 'pass'
+ if not re.search(r'^\('+outcome+r'\) '+re.escape(row['consumer'])+r' \[',text,re.M):raise RuntimeError('selected inner outcome missing; RETAIN')
+ if not re.search(r'^\('+outcome+r'\) isolated '+re.escape(row['consumer'])+r' \[',text,re.M):raise RuntimeError('selected outer outcome missing; RETAIN')
+ for marker in row['required'] + (row.get('restoredRequired',[]) if phase=='restored' else []):
+  if not any(line.startswith(marker) for line in text.splitlines()):raise RuntimeError('selected reached consumer marker missing; RETAIN')
+ if phase=='fault':
+  for absent in row.get('faultAbsent',[]):
+   if any(line.startswith(absent) for line in text.splitlines()):raise RuntimeError('omitted dependency unexpectedly delivered selected bytes; RETAIN')
+  if any(line.startswith(row['observed']) for line in text.splitlines()):raise RuntimeError('selected consumer already passed before another failure; RETAIN')
+  if not re.search(r'dependency-source-restoration\.model\.ts:'+str(row['site'])+r':\d+',text):raise RuntimeError('selected owning failure frame missing; RETAIN')
+  if not all(witness in text for witness in row['witnesses']):raise RuntimeError('finite selected failure witness missing; RETAIN')
+ else:
+  if not any(line.startswith(row['observed']) for line in text.splitlines()):raise RuntimeError('restored selected success marker absent; RETAIN')
+ return {'original':receipt,'wrapper':wrapper,'stderrSHA256':sha(raw)}
+for row in rows:
+ controls();before=source.read_bytes();needle=row['before'].encode();assert before.count(needle)==1
+ mutant=before.replace(needle,row['after'].encode());mutantsha=sha(mutant)
+ print('R5 fault begin '+row['id'],flush=True)
+ originalphase=source_identity()
+ with (P/(f"{row['index']:02d}-{row['id']}-mutation.json")).open('x') as stream:stream.write(json.dumps({'originalSHA256':sha(original),'mutantSHA256':mutantsha,'before':row['before'],'after':row['after'],'sourceStat':originalphase},indent=2)+'\n')
+ source_identity();source.write_bytes(mutant);controls(mutantsha);mutantstat=source_identity()
+ # Unexpected outcomes deliberately retain exact mutant and raw custody. No blind finally inverse.
+ fault=run(row,'fault');controls(mutantsha)
+ source_identity();source.write_bytes(original);controls();restoredstat=source_identity()
+ with (P/(f"{row['index']:02d}-{row['id']}-inverse.json")).open('x') as stream:stream.write(json.dumps({'original':sha(original),'mutant':mutantsha,'restored':sha(source.read_bytes()),'mode':stat.S_IMODE(source.lstat().st_mode),'mutantStat':mutantstat,'restoredStat':restoredstat},indent=2)+'\n')
+ print('R5 exact inverse '+row['id'],flush=True)
+ restored=run(row,'restored');controls()
+ with (P/(f"{row['index']:02d}-{row['id']}-accepted-local.json")).open('x') as stream:stream.write(json.dumps({'scope':row['scope'],'fault':fault,'restored':restored},indent=2)+'\n')
+ print('R5 pair settled '+row['id'],flush=True)
+print('ClosedONE current Node-oracle pair settled; independent actual audit still required',flush=True)

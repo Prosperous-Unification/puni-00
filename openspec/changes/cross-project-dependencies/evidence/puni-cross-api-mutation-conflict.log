@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address.controller.db.test.ts:
+{"level":"error","time":1792619650303,"service":"be-01","err":{"occurrence_id":"AE_55NZD56DEP0B88GKBQ15MQSCXH","fingerprint":"fp1_30913832240ce47c77febefefbae072e","constructor_name":"DrizzleQueryError","message":"Failed query: update \"project_abbreviation\" set \"abbreviation\" = ? where \"project_abbreviation\".\"project_id\" = ? returning \"project_id\"\nparams: TAKEN,ebe9a0e1-cf6f-42c1-ae91-220006e1f6d1","as_string":"DrizzleQueryError: Failed query: update \"project_abbreviation\" set \"abbreviation\" = ? where \"project_abbreviation\".\"project_id\" = ? returning \"project_id\"\nparams: TAKEN,ebe9a0e1-cf6f-42c1-ae91-220006e1f6d1","as_json":{"query":"update \"project_abbreviation\" set \"abbreviation\" = ? where \"project_abbreviation\".\"project_id\" = ? returning \"project_id\"","params":["TAKEN","ebe9a0e1-cf6f-42c1-ae91-220006e1f6d1"],"name":"DrizzleQueryError"},"stack":["DrizzleQueryError: Failed query: update \"project_abbreviation\" set \"abbreviation\" = ? where \"project_abbreviation\".\"project_id\" = ? returning \"project_id\"","params: TAKEN,ebe9a0e1-cf6f-42c1-ae91-220006e1f6d1","    at all (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:93:15)","    at writeProjectAbbreviation (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:79:6)","    at <anonymous> (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/project.ts:1183:43)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/project.ts:1105:22)","    at write (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/project.ts:1068:28)","    at editInOrganization (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/project.ts:987:25)","    at updateWithin (/tmp/puni-cross-api/libs/wbs/application/core/src/module/project/project.resource.ts:489:36)"],"children":[{"id":"0","path":"$.cause","level":1,"constructor_name":"Error","message":"UNIQUE constraint failed: project_abbreviation.namespace, project_abbreviation.abbreviation","as_json":{"code":"SQLITE_CONSTRAINT_UNIQUE","errno":2067,"byteOffset":-1},"stack":["SQLiteError: UNIQUE constraint failed: project_abbreviation.namespace, project_abbreviation.abbreviation","    at values (unknown)","    at all (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:91:21)","    at writeProjectAbbreviation (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:79:6)","    at <anonymous> (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/project.ts:1183:43)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/project.ts:1105:22)","    at write (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/project.ts:1068:28)","    at editInOrganization (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/project.ts:987:25)","    at async <anonymous> (/tmp/puni-cross-api/libs/wbs/application/core/src/module/plan-commands/admitted-write.ts:44:27)","    at async <anonymous> (/tmp/puni-cross-api/libs/wbs/application/core/src/module/plan-commands/composition.ts:203:32)","    at async <anonymous> (/tmp/puni-cross-api/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)"],"as_string_format":"derived"}],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+60 |
+61 | it('duplicate manual edit is a typed conflict', async () => {
+62 |   const first = await create('One', 'taken');
+63 |   const second = await create('Two', 'other');
+64 |   const before = snapshot();
+65 |   expect(await h.call('ada', 'PATCH', `/api/projects/${second.id}`, {name: 'Must not write', abbreviation: 'TaKeN'})).toEqual({status: 409, body: {error: 'abbreviation_taken'}});
+                                                                                                                           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "body": {
+-     "error": "abbreviation_taken",
+-   },
+-   "status": 409,
++   "body": "Internal Server Error",
++   "status": 500,
+  }
+
+- Expected  - 4
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-cross-api/apps/wbs/be-01/src/controller/project-address.controller.db.test.ts:65:119)
+(fail) duplicate manual edit is a typed conflict [488.05ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [2.54s]

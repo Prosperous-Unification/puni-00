@@ -1,0 +1,25 @@
+Injected absent-init; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-native.test.ts:
+76 |     ) ||
+77 |     host['PidMode'] !== '' ||
+78 |     host['Privileged'] !== false ||
+79 |     !(caps === null || (Array.isArray(caps) && caps.length === 0))
+80 |   )
+81 |     throw new Error('source dev requires typed init, private PID, unprivileged and no added caps');
+                   ^
+error: source dev requires typed init, private PID, unprivileged and no added caps
+      at decodeSourceDev (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.ts:81:15)
+      at observeMember (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:108:18)
+      at withSourceDevExcluded (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:171:25)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:98:13)
+      at async acquire (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:105:20)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/edge-ownership.ts:91:24)
+      at async acquireLock (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) native omitted Init and inherited entrypoint survive full transport and owner exclusion [431.68ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+Ran 1 test across 1 file. [473.00ms]

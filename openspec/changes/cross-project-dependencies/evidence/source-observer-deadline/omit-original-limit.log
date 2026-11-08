@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+769 |       ),
+770 |       /deadline/,
+771 |     );
+772 |     expect(aborted).toBe(1);
+773 |     expect(completedAt).toBeGreaterThan(0);
+774 |     expect(completedAt).toBeLessThan(originalDeadline + 300);
+                              ^
+error: expect(received).toBeLessThan(expected)
+
+Expected: < 1342.641378
+Received: 2145.902909
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:774:25)
+(fail) source inspection supplied longer deadline cannot extend original scope [2104.69ms]
+
+ 0 pass
+ 46 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [2.15s]

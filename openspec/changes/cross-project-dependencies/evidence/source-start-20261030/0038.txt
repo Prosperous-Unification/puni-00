@@ -1,0 +1,24 @@
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_AUTHORITY_WIRE: dev-mcp decoded original-family collection
+SOURCE_RESTORATION_REFUSED: dev-mcp reached actual new source-phase consumer
+(pass) source restoration refuses dev MCP database opener [90487.82ms]
+
+ 1 pass
+ 20 filtered out
+ 0 fail
+ 511 expect() calls
+Ran 1 test across 1 file. [90.55s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses dev MCP database opener","exitCode":0,"signal":null,"stdoutEof":true,"stderrEof":true}
+(pass) isolated source restoration refuses dev MCP database opener [90569.79ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 20 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [90.58s]

@@ -568,10 +568,22 @@ values into the repository, logs, tests, or issue text.
 
 ### Browser sign-in recovery
 
-An old browser cookie that cannot be verified can prevent a replacement session
-from being issued. Password sign-in returns `unauthenticated`; a valid,
-browser-bound SSO callback redirects to
-`/?auth_error=browser_session_unverified`. Reloading preserves the HttpOnly
+An expired access cookie alone does not need recovery. `__Host-wbs_access`
+lives only as long as the provider token (Max-Age is its `expires_in`) while
+`__Host-wbs_session` lives 30 days, so an hour after SSO sign-in a browser
+usually sends only the correlation cookie. While that correlation's lifecycle is
+active, password or SSO sign-in proves it from the correlation alone (the same
+evidence `POST /api/auth/refresh` accepts; refresh additionally needs the process-local refresh record), closes it as the replaced
+predecessor and issues the new session directly.
+
+Recovery is for a browser cookie that is malformed or cannot be verified: an
+access cookie not associated with its correlation, a correlation whose lifecycle
+is closed, revoked or unknown, an unverifiable native token, or duplicated or
+mixed carriers. Such a cookie prevents a replacement session from being issued.
+Password sign-in returns `unauthenticated`; a valid, browser-bound SSO callback
+redirects to `/?auth_error=browser_session_unverified` and logs, at info, `oidc
+callback refused the browser predecessor` with a `refusal` field naming the
+check that fired (never a cookie value). Reloading preserves the HttpOnly
 cookies and does not resolve this symptom.
 
 Choose **Reset browser session** on the sign-in card, wait for confirmation,

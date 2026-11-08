@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/solver-drain-fixture.test.ts:
+(pass) ordinary creator holds actual runtime admission through lifetime and creates during stop using only declared argv [116.60ms]
+(pass) policy creator holds actual runtime admission through lifetime and creates during stop using only declared argv [124.51ms]
+(pass) retained marker refuses creator before readiness or during-stop effects [65.80ms]
+(pass) policy creator refuses missing policy before reading its missing manifest [102.47ms]
+(pass) creator ordinary manifest failure exits 1 with a startup-error reason [79.46ms]
+(pass) creator malformed manifest diagnostic never retains JSON payloads [71.39ms]
+(pass) creator invalid CLI exits with a private diagnostic instead of an arbitrary error string [31.47ms]
+
+ 7 pass
+ 0 fail
+ 28 expect() calls
+Ran 7 tests across 1 file. [694.00ms]

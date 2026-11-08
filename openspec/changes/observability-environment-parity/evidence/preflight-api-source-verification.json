@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-05T08:07:59.255049+00:00",
+  "base": "40ab007ef228cce7d16c0521fb9d64ef109884c2",
+  "nativeAccepted": false,
+  "actualRepairAccepted": false,
+  "canonicalAcceptance": "4/11; Task97 open",
+  "batchTypecheck": {
+    "observedAt": "2026-11-05T07:51:42.115948+00:00",
+    "arguments": [
+      "/home/df/.bun/bin/bun",
+      "node_modules/.bin/tsc",
+      "--build",
+      "tools/tool-fleet/tsconfig.json"
+    ],
+    "exitCode": 0,
+    "seconds": 1.9168191029966692,
+    "outputBytes": 0,
+    "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scope": "single final incremental owning Fleet check after frozen fixes for99/100/101"
+  },
+  "scope": "Task101 first-inventory API discovery source",
+  "sourcePins": [
+    {
+      "path": "tools/tool-fleet/src/observability-preflight.ts",
+      "sha256": "8a69f5643550a0af0f225e17524d411e064fd06568672bdf2951029bd40dcd97",
+      "mode": "0644",
+      "bytes": 81713
+    },
+    {
+      "path": "tools/tool-fleet/src/observability-preflight.fixture.ts",
+      "sha256": "a60bdf8b5ac9d9fbdaa37cfdd5b5b911a93845a770b0569b3112670db92bc914",
+      "mode": "0644",
+      "bytes": 22478
+    },
+    {
+      "path": "tools/tool-fleet/src/observability-preflight.discovery.test.ts",
+      "sha256": "1ab3b2360ad0d9df227c2df509f5a009c7e6eefb23d1989ac4f40a49146117c8",
+      "mode": "0644",
+      "bytes": 7429
+    }
+  ],
+  "records": [
+    {
+      "path": "preflight-api-discovery/report.md",
+      "bytes": 3395,
+      "sha256": "2d0e5f2030120b07ac094d03daadee99d504828d1fba3e6091bd56e7a2f39440"
+    },
+    {
+      "path": "preflight-api-discovery/review.md",
+      "bytes": 5891,
+      "sha256": "12fb140063c2027c59f233866894700a84dd89f276783ac6d6e6bef63fc5ebea"
+    },
+    {
+      "path": "preflight-api-discovery/type-fix-report.md",
+      "bytes": 1275,
+      "sha256": "eb51a4b8b31ff04dabc7efc787bade4ffbb2e15953c796f091d3fbc16baef0cb"
+    },
+    {
+      "path": "preflight-api-discovery/type-fix-review.md",
+      "bytes": 1591,
+      "sha256": "e07ed1ae98cb864dfee179a0538ce741eed4745067803d9d15da95cb731f2fa3"
+    },
+    {
+      "path": "preflight-api-discovery/source.patch",
+      "bytes": 16689,
+      "sha256": "39f63947540ce7337eb359e64987e52d3f38dc0136c163ddadfa736ee2cf5326"
+    },
+    {
+      "path": "preflight-api-discovery/type-fix.patch",
+      "bytes": 602,
+      "sha256": "da25c07c7fb06bc92780c40363e60215f84ad18a2392f27d88d1ac3dca55f386"
+    },
+    {
+      "path": "preflight-api-discovery/commands.json",
+      "bytes": 2999,
+      "sha256": "31aacd3f53261194d5e288271c2be2dde0cb0c707c2940e35b7deae899d62f4e"
+    },
+    {
+      "path": "preflight-api-discovery/faults.json",
+      "bytes": 3054,
+      "sha256": "a820bb1098fc3cd0f993f54882e0b06c7052c4bdc1574a0d532dc563d6d3a1a7"
+    }
+  ],
+  "checks": {
+    "existingCompatibilityTests": 214,
+    "firstCombinedTests": 232,
+    "finalFocusedTests": 19,
+    "finalAssertions": 144,
+    "mutants": 6,
+    "owningFailures": 8,
+    "typeFix": "expected-array copy only; no runtime replay"
+  },
+  "review": "source and mechanical type fix approved",
+  "nativeReproduction": "native-bootstrap-query-20261105.json",
+  "correctedNativeQueryVerified": true,
+  "limits": [
+    "Real complete inventory/cutover remains open",
+    "Explicit absence inventory-only; cutover unchanged; query errors refuse"
+  ],
+  "correctedNativeEvidence": "native-api-discovery-20261105.json"
+}

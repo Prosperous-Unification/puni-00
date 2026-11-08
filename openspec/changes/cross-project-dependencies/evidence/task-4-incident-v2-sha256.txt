@@ -1,0 +1,10 @@
+e0086caeac57d4ca6a57be243687b54ed378f611945254984759088a42990735  apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts
+60fe2a6416f9ef113dde84997c70feb3b60b18755daddb380a89352331e823cf  libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts
+e3e38dfd42ed1be729e4a6a38adcd9c6f238bdd737b07ba3c9d0c4e670182959  libs/wbs/application/core/src/http/work-item.routes.ts
+4b64873e25207817a1e569ede8a4865e67f508dc5b6e314425c23dfcd2d5080c  libs/wbs/application/core/src/module/plan-commands/command-bindings.ts
+9c21a0b5db69d16bc4e87ee350f71705f07b2cd5b53992868a9a9c7ffdf3ad1c  libs/wbs/application/core/src/module/plan-commands/command-references.ts
+16a63ee69c2478715e11a56a4648930ece6fd6a20232893d70d6bc58cd6a7409  libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts
+82e866b84c6ef8c61c57e470395f93013d1e2e0758cf0268ef5ce9fec68e8b57  libs/wbs/application/core/src/module/work-item/work-item.resource.ts
+25e617379b33f5a21d1e2ec5e0493edaf64a6aa040f3a3276679d3048a59cc39  libs/wbs/application/core/src/service/dependency-graph.ts
+61e66390987ed63d229a43cc1dec4bffd2008969e4e0bc76c88638ed2f0f2ce9  libs/wbs/domain/contracts/src/http/refusal.ts
+92dfb30cecf50635c7f213ff07e233f3b30d498fc7d103d94188967bd87d25b4  libs/wbs/domain/contracts/src/http/work-item-shapes.ts

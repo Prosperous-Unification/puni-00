@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+614 | }
+615 |
+616 | const tree = () => harness.call('ada', 'GET', `/api/projects/${target}/work-items?full=true`);
+617 |
+618 | async function assertEvidenceFailure() {
+619 |   expect((await startable()).status).toBe(500);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at assertEvidenceFailure (/tmp/puni-63-evidence/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:619:38)
+      at async <anonymous> (/tmp/puni-63-evidence/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:693:13)
+(fail) foreign step in own-project progress refuses mounted evidence [408.74ms]
+614 | }
+615 |
+616 | const tree = () => harness.call('ada', 'GET', `/api/projects/${target}/work-items?full=true`);
+617 |
+618 | async function assertEvidenceFailure() {
+619 |   expect((await startable()).status).toBe(500);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at assertEvidenceFailure (/tmp/puni-63-evidence/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:619:38)
+      at async <anonymous> (/tmp/puni-63-evidence/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:693:13)
+(fail) foreign step in own-project attempts refuses mounted evidence [361.63ms]
+
+ 0 pass
+ 35 filtered out
+ 2 fail
+ 8 expect() calls
+Ran 2 tests across 1 file. [5.39s]

@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-06T00:06:24.562594+00:00",
+  "scope": "read-only preservation metadata for existing transitional dev services only",
+  "commands": [
+    {
+      "host": "h1claw",
+      "operation": "systemctl --user show existing observer and tunnel status",
+      "exitCode": 0,
+      "originalToolSession": 80183
+    },
+    {
+      "host": "h3mon",
+      "operation": "sudo -n docker ps filtered to existing dev Compose project; names/state/status only",
+      "exitCode": 0
+    },
+    {
+      "host": "h1claw",
+      "operation": "bounded owner-only nonfollowing FD read of probe.json/health.json; metadata projection only",
+      "exitCode": 0,
+      "originalToolSession": 63887
+    }
+  ],
+  "units": [
+    {
+      "name": "puni-dev-observability.service",
+      "loadState": "loaded",
+      "activeState": "active",
+      "subState": "running",
+      "pid": 1839221,
+      "policyRestarts": 0,
+      "memoryCurrentBytes": "52301824",
+      "cpuUsageNs": "14689141972000"
+    },
+    {
+      "name": "puni-dev-observability-tunnel.service",
+      "loadState": "loaded",
+      "activeState": "active",
+      "subState": "running",
+      "pid": 1815988,
+      "policyRestarts": 1,
+      "memoryCurrentBytes": "425984",
+      "cpuUsageNs": "12729370000"
+    }
+  ],
+  "containers": [
+    {
+      "name": "puni-dev-observability-alertmanager-1",
+      "state": "running",
+      "reportedStatus": "Up 5 days"
+    },
+    {
+      "name": "puni-dev-observability-prometheus-1",
+      "state": "running",
+      "reportedStatus": "Up 11 days"
+    },
+    {
+      "name": "puni-dev-observability-kibana-1",
+      "state": "running",
+      "reportedStatus": "Up 11 days"
+    },
+    {
+      "name": "puni-dev-observability-elasticsearch-1",
+      "state": "running",
+      "reportedStatus": "Up 11 days"
+    },
+    {
+      "name": "puni-dev-observability-gateway-1",
+      "state": "running",
+      "reportedStatus": "Up 11 days"
+    },
+    {
+      "name": "puni-dev-observability-collector-1",
+      "state": "running",
+      "reportedStatus": "Up 11 days"
+    }
+  ],
+  "checkpoint": {
+    "capturedAtMs": 1793923377954,
+    "health": {
+      "applicationState": "complete",
+      "checkedAt": 1793923358612,
+      "observationId": "899d686d-6888-4766-8d23-0f71761c671e",
+      "resourcesPresent": true,
+      "resourcesState": "complete",
+      "state": "complete",
+      "storageState": "complete"
+    },
+    "healthSHA256": "7f10b93d87c537a40906a9d714ee567026a7758848c4db8898c132a57e577309",
+    "probe": {
+      "environment": "dev",
+      "observationId": "f6849ff3-5a86-4ff1-8673-9babf4ec9de8",
+      "observedAt": 1793923361814,
+      "producerVersion": "047e08024b4b1bbba4cb7700400d6f37b0d0ed05",
+      "revision": "60285da5d54489d6a1dcc26a2f5454e67e9457dc",
+      "service": "be-01",
+      "success": true
+    },
+    "probeSHA256": "5dfd2d32dcdddb63d68de94ba792ae67463abc62109c5e46d13765a1567b3b24",
+    "publicationState": "acknowledged",
+    "scope": "existing transitional dev observer checkpoint; not new stack acceptance",
+    "source": {
+      "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623",
+      "containerValidated": true,
+      "kind": "ssh-dev-container"
+    }
+  },
+  "checkpointAgeAtReadMs": {
+    "health": 19342,
+    "probe": 16140
+  },
+  "limitations": [
+    "Unit/container status and observer checkpoint are point-in-time metadata, not independent backend/UI queries",
+    "Probe and health IDs differ because independent continuously replaced checkpoint stages can lag",
+    "No claim that restart counters prove unchanged lifetime history",
+    "No services restarted, route changed, credentials read or mutated, history reinitialized or retained data modified",
+    "No candidate Kubernetes/Flux, secure two-instance or new runtime acceptance from this observation",
+    "Source/runtime component evidence and actual existing dev status remain separate"
+  ],
+  "runtimeAcceptance": {
+    "complete": 4,
+    "total": 11,
+    "task97Complete": false
+  }
+}

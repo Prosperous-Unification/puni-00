@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:
+(pass) new saved body integrity > accepts detached complete connected bodies and retains the supplied bytes [8.66ms]
+(pass) new saved body integrity > reports correctly hashed malformed new JSON as typed body_invalid [0.35ms]
+(pass) new saved body integrity > refuses mismatched targets, missing connection and local input with connected schedule [4.39ms]
+89 |         'saved',
+90 |         'A',
+91 |         { version: 9, bytes: JSON.stringify(unavailable) },
+92 |         { version: 1, bytes: '{}' },
+93 |       ),
+94 |     ).toMatchObject({ reason: 'body_invalid', body: 'schedule' });
+           ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:94:7)
+(fail) new saved body integrity > requires absent schedules for unavailable connected context and preserves local schedule1 reads [2.02ms]
+(pass) new saved body integrity > refuses missing selected evidence and malformed timings without replaying schedules [2.80ms]
+
+ 4 pass
+ 1 fail
+ 9 expect() calls
+Ran 5 tests across 1 file. [403.00ms]

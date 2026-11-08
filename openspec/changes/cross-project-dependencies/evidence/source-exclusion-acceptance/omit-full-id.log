@@ -1,0 +1,25 @@
+Injected full-id; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:
+110 |   try {
+111 |     await work;
+112 |   } catch (cause) {
+113 |     failure = cause;
+114 |   }
+115 |   expect(failure).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: undefined
+
+      at refuses (/tmp/puni-source-exclusion-acceptance/tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:115:19)
+      at async <anonymous> (/tmp/puni-source-exclusion-acceptance/tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:135:9)
+(fail) same planned name cannot replace its captured full identity [1.32ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [39.00ms]

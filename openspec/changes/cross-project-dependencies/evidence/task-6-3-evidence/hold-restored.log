@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+(pass) remote holds remain visible in mounted tree and prevent governed claims [413.43ms]
+
+ 1 pass
+ 36 filtered out
+ 0 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [4.15s]

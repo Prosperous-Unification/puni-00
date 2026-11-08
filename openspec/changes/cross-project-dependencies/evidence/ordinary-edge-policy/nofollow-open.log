@@ -1,0 +1,27 @@
+Command: bun test tools/tool-remote-scripts/src/lib/edge-policy.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern kernel nofollow
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/edge-policy.test.ts:
+169 |     await operation;
+170 |   } catch (cause) {
+171 |     refusal = cause;
+172 |   }
+173 |   expect(refusal).toBeInstanceOf(Error);
+174 |   expect(String(refusal)).toContain(message);
+                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "ELOOP"
+Received: "Error: invalid edge policy file identity, type or size"
+
+      at refuses (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:174:27)
+      at async <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:195:9)
+(fail) policy kernel nofollow rejects a symlink before identity validation [1.71ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [36.00ms]
+
+Exit: 1

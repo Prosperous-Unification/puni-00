@@ -1,0 +1,65 @@
+{
+  "scope": "Durable owner-bound exact-source start intent dependency",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$",
+        "--timeout=320000"
+      ],
+      "pid": 3063315,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 112.08692658599466,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "ef7551a8d02d9eaaab267e68e5d90c1df8126e9f087f28509416439343cf2c9d"
+    },
+    "wrapper": {
+      "pid": 3063314,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "183e08dc1e8447db5b2a629226cf1bccccf2970f4bacfa663c5e8d1eec221b84",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "ef7551a8d02d9eaaab267e68e5d90c1df8126e9f087f28509416439343cf2c9d"
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$",
+        "--timeout=320000"
+      ],
+      "pid": 3066404,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 123.79701086995192,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "e3e3f8c4c04f567bb0c7394d8d715db459e2ce19488afa8effcc9248983e040d"
+    },
+    "wrapper": {
+      "pid": 3066403,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "461cb3e4ddbe06d4fd918a6ab68665e43199d748cb2da5bf2f9f0a5c4c4fc2c2",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "e3e3f8c4c04f567bb0c7394d8d715db459e2ce19488afa8effcc9248983e040d"
+  }
+}

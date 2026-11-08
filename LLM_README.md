@@ -72,6 +72,8 @@ or `Dockerfile` fails the deploy with the command that applies it. Dev has **no 
 since 2026-08-06 — be-01 and gw-01 guard themselves, and account registration is open to the
 internet.
 
+Observability target inventory: [read-only preflight and capacity basis](docs/infra/observability-preflight.md).
+
 Dev observability: [bounded observer, private stores and retained-store rollback](docs/runbook-dev-observability-runtime.md); [existing Grafana views](docs/runbook-dev-observability-grafana.md).
 
 **Which changes reach a running process, and which do not: `docs/runbook-dev-deploy.md`.** Dev no

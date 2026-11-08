@@ -1,0 +1,135 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:
+558 |     expect(response.status).toBe(200);
+559 |     expect(await response.json()).toMatchObject({ savedPlan: {
+560 |       input: { bytes: inputBytes }, schedule: { body: { bytes: scheduleBytes } },
+561 |     } });
+562 |     const compared = await as(tokens['ada'], `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=${id}`);
+563 |     expect(compared.status).toBe(200);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 422
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:563:29)
+(fail) the saved-plan routes > reads complete connected history as exact stored bytes and compares it without live foreign projects [759.43ms]
+578 |     const healthyId = await savedIdOf(await save('ada'));
+579 |     const captured = savedConnectedHistoryFixture(projectId);
+580 |     inject(captured);
+581 |     await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+582 |     const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+583 |     expect(response.status).toBe(422);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:583:29)
+(fail) the saved-plan routes > refuses correctly hashed malformed input context on read and either comparison side [647.32ms]
+578 |     const healthyId = await savedIdOf(await save('ada'));
+579 |     const captured = savedConnectedHistoryFixture(projectId);
+580 |     inject(captured);
+581 |     await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+582 |     const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+583 |     expect(response.status).toBe(422);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:583:29)
+(fail) the saved-plan routes > refuses correctly hashed malformed external project label on read and either comparison side [545.53ms]
+578 |     const healthyId = await savedIdOf(await save('ada'));
+579 |     const captured = savedConnectedHistoryFixture(projectId);
+580 |     inject(captured);
+581 |     await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+582 |     const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+583 |     expect(response.status).toBe(422);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:583:29)
+(fail) the saved-plan routes > refuses correctly hashed malformed graph ownership on read and either comparison side [636.31ms]
+578 |     const healthyId = await savedIdOf(await save('ada'));
+579 |     const captured = savedConnectedHistoryFixture(projectId);
+580 |     inject(captured);
+581 |     await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+582 |     const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+583 |     expect(response.status).toBe(422);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:583:29)
+(fail) the saved-plan routes > refuses correctly hashed malformed stage packet on read and either comparison side [648.47ms]
+578 |     const healthyId = await savedIdOf(await save('ada'));
+579 |     const captured = savedConnectedHistoryFixture(projectId);
+580 |     inject(captured);
+581 |     await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+582 |     const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+583 |     expect(response.status).toBe(422);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:583:29)
+(fail) the saved-plan routes > refuses correctly hashed malformed target membership on read and either comparison side [1004.76ms]
+578 |     const healthyId = await savedIdOf(await save('ada'));
+579 |     const captured = savedConnectedHistoryFixture(projectId);
+580 |     inject(captured);
+581 |     await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+582 |     const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+583 |     expect(response.status).toBe(422);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:583:29)
+(fail) the saved-plan routes > refuses correctly hashed malformed target placement on read and either comparison side [782.86ms]
+578 |     const healthyId = await savedIdOf(await save('ada'));
+579 |     const captured = savedConnectedHistoryFixture(projectId);
+580 |     inject(captured);
+581 |     await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+582 |     const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+583 |     expect(response.status).toBe(422);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:583:29)
+(fail) the saved-plan routes > refuses correctly hashed malformed body version on read and either comparison side [685.58ms]
+578 |     const healthyId = await savedIdOf(await save('ada'));
+579 |     const captured = savedConnectedHistoryFixture(projectId);
+580 |     inject(captured);
+581 |     await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+582 |     const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+583 |     expect(response.status).toBe(422);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:583:29)
+(fail) the saved-plan routes > refuses correctly hashed malformed local input with connected schedule on read and either comparison side [854.85ms]
+
+ 0 pass
+ 44 filtered out
+ 9 fail
+ 11 expect() calls
+Ran 9 tests across 1 file. [11.16s]

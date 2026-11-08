@@ -240,7 +240,20 @@ describe('the app and the run resolve the same modules', () => {
     const appAliases =
       serveConfig({ VITE_BE_URL: BE_URL, VITE_GW_URL: GW_URL }).resolve?.alias ?? {};
     const suiteAliases = suiteConfig.resolve?.alias ?? {};
-    expect(Object.keys(suiteAliases).sort()).toEqual(Object.keys(appAliases).sort());
+    const producerAliases = {
+      '@wbs/domain': resolve(APP_ROOT, '../../../libs/wbs/domain/domain/src/index.ts'),
+      '@wbs/contracts/solver/build-connected-request': resolve(
+        APP_ROOT,
+        '../../../libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts',
+      ),
+      '@wbs/contracts/solver/connected-solver-outcome': resolve(
+        APP_ROOT,
+        '../../../libs/wbs/domain/contracts/solver/src/connected-solver-outcome.ts',
+      ),
+    };
+    expect(Object.keys(suiteAliases).sort()).toEqual(
+      [...Object.keys(appAliases), ...Object.keys(producerAliases)].sort(),
+    );
     expect(Object.keys(appAliases)).toContain('@wbs/contracts');
     expect(Object.keys(appAliases)).toContain('@wbs/validation');
     // `@wbs/validation`'s index is a bare `export * from '@shared/validation'`,
@@ -259,6 +272,8 @@ describe('the app and the run resolve the same modules', () => {
     const domain = '../../../libs/wbs/domain/domain/src';
     const expected = {
       '@': resolve(APP_ROOT, 'src'),
+      '@wbs/domain/typed-dependency': resolve(APP_ROOT, domain, 'typed-dependency.ts'),
+      '@wbs/domain/project-address': resolve(APP_ROOT, domain, 'project-address.ts'),
       '@wbs/domain/step-node': resolve(APP_ROOT, domain, 'step-node.ts'),
       '@wbs/domain/step-reference': resolve(APP_ROOT, domain, 'step-reference.ts'),
       '@wbs/domain/workday': resolve(APP_ROOT, domain, 'workday.ts'),
@@ -310,7 +325,7 @@ describe('the app and the run resolve the same modules', () => {
     // actual `wbs-fe-01:build` fail on `UNLOADABLE_DEPENDENCY` from
     // completion-prompt.tsx (2026-09-14).
     expect(appAliases).toEqual(expected);
-    expect(suiteAliases).toEqual(expected);
+    expect(suiteAliases).toEqual({ ...expected, ...producerAliases });
   });
 
   it('writes the build to the namespaced application artifact root', () => {

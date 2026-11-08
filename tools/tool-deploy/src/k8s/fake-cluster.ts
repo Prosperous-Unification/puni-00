@@ -1,3 +1,9 @@
+import type { ControllerTarget } from './controller-adapter';
+import type { ControllerAuthority, ControllerLifecycle } from './controller-lifecycle';
+import type {
+  DependencyBinaryObservation,
+  DependencyStoreObservation,
+} from './dependency-observation';
 import type { ReleaseEffects } from './execute';
 import type { JournalRecord, ReleaseJournal } from './journal';
 import { sealMigrationCapture, sha256Of } from './migration-capture';
@@ -10,6 +16,7 @@ import {
   type ReleaseRequest,
 } from './release';
 import type { ReplayCount } from './replay-receipt';
+import { sealStorageOwnership } from './storage-ownership';
 
 /** A migration folder as one backend image carries it. */
 export interface FakeMigration {
@@ -71,6 +78,70 @@ export class FakeCluster implements ReleaseEffects {
     if (this.brokenEffects.has(name)) throw new Error(`${name} is broken`);
   }
 
+  async suspendStorageController(
+    target: ControllerTarget,
+    prior: ControllerLifecycle | null,
+    authority: ControllerAuthority,
+  ): Promise<ControllerLifecycle> {
+    this.enter('suspendStorageController');
+    await authority.assertLease();
+    if (prior !== null) return prior;
+    const ownership = sealStorageOwnership(
+      {
+        ...target,
+        storage: {
+          namespace: target.namespace,
+          pvcName: 'wbs-data',
+          pvcUid: 'fake-pvc',
+          volumeName: 'fake-volume',
+          pvUid: 'fake-pv',
+          databasePath: '/data/wbs.sqlite',
+        },
+      },
+      {
+        fluxUid: target.flux === null ? null : 'fake-flux',
+        owner: {
+          kind: 'CronJob',
+          name: 'sqlite-backup',
+          uid: 'fake-backup',
+          resourceVersion: '1',
+          templateSha256: sha256Of(this.images.backend),
+          suspension: { kind: 'absent' },
+        },
+      },
+      `${target.transactionId}-${String(this.calls.length)}`,
+    );
+    await authority.checkpoint({ ownership, stage: 'suspend-pending' });
+    const suspended: ControllerLifecycle = { ownership, stage: 'suspended' };
+    await authority.checkpoint(suspended);
+    return suspended;
+  }
+  async drainStorageController(
+    _lifecycle: ControllerLifecycle,
+    authority: ControllerAuthority,
+  ): Promise<void> {
+    this.enter('drainStorageController');
+    await authority.assertLease();
+    if (this.backendReplicas !== 0) throw new Error('backend must stop before controller drain');
+  }
+  async restoreStorageController(
+    prior: ControllerLifecycle,
+    authority: ControllerAuthority,
+  ): Promise<ControllerLifecycle> {
+    this.enter('restoreStorageController');
+    for (const stage of [
+      'restore-pending',
+      'restore-applied',
+      'cleanup-pending',
+      'restored',
+    ] as const)
+      await authority.checkpoint({ ...prior, stage });
+    return { ...prior, stage: 'restored' };
+  }
+  manualControllerCommand(lifecycle: ControllerLifecycle, journalPath: string): string {
+    return `kubectl get cronjob sqlite-backup # UID ${lifecycle.ownership.owner.uid}; journal ${journalPath}`;
+  }
+
   /** F6 admission: a backend-image pod starts only if its digest is in `solverImages`. */
   private admit(image: string): void {
     if (!this.approved.includes(image)) throw new Error(`admission denied ${image}`);
@@ -109,6 +180,8 @@ export class FakeCluster implements ReleaseEffects {
   /** Leaves a Lease as a process that has since died would have. */
   seedLease(holder: string, journal: string | null, parked: string | null = null): void {
     this.lease = {
+      uid: 'fake-lease-uid',
+      journalRequired: false,
       holder,
       renewedAtMs: this.now,
       durationSeconds: this.leaseDurationSeconds,
@@ -130,10 +203,12 @@ export class FakeCluster implements ReleaseEffects {
     this.seedLease(holder, journalPath);
     return Promise.resolve();
   }
-  takeoverLease(holder: string, version: string, journalPath: string) {
+  takeoverLease(holder: string, version: string, journalPath: string, uid: string) {
     this.enter('takeoverLease');
-    if (this.lease === null || String(this.lease.version) !== version) throw new Error('Conflict');
+    if (this.lease === null || String(this.lease.version) !== version || this.lease.uid !== uid)
+      throw new Error('Conflict');
     this.lease = {
+      ...this.lease,
       holder,
       renewedAtMs: this.now,
       durationSeconds: this.leaseDurationSeconds,
@@ -149,6 +224,12 @@ export class FakeCluster implements ReleaseEffects {
       throw new Error(`Lease is held by ${this.lease?.holder ?? 'nobody'}`);
     }
     this.lease = { ...this.lease, renewedAtMs: this.now, version: this.lease.version + 1 };
+    return Promise.resolve();
+  }
+  requireJournal(holder: string) {
+    this.enter('requireJournal');
+    if (this.lease?.holder !== holder) throw new Error('foreign release Lease');
+    this.lease = { ...this.lease, journalRequired: true, version: this.lease.version + 1 };
     return Promise.resolve();
   }
   parkLease(holder: string, phase: string) {
@@ -168,6 +249,52 @@ export class FakeCluster implements ReleaseEffects {
     this.enter('admitBackendImages');
     this.approved = [...images];
     return Promise.resolve();
+  }
+  observeDependencyBinaries(
+    attempt: string,
+    candidate: string,
+    previous: string,
+  ): Promise<readonly DependencyBinaryObservation[]> {
+    this.enter('observeDependencyBinaries');
+    const observations: DependencyBinaryObservation[] = [candidate, previous].map(
+      (image, index) => {
+        this.admit(image);
+        return {
+          evidence: {
+            observationId: `${attempt}-${String(index)}`,
+            namespace: 'wbs-solver',
+            jobName: `${attempt}-${String(index)}`,
+            jobUid: `job-${String(index)}`,
+            podUid: `pod-${String(index)}`,
+            image,
+            commandSha256: sha256Of('capability command'),
+          },
+          capability: { image, semantics: [] },
+        };
+      },
+    );
+    return Promise.resolve(observations);
+  }
+  observeDependencyStore(attempt: string, image: string): Promise<DependencyStoreObservation> {
+    this.enter('observeDependencyStore');
+    this.admit(image);
+    return Promise.resolve({
+      evidence: {
+        observationId: attempt,
+        namespace: 'wbs-solver',
+        jobName: attempt,
+        jobUid: 'store-job',
+        podUid: 'store-pod',
+        image,
+        commandSha256: sha256Of('store scanner'),
+      },
+      authority: {
+        protocol: 'wbs-dependency-preservation',
+        version: 1,
+        state: 'DISABLED',
+        externalRelationships: 0,
+      },
+    });
   }
   suspendFlux() {
     this.enter('suspendFlux');

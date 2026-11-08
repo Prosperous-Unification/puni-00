@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/journal.test.ts:
+172 | it('refuses missing or malformed controller lifecycle trusted state', () => {
+173 |   const path = join(directory(), 'release.json');
+174 |   const valid = record();
+175 |   const { controllers: _controllers, ...missing } = valid.state;
+176 |   writeFileSync(path, JSON.stringify({ ...valid, state: missing }));
+177 |   expect(() => fileJournal(path).read()).toThrow('controller lifecycle');
+                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "controller lifecycle"
+Received message: "Object.values requires that input parameter not be null or undefined"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/journal.test.ts:177:42)
+(fail) refuses missing or malformed controller lifecycle trusted state [0.92ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [39.00ms]

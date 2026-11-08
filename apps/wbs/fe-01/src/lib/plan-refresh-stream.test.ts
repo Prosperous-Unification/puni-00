@@ -49,6 +49,7 @@ function scenario(initialSeq = -1) {
           project: {
             id: 'p1',
             name: 'Plan',
+            abbreviation: 'PLAN',
             ownerId: 'owner',
             restricted: false,
             estimateMethod: 'pert',

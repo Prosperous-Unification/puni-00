@@ -1,0 +1,63 @@
+{
+  "baseline": "9cbe4d2bbd4e228ddb2c45c3daaf3a2ffd73f3c6",
+  "checkRun": 127680877741,
+  "rule": "Incomplete URL substring sanitization",
+  "originalAnnotation": {
+    "path": "tools/tool-fleet/src/observability-preflight.discovery.test.ts",
+    "line": 58,
+    "expression": "(definitions as readonly string[]).includes(helm)"
+  },
+  "source": {
+    "path": "tools/tool-fleet/src/observability-preflight.discovery.test.ts",
+    "bytes": 7383,
+    "sha256": "486883d69dbac907baad4f187da25ca726388b45edf11002a5f45ca4f184ca77",
+    "baseline": {
+      "bytes": 7429,
+      "sha256": "1ab3b2360ad0d9df227c2df509f5a009c7e6eefb23d1989ac4f40a49146117c8"
+    },
+    "membershipCalls": 4,
+    "typedSets": 1,
+    "expectExpressionsBefore": 21,
+    "expectExpressionsAfter": 21,
+    "existingItDeclarationsBefore": 10,
+    "existingItDeclarationsAfter": 10,
+    "productionAndFixtureUnchanged": true,
+    "originalSixteenFrozenSourcesUnchanged": true,
+    "originalEvidenceIndexProofAndReportUnchanged": true
+  },
+  "coveringRun": {
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "--timeout=30000",
+      "tools/tool-fleet/src/observability-preflight.discovery.test.ts"
+    ],
+    "started": "2026-11-06T03:07:18.046623+00:00",
+    "seconds": 3.824824544004514,
+    "exit": 0,
+    "bytes": 1979,
+    "sha256": "d44d3b20b20afc7da70f9d04c15c3c3cab200d60100fd7c2d6f69765c619a570"
+  },
+  "coverage": {
+    "passed": 19,
+    "failed": 0,
+    "skipped": 0,
+    "assertions": 144
+  },
+  "review": {
+    "specCompliance": "PASS",
+    "quality": "APPROVE",
+    "findings": 0,
+    "packageSha256": "6216ffbdea4167b66a528a182a326e2a87a3e14a5362db4d10c2a540ba5f35dd"
+  },
+  "hostedAlertCleared": null,
+  "hostedResolution": "unverified; fresh hosted analysis required",
+  "productionBehaviorChanged": false,
+  "ciPolicyChanged": false,
+  "originalCampaignRepeated": false,
+  "runtimeAcceptance": "4/11",
+  "task97Complete": false,
+  "task117Complete": false
+}

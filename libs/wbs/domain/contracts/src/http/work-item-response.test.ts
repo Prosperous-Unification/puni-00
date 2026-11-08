@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 import { expect, test } from 'bun:test';
 
+import { documentFromShapes } from './document-from-shapes';
 import { responseSchema, validateSchema } from './schema-shape';
 import { numberedWorkItem, workItemTree } from './work-item-response';
 import { getWorkItems } from './work-item-shapes';
@@ -28,6 +29,46 @@ test('tree boundary refuses missing core producer fields while allowing additive
   expect(
     (await validateSchema(schema, { ...tree, future: { extra: true } })).issues,
   ).toBeUndefined();
+  for (const remoteBlockageLabels of [
+    [{ root: { kind: 'future', nodeId: 'sn1.a.build' }, label: 'A.010' }],
+    [{ root: { kind: 'step' }, label: 'A.010' }],
+    [{ root: { kind: 'work-item', workItemId: 'a' }, label: null }],
+  ])
+    expect((await validateSchema(schema, { ...tree, remoteBlockageLabels })).issues).toBeDefined();
+  const missingCalendar = {
+    kind: 'dependency_calendar_missing',
+    projects: [{ projectId: 'p', abbreviation: 'P', name: 'Plan' }],
+  };
+  const missingEngine = {
+    kind: 'engine_unavailable',
+    engine: 'optimized',
+    projects: ['p'],
+    reason: 'adapter_missing',
+  };
+  for (const scheduleError of [
+    null,
+    'cycle',
+    'calendar_range',
+    missingCalendar,
+    missingEngine,
+    { ...missingEngine, reason: 'connected_optimization_not_supported' },
+  ])
+    expect((await validateSchema(schema, { ...tree, scheduleError })).issues).toBeUndefined();
+  for (const scheduleError of [
+    { ...missingCalendar, projects: undefined },
+    { ...missingCalendar, projects: [] },
+    ...['projectId', 'abbreviation', 'name'].map((field) => ({
+      ...missingCalendar,
+      projects: [{ ...missingCalendar.projects[0], [field]: undefined }],
+    })),
+    { ...missingEngine, projects: undefined },
+    { ...missingEngine, projects: [] },
+    { ...missingEngine, engine: 'fast' },
+    { ...missingEngine, reason: undefined },
+    { ...missingEngine, reason: 'unknown' },
+    { ...missingEngine, kind: 'unknown' },
+  ])
+    expect((await validateSchema(schema, { ...tree, scheduleError })).issues).toBeDefined();
   const olderReply = { ...tree, undoable: false, redoable: false };
   expect(
     (await validateSchema(getWorkItems.responses[0].schema, olderReply)).issues,
@@ -311,6 +352,42 @@ test('checks the optional optimization projection and every variant state', asyn
       })
     ).issues,
   ).toBeDefined();
+});
+
+test('generated tree OpenAPI requires captured unavailable evidence', () => {
+  const document = documentFromShapes([getWorkItems]);
+  const schema =
+    document.paths['/api/projects/{id}/work-items']?.['get']?.responses['200']?.content?.[
+      'application/json'
+    ]?.schema;
+  expect(schema).toHaveProperty('properties.scheduleError.anyOf');
+  expect(schema).toMatchObject({
+    properties: {
+      scheduleError: {
+        anyOf: [
+          {
+            properties: {
+              kind: { const: 'engine_unavailable' },
+              engine: { const: 'optimized' },
+              projects: { minItems: 1 },
+              reason: { enum: ['adapter_missing', 'connected_optimization_not_supported'] },
+            },
+            required: ['engine', 'kind', 'projects', 'reason'],
+          },
+          {
+            properties: {
+              kind: { const: 'dependency_calendar_missing' },
+              projects: { minItems: 1, items: { required: ['abbreviation', 'name', 'projectId'] } },
+            },
+            required: ['kind', 'projects'],
+          },
+          { const: 'calendar_range' },
+          { const: 'cycle' },
+          { type: 'null' },
+        ],
+      },
+    },
+  });
 });
 
 test('carries a stated hold on a row budget, and only a number (wbs-measure-budgets D60)', () => {

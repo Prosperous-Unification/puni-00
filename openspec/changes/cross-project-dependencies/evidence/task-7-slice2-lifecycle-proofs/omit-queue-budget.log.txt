@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:
+341 |     f.source.db
+342 |       .select()
+343 |       .from(optimizationBoundaryCertificate)
+344 |       .all()
+345 |       .map((entry) => entry.budgetMs),
+346 |   ).toEqual([1000, 1000]);
+          ^
+error: expect(received).toEqual(expected)
+
+- [
+-   1000,
+-   1000,
+- ]
++ []
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-optimizer-lifecycle/apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:346:5)
+(fail) restart replaces an old-budget queued question with the installed exact question [142.44ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.58s]

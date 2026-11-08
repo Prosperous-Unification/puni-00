@@ -1,0 +1,109 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/journal.test.ts:
+190 |     JSON.stringify({
+191 |       ...valid,
+192 |       state: { ...valid.state, controllers: { forward: null, rollback: null } },
+193 |     }),
+194 |   );
+195 |   expect(() => fileJournal(path).read()).toThrow('missing forward controller interval');
+                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "missing forward controller interval"
+
+Received function did not throw
+Received value: {
+  schemaVersion: 4,
+  request: {
+    environment: "local",
+    cluster: {
+      context: "lab",
+      uid: "u",
+    },
+    namespaces: {
+      app: "wbs",
+      backend: "wbs-solver",
+    },
+    release: {
+      sourceSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      images: {
+        backend: "r/be@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        gateway: "r/gw@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        frontend: "r/fe@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        mcp: "r/mcp@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      },
+    },
+    expectedCurrent: {
+      sourceSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      images: {
+        backend: "r/be@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        gateway: "r/gw@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        frontend: "r/fe@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        mcp: "r/mcp@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      },
+    },
+    admission: {
+      package: "p",
+      activation: "a",
+    },
+    flux: null,
+    recovers: null,
+  },
+  state: {
+    releaseId: "aaaaaaaaaaaa-5db870e9551c",
+    transactionId: "aaaaaaaaaaaa-5db870e9551c-cd59cc",
+    phase: "migrated",
+    rollbackFrom: null,
+    capture: null,
+    replayForward: {
+      target: "k8s:u:wbs-solver:wbs-data:/data/wbs.sqlite",
+      attempt: "aaaaaaaaaaaa-5db870e9551c-cd59cc",
+      direction: "forward",
+      inventory: [],
+      candidate: {
+        image: "r/be@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        capabilities: [],
+      },
+      previous: {
+        image: "r/be@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        capabilities: [],
+      },
+      bytes: "{\"target\":\"k8s:u:wbs-solver:wbs-data:/data/wbs.sqlite\",\"attempt\":\"aaaaaaaaaaaa-5db870e9551c-cd59cc\",\"direction\":\"forward\",\"inventory\":[],\"candidate\":{\"image\":\"r/be@sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"capabilities\":[]},\"previous\":{\"image\":\"r/be@sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"capabilities\":[]}}",
+      sha256: "fc47575c79177bc5e1f56530a6f2cfdffd8ace97001c001b62884d89596a87b9",
+    },
+    replayRollback: null,
+    previous: {
+      sourceSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      images: {
+        backend: "r/be@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        gateway: "r/gw@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        frontend: "r/fe@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        mcp: "r/mcp@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      },
+    },
+    snapshot: null,
+    controllers: {
+      forward: null,
+      rollback: null,
+    },
+    fluxSuspendedByUs: false,
+    writesReopened: false,
+    failure: null,
+  },
+  history: [
+    {
+      phase: "migrated",
+      at: "2026-09-18T00:00:00.000Z",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/journal.test.ts:195:42)
+(fail) refuses missing source drain and restore acknowledgments in durable phase history [1.04ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [35.00ms]

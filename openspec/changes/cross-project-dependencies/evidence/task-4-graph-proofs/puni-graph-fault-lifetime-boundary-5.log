@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+11 | } from './connected-dependency-graph';
+12 | import type { DependencyGraphState } from './dependency-graph';
+13 |
+14 | async function expectRejection(promise: Promise<unknown>, pattern: RegExp): Promise<void> {
+15 |   const failure: unknown = await promise.then(() => null, (error: unknown) => error);
+16 |   expect(failure).toBeInstanceOf(Error);
+                       ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: null
+
+      at expectRejection (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:16:19)
+      at async <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:320:9)
+(fail) checks lifetime for an empty observation and immediately after every awaited boundary [1.96ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [131.00ms]

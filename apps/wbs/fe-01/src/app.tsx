@@ -136,6 +136,8 @@ export function sessionReadFault(
   failure: ClientFailure,
 ): { readonly kind: 'sign-in'; readonly notice: string } | Unanswered {
   switch (failure.code) {
+    case 'dependency_incompatible':
+      return { kind: 'refused', sentence: failureMessage(failure) };
     case 'cancelled':
       return { kind: 'sign-in', notice: '' };
     case 'transport':

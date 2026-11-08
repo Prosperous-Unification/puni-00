@@ -1,0 +1,10 @@
+{
+  "source": "tools/tool-git-hooks/src/hooks/ci-run-runtime.ts",
+  "originalSHA256": "072c7ca534c6648949a3e61efbbc3b9e367d36936a52b45f89721bc4beb5324a",
+  "mutantSHA256": "97ecf53a4862ef7f8ff440b892bd5093e1146dafbee32b0937cfaa91a617c12a",
+  "device": 66307,
+  "inode": 22386837,
+  "mode": 436,
+  "before": "          : partition === 'remote-source-restoration'\n            ? 'source-restoration'",
+  "after": "          : partition === 'remote-source-restoration'\n            ? 'source'"
+}

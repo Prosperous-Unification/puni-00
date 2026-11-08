@@ -1,0 +1,1776 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-review-round2-isolated/apps/wbs/fe-01
+
+ ❯ src/components/wbs/dependency-autocomplete.test.tsx (49 tests | 2 failed | 47 skipped) 4014ms
+   × round2 an old pending Customize completion cannot close a newer editor on desktop for other 2397ms
+   × round2 an old pending Customize completion cannot close a newer editor on phone for other 1615ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/dependency-autocomplete.test.tsx > round2 an old pending Customize completion cannot close a newer editor on desktop for other
+TestingLibraryElementError: Unable to find an accessible element with the role "dialog" and name "Customize dependency"
+
+Here are the accessible roles:
+
+  toolbar:
+
+  Name "Plan":
+  [36m<div[39m
+    [33maria-busy[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"Plan"[39m
+    [33mclass[39m=[32m"mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"[39m
+    [33mdata-toolbar[39m=[32m"true"[39m
+    [33mrole[39m=[32m"toolbar"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "Freeze #":
+  [36m<button[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-haspopup[39m=[32m"menu"[39m
+    [33maria-label[39m=[32m"Freeze #"[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"[39m
+    [33mdata-hint[39m=[32m"Freeze the numbering as it stands, or release every frozen row"[39m
+    [33mstyle[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Add work item":
+  [36m<button[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"[39m
+    [33mdata-takes-the-focus[39m=[32m""[39m
+    [33mstyle[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Collapse all":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Collapse all"[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+    [33mdata-hint[39m=[32m"Close every branch"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Expand all":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Expand all"[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+    [33mdata-hint[39m=[32m"Open every branch"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Arrange by schedule":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Arrange by schedule"[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+    [33mdata-hint[39m=[32m"Put every sibling in the order its bar starts"[39m
+    [33mstyle[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Gantt":
+  [36m<button[39m
+    [33maria-pressed[39m=[32m"false"[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"[39m
+    [33mdata-hint[39m=[32m"Draw the schedule under the plan"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Project settings":
+  [36m<button[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-haspopup[39m=[32m"dialog"[39m
+    [33maria-label[39m=[32m"Project settings"[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+    [33mdata-hint[39m=[32m"Teams, priorities and steps of this project"[39m
+    [33mdata-state[39m=[32m"closed"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Save":
+  [36m<button[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"[39m
+    [33mdata-fact[39m=[32m"Nothing is filtered — there is no view to name"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtype[39m=[32m"submit"[39m
+  [36m/>[39m
+
+  Name "2 unestimated":
+  [36m<button[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"[39m
+    [33mdata-fact[39m=[32m"2 missing Dev, 2 missing QA"[39m
+    [33mdata-takes-the-focus[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Undo":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Undo"[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+    [33mdata-hint[39m=[32m"Undo your last change to this plan (Ctrl/⌘ + Z)"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mstyle[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Redo":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Redo"[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+    [33mdata-hint[39m=[32m"Put back what you last undid (Ctrl/⌘ + Shift + Z)"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mstyle[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Keyboard shortcuts":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Keyboard shortcuts"[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+    [33mdata-hint[39m=[32m"Keyboard shortcuts (?)"[39m
+    [33mdata-takes-the-focus[39m=[32m""[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Copy as Markdown":
+  [36m<button[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"[39m
+    [33mdata-hint[39m=[32m"Copy the whole plan as a Markdown table, with a header saying how to read it"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Copy as Mermaid":
+  [36m<button[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"[39m
+    [33mdata-hint[39m=[32m"Copy the chart as a Mermaid gantt, for a Markdown document that draws it"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Download CSV":
+  [36m<button[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"[39m
+    [33mdata-hint[39m=[32m"Download the whole plan as a CSV, with a header saying how to read it"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Download as Markdown":
+  [36m<button[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"[39m
+    [33mdata-hint[39m=[32m"Download the chart as a Mermaid gantt bundled with the Markdown table, with a header saying how to read it"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Download chart as SVG":
+  [36m<button[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"[39m
+    [33mdata-export-chart-svg[39m=[32m"true"[39m
+    [33mdata-hint[39m=[32m"Download the chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Download what’s on screen":
+  [36m<button[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"[39m
+    [33mdata-hint[39m=[32m"Download the rows on screen as a Markdown table, with a header saying what was filtered out and what is missing"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Download JSON":
+  [36m<button[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"[39m
+    [33mdata-hint[39m=[32m"Download the complete versioned plan archive as JSON"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Import with AI":
+  [36m<button[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-haspopup[39m=[32m"dialog"[39m
+    [33mclass[39m=[32m"inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"[39m
+    [33mdata-hint[39m=[32m"Connect an AI client to WBS and import an existing project through it"[39m
+    [33mdata-state[39m=[32m"closed"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Unfold Dev estimates":
+  [36m<button[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"Unfold Dev estimates"[39m
+    [33mdata-hint[39m=[32m"This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark. Click to show the three points; the table may scroll sideways."[39m
+    [33mstyle[39m=[32m"font: inherit; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Unfold QA estimates":
+  [36m<button[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"Unfold QA estimates"[39m
+    [33mdata-hint[39m=[32m"This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark. Click to show the three points; the table may scroll sideways."[39m
+    [33mstyle[39m=[32m"font: inherit; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Reorder 010":
+  [36m<span[39m
+    [33maria-describedby[39m=[32m"strip-word-w1"[39m
+    [33maria-label[39m=[32m"Reorder 010"[39m
+    [33mdata-hint[39m=[32m"Drag to move this row"[39m
+    [33mdraggable[39m=[32m"true"[39m
+    [33mrole[39m=[32m"button"[39m
+    [33mstyle[39m=[32m"cursor: grab;"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+  [36m/>[39m
+
+  Name "Make 010 wait for something":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Make 010 wait for something"[39m
+    [33mclass[39m=[32m"shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground"[39m
+    [33mdata-dep-add[39m=[32m"w1"[39m
+    [33mdata-reference-add[39m=[32m""[39m
+    [33mstyle[39m=[32m"flex-shrink: 0;"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Add a tag to 010":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Add a tag to 010"[39m
+    [33mclass[39m=[32m"shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground"[39m
+    [33mdata-reference-add[39m=[32m""[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Actions for 010":
+  [36m<button[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-haspopup[39m=[32m"menu"[39m
+    [33maria-label[39m=[32m"Actions for 010"[39m
+    [33mdata-hint[39m=[32m"Row actions"[39m
+    [33mstyle[39m=[32m"font: inherit; padding: 0px 4px;"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Reorder 020":
+  [36m<span[39m
+    [33maria-describedby[39m=[32m"strip-word-w2"[39m
+    [33maria-label[39m=[32m"Reorder 020"[39m
+    [33mdata-hint[39m=[32m"Drag to move this row"[39m
+    [33mdraggable[39m=[32m"true"[39m
+    [33mrole[39m=[32m"button"[39m
+    [33mstyle[39m=[32m"cursor: grab;"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+  [36m/>[39m
+
+  Name "Make 020 wait for something":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Make 020 wait for something"[39m
+    [33mclass[39m=[32m"shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground"[39m
+    [33mdata-dep-add[39m=[32m"w2"[39m
+    [33mdata-reference-add[39m=[32m""[39m
+    [33mstyle[39m=[32m"flex-shrink: 0;"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Customize PUNI.080.s1-dev - Remote build":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Customize PUNI.080.s1-dev - Remote build"[39m
+    [33mclass[39m=[32m"typed-dependency-customize"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Customize PUNI.080 - Remote build":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Customize PUNI.080 - Remote build"[39m
+    [33mclass[39m=[32m"typed-dependency-customize"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Add a tag to 020":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Add a tag to 020"[39m
+    [33mclass[39m=[32m"shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground"[39m
+    [33mdata-reference-add[39m=[32m""[39m
+    [33mtabindex[39m=[32m"-1"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Actions for 020":
+  [36m<button[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-haspopup[39m=[32m"menu"[39m
+    [33maria-label[39m=[32m"Actions for 020"[39m
+    [33mdata-hint[39m=[32m"Row actions"[39m
+    [33mstyle[39m=[32m"font: inherit; padding: 0px 4px;"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  textbox:
+
+  Name "Find":
+  [36m<input[39m
+    [33maria-label[39m=[32m"Find"[39m
+    [33mclass[39m=[32m"border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex rounded-md border px-3 py-1 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 w-32 text-xs"[39m
+    [33mdata-hint[39m=[32m"Show work items whose name contains this, with the rows above and below them"[39m
+    [33mplaceholder[39m=[32m"Find…"[39m
+    [33msize[39m=[32m"14"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Name this view":
+  [36m<input[39m
+    [33maria-label[39m=[32m"Name this view"[39m
+    [33mclass[39m=[32m"border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-1 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 flex-1 text-xs"[39m
+    [33mplaceholder[39m=[32m"Name this view…"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Name of 010":
+  [36m<textarea[39m
+    [33maria-label[39m=[32m"Name of 010"[39m
+    [33mdata-cell[39m=[32m"w1::name"[39m
+    [33mdata-name-input[39m=[32m"w1"[39m
+    [33mdata-rendered-at-rest[39m=[32m""[39m
+    [33mrows[39m=[32m"1"[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font: inherit; height: 0px; max-height: none; overflow-y: hidden;"[39m
+  [36m/>[39m
+
+  Name "People at once for 010":
+  [36m<input[39m
+    [33maria-label[39m=[32m"People at once for 010"[39m
+    [33mdata-cell[39m=[32m"w1::in-parallel"[39m
+    [33mdata-hint[39m=[32m"How many people may work on this item at once. Blank means one at a time."[39m
+    [33mdata-in-parallel[39m=[32m"w1"[39m
+    [33minputmode[39m=[32m"numeric"[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; text-align: right;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Earliest start for 010":
+  [36m<input[39m
+    [33maria-label[39m=[32m"Earliest start for 010"[39m
+    [33mdata-cell[39m=[32m"w1::not-before"[39m
+    [33mdata-fact[39m=[32m"Set the project start date first — without one there are no dates to constrain."[39m
+    [33mdata-not-before[39m=[32m"w1"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; cursor: not-allowed;"[39m
+    [33mvalue[39m=[32m"—"[39m
+  [36m/>[39m
+
+  Name "Name of 020":
+  [36m<textarea[39m
+    [33maria-label[39m=[32m"Name of 020"[39m
+    [33mdata-cell[39m=[32m"w2::name"[39m
+    [33mdata-name-input[39m=[32m"w2"[39m
+    [33mdata-rendered-at-rest[39m=[32m""[39m
+    [33mrows[39m=[32m"1"[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font: inherit; height: 0px; max-height: none; overflow-y: hidden;"[39m
+  [36m/>[39m
+
+  Name "People at once for 020":
+  [36m<input[39m
+    [33maria-label[39m=[32m"People at once for 020"[39m
+    [33mdata-cell[39m=[32m"w2::in-parallel"[39m
+    [33mdata-hint[39m=[32m"How many people may work on this item at once. Blank means one at a time."[39m
+    [33mdata-in-parallel[39m=[32m"w2"[39m
+    [33minputmode[39m=[32m"numeric"[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; text-align: right;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Earliest start for 020":
+  [36m<input[39m
+    [33maria-label[39m=[32m"Earliest start for 020"[39m
+    [33mdata-cell[39m=[32m"w2::not-before"[39m
+    [33mdata-fact[39m=[32m"Set the project start date first — without one there are no dates to constrain."[39m
+    [33mdata-not-before[39m=[32m"w2"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; cursor: not-allowed;"[39m
+    [33mvalue[39m=[32m"—"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  group:
+
+  Name "":
+  [36m<details[39m
+    [33mclass[39m=[32m"relative"[39m
+    [33mdata-dismissible[39m=[32m""[39m
+    [33mdata-facets[39m=[32m"true"[39m
+  [36m/>[39m
+
+  Name "State":
+  [36m<fieldset[39m
+    [33mclass[39m=[32m"mb-2 border-0 p-0"[39m
+    [33mdata-facet-group[39m=[32m"state"[39m
+  [36m/>[39m
+
+  Name "Mismatch":
+  [36m<fieldset[39m
+    [33mclass[39m=[32m"mb-2 border-0 p-0"[39m
+    [33mdata-facet-group[39m=[32m"mismatch"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<details[39m
+    [33mclass[39m=[32m"relative"[39m
+    [33mdata-dismissible[39m=[32m""[39m
+    [33mdata-saved-views[39m=[32m"true"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<details[39m
+    [33mclass[39m=[32m"relative"[39m
+    [33mdata-columns[39m=[32m"true"[39m
+    [33mdata-dismissible[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Whole plan":
+  [36m<div[39m
+    [33maria-label[39m=[32m"Whole plan"[39m
+    [33mclass[39m=[32m"ml-auto flex shrink-0 items-center gap-1.5"[39m
+    [33mdata-toolbar-end[39m=[32m"true"[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<details[39m
+    [33mclass[39m=[32m"relative"[39m
+    [33mdata-dismissible[39m=[32m""[39m
+    [33mdata-export[39m=[32m"true"[39m
+  [36m/>[39m
+
+  Name "Schedule":
+  [36m<div[39m
+    [33maria-label[39m=[32m"Schedule"[39m
+    [33mclass[39m=[32m"flex shrink-0 items-center gap-1.5"[39m
+    [33mdata-schedule[39m=[32m"true"[39m
+    [33mrole[39m=[32m"group"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  checkbox:
+
+  Name "Unestimated only":
+  [36m<input[39m
+    [33maria-label[39m=[32m"Unestimated only"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Critical path only":
+  [36m<input[39m
+    [33maria-label[39m=[32m"Critical path only"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Built by non-owner only":
+  [36m<input[39m
+    [33maria-describedby[39m=[32m"facet-why-built-by-non-owner-only"[39m
+    [33maria-label[39m=[32m"Built by non-owner only"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Assigned outside the team only":
+  [36m<input[39m
+    [33maria-describedby[39m=[32m"facet-why-assigned-outside-the-team-only"[39m
+    [33maria-label[39m=[32m"Assigned outside the team only"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Links":
+  [36m<input[39m
+    [33mid[39m=[32m"_r_3_-refs"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Status":
+  [36m<input[39m
+    [33mid[39m=[32m"_r_3_-status"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Depends on":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-depends"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Priority":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-priority"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Teams":
+  [36m<input[39m
+    [33mid[39m=[32m"_r_3_-team"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Tags":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-tag"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Services":
+  [36m<input[39m
+    [33mid[39m=[32m"_r_3_-service"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Types":
+  [36m<input[39m
+    [33mid[39m=[32m"_r_3_-type"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "People at once":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-in-parallel"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Dev":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-step-dev"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "QA":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-step-qa"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Days":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-final-total"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Not before":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-not-before"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Deadline":
+  [36m<input[39m
+    [33mid[39m=[32m"_r_3_-deadline"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Fact start":
+  [36m<input[39m
+    [33mid[39m=[32m"_r_3_-fact-start"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Fact end":
+  [36m<input[39m
+    [33mid[39m=[32m"_r_3_-fact-end"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Start":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-start"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "End":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-finish"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  Name "Slack":
+  [36m<input[39m
+    [33mchecked[39m=[32m""[39m
+    [33mid[39m=[32m"_r_3_-float"[39m
+    [33mtype[39m=[32m"checkbox"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  paragraph:
+
+  Name "":
+  [36m<p[39m
+    [33mclass[39m=[32m"text-muted-foreground text-xs"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  separator:
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"bg-border my-1 h-px shrink-0"[39m
+    [33mrole[39m=[32m"separator"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"bg-border my-1 h-px shrink-0"[39m
+    [33mrole[39m=[32m"separator"[39m
+  [36m/>[39m
+
+  Name "Resize drag":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize drag"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize drag"[39m
+    [33mdata-resize-handle[39m=[32m"drag"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize Number":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize Number"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize Number"[39m
+    [33mdata-resize-handle[39m=[32m"number"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize Name":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize Name"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize Name"[39m
+    [33mdata-resize-handle[39m=[32m"name"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize Depends on":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize Depends on"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize Depends on"[39m
+    [33mdata-resize-handle[39m=[32m"depends"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize priority":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize priority"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize priority"[39m
+    [33mdata-resize-handle[39m=[32m"priority"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize Tags":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize Tags"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize Tags"[39m
+    [33mdata-resize-handle[39m=[32m"tag"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize People at once":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize People at once"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize People at once"[39m
+    [33mdata-resize-handle[39m=[32m"in-parallel"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize step-dev-final":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize step-dev-final"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize step-dev-final"[39m
+    [33mdata-resize-handle[39m=[32m"step-dev-final"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize step-qa-final":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize step-qa-final"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize step-qa-final"[39m
+    [33mdata-resize-handle[39m=[32m"step-qa-final"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize final-total":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize final-total"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize final-total"[39m
+    [33mdata-resize-handle[39m=[32m"final-total"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize not-before":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize not-before"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize not-before"[39m
+    [33mdata-resize-handle[39m=[32m"not-before"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize start":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize start"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize start"[39m
+    [33mdata-resize-handle[39m=[32m"start"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize finish":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize finish"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize finish"[39m
+    [33mdata-resize-handle[39m=[32m"finish"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize float":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize float"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize float"[39m
+    [33mdata-resize-handle[39m=[32m"float"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  Name "Resize actions":
+  [36m<span[39m
+    [33maria-label[39m=[32m"Resize actions"[39m
+    [33maria-orientation[39m=[32m"vertical"[39m
+    [33mdata-hint[39m=[32m"Drag to resize actions"[39m
+    [33mdata-resize-handle[39m=[32m"actions"[39m
+    [33mrole[39m=[32m"separator"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  combobox:
+
+  Name "Mermaid lanes":
+  [36m<select[39m
+    [33mclass[39m=[32m"border-input bg-background h-8 rounded-md border px-2 text-xs"[39m
+    [33mdata-hint[39m=[32m"What the two Mermaid exports group their bars into — the plan's outline, the step a bar is estimated under, or whoever is on it"[39m
+  [36m/>[39m
+
+  Name "Final estimate":
+  [36m<select[39m
+    [33maria-label[39m=[32m"Final estimate"[39m
+    [33mclass[39m=[32m"border-input bg-background h-8 rounded-md border px-2 text-sm"[39m
+    [33mstyle[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Add a dependency to 010":
+  [36m<input[39m
+    [33maria-autocomplete[39m=[32m"list"[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"Add a dependency to 010"[39m
+    [33mdata-cell[39m=[32m"w1::depends"[39m
+    [33mdata-depends-input[39m=[32m"w1"[39m
+    [33mplaceholder[39m=[32m"search"[39m
+    [33mrole[39m=[32m"combobox"[39m
+    [33mstyle[39m=[32m"width: 100%; min-width: 0px; box-sizing: border-box; flex: 1 1 0%;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Priority for 010":
+  [36m<input[39m
+    [33maria-autocomplete[39m=[32m"list"[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"Priority for 010"[39m
+    [33mdata-cell[39m=[32m"w1::priority"[39m
+    [33mdata-hint[39m=[32m"How important this work is: 1 upward, smaller first. Type a number or a band’s name. Blank means nobody has said."[39m
+    [33mdata-priority[39m=[32m"w1"[39m
+    [33minputmode[39m=[32m"numeric"[39m
+    [33mrole[39m=[32m"combobox"[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; text-align: right; padding-left: 8px;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Tags for 010":
+  [36m<input[39m
+    [33maria-autocomplete[39m=[32m"list"[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"Tags for 010"[39m
+    [33mdata-cell[39m=[32m"w1::tag"[39m
+    [33mplaceholder[39m=[32m"search"[39m
+    [33mrole[39m=[32m"combobox"[39m
+    [33mstyle[39m=[32m"font: inherit; flex: 1 1 0%; min-width: 0px; width: auto;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Dev estimate for 010":
+  [36m<input[39m
+    [33maria-autocomplete[39m=[32m"list"[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-invalid[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"Dev estimate for 010"[39m
+    [33mdata-cell[39m=[32m"w1::step-dev-final"[39m
+    [33mplaceholder[39m=[32m"o/r/p"[39m
+    [33mrole[39m=[32m"combobox"[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: 10px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "QA estimate for 010":
+  [36m<input[39m
+    [33maria-autocomplete[39m=[32m"list"[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-invalid[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"QA estimate for 010"[39m
+    [33mdata-cell[39m=[32m"w1::step-qa-final"[39m
+    [33mplaceholder[39m=[32m"o/r/p"[39m
+    [33mrole[39m=[32m"combobox"[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: 10px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Add a dependency to 020":
+  [36m<input[39m
+    [33maria-autocomplete[39m=[32m"list"[39m
+    [33maria-controls[39m=[32m"dep-options-w2"[39m
+    [33maria-expanded[39m=[32m"true"[39m
+    [33maria-label[39m=[32m"Add a dependency to 020"[39m
+    [33mdata-cell[39m=[32m"w2::depends"[39m
+    [33mdata-depends-input[39m=[32m"w2"[39m
+    [33mplaceholder[39m=[32m"search"[39m
+    [33mrole[39m=[32m"combobox"[39m
+    [33mstyle[39m=[32m"width: 100%; min-width: 0px; box-sizing: border-box;"[39m
+    [33mvalue[39m=[32m"999, PUNI."[39m
+  [36m/>[39m
+
+  Name "Priority for 020":
+  [36m<input[39m
+    [33maria-autocomplete[39m=[32m"list"[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"Priority for 020"[39m
+    [33mdata-cell[39m=[32m"w2::priority"[39m
+    [33mdata-hint[39m=[32m"How important this work is: 1 upward, smaller first. Type a number or a band’s name. Blank means nobody has said."[39m
+    [33mdata-priority[39m=[32m"w2"[39m
+    [33minputmode[39m=[32m"numeric"[39m
+    [33mrole[39m=[32m"combobox"[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; text-align: right; padding-left: 8px;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Tags for 020":
+  [36m<input[39m
+    [33maria-autocomplete[39m=[32m"list"[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"Tags for 020"[39m
+    [33mdata-cell[39m=[32m"w2::tag"[39m
+    [33mplaceholder[39m=[32m"search"[39m
+    [33mrole[39m=[32m"combobox"[39m
+    [33mstyle[39m=[32m"font: inherit; flex: 1 1 0%; min-width: 0px; width: auto;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Dev estimate for 020":
+  [36m<input[39m
+    [33maria-autocomplete[39m=[32m"list"[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-invalid[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"Dev estimate for 020"[39m
+    [33mdata-cell[39m=[32m"w2::step-dev-final"[39m
+    [33mplaceholder[39m=[32m"o/r/p"[39m
+    [33mrole[39m=[32m"combobox"[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: 10px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "QA estimate for 020":
+  [36m<input[39m
+    [33maria-autocomplete[39m=[32m"list"[39m
+    [33maria-expanded[39m=[32m"false"[39m
+    [33maria-invalid[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"QA estimate for 020"[39m
+    [33mdata-cell[39m=[32m"w2::step-qa-final"[39m
+    [33mplaceholder[39m=[32m"o/r/p"[39m
+    [33mrole[39m=[32m"combobox"[39m
+    [33mstyle[39m=[32m"width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: 10px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis;"[39m
+    [33mvalue[39m=[32m""[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  option:
+
+  Name "outline":
+  [36m<option[39m
+    [33mvalue[39m=[32m"outline"[39m
+  [36m/>[39m
+
+  Name "step":
+  [36m<option[39m
+    [33mvalue[39m=[32m"step"[39m
+  [36m/>[39m
+
+  Name "assignee":
+  [36m<option[39m
+    [33mvalue[39m=[32m"assignee"[39m
+  [36m/>[39m
+
+  Name "PERT":
+  [36m<option[39m
+    [33mvalue[39m=[32m"pert"[39m
+  [36m/>[39m
+
+  Name "optimistic":
+  [36m<option[39m
+    [33mvalue[39m=[32m"optimistic"[39m
+  [36m/>[39m
+
+  Name "realistic":
+  [36m<option[39m
+    [33mvalue[39m=[32m"realistic"[39m
+  [36m/>[39m
+
+  Name "pessimistic":
+  [36m<option[39m
+    [33mvalue[39m=[32m"pessimistic"[39m
+  [36m/>[39m
+
+  Name "PUNI.080.s1-dev - Remote build":
+  [36m<span[39m
+    [33maria-disabled[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"PUNI.080.s1-dev - Remote build"[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mid[39m=[32m"dep-option-[\"other\",\"remote-row\",\"node\",\"remote-dev\"]"[39m
+    [33mrole[39m=[32m"option"[39m
+    [33mstyle[39m=[32m"padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0px; flex: 0 1 auto; cursor: pointer;"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+  [36m/>[39m
+
+  Name "PUNI.080 - Remote build":
+  [36m<span[39m
+    [33maria-disabled[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"PUNI.080 - Remote build"[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mid[39m=[32m"dep-option-[\"other\",\"remote-row\",\"whole\",null]"[39m
+    [33mrole[39m=[32m"option"[39m
+    [33mstyle[39m=[32m"padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0px; flex: 0 1 auto; cursor: pointer;"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  table:
+
+  Name "":
+  [36m<table[39m
+    [33maria-rowcount[39m=[32m"3"[39m
+    [33mdata-grid[39m=[32m"true"[39m
+    [33mstyle[39m=[32m"border-collapse: separate; border-spacing: 0px; table-layout: fixed; width: min(100%, 1360px); min-width: 1140px;"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  rowgroup:
+
+  Name "":
+  [36m<thead />[39m
+
+  Name "":
+  [36m<tbody />[39m
+
+  --------------------------------------------------
+  row:
+
+  Name "ReorderResize drag Number NameResize Name Depends onResize Depends on PriorityResize priority TagsResize Tags People at once ▸ Dev Resize step-dev-final ▸ QA Resize step-qa-final DaysResize final-total Not beforeResize not-before StartResize start EndResize finish SlackResize float Row actionsResize actions":
+  [36m<tr />[39m
+
+  Name "⠿Status: Unknown 010 Puni local title + + 0 — day 0 day 0 ? critical ⋯":
+  [36m<tr[39m
+    [33maria-rowindex[39m=[32m"2"[39m
+    [33mdata-frozen[39m=[32m"false"[39m
+    [33mdata-row-id[39m=[32m"w1"[39m
+    [33mdata-row-parity[39m=[32m"odd"[39m
+    [33mdata-row-status[39m=[32m"unknown"[39m
+  [36m/>[39m
+
+  Name "⠿Status: Unknown 020 Successor + 999, PUNI. + 0 — day 0 day 0 ? critical ⋯":
+  [36m<tr[39m
+    [33maria-rowindex[39m=[32m"3"[39m
+    [33mdata-frozen[39m=[32m"false"[39m
+    [33mdata-row-id[39m=[32m"w2"[39m
+    [33mdata-row-parity[39m=[32m"even"[39m
+    [33mdata-row-status[39m=[32m"unknown"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  columnheader:
+
+  Name "ReorderResize drag":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"drag"[39m
+    [33mdata-hint[39m=[32m"Drag a row to move it in the outline. Where a row sits decides its number, which parent adds it up, and the team, services and tags it inherits while its own are blank."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 4; background: var(--cell-bg, var(--muted)); left: 0px; width: 16px;"[39m
+  [36m/>[39m
+
+  Name "Number":
+  [36m<th[39m
+    [33maria-label[39m=[32m"Number"[39m
+    [33mdata-column[39m=[32m"number"[39m
+    [33mdata-hint[39m=[32m"This row’s place in the outline. A row indented under another is part of it: the parent’s days and dates are its children’s, added up. A locked number is one the plan was published under and it no longer moves."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 4; background: var(--cell-bg, var(--muted)); left: 16px; width: 68px;"[39m
+  [36m/>[39m
+
+  Name "NameResize Name":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"name"[39m
+    [33mdata-hint[39m=[32m"What this work item is called — what the waiting sentences, the chart and every export call it, and where its notes are typed. It moves no dates."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 4; background: var(--cell-bg, var(--muted)); min-width: 200px; left: 84px;"[39m
+  [36m/>[39m
+
+  Name "Depends onResize Depends on":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"depends"[39m
+    [33mdata-hint[39m=[32m"The rows this one waits for. It starts after each named row’s first estimated step rather than after that row finishes, so pushing a row you depend on pushes this one too. Search by name, or type numbers — 010, 020."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "PriorityResize priority":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"priority"[39m
+    [33mdata-hint[39m=[32m"How important this work is: 1 upward, smaller first. It decides who gets a shared person first — never who skips their dependencies."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "TagsResize Tags":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"tag"[39m
+    [33mdata-hint[39m=[32m"Labels to narrow the plan by — the table, the chart and the cards filter to them together. Blank inherits the tags above. Tags move no dates."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "People at once":
+  [36m<th[39m
+    [33maria-label[39m=[32m"People at once"[39m
+    [33mdata-column[39m=[32m"in-parallel"[39m
+    [33mdata-hint[39m=[32m"How many people may work on this item at once. Blank means one at a time. It compresses the item’s own effort across that many of its team’s people — never past the team’s size, and never where somebody is named on the work."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "▸ Dev Resize step-dev-final":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"step-dev-final"[39m
+    [33mdata-hint[39m=[32m"This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "▸ QA Resize step-qa-final":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"step-qa-final"[39m
+    [33mdata-hint[39m=[32m"This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "DaysResize final-total":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"final-total"[39m
+    [33mdata-hint[39m=[32m"Every step’s final figure for this work item, added up — and the length of its bar. Computed: change an estimate, or how many work on it at once, and this moves with it."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "Not beforeResize not-before":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"not-before"[39m
+    [33mdata-hint[39m=[32m"The earliest day this work item may start. It is a floor and not a date: its dependencies and its team can still push it later, never earlier."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "StartResize start":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"start"[39m
+    [33mdata-hint[39m=[32m"Computed, not typed: this work item’s earliest start, worked out from its dependencies, its earliest start and when its team has people free. In days from the start of the plan until the project has a start date."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "EndResize finish":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"finish"[39m
+    [33mdata-hint[39m=[32m"Computed, not typed: this work item’s earliest finish, worked out from its dependencies, its earliest start and when its team has people free. In days from the start of the plan until the project has a start date."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "SlackResize float":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"float"[39m
+    [33mdata-hint[39m=[32m"Days this work item can slip before the plan’s end moves. A row marked critical has none: it is what sets the plan’s finish."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  Name "Row actionsResize actions":
+  [36m<th[39m
+    [33mdata-column[39m=[32m"actions"[39m
+    [33mdata-hint[39m=[32m"Duplicate this row, or delete it and every row under it. A row whose number is locked must be unfrozen before it can be deleted."[39m
+    [33mscope[39m=[32m"col"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  cell:
+
+  Name "⠿Status: Unknown":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"drag"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; left: 0px; width: 16px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"[39m
+  [36m/>[39m
+
+  Name "010":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"number"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; left: 16px; width: 68px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"[39m
+  [36m/>[39m
+
+  Name "Puni local title":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"name"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible; min-width: 200px; position: sticky; left: 84px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"[39m
+  [36m/>[39m
+
+  Name "+":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"depends"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"priority"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "+":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"tag"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"in-parallel"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"step-dev-final"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"step-qa-final"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "0":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"final-total"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"[39m
+  [36m/>[39m
+
+  Name "—":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"not-before"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "day 0":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"start"[39m
+    [33mdata-start-said[39m=[32m"Starts with the project — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date."[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible; cursor: help;"[39m
+    [33mtabindex[39m=[32m"0"[39m
+  [36m/>[39m
+
+  Name "day 0 ?":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"finish"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"[39m
+  [36m/>[39m
+
+  Name "critical":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"float"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"[39m
+  [36m/>[39m
+
+  Name "⋯":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"actions"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "⠿Status: Unknown":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"drag"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; left: 0px; width: 16px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"[39m
+  [36m/>[39m
+
+  Name "020":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"number"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; left: 16px; width: 68px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"[39m
+  [36m/>[39m
+
+  Name "Successor":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"name"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible; min-width: 200px; position: sticky; left: 84px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"[39m
+  [36m/>[39m
+
+  Name "+ 999, PUNI.":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"depends"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"priority"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "+":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"tag"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"in-parallel"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"step-dev-final"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"step-qa-final"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "0":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"final-total"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"[39m
+  [36m/>[39m
+
+  Name "—":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"not-before"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  Name "day 0":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"start"[39m
+    [33mdata-start-said[39m=[32m"Starts with the project — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date."[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible; cursor: help;"[39m
+    [33mtabindex[39m=[32m"0"[39m
+  [36m/>[39m
+
+  Name "day 0 ?":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"finish"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"[39m
+  [36m/>[39m
+
+  Name "critical":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"float"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"[39m
+  [36m/>[39m
+
+  Name "⋯":
+  [36m<td[39m
+    [33mdata-column[39m=[32m"actions"[39m
+    [33mstyle[39m=[32m"box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  listbox:
+
+  Name "Work items 020 can depend on":
+  [36m<ul[39m
+    [33maria-label[39m=[32m"Work items 020 can depend on"[39m
+    [33mid[39m=[32m"dep-options-w2"[39m
+    [33mrole[39m=[32m"listbox"[39m
+    [33mstyle[39m=[32m"position: absolute; top: 100%; left: 0px; margin: 0px; padding: 0px; list-style: none; background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--popover-shadow); overflow: hidden; max-height: 200px; overflow-y: auto; color: var(--popover-foreground); z-index: 10; min-width: 260px; max-width: 1016px;"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  presentation:
+
+  Name "":
+  [36m<li[39m
+    [33mrole[39m=[32m"presentation"[39m
+    [33mstyle[39m=[32m"display: flex; align-items: center;"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<li[39m
+    [33mrole[39m=[32m"presentation"[39m
+    [33mstyle[39m=[32m"display: flex; align-items: center;"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33mclass[39m=[32m"flex min-h-0 flex-1 flex-col"[39m
+      [33mdata-project-id[39m=[32m"p1"[39m
+      [33mdata-slice-count[39m=[32m"2"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33maria-busy[39m=[32m"false"[39m
+        [33maria-label[39m=[32m"Plan"[39m
+        [33mclass[39m=[32m"mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"[39m
+        [33mdata-toolbar[39m=[32m"true"[39m
+        [33mrole[39m=[32m"toolbar"[39m
+      [36m>[39m
+        [36m<span[39m
+          [33mstyle[39m=[32m"position: relative; display: inline-block;"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-expanded[39m=[32m"false"[39m
+            [33maria-haspopup[39m=[32m"menu"[39m
+            [33maria-label[39m=[32m"Freeze #"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"[39m
+            [33mdata-hint[39m=[32m"Freeze the numbering as it stands, or release every frozen row"[39m
+            [33mstyle[39m=[32m""[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mFreeze #[0m
+          [36m</button>[39m
+        [36m</span>[39m
+        [36m<button[39m
+          [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"[39m
+          [33mdata-takes-the-focus[39m=[32m""[39m
+          [33mstyle[39m=[32m""[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [0mAdd work item[0m
+        [36m</button>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"Collapse all"[39m
+          [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+          [33mdata-hint[39m=[32m"Close every branch"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"1em"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M7 4l5 5 5-5"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M7 20l5-5 5 5"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+        [36m</button>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"Expand all"[39m
+          [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+          [33mdata-hint[39m=[32m"Open every branch"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"1em"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M7 9l5-5 5 5"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M7 15l5 5 5-5"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+        [36m</button>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"Arrange by schedule"[39m
+          [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+          [33mdata-hint[39m=[32m"Put every sibling in the order its bar starts"[39m
+          [33mstyle[39m=[32m""[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mheight[39m=[32m"1em"...
+ ❯ Object.getElementError ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/components/wbs/dependency-autocomplete.test.tsx:937:21
+    935|         await Promise.resolve();
+    936|       });
+    937|       expect(screen.getByRole('dialog', { name: 'Customize dependency'…
+       |                     ^
+    938|       expect(screen.getByLabelText<HTMLSelectElement>('Relationship').…
+    939|       expect(box.value).toBe('999, PUNI.');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/wbs/dependency-autocomplete.test.tsx > round2 an old pending Customize completion cannot close a newer editor on phone for other
+TestingLibraryElementError: Unable to find an accessible element with the role "dialog" and name "Customize dependency"
+
+Here are the accessible roles:
+
+  dialog:
+
+  Name "Depends on for 020 - Successor":
+  [36m<div[39m
+    [33maria-describedby[39m=[32m"radix-_r_1d_"[39m
+    [33maria-labelledby[39m=[32m"radix-_r_1c_"[39m
+    [33mclass[39m=[32m"bg-background text-foreground fixed z-(--layer-modal) flex flex-col gap-4 p-6 inset-x-0 bottom-0 max-h-[85vh] rounded-t-lg border-t shadow-lg min-h-[60vh] overflow-y-hidden"[39m
+    [33mdata-modal-surface[39m=[32m"bottom"[39m
+    [33mdata-state[39m=[32m"open"[39m
+    [33mid[39m=[32m"radix-_r_1b_"[39m
+    [33mrole[39m=[32m"dialog"[39m
+    [33mstyle[39m=[32m"pointer-events: auto;"[39m
+    [33mtabindex[39m=[32m"-1"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "Depends on for 020 - Successor":
+  [36m<h2[39m
+    [33mclass[39m=[32m"text-lg leading-none font-semibold tracking-tight"[39m
+    [33mid[39m=[32m"radix-_r_1c_"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  paragraph:
+
+  Name "":
+  [36m<p[39m
+    [33mclass[39m=[32m"text-muted-foreground text-sm"[39m
+    [33mid[39m=[32m"radix-_r_1d_"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  textbox:
+
+  Name "Add a dependency to 020":
+  [36m<input[39m
+    [33maria-label[39m=[32m"Add a dependency to 020"[39m
+    [33mclass[39m=[32m"min-h-11 border-input bg-background box-border w-full rounded-md border p-2 text-base"[39m
+    [33mdata-card-depends-input[39m=[32m"true"[39m
+    [33mdata-cell[39m=[32m"w2::depends"[39m
+    [33mplaceholder[39m=[32m"search by number or name"[39m
+    [33mtype[39m=[32m"text"[39m
+    [33mvalue[39m=[32m"999, PUNI."[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  listbox:
+
+  Name "Rows 020 could wait for":
+  [36m<ul[39m
+    [33maria-label[39m=[32m"Rows 020 could wait for"[39m
+    [33mclass[39m=[32m"m-0 flex min-h-0 flex-1 list-none flex-col gap-1 overflow-y-auto p-0"[39m
+    [33mrole[39m=[32m"listbox"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  presentation:
+
+  Name "":
+  [36m<li[39m
+    [33mclass[39m=[32m"flex min-w-0 items-center gap-2"[39m
+    [33mrole[39m=[32m"presentation"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<li[39m
+    [33mclass[39m=[32m"flex min-w-0 items-center gap-2"[39m
+    [33mrole[39m=[32m"presentation"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "PUNI.080.s1-dev - Remote build":
+  [36m<button[39m
+    [33maria-disabled[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"PUNI.080.s1-dev - Remote build"[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m"flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50"[39m
+    [33mdata-card-depends-option[39m=[32m"080"[39m
+    [33mid[39m=[32m"dep-option-[\"other\",\"remote-row\",\"node\",\"remote-dev\"]"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Customize PUNI.080.s1-dev - Remote build":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Customize PUNI.080.s1-dev - Remote build"[39m
+    [33mclass[39m=[32m"min-h-11 min-w-11 shrink-0 rounded-md border px-3"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "PUNI.080 - Remote build":
+  [36m<button[39m
+    [33maria-disabled[39m=[32m"false"[39m
+    [33maria-label[39m=[32m"PUNI.080 - Remote build"[39m
+    [33maria-selected[39m=[32m"false"[39m
+    [33mclass[39m=[32m"flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50"[39m
+    [33mdata-card-depends-option[39m=[32m"080"[39m
+    [33mid[39m=[32m"dep-option-[\"other\",\"remote-row\",\"whole\",null]"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Customize PUNI.080 - Remote build":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Customize PUNI.080 - Remote build"[39m
+    [33mclass[39m=[32m"min-h-11 min-w-11 shrink-0 rounded-md border px-3"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Close":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Close"[39m
+    [33mclass[39m=[32m"ring-offset-background focus-visible:ring-ring absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mdata-scroll-locked[39m=[32m"1"[39m
+  [33mstyle[39m=[32m"pointer-events: none;"[39m
+[36m>[39m
+  [36m<span[39m
+    [33maria-hidden[39m=[32m"true"[39m
+    [33mdata-aria-hidden[39m=[32m"true"[39m
+    [33mdata-radix-focus-guard[39m=[32m""[39m
+    [33mstyle[39m=[32m"outline: none; opacity: 0; position: fixed; pointer-events: none;"[39m
+    [33mtabindex[39m=[32m"0"[39m
+  [36m/>[39m
+  [36m<div[39m
+    [33maria-hidden[39m=[32m"true"[39m
+    [33mdata-aria-hidden[39m=[32m"true"[39m
+  [36m>[39m
+    [36m<section[39m
+      [33mclass[39m=[32m"flex min-h-0 flex-1 flex-col"[39m
+      [33mdata-project-id[39m=[32m"p1"[39m
+      [33mdata-slice-count[39m=[32m"2"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"mb-1.5 flex shrink-0 items-center gap-2"[39m
+        [33mdata-toolbar-sheet[39m=[32m"true"[39m
+      [36m>[39m
+        [36m<button[39m
+          [33maria-expanded[39m=[32m"false"[39m
+          [33maria-haspopup[39m=[32m"dialog"[39m
+          [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 min-h-11"[39m
+          [33mdata-state[39m=[32m"closed"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [0mPlan actions[0m
+        [36m</button>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2"[39m
+        [33mdata-grid[39m=[32m"true"[39m
+        [33mdata-plan-cards[39m=[32m"true"[39m
+      [36m>[39m
+        [36m<article[39m
+          [33maria-label[39m=[32m"Work item 010"[39m
+          [33mclass[39m=[32m"border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"[39m
+          [33mdata-card[39m=[32m"w1"[39m
+          [33mdata-frozen[39m=[32m"false"[39m
+          [33mstyle[39m=[32m"margin-left: 0px;"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"flex items-center gap-2"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"font-semibold"[39m
+              [33mdata-number[39m=[32m"true"[39m
+            [36m>[39m
+              [0m010[0m
+            [36m</span>[39m
+            [36m<button[39m
+              [33maria-expanded[39m=[32m"false"[39m
+              [33maria-haspopup[39m=[32m"dialog"[39m
+              [33maria-label[39m=[32m"Priority for 010"[39m
+              [33mclass[39m=[32m"min-h-11 inline-flex shrink-0 items-center"[39m
+              [33mdata-card-priority-field[39m=[32m"true"[39m
+              [33mdata-hint[39m=[32m"How important this work is: 1 upward, smaller first. Nobody has said yet."[39m
+              [33mdata-state[39m=[32m"closed"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"text-muted-foreground rounded-full px-2 py-0.5 text-xs opacity-70"[39m
+              [36m>[39m
+                [0mpriority…[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"text-muted-foreground ml-auto text-sm"[39m
+              [33mdata-final-total[39m=[32m"true"[39m
+            [36m>[39m
+              [0m0[0m
+              [0m d[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"position: relative; display: inline-block;"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33maria-expanded[39m=[32m"false"[39m
+                [33maria-haspopup[39m=[32m"menu"[39m
+                [33maria-label[39m=[32m"Actions for 010"[39m
+                [33mdata-hint[39m=[32m"Row actions"[39m
+                [33mstyle[39m=[32m"font: inherit; padding: 0px 4px; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [0m⋯[0m
+              [36m</button>[39m
+            [36m</span>[39m
+          [36m</header>[39m
+          [36m<span[39m
+            [33mstyle[39m=[32m"position: relative; display: block; min-width: 0px;"[39m
+          [36m>[39m
+            [36m<textarea[39m
+              [33maria-label[39m=[32m"Name of 010"[39m
+              [33mclass[39m=[32m"min-h-11 box-border w-full rounded-md border p-2 text-base"[39m
+              [33mdata-cell[39m=[32m"w1::name"[39m
+              [33mdata-rendered-at-rest[39m=[32m""[39m
+              [33mrows[39m=[32m"2"[39m
+              [33mstyle[39m=[32m"height: 0px; max-height: 11.2em; overflow-y: auto;"[39m
+            [36m>[39m
+              [0mPuni local title[0m
+            [36m</textarea>[39m
+            [36m<span[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"min-h-11 box-border w-full rounded-md border p-2 text-base"[39m
+              [33mdata-cell-rendered[39m=[32m"w1::name"[39m
+            [36m>[39m
+              [0mPuni local title[0m
+            [36m</span>[39m
+          [36m</span>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"relative flex min-w-0 items-center gap-2"[39m
+            [33mdata-step[39m=[32m"step-dev"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"text-muted-foreground w-20 shrink-0 truncate text-sm"[39m
+            [36m>[39m
+              [0mDev[0m
+            [36m</span>[39m
+            [36m<input[39m
+              [33maria-autocomplete[39m=[32m"list"[39m
+              [33maria-expanded[39m=[32m"false"[39m
+              [33maria-invalid[39m=[32m"false"[39m
+              [33maria-label[39m=[32m"Dev estimate for 010"[39m
+              [33mclass[39m=[32m"min-h-11 box-border w-28 shrink-0 rounded-md border px-2 text-base font-semibold "[39m
+              [33mdata-cell[39m=[32m"w1::step-dev-final"[39m
+              [33minputmode[39m=[32m"decimal"[39m
+              [33mplaceholder[39m=[32m"o/r/p"[39m
+              [33mrole[39m=[32m"combobox"[39m
+              [33mvalue[39m=[32m""[39m
+            [36m/>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"ml-20 flex flex-wrap gap-x-4"[39m
+            [33mdata-step-disclosures[39m=...
+ ❯ Object.getElementError ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/components/wbs/dependency-autocomplete.test.tsx:937:21
+    935|         await Promise.resolve();
+    936|       });
+    937|       expect(screen.getByRole('dialog', { name: 'Customize dependency'…
+       |                     ^
+    938|       expect(screen.getByLabelText<HTMLSelectElement>('Relationship').…
+    939|       expect(box.value).toBe('999, PUNI.');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 47 skipped (49)
+   Start at  07:49:47
+   Duration  9.63s (tests 42%, import 35%, transform 18%, environment 4%, setup 1%)

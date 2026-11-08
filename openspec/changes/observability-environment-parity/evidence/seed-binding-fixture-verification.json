@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "scope": "restore precise v1 test fixture; production code unchanged",
+  "startingHead": "f38c6faed79347c138f4056f109744cc627f9dee",
+  "sourcePins": [
+    {
+      "path": "tools/tool-fleet/src/lab-raw-preparation.test.ts",
+      "beforeSha256": "038b3770de821d20d90a0f24a40b6828c60e49bca7fd3be7e66660b413e65c4d",
+      "afterSha256": "e33f749b87b3624661e5e6a1cc93ff6dba706490f24d53054d850d94b947a602"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-preparation.py",
+      "beforeSha256": "a4b54fa650172830402f07c169b4162d31a21fc2a8f22a7b3d8f4d5457c68574",
+      "afterSha256": "a4b54fa650172830402f07c169b4162d31a21fc2a8f22a7b3d8f4d5457c68574"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-seed-preparation.py",
+      "beforeSha256": "c85ebe531dc69d146ae23b8e140bb9ef866ad81ad9e64197c15322804c0ceadf",
+      "afterSha256": "c85ebe531dc69d146ae23b8e140bb9ef866ad81ad9e64197c15322804c0ceadf"
+    }
+  ],
+  "records": [
+    {
+      "path": "checks.log",
+      "bytes": 2205,
+      "sha256": "b64de822a371a6b216b19860a0ca0cec97a1ccdc92389d7fab3b6ea235901165"
+    },
+    {
+      "path": "fixture.patch",
+      "bytes": 1353,
+      "sha256": "dfb5bf800e92c2006f6521255a967e512482e396dc7ab253845391e30cbc836b"
+    },
+    {
+      "path": "pins.json",
+      "bytes": 1125,
+      "sha256": "a3b97dc5dd743ef451460382490c41b01174d9f4f90a028b2257300e6085fed0"
+    },
+    {
+      "path": "report.md",
+      "bytes": 3588,
+      "sha256": "78f2e34e2fda39f132e52d4cb189809d561a4e93edc8cab3fed9d3cb85eb6d77"
+    }
+  ],
+  "ciFailure": {
+    "run": 41995619847,
+    "commit": "8f76052b650cfacd8d94096cb22fa20bb2a5b8b1",
+    "passed": 4939,
+    "skipped": 7,
+    "failed": 1,
+    "seconds": 934.67,
+    "case": "production seed provider still refuses unsupported and absent Python3.12",
+    "cause": "fixture missing schemaVersion raised KeyError before the interpreter guard"
+  },
+  "red": {
+    "passed": 1,
+    "failed": 1,
+    "filtered": 55,
+    "expectations": 4,
+    "milliseconds": 196
+  },
+  "green": {
+    "passed": 2,
+    "failed": 0,
+    "filtered": 55,
+    "expectations": 6,
+    "milliseconds": 115
+  },
+  "command": "env -u NO_COLOR CI=true FORCE_COLOR=1 TERM=xterm bun test tools/tool-fleet/src/lab-raw-preparation.test.ts --test-name-pattern \"production (raw|seed) provider still refuses unsupported and absent Python3.12\"",
+  "review": "independent scoped read-only approval: exact one-line patch/three hashes and closed v1 discriminator; both guard branches still reached; no tests or writes",
+  "limits": [
+    "Focused compatibility tests only; no full Fleet/host gate rerun",
+    "No runtime admission, native unit or guest acceptance"
+  ]
+}

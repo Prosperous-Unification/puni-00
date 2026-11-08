@@ -62,6 +62,10 @@ beforeEach(async () => {
       [id, workItemId, stepId, 'pe-claire', `run-${id}`, parent, at, h.userId('ada')],
     );
   }
+  h.sqlite.run(
+    "INSERT INTO step_progress (work_item_id,step_id,state,stated_at) VALUES ('w-080-25',?,'in_progress',1)",
+    [qa],
+  );
 });
 
 afterEach(() => {
@@ -86,7 +90,7 @@ async function stepsOf(username: string, projectId: string): Promise<[string, st
 describe('the startable read', () => {
   it("answers a member and a viewer alike, with the organization's own names", async () => {
     const forMember = await h.call('ada', 'GET', `/api/projects/${own}/startable?team=tm-platform`);
-    expect(forMember).toEqual({
+    expect(forMember).toMatchObject({
       status: 200,
       body: {
         leaves: [

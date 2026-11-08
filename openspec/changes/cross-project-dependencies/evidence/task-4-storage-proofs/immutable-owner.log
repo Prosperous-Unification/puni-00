@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/typed-dependency.db.test.ts:
+266 |           estimateUnit: 'workdays' as const,
+267 |         },
+268 |       ],
+269 |       wrote(),
+270 |     );
+271 |     expect(await rejection(repo.update({ ...row, projectId: otherProject }, wrote()))).toContain(
+                                                                                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "cannot move"
+Received: "typed dependency d444babf-db10-44cb-825e-7d8cef298798 has inconsistent successor ownership"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/typed-dependency.db.test.ts:271:88)
+(fail) TypedDependencyRepository > refuses moving a typed dependency to another project without changing rows or revisions [200.39ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.31s]

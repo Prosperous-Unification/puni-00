@@ -1,0 +1,26 @@
+{
+  "checkpoint": "f860fada630653ac9de4c46f76bcd334c5453be8",
+  "main": "c94b2cefa175a11e2dc50fc686f85bb9194a6585",
+  "focusedTests": 136,
+  "focusedAssertions": 3663,
+  "typecheckTasks": 12,
+  "logs": [
+    {
+      "name": "puni-integrated-f860-main-contracts.log",
+      "sha256": "a2272620a4220dc7cbbc7cb5cdd15461aaa231fef7bd26b286421c8fc0c17db2"
+    },
+    {
+      "name": "puni-integrated-f860-participant-leaves.log",
+      "sha256": "86e37d7c3b7d29615c2e449a00e9a96981e47ef5df429af6f448cb0fbb066e56"
+    },
+    {
+      "name": "puni-integrated-f860-stores-lifetime.log",
+      "sha256": "b2309793d1fc0568157350f6fb4edb952f30b3d00e52d6276c4906aac1669976"
+    },
+    {
+      "name": "puni-integrated-f860-types.log",
+      "sha256": "81aabb271b391a05b5ec62c86e4b2cc6746250893af0f94e5b35d1c8372dfd50"
+    }
+  ],
+  "scope": "Focused integration checks; no final host gate, hosted CI, native acceptance or deployment claim."
+}

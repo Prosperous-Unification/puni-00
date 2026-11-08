@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { SignJWT } from 'jose';
 
-import { buildApp, type SocketCredential } from './app';
+import type { SocketCredential } from './app';
 import type { ProjectAccessVerdict } from './service/project-access';
+import { buildApp } from './testing/app-fixture';
 
 const JWT_KEY = 'k'.repeat(32);
 const INTERNAL_SECRET = 's'.repeat(32);

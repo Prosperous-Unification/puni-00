@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+(pass) undo reaches the actual remote cycle guard after only unguarded remote endpoints change [441.14ms]
+(pass) external redo revalidates project-read delivery and rolls back an earlier successful action [286.57ms]
+(pass) external redo revalidates foreign-project delivery and rolls back an earlier successful action [274.23ms]
+(pass) external redo revalidates wrong-identity delivery and rolls back an earlier successful action [276.58ms]
+(pass) mounted external redo checks revoked current membership before opening its graph [269.71ms]
+
+ 5 pass
+ 99 filtered out
+ 0 fail
+ 89 expect() calls
+Ran 5 tests across 1 file. [3.64s]

@@ -1,0 +1,30 @@
+
+> nx run wbs-fe-01:e2e-cross-project --grep phone alphabetical discovery
+
+> bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "phone alphabetical discovery"
+
+(node:2088968) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:2090014) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 1 test using 1 worker
+
+(node:2090148) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:830:1 › phone alphabetical discovery creates a remote node dependency through HTTP and SQLite reload (15.8s)
+
+  1 passed (24.0s)
+
+
+
+ NX   Successfully ran target e2e-cross-project for project wbs-fe-01
+
+
+  Run duration:      24.5s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     24.5s (1 task)
+  Recoverable time:  <1ms
