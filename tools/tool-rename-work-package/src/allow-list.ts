@@ -130,6 +130,12 @@ export const PROTECTED_LINES: readonly ProtectedLine[] = [
       'the package level id of ScopeChain in @wbs/domain access-role, named ahead of the rename so apply never makes a second workPackageId',
   },
   {
+    pattern: /\bconst packageId = scope\.workPackageId;/,
+    sense: 'new',
+    reason:
+      'the grant store (wbs-permissions 1.4) reading the package id of a GrantScope, named ahead of the rename',
+  },
+  {
     pattern: /\bwork_package: 'package\.read',/,
     sense: 'new',
     reason:

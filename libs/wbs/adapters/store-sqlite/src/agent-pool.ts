@@ -14,6 +14,7 @@ import { type OrganizationLimitValues, refuseLimit } from '@wbs/domain';
 import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { copyGrantsOfCredential, deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { endLeasesOfUncredentialed } from './claim';
 import type { Gate } from './gate';
@@ -236,6 +237,15 @@ function revokePoolKeys(
   act: AuditedAct,
 ): void {
   const at = act.stamp.at;
+  // A revoked key holds no grant (`wbs-permissions` P17); a re-key copies them
+  // to the successor keys before this delete (P17 as amended 2026-11-08).
+  // Proof: with this call removed, `deletes the grants naming each revoked
+  // key (wbs-permissions P17)` in `agent-pool.controller.db.test.ts` kept
+  // both keys' grant rows; watched 2026-11-08.
+  deleteGrantsOfCredentials(
+    tx,
+    rows.map((row) => row.id),
+  );
   for (const row of rows) {
     tx.update(machineCredential)
       .set({ revokedAt: at, ...auditOnUpdate(act.stamp) })
@@ -465,7 +475,19 @@ export class AgentPoolRepository implements AgentPools {
         [...named].some((each) => !wanted.has(each))
       )
         return { kind: 'pool_changed' };
-      revokePoolKeys(tx, organizationId, poolId, livePoolCredentials(tx, poolId), act);
+      const previous = livePoolCredentials(tx, poolId);
+      // A re-key is a rotation: each person's new key holds the grants of
+      // the keys it replaces, copied before `revokePoolKeys` deletes them
+      // (`wbs-permissions` P17 as amended 2026-11-08).
+      // Proof: with the copy call removed, `a re-keyed agent keeps its grants
+      // on its new key (wbs-permissions P17, amended)` in
+      // `agent-pool.controller.db.test.ts` listed no grant on the new key;
+      // watched 2026-11-08.
+      for (const key of keys)
+        for (const old of previous)
+          if (old.personId === key.personId)
+            copyGrantsOfCredential(tx, old.id, key.credentialId, act.stamp.at);
+      revokePoolKeys(tx, organizationId, poolId, previous, act);
       const nameOf = new Map(persons.map((each) => [each.personId, each.personName]));
       const agents: AgentPoolAgent[] = [];
       for (const key of keys) {

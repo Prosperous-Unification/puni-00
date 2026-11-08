@@ -53,6 +53,7 @@ export * from './module/step/module';
 export * from './module/work-item/contract';
 export * from './module/work-item/module';
 export * from './ports/access-decisions';
+export * from './ports/access-grants';
 export * from './ports/actual-store';
 export * from './ports/announcement-collector';
 // The owner-neutral marker read: `CalendarMarkerReader` and the list outcome it answers with.

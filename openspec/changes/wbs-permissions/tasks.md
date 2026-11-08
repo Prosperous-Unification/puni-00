@@ -70,7 +70,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       case is manager; catch-and-skip the unknown row and the throw test fails; drop the
       `:machine = 0` guards and an `org-admin`'s agent writes a package no grant of its
       credential names; watched.
-- [ ] 1.4 Grant store `AccessGrants` (`grant`, `revoke`, `list`, groups and members) with
+- [x] 1.4 Grant store `AccessGrants` (`grant`, `revoke`, `list`, groups and members) with
       the in-transaction invariants (`role_scope_mismatch`, scope ownership through
       `work_package_organization`, today's `project_organization`; `not_a_member`,
       `unknown_group`, `unknown_credential`, `already_granted`, `last_super_admin`), and a
@@ -138,7 +138,11 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       transaction with one audit row (removing an organization-role holder also needs
       `organization.manage_organization_roles`, P11), invitations and join-request approval
       carry an optional initial grant obeying P11, onboarding's creator receives
-      `org-super-admin`, SCIM-provisioned members receive none — test:
+      `org-super-admin`, SCIM-provisioned members receive none; every membership removal
+      (route, leaving, SCIM deprovisioning: `organization.ts` `removeMember` and `administer`,
+      `scim-user.ts`) deletes the member's `access_group_member` rows and `user` grants in the
+      same transaction, because the composite key to `organization_membership` has no
+      `ON DELETE` and the delete throws once a group member exists (#891 review F3) — test:
       `membership-organization.controller.db.test.ts` rewritten, with the scenarios "A
       SCIM-provisioned member arrives with no grant" and "Removing an organization-role
       holder"; negatives: skip the grant cascade on removal and the removed member's grant
