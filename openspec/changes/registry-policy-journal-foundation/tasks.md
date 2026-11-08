@@ -7,3 +7,5 @@
 
 - [x] 2.1 Add ordinary production-command standard/expanded/negative-year reversal and advancement regressions before replacing the lexical receipt comparison; negative: removed predicate admits reversal and restored lexical ordering fails expanded-year cases.
 - [x] 2.2 Record fresh focused tests, lint, typecheck, changed-file formatting, strict OpenSpec and failure-proof inventory; preserve dormant runtime scope and original feature work. Commit normally and prepare a draft PR for independent review, remote CI and exact-revision host gating; these merge requirements remain external to local validation.
+
+- [x] 2.3 Clarify the existing sticky write-fence recovery and whole-filesystem journal capacity domain; add exact-threshold, low-reserve, valid-reopening and failed-abandonment command tests, observe the six independent omission faults, rerun the existing inventory against final source and refresh local evidence without changing runtime expressions.

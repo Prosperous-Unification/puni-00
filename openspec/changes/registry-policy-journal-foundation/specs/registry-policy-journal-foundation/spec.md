@@ -73,3 +73,36 @@ The foundation SHALL add no existing runtime caller, installer, target or deploy
 
 - **WHEN** stdin exceeds sixty-four KiB or an additional --locked argument is supplied
 - **THEN** the CLI fails without a success response
+
+### Requirement: Sticky write fence recovery
+
+The journal SHALL keep its write fence after failed maintenance or a failed publication receipt, including after that publication is finished as abandoned, until maintenance completes. Completion SHALL reopen writes only when bytes and inodes are each strictly below seventy percent of effective capacity and host reserve is at least 20 GiB. Publication admission up to ninety percent MUST NOT clear the fence or grant write authority on its own.
+
+#### Scenario: Maintenance completes at exactly seventy percent use
+
+- **WHEN** maintenance completes with bytes or inodes at exactly seventy percent while publication admission would still admit
+- **THEN** the journal stays fenced and a publication reservation is refused without changing durable state
+
+#### Scenario: Maintenance completes with low host reserve
+
+- **WHEN** maintenance completes with host reserve below 20 GiB
+- **THEN** the journal stays fenced and a publication reservation is refused
+
+#### Scenario: Maintenance completes below the recovery threshold
+
+- **WHEN** maintenance completes with bytes and inodes strictly below seventy percent and at least 20 GiB host reserve
+- **THEN** the fence clears and a publication can be reserved
+
+#### Scenario: A failed publication is abandoned
+
+- **WHEN** a failed publication receipt is later finished as abandoned
+- **THEN** its reservation is released while writes stay fenced until maintenance completes
+
+### Requirement: Whole-domain journal capacity
+
+Journal replacement admission SHALL charge the entire measured capacity domain, including unrelated occupants, against the enrolled journal maximum; the CLI's statfs adapter measures the whole filesystem containing the journal. The journal maximum SHALL NOT be interpreted as a per-file or per-directory quota, and enrolling a shared filesystem's full size MUST NOT be treated as proof of physical isolation. Mount, quota and isolation verification remain outside this foundation.
+
+#### Scenario: Measured domain usage approaches the journal maximum
+
+- **WHEN** measured domain usage plus the replacement and failure headroom reaches ninety percent of the enrolled journal maximum, though the journal file itself is small
+- **THEN** the command refuses without changing canonical state

@@ -132,17 +132,37 @@ const JournalCapacity = type({
   '+': 'reject',
 });
 
-/** Trusted enrollment pins identity and explicit limits; deployment defaults are 50 GiB registry and 1 GiB journal. */
+/**
+ * Trusted enrollment pins identity and explicit limits; deployment defaults are 50 GiB registry and
+ * 1 GiB journal. `journalMaximumBytes` caps the whole capacity domain reported by
+ * {@link RegistryJournalPorts.measureJournal}, not one file or directory, so unrelated occupants of
+ * that domain count against it. The 1 GiB default expects a dedicated bounded journal filesystem
+ * or a future independently verified quota adapter. Enrolling a shared filesystem's whole size is
+ * an ordinary smoke-test configuration, never proof of physical isolation; mount, quota and
+ * isolation verification are outside this foundation.
+ */
 export type RegistryEnrollment = typeof Enrollment.infer;
 /** Explicit CLI commands carry server-minted operation tokens, never a caller-supplied lock bypass. */
 export type RegistryCommand = typeof Command.infer;
-/** Complete identity includes exact repository/digest references without pretending to be a live content census. */
+/**
+ * Complete identity includes exact repository/digest references without pretending to be a live
+ * content census. `fenced` is a deliberately sticky write fence, stricter than admission:
+ * begin-maintenance, failed maintenance and failed publication receipts set it, and finishing a
+ * failed publication as abandoned leaves it set. Only maintenance completion reevaluates it,
+ * reopening writes strictly below 70% of effective bytes and of inodes with at least 20 GiB host
+ * reserve; exact 70% or a lower reserve stays fenced. Admission up to 90% never clears it, and a
+ * backup cannot reduce usage, so integrators above 70% need retirement or external relief first.
+ */
 export type RegistryJournal = typeof Journal.infer;
 export interface RegistryCommandResponse {
   readonly state: RegistryJournal;
   readonly token?: string;
 }
-/** Measurement adapters run inside the authority; client request capacity claims are rejected. */
+/**
+ * Measurement adapters run inside the authority; client request capacity claims are rejected.
+ * `measureJournal` reports the entire capacity domain containing the journal directory (the whole
+ * filesystem for the statfs CLI adapter), and every replacement is admitted against its usage.
+ */
 export interface RegistryJournalPorts {
   measureJournal: (enrollment: RegistryEnrollment) => Promise<typeof JournalCapacity.infer>;
   measureRegistry: (enrollment: RegistryEnrollment) => Promise<RegistryCapacity>;
@@ -366,6 +386,8 @@ async function persistJournal(
     await ports.measureJournal(journal.enrollment),
     'journal measurement',
   );
+  // Deliberate: measured usage covers the whole capacity domain (the whole filesystem for the CLI),
+  // so unrelated occupants count against journalMaximumBytes; see RegistryEnrollment.
   const budget = Math.min(journal.enrollment.journalMaximumBytes, measured.usableBytes);
   // Both old and replacement files coexist. Ordinary admission additionally reserves a complete
   // future replacement plus bounded failure growth, so an admitted failure can be persisted.
@@ -535,6 +557,9 @@ async function mutateJournal(
       return undefined;
     }
     case 'reserve-publication': {
+      // Deliberate: the sticky fence outranks admission, which alone grants no write authority.
+      // Proof: R05 bypassed this guard; `maintenance completion stays fenced at exact seventy
+      // percent use or low host reserve` failed with the explicit refusal assertion.
       if (journal.fenced) throw new Error('Registry writes are fenced');
       requireImages(request.roots, request.references);
       const admission = admitPublication({
@@ -573,6 +598,10 @@ async function mutateJournal(
           throw new Error('Failure receipt is required');
         publication.phase = 'failed';
         publication.failure = request.failure;
+        // Deliberate sticky fence: finishing this failed publication as abandoned leaves it set
+        // until maintenance completes below the recovery threshold.
+        // Proof: R06 cleared this fence on abandonment; `failed publication fence survives
+        // abandonment until maintenance completes` failed on its fence-state assertion.
         journal.fenced = true;
         return undefined;
       }
@@ -631,6 +660,12 @@ async function mutateJournal(
       maintenance.resumePhase = request.phase;
       if (request.phase === 'completed') {
         // Reuse admission validation at this IO boundary before evaluating the stricter recovery threshold.
+        // Deliberate: reopening requires bytes and inodes strictly below 70% plus the 20 GiB host
+        // reserve; admission's 90% cutoff alone grants no reopening authority.
+        // Proof: R01/R02 weakened exact-70% comparisons and R03 omitted host reserve;
+        // `maintenance completion stays fenced at exact seventy percent use or low host reserve`
+        // failed. R04 forced fencing; `maintenance completion reopens strictly below seventy
+        // percent with adequate host reserve` failed on its reopening assertion.
         const capacity = await ports.measureRegistry(journal.enrollment);
         admitPublication({ capacity, reservations: [], envelope: { bytes: 0, inodes: 0 } });
         journal.fenced =
@@ -657,6 +692,8 @@ async function mutateJournal(
  * until this function succeeds, and must reconcile state after any lost acknowledgement.
  * Valid canonical state authorizes reclaiming owned replacement orphans under the same lock;
  * initialization preserves preexisting replacement evidence instead of adopting or deleting it.
+ * Only maintenance completion below the recovery threshold clears the sticky write fence; see
+ * {@link RegistryJournal}.
  */
 export async function executeRegistryCommand(
   directory: string,

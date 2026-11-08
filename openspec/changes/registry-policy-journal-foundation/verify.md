@@ -8,13 +8,13 @@ Base: `acfdc02c7f0acc98606c87312a694ed2b89302ea`, freshly confirmed with `git ls
 
 The policy/test source is extracted from `043f75f0e1e27bdd3e95c6a8d33e323e5e5135fc`. Journal/test/CLI source is extracted from reviewed checkpoint `2b1119372ebe11327c22f8a90a8f7ec482cf0494`. Additions are nine actual-command chronology cases, eight pure-policy ownership/accounting cases, the numeric timestamp correction and scoped proof/JSDoc clarifications. No package, lockfile, alias, entrypoint, target, installer or caller wiring changed.
 
-The exact five file hashes below match the source restored after every final fault observation, including the directory-enumeration portability correction recorded below. The paired tests reach the actual policy/command/CLI paths. Ordinary owned-file, child-process, SIGKILL, FIFO and kernel-flock tests ran; privileged native/isolation fixtures, installed storage, provider operations, enrollment and activation did not run.
+The exact five file hashes below bind the final formatted source after the recovery-contract clarification. The final local checkpoint below records 90 observed guard faults; earlier dated checkpoints remain historical. The paired tests reach the actual policy/command/CLI paths. Ordinary owned-file, child-process, SIGKILL, FIFO and kernel-flock tests ran; privileged native/isolation fixtures, installed storage, provider operations, enrollment and activation did not run.
 
 | File                                            | SHA-256                                                            |
 | ----------------------------------------------- | ------------------------------------------------------------------ |
-| `tools/tool-fleet/src/registry-journal-cli.ts`  | `82b275422a3f9fe50843092474b20df0f4e4bc7e4c86b8895287a10789811ae1` |
-| `tools/tool-fleet/src/registry-journal.test.ts` | `0e13d1e3bdeed84e1da9be53308de47d32616c897cd83a306d6d1e9b01edc8fd` |
-| `tools/tool-fleet/src/registry-journal.ts`      | `cf230dd6a77955a32a2e938ac3153a01846d98770343531cee903e0927767519` |
+| `tools/tool-fleet/src/registry-journal-cli.ts`  | `2404f3d0c683e55e6792dd3d26ca8d783f988db95fd140c0af3c14ebd38f3634` |
+| `tools/tool-fleet/src/registry-journal.test.ts` | `fafff9534d3d9461d8a27199f51909df51da9ba1bd404035329fea2206d52300` |
+| `tools/tool-fleet/src/registry-journal.ts`      | `eb2d0f865df9eba12400433f40c325b826feb9b828356ffd5c0961b11c09f60d` |
 | `tools/tool-fleet/src/registry-policy.test.ts`  | `576ba2c3cf929d53654e5327dadb22127d6cf14ddf17bcc01da72a9ebc67245a` |
 | `tools/tool-fleet/src/registry-policy.ts`       | `6addac94bafc1e0e90dc05257f16d6499effde534c3620783d4db5804ca105ab` |
 
@@ -175,3 +175,33 @@ Cache: Skipped (--skip-nx-cache)
 This includes whole-package tests, lint, typecheck and all static artifact families. Earlier text stating full package selection was not run describes the initial checkpoint; this fresh follow-up supersedes that limitation. Strict change validation and normal-hook changed-file formatting are checked again for this correction. The earlier whole-repository local formatting session ended without recoverable terminal output, so its result remains unavailable; final required formatting, remote CI, review and canonical host-gate receipts remain on PR #888.
 
 Base composition was inspected against newly advanced public main `a2a9764f3b3ba5d83a8e309b766ada9c9f82156e`: its ten changed paths have no intersection with this foundation. No rebase or unrelated source change was made.
+
+## Recovery contracts and omission coverage — 2026-11-08
+
+Fable (`claude-fable-5-1`) approved baseline `0b238e227cb40c9c46384b49524fb5f633d475d5` as a dormant foundation, while identifying two Important documentation constraints before operational integration. Opus (`claude-opus-5-5`) proposed the narrow clarification and three real-command tests. The parent agent inspected/applied the patch and ran the observations below; neither model claimed to execute tests.
+
+The source JSDoc/design/spec now state that maintenance and failed publication receipts set a sticky fence. Abandoning a failed publication releases its reservation but leaves the fence set. Maintenance completion reopens only strictly below seventy percent of effective bytes and inodes, with at least 20 GiB host reserve. Pure admission up to ninety percent alone grants no reopening authority. Journal admission charges the entire measured capacity domain, and the statfs CLI measures the whole filesystem, including unrelated occupants. The 1 GiB journal default expects a matching dedicated bounded filesystem or a future independently verified quota adapter. Whole-filesystem enrollment in a smoke test is not physical isolation proof.
+
+Runtime expressions, imports and constants are unchanged. TypeScript ESNext transpilation with comments removed produced byte-identical JavaScript to baseline for both changed production modules: journal `0b82e6cc7b8c426287694afe1779b6ea8541e9543082b5e9ab38617ad77154ba`, CLI `9432075a4c6c146f07d3ff1ada6220b18ba8f596a33da41a0213179fb64d3234`.
+
+Fresh local observations on the final formatted source:
+
+- Complete focused suite before and after all mutations: **89 passed / 0 failed / 395 assertions** each.
+- Three added command cases: exact-seventy-percent bytes/inodes and low host reserve remain fenced even when pure admission permits; valid below-threshold completion reopens; failed publication fencing survives abandonment until successful maintenance.
+- Original **84** faults rerun: every mutation produced the exact previously covering negative-test set, with no ReferenceError/compile/resolve crash accepted. All five source/test hashes matched before and after every restoration.
+- Six additional isolated recovery faults each produced **1 intended failure / 0 passes**, then exact restoration. [recovery-failure-proofs.json](evidence/recovery-failure-proofs.json) stores exact mutations, diagnostics classifications, baseline log hashes and all source/restoration pins.
+- Uncached `bunx nx run tool-fleet:check --skip-nx-cache --output-style=static`: **693 tests / 0 failures / 2555 assertions**, lint, typecheck and every artifact family passed (1m2s).
+- `bunx --bun openspec validate registry-policy-journal-foundation --strict --json`: 1 passed / 0 failed, no issues. Ordinary `--all --json`: 329 passed / 0 failed using the repository-pinned 1.14.3 CLI. Bare `openspec` was absent from the non-login shell PATH; the locked local Bunx command supplies the tool without changing dependencies.
+
+| Fault                                      | Observed covering test failure                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| R01 weaken exact byte recovery comparison  | `maintenance completion stays fenced at exact seventy percent use or low host reserve`                  |
+| R02 weaken exact inode recovery comparison | same named command test, inode boundary                                                                 |
+| R03 omit completion host reserve           | same named command test, low-reserve boundary                                                           |
+| R04 force completion to remain fenced      | `maintenance completion reopens strictly below seventy percent with adequate host reserve`              |
+| R05 bypass reservation fence authority     | exact-threshold test; actual reservation succeeded and the test helper threw `Expected command refusal` |
+| R06 clear failure fence on abandonment     | `failed publication fence survives abandonment until maintenance completes`                             |
+
+The first meta-harness expected Bun's expectation prefix for R05. Inspection confirmed that the existing refusal helper instead deliberately throws `Expected command refusal` when the forbidden operation succeeds. The harness now permits only that exact diagnostic for that exact mutation; all six initial and final witnesses were rerun successfully. Lost fence-state/reopening assertions are distinguished from R05's admitted forbidden reservation rather than claiming every failure admits a write.
+
+Raw local observations are in `/tmp/registry-recovery-final-proof-20261108`, `/tmp/registry-foundation-recovery-legacy-proof-20261108` and `/tmp/registry-foundation-recovery-*.log`. No native/privileged fixture, installed filesystem/quota/isolation proof, provider request, enrollment or activation was performed. Baseline public CI was green, but final exact-head Fable re-review, remote CI and canonical host gate remain external merge requirements; their final receipts belong in PR #888. No baseline receipt is promoted to proof for a changed head.

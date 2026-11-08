@@ -22,7 +22,11 @@ async function readRequest(): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-/** Allocated blocks include staging; blocks reserved from this UID do not count as usable capacity. */
+/**
+ * Measure the WHOLE filesystem containing `path`, not one file or directory: allocated blocks
+ * include staging and every unrelated occupant, and blocks reserved from this UID do not count as
+ * usable capacity. Filesystems reporting zero inodes fail the positive-inode schema validation.
+ */
 async function measureFilesystem(path: string) {
   const status = await statfs(path);
   return {
@@ -39,6 +43,10 @@ async function measureFilesystem(path: string) {
  * JSON stdin. Paths and limits come from explicit trusted enrollment, never capacity claims in
  * ordinary requests. statfs measures real filesystems; verified mount identity is added by the
  * future storage adapter; this foundation does not verify mount isolation. No command starts an upload, deletes content or changes a live service.
+ * Journal, registry and root measurements each cover the whole filesystem containing their path,
+ * so `journalMaximumBytes` caps that whole filesystem's usage. The 1 GiB default requires a
+ * dedicated bounded journal filesystem or a future independently verified quota adapter; enrolling
+ * a shared filesystem's full size is only a smoke-test configuration, never isolation proof.
  */
 async function main(): Promise<void> {
   const directory = process.argv.at(2);

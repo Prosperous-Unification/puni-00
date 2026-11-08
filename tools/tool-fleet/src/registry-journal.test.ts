@@ -5,6 +5,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, it } from 'bun:test';
 
 import { executeRegistryCommand } from './registry-journal';
+import { admitPublication } from './registry-policy';
 
 const GiB = 1024 ** 3;
 const root = `sha256:${'1'.repeat(64)}`;
@@ -399,6 +400,8 @@ it('runs the owner-only stdin CLI with real measurements and bounds input', asyn
     ...enrollment,
     registryPath: directory,
     rootPath: directory,
+    // Smoke test only: statfs measures this whole shared filesystem, so enrolling its full size
+    // admits commands without proving the dedicated journal filesystem a deployment requires.
     journalMaximumBytes: filesystem.blocks * filesystem.bsize,
   };
   const run = (request: string, extra: string[] = []) => {
@@ -946,6 +949,141 @@ it('refuses a foreign-owner replacement reported by the filesystem boundary', as
   expect(failed.exitCode).not.toBe(0);
   expect(failed.stderr).toContain('replacement must be');
   expect(await readFile(path, 'utf8')).toBe('foreign evidence');
+});
+
+async function completeBackup(directory: string, registry: typeof capacity, expectedRevision = 0) {
+  const measured = { ...ports(), measureRegistry: () => Promise.resolve(registry) };
+  const operationId = `backup-${String(expectedRevision)}`;
+  const begun = await executeRegistryCommand(
+    directory,
+    {
+      command: 'begin-maintenance',
+      expectedRevision,
+      operationId,
+      owner: 'backup',
+      kind: 'backup',
+    },
+    measured,
+  );
+  let state = begun.state;
+  for (const phase of [
+    'reconciled',
+    'fenced',
+    'stopped',
+    'backed-up',
+    'verified',
+    'restored',
+    'completed',
+  ]) {
+    state = (
+      await executeRegistryCommand(
+        directory,
+        {
+          command: 'advance-maintenance',
+          expectedRevision: state.revision,
+          operationId,
+          owner: 'backup',
+          token: begun.token,
+          phase,
+        },
+        measured,
+      )
+    ).state;
+  }
+  return state;
+}
+
+it('maintenance completion stays fenced at exact seventy percent use or low host reserve', async () => {
+  for (const [changes, admission] of [
+    [{ usedBytes: 35 * GiB }, 'admitted'],
+    [{ usedInodes: 70000 }, 'admitted'],
+    [{ rootFreeBytes: 20 * GiB - 1 }, 'refused'],
+  ] as const) {
+    const directory = await fixture();
+    const registry = { ...capacity, ...changes };
+    const completed = await completeBackup(directory, registry);
+    expect(completed.maintenance).toBeNull();
+    expect(completed.closedOperations).toEqual(['backup-0']);
+    expect(completed.fenced).toBe(true);
+    // Pure admission still admits both exact-70% cases; it grants no reopening authority.
+    expect(
+      admitPublication({ capacity: registry, reservations: [], envelope: publication().envelope }),
+    ).toMatchObject({ status: admission });
+    await requireRefusal(
+      executeRegistryCommand(directory, publication(completed.revision), {
+        ...ports(),
+        measureRegistry: () => Promise.resolve(registry),
+      }),
+      'Registry writes are fenced',
+    );
+    expect((await read(directory)).state).toEqual(completed);
+  }
+});
+
+it('maintenance completion reopens strictly below seventy percent with adequate host reserve', async () => {
+  const directory = await fixture();
+  const registry = {
+    ...capacity,
+    usedBytes: 35 * GiB - 1,
+    usedInodes: 69999,
+    rootFreeBytes: 20 * GiB,
+  };
+  const completed = await completeBackup(directory, registry);
+  expect(completed.maintenance).toBeNull();
+  expect(completed.fenced).toBe(false);
+  const reopened = await executeRegistryCommand(directory, publication(completed.revision), {
+    ...ports(),
+    measureRegistry: () => Promise.resolve(registry),
+  });
+  expect(reopened.token).toMatch(/^[0-9a-f-]{36}$/);
+  expect(reopened.state.reservations).toEqual([
+    { operationId: 'publish-1', bytes: GiB, inodes: 100 },
+  ]);
+});
+
+it('failed publication fence survives abandonment until maintenance completes', async () => {
+  const directory = await fixture();
+  const reserved = await executeRegistryCommand(directory, publication(), ports());
+  const finish = {
+    command: 'finish-publication',
+    operationId: 'publish-1',
+    owner: 'publisher',
+    token: reserved.token,
+  };
+  await executeRegistryCommand(
+    directory,
+    {
+      ...finish,
+      expectedRevision: 1,
+      outcome: 'failed',
+      reconciled: false,
+      failure: 'upload interrupted',
+    },
+    ports(),
+  );
+  const abandoned = await executeRegistryCommand(
+    directory,
+    { ...finish, expectedRevision: 2, outcome: 'abandoned', reconciled: true },
+    ports(),
+  );
+  expect(abandoned.state.publication).toBeNull();
+  expect(abandoned.state.reservations).toEqual([]);
+  expect(abandoned.state.bundles[0]?.receipt.state).toBe('abandoned');
+  expect(abandoned.state.fenced).toBe(true);
+  await requireRefusal(
+    executeRegistryCommand(directory, publication(3, 'publish-2'), ports()),
+    'Registry writes are fenced',
+  );
+  const completed = await completeBackup(directory, capacity, 3);
+  expect(completed.fenced).toBe(false);
+  const reopened = await executeRegistryCommand(
+    directory,
+    publication(completed.revision, 'publish-2'),
+    ports(),
+  );
+  expect(reopened.state.reservations).toEqual([
+    { operationId: 'publish-2', bytes: GiB, inodes: 100 },
+  ]);
 });
 
 for (const [name, initial, earlier, later] of [
