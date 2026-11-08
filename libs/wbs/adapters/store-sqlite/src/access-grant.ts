@@ -398,15 +398,19 @@ export function directSuperAdminCount(
  * `userId` at `organizationId`, read before its write, or null:
  * `unknown_organization` when no organization has the id, `machine_credential`
  * when `userId` is a machine credential's id (any organization's). Read
- * outside the write because neither answer can change before it:
- * organizations are never deleted and a credential id never becomes a
- * `users.id`. Membership is the write's own check (`not_a_member`).
+ * outside the write: organizations are never deleted, and a credential row
+ * outlives revocation. Nothing stops a `users.id` from equalling a
+ * credential id (both are free text keys); such a user is refused
+ * `machine_credential`, never granted. Membership is the write's own check
+ * (`not_a_member`).
  *
  * Proof: 2026-11-08, with the `unknown_organization` return removed, `refuse
  * an unknown organization, writing nothing` in `access-grant-cli.db.test.ts`
  * failed (revoke answered `not_granted`), and with the `machine_credential`
  * return removed, `refuses a machine credential's id, writing nothing`
- * failed (`not_a_member`).
+ * failed (`not_a_member`). Each return removed also failed `tells the
+ * operator CLI an unknown organization and a credential’s id apart from a
+ * member` in `access-grant-store.db.test.ts` (18 pass, 1 fail).
  */
 export function operatorSubjectRefusal(
   reader: Reader,

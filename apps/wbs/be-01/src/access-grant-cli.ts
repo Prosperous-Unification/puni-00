@@ -110,8 +110,10 @@ function malformed(reason: string): Refusal {
 }
 
 /**
- * The refusal an absent or permission-closed database earns, or null when
- * the file may be opened for reading and writing. Checked before opening,
+ * The refusal an absent database, or one not readable and writable by this
+ * login, earns, or null when the file may be opened for reading and writing.
+ * `unreadable_database` covers a mode-0 file, a readable but read-only file
+ * and a file under a directory this login may not search. Checked before opening,
  * because `openExistingConnection` throws one undifferentiated error for both.
  *
  * Proof: 2026-11-08, the `unreadable_database` return replaced by
@@ -214,6 +216,11 @@ async function revokeSuperAdmin(
     scope: { kind: 'organization' },
     subject: { kind: 'user', userId },
   });
+  // Proof: 2026-11-08 (#893 review F1), this filter replaced by `held[0]`
+  // failed `refuses a user who holds no direct grant` (revoked ada's
+  // `org-viewer` grant instead of refusing) and `revokes only the super-admin
+  // grant of a user who also holds another organization role` (11 pass, 2
+  // fail) in `access-grant-cli.db.test.ts`.
   const grant = held.find((candidate) => candidate.roleId === SUPER_ADMIN_ROLE);
   if (grant === undefined) return { refusal: 'not_granted', organizationId, userId };
   // TODO(wbs-permissions 4.1): write P21's `access_revoked` audit row (origin

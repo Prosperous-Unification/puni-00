@@ -286,7 +286,7 @@ are the routes' (4.2); a `project` scope is `not_found` until the project entity
 
 `apps/wbs/be-01/src/access-grant-cli.ts` (`grant-super-admin`, `revoke-super-admin`), its
 pre-write read `operatorSubjectRefusal` in `libs/wbs/adapters/store-sqlite/src/access-grant.ts`
-(be-01 may not import Drizzle), test `access-grant-cli.db.test.ts` (12 cases, the CLI spawned
+(the store owns the Drizzle reads; be-01 production code never imports `drizzle-orm`), test `access-grant-cli.db.test.ts` (13 cases after the review round, the CLI spawned
 with `DB_PATH` as `organization-limits-cli.db.test.ts` does). The grant and the revoke go
 through `AccessGrantRepository` with an `operator` actor: origin `operator`, `created_by`
 null, CP14 counted in the revoke's transaction. Runbook:
@@ -319,3 +319,21 @@ Each fault injected alone, the named case watched failing, the source restored:
 | `bunx nx run wbs-be-01:typecheck`                                                              | exit 0                            |
 | `bunx nx run-many -t lint -p wbs-be-01,wbs-store-sqlite --parallel=1 --skip-nx-cache`          | exit 0                            |
 | `check-indexes working . HEAD`, `openspec validate --all --json`, `bunx nx format:check --all` | exit 0; 328/328; exit 0           |
+
+Review round (#893 Fable review, MERGE AFTER FIXES, 2026-11-08). F1: the fixture gives ada an
+organization-scope `org-viewer` grant; `refuses a user who holds no direct grant` asserts it
+survives, and the new case `revokes only the super-admin grant of a user who also holds another
+organization role` grants ada `org-super-admin`, revokes it and asserts the viewer row remains.
+F3: `access-grant-store.db.test.ts` gains `tells the operator CLI an unknown organization and a
+credential’s id apart from a member` (unknown organization, own and foreign credential ids, a
+member and a non-member), and `operatorSubjectRefusal`'s JSDoc no longer claims a credential id
+can never equal a `users.id` (nothing enforces it; such a user is refused, never granted).
+F2, F4–F7: wording (this section's Drizzle note, the be-01 README bullet, `unreadable_database`
+as "not readable and writable by this login", the `LLM_README.md` index row, a named error for a
+root runner).
+
+| Fault (2026-11-08, review round)                                         | Case that failed                                                                                                                                       |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| revoke's role filter replaced by `held[0]` (F1)                          | refuses a user who holds no direct grant (ada's viewer grant revoked); revokes only the super-admin grant of a user who also holds … (11 pass, 2 fail) |
+| `unknown_organization` return removed from `operatorSubjectRefusal` (F3) | tells the operator CLI an unknown organization and a credential’s id apart from a member (store, 18 pass, 1 fail)                                      |
+| `machine_credential` return removed from `operatorSubjectRefusal` (F3)   | tells the operator CLI an unknown organization and a credential’s id apart from a member (store, 18 pass, 1 fail)                                      |

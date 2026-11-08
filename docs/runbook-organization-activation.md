@@ -315,7 +315,7 @@ widens `organization_audit`; the output says `audit: deferred to wbs-permissions
 | ---- | ---------------------- | ---------------------------------------------------------- |
 | 2    | `malformed`            | unknown flag or command, missing `--organization`/`--user` |
 | 3    | `missing_database`     | `DB_PATH` names no file; none is created                   |
-| 4    | `unreadable_database`  | the file is closed to this login                           |
+| 4    | `unreadable_database`  | the file is not readable and writable by this login        |
 | 5    | `unknown_organization` | no organization has that id                                |
 | 6    | `machine_credential`   | `--user` is a machine credential's id                      |
 | 7    | `not_a_member`         | the user is not a current member of the organization       |
