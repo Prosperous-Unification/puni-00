@@ -139,6 +139,9 @@ interface Ownership {
   sha: string;
   attempt: string;
   state: 'active' | 'closing' | 'unknown';
+  readonly ready: Set<ReadyCleanupRecord>;
+  outcome: OwnerOutcome | undefined;
+  diagnosticFailure: unknown;
   preparations: Set<PreparationRecord>;
   composition: PreparationRecord | undefined;
   keeper: PreparationKeeper | undefined;
@@ -150,6 +153,86 @@ interface RuntimeEntry {
   outcome: OperationOutcome;
 }
 const owners = new WeakMap<DependencyOwner, Ownership>();
+
+type OwnerOutcome<T = unknown> = { kind: 'returned'; value: T } | { kind: 'threw'; cause: unknown };
+const readyIdentity: unique symbol = Symbol('ready-owner-cleanup');
+/** Cleanup custody for one fully ready, unconsumed initial handoff; grants no forward authority. */
+export interface ReadyCleanup {
+  readonly [readyIdentity]: true;
+}
+interface ReadyCleanupRecord {
+  readonly entry: ReadyCleanup;
+  readonly owner: DependencyOwner;
+  readonly ownership: Ownership;
+  readonly close: () => void;
+  phase: 'ready' | 'closing' | 'closed' | 'unknown';
+  failure: unknown;
+}
+const readyEntries = new WeakMap<ReadyCleanup, ReadyCleanupRecord>();
+
+// Proof: omitting this owner association admitted a foreign owner close in the inert actual-source control (2026-11-08).
+function requireReadyCleanup(owner: DependencyOwner, entry: ReadyCleanup): ReadyCleanupRecord {
+  const record = readyEntries.get(entry);
+  if (
+    record?.owner !== owner ||
+    owners.get(owner) !== record.ownership ||
+    !record.ownership.ready.has(record)
+  )
+    throw new Error('ready cleanup is not retained by this owner');
+  return record;
+}
+
+/** Enrolls an original synchronous ready close before its preparation identity is published. */
+export function enrollReadyCleanup(owner: DependencyOwner, close: () => void): ReadyCleanup {
+  const ownership = owners.get(owner);
+  // Proof: omitting this state guard admitted new cleanup enrollment during model UNKNOWN (2026-11-08).
+  if (ownership?.state !== 'active') throw new Error('dependency owner is not active');
+  // Proof: omitting enrollment lost the keeper in the merged known-close control;
+  // omitting keeper reuse leaked a timer in the merged same-owner control.
+  keeperFor(owner, ownership);
+  const entry: ReadyCleanup = Object.freeze({ [readyIdentity]: true as const });
+  const record: ReadyCleanupRecord = {
+    entry,
+    owner,
+    ownership,
+    close,
+    phase: 'ready',
+    failure: undefined,
+  };
+  readyEntries.set(entry, record);
+  ownership.ready.add(record);
+  return entry;
+}
+
+/** Transfers only ready cleanup custody before the original consumption's first await. */
+export function transferReadyCleanup(owner: DependencyOwner, entry: ReadyCleanup): void {
+  const record = requireReadyCleanup(owner, entry);
+  // Proof: omitting this transition guard discarded the model UNKNOWN owner before original custody was settled (2026-11-08).
+  if (record.ownership.state !== 'active' || record.phase !== 'ready')
+    throw new Error('ready cleanup cannot transfer after closing');
+  record.ownership.ready.delete(record);
+  readyEntries.delete(entry);
+}
+
+/** Calls the same original close once; an uncertain throw retains exact context and cause. */
+export function releaseReadyCleanup(owner: DependencyOwner, entry: ReadyCleanup): void {
+  const record = requireReadyCleanup(owner, entry);
+  // Proof: omitting this one-shot guard entered the SAME inert original close twice (2026-11-08).
+  if (record.phase !== 'ready') throw new Error('ready cleanup close already attempted');
+  record.phase = 'closing';
+  try {
+    record.close();
+    record.phase = 'closed';
+    // Proof: omitting successful discharge left the inert actual-source ready census at one instead of zero (2026-11-08).
+    record.ownership.ready.delete(record);
+    readyEntries.delete(entry);
+  } catch (cause) {
+    record.phase = 'unknown';
+    record.failure = cause;
+    record.ownership.state = 'unknown';
+    throw cause;
+  }
+}
 
 const preparationIdentity: unique symbol = Symbol('dependency-preparation');
 const originalIdentity: unique symbol = Symbol('preparation-original');
@@ -308,8 +391,13 @@ function isOwnershipUnknown(ownership: Ownership): boolean {
 }
 function keeperFor(owner: DependencyOwner, ownership: Ownership): PreparationKeeper {
   if (ownership.keeper !== undefined) return ownership.keeper;
-  // The referenced callback retains the exact original owner and capsule set; it performs no work.
-  const retained = { owner, ownership, preparations: ownership.preparations };
+  // The referenced callback retains the exact original owner and both cleanup sets; it performs no work.
+  const retained = {
+    owner,
+    ownership,
+    preparations: ownership.preparations,
+    ready: ownership.ready,
+  };
   const interval = setInterval(() => retained, 60000);
   const pending = new Promise<void>(() => {
     // The owner resolves no UNKNOWN cleanup through a timer or caller continuation.
@@ -940,6 +1028,8 @@ async function retainUnknownOwner(owner: DependencyOwner, ownership: Ownership):
       writeFileSync(2, 'dependency preparation cleanup outcome unknown; owner retained\n');
     } catch (cause) {
       keeper.reportFailure = cause;
+      // Proof: omitting this assignment lost the same diagnostic cause in the merged ready control.
+      ownership.diagnosticFailure = cause;
     }
   }
   await keeper.pending;
@@ -961,8 +1051,10 @@ async function requireDirectory(path: string): Promise<void> {
 
 /**
  * Acquires edge, optional dev poll/devsync, then prod/dev deploy locks once.
- * Publishes exclusive synced exact plan before invoking the live owner. Every exit
- * expires authority and retains all records; neither success nor failure reopens admission.
+ * Publishes exclusive synced exact plan before invoking the live owner. Callback
+ * settlement revokes forward work; retirement drains ready and capsule custody
+ * and joins runtime originals. UNKNOWN retains both sets, outcomes and outer locks
+ * under one keeper; neither success nor failure reopens admission.
  */
 export async function withDependencyOwner<T>(
   plan: DependencyOwnerPlan,
@@ -1024,19 +1116,35 @@ export async function withDependencyOwner<T>(
       sha,
       attempt,
       state: 'active',
+      ready: new Set(),
+      outcome: undefined,
+      diagnosticFailure: undefined,
       preparations: new Set(),
       composition: undefined,
       keeper: undefined,
       runtimeEntries: new Set(),
     };
     owners.set(owner, ownership);
-    let outcome: { readonly value: T } | { readonly failure: unknown };
+    let outcome: OwnerOutcome<T>;
     try {
-      outcome = { value: await action(owner) };
+      outcome = { kind: 'returned', value: await action(owner) };
     } catch (cause) {
-      outcome = { failure: cause };
+      outcome = { kind: 'threw', cause };
     }
+    // Proof: omitting this capture lost the same callback cause in the merged UNKNOWN control.
+    ownership.outcome = outcome;
     if (ownership.state !== 'unknown') ownership.state = 'closing';
+    // Proof: omitting this sweep lost ready original close in the mixed-registry controls.
+    for (const record of ownership.ready) {
+      // Proof: removing this skip replaced the original UNKNOWN cause with a re-entry refusal.
+      if (record.phase === 'unknown') continue;
+      try {
+        releaseReadyCleanup(owner, record.entry);
+      } catch (cause) {
+        ownership.state = 'unknown';
+        record.failure = cause;
+      }
+    }
     for (const record of ownership.preparations) {
       record.closeRequested = true;
       record.closeBoundary = 'owner-return';
@@ -1049,8 +1157,11 @@ export async function withDependencyOwner<T>(
       ),
     );
     for (const record of ownership.preparations) await joinPreparation(record);
+    // Proof: omitting this combined HOLD retired the owner in both mixed-registry UNKNOWN controls.
+    // Both cleanup populations and runtime joins precede this one terminal custody decision.
     if (
       ownership.state === 'unknown' ||
+      ownership.ready.size !== 0 ||
       [...ownership.preparations].some((record) => record.phase !== 'closed')
     )
       await retainUnknownOwner(owner, ownership);
@@ -1058,7 +1169,7 @@ export async function withDependencyOwner<T>(
     // Historical pre-UC2/c955 Proof: omitting deletion lost the expired-owner refusal.
     // The current closing state also revokes work; deletion's independent necessity is unproved.
     owners.delete(owner);
-    if ('failure' in outcome) throw outcome.failure;
+    if (outcome.kind === 'threw') throw outcome.cause;
     return outcome.value;
   }
   const edgePath = join(directory, 'edge.lock');
@@ -1095,8 +1206,10 @@ export async function assertDependencyOwner(
   // Proof: removed byte equality; changed-pending production Docker negative executed its effect (exit 1).
   if ((await readRecord(join(ownership.directory, 'edge-owner.pending'))) !== ownership.publication)
     throw new Error('dependency owner publication changed');
-  // This second read occurs after awaited publication I/O; state may have changed.
-  if (owners.get(owner)?.state !== 'active') throw new Error('dependency owner is not active');
+  // Proof: omitting post-await revalidation admitted a stale owner in the ready model control.
+  const current = owners.get(owner);
+  if (current !== ownership || current.state !== 'active')
+    throw new Error('dependency owner is not active after publication read');
 }
 
 /** Durable per-boundary intent and observed response; uncertain calls retain intent without readback. */

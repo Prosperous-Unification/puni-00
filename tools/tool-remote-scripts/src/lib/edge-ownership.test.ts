@@ -1889,6 +1889,23 @@ for (const relative of [
     );
   });
 
+for (const relative of [
+  'tools/tool-remote-scripts/src/lib/edge-ownership.ts',
+  'tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts',
+])
+  test(`UC2 historical planner refuses raw current source ${relative}`, async () => {
+    const fixture = await import('../fixtures/dependency-owner-custody');
+    const pin = fixture.ordinaryHoldSourceEpochV1.pins.find((pin) => pin.relative === relative);
+    if (pin === undefined) throw new Error('historical source pin absent');
+    const current = await readFile(new URL(relative, new URL('../../../../', import.meta.url)));
+    expect(createHash('sha256').update(current).digest('hex')).not.toBe(pin.sha256);
+    const supplied = new Map(await readHistoricalSources('/historical'));
+    supplied.set(`/historical/${relative}`, current);
+    expect(() => fixture.planOrdinaryHoldBuildV1('/historical', supplied)).toThrow(
+      'ordinary HOLD build source bytes differ',
+    );
+  });
+
 test('UC2 ordinary HOLD V1 resolver keeps classifier identity and scanner external', async () => {
   const { resolveOrdinaryHoldImportV1 } = await import('../fixtures/dependency-owner-custody');
   const root = '/ordinary-hold';
