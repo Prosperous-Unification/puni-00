@@ -41,7 +41,9 @@ export interface AccessAct {
 
 /**
  * A grant to write: its id minted by the caller, its role a built-in id or a
- * custom role of the organization. `backfill` is the migration's alone.
+ * custom role of the organization. `backfill` is the migration's alone;
+ * `operator` is the origin of exactly the grants an `operator` actor writes
+ * (`wbs-permissions` P21, task 1.5).
  */
 export interface GrantDraft {
   readonly id: string;
@@ -114,7 +116,13 @@ export interface AccessGroupRecord {
  * vocabulary), and on every store failure.
  */
 export interface AccessGrants {
-  /** Writes `draft` in `organizationId`, or names the first rule it breaks. */
+  /**
+   * Writes `draft` in `organizationId`, or names the first rule it breaks.
+   *
+   * @throws before reading anything when `draft.origin` and `act.actor` do
+   * not pair: an `operator` actor writes origin `operator`, a `user` actor
+   * any other origin (a caller's mistake, never a request's).
+   */
   grant(
     organizationId: string,
     draft: GrantDraft,

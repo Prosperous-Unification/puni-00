@@ -163,10 +163,44 @@ describe('granting', () => {
   it('writes an operator’s grant with no creator', async () => {
     const outcome = await grants.grant(
       'org-a',
-      draft(ORGANIZATION, { kind: 'user', userId: 'cy' }, 'org-super-admin'),
+      {
+        ...draft(ORGANIZATION, { kind: 'user', userId: 'cy' }, 'org-super-admin'),
+        origin: 'operator',
+      },
       { actor: { kind: 'operator', login: 'df' }, at: 20 },
     );
-    expect(outcome).toMatchObject({ kind: 'granted', grant: { createdBy: null, createdAt: 20 } });
+    expect(outcome).toMatchObject({
+      kind: 'granted',
+      grant: { createdBy: null, createdAt: 20, origin: 'operator' },
+    });
+  });
+
+  it('refuses an origin its actor does not pair with, writing nothing', async () => {
+    const cy: GrantSubject = { kind: 'user', userId: 'cy' };
+    /** The message the grant was refused with, or `resolved`. */
+    const refusalOf = (written: Promise<unknown>) =>
+      written.then(
+        () => 'resolved',
+        (error: unknown) => (error instanceof Error ? error.message : 'a non-Error'),
+      );
+    expect(
+      await refusalOf(
+        grants.grant(
+          'org-a',
+          { ...draft(ORGANIZATION, cy, 'org-viewer'), origin: 'operator' },
+          byAda,
+        ),
+      ),
+    ).toBe('user actors may not write a grant of origin operator');
+    expect(
+      await refusalOf(
+        grants.grant('org-a', draft(ORGANIZATION, cy, 'org-viewer'), {
+          actor: { kind: 'operator', login: 'df' },
+          at: 20,
+        }),
+      ),
+    ).toBe('operator actors may not write a grant of origin route');
+    expect(grantCount()).toBe(0);
   });
 
   it('refuses an unknown role and another organization’s custom role', async () => {

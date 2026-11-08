@@ -50,6 +50,13 @@ export class AccessGrantRepository implements AccessGrants {
     draft: GrantDraft,
     act: AccessAct,
   ): Promise<{ readonly kind: 'granted'; readonly grant: AccessGrantRecord } | GrantRefusal> {
+    // Proof: with this check made `if (false)`, `refuses an origin its actor
+    // does not pair with, writing nothing` in `access-grant-store.db.test.ts`
+    // stored a user's grant as `operator`; watched 2026-11-08.
+    if ((draft.origin === 'operator') !== (act.actor.kind === 'operator'))
+      return Promise.reject(
+        new Error(`${act.actor.kind} actors may not write a grant of origin ${draft.origin}`),
+      );
     return this.write((tx) => {
       const refusal = grantRefusal(tx, organizationId, draft);
       if (refusal !== null) return refusal;
