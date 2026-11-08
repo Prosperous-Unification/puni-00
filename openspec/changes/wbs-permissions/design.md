@@ -391,6 +391,14 @@ credential, and a missing or unreadable database; it writes the grant and one
 the organization's super-admin count afterwards. Dev runbook gains the line. Rejected: a
 "PUNI staff" web role (P20) and a `--force` that bypasses the membership check (an operator
 who needs a non-member in charge first admits them through the ordinary onboarding path).
+_Shipped 2026-11-08 (task 1.5, verify.md 1.5)._ _Amended 2026-11-08 (1.5, assumed by the
+coordinator, overrulable by Dany by id):_ the `access_granted` and `access_revoked` audit
+rows are deferred to task 4.1 (`widen_organization_audit_access`), because
+`organization_audit`'s CHECK admits no `access_*` action yet and the grant store of 1.4
+writes none for the same reason. Until then the CLI writes the grant (origin `operator`,
+`created_by` null) or deletes it in the store's one transaction, and its JSON output names
+the actor `operator:<os login>` the row will carry. A machine credential's id is refused
+`machine_credential`; `already_granted` and revoke's `not_granted` are refusals too.
 
 ## Tables
 

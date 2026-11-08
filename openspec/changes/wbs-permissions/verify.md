@@ -281,3 +281,59 @@ are the routes' (4.2); a `project` scope is `not_found` until the project entity
 | `bunx nx run-many -t lint -p wbs-store-sqlite,wbs-core,wbs-domain,wbs-be-01,tool-rename-work-package` | exit 0                  |
 | `bunx nx run tool-rename-work-package:test --skip-nx-cache`                                           | 37 pass, 0 fail         |
 | `bunx nx format:check --all`, `openspec validate --all --json`, `check-indexes working . HEAD`        | exit 0; 328/328; exit 0 |
+
+## 1.5 Operator CLI `access-grant-cli.ts` (2026-11-08, branch `feat/wbs-permissions-1-5`)
+
+`apps/wbs/be-01/src/access-grant-cli.ts` (`grant-super-admin`, `revoke-super-admin`), its
+pre-write read `operatorSubjectRefusal` in `libs/wbs/adapters/store-sqlite/src/access-grant.ts`
+(the store owns the Drizzle reads; be-01 production code never imports `drizzle-orm`), test `access-grant-cli.db.test.ts` (13 cases after the review round, the CLI spawned
+with `DB_PATH` as `organization-limits-cli.db.test.ts` does). The grant and the revoke go
+through `AccessGrantRepository` with an `operator` actor: origin `operator`, `created_by`
+null, CP14 counted in the revoke's transaction. Runbook:
+`docs/runbook-organization-activation.md`, _Grant or revoke an organization's super-admin_.
+
+No audit row is written (design.md P21, amended 2026-11-08): `access_granted` and
+`access_revoked` are task 4.1's, and the CLI's output names the actor `operator:<os login>`
+they will carry. The unreadable-database case needs a non-root login, and asserts it.
+
+Each fault injected alone, the named case watched failing, the source restored:
+
+| Fault (2026-11-08)                                                     | Case that failed (`access-grant-cli.db.test.ts`)                                               |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| store membership check (`subjectRefusalOf`, `user`) made `return null` | refuses a user who is not a current member, writing nothing (the outsider was granted, exit 0) |
+| store CP14 count made `false &&` in `revoke`                           | refuses revoking the last direct human super-admin, writing nothing (revoked, none left)       |
+| CLI `unreadable_database` return replaced by `process.exit(0)`         | refuse an unreadable database, writing nothing (no refusal line)                               |
+| CLI `ENOENT` branch answering null                                     | refuse a missing database without creating it (the open's own error thrown, 17 stderr lines)   |
+| `unknown_organization` return removed from `operatorSubjectRefusal`    | refuse an unknown organization, writing nothing (revoke answered `not_granted`)                |
+| `machine_credential` return removed from `operatorSubjectRefusal`      | refuses a machine credential's id, writing nothing (`not_a_member`)                            |
+| store duplicate read answering null                                    | refuses a user who holds the role directly already (UNIQUE constraint thrown, 42 stderr lines) |
+
+| Command (2026-11-08, all `env -u CLAUDECODE`, `bun test` also `-u CLAUDE_CODE_ENTRYPOINT`)     | Result                            |
+| ---------------------------------------------------------------------------------------------- | --------------------------------- |
+| `bun test src/access-grant-cli.db.test.ts --timeout=30000` (be-01)                             | 12 pass, 0 fail                   |
+| `bun test src/audit.test.ts src/access-grant-store.db.test.ts --timeout=30000` (store-sqlite)  | 24 pass, 0 fail                   |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                   | exit 0, 3942 pass, 3 skip, 0 fail |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                | exit 0, 1027 pass, 0 fail         |
+| `bunx nx run-many -t test,typecheck -p tool-rename-work-package --skip-nx-cache`               | exit 0, no new collision          |
+| the 11-project `typecheck,typecheck:module` run-many, `--parallel=2`                           | exit 0                            |
+| `bunx nx run wbs-be-01:typecheck`                                                              | exit 0                            |
+| `bunx nx run-many -t lint -p wbs-be-01,wbs-store-sqlite --parallel=1 --skip-nx-cache`          | exit 0                            |
+| `check-indexes working . HEAD`, `openspec validate --all --json`, `bunx nx format:check --all` | exit 0; 328/328; exit 0           |
+
+Review round (#893 Fable review, MERGE AFTER FIXES, 2026-11-08). F1: the fixture gives ada an
+organization-scope `org-viewer` grant; `refuses a user who holds no direct grant` asserts it
+survives, and the new case `revokes only the super-admin grant of a user who also holds another
+organization role` grants ada `org-super-admin`, revokes it and asserts the viewer row remains.
+F3: `access-grant-store.db.test.ts` gains `tells the operator CLI an unknown organization and a
+credential’s id apart from a member` (unknown organization, own and foreign credential ids, a
+member and a non-member), and `operatorSubjectRefusal`'s JSDoc no longer claims a credential id
+can never equal a `users.id` (nothing enforces it; such a user is refused, never granted).
+F2, F4–F7: wording (this section's Drizzle note, the be-01 README bullet, `unreadable_database`
+as "not readable and writable by this login", the `LLM_README.md` index row, a named error for a
+root runner).
+
+| Fault (2026-11-08, review round)                                         | Case that failed                                                                                                                                       |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| revoke's role filter replaced by `held[0]` (F1)                          | refuses a user who holds no direct grant (ada's viewer grant revoked); revokes only the super-admin grant of a user who also holds … (11 pass, 2 fail) |
+| `unknown_organization` return removed from `operatorSubjectRefusal` (F3) | tells the operator CLI an unknown organization and a credential’s id apart from a member (store, 18 pass, 1 fail)                                      |
+| `machine_credential` return removed from `operatorSubjectRefusal` (F3)   | tells the operator CLI an unknown organization and a credential’s id apart from a member (store, 18 pass, 1 fail)                                      |

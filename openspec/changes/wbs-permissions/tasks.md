@@ -81,7 +81,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       granted in A; skip the credential cascade and a revoked credential's grant row
       survives; watched.
 
-- [ ] 1.5 `access-grant-cli.ts grant-super-admin|revoke-super-admin --organization=<id> --user=<id>`
+- [x] 1.5 `access-grant-cli.ts grant-super-admin|revoke-super-admin --organization=<id> --user=<id>`
       (P21) over the grant store of 1.4 — test: `access-grant-cli.db.test.ts`: grant to a
       current member writes the grant and one `access_granted` row (origin `operator`, actor
       `operator:<os login>`) and prints the count; a non-member, a machine credential, an
@@ -90,6 +90,10 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       `last_super_admin`; negatives: drop the membership check and a non-member is granted;
       drop the CP14 count from the revoke and the organization is left with none; catch
       the unreadable database and the command exits 0 having written nothing; watched.
+      _Shipped 2026-11-08 (verify.md 1.5) without the `access_granted`/`access_revoked`
+      rows, which task 4.1 owes (design.md P21, amended): the output names the actor
+      `operator:<os login>` they will carry. Refusals also cover `already_granted` and
+      revoke's `not_granted`; a machine credential's id is `machine_credential`._
 
 ## 2. `may()` wired into core, the old checks removed
 

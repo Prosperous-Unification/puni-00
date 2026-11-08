@@ -6,7 +6,11 @@ import type { AccessAct, GrantDraft, GrantScope, GrantSubject } from '@wbs/core'
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
-import { AccessGrantRepository, directSuperAdminCount } from './access-grant';
+import {
+  AccessGrantRepository,
+  directSuperAdminCount,
+  operatorSubjectRefusal,
+} from './access-grant';
 import { ConsentCredentialRepository } from './consent-credential';
 import { type Connection, openConnection } from './db';
 import { OPEN } from './gate';
@@ -158,6 +162,15 @@ describe('granting', () => {
       sql`SELECT subject_id FROM access_grant WHERE subject_kind = 'organization_members'`,
     );
     expect(stored).toEqual([{ subject_id: 'org-a' }]);
+  });
+
+  it('tells the operator CLI an unknown organization and a credential’s id apart from a member', () => {
+    expect(operatorSubjectRefusal(connection.db, 'org-x', 'cy')).toBe('unknown_organization');
+    expect(operatorSubjectRefusal(connection.db, 'org-a', LIVE_KEY)).toBe('machine_credential');
+    expect(operatorSubjectRefusal(connection.db, 'org-a', FOREIGN_KEY)).toBe('machine_credential');
+    expect(operatorSubjectRefusal(connection.db, 'org-a', 'cy')).toBeNull();
+    // Membership is the write's check, not this read's.
+    expect(operatorSubjectRefusal(connection.db, 'org-a', 'out')).toBeNull();
   });
 
   it('writes an operator’s grant with no creator', async () => {
