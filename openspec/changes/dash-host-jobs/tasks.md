@@ -210,6 +210,17 @@
       `apps/twilight-structure/twilight-dash/cli/docs/resources.md`. Proof: kill the process and
       watch systemd restart it with the guard holder surviving; a converging `gate_host` apply
       reports `changed=0` the second time.
+      Open, state as of 2026-11-08 22:50Z. Limited observation on h4claw only (verify.md,
+      "2026-11-08 h4claw enrolled in observe mode"): the watch unit was installed and running
+      after enrollment, with `NRestarts=2` and one recorded 30 s `RestartSec` gap. This is not the
+      proof. The kill was not observed, and two automatic restarts do not prove an operator kill
+      (EV-A2). The holder-survives clause is vacuous in observe mode (EV-A3). A `--tags validate`
+      is a read-only probe, not a converging apply (EV-A1). Owed on each gate host: an observed
+      kill with its before and after `systemctl --user show` and `ops pool inspect`; the guard
+      holder surviving a restart, which needs concurrent mode (6.5); and the PLAY RECAP of a
+      second plain enrolled apply with `changed=0`. h2puni is not enrolled. The clean-cancellation
+      stop versus the requirement for every modelled stop to return also remains unresolved;
+      installed `Restart=on-failure` does not restart an exit 0.
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
       (`Restart=on-failure`, `RestartSec=30`, `KillMode=process`, skipped until the ledger
       exists) and the audit pair `ops job render-audit-units` renders. It enables them on an

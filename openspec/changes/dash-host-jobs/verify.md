@@ -3304,3 +3304,72 @@ the namespace); `bunx nx run twilight-dash:typecheck --skip-nx-cache` exit 0;
 `bunx nx format:check --all` exit 0; `bunx openspec validate --all --json` 328 passed; Burokrat
 `check-indexes` exit 0. No full-suite rerun: the changes are message strings, docs, one
 assertion and a `try` move.
+
+## 2026-11-08 h4claw enrolled in observe mode; first observe-mode gate throttled
+
+`gate_host` was applied to h4claw with `puni_gate_host_pool_enroll: true` from a controller
+worktree at `main` (launcher moved to `a5e9dbe9f` first, gate-hosts.md step 5), then
+`ops pool init` ran and the three Dash units started. Private `puni-plan` evidence:
+`evidence/2026-11-08-enrollment-h4claw.md`. h2puni is not enrolled. This is an interim
+record. **EV-A7** The controller SHA used for apply 1 and apply 2 is unknown; neither the
+launcher SHA nor the later validate controller SHA identifies those lost applies.
+
+- **EV-A1** The enrolling worker died with a session restart before writing its record, so
+  the PLAY RECAPs of apply 1 and apply 2 are lost. A fresh `--tags validate` against the live
+  host with the same staged vars, at controller `7da591a21`, was run afterwards. It is a
+  read-only probe and does not stand in for them:
+  `h4claw : ok=31 changed=0 unreachable=0 failed=0 skipped=3`. "Require the host pool
+  configuration of an enrolled host" passed (0600, exact field set), the units read enabled,
+  "Name the Dash probes this host skips" was skipped (none skipped), and "Inspect the host pool
+  and audit its envelopes" ran `ops pool inspect` and `ops job audit` live for the first time.
+  The convergence proof for the enrolled branch is missing, not substituted. No plain apply was
+  run while a job held a gate tree, and a second apply's `changed=0` PLAY RECAP stays owed (task
+  6.7).
+- Configuration: schema 3, enrollment `h4claw-host-pool`, 8 cores, 15 GiB, headroom 1 core and
+  5 GiB, disk budget 48 units, units `gate_tree` ×2, `dagger_engine`, `docker_build`, no
+  concurrency-eligible types. `ops pool inspect`: mode `observe`, guard `on`, `guardHolder`
+  `null`, allocatable 7 cores, 10 GiB, 48 units, 4 slots. The 5 GiB headroom is not the role default
+  (`puni_gate_pool_headroom` `memoryGib: 2`), and where the override came from is unknown.
+  Before any reapply to h4claw, the operator must recover the vars that produced it. A reapply
+  at 2 GiB against the pinned 5 GiB is refused as a pinned-field change.
+- **Restart observations; proof remains open (6.7).** `systemctl --user show dash-resources-watch.service`:
+  `NRestarts=2`, `InactiveExitTimestamp` 20:39:54Z, `ActiveEnterTimestamp` 20:40:24Z. `NRestarts`
+  counts only systemd's automatic restarts, and the 30 s gap is `RestartSec=30`. The watch
+  answers SIGTERM by cancelling and returning 0, which `Restart=on-failure` treats as a clean
+  stop, so both restarts followed exits systemd counted as failures. This is inferred from
+  `Restart=on-failure`, not observed. `show` keeps only the latest timestamp pair: the first
+  restart's time and cause are unexplained, and no before-kill `ops pool inspect` is recorded. The ledger holds no refusal and no dropped event.
+  After the restart the first gate's job was still `held` on its gate tree with its legacy hold
+  file, and the guard read `on` with holder `null`. **EV-A2** That the two restarts were the
+  enrolling worker's `kill -9` proof is an inference. The journal is unreadable over ssh, so no
+  signal is observed, and two automatic restarts do not prove an operator kill. The kill proof
+  stays owed (task 6.7). **EV-A3** Observe mode has no guard holder, so the holder-survives clause is
+  vacuous here; 6.5's `switch-mode concurrent` exercises it with `KillMode=process`.
+- **EV-A4** On h4claw, `journalctl --user` as `puni1` over ssh prints "No journal files were opened due to
+  insufficient permissions"; gate-hosts.md now reads restarts and refresh outcomes from
+  `systemctl --user show`, and says the restart proof needs `kill -9`.
+- The refresh timer's runs at 21:01:55Z and 22:04:59Z exited 75: gates were working in the
+  launcher checkout, the modelled busy outcome.
+
+First observe-mode gate, `gate:a5e9dbe9`, launched from the launcher checkout and admitted
+onto the first gate tree at 19:44:52Z; the legacy shell lock reads `dash-job-<id> gate:a5e9dbe9`
+through its `legacy-holds/` file, and a peer's gate waited in the pool behind it (`waiting …
+overtakes 0`).
+
+- **EV-A5 The `gate` envelope throttles the gate in observe mode.** The scope runs under
+  `MemoryHigh` at the catalogue's estimated 6 GiB (`memory.high 6442450944`, `MemoryMax`
+  infinity), as the spec requires. On h4claw the gate needs more: `memory.peak` 6.52 GiB at
+  21:25Z and 6.93 GiB at 22:35Z, `memory.events high` above 3.1 million, and
+  `memory.pressure` above 90 % from about 21:00Z. The log shows two `bun test` timeouts and
+  three `eslint` heap OOMs, and at 2 h 50 min the gate was still in the first `nx run-many`.
+  The run is throttled, so `propose` excludes it. A failure of this run is an observed gate
+  failure whose cause needs resolving; it is not a pass. Calibrate `gate` (no `MemoryHigh`) or raise
+  the estimate before more observe-mode gates; 6.4 stays open.
+- **EV-A6 The solver smoke containers are not observable from this run.** All 956 interval
+  samples carry `containers` with `labelled 0`: the four bounded containers run in the gate's
+  last step, `wbs-be-01:solver-image-smoke`, which `set -e` skips once `run-many` fails.
+
+Pending as of 2026-11-08 22:50Z: the gate was still running (3 h 05 min), and its exit is not
+recorded. Task 6.4 owns the missing terminal gate record and calibration follow-up. This section does
+not complete 6.4. None of 6.4's deliverables is met: a week of
+observation, calibration, `propose`, or the container measurement. 6.4 stays open.
