@@ -444,6 +444,42 @@ describe('re-keying a pool', () => {
     expect(claims()).toBeGreaterThan(0);
   });
 
+  it('a re-keyed agent keeps its grants on its new key (wbs-permissions P17, amended)', async () => {
+    const doc = await createPool('dany', { name: 'swarm-a', size: 2 });
+    for (const [index, agent] of doc.agents.entries())
+      h.sqlite.run(
+        `INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at, created_by)
+         VALUES (?, 'org-a', 'organization', 'org-a', 'machine_credential', ?, ?, 'route', 1, ?)`,
+        [
+          crypto.randomUUID(),
+          agent.credentialId,
+          index === 0 ? 'project-contributor' : 'project-viewer',
+          h.userId('dany'),
+        ],
+      );
+    const answer = await h.call('dany', 'POST', `${PATH}/${doc.poolId}/rekey`, {});
+    expect(answer.status).toBe(201);
+    const fresh = answer.body as KeysDocument;
+    const grantsOf = (credentialId: string) =>
+      h.sqlite
+        .query<{ role_id: string; origin: string; created_by: string | null }, [string]>(
+          "SELECT role_id, origin, created_by FROM access_grant WHERE subject_kind = 'machine_credential' AND subject_id = ?",
+        )
+        .all(credentialId);
+    for (const [index, agent] of doc.agents.entries()) {
+      expect(grantsOf(agent.credentialId)).toEqual([]);
+      const successor = fresh.agents.find((each) => each.personId === agent.personId);
+      if (successor === undefined) throw new Error(`no new key for ${agent.personId}`);
+      expect(grantsOf(successor.credentialId)).toEqual([
+        {
+          role_id: index === 0 ? 'project-contributor' : 'project-viewer',
+          origin: 'route',
+          created_by: h.userId('dany'),
+        },
+      ]);
+    }
+  });
+
   it('answers not_found for a revoked pool, another organization’s, and to an admin of B', async () => {
     const doc = await createPool('dany', { name: 'swarm-a', size: 1 });
     expect(await h.call('bob', 'POST', `${PATH}/${doc.poolId}/rekey`, {})).toEqual({

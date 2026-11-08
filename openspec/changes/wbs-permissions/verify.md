@@ -143,22 +143,40 @@ The rename tool's collision test flagged `scope.workPackageId` beside `projectOr
 the store reads the id into `packageId` first and `allow-list.ts` protects that one line
 shape (`const packageId = scope.workPackageId;`, sense `new`).
 
-| Fault (2026-11-08)                                                                | Case that failed                                                                                           |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| CP14 count made `false &&` in `revoke`                                            | refuses revoking the last direct super-admin grant, … (revoked: none left); two connections (both revoked) |
-| `project_organization.organization_id` predicate dropped (ownership join)         | refuses another organization’s work package, … as not_found (B's package granted in A)                     |
-| cascade call removed from `MachineCredentialAdministration.revoke`                | are deleted with an administrator’s revocation, and no other credential’s (grant row survived)             |
-| cascade call removed from `ConsentCredentials.end`                                | are deleted when an MCP consent ends (grant row survived)                                                  |
-| cascade call removed from `revokePoolKeys`                                        | deletes the grants naming each revoked key (agent-pool.controller.db.test.ts: 2 rows survived)             |
-| cascade call removed from `removeMachineCredentialsOf`                            | deletes every grant naming the removed person’s credentials (machine-credential-admin…: 2 rows survived)   |
-| cascade call removed from trusted-issuer `remove`                                 | deletes a grant an older release left on a revoked credential … (trusted-issuer…: 1 row survived)          |
-| `roleFitsScope` check removed                                                     | refuses org-admin at a work package and project-manager there, …                                           |
-| membership check removed for a `user` subject                                     | refuses a user who is no member, a member of another organization included                                 |
-| group check removed for a `group` subject                                         | refuses an absent group and another organization’s group                                                   |
-| `revoked_at IS NULL` dropped from the credential read                             | refuses a revoked, absent or foreign credential                                                            |
-| organization predicate dropped from the role read                                 | refuses an unknown role and another organization’s custom role                                             |
-| duplicate read answers null                                                       | refuses a duplicate as already_granted … (UNIQUE constraint thrown)                                        |
-| `name_taken` check removed from `createGroup`                                     | creates, renames and lists groups, refusing a taken name (UNIQUE constraint thrown)                        |
-| membership check removed from `addGroupMember`                                    | adds only current members, once, and removes them (FOREIGN KEY constraint thrown)                          |
-| `deleteGroup`'s grant delete matching no group                                    | deletes a group with its grants and members, … (`grantsDeleted: 0`)                                        |
-| origin/actor pairing check made `if (false)` (after the base admitted `operator`) | refuses an origin its actor does not pair with, writing nothing (Received "resolved")                      |
+| Fault (2026-11-08)                                                                | Case that failed                                                                                                 |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| CP14 count made `false &&` in `revoke`                                            | refuses revoking the last direct super-admin grant, … (revoked: none left); two connections (both revoked)       |
+| `project_organization.organization_id` predicate dropped (ownership join)         | refuses another organization’s work package, … as not_found (B's package granted in A)                           |
+| cascade call removed from `MachineCredentialAdministration.revoke`                | are deleted with an administrator’s revocation, and no other credential’s (grant row survived)                   |
+| cascade call removed from `ConsentCredentials.end`                                | are deleted when an MCP consent ends (grant row survived)                                                        |
+| cascade call removed from `revokePoolKeys`                                        | deletes the grants naming each revoked key (agent-pool.controller.db.test.ts: 2 rows survived)                   |
+| cascade call removed from `removeMachineCredentialsOf`                            | deletes every grant naming the removed person’s credentials (machine-credential-admin…: 2 rows survived)         |
+| cascade call removed from trusted-issuer `remove`                                 | deletes a grant an older release left on a revoked credential … (trusted-issuer…: 1 row survived)                |
+| `roleFitsScope` check removed                                                     | refuses org-admin at a work package and project-manager there, …                                                 |
+| membership check removed for a `user` subject                                     | refuses a user who is no member, a member of another organization included                                       |
+| group check removed for a `group` subject                                         | refuses an absent group and another organization’s group                                                         |
+| `revoked_at IS NULL` dropped from the credential read                             | refuses a revoked, absent or foreign credential                                                                  |
+| organization predicate dropped from the role read                                 | refuses an unknown role and another organization’s custom role                                                   |
+| duplicate read answers null                                                       | refuses a duplicate as already_granted … (UNIQUE constraint thrown)                                              |
+| `name_taken` check removed from `createGroup`                                     | creates, renames and lists groups, refusing a taken name (UNIQUE constraint thrown)                              |
+| membership check removed from `addGroupMember`                                    | adds only current members, once, and removes them (FOREIGN KEY constraint thrown)                                |
+| `deleteGroup`'s grant delete matching no group                                    | deletes a group with its grants and members, … (`grantsDeleted: 0`)                                              |
+| origin/actor pairing check made `if (false)` (after the base admitted `operator`) | refuses an origin its actor does not pair with, writing nothing (Received "resolved")                            |
+| `copyGrantsOfCredential` call removed from the pool `rekey` (#891 review F1)      | a re-keyed agent keeps its grants on its new key (agent-pool.controller.db.test.ts: the new key listed no grant) |
+| `isInGroup` point read removed from `addGroupMember` (#891 review F6)             | adds only current members, once, and removes them (primary key thrown instead of `already_in_group`)             |
+
+Assumptions (1.4, after the #891 review): a pool re-key is a rotation and carries each old
+key's grants to the person's new key (design.md P17, amended 2026-11-08); a pool or
+credential revocation deletes them. `revoke`, `deleteGroup` and `removeGroupMember` take an
+`AccessAct` now, unread until task 4.1's audit rows. P11's permission and escalation checks
+are the routes' (4.2); a `project` scope is `not_found` until the project entity exists.
+
+| Command after the #891 review fixes (2026-11-08, head merged with `aae271f03`)                        | Result                  |
+| ----------------------------------------------------------------------------------------------------- | ----------------------- |
+| `bun test src/access-grant-store.db.test.ts --timeout=30000` (store-sqlite)                           | 18 pass, 0 fail         |
+| `bun test` agent-pool, machine-credential-admin, trusted-issuer `.controller.db.test.ts` (be-01)      | 78 pass, 0 fail         |
+| the 11-project `typecheck,typecheck:module` run-many, `--parallel=2`                                  | exit 0                  |
+| `bunx nx run wbs-be-01:typecheck`                                                                     | exit 0                  |
+| `bunx nx run-many -t lint -p wbs-store-sqlite,wbs-core,wbs-domain,wbs-be-01,tool-rename-work-package` | exit 0                  |
+| `bunx nx run tool-rename-work-package:test --skip-nx-cache`                                           | 37 pass, 0 fail         |
+| `bunx nx format:check --all`, `openspec validate --all --json`, `check-indexes working . HEAD`        | exit 0; 328/328; exit 0 |

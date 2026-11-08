@@ -132,11 +132,13 @@ export interface AccessGrants {
    * Deletes grant `grantId` of `organizationId`. `not_found` for an absent or
    * another organization's grant. `last_super_admin` when it is the last
    * direct `user` grant of the built-in `org-super-admin` at organization
-   * scope held by a current member (CP14), and nothing is deleted.
+   * scope held by a current member (CP14), and nothing is deleted. `act` is
+   * what task 4.1's `access_revoked` audit row will name; unread until then.
    */
   revoke(
     organizationId: string,
     grantId: string,
+    act: AccessAct,
   ): Promise<
     | { readonly kind: 'revoked'; readonly grant: AccessGrantRecord }
     | 'not_found'
@@ -159,10 +161,14 @@ export interface AccessGrants {
     name: string,
     act: AccessAct,
   ): Promise<'renamed' | 'unknown_group' | 'name_taken'>;
-  /** Deletes a group with every grant naming it and every member row, in one transaction. */
+  /**
+   * Deletes a group with every grant naming it and every member row, in one
+   * transaction. `act` is for task 4.1's audit row; unread until then.
+   */
   deleteGroup(
     organizationId: string,
     groupId: string,
+    act: AccessAct,
   ): Promise<
     | { readonly kind: 'deleted'; readonly grantsDeleted: number; readonly membersRemoved: number }
     | 'unknown_group'
@@ -177,10 +183,14 @@ export interface AccessGrants {
     userId: string,
     act: AccessAct,
   ): Promise<'added' | 'unknown_group' | 'not_a_member' | 'already_in_group'>;
-  /** Removes a user from a group: `not_in_group` when they were not in it. */
+  /**
+   * Removes a user from a group: `not_in_group` when they were not in it.
+   * `act` is for task 4.1's audit row; unread until then.
+   */
   removeGroupMember(
     organizationId: string,
     groupId: string,
     userId: string,
+    act: AccessAct,
   ): Promise<'removed' | 'unknown_group' | 'not_in_group'>;
 }

@@ -73,6 +73,9 @@ export class AccessGrantRepository implements AccessGrants {
           subjectId,
           roleId: draft.roleId,
           origin: draft.origin,
+          // `access_grant` has no `updated_at`: `auditOnCreate`'s `updatedAt`
+          // names no column and drizzle writes declared columns only. The
+          // helper is what `audit.test.ts`' write-site scan requires.
           ...(by === null ? auditOnOperatorCreate(act.at) : auditOnCreate({ at: act.at, by })),
         })
         .run();
@@ -83,6 +86,7 @@ export class AccessGrantRepository implements AccessGrants {
   revoke(
     organizationId: string,
     grantId: string,
+    _act: AccessAct,
   ): Promise<
     | { readonly kind: 'revoked'; readonly grant: AccessGrantRecord }
     | 'not_found'
@@ -195,6 +199,7 @@ export class AccessGrantRepository implements AccessGrants {
   deleteGroup(
     organizationId: string,
     groupId: string,
+    _act: AccessAct,
   ): Promise<
     | { readonly kind: 'deleted'; readonly grantsDeleted: number; readonly membersRemoved: number }
     | 'unknown_group'
@@ -243,13 +248,17 @@ export class AccessGrantRepository implements AccessGrants {
       // removes them` in `access-grant-store.db.test.ts` threw the composite
       // membership key instead of the refusal; watched 2026-11-08.
       if (!isMemberOf(tx, organizationId, userId)) return 'not_a_member';
-      if (memberIdsOf(tx, groupId).includes(userId)) return 'already_in_group';
+      // Proof: with this read removed, `adds only current members, once, and
+      // removes them` threw the primary key instead of `already_in_group`;
+      // watched 2026-11-08.
+      if (isInGroup(tx, organizationId, groupId, userId)) return 'already_in_group';
       const by = authorOf(act);
       tx.insert(accessGroupMember)
         .values({
           organizationId,
           groupId,
           userId,
+          // No `updated_at` on `access_group_member` either; as in `grant`.
           ...(by === null ? auditOnOperatorCreate(act.at) : auditOnCreate({ at: act.at, by })),
         })
         .run();
@@ -261,6 +270,7 @@ export class AccessGrantRepository implements AccessGrants {
     organizationId: string,
     groupId: string,
     userId: string,
+    _act: AccessAct,
   ): Promise<'removed' | 'unknown_group' | 'not_in_group'> {
     return this.write((tx) => {
       if (!isGroupOf(tx, organizationId, groupId)) return 'unknown_group';
@@ -304,6 +314,54 @@ export function deleteGrantsOfCredentials(
       ),
     )
     .run().changes;
+}
+
+/**
+ * Copies every grant naming credential `fromId` to credential `toId`
+ * (`wbs-permissions` P17 as amended 2026-11-08): an agent pool's re-key is a
+ * rotation, so the new key holds what the old one held. Same organization,
+ * scope, role and origin; the creator is carried, the instant is `at`. Runs
+ * inside the re-key's transaction before the old key's grants are deleted.
+ * A grant `toId` already holds is skipped, so two old keys of one person
+ * holding the same grant copy it once. Answers how many rows were written.
+ */
+export function copyGrantsOfCredential(
+  tx: Pick<SQLiteBunDatabase, 'select' | 'insert'>,
+  fromId: string,
+  toId: string,
+  at: number,
+): number {
+  const held = tx
+    .select()
+    .from(accessGrant)
+    .where(
+      and(eq(accessGrant.subjectKind, 'machine_credential'), eq(accessGrant.subjectId, fromId)),
+    )
+    .all();
+  let copied = 0;
+  for (const row of held)
+    copied += tx
+      .insert(accessGrant)
+      .values({
+        id: crypto.randomUUID(),
+        organizationId: row.organizationId,
+        scopeKind: row.scopeKind,
+        scopeId: row.scopeId,
+        subjectKind: 'machine_credential',
+        subjectId: toId,
+        roleId: row.roleId,
+        origin: row.origin,
+        // The copy keeps its source's creator: a backfilled or operator row
+        // has none. `auditOnCreate`'s `updatedAt` names no column of
+        // `access_grant`, and drizzle writes only declared columns; the call
+        // is what `audit.test.ts`' write-site scan requires.
+        ...(row.createdBy === null
+          ? auditOnOperatorCreate(at)
+          : auditOnCreate({ at, by: row.createdBy })),
+      })
+      .onConflictDoNothing()
+      .run().changes;
+  return copied;
 }
 
 /**
@@ -498,6 +556,27 @@ function isMemberOf(tx: Transaction, organizationId: string, userId: string): bo
         and(
           eq(organizationMembership.organizationId, organizationId),
           eq(organizationMembership.userId, userId),
+        ),
+      )
+      .get() !== undefined
+  );
+}
+
+function isInGroup(
+  tx: Transaction,
+  organizationId: string,
+  groupId: string,
+  userId: string,
+): boolean {
+  return (
+    tx
+      .select({ userId: accessGroupMember.userId })
+      .from(accessGroupMember)
+      .where(
+        and(
+          eq(accessGroupMember.organizationId, organizationId),
+          eq(accessGroupMember.groupId, groupId),
+          eq(accessGroupMember.userId, userId),
         ),
       )
       .get() !== undefined

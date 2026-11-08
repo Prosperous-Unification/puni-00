@@ -319,7 +319,11 @@ person (P11) and may not bind a role above the granter's own effective role at t
 (no escalation); a role above contributor may be granted and reads as contributor, because
 the cap is evaluated, not stored. Revoking a credential, or the `deletePerson … cascade`
 that revokes it, deletes its grants in the same transaction with one `access_revoked` row
-each (origin `cascade`). Backfill: at migration time each unrevoked credential whose person
+each (origin `cascade`). _Amended 2026-11-08 (#891 review F1, decided by the coordinator):_
+re-keying an agent pool is a rotation, not a revocation: each person's new key receives a copy
+of the grants of the keys it replaces (same scope, role and origin, creator carried) in the
+re-key's transaction, before the old keys' grants are deleted, so leases and grants both
+survive a re-key; revoking the pool, or one credential, deletes them. Backfill: at migration time each unrevoked credential whose person
 is bound to a current member receives a copy of that account's backfilled grants capped at
 contributor (`org-super-admin` and `org-admin` become `project-contributor` at organization
 scope, matching A23's "acts as member"; `project-contributor` and `project-viewer`

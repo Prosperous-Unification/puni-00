@@ -322,9 +322,12 @@ describe('granting', () => {
 describe('revoking', () => {
   it('revokes a grant of its own organization only', async () => {
     const id = await grantInA('cy', 'org-viewer');
-    expect(await grants.revoke('org-b', id)).toBe('not_found');
-    expect(await grants.revoke('org-a', id)).toMatchObject({ kind: 'revoked', grant: { id } });
-    expect(await grants.revoke('org-a', id)).toBe('not_found');
+    expect(await grants.revoke('org-b', id, byAda)).toBe('not_found');
+    expect(await grants.revoke('org-a', id, byAda)).toMatchObject({
+      kind: 'revoked',
+      grant: { id },
+    });
+    expect(await grants.revoke('org-a', id, byAda)).toBe('not_found');
   });
 
   it('refuses revoking the last direct super-admin grant, even while a group of members holds the role', async () => {
@@ -339,27 +342,30 @@ describe('revoking', () => {
       ),
     ).toMatchObject({ kind: 'granted' });
 
-    expect(await grants.revoke('org-a', ada)).toBe('last_super_admin');
+    expect(await grants.revoke('org-a', ada, byAda)).toBe('last_super_admin');
     expect(directSuperAdminCount(connection.db, 'org-a', { besides: null })).toBe(1);
 
     // The hand-over (P21): grant first, then revoke.
     const ben = await grantInA('ben', 'org-super-admin');
-    expect(await grants.revoke('org-a', ada)).toMatchObject({ kind: 'revoked' });
-    expect(await grants.revoke('org-a', ben)).toBe('last_super_admin');
+    expect(await grants.revoke('org-a', ada, byAda)).toMatchObject({ kind: 'revoked' });
+    expect(await grants.revoke('org-a', ben, byAda)).toBe('last_super_admin');
     expect(directSuperAdminCount(connection.db, 'org-a', { besides: null })).toBe(1);
   });
 
   it('lets exactly one of two super-admins revoke their own grant across two connections', async () => {
-    // bun:sqlite runs each immediate transaction to completion, so these
-    // serialize: this watches the count read inside the transaction, which
-    // is what refuses the second revocation.
+    // What this proves: the CP14 count is read inside the revoking
+    // transaction, so the second revocation counts after the first commits.
+    // Computing the count before `write` makes it fail (both revoke; seen by
+    // the #891 review). It does not prove cross-process `BEGIN IMMEDIATE`
+    // serialization, which is SQLite's documented contract: bun:sqlite runs
+    // each transaction to completion, so the two serialize either way.
     const ada = await grantInA('ada', 'org-super-admin');
     const ben = await grantInA('ben', 'org-super-admin');
     const other = openConnection(path);
     try {
       const outcomes = await Promise.all([
-        grants.revoke('org-a', ada),
-        new AccessGrantRepository(other.db, OPEN).revoke('org-a', ben),
+        grants.revoke('org-a', ada, byAda),
+        new AccessGrantRepository(other.db, OPEN).revoke('org-a', ben, byAda),
       ]);
       expect(outcomes.map((each) => (typeof each === 'string' ? each : each.kind)).sort()).toEqual([
         'last_super_admin',
@@ -401,9 +407,9 @@ describe('access groups', () => {
     expect(await grants.addGroupMember('org-a', 'ops', 'cy', byAda)).toBe('added');
     expect(await grants.addGroupMember('org-a', 'ops', 'cy', byAda)).toBe('already_in_group');
     expect(await grants.listGroups('org-a')).toMatchObject([{ id: 'ops', memberIds: ['cy'] }]);
-    expect(await grants.removeGroupMember('org-a', 'ops', 'ben')).toBe('not_in_group');
-    expect(await grants.removeGroupMember('org-a', 'ops-b', 'cy')).toBe('unknown_group');
-    expect(await grants.removeGroupMember('org-a', 'ops', 'cy')).toBe('removed');
+    expect(await grants.removeGroupMember('org-a', 'ops', 'ben', byAda)).toBe('not_in_group');
+    expect(await grants.removeGroupMember('org-a', 'ops-b', 'cy', byAda)).toBe('unknown_group');
+    expect(await grants.removeGroupMember('org-a', 'ops', 'cy', byAda)).toBe('removed');
     expect(await grants.listGroups('org-a')).toMatchObject([{ id: 'ops', memberIds: [] }]);
   });
 
@@ -418,8 +424,8 @@ describe('access groups', () => {
         byAda,
       );
     }
-    expect(await grants.deleteGroup('org-a', 'ops-b')).toBe('unknown_group');
-    expect(await grants.deleteGroup('org-a', 'ops')).toEqual({
+    expect(await grants.deleteGroup('org-a', 'ops-b', byAda)).toBe('unknown_group');
+    expect(await grants.deleteGroup('org-a', 'ops', byAda)).toEqual({
       kind: 'deleted',
       grantsDeleted: 1,
       membersRemoved: 1,
