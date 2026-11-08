@@ -306,8 +306,19 @@ Final local verification after bringing the follow-up onto main `a5e9dbe9`
   (3.8 seconds).
 - `./node_modules/.bin/openspec validate --all --json`: 340 passed, 0 failed.
 
-Hosted checks and the final-head canonical h2puni gate are still required before
-merge; these local receipts do not stand in for either.
+Merge-order clarification (2026-11-08): this paragraph supersedes this packet's
+earlier pre-source-merge wording that hosted checks and the canonical h2puni gate
+were both still required before merge. All numeric receipts above are unchanged.
+Complete hosted checks on the exact published head gate source merge of this
+bounded fixture-only repair. That merge is bounded source integration, not
+qualification or task completion. The [migration plan](design.md#migration-plan)
+step 7 still requires the isolated h2puni gate on the actual candidate (combined)
+SHA plus CI migration/secrets checks before completion. Claiming this packet or
+parent tasks 10.1/10.2 done still requires that gate on the final SHA; both
+parent tasks remain open. The queued post-merge canonical gate is not claimed
+passed, and local or hosted evidence does not establish host qualification.
+These local receipts do not stand in for the hosted checks; as of 2026-11-08 no
+passing hosted verdict for this head is recorded in this packet.
 
 The actual Fable 5.1 review approved this two-file follow-up and closed the two
 Important findings from #900. Two nonblocking limitations remain: detached
