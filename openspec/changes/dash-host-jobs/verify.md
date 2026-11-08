@@ -3358,4 +3358,8 @@ overtakes 0`).
   samples carry `containers` with `labelled 0`: the four bounded containers run in the gate's
   last step, `wbs-be-01:solver-image-smoke`, which `set -e` skips once `run-many` fails.
 
-Still running at 22:50Z (3 h 05 min); exit recorded below once it settles.
+No exit yet. At 23:57Z (4 h 12 min) the scope used 0.019 cores over 60 s, with
+`memory.pressure full avg300` at 95.5 %: the throttle has effectively stopped it. Its owner's
+cancel (exit 143), its settlement and the `gate` calibration runs are still owed. A peer's waiting
+gate withdrew cleanly on SIGTERM (`interrupted by SIGTERM while waiting; its ticket is
+withdrawn`), so a second admission was not observed.
