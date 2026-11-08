@@ -234,23 +234,52 @@ describe('package release planner', () => {
         record,
         () => {
           registryAttempts += 1;
-          return registryAttempts === 1
-            ? {
-                exitCode: 1,
-                stderr: new TextEncoder().encode('404 Not Found'),
-                stdout: new Uint8Array(),
-              }
-            : {
-                exitCode: 0,
-                stderr: new Uint8Array(),
-                stdout: new TextEncoder().encode(
-                  JSON.stringify({ dist: { integrity: planned.integrity } }),
-                ),
-              };
+          // Attempt 1: the registry has no such package yet. Attempt 2: the package exists but
+          // the new version has not propagated, Bun's JSON answer for a missing version.
+          if (registryAttempts === 1) {
+            return {
+              exitCode: 1,
+              stderr: new TextEncoder().encode('404 Not Found'),
+              stdout: new Uint8Array(),
+            };
+          }
+          if (registryAttempts === 2) {
+            return {
+              exitCode: 1,
+              stderr: new Uint8Array(),
+              stdout: new TextEncoder().encode(
+                '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
+              ),
+            };
+          }
+          return {
+            exitCode: 0,
+            stderr: new Uint8Array(),
+            stdout: new TextEncoder().encode(
+              JSON.stringify({ dist: { integrity: planned.integrity } }),
+            ),
+          };
         },
         () => Promise.resolve(),
       ),
     ).toBe(`twilight-burokrat@0.2.0 ${planned.integrity}`);
+    expect(registryAttempts).toBe(3);
+
+    expect(
+      await refusal(
+        verifyPublishedPackage(
+          record,
+          () => ({
+            exitCode: 1,
+            stderr: new Uint8Array(),
+            stdout: new TextEncoder().encode(
+              '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
+            ),
+          }),
+          () => Promise.resolve(),
+        ),
+      ),
+    ).toContain('published registry package did not become readable');
 
     expect(
       await refusal(

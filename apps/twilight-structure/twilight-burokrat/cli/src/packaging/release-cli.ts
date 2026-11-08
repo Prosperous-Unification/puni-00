@@ -33,27 +33,35 @@ export function lookupRegistryVersion(
   const invocation = run(['bun', 'info', `${packageName}@${version}`, '--json']);
   if (invocation.exitCode === 0) return Promise.resolve('present');
   const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
-  const diagnostic = `${decode(invocation.stdout)}\n${decode(invocation.stderr)}`;
-  // An unknown package: the registry answers 404 and Bun reports it on stderr.
-  if (/404|not found/i.test(diagnostic)) return Promise.resolve('absent');
-  // A known package without this version: Bun prints one JSON object on stdout naming the exact
-  // coordinate. Proof: release run 42451249726 (twilight-burokrat-v0.2.0, after 0.1.0 was
-  // published) refused with "cannot determine registry version state: { "error": "No matching
-  // version found" ... }"; with this branch removed, release.test.ts's absent-version case fails
-  // the same way, and the case naming another coordinate still refuses.
-  if (isAbsentVersionAnswer(decode(invocation.stdout), `${packageName}@${version}`)) {
+  const stdout = decode(invocation.stdout);
+  const stderr = decode(invocation.stderr);
+  // Proof: release run 42451249726 (twilight-burokrat-v0.2.0, after 0.1.0 was published) refused
+  // with "cannot determine registry version state: { "error": "No matching version found" ... }";
+  // with the version-absence branch of {@link isRegistryAbsence} removed, release.test.ts's
+  // absent-version case fails the same way, and the case naming another coordinate still refuses.
+  if (isRegistryAbsence(stdout, stderr, `${packageName}@${version}`)) {
     return Promise.resolve('absent');
   }
+  const diagnostic = `${stdout}\n${stderr}`;
   // Proof: injecting a registry timeout exited nonzero and was misclassified as an available name
   // until this branch preserved unknown registry state as a release-blocking failure.
   return Promise.reject(new Error(`cannot determine registry version state: ${diagnostic.trim()}`));
 }
 
-function isAbsentVersionAnswer(stdout: string, coordinate: string): boolean {
+/**
+ * Whether a failed `bun info <coordinate> --json` says the coordinate is not in the registry.
+ * Two shapes mean absence: an unknown package (the registry's 404, reported on stderr) and a known
+ * package without that version (Bun prints `{ "error": "No matching version found", "version":
+ * "<coordinate>" }` on stdout, with the coordinate echoed verbatim). Every other failure is unknown
+ * registry state and stays with the caller.
+ */
+function isRegistryAbsence(stdout: string, stderr: string, coordinate: string): boolean {
+  if (/404|not found/i.test(`${stdout}\n${stderr}`)) return true;
   let answer: unknown;
   try {
     answer = JSON.parse(stdout);
   } catch {
+    // Non-JSON stdout is not the version-absence answer; the caller refuses it as unknown state.
     return false;
   }
   return (
@@ -101,9 +109,12 @@ export async function verifyPublishedPackage(
       }
       return `${record.packageName}@${record.version} ${record.integrity}`;
     }
-    if (!/404|not found/i.test(`${stdout}\n${stderr}`)) {
-      // Proof: injecting a registry timeout made the retry loop classify unknown state as
-      // propagation until this refusal preserved the transport failure.
+    // Proof: injecting a registry timeout made the retry loop classify unknown state as
+    // propagation until this refusal preserved the transport failure. Proof: injecting Bun's
+    // "No matching version found" answer (the not-yet-propagated shape once an older version is
+    // published) made the verifier refuse on attempt one instead of retrying, until absence was
+    // classified by {@link isRegistryAbsence}; release.test.ts attempt 2 and the bounded case.
+    if (!isRegistryAbsence(stdout, stderr, `${record.packageName}@${record.version}`)) {
       throw new Error(`cannot read published registry package: ${stderr.trim() || stdout.trim()}`);
     }
     if (attempt < 12) await delay(5_000);
