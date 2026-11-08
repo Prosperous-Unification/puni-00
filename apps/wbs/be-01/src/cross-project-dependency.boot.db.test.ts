@@ -12,10 +12,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createLogger } from '@wbs/observability';
-import { openSqliteSource } from '@wbs/store-sqlite';
+import { inspectDependencyBootstrap, openSqliteSource } from '@wbs/store-sqlite';
 import { openConnection } from '@wbs/store-sqlite/db';
 import { HISTORICAL_DEPENDENCY_MIGRATION } from '@wbs/store-sqlite/dependency-bootstrap-history';
 import { OPEN } from '@wbs/store-sqlite/gate';
+import { readMigrationFolders } from '@wbs/store-sqlite/migrate-down';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, expect, it } from 'bun:test';
@@ -491,13 +492,21 @@ function readMigrationIdentities(folder: string): { name: string; hash: string }
     }));
 }
 
+/** Last migration of main acfdc02c; later folders are forward migrations main never applied. */
+const MAIN_LEDGER_END = '20261101120000_add_host_job_projection';
+/** Live forward migrations after main, so later additions need no edit to these expectations. */
+const FORWARD_MIGRATIONS = readMigrationFolders(FOLDER)
+  .map(({ name }) => name)
+  .filter((name) => !DELAYED_DEPENDENCY_MIGRATIONS.includes(name) && name > MAIN_LEDGER_END);
+
 /** Replays the exact 103 migration.sql blobs from main acfdc02c, without Git at test runtime. */
 function currentMainDatabase(usesHistoricalDependency = false): string {
   const path = database(false);
   const historical = mkdtempSync(join(tmpdir(), 'wbs-current-main-history-'));
   directories.push(historical);
   const known = readMigrationIdentities(FOLDER).filter(
-    (migration) => !DELAYED_DEPENDENCY_MIGRATIONS.includes(migration.name),
+    (migration) =>
+      !DELAYED_DEPENDENCY_MIGRATIONS.includes(migration.name) && migration.name <= MAIN_LEDGER_END,
   );
   const identities = known.map(({ name, hash }) => ({ name, hash }));
   expect(identities).toHaveLength(103);
@@ -520,7 +529,7 @@ function currentMainDatabase(usesHistoricalDependency = false): string {
 }
 
 for (const usesHistoricalDependency of [false, true])
-  it(`boots the exact current-main store and applies only the four delayed dependency migrations (historical dependency=${String(usesHistoricalDependency)})`, async () => {
+  it(`boots the exact current-main store and applies the four delayed dependency migrations and every pending forward migration (historical dependency=${String(usesHistoricalDependency)})`, async () => {
     const path = currentMainDatabase(usesHistoricalDependency);
     const sqlite = openDatabase(path);
     const before = sqlite
@@ -555,14 +564,22 @@ for (const usesHistoricalDependency of [false, true])
           'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
         )
         .all();
-      expect(after).toHaveLength(107);
+      expect(after).toHaveLength(
+        103 + DELAYED_DEPENDENCY_MIGRATIONS.length + FORWARD_MIGRATIONS.length,
+      );
       expect(
         migrated
           .query("SELECT sql FROM sqlite_master WHERE type='table' AND name='dependency'")
           .get(),
       ).toEqual(dependencySchema);
-      expect(after.filter(({ name }) => !DELAYED_DEPENDENCY_MIGRATIONS.includes(name))).toEqual(
-        before,
+      expect(
+        after.filter(
+          ({ name }) =>
+            !DELAYED_DEPENDENCY_MIGRATIONS.includes(name) && !FORWARD_MIGRATIONS.includes(name),
+        ),
+      ).toEqual(before);
+      expect(after.filter(({ name }) => FORWARD_MIGRATIONS.includes(name))).toEqual(
+        readMigrationIdentities(FOLDER).filter(({ name }) => FORWARD_MIGRATIONS.includes(name)),
       );
       expect(after.filter(({ name }) => DELAYED_DEPENDENCY_MIGRATIONS.includes(name))).toEqual(
         readMigrationIdentities(FOLDER)
@@ -588,6 +605,9 @@ for (const fault of [
   'DROP INDEX actual_by_step',
   'DROP TABLE __drizzle_migrations',
   'ALTER TABLE __drizzle_migrations RENAME COLUMN hash TO unreadable_hash',
+  "UPDATE __drizzle_migrations SET name=X'41' WHERE name='20261101120000_add_host_job_projection'",
+  "UPDATE __drizzle_migrations SET name=NULL WHERE name='20261101120000_add_host_job_projection'",
+  "UPDATE __drizzle_migrations SET name=41 WHERE name='20261101120000_add_host_job_projection'",
 ])
   it(`refuses uncertified current-main storage before startup migration: ${fault}`, async () => {
     const path = currentMainDatabase();
@@ -666,5 +686,75 @@ it('refuses historical dependency identity paired with the canonical cascading s
 }, 30_000);
 
 it('refuses an unknown pending migration on the known main profile', async () => {
+  // The probe 20261023000000 sorts inside the main ledger range, so it is out of order.
   await refuse(currentMainDatabase(), true, migrations('CREATE TABLE startup_probe (id INTEGER);'));
+}, 30_000);
+
+/** Sorts after every real forward migration on disk; the test asserts that. */
+const TRAILING_MIGRATION = '20261231000000_probe_forward';
+
+/** Copies the live folder plus one pending forward migration named after every main entry. */
+function stageTrailingMigration(): string {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-trailing-'));
+  directories.push(directory);
+  cpSync(FOLDER, directory, { recursive: true });
+  const trailing = join(directory, TRAILING_MIGRATION);
+  mkdirSync(trailing);
+  writeFileSync(join(trailing, 'migration.sql'), 'CREATE TABLE probe_forward(id INTEGER);');
+  writeFileSync(join(trailing, 'down.sql'), 'DROP TABLE probe_forward;');
+  return directory;
+}
+
+// Proof: dropping the ledger-end bound in inspectDependencyBootstrap made this boot throw
+// "uncertified dependency authority migration set" (0 pass/1 fail); restored it passed (2026-11-08).
+it('boots the exact current-main store with a trailing pending forward migration', async () => {
+  const path = currentMainDatabase();
+  const staged = stageTrailingMigration();
+  const sqlite = openDatabase(path);
+  let before: { name: string; hash: string }[];
+  try {
+    before = sqlite
+      .query<{ name: string; hash: string }, []>(
+        'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
+      )
+      .all();
+  } finally {
+    sqlite.close();
+  }
+  const db = openConnection(path);
+  try {
+    expect(inspectDependencyBootstrap(db.db, staged)).toBe('historical');
+  } finally {
+    db.close();
+  }
+  running = await bootBe01({
+    ...options(path),
+    organizationDomainProofScheduling: 'disabled',
+    migrateOnStartup: true,
+    migrationsFolder: staged,
+  });
+  expect((await fetch(`http://127.0.0.1:${String(running.port)}/health`)).status).toBe(200);
+  const migrated = openDatabase(path);
+  try {
+    // Application order: the delayed four, then forward migrations, then the trailing probe.
+    const after = migrated
+      .query<{ name: string; hash: string }, []>(
+        'SELECT name,hash FROM __drizzle_migrations ORDER BY id',
+      )
+      .all();
+    const added = after.filter(({ name }) => !before.some((row) => row.name === name));
+    expect(FORWARD_MIGRATIONS.every((name) => name < TRAILING_MIGRATION)).toBe(true);
+    expect(added.map(({ name }) => name)).toEqual([
+      ...DELAYED_DEPENDENCY_MIGRATIONS,
+      ...FORWARD_MIGRATIONS,
+      TRAILING_MIGRATION,
+    ]);
+    expect(
+      migrated
+        .query("SELECT name FROM sqlite_master WHERE type='table' AND name='probe_forward'")
+        .get(),
+    ).toEqual({ name: 'probe_forward' });
+  } finally {
+    migrated.close();
+  }
 }, 30_000);
