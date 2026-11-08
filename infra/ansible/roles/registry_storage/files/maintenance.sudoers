@@ -1,0 +1,2 @@
+Defaults!/usr/local/libexec/puni-registry-maintenance-host !use_pty
+puni-registry-authority ALL=(root:root) NOPASSWD: /usr/local/libexec/puni-registry-maintenance-host ""

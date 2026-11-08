@@ -1,5 +1,18 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { type } from 'arktype';
+
+import { inspectOciArchive, type RegistryArtifact, verifyContent } from './registry-artifact';
+import {
+  admitExportScratch,
+  checkExportScratch,
+  connectRegistryAuthority,
+  readPublicationEnrollment,
+} from './registry-enrollment';
+import { publishArtifacts, type RegistryUploadOwnership } from './registry-publication';
+import { consumeRegistryStream, readRegistryBytes } from './registry-stream';
 
 /** One Distribution v2 registry reached with optional basic auth and a private CA. */
 export interface RegistryEndpoint {
@@ -159,6 +172,307 @@ export async function copyImage(
     );
   }
   return { digest, uploadedBlobs };
+}
+
+/** Managed HTTP rejects redirects and limits received error diagnostics to 64 KiB. */
+export async function requestRegistry(
+  endpoint: RegistryEndpoint,
+  path: string,
+  init: Omit<RequestInit, 'headers'> & { readonly headers?: Record<string, string> } = {},
+) {
+  // Proof: removing redirect refusal delivered the managed upload request to the foreign HTTP fixture.
+  const response = await request(endpoint, path, { ...init, redirect: 'error' });
+  if (!response.ok) {
+    const diagnostic = await readRegistryBytes(response.body, 65536, 'Registry HTTP diagnostic');
+    throw new Error(
+      `Managed registry request failed with HTTP ${String(response.status)}: ${new TextDecoder().decode(diagnostic)}`,
+    );
+  }
+  return response;
+}
+
+/** A blob-only repository has no manifest namespace. The caller must prove that physical/owned condition; only the pinned exact NAME_UNKNOWN response is accepted, never arbitrary 404/null/error. */
+export async function requireRegistryUnknownRepository(
+  endpoint: RegistryEndpoint,
+  repository: string,
+): Promise<void> {
+  const response = await request(endpoint, `/v2/${repository}/tags/list?n=100`, {
+    redirect: 'error',
+  });
+  const bytes = await readRegistryBytes(response.body, 65536, 'Registry absent manifest namespace');
+  const absence = type({
+    errors: type({
+      code: "'NAME_UNKNOWN'",
+      message: "'repository name not known to registry'",
+      detail: { name: 'string', '+': 'reject' },
+      '+': 'reject',
+    })
+      .array()
+      .exactlyLength(1),
+    '+': 'reject',
+  }).assert(JSON.parse(new TextDecoder().decode(bytes)));
+  // Proof: independent status/name removals admitted HTTP200 and foreign-repository responses (task8-removal-repository-{status,name}.log).
+  if (
+    response.status !== 404 ||
+    response.headers.has('link') ||
+    absence.errors[0]?.detail.name !== repository
+  )
+    throw new Error('Unproven absent registry manifest namespace');
+}
+
+/**
+ * Stage source closure inside enforced scratch before target writes. Manifest streams are
+ * cancelled above 4 MiB before decoding or traversing them; Content-Length is not trusted.
+ */
+export async function snapshotImage(
+  source: RegistryEndpoint,
+  directory: string,
+  repository: string,
+  reference: string,
+): Promise<RegistryArtifact> {
+  await mkdir(join(directory, 'blobs/sha256'), { recursive: true });
+  const visited = new Set<string>();
+  const visit = async (
+    reference: string,
+  ): Promise<{ digest: string; mediaType: string; size: number }> => {
+    const response = await requireOk(
+      await requestRegistry(source, `/v2/${repository}/manifests/${reference}`, {
+        headers: { accept: manifestTypes.join(', ') },
+      }),
+      'Reading source image manifest',
+    );
+    const bytes = await readRegistryBytes(response.body, 4 * 1024 * 1024, 'Source manifest');
+    const digest = sha256Digest(bytes);
+    if (reference.startsWith('sha256:') && reference !== digest)
+      throw new Error('Source manifest digest mismatch');
+    const mediaType = response.headers.get('content-type');
+    if (mediaType === null || !manifestTypes.includes(mediaType))
+      throw new Error('Unsupported source image type');
+    if (visited.has(digest)) return { digest, mediaType, size: bytes.length };
+    visited.add(digest);
+    await writeFile(join(directory, 'blobs/sha256', digest.slice(7)), bytes);
+    const manifest: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (indexTypes.has(mediaType)) {
+      for (const child of descriptorsOf(manifest, 'manifests')) await visit(child.digest);
+    } else {
+      const config: unknown =
+        typeof manifest === 'object' && manifest !== null
+          ? Reflect.get(manifest, 'config')
+          : undefined;
+      for (const blob of [
+        ...descriptorsOf({ layers: [config] }, 'layers'),
+        ...descriptorsOf(manifest, 'layers'),
+      ]) {
+        if (!/^sha256:[0-9a-f]{64}$/.test(blob.digest))
+          throw new Error('Invalid source blob digest');
+        const response = await requireOk(
+          await requestRegistry(source, `/v2/${repository}/blobs/${blob.digest}`),
+          'Reading source blob',
+        );
+        await Bun.write(join(directory, 'blobs/sha256', blob.digest.slice(7)), response);
+      }
+    }
+    return { digest, mediaType, size: bytes.length };
+  };
+  const root = await visit(reference);
+  await writeFile(
+    join(directory, 'index.json'),
+    JSON.stringify({ schemaVersion: 2, manifests: [root] }),
+  );
+  await writeFile(join(directory, 'oci-layout'), '{"imageLayoutVersion":"1.0.0"}');
+  const archive = join(directory, 'image.tar');
+  const tar = Bun.spawnSync([
+    '/usr/bin/tar',
+    '--format=ustar',
+    '-cf',
+    archive,
+    '-C',
+    directory,
+    'index.json',
+    'oci-layout',
+    'blobs',
+  ]);
+  if (tar.exitCode !== 0)
+    throw new Error(`Bounded import archive failed: ${tar.stderr.toString()}`);
+  return inspectOciArchive(archive, repository, reference);
+}
+
+/** Copy all required product images under one admission; a subset cannot become a complete bundle. */
+export async function copyImages(
+  source: RegistryEndpoint,
+  target: RegistryEndpoint,
+  images: readonly { repository: string; reference: string }[],
+  select: typeof readPublicationEnrollment = readPublicationEnrollment,
+) {
+  // Proof: removing managed admission selection copied blobs despite the selected missing enrollment.
+  const enrollment = await select(target.url);
+  if (enrollment === undefined) {
+    const copied = [];
+    for (const image of images)
+      copied.push(await copyImage(source, target, image.repository, image.reference));
+    return copied;
+  }
+  const repositories = images.map((image) => image.repository);
+  if (
+    new Set(repositories).size !== repositories.length ||
+    repositories.length !== enrollment.requiredRepositories.length ||
+    enrollment.requiredRepositories.some((repository) => !repositories.includes(repository))
+  )
+    throw new Error('Import omits required product repositories');
+  const scratch = await admitExportScratch(enrollment);
+  const directory = await mkdtemp(join(enrollment.builder.path, 'import-'));
+  try {
+    const artifacts: RegistryArtifact[] = [];
+    for (const [index, image] of images.entries())
+      artifacts.push(
+        await snapshotImage(
+          source,
+          join(directory, String(index)),
+          image.repository,
+          image.reference,
+        ),
+      );
+    await checkExportScratch(enrollment, scratch);
+    const uploads = new Map<string, number>();
+    const publication = await publishArtifacts(
+      enrollment,
+      artifacts,
+      connectRegistryAuthority(enrollment),
+      async (artifact, ownership) => {
+        uploads.set(artifact.repository, await uploadArtifact(target, artifact, ownership));
+      },
+    );
+    return artifacts.map((artifact) => {
+      const uploadedBlobs = uploads.get(artifact.repository);
+      if (uploadedBlobs === undefined) throw new Error('Completed import omitted upload receipt');
+      return { digest: artifact.digest, uploadedBlobs, publication };
+    });
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+}
+
+/**
+ * Transfer the exact inspected archive byte ranges. Dependency-first manifest writes preserve
+ * index closure. Every source range is rehashed before POST, then every target object is read
+ * and hashed before the caller may claim a durable bundle receipt. Target responses are
+ * cancelled as soon as they exceed the admitted content size.
+ */
+export async function uploadArtifact(
+  target: RegistryEndpoint,
+  artifact: RegistryArtifact,
+  ownership?: RegistryUploadOwnership,
+): Promise<number> {
+  let uploadedBlobs = 0;
+  for (const content of artifact.contents) {
+    const bytes = await verifyContent(content);
+    if (content.isManifest) {
+      const reference = content.digest === artifact.digest ? artifact.reference : content.digest;
+      await ownership?.({
+        repository: artifact.repository,
+        digest: content.digest,
+        uploadId: null,
+        phase: 'writing',
+      });
+      const stored = await requireOk(
+        await requestRegistry(target, `/v2/${artifact.repository}/manifests/${reference}`, {
+          method: 'PUT',
+          body: bytes,
+          headers: { 'content-type': content.mediaType },
+        }),
+        'Writing admitted manifest',
+      );
+      if (stored.headers.get('docker-content-digest') !== content.digest)
+        // Proof: removing this refusal accepted the rewritten manifest receipt fixture.
+        throw new Error('Target manifest differs from admitted digest');
+      if (ownership !== undefined && stored.status !== 201)
+        throw new Error('Manifest write did not confirm stored content');
+      await ownership?.({
+        repository: artifact.repository,
+        digest: content.digest,
+        uploadId: null,
+        phase: 'stored',
+      });
+    } else {
+      const upload = await requireOk(
+        await requestRegistry(target, `/v2/${artifact.repository}/blobs/uploads/`, {
+          method: 'POST',
+        }),
+        'Starting admitted blob upload',
+      );
+      const location = upload.headers.get('location');
+      if (location === null) throw new Error('Admitted blob upload returned no location');
+      const url = new URL(location, target.url);
+      if (url.origin !== new URL(target.url).origin)
+        // Proof: removing this refusal sent content to the foreign upload continuation fixture.
+        throw new Error('Registry upload redirected outside enrolled authority');
+      const uploadId = upload.headers.get('docker-upload-uuid');
+      if (ownership !== undefined) {
+        // Proof: failed durable UUID acknowledgement and UUID/Location mismatch both prevent the actual HTTP body in registry-upload-ownership.test.ts.
+        if (
+          upload.status !== 202 ||
+          uploadId === null ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(uploadId) ||
+          url.pathname !== `/v2/${artifact.repository}/blobs/uploads/${uploadId}`
+        )
+          throw new Error('Registry upload UUID does not match exact continuation');
+        await ownership({
+          repository: artifact.repository,
+          digest: content.digest,
+          uploadId,
+          phase: 'writing',
+        });
+      }
+      url.searchParams.set('digest', content.digest);
+      const completed = await requireOk(
+        await requestRegistry(target, url.toString(), {
+          method: 'PUT',
+          body: bytes,
+          headers: { 'content-type': 'application/octet-stream' },
+        }),
+        'Completing admitted blob upload',
+      );
+      if (ownership !== undefined) {
+        if (
+          completed.status !== 201 ||
+          completed.headers.get('docker-content-digest') !== content.digest ||
+          uploadId === null
+        )
+          throw new Error('Blob write did not confirm admitted stored content');
+        await ownership({
+          repository: artifact.repository,
+          digest: content.digest,
+          uploadId,
+          phase: 'stored',
+        });
+      }
+      uploadedBlobs += 1;
+    }
+  }
+  for (const content of artifact.contents) {
+    const response = await requireOk(
+      await requestRegistry(
+        target,
+        `/v2/${artifact.repository}/${content.isManifest ? 'manifests' : 'blobs'}/${content.digest}`,
+        { headers: { accept: manifestTypes.join(', ') } },
+      ),
+      'Verifying admitted content',
+    );
+    if (response.body === null) throw new Error('Target omitted admitted content');
+    const hash = createHash('sha256');
+    const size = await consumeRegistryStream(
+      response.body,
+      content.size,
+      'Target admitted content',
+      (bytes) => {
+        hash.update(bytes);
+      },
+    );
+    if (size !== content.size || `sha256:${hash.digest('hex')}` !== content.digest)
+      // Proof: removing this refusal completed publication after the target corrupted stored blob bytes.
+      throw new Error('Target content differs from admitted closure');
+  }
+  return uploadedBlobs;
 }
 
 function endpointFromEnv(prefix: string, url: string, ca: string | undefined): RegistryEndpoint {

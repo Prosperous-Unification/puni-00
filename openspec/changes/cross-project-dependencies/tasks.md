@@ -1573,3 +1573,11 @@ superseded by the independently reconstructed actualLF0a contract.
 - [x] Explicit dry-run and actual isolated adoption preserve the installed tuple; original opening-observation absence observed RED then GREEN.
 - [x] Cover actual refusal/publication phases and 32 watched omission/restoration families.
 - [x] Verify existing routes, configured static checks, OpenSpec and independent source review.
+
+## Registry S3 frontend epoch compatibility — 2026-11-08
+
+- [x] RS1. Pin clean G and exact package/lock/common16 plus unchanged old pairs/program/inspectors/corpus; record intent/spec/design before behavior and preserve all historical/unrelated obligations.
+- [x] RS2. Observe current materializer/canonical selector RED; append only literal fifth pair in three owners and independent current test expectations, retaining fourth compatibility and both-direction mixed/unknown/missing refusals.
+- [x] RS3. Extend both exact test-only reversal chains through validated G and full fourth intermediate; cover malformed/missing/duplicate hunks and observe scoped intended dependency faults, exact restoration and accurate adjacent Proof classifications.
+- [x] RS4. Run finite source/materializer/selector controls and entry-necessity omissions, changed statics, then form normal clean candidate before actual pinned Vite positive/opening/closing/mixed controls; preserve all original captures/response hashes/process settlement.
+- [x] RS5. Freeze exact five-source-plus-artifact report/manifest and submit one scoped appendix; preserve G failure and actual head/tree/clean evidence. Parent owns push and final published-head hosted CI; native/provider/installed/adoption/physical and deployment gates remain open.

@@ -1,3 +1,4 @@
+import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
 import { digestRef, imageRef, parseDigest, type ReleaseRecord, renderRelease } from './publish';
@@ -64,4 +65,89 @@ describe('renderRelease', () => {
     expect(parsed).toEqual(rec);
     expect(parsed.be?.image).toBe(`r.example.com/wbs-be-01@${digest}`);
   });
+});
+
+describe('managed publication', () => {
+  it('refuses a partial product and unenforced scratch before the Dagger exporter runs', async () => {
+    const { publishManagedRelease } = await import('./publish');
+    const { readFile, rm } = await import('node:fs/promises');
+    const directory = await scratchAsync('dagger-publication-');
+    const enrollment = {
+      schemaVersion: 1 as const,
+      registryUrl: 'https://registry.example',
+      registryId: 'proof',
+      authorityMachineId: '0'.repeat(32),
+      registryPath: '/registry',
+      journalPath: '/journal',
+      sshHost: 'proof-host',
+      owner: 'proof',
+      product: 'wbs',
+      requiredRepositories: ['wbs-be-01', 'wbs-gw-01'],
+      builder: {
+        uid: process.getuid?.() ?? -1,
+        machineId: (await readFile('/etc/machine-id', 'utf8')).trim(),
+        path: directory,
+        receiptPath: directory + '/absent.receipt',
+        maximumBytes: 1024,
+        maximumInodes: 1,
+        excludedFilesystems: [],
+      },
+    };
+    let exported = 0;
+    const exportTier = () => {
+      exported += 1;
+      return Promise.reject(new Error('export reached'));
+    };
+    try {
+      for (const tiers of [['be'], ['be', 'gw']] as const) {
+        let refused = false;
+        try {
+          await publishManagedRelease(
+            enrollment,
+            { url: enrollment.registryUrl },
+            tiers,
+            'proof',
+            exportTier,
+          );
+        } catch (cause) {
+          if (!(cause instanceof Error)) throw cause;
+          refused = true;
+        }
+        expect(refused).toBe(true);
+        expect(exported).toBe(0);
+      }
+    } finally {
+      await rm(directory, { recursive: true });
+    }
+  });
+});
+
+it('managed Dagger caller forwards schema4 ownership into the real HTTP uploader', async () => {
+  const child = Bun.spawn(
+    [process.execPath, new URL('./publish-ownership.fixture.ts', import.meta.url).pathname],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const [code, output, diagnostic] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  expect({ code, diagnostic }).toEqual({ code: 0, diagnostic: '' });
+  expect(output).toContain('2 bodies');
+});
+
+it('managed Dagger caller refuses foreign endpoints before every publication effect', async () => {
+  const child = Bun.spawn(
+    [process.execPath, new URL('./publish-endpoint.fixture.ts', import.meta.url).pathname],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const [code, output, diagnostic] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  expect({ code, diagnostic }).toEqual({ code: 0, diagnostic: '' });
+  expect(output).toContain(
+    '3 endpoint refusals: zero effects; matching endpoint reaches admission',
+  );
 });

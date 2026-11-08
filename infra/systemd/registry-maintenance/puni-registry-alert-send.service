@@ -1,0 +1,24 @@
+[Unit]
+Description=Bounded registry alert delivery (staged; destination unverified)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=puni-registry-authority
+Group=puni-registry-authority
+UMask=0077
+Environment=PATH=/usr/bin:/bin
+ExecStart=/usr/local/libexec/puni-registry-authority/bun /usr/local/libexec/puni-registry-maintenance/registry-alert-send-cli.js
+LoadCredential=webhook:/etc/puni/registry-monitoring-source.webhook
+TimeoutStartSec=20s
+TimeoutStopSec=5s
+KillMode=control-group
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/puni-registry-monitoring/source
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes

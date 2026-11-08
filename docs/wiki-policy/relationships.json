@@ -140,7 +140,9 @@
           "{workspaceRoot}/apps/wbs/fe-01/**/*",
           "{workspaceRoot}/apps/wbs/mcp-01/**/*",
           "{workspaceRoot}/libs/**/*",
-          "{workspaceRoot}/nx.json"
+          "{workspaceRoot}/nx.json",
+          "{workspaceRoot}/bin/publish-release.sh",
+          "{workspaceRoot}/bin/publish-release-payload.sh"
         ],
         "options": {
           "command": "bun test --preload ../test/scratch/preload.ts --timeout=10000",

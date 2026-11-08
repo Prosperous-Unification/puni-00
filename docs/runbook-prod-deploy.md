@@ -1,5 +1,15 @@
 # Runbook — deploying prod
 
+**Source staging — 2026-11-08:** Registry lifecycle libraries and manual provisioning
+sources are retained for future coordinated activation. Supported publish, copy,
+Compose and Kubernetes commands keep current-main routing and persisted writer
+formats; they do not select managed adapters. Explicit managed helpers
+require trusted enrollment. Active Kubernetes controller schema4 is separate from
+dormant registry-history schema4. Historical installed receipts below do not establish
+current readiness. Managed procedures remain attended future operations; this
+source merge performs no installation, adoption or production action. Full native,
+provider, storage, backup, isolation, recovery and delivery acceptance stays open.
+
 This runbook covers the Compose-era image-based blue/green deploy on h2puni, unchanged by the
 source-run dev work. The Kubernetes release transaction is [WBS deployment on k3s](infra/deployment.md).
 Orientation lives in `LLM_README.md`.
@@ -1450,3 +1460,31 @@ source operation has no recovery, marker cleanup or restart path. Disposable
 actual-Caddy acceptance is a separate reviewed host action under the heavy lock;
 its fixture result does not prove installed production writer adoption or full
 continuous participant exclusion.
+
+## Registry lifecycle installation prerequisite
+
+Before rolling out the managed publication/deploy tools, install the host-owned
+`/etc/puni/registry-deployments.json` catalog and its hash-pinned enrollment files.
+The [catalog contract](../openspec/changes/bound-registry-storage/design.md#installed-selection-cannot-be-erased-by-environment-variables)
+defines ownership, normalization and selection. Missing installation refuses even
+an otherwise legacy invocation. A reviewed explicit empty catalog preserves an
+unmanaged host; never install an empty catalog on a host that has adopted registry
+products. Task11 owns live installation and complete source/artifact access. This
+change does not install it or migrate a product.
+
+Managed cutover export, restore-job and release/handoff-manifests also require
+`--registry-target k8s:<cluster-uid>/wbs/wbs-solver`. They use the complete descriptor
+and publication receipt to acquire the same durable operation as first-start,
+before export-container execution or emitting usable consumer manifests. The old
+export image, if it belongs to the managed registry, must already be present in the
+enrolled source inventory. Interrupted cutover retains ownership. First-start
+promotion follows the existing readiness and Flux handoff checks; registry capacity
+for a second upload is not required. Preserve the receipt and local recovery
+journals; deleting or downgrading their managed binding does not authorize recovery.
+
+Managed registry installation, complete source enrollment, explicit genesis,
+first-start history handoff and retained recovery ownership are specified in
+[the registry consumer runbook](infra/registry-consumers.md). Managed Compose
+completion includes the existing cross-stack smoke under the whole-environment
+lock. Its attended backend recovery diagnostic requires an already protected
+unresolved whole-environment operation and never grants deployment success.

@@ -2483,3 +2483,46 @@ it('Dash API recovery fixture reaches only accepted binding contracts', async ()
   expect(actual.fatalErrorCount).toBe(0);
   expect(actual.messages).toEqual([]);
 }, 60_000);
+
+it('durable-contract evidence retains typed lint without admitting sibling paths', async () => {
+  const path =
+    'openspec/changes/cross-project-dependencies/evidence/task-7-durable-contracts/canonical-properties.ts';
+  const typedPath = 'tools/tool-devsync/src/adr-index.test.ts';
+  const typed = (
+    await lint.lintText(await readFile(join(workspace, typedPath), 'utf8'), { filePath: typedPath })
+  ).at(0);
+  if (typed === undefined) throw new Error('Typed-prefix lint report missing');
+  expect(typed.fatalErrorCount).toBe(0);
+  expect(typed.messages).toEqual([]);
+  const source = await readFile(join(workspace, path), 'utf8');
+  const canonical = (await lint.lintText(source, { filePath: path })).at(0);
+  if (canonical === undefined) throw new Error('Canonical evidence lint report missing');
+  expect(canonical.fatalErrorCount).toBe(0);
+  expect(canonical.messages).toEqual([]);
+  const floating = (await lint.lintText(source + '\nPromise.resolve();\n', { filePath: path })).at(
+    0,
+  );
+  if (floating === undefined) throw new Error('Floating promise lint report missing');
+  expect(floating.fatalErrorCount).toBe(0);
+  expect(floating.messages.map((message) => message.ruleId)).toContain(
+    '@typescript-eslint/no-floating-promises',
+  );
+  const readProjectService = (configuration: unknown): unknown => {
+    if (!isRecord(configuration)) throw new Error('Evidence lint configuration missing');
+    const languageOptions = configuration['languageOptions'];
+    if (!isRecord(languageOptions)) throw new Error('Evidence lint language options missing');
+    const parserOptions = languageOptions['parserOptions'];
+    if (!isRecord(parserOptions)) throw new Error('Evidence lint parser options missing');
+    return parserOptions['projectService'];
+  };
+  const projectService = { allowDefaultProject: [path], defaultProject: 'tsconfig.base.json' };
+  expect(readProjectService(await lint.calculateConfigForFile(path))).toEqual(projectService);
+  const peer = path.replace('canonical-properties.ts', 'unlisted-properties.ts');
+  expect(readProjectService(await lint.calculateConfigForFile(peer))).toEqual(projectService);
+  const unlisted = (await lint.lintText(source, { filePath: peer })).at(0);
+  if (unlisted === undefined) throw new Error('Unlisted evidence lint report missing');
+  expect(unlisted.fatalErrorCount).toBe(1);
+  expect(unlisted.messages.some((message) => message.message.includes('project service'))).toBe(
+    true,
+  );
+}, 30_000);

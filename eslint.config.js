@@ -126,7 +126,14 @@ export default [
     files: ['**/*.{ts,tsx,mts,cts}'],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        // Proof: removing this exact admission restores the project-service diagnostic after a real typed prefix in the durable-contract evidence test.
+        // Proof: disabling only no-floating-promises admits the injected promise with zero fatal errors and fails that mixed-order test.
+        projectService: {
+          allowDefaultProject: [
+            'openspec/changes/cross-project-dependencies/evidence/task-7-durable-contracts/canonical-properties.ts',
+          ],
+          defaultProject: 'tsconfig.base.json',
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },

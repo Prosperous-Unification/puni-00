@@ -1087,6 +1087,7 @@ test('CLI binds a validated packet through the actual command path', async () =>
 test('receipt refuses an exposed parent directory', async () => {
   const exposed = join(directory, 'exposed');
   await mkdir(exposed, { mode: 0o755 });
+  await chmod(exposed, 0o755);
   expect(
     await rejection(bindObservabilitySource(packet, source, join(exposed, 'receipt.json'))),
   ).toMatch('receipt-unwritable');

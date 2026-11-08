@@ -89,16 +89,16 @@ const CAPTURED_INPUTS = {
     sha256: '4a001feffe9d32b5fb63860d4faa8725f8a4d7a13c2c37b92587234ab3d66c23',
   },
   'package.json': {
-    bytes: 4992,
-    sha256: '0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131',
+    bytes: 5030,
+    sha256: '275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf',
   },
   'bun.lock': {
-    bytes: 534113,
-    sha256: '48b5cea4e2ac740d300f4e41cc705dfb5213210c4db378f8cdf65640fb695adb',
+    bytes: 543082,
+    sha256: '983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6',
   },
 };
 
-test('fourth current frontend pair materializes and selects without Vite', async () => {
+test('registry S3 current frontend pair materializes and selects without Vite', async () => {
   const prepared = await artifact();
   const registration = roots.indexOf(prepared.root);
   if (registration < 0) throw new Error('canonical fixture root unregistered');
@@ -114,7 +114,7 @@ test('fourth current frontend pair materializes and selects without Vite', async
       'user.email=fixture@example.invalid',
       'commit',
       '-qm',
-      'fourth frontend pair',
+      'registry S3 frontend pair',
     );
     await modes(prepared.root);
     const sourceSha = await git(prepared.root, 'rev-parse', 'HEAD');
@@ -160,7 +160,7 @@ test('actual pinned Vite producer reaches the complete frontend document and ent
     const fields = readFields(packet);
     const selectedInputs = readFields(fields['selectedInputs']);
     const sourceFiles = readFields(fields['files']);
-    expect(fields['epoch']).toBe('fresh-main-20261105-ctt-0.13.0');
+    expect(fields['epoch']).toBe('registry-s3-20261108');
     expect(Object.keys(selectedInputs).sort()).toEqual(Object.keys(CAPTURED_INPUTS).sort());
     const captured = new Map<string, Buffer>();
     for (const [path, expected] of Object.entries(CAPTURED_INPUTS)) {
@@ -1096,13 +1096,22 @@ test('generated producer bounds encoded primary fields before cleanup', async ()
   });
 });
 
-test.each(['package.json', 'bun.lock'] as const)(
-  'producer fixed-root boundary refuses mixed historical %s before consumer or runtime',
-  async (path) => {
+test.each([
+  ['before-ctt', 'package.json'],
+  ['before-ctt', 'bun.lock'],
+  ['fourth', 'package.json'],
+  ['fourth', 'bun.lock'],
+] as const)(
+  'producer fixed-root boundary refuses mixed %s %s before consumer or runtime',
+  async (epoch, path) => {
     const root = await mkdtemp(join(tmpdir(), 'frontend-producer-boundary-'));
     try {
       await prepareSourceFrontendProfile(root);
-      const historical = reconstructHistoricalInput(path, await readFile(join(root, path)));
+      const bytes = await readFile(join(root, path));
+      const historical =
+        epoch === 'fourth'
+          ? reconstructFourthInput(path, bytes)
+          : reconstructHistoricalInput(path, bytes);
       await writeFile(join(root, path), historical);
       const copied = join(
         root,
@@ -1571,7 +1580,7 @@ test('producer rejects a different supported live epoch after the actual child c
       JSON.parse(await readFile(join(retained, 'source-manifest.json'), 'utf8')),
     );
     expect(packet['head']).toBe(prepared.sourceSha);
-    expect(packet['epoch']).toBe('fresh-main-20261105-ctt-0.13.0');
+    expect(packet['epoch']).toBe('registry-s3-20261108');
     expect(packet['selectedInputs']).toEqual(CAPTURED_INPUTS);
     for (const [path, expected] of Object.entries(CAPTURED_INPUTS))
       expect(describeBytes(await readFile(join(retained, 'snapshot', path)))).toEqual(expected);
@@ -1634,6 +1643,103 @@ test('producer rejects a different supported live epoch after the actual child c
     }
   }
 }, 130000);
+const FOURTH_PAIR = {
+  'package.json': {
+    bytes: 4992,
+    sha256: '0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131',
+  },
+  'bun.lock': {
+    bytes: 534113,
+    sha256: '48b5cea4e2ac740d300f4e41cc705dfb5213210c4db378f8cdf65640fb695adb',
+  },
+};
+
+const REGISTRY_REMOVALS = {
+  'package.json': ['    "@aws-sdk/client-s3": "3.1161.0",\n'],
+  'bun.lock': [
+    '        "@aws-sdk/client-s3": "3.1161.0",\n',
+    '    "@aws-sdk/checksums": ["@aws-sdk/checksums@3.1002.1", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-CXNESwkQC9jdrUG6cKXBfudVt1frGcYQykcCYbNclVrsewuGMbo3PlFjRteMe4OftNAqhyc3xC2jTz7SUqLasQ=="],\n\n    "@aws-sdk/client-s3": ["@aws-sdk/client-s3@3.1161.0", "", { "dependencies": { "@aws-sdk/checksums": "^3.1002.1", "@aws-sdk/core": "^3.979.1", "@aws-sdk/credential-provider-node": "^3.972.92", "@aws-sdk/middleware-sdk-s3": "^3.972.85", "@aws-sdk/signature-v4-multi-region": "^3.996.51", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/fetch-http-handler": "^5.8.0", "@smithy/node-http-handler": "^4.14.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-iRZGMsJnYRrI98O+U6o5fHeLPQTP+Dc/w0mWLcBLQcEQ10DA06+XQj0WmdRiCM7vIso7QEtN1fsj9Vzo5/R3LQ=="],\n\n    "@aws-sdk/core": ["@aws-sdk/core@3.979.1", "", { "dependencies": { "@aws-sdk/types": "^3.975.0", "@aws-sdk/xml-builder": "^3.972.42", "@aws/lambda-invoke-store": "^0.3.0", "@smithy/core": "^3.38.0", "@smithy/signature-v4": "^5.7.5", "@smithy/types": "^4.19.0", "bowser": "^2.11.0", "tslib": "^2.6.2" } }, "sha512-ayOlV1VhLNMiq8PW9ZkVobG4gkldnUoHjG69yy2b8j+VYFlhz/uAL7ZdYQAoQ+eShtGUdNDnnG5rxDg6yUJrOg=="],\n\n    "@aws-sdk/credential-provider-env": ["@aws-sdk/credential-provider-env@3.972.80", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-uO5TiSvb6j1w9RTe5z28OaOmsrOxVQUPaC5+wZl50RfOXcrYD/KgnS8I9lfyGXc7sGbkCopK6VnhNIAoLqfewQ=="],\n\n    "@aws-sdk/credential-provider-http": ["@aws-sdk/credential-provider-http@3.972.82", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/fetch-http-handler": "^5.8.0", "@smithy/node-http-handler": "^4.14.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-vQzlDHlC24Yz42p+rT4NBoP/5VdetkBoujbOLq9h6QYWC8THuZSPYnXIR9OP3XcOrdMgPBBipOrdssfxnIiWUg=="],\n\n    "@aws-sdk/credential-provider-ini": ["@aws-sdk/credential-provider-ini@3.973.25", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/credential-provider-env": "^3.972.80", "@aws-sdk/credential-provider-http": "^3.972.82", "@aws-sdk/credential-provider-login": "^3.972.87", "@aws-sdk/credential-provider-process": "^3.972.80", "@aws-sdk/credential-provider-sso": "^3.973.24", "@aws-sdk/credential-provider-web-identity": "^3.972.86", "@aws-sdk/nested-clients": "^3.997.54", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/credential-provider-imds": "^4.5.2", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-b5xl71uCRdWsu7P1VeGpiGuCf6zfYETsSNOv8AmYVTrsgbvTJRXdmmOPVfxkvGGVNsiKkGctClQW3jAn0SZLug=="],\n\n    "@aws-sdk/credential-provider-login": ["@aws-sdk/credential-provider-login@3.972.87", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/nested-clients": "^3.997.54", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-C4ZFmcwM+Zj14Z8huVUk54Gv4uzT1ZdzG9cY3Gdh8FePakq7Bss1OFsgZjAhWFOkFOGpBvFBeu0OWjWf8HNKRQ=="],\n\n    "@aws-sdk/credential-provider-node": ["@aws-sdk/credential-provider-node@3.972.92", "", { "dependencies": { "@aws-sdk/credential-provider-env": "^3.972.80", "@aws-sdk/credential-provider-http": "^3.972.82", "@aws-sdk/credential-provider-ini": "^3.973.25", "@aws-sdk/credential-provider-process": "^3.972.80", "@aws-sdk/credential-provider-sso": "^3.973.24", "@aws-sdk/credential-provider-web-identity": "^3.972.86", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/credential-provider-imds": "^4.5.2", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-jC3zmOo7Qxlk+oBivvSsS1Ph7sFGm0QfuhqDGbqgRXi4cxUYMG+dWtBwS2XYYXgc8TIVXJiwgQ65sbNpbYupTA=="],\n\n    "@aws-sdk/credential-provider-process": ["@aws-sdk/credential-provider-process@3.972.80", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-xqfixO5aclje7tbQJDias+iNND5wp/3QZixCdZcVQpgWPTZ0V5DfTW9A804A5Z7ezu7sH3WRO+vzUjtiJBA8yg=="],\n\n    "@aws-sdk/credential-provider-sso": ["@aws-sdk/credential-provider-sso@3.973.24", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/nested-clients": "^3.997.54", "@aws-sdk/token-providers": "3.1161.0", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-nlg3BKG03Cgzvv/dMnhxvDJPhAhQSpaN0RUdwgU7ziwkasoev7iI8el8Xy4Rd5sqzgaDUbV269fOXck5SargqA=="],\n\n    "@aws-sdk/credential-provider-web-identity": ["@aws-sdk/credential-provider-web-identity@3.972.86", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/nested-clients": "^3.997.54", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-zKTyLJBEyfQBVlYqT6Jt+mYV4r8kGbWM7dn6v4Y4MRARizhYafjDXP/iMu76UMRhToSPNmIKX1XAb24gtpBFIA=="],\n\n    "@aws-sdk/middleware-sdk-s3": ["@aws-sdk/middleware-sdk-s3@3.972.85", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/signature-v4-multi-region": "^3.996.51", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-Kyl2G6zhIS9qFoeLdlxvXFrWyc6g9D9ZCIRJnGkkfX6JZhxCZB5ebXBc7GKEeetrnhXcail6ALZT0lKbojcaNA=="],\n\n    "@aws-sdk/nested-clients": ["@aws-sdk/nested-clients@3.997.54", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/signature-v4-multi-region": "^3.996.51", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/fetch-http-handler": "^5.8.0", "@smithy/node-http-handler": "^4.14.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-/OczlavsS7U5sOodRO10Ug4R/AKFVZiXTstKipWe68EfjPkmdDFNXNl9FCJyXWkg1DG6RBm3qAuVB8FNW9O8KQ=="],\n\n    "@aws-sdk/signature-v4-multi-region": ["@aws-sdk/signature-v4-multi-region@3.996.51", "", { "dependencies": { "@aws-sdk/types": "^3.975.0", "@smithy/signature-v4": "^5.7.5", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-+aHvUugVBuMPXxgkPfWnTMyGdE/yWS8GHi5+qQ37HowS0YqzrbuaDLznj+Dtmtu5jgCdqz36gXmujOToUhNNWw=="],\n\n    "@aws-sdk/token-providers": ["@aws-sdk/token-providers@3.1161.0", "", { "dependencies": { "@aws-sdk/core": "^3.979.1", "@aws-sdk/nested-clients": "^3.997.54", "@aws-sdk/types": "^3.975.0", "@smithy/core": "^3.38.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-ypbXSofNcSHwf/KA40bFCXJb0MLaAKrfT7sot4dFaA+2lsuXNah4zLRJIAU7Qmvs9PFJ6rnY0bZFEC+mE7attA=="],\n\n    "@aws-sdk/types": ["@aws-sdk/types@3.975.0", "", { "dependencies": { "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-WQlhs6juByzWOzj5fwxOx0mPJaEqMcG/sDpl3Id61B3XhKE63xY+0QWcnG+sWR/sCfprmreyUo1lM7IKZmHMzw=="],\n\n    "@aws-sdk/xml-builder": ["@aws-sdk/xml-builder@3.972.42", "", { "dependencies": { "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-smX8/gNP8Kjq+CWTBMZQLQ912vOQjiWExzwzvMO+eujPB5RY8IbtF0AGdUUXHKN7KoDWK9dIcuW0WG269kiP6w=="],\n\n    "@aws/lambda-invoke-store": ["@aws/lambda-invoke-store@0.3.0", "", {}, "sha512-sl4Bm6yiMNYrZKkqqDFWN0UfnWhlS8ivKxrYl+6t0gCLrqr8y3B2IqZZbFRkfaVVp7C/baApyh71P+LeE1A2sQ=="],\n\n',
+    '    "@smithy/core": ["@smithy/core@3.38.1", "", { "dependencies": { "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-U/mB2XiwTLaf+NSgLSWwJfptsMT/H8aBi0aTAA/E5e2/TagFeGCqAyhKGG0w0A9IWTkm4qYEmLoD/HB6aYfnRA=="],\n\n    "@smithy/credential-provider-imds": ["@smithy/credential-provider-imds@4.5.2", "", { "dependencies": { "@smithy/core": "^3.33.2", "@smithy/types": "^4.17.2", "tslib": "^2.6.2" } }, "sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg=="],\n\n    "@smithy/fetch-http-handler": ["@smithy/fetch-http-handler@5.8.0", "", { "dependencies": { "@smithy/core": "^3.33.3", "@smithy/types": "^4.18.0", "tslib": "^2.6.2" } }, "sha512-ycSJu3tFAQ4v04CBB0agqFMVsSQ1iG3yw+SpgxRqKfaURpQD4CZ8Wn0zPMmSnOuTpTh65Vz+EA0rMrw089wvkA=="],\n\n    "@smithy/node-http-handler": ["@smithy/node-http-handler@4.14.1", "", { "dependencies": { "@smithy/core": "^3.38.1", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-/T6E1jzCL0fErS9uq8JqES/5yYQQ4ppVmmYHwXw2nlov8KFzLb+3QqHR5iAun1BsuAB50IPxZliV8YMgghLwhA=="],\n\n    "@smithy/signature-v4": ["@smithy/signature-v4@5.7.5", "", { "dependencies": { "@smithy/core": "^3.38.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-WPjdr5oWOk1LArpI4pavu+fSo+/evi0Re1olxGvqwuZopd4gYR1UGCi+Soyn/IjmafqbWs+ZC+3AKxJS3ZpwUg=="],\n\n    "@smithy/types": ["@smithy/types@4.19.0", "", { "dependencies": { "tslib": "^2.6.2" } }, "sha512-r7jh49VJxGerfAcTQA6gXcKc+98zOp/tqRwzYjgOE+iSQsP6cEU1hq2QzbuipmP68QtYdY9wKEhiCQZIzHgZ4Q=="],\n\n',
+    '    "bowser": ["bowser@2.15.0", "", {}, "sha512-xic6KSZglg/I4ymp45fdM4GWfYpBK79Fxd/TOvJktlaPgQqqDxvmGwOPZl2V0dyeS3Lj5c180bLhXF43iyAjZQ=="],\n\n',
+  ],
+} as const;
+
+/** Reverses only literal S3 hunks from the exact fifth input into the exact fourth pair; alternate hunk lists are solely malformed test dependencies. */
+function reconstructFourthInput(
+  path: 'package.json' | 'bun.lock',
+  bytes: Uint8Array,
+  removals: readonly string[] = REGISTRY_REMOVALS[path],
+): Buffer {
+  const fifth = CAPTURED_INPUTS;
+  const fourth = FOURTH_PAIR;
+  // Proof: omitting this guard admits repairable unreviewed input at this helper; its named original-input negative failed.
+  if (
+    bytes.byteLength !== fifth[path].bytes ||
+    createHash('sha256').update(bytes).digest('hex') !== fifth[path].sha256
+  )
+    throw new Error('registry S3 original input differs');
+  let contents = Buffer.from(bytes).toString('utf8');
+  for (const hunk of removals) {
+    // Proof: omitting uniqueness admits an absent declared hunk at this helper; its named absent-hunk negative failed.
+    if (contents.split(hunk).length - 1 !== 1)
+      throw new Error('registry S3 reversal hunk is not unique');
+    contents = contents.replace(hunk, '');
+  }
+  const reconstructed = Buffer.from(contents);
+  // Proof: omitting this guard returns an unreversed fifth input at this helper; its named missing-intermediate negative failed.
+  if (
+    reconstructed.byteLength !== fourth[path].bytes ||
+    createHash('sha256').update(reconstructed).digest('hex') !== fourth[path].sha256
+  )
+    throw new Error('registry S3 fourth intermediate differs');
+  return reconstructed;
+}
+
+for (const path of ['package.json', 'bun.lock'] as const) {
+  test(`registry S3 reconstruction reaches exact fourth ${path}`, async () => {
+    const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+    const reconstructed = reconstructFourthInput(path, bytes);
+    const expected = FOURTH_PAIR;
+    expect({
+      bytes: reconstructed.byteLength,
+      sha256: createHash('sha256').update(reconstructed).digest('hex'),
+    }).toEqual(expected[path]);
+  });
+  test(`registry S3 reconstruction refuses repairable unreviewed full ${path}`, async () => {
+    const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+    const extra = 'UNREVIEWED_REGISTRY_INPUT\n';
+    expect(() =>
+      reconstructFourthInput(path, Buffer.concat([bytes, Buffer.from(extra)]), [
+        ...REGISTRY_REMOVALS[path],
+        extra,
+      ]),
+    ).toThrow('registry S3 original input differs');
+  });
+  for (const fault of ['absent', 'duplicate', 'empty'] as const)
+    test(`registry S3 reconstruction refuses ${fault} hunk in ${path}`, async () => {
+      const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+      const first = REGISTRY_REMOVALS[path].at(0);
+      if (first === undefined) throw new Error('literal registry hunk absent');
+      const extra =
+        fault === 'absent' ? 'UNREVIEWED_ABSENT_HUNK\n' : fault === 'duplicate' ? first : '';
+      expect(() =>
+        reconstructFourthInput(path, bytes, [...REGISTRY_REMOVALS[path], extra]),
+      ).toThrow('registry S3 reversal hunk is not unique');
+    });
+  for (const fault of ['missing', 'changed'] as const)
+    test(`registry S3 reconstruction refuses ${fault} fourth intermediate in ${path}`, async () => {
+      const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+      const hunks = REGISTRY_REMOVALS[path];
+      const changed =
+        fault === 'missing'
+          ? hunks.slice(1)
+          : hunks.map((hunk, index) => (index === 0 ? hunk.slice(0, -1) : hunk));
+      expect(() => reconstructFourthInput(path, bytes, changed)).toThrow(
+        'registry S3 fourth intermediate differs',
+      );
+    });
+}
+
 const CURRENT_REVERSALS = {
   'package.json': [
     [
@@ -1711,7 +1817,8 @@ const HISTORICAL_REMOVALS = {
 };
 
 function reconstructHistoricalInput(path: 'package.json' | 'bun.lock', bytes: Uint8Array): Buffer {
-  expect(describeBytes(bytes)).toEqual(CAPTURED_INPUTS[path]);
+  bytes = reconstructFourthInput(path, bytes);
+  expect(describeBytes(bytes)).toEqual(FOURTH_PAIR[path]);
   // Reverse only the exact CTT pin and resolved lock identity before older historical hunks.
   let contents = Buffer.from(bytes).toString('utf8');
   for (const [present, prior] of CURRENT_REVERSALS[path]) {

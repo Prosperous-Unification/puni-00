@@ -214,7 +214,8 @@ test('Task25c3f explicit zero requests remain valid with positive limits', async
       document.setIn([...resources, 'requests', dimension], '0');
   });
   await refreshBudget(directory);
-  expect(await validatePlatform(directory)).toMatchObject({ workloadImages: 13 });
+  // Source census also includes the separately staged registry storage patch.
+  expect(await validatePlatform(directory)).toMatchObject({ workloadImages: 14 });
 });
 test.each(['kube-state-metrics', 'prometheus-node-exporter'])(
   'Task25c3f current Helm requires %s bounds',

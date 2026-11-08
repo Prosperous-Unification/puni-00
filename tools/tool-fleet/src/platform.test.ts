@@ -117,7 +117,8 @@ describe('validatePlatform', () => {
         'otel-agent',
         'velero',
       ],
-      workloadImages: 13,
+      // Census also inventories the unreferenced registry storage patch.
+      workloadImages: 14,
       secrets: 0,
     });
   });

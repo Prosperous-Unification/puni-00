@@ -1,0 +1,243 @@
+import { chmodSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { scratchSync } from '@tools/test-scratch';
+import { afterEach, describe, expect, it } from 'bun:test';
+
+import { parseJournal } from './journal';
+import { migrationIdentityOf, sealMigrationCapture } from './migration-capture';
+import {
+  parseRegistryJournal,
+  registryFileJournal,
+  type RegistryJournalRecord,
+} from './registry-journal';
+import { releaseIdOf, type ReleaseRequest } from './release';
+import { sealReplayReceipt } from './replay-receipt';
+
+const roots: string[] = [];
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+function directory(): string {
+  const root = scratchSync('wbs-release-journal-');
+  roots.push(root);
+  return root;
+}
+
+const digest = `sha256:${'1'.repeat(64)}`;
+const identity = {
+  sourceSha: 'a'.repeat(40),
+  images: {
+    backend: `r/be@${digest}`,
+    gateway: `r/gw@${digest}`,
+    frontend: `r/fe@${digest}`,
+    mcp: `r/mcp@${digest}`,
+  },
+};
+const request: ReleaseRequest = {
+  environment: 'local',
+  cluster: { context: 'lab', uid: 'u' },
+  namespaces: { app: 'wbs', backend: 'wbs-solver' },
+  release: identity,
+  expectedCurrent: identity,
+  admission: { package: 'p', activation: 'a' },
+  flux: null,
+  recovers: null,
+};
+
+const seed = {
+  releaseId: releaseIdOf(request.release),
+  transactionId: 'historical-transaction',
+  phase: 'requested' as const,
+  rollbackFrom: null,
+  capture: null,
+  replayForward: null,
+  replayRollback: null,
+  previous: request.expectedCurrent,
+  snapshot: null,
+  fluxSuspendedByUs: false,
+  writesReopened: false,
+  failure: null,
+};
+const fixedState = {
+  ...seed,
+  phase: 'migrated' as const,
+  replayForward: sealReplayReceipt(
+    request,
+    seed.transactionId,
+    'forward',
+    [],
+    { image: identity.images.backend, capabilities: [] },
+    { image: identity.images.backend, capabilities: [] },
+  ),
+};
+
+function record(): RegistryJournalRecord {
+  return {
+    schemaVersion: 3,
+    request,
+    state: fixedState,
+    history: [{ phase: 'migrated', at: '2026-09-18T00:00:00.000Z' }],
+  };
+}
+
+describe('fileJournal', () => {
+  it('reads back what it wrote and leaves no temporary file', () => {
+    const root = directory();
+    const journal = registryFileJournal(join(root, 'release.json'));
+    journal.write(record());
+    expect(journal.read()).toEqual(record());
+    expect(readdirSync(root)).toEqual(['release.json']);
+  });
+
+  it('answers null only when no journal exists', () => {
+    expect(registryFileJournal(join(directory(), 'release.json')).read()).toBeNull();
+  });
+
+  it('rejects an unknown phase', () => {
+    const path = join(directory(), 'release.json');
+    writeFileSync(
+      path,
+      JSON.stringify({ ...record(), state: { ...record().state, phase: 'half-migrated' } }),
+    );
+    expect(() => registryFileJournal(path).read()).toThrow('unknown phase half-migrated');
+  });
+
+  it('rejects a journal that is not JSON', () => {
+    const path = join(directory(), 'release.json');
+    writeFileSync(path, '{"schemaVersion":1,');
+    expect(() => registryFileJournal(path).read()).toThrow('is not JSON');
+  });
+
+  it('rejects a newer schema', () => {
+    const path = join(directory(), 'release.json');
+    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 5 }));
+    expect(() => registryFileJournal(path).read()).toThrow('unsupported schema version');
+  });
+
+  for (const schemaVersion of [1, 2]) {
+    it(`refuses a legacy in-flight journal schema ${String(schemaVersion)} without replacing its bytes`, () => {
+      const path = join(directory(), 'release.json');
+      const legacy = JSON.stringify({ ...record(), schemaVersion });
+      writeFileSync(path, legacy);
+      expect(() => registryFileJournal(path).read()).toThrow('legacy migration capture');
+      expect(readFileSync(path, 'utf8')).toBe(legacy);
+    });
+  }
+
+  it('rejects a changed capture from disk before returning a journal record', () => {
+    const path = join(directory(), 'release.json');
+    const original = record();
+    const capture = sealMigrationCapture(
+      migrationIdentityOf(original.request, original.state.transactionId),
+      [],
+      [],
+    );
+    const malformed = {
+      ...original,
+      state: { ...original.state, capture: { ...capture, bytes: ` ${capture.bytes}` } },
+    };
+    const bytes = JSON.stringify(malformed);
+    writeFileSync(path, bytes);
+    expect(() => registryFileJournal(path).read()).toThrow('original SHA-256');
+    expect(readFileSync(path, 'utf8')).toBe(bytes);
+  });
+
+  it('distinguishes an unreadable journal from an absent one', () => {
+    const path = join(directory(), 'release.json');
+    writeFileSync(path, JSON.stringify(record()));
+    chmodSync(path, 0o000);
+    expect(() => registryFileJournal(path).read()).toThrow('is unreadable');
+  });
+});
+
+it('refuses a schema4 journal with missing or foreign registry binding', () => {
+  const path = join(directory(), 'managed.json');
+  for (const registry of [
+    undefined,
+    {
+      registryId: 'proof',
+      operationId: 'foreign',
+      references: [{ repository: 'wbs/backend', digest }],
+    },
+  ]) {
+    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 4 as const, registry }));
+    expect(() => registryFileJournal(path).read()).toThrow('registry binding');
+  }
+});
+
+it('refuses oversized owner journal bytes before parsing history', () => {
+  const path = join(directory(), 'release.json');
+  writeFileSync(path, JSON.stringify(record()) + ' '.repeat(4 * 1024 ** 2));
+  expect(() => registryFileJournal(path).read()).toThrow('unreadable');
+});
+
+it('reads explicit unmanaged schema4 without upgrading schema3', () => {
+  const path = join(directory(), 'managed.json');
+  const managed = { ...record(), schemaVersion: 4 as const, registry: null, registryHistory: null };
+  writeFileSync(path, JSON.stringify(managed));
+  expect(registryFileJournal(path).read()).toEqual(managed);
+});
+
+it('preserves managed history authority and refuses schema3 ownership projection', () => {
+  const path = join(directory(), 'managed.json');
+  const original = record();
+  const registry = {
+    registryId: 'proof',
+    operationId: original.state.transactionId,
+    references: [{ repository: 'wbs-be', digest }],
+  };
+  const registryHistory = {
+    schemaVersion: 1 as const,
+    registryId: 'proof',
+    product: 'wbs',
+    environment: 'prod',
+    target: 'k8s:uid/wbs/wbs-solver',
+    source: path,
+    genesis: { at: '2026-10-25T12:00:00.000Z', sourceRevision: 'empty' },
+    authorityRevision: 0,
+    releases: [],
+    promotion: null,
+  };
+  const managed = { ...original, schemaVersion: 4 as const, registry, registryHistory };
+  expect(parseRegistryJournal(path, JSON.stringify(managed))).toEqual(managed);
+  expect(() => parseJournal(path, JSON.stringify(managed))).toThrow('unsupported schema');
+  for (const changed of [
+    { ...managed, registryHistory: { ...registryHistory, registryId: 'foreign' } },
+    { ...managed, schemaVersion: 3 },
+    { ...managed, registry: null },
+    { ...managed, registryHistory: null },
+    { ...managed, state: { ...managed.state, replayForward: null } },
+  ])
+    expect(() => parseRegistryJournal(path, JSON.stringify(changed))).toThrow();
+});
+
+it('refuses oversized managed writes before replacing owner state', () => {
+  const path = join(directory(), 'release.json');
+  const original = record();
+  expect(() => {
+    registryFileJournal(path).write({
+      ...original,
+      history: [{ phase: 'x'.repeat(4 * 1024 ** 2), at: '2026-10-25T12:00:00.000Z' }],
+    });
+  }).toThrow('capacity');
+  expect(registryFileJournal(path).read()).toBeNull();
+});
+
+it('dormant journal family refuses controllers without changing historical registry state', () => {
+  const path = join(directory(), 'hybrid.json');
+  const historical = {
+    ...record(),
+    schemaVersion: 4 as const,
+    registry: null,
+    registryHistory: null,
+  };
+  const bytes = JSON.stringify({
+    ...historical,
+    state: { ...historical.state, controllers: { forward: null, rollback: null } },
+  });
+  writeFileSync(path, bytes);
+  expect(() => registryFileJournal(path).read()).toThrow('controller');
+  expect(readFileSync(path, 'utf8')).toBe(bytes);
+});

@@ -397,6 +397,12 @@ jobs:
       - name: Install solver dependencies
         run: python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock
 
+      # Fleet's default source suite compiles owned pthread fixtures and uses local user namespaces.
+      # Proof: deleting package installation, profile rendering/loading or namespace probing failed actual-step toolchain-pins tests.
+      - name: Provision registry source fixtures
+        if: ${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'tool-fleet') }}
+        run: bash bin/registry-source-test-prerequisites.sh
+
       # The shared runner records the validated project roster, commands and elapsed time.
       # A failed or timed-out Nx phase remains failed after annotation and log upload.
       - name: Gate — test, lint, typecheck, build

@@ -635,6 +635,8 @@ describe('the Ansible host and k3s contract', () => {
     const prerequisites = tasks.find(({ name }) => name === 'Install gate prerequisites');
     expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('bubblewrap');
     expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('busybox');
+    expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('gcc');
+    expect(prerequisites?.['ansible.builtin.apt']?.name).toContain('libc6-dev');
   });
 
   // H2-A7 (2026-11-04): `content: |` with `join('\\n')` wrote h2puni's five keys as one line and

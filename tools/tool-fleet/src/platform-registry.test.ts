@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'bun:test';
 
-import { copyImage } from './platform-registry';
+import { copyImage, copyImages } from './platform-registry';
+import { readPublicationEnrollment } from './registry-enrollment';
 
 /** Await `promise` and return its rejection, so assertions after it observe the settled state. */
 async function rejectionOf(promise: Promise<unknown>): Promise<Error> {
@@ -22,7 +23,9 @@ function digestOf(bytes: Uint8Array): string {
 }
 
 /** An in-memory Distribution v2 subset: blobs, monolithic uploads and manifests. */
-function fakeRegistry(options: { readonly rewriteManifestDigest?: boolean } = {}) {
+function fakeRegistry(
+  options: { readonly rewriteManifestDigest?: boolean; readonly corruptStoredBlob?: boolean } = {},
+) {
   const blobs = new Map<string, Uint8Array<ArrayBuffer>>();
   const manifests = new Map<string, { bytes: Uint8Array<ArrayBuffer>; type: string }>();
   const server = Bun.serve({
@@ -43,7 +46,12 @@ function fakeRegistry(options: { readonly rewriteManifestDigest?: boolean } = {}
       }
       if (url.pathname.endsWith('/blobs/uploads/upload-1') && request.method === 'PUT') {
         const digest = url.searchParams.get('digest') ?? '';
-        blobs.set(digest, new Uint8Array(await request.arrayBuffer()));
+        blobs.set(
+          digest,
+          options.corruptStoredBlob === true
+            ? new TextEncoder().encode('corrupt stored bytes')
+            : new Uint8Array(await request.arrayBuffer()),
+        );
         return new Response(null, { status: 201 });
       }
       const manifest = /^\/v2\/(.+)\/manifests\/(.+)$/.exec(url.pathname);
@@ -147,3 +155,170 @@ describe('copyImage', () => {
     }
   });
 });
+
+it('uploads the exact pinned OCI export and verifies its complete target closure', async () => {
+  const { inspectOciArchive } = await import('./registry-artifact');
+  const { uploadArtifact } = await import('./platform-registry');
+  const target = fakeRegistry();
+  try {
+    const artifact = await inspectOciArchive(
+      new URL('./fixtures/dagger-0.21.9.oci.tar', import.meta.url).pathname,
+      'proof',
+      'v1',
+    );
+    await uploadArtifact({ url: target.url }, artifact);
+    expect(
+      target.manifests.has(
+        'sha256:27ddb6fd651405cb8f8b78089a405d330cff8e3154dde0b8bd90febfcd95d7ed',
+      ),
+    ).toBe(true);
+    expect(target.blobs.size).toBe(2);
+  } finally {
+    await target.server.stop(true);
+  }
+});
+
+it('managed writer refuses an upload continuation outside the enrolled endpoint', async () => {
+  const { inspectOciArchive } = await import('./registry-artifact');
+  const { uploadArtifact } = await import('./platform-registry');
+  let escaped = 0;
+  const elsewhere = Bun.serve({
+    port: 0,
+    fetch() {
+      escaped += 1;
+      return new Response(null, { status: 201 });
+    },
+  });
+  const target = Bun.serve({
+    port: 0,
+    fetch() {
+      return new Response(null, {
+        status: 202,
+        headers: { location: `http://127.0.0.1:${String(elsewhere.port)}/escape` },
+      });
+    },
+  });
+  try {
+    const artifact = await inspectOciArchive(
+      new URL('./fixtures/dagger-0.21.9.oci.tar', import.meta.url).pathname,
+      'proof',
+      'v1',
+    );
+    expect(
+      (
+        await rejectionOf(
+          uploadArtifact(
+            {
+              url: `http://127.0.0.1:${String(target.port)}`,
+              username: 'fixture',
+              password: 'fixture',
+            },
+            artifact,
+          ),
+        )
+      ).message,
+    ).toMatch(/outside/);
+    expect(escaped).toBe(0);
+  } finally {
+    await target.stop(true);
+    await elsewhere.stop(true);
+  }
+});
+
+it('copy refuses missing managed admission before POST', async () => {
+  const source = fakeRegistry();
+  const target = fakeRegistry();
+  const selected = process.env['REGISTRY_PUBLICATION_ENROLLMENT'];
+  try {
+    seedImage(source);
+    process.env['REGISTRY_PUBLICATION_ENROLLMENT'] = '/absent-task5-managed-enrollment';
+    await rejectionOf(
+      copyImages({ url: source.url }, { url: target.url }, [
+        { repository: 'wbs/be-01', reference: '1' },
+      ]),
+    );
+    expect(target.blobs.size).toBe(0);
+    expect(target.manifests.size).toBe(0);
+  } finally {
+    if (selected === undefined) delete process.env['REGISTRY_PUBLICATION_ENROLLMENT'];
+    else process.env['REGISTRY_PUBLICATION_ENROLLMENT'] = selected;
+    await source.server.stop(true);
+    await target.server.stop(true);
+  }
+});
+it('managed writer rejects rewritten manifest receipts and cross-origin HTTP redirects', async () => {
+  const { inspectOciArchive } = await import('./registry-artifact');
+  const { uploadArtifact } = await import('./platform-registry');
+  const artifact = await inspectOciArchive(
+    new URL('./fixtures/dagger-0.21.9.oci.tar', import.meta.url).pathname,
+    'proof',
+    'v1',
+  );
+  const rewritten = fakeRegistry({ rewriteManifestDigest: true });
+  let escaped = 0;
+  const elsewhere = Bun.serve({
+    port: 0,
+    fetch() {
+      escaped += 1;
+      return new Response(null, { status: 201 });
+    },
+  });
+  const redirect = Bun.serve({
+    port: 0,
+    fetch() {
+      return Response.redirect(`http://127.0.0.1:${String(elsewhere.port)}/escaped`);
+    },
+  });
+  try {
+    expect((await rejectionOf(uploadArtifact({ url: rewritten.url }, artifact))).message).toContain(
+      'admitted digest',
+    );
+    await rejectionOf(
+      uploadArtifact({ url: `http://127.0.0.1:${String(redirect.port)}` }, artifact),
+    );
+    expect(escaped).toBe(0);
+  } finally {
+    await rewritten.server.stop(true);
+    await elsewhere.stop(true);
+    await redirect.stop(true);
+  }
+});
+
+it('managed writer refuses corrupt target content before completing its receipt', async () => {
+  const { inspectOciArchive } = await import('./registry-artifact');
+  const { uploadArtifact } = await import('./platform-registry');
+  const target = fakeRegistry({ corruptStoredBlob: true });
+  try {
+    const artifact = await inspectOciArchive(
+      new URL('./fixtures/dagger-0.21.9.oci.tar', import.meta.url).pathname,
+      'proof',
+      'v1',
+    );
+    expect((await rejectionOf(uploadArtifact({ url: target.url }, artifact))).message).toContain(
+      'admitted closure',
+    );
+  } finally {
+    await target.server.stop(true);
+  }
+});
+
+for (const fault of ['missing catalog', 'unreadable catalog', 'malformed catalog']) {
+  it(`managed copy refuses ${fault} before HTTP effects`, async () => {
+    let reads = 0;
+    const read = () => {
+      reads++;
+      return fault === 'malformed catalog'
+        ? Promise.resolve({ invalid: true })
+        : Promise.reject(new Error(fault));
+    };
+    await rejectionOf(
+      copyImages(
+        { url: 'http://127.0.0.1:1' },
+        { url: 'http://127.0.0.1:1' },
+        [{ repository: 'proof', reference: '1' }],
+        (registry) => readPublicationEnrollment(registry, {}, read),
+      ),
+    );
+    expect(reads).toBe(1);
+  });
+}

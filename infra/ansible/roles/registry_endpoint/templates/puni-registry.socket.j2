@@ -1,0 +1,12 @@
+# Ansible managed: puni-registry endpoint v1
+[Unit]
+Description=PUNI private registry TCP endpoint
+Wants=network-online.target
+After=network-online.target
+
+[Socket]
+ListenStream={{ puni_registry_address }}:{{ puni_registry_port }}
+NoDelay=true
+
+[Install]
+WantedBy=sockets.target

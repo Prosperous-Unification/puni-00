@@ -1,0 +1,40 @@
+---
+- name: Install pinned client executable
+  ansible.builtin.copy:
+    src: '{{ puni_registry_maintenance_crane_source }}'
+    dest: /usr/local/libexec/puni-registry-maintenance/crane
+    owner: root
+    group: root
+    mode: '0755'
+
+# Proof: h4 sparse-backing refuses before grant; omitting this verification grants
+# the sparse pool. Modeled output/status faults refuse; dropping either predicate
+# grants its fault and fails the original refusal observer.
+- name: Verify canonical and pull storage before client grant
+  ansible.builtin.command:
+    argv:
+      - /usr/local/libexec/puni-registry-storage/storage.sh
+      - verify-pulls
+      - /etc/puni/registry-pulls.json
+  environment:
+    PATH: /usr/sbin:/usr/bin:/sbin:/bin
+  register: registry_client_storage
+  changed_when: registry_client_storage.stdout == 'changed'
+  failed_when: registry_client_storage.rc != 0 or registry_client_storage.stdout not in ['changed', 'unchanged']
+
+# Proof: h4 installed-worker refuses; omitting validation grants its altered bytes.
+# Modeled output/status faults refuse; dropping either predicate grants its fault
+# and fails the same refusal observer.
+- name: Validate installed client profile without journal effects
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/env
+      - -i
+      - PATH=/usr/bin:/bin
+      - /usr/local/libexec/puni-registry-authority/bun
+      - /usr/local/libexec/puni-registry-authority/authority.js
+      - --validate-client-installation
+      - /etc/puni/registry-maintenance.json
+  register: registry_client_validation
+  changed_when: false
+  failed_when: registry_client_validation.rc != 0 or registry_client_validation.stdout != 'verified'

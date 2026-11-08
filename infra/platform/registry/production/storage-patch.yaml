@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: puni-registry
+spec:
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: h4claw
+      securityContext:
+        fsGroup: null
+        runAsUser: 59001
+        runAsGroup: 59001
+      containers:
+        - name: registry
+          image: docker.io/library/registry:2.8.3@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278
+          env:
+            # Historical proof at e347fbf: pinned native DELETE returned 405; deletion removed protected content when enabled.
+            - { name: REGISTRY_STORAGE_DELETE_ENABLED, value: 'false' }
+            # Historical proof at e347fbf: removing this object override armed the pinned purger.
+            - { name: REGISTRY_STORAGE_MAINTENANCE_UPLOADPURGING, value: '{"enabled": false}' }
+          command: [/bin/sh, /storage-guard/startup.sh]
+          args:
+            - /registry-journal/identities
+            - /var/lib/registry
+            - /registry-journal
+            - /bin/registry
+            - serve
+            - /etc/docker/registry/config.yml
+          volumeMounts:
+            - name: registry-journal
+              mountPath: /registry-journal
+              readOnly: true
+            - name: storage-guard
+              mountPath: /storage-guard
+              readOnly: true
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: registry-bounded
+        - name: registry-journal
+          persistentVolumeClaim:
+            claimName: registry-journal
+            readOnly: true
+        - name: storage-guard
+          configMap:
+            name: registry-storage-guard
+            defaultMode: 0444
