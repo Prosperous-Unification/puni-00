@@ -46,6 +46,11 @@ Two constraints beyond the design text, added on review: `access_role_built_in_n
 (a built-in's `name` equals its `id`, CP7) and `access_grant_organization_scope` (an
 organization-scope grant's `scope_id` equals its `organization_id`).
 
+Amended 2026-11-08 before the first deploy of this migration: the `origin` CHECK and
+`GRANT_ORIGINS` admit `operator`, the origin of a grant written by P21's
+`access-grant-cli` (task 1.5); the vocabulary case probes `manual` as the refused word and
+`operator` as an admitted one. `bun test src/access-grant-migration.db.test.ts`: 19 pass.
+
 ## 1.2 Catalogue in `@wbs/domain` (2026-10-25)
 
 `libs/wbs/domain/domain/src/access-role.ts`, `permission-matrix.ts`, test

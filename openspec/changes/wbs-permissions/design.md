@@ -438,7 +438,7 @@ CREATE TABLE access_grant (
                                                        'machine_credential')),   -- P17
   subject_id      text NOT NULL,
   role_id         text NOT NULL REFERENCES access_role(id),
-  origin          text NOT NULL CHECK (origin IN ('backfill','route','invitation','creation')),
+  origin          text NOT NULL CHECK (origin IN ('backfill','route','invitation','creation','operator')),  -- operator = P21's CLI (added 2026-11-08)
   created_at integer NOT NULL, created_by text REFERENCES users(id),
   UNIQUE (organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id)
 );
