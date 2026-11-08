@@ -1,0 +1,23 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-runtime.test.ts:
+(pass) Task37 actual forward witness refuses historical plan before retaining any resource record [20.85ms]
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+(pass) Task37 ordinary up propagates the same owned helper references [934.04ms]
+(pass) Task37 strict up rejects changed source lock before direct creation [777.00ms]
+(pass) Task37 authentic baseline sealed receipt still tears down with volumes and history retained [1154.56ms]
+(pass) Task37 sealed reader refuses inputs-version before teardown [2180.49ms]
+(pass) Task37 sealed reader refuses plan-cohort before teardown [2178.49ms]
+(pass) Task37 sealed reader refuses config-cohort before teardown [2225.36ms]
+(pass) Task37 sealed reader refuses selection-cohort before teardown [2158.09ms]
+(pass) Task37 sealed reader refuses observation-cohort before teardown [2188.56ms]
+(pass) Task37 sealed reader refuses observation-missing before teardown [2247.64ms]
+(pass) Task37 sealed reader refuses lineage-cohort before teardown [2049.38ms]
+(pass) Task37 sealed reader refuses unknown-version before teardown [2057.05ms]
+
+ 12 pass
+ 68 filtered out
+ 0 fail
+ 117 expect() calls
+Ran 12 tests across 2 files. [20.39s]

@@ -7,7 +7,12 @@ import { readBounded } from './source';
 const sourceUid = 'puni-dev-prometheus';
 const dashboardUid = 'puni-dev-observability';
 const ObjectShape = type({ '[string]': 'unknown' });
-const SourceList = type({ uid: 'string', isDefault: 'boolean' }).array();
+const SourceList = type({
+  uid: 'string',
+  isDefault: 'boolean',
+  'type?': 'string',
+  'url?': 'string',
+}).array();
 const DashboardList = type({ uid: 'string', title: 'string' }).array();
 const DashboardReply = type({
   dashboard: { uid: 'string', version: 'number' },
@@ -243,6 +248,10 @@ async function captureInventory(api: GrafanaApi): Promise<string> {
     )
   )
     throw new Error('existing Grafana datasource UIDs/default changed');
+  // Proof: removing type/URL equality independently accepts each wrong-initial-Victoria HTTP negative.
+  const victoria = retainedSources.find((source) => source.uid === 'sdlc-metrics');
+  if (victoria?.type !== 'prometheus' || victoria.url !== 'http://victoriametrics:8428')
+    throw new Error('existing Victoria datasource type/URL changed');
   return hashValue({
     sources: retainedSources.sort((left, right) => left.uid.localeCompare(right.uid)),
     dashboards: retainedDashboards.sort((left, right) => left.uid.localeCompare(right.uid)),

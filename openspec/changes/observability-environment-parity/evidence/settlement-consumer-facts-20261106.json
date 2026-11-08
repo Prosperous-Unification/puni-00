@@ -1,0 +1,825 @@
+{
+  "purpose": "Concrete external-consumer/store facts for the existing whole-launch packet; no complete qualification or zero-activity inference.",
+  "sourceCommit": "42e1c6cccef285a288f7a5ee7693cf6695cc3d54",
+  "observedAt": "2026-11-06T02:00:08.595692+00:00",
+  "uid": 1000,
+  "euid": 1000,
+  "accepted": false,
+  "boundary": {
+    "sameUidReadOnly": true,
+    "toolSandboxDistinguishedFromHost": true,
+    "journalOrEventPayloadsRead": false,
+    "secretValuesRead": false,
+    "auditStatusQueries": 1,
+    "auditSubscriptions": false,
+    "policyOrServiceChanges": false,
+    "globalProcessScans": false,
+    "nativeRequests": false,
+    "retainedRawOrIsoAccess": false,
+    "sourceOrPublicEdits": false,
+    "testsOrGatesRun": false,
+    "notes": "Only /tmp acquisition/evidence files written. Their startup, atime and allocation effects are not independently qualified."
+  },
+  "provenance": {
+    "publicPlan": "openspec/changes/observability-environment-parity/failed-settlement-input-qualification-plan.md",
+    "priorObservation": "openspec/changes/observability-environment-parity/evidence/settlement-input-cap-observation-20261106.json",
+    "acquisition": {
+      "path": "/tmp/puni-task116-collect-consumers.py",
+      "bytes": 9077,
+      "sha256": "d9e5a2cd55d6fec5c84f176d419b76e4d98980aee9b1257308e6ba2f8ad36510"
+    },
+    "boundedObservations": {
+      "path": "/tmp/puni-task116-consumer-observations.json",
+      "bytes": 52050,
+      "sha256": "863eb156f1f06445acb7275a166ba1fb8b6316f0694786f8245d6b64273e0e91"
+    },
+    "auditObservation": {
+      "path": "/tmp/puni-task116-audit-observation.json",
+      "bytes": 699,
+      "sha256": "4b37f4391faed058f77b30e45b05d5ab68ee1eabc4d7dd6704e901a107a1108f"
+    },
+    "logrotateDocSelection": {
+      "path": "/tmp/puni-task116-logrotate-doc-selection.json",
+      "bytes": 7577,
+      "sha256": "de43ed106b880a3edc3a4a8f287411d4c69b5b1e03183b9d6f96be48630c25be"
+    },
+    "packages": "libaudit1\t1:3.1.2-2.1build1.1\nlogrotate\t3.21.0-2build1\nmanpages\t6.7-2\nrsyslog\t8.2312.0-3ubuntu9.2\nsystemd\t255.4-1ubuntu8.15pop0~1778766128~24.04~85b5073\n",
+    "commands": [
+      {
+        "command": [
+          "/usr/bin/systemctl",
+          "show",
+          "systemd-journald.service",
+          "systemd-journald.socket",
+          "systemd-journald-dev-log.socket",
+          "systemd-journald-audit.socket",
+          "syslog.socket",
+          "rsyslog.service",
+          "auditd.service",
+          "logrotate.timer",
+          "logrotate.service",
+          "--property=Id,Names,LoadState,ActiveState,SubState,MainPID,FragmentPath,DropInPaths,Listen,Triggers,TriggeredBy,StandardOutput,StandardError,LogRateLimitIntervalUSec,LogRateLimitBurst,TimersCalendar,AccuracyUSec,Persistent"
+        ],
+        "exitCode": 0,
+        "failure": null,
+        "stdoutBytes": 3148,
+        "stdoutSha256": "7022b36e7b4536f30b374a59bb7aeca96d20b9b144aef5c53708e7ce12cd9387",
+        "stderrBytes": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "command": ["/usr/bin/systemd-analyze", "cat-config", "systemd/journald.conf"],
+        "exitCode": 0,
+        "failure": null,
+        "stdoutBytes": 1734,
+        "stdoutSha256": "cd902c53a3175e3d75dac1d043f0da5a2c52e111eeed5730181ab477f8bdae58",
+        "stderrBytes": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "command": ["/usr/bin/journalctl", "--disk-usage", "--no-pager"],
+        "exitCode": 0,
+        "failure": null,
+        "stdoutBytes": 64,
+        "stdoutSha256": "54e7b59baaa0a652fe1bb7ff1da4911a44a66bd650f425ab55de5bf3a638e3ce",
+        "stderrBytes": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "command": [
+          "/usr/bin/dpkg-query",
+          "-W",
+          "-f=${Package}\t${Version}\n",
+          "libaudit1",
+          "systemd",
+          "rsyslog",
+          "logrotate",
+          "manpages"
+        ],
+        "exitCode": 0,
+        "failure": null,
+        "stdoutBytes": 153,
+        "stdoutSha256": "8ac3a34aefdb42cfd2ddf4c46984ac5613406a685f46a10318831528c68b747a",
+        "stderrBytes": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "receivers": {
+    "units": [
+      {
+        "MainPID": "486",
+        "StandardOutput": "null",
+        "StandardError": "inherit",
+        "LogRateLimitIntervalUSec": "0",
+        "LogRateLimitBurst": "0",
+        "Id": "systemd-journald.service",
+        "Names": "systemd-journald.service",
+        "Triggers": "",
+        "TriggeredBy": "systemd-journald-dev-log.socket systemd-journald-audit.socket systemd-journald.socket",
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "running",
+        "FragmentPath": "/usr/lib/systemd/system/systemd-journald.service",
+        "DropInPaths": "/usr/lib/systemd/system/systemd-journald.service.d/nice.conf"
+      },
+      {
+        "Listen": "/run/systemd/journal/stdout (Stream)",
+        "StandardOutput": "journal",
+        "StandardError": "inherit",
+        "LogRateLimitIntervalUSec": "0",
+        "LogRateLimitBurst": "0",
+        "Id": "systemd-journald.socket",
+        "Names": "systemd-journald.socket",
+        "Triggers": "systemd-journald.service",
+        "TriggeredBy": "",
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "running",
+        "FragmentPath": "/usr/lib/systemd/system/systemd-journald.socket",
+        "DropInPaths": ""
+      },
+      {
+        "Listen": "/run/systemd/journal/dev-log (Datagram)",
+        "StandardOutput": "journal",
+        "StandardError": "inherit",
+        "LogRateLimitIntervalUSec": "0",
+        "LogRateLimitBurst": "0",
+        "Id": "systemd-journald-dev-log.socket",
+        "Names": "systemd-journald-dev-log.socket",
+        "Triggers": "systemd-journald.service",
+        "TriggeredBy": "",
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "running",
+        "FragmentPath": "/usr/lib/systemd/system/systemd-journald-dev-log.socket",
+        "DropInPaths": ""
+      },
+      {
+        "Listen": "audit 1 (Netlink)",
+        "StandardOutput": "journal",
+        "StandardError": "inherit",
+        "LogRateLimitIntervalUSec": "0",
+        "LogRateLimitBurst": "0",
+        "Id": "systemd-journald-audit.socket",
+        "Names": "systemd-journald-audit.socket",
+        "Triggers": "systemd-journald.service",
+        "TriggeredBy": "",
+        "LoadState": "loaded",
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "FragmentPath": "/usr/lib/systemd/system/systemd-journald-audit.socket",
+        "DropInPaths": ""
+      },
+      {
+        "Listen": "/run/systemd/journal/syslog (Datagram)",
+        "StandardOutput": "journal",
+        "StandardError": "inherit",
+        "LogRateLimitIntervalUSec": "0",
+        "LogRateLimitBurst": "0",
+        "Id": "syslog.socket",
+        "Names": "syslog.socket",
+        "Triggers": "rsyslog.service",
+        "TriggeredBy": "",
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "running",
+        "FragmentPath": "/usr/lib/systemd/system/syslog.socket",
+        "DropInPaths": ""
+      },
+      {
+        "MainPID": "1170",
+        "StandardOutput": "null",
+        "StandardError": "journal",
+        "LogRateLimitIntervalUSec": "0",
+        "LogRateLimitBurst": "0",
+        "Id": "rsyslog.service",
+        "Names": "rsyslog.service syslog.service",
+        "Triggers": "",
+        "TriggeredBy": "syslog.socket",
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "running",
+        "FragmentPath": "/usr/lib/systemd/system/rsyslog.service",
+        "DropInPaths": ""
+      },
+      {
+        "MainPID": "0",
+        "StandardOutput": "inherit",
+        "StandardError": "inherit",
+        "LogRateLimitIntervalUSec": "0",
+        "LogRateLimitBurst": "0",
+        "Id": "auditd.service",
+        "Names": "auditd.service",
+        "Triggers": "",
+        "TriggeredBy": "",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "FragmentPath": "",
+        "DropInPaths": ""
+      },
+      {
+        "TimersCalendar": "{ OnCalendar=*-*-* 00:00:00 ; next_elapse=Sat 2026-11-07 00:00:00 EET }",
+        "AccuracyUSec": "1h",
+        "Persistent": "yes",
+        "Id": "logrotate.timer",
+        "Names": "logrotate.timer",
+        "Triggers": "logrotate.service",
+        "TriggeredBy": "",
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "waiting",
+        "FragmentPath": "/usr/lib/systemd/system/logrotate.timer",
+        "DropInPaths": ""
+      },
+      {
+        "MainPID": "0",
+        "StandardOutput": "journal",
+        "StandardError": "inherit",
+        "LogRateLimitIntervalUSec": "0",
+        "LogRateLimitBurst": "0",
+        "Id": "logrotate.service",
+        "Names": "logrotate.service",
+        "Triggers": "",
+        "TriggeredBy": "logrotate.timer",
+        "LoadState": "loaded",
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "FragmentPath": "/usr/lib/systemd/system/logrotate.service",
+        "DropInPaths": ""
+      }
+    ],
+    "earlierExecStartProjection": {
+      "provenance": "exec tool65f2f5 stdout SHA256 c5954081bc9a64a8278e1e69b93d1e9ecccbb4a9cf00b2966a7ef518110f97b2",
+      "systemd-journald.service": "/usr/lib/systemd/systemd-journald",
+      "rsyslog.service": "/usr/sbin/rsyslogd -n -iNONE",
+      "syslog-ng.service": "LoadState=not-found; ActiveState=inactive; SubState=dead"
+    },
+    "socketMetadata": [
+      {
+        "path": "/dev/log",
+        "mode": "0o120777",
+        "uid": 0,
+        "gid": 0,
+        "size": 28,
+        "allocatedBytes": 0,
+        "dev": 7,
+        "ino": 545,
+        "link": "/run/systemd/journal/dev-log"
+      },
+      {
+        "path": "/run/systemd/journal/socket",
+        "mode": "0o140666",
+        "uid": 0,
+        "gid": 0,
+        "size": 0,
+        "allocatedBytes": 0,
+        "dev": 28,
+        "ino": 875
+      },
+      {
+        "path": "/run/systemd/journal/stdout",
+        "mode": "0o140666",
+        "uid": 0,
+        "gid": 0,
+        "size": 0,
+        "allocatedBytes": 0,
+        "dev": 28,
+        "ino": 876
+      },
+      {
+        "path": "/run/systemd/journal/dev-log",
+        "mode": "0o140666",
+        "uid": 0,
+        "gid": 0,
+        "size": 0,
+        "allocatedBytes": 0,
+        "dev": 28,
+        "ino": 874
+      },
+      {
+        "path": "/run/systemd/journal/syslog",
+        "mode": "0o140666",
+        "uid": 0,
+        "gid": 0,
+        "size": 0,
+        "allocatedBytes": 0,
+        "dev": 28,
+        "ino": 871
+      }
+    ],
+    "interpretation": "Manager metadata positively identifies the selected journald/rsyslog unit/socket graph. Not a census of every audit, fsnotify or logging receiver. Inactive journal-audit socket and missing auditd unit do not establish audit disabled."
+  },
+  "configurationIdentities": [
+    {
+      "path": "/etc/rsyslog.conf",
+      "bytes": 1213,
+      "sha256": "2efb050aaf43676fab0b7e940b5eba193f451360a8f4c7972a01c308f1445d7d",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 28313549,
+      "mtimeNs": 1711074534000000000
+    },
+    {
+      "path": "/etc/rsyslog.d/20-ufw.conf",
+      "bytes": 314,
+      "sha256": "db982af1717d73a2d7eeaf013571808958dd0fe15619f0c9c4da98bda1ece2f5",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 28313551,
+      "mtimeNs": 1684245554000000000
+    },
+    {
+      "path": "/etc/rsyslog.d/50-default.conf",
+      "bytes": 1124,
+      "sha256": "41c17b77c5b3bc4b2c18dd495d0078268091d67d11ce2cc694b1bc83ca3bae80",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 28313552,
+      "mtimeNs": 1711074534000000000
+    },
+    {
+      "path": "/etc/logrotate.conf",
+      "bytes": 586,
+      "sha256": "fc0877189d2feacbfca441dfa4ddeffaebbd074635c48fbf1c70672e62954fe9",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 28313222,
+      "mtimeNs": 1712592690000000000
+    },
+    {
+      "path": "/etc/logrotate.d/rsyslog",
+      "bytes": 248,
+      "sha256": "1e493ae5151c429d214d2f43e69da4431e6293abf755a7b3d367f7180f3f005e",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 28313233,
+      "mtimeNs": 1711074534000000000
+    },
+    {
+      "path": "/etc/logrotate.d/ufw",
+      "bytes": 209,
+      "sha256": "b1dbfea99aa6f8cfff2a88428a797a9e1f22751fa0853b36f19a07aa5ea7c223",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 28313237,
+      "mtimeNs": 1684245554000000000
+    },
+    {
+      "path": "/usr/lib/systemd/system/logrotate.timer",
+      "bytes": 191,
+      "sha256": "42f723dc5d90247a5fda11a3358d1a67eccceed856192b2264aa222d6aa240f4",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 16912450,
+      "mtimeNs": 1571055031000000000
+    },
+    {
+      "path": "/usr/lib/systemd/system/logrotate.service",
+      "bytes": 870,
+      "sha256": "cc5c35e740bce405c1177903f675e8beb471c2fba394732eaf8100e4e9a5e0fb",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 16912449,
+      "mtimeNs": 1598014958000000000
+    },
+    {
+      "path": "/etc/systemd/journald.conf",
+      "bytes": 1406,
+      "sha256": "6af661145728f9aa26b8f83a2fb21f6e0ccb871f28dc6250eb13b47d97ccf270",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 28313986,
+      "mtimeNs": 1709054764000000000
+    },
+    {
+      "path": "/usr/lib/systemd/journald.conf.d/pop.conf",
+      "bytes": 29,
+      "sha256": "bffe0c246697099d4aef38d7be8c6083761b6af9396a3a77b6130910734d9cee",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 16912239,
+      "mtimeNs": 1784333407000000000
+    },
+    {
+      "path": "/usr/lib/systemd/journald.conf.d/syslog.conf",
+      "bytes": 177,
+      "sha256": "ee200674b7f89baf8f543ec2a6df954395577b8724a99ab6a99acf3c11ddc344",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o644",
+      "dev": 66307,
+      "ino": 16912240,
+      "mtimeNs": 1778766128000000000
+    },
+    {
+      "path": "/usr/lib/rsyslog/rsyslog-rotate",
+      "bytes": 92,
+      "sha256": "bda9937659b6c0d010e17f53d37911f5e232a020a9a85f5abf0b0099026f8d91",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o755",
+      "dev": 66307,
+      "ino": 16912187,
+      "mtimeNs": 1773158353000000000
+    }
+  ],
+  "journald": {
+    "declared": {
+      "SystemMaxUse": "1000M",
+      "SystemMaxUseBytes": 1048576000,
+      "ForwardToSyslog": "yes"
+    },
+    "journaldBootOverrides": [],
+    "configFiles": [
+      "/etc/systemd/journald.conf",
+      "/usr/lib/systemd/journald.conf.d/pop.conf",
+      "/usr/lib/systemd/journald.conf.d/syslog.conf"
+    ],
+    "defaultSemanticsFromInstalledManpage": {
+      "Storage": "auto; persistent when /var/log/journal exists, otherwise volatile",
+      "RateLimitIntervalSec": 30,
+      "RateLimitBurst": 10000,
+      "rateScope": "per service; multiplied by free-space factor; per-unit overrides possible",
+      "SystemMaxFileSize": "one eighth of SystemMaxUse, subject to documented mode-dependent ceiling; a default-derived125MiB is not an observed live effective value",
+      "SystemMaxFiles": 100,
+      "MaxRetentionSec": 0,
+      "MaxFileSec": "1month",
+      "ForwardToWall": "yes; emergency level by default",
+      "retentionLimit": "Only archived files deleted; active files remain, so post-vacuum usage/count may exceed configured limits. Size checks occur synchronously on extension, not a cumulative allocation cap."
+    },
+    "freshOccupancy": {
+      "journalctlText": "Archived and active journals take up 966.1M in the file system.",
+      "regularFileCount": 46,
+      "archiveFilenameCount": 44,
+      "regularFileAllocatedBytes": 1013067776,
+      "enumeratedChildDirectoryAllocatedBytes": 12288,
+      "rootDirectoryAllocatedBytes": 4096,
+      "treeAllocatedBytesIncludingRoot": 1013084160,
+      "activeFilenameProjection": [
+        {
+          "path": "/var/log/journal/20805c41a8fee67f5231b7eb6a92e71c/user-1000.journal",
+          "mode": "0o100640",
+          "size": 16777216,
+          "allocatedBytes": 16781312
+        },
+        {
+          "path": "/var/log/journal/20805c41a8fee67f5231b7eb6a92e71c/system.journal",
+          "mode": "0o100640",
+          "size": 8388608,
+          "allocatedBytes": 8392704
+        }
+      ],
+      "runtimeJournalChildrenAllocatedBytes": 0,
+      "metadataEnumerationCompleteAtObservation": true,
+      "limit": "Not an atomic snapshot; st_blocks occupancy, not cumulative gross allocation or an extent/allocator proof."
+    },
+    "grossCap": "UNAVAILABLE: finite causal message count, payload bytes, active/archive multiplicity, journal allocation/rotation/deferred-allocation upper bound and installed loaded-config stability not qualified. The1048576000-byte declaration is6.25 times the complete167772160-byte outside allowance and cannot be substituted as its causal term."
+  },
+  "rsyslog": {
+    "configuration": {
+      "inputModules": ["imuxsock", "imklog permitnonkernelfacility=on"],
+      "networkInputDeclarations": "imudp/imtcp declarations commented in selected complete /etc/rsyslog.conf include set",
+      "include": "/etc/rsyslog.d/*.conf; directory contained exactly20-ufw.conf and50-default.conf in initial bounded listing",
+      "workDirectory": "/var/spool/rsyslog",
+      "repeatedMessageReduction": "on",
+      "privilegeDropUser": "syslog",
+      "privilegeDropGroup": "syslog"
+    },
+    "routes": [
+      {
+        "selector": "auth,authpriv.*",
+        "destination": "/var/log/auth.log"
+      },
+      {
+        "selector": "*.*;auth,authpriv.none",
+        "destination": "/var/log/syslog"
+      },
+      {
+        "selector": "kern.*",
+        "destination": "/var/log/kern.log"
+      },
+      {
+        "selector": "mail.*",
+        "destination": "/var/log/mail.log"
+      },
+      {
+        "selector": "mail.err",
+        "destination": "/var/log/mail.err"
+      },
+      {
+        "selector": "message contains [UFW ",
+        "destination": "/var/log/ufw.log",
+        "stopRule": "commented; matching kernel messages may also reach kern.log/syslog"
+      },
+      {
+        "selector": "*.emerg",
+        "destination": ":omusrmsg:*"
+      }
+    ],
+    "rotation": {
+      "rsyslogStanzaPaths": [
+        "/var/log/syslog",
+        "/var/log/mail.log",
+        "/var/log/kern.log",
+        "/var/log/auth.log",
+        "/var/log/user.log",
+        "/var/log/cron.log"
+      ],
+      "ufwStanzaPaths": ["/var/log/ufw.log"],
+      "weekly": true,
+      "rotate": 4,
+      "compress": true,
+      "delaycompress": true,
+      "sharedscripts": true,
+      "postrotate": "/usr/lib/rsyslog/rsyslog-rotate; selected script invokes systemctl kill -s HUP rsyslog.service",
+      "mailErr": "Not in either selected rsyslog/ufw stanza; all unrelated logrotate include payloads were not read. Complete rotation coverage is unavailable.",
+      "timer": "active daily calendar; AccuracyUSec1h; Persistent=yes",
+      "byteBound": "No size/maxsize or output-byte maximum in the selected rsyslog/ufw stanzas. Calendar and retain-count settings bound neither between-check growth nor cumulative rotation/compression allocations.",
+      "sourceSemantics": "Installed logrotate(8): rotate counts generations; delaycompress postpones compression to the next cycle; compression defaults to gzip. Exact compression overlap, allocator work and postrotate causal logging are not bounded here."
+    },
+    "freshOccupancy": {
+      "selectedBaseAndRotationAllocatedBytes": 45350912,
+      "metadataEnumerationCompleteAtObservation": true,
+      "entries": [
+        {
+          "path": "/var/log/syslog.3.gz",
+          "mode": "0o100640",
+          "size": 22736765,
+          "allocatedBytes": 22736896
+        },
+        {
+          "path": "/var/log/auth.log",
+          "mode": "0o100640",
+          "size": 22899,
+          "allocatedBytes": 28672
+        },
+        {
+          "path": "/var/log/kern.log.2.gz",
+          "mode": "0o100640",
+          "size": 56446,
+          "allocatedBytes": 57344
+        },
+        {
+          "path": "/var/log/syslog.2.gz",
+          "mode": "0o100640",
+          "size": 323405,
+          "allocatedBytes": 323584
+        },
+        {
+          "path": "/var/log/syslog.4.gz",
+          "mode": "0o100640",
+          "size": 1136500,
+          "allocatedBytes": 1138688
+        },
+        {
+          "path": "/var/log/kern.log",
+          "mode": "0o100640",
+          "size": 716713,
+          "allocatedBytes": 720896
+        },
+        {
+          "path": "/var/log/kern.log.4.gz",
+          "mode": "0o100640",
+          "size": 236482,
+          "allocatedBytes": 237568
+        },
+        {
+          "path": "/var/log/kern.log.1",
+          "mode": "0o100640",
+          "size": 2218850,
+          "allocatedBytes": 2224128
+        },
+        {
+          "path": "/var/log/auth.log.1",
+          "mode": "0o100640",
+          "size": 178582,
+          "allocatedBytes": 184320
+        },
+        {
+          "path": "/var/log/auth.log.4.gz",
+          "mode": "0o100640",
+          "size": 7089,
+          "allocatedBytes": 8192
+        },
+        {
+          "path": "/var/log/auth.log.3.gz",
+          "mode": "0o100640",
+          "size": 6113,
+          "allocatedBytes": 8192
+        },
+        {
+          "path": "/var/log/syslog.1",
+          "mode": "0o100640",
+          "size": 11296559,
+          "allocatedBytes": 11300864
+        },
+        {
+          "path": "/var/log/kern.log.3.gz",
+          "mode": "0o100640",
+          "size": 3303099,
+          "allocatedBytes": 3305472
+        },
+        {
+          "path": "/var/log/syslog",
+          "mode": "0o100640",
+          "size": 3060144,
+          "allocatedBytes": 3067904
+        },
+        {
+          "path": "/var/log/auth.log.2.gz",
+          "mode": "0o100640",
+          "size": 5255,
+          "allocatedBytes": 8192
+        }
+      ],
+      "workDirectoryMetadata": {
+        "path": "/var/spool/rsyslog",
+        "mode": "0o40700",
+        "uid": 102,
+        "gid": 4,
+        "size": 4096,
+        "allocatedBytes": 4096,
+        "dev": 66307,
+        "ino": 15350085
+      },
+      "workDirectoryContents": {
+        "state": "unavailable",
+        "errno": 13,
+        "reason": "Permission denied; sameUID1000 scandir /var/spool/rsyslog; no alternate access attempted"
+      }
+    },
+    "grossCap": "UNAVAILABLE: future accepted input counts/bytes across imuxsock+imklog, per-action duplication, effective module/queue defaults, any spool allocation, log append/allocation, rotation compression overlap, postrotate logging and terminal consumers."
+  },
+  "audit": {
+    "toolPaths": {
+      "/usr/sbin/auditctl": "ENOENT2",
+      "/usr/include/libaudit.h": "ENOENT2",
+      "/usr/share/man/man3/audit_request_status.3.gz": "ENOENT2",
+      "/etc/audit/auditd.conf": "ENOENT2"
+    },
+    "validatedApiSources": [
+      {
+        "url": "https://raw.githubusercontent.com/linux-audit/audit-userspace/v3.1.2/lib/libaudit.h",
+        "scope": "lines492-520 reply ABI;576-579 function ABI;614-615 status prototype"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/linux-audit/audit-userspace/v3.1.2/lib/libaudit.c",
+        "scope": "lines115-121 request sends only AUDIT_GET with NULL zero-length payload"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/linux-audit/audit-userspace/v3.1.2/lib/netlink.c",
+        "scope": "audit_open; adjust_reply; audit_send/check_ack; group0 destination; negative errno return contract"
+      }
+    ],
+    "localUapiSources": [
+      {
+        "path": "/usr/include/linux/audit.h",
+        "sha256": "f65efc259155e933dd7932620b1db60338e7b2b4caf045119c183a019803e96c",
+        "scope": "AUDIT_GET1000 and44-byte audit_status fields"
+      },
+      {
+        "path": "/usr/include/linux/netlink.h",
+        "sha256": "4da259993aa6a1d7a28333f05670333bd48fa0a29beebab386e67a12b999037e",
+        "scope": "16-byte nlmsghdr and NLMSG_ERROR contract"
+      }
+    ],
+    "statusAttempt": {
+      "uid": 1000,
+      "euid": 1000,
+      "api": "libaudit.so.1 audit_open; exactly one audit_request_status(AUDIT_GET1000); audit_get_reply NONBLOCKING; audit_close",
+      "subscription": false,
+      "abiBytes": {
+        "header": 16,
+        "message": 8988,
+        "reply": 9016,
+        "status": 44
+      },
+      "openReturn": 3,
+      "requestReturn": -1,
+      "state": "unavailable",
+      "stage": "audit_request_status",
+      "errno": 1,
+      "reason": "Operation not permitted"
+    },
+    "responseSha256": "e7f2df10f867dc8457435fa5198dcd13c4e92e73fb213676f17db8e2fda15b35",
+    "accessStoppedAfterDenial": true,
+    "missingIndispensableFact": "Kernel AUDIT_GET enabled/failure/auditd PID/rate_limit/backlog_limit/backlog status unavailable due actual sameUID host EPERM1. Missing tools/unit and inactive audit socket do not imply disabled audit. No root authority inference.",
+    "remainingGrossBound": "Audit rule/event multiplicity, actual consumers/destinations and per-store rotation/gross allocation remain unavailable; a successful status alone would not have bounded all of these."
+  },
+  "fsnotify": {
+    "freshSysctls": [
+      {
+        "path": "/proc/sys/fs/inotify/max_queued_events",
+        "value": "16384",
+        "sha256": "33f50728129313570f6b953c08b559d9cb5f673e981e647cee4dc10d6cd48e99"
+      },
+      {
+        "path": "/proc/sys/fs/inotify/max_user_instances",
+        "value": "1024",
+        "sha256": "4f71bb761ace37c88826cd8cc1c948e1cf5b5d0cd153dc651a6efdb3dfb9f2b1"
+      },
+      {
+        "path": "/proc/sys/fs/inotify/max_user_watches",
+        "value": "254666",
+        "sha256": "8d77b567dc7d70c4790932171449ac8e807fd380f0b6446e09f47bd4f0ca946e"
+      },
+      {
+        "path": "/proc/sys/fs/fanotify/max_queued_events",
+        "value": "16384",
+        "sha256": "33f50728129313570f6b953c08b559d9cb5f673e981e647cee4dc10d6cd48e99"
+      },
+      {
+        "path": "/proc/sys/fs/fanotify/max_user_groups",
+        "value": "128",
+        "sha256": "56292515f7d3a7110811eb8de26b3f75f82a0766aa5a1fd66ebcfcb84fe6d5ff"
+      },
+      {
+        "path": "/proc/sys/fs/fanotify/max_user_marks",
+        "value": "271420",
+        "sha256": "553a475fdf6644f0d3a6f1507896f2581c80db82c904b1fe4a72e7f6758a7b5e"
+      }
+    ],
+    "sourceContract": "Installed inotify(7): max_queued_events is sampled at instance creation; overflows drop events and add IN_Q_OVERFLOW. Instance/watch limits apply per real UID. /proc/PID/fdinfo describes a selected process instance. Installed fanotify(7): read drains group queue; FAN_UNLIMITED_QUEUE can override its queue cap.",
+    "knownWithoutGlobalScanning": "Current public quota values and API behavior only. No global /proc scan, event subscription or receiver descriptor reads were attempted.",
+    "cannotInfer": "Current sysctls do not identify existing groups/watchers, their creation-time queue sizes, privileged unlimited flags, watched paths, downstream callbacks, callback amplification, event count over the operation or persistent allocation. No absence inference from an unenumerated receiver set.",
+    "grossCap": "UNAVAILABLE: launch access/event bound and complete relevant receiver/callback/store graph, or positive exclusion under a stable input profile, plus per-dispatch/rotation/deferred-allocation bounds."
+  },
+  "capEquation": {
+    "outsideAllowanceBytes": 167772160,
+    "equation": "O_current_owned + F_committed_captures_metadata + I_gross_bootstrap_runtime_inputs + J_gross + R_append_gross + R_rotation_gross + R_spool_gross + A_gross + FS_callbacks_gross + TTY_consumers_gross <=167772160",
+    "accounting": "Count physical allocation per destination, including duplicate journal/syslog/kern.log writes, preparation/refusal/timeout/cleanup and deferred work. Systemd/DBus lifecycle log message generation feeds J/R rather than a duplicate independent log-store term. Existing installed runtime/store occupancy remains host occupancy; operation-caused additional allocations enter causal terms. Historical/free/retained numbers cannot clear gross debt.",
+    "genericPerConsumerTerm": "C_s = initialization_gross_s + deliveries_s * allocation_per_delivery_s + rotations_s * allocation_per_rotation_s + deferred_gross_s, with finite counts/upper bounds and nonoverlap proved for every relevant store/receiver. No numeric unavailable term is replaced by0.",
+    "numericConsumerGrossSum": "unavailable"
+  },
+  "namedMissingObservations": [
+    "Kernel audit status AUDIT_GET denied EPERM1 at UID1000; enabled/rate/backlog/registered receiverPID unknown.",
+    "Rsyslog work-directory content allocation denied EACCES13 at /var/spool/rsyslog; no retry.",
+    "Finite whole-launch causal log/event/message counts and byte maxima covering startup, manager/DBus lifecycle, success/refusal/timeout/cleanup and acquisition itself.",
+    "Effective loaded journald/rsyslog input/queue/allocation policy and stability, including actual defaults; declaration reads are not daemon reload state.",
+    "Journal active/archive/rotation/deferred allocation and rsyslog append/compression/postrotate/terminal gross bounds; complete logrotate include coverage not read.",
+    "Complete relevant fsnotify/fanotify receiver/watch/callback/store identities or enforceable positive exclusion; selected sysctl limits do not supply this.",
+    "Fresh complete outside ledger, future captures, initial/lazy/tool/cleanup input closure and atime/quiescence are supplied by other packet sections, not this consumer section."
+  ],
+  "boundsAndSkipped": {
+    "perChildCommandDeadlineMs": 4500,
+    "perChildCommandOutputCapBytes": 65536,
+    "configurationReads": {
+      "uniqueEntries": 12,
+      "perReadCapBytes": 65536,
+      "aggregatePayloadBytesThisCapture": 6459,
+      "aggregateCapBytes": 262144,
+      "priorSelectedPayloadBytes": 4755,
+      "priorJournaldCatConfigPayloadBytes": 1734,
+      "priorSelectedReadOccurrences": 8,
+      "priorJournaldCatConfigOccurrences": 1
+    },
+    "cumulativeSelectedConfigPayloadBytes": 14682,
+    "cumulativeSelectedConfigReadOccurrencesIncludingThreeFilesPerCatConfig": 26,
+    "configurationCapHit": false,
+    "storeMetadataEntryCaps": {
+      "journalOrSpoolTree": 128,
+      "varLogTopDirectory": 256
+    },
+    "storeMetadataEntryCapHit": false,
+    "hostDenials": [
+      {
+        "operation": "audit_request_status",
+        "errno": 1
+      },
+      {
+        "operation": "scandir /var/spool/rsyslog",
+        "errno": 13
+      }
+    ],
+    "skipped": [
+      "No journal/event/Secret values",
+      "No policy/service/privilege changes, installs, alternate audit/spool access, global process scans, native work or retained raw/ISO access",
+      "No kernel/NOATIME research or passing tests repeated",
+      "No source/public edits, commits, index or pushes",
+      "No assertion of complete qualification, disabled audit, zero activity or finite complete consumer gross allocation"
+    ],
+    "limits": "Metadata is bounded and non-atomic. Acquisition processes and /tmp artifact allocations remain unqualified and require a packet future/accounting charge."
+  }
+}

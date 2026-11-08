@@ -1,0 +1,18 @@
+{
+  "observedNs": "1793910196624495960",
+  "uid": 1000,
+  "scope": "read-only packet size diagnostic; not admission or inventory authority",
+  "metadataAllocatedBytes": "503808",
+  "fixtureAllocatedBytes": "1544192",
+  "packetEntries": 51,
+  "draftFutureBytes": "258048",
+  "draftCreationReserveBytes": "90112",
+  "draftEarlyProjectedBytes": "851968",
+  "metadataLimitBytes": "1048576",
+  "backingAvailableBytes": "212750438400",
+  "memory": {
+    "MemTotal": "32449028 kB",
+    "MemAvailable": "18644712 kB"
+  },
+  "noRequestOrNativeOperation": true
+}

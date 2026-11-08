@@ -1,0 +1,213 @@
+{
+  "schemaVersion": 1,
+  "scope": "Task112 ordinary component fixture portability; production native contract unchanged",
+  "baseline": "42d402916b2cfac477a7b5a1399e93ff52ef9fde",
+  "status": "focused verification, scoped review and parent owning typing complete",
+  "observedHostedFailure": {
+    "run": 42123454561,
+    "url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/42123454561",
+    "logSHA256": "b4db0027e28756dbdcb2050b429aca1058cba81d977c7d41e38ec41a7b109f3d",
+    "passed": 5190,
+    "skipped": 7,
+    "failed": 54,
+    "elapsedSeconds": "1352.06",
+    "causes": [
+      {
+        "cases": 53,
+        "cause": "ordinary component fixture read absent /usr/bin/python3.12 under hosted Python3.14"
+      },
+      {
+        "cases": 1,
+        "cause": "binding omission could not reach intercepted CLI because real fixed_environment first refused absent host manager variables"
+      }
+    ]
+  },
+  "changes": [
+    {
+      "path": "tools/tool-fleet/src/lab-staging-native-control.test.ts",
+      "bytes": 57344,
+      "sha256": "1608bd9b48f91e1937c7387e094e278064459ab14727a7c286d853f3f6d83471"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-staging-native-prepare.test.ts",
+      "bytes": 52147,
+      "sha256": "94da1e3949987000bc82b058ef3be50646fee1e62f8f2d1aeb6de0cef90b9a87"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-staging-native-cold-fixture.py",
+      "bytes": 4683,
+      "sha256": "128c81b712808387e8c1166a8be56d873a50809df30018e59da496233b4bd2bc"
+    }
+  ],
+  "unchangedProductionControls": [
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
+      "sha256": "92c5011dac4c803c2f1e241f069f454d94c27ebdb17f9f5b199b5f7e6dd7ab7c",
+      "unchanged": true
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/staging-native-control.py",
+      "sha256": "e30a28472334fe23c5d39ae7f694a289b24eb9836463f28ae5078034d0e735f9",
+      "unchanged": true
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/staging-native-prepare-draft.py",
+      "sha256": "c9c2040f795372cfa99de0707c2fc68df5148e5929b23727a6f4601faac94b34",
+      "unchanged": true
+    },
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/staging-native-prepare-bootstrap.py",
+      "sha256": "7c23633b8e693fb5406f8947c0999fb21ddf286bc6085e75b1cb84089f9d0f03",
+      "unchanged": true
+    }
+  ],
+  "redProofs": [
+    "Original startup fails FileNotFoundError under physical3.14 and controlled native3.12 read absence",
+    "Original binding fails exact omit-prepared CLI-boundary assertion when manager variables are removed"
+  ],
+  "finalRun": {
+    "passed": 96,
+    "failed": 0,
+    "assertions": 247,
+    "files": 2,
+    "elapsedSeconds": "69.31",
+    "physicalPythonVersion": "3.14.7",
+    "native312Absence": "controlled file read absence",
+    "managerEnvironment": "both inherited host variables unset",
+    "logSHA256": "0096686a7916b33bcdaabfe6b3ab593756b7c25998de93ca86a2620ff6fe6324"
+  },
+  "nativeProviderProofs": [
+    "modeled wrong Python version refuses runtime-binding",
+    "modeled wrong executable refuses runtime-binding",
+    "native pin hash mismatch refuses pin-hash",
+    "native pin owner mismatch refuses pin-identity",
+    "category omission reaches real source capture",
+    "actual cold worker executes helper imports; missing/changed late-loaded runtime refuses and guard omission reaches started"
+  ],
+  "fixedCLIAndEvaluatedEnvironmentAsserted": true,
+  "statics": {
+    "namedESLint": "passed",
+    "namedPrettier": "passed",
+    "embeddedPythonAST": "passed",
+    "whitespace": "passed",
+    "owningFleetTypecheck": "passed; combined source freeze;2.04s"
+  },
+  "artifacts": [
+    {
+      "name": "baseline.json",
+      "bytes": 50026,
+      "sha256": "cc3c4db5238ba15bc71214e392c80429d8c03b3af183442421e0f5a440a75195"
+    },
+    {
+      "name": "diagnostic-binding-relative.log",
+      "bytes": 1643,
+      "sha256": "d6faad8e53c5b8507d48533e8984164c8f5b6f783ec06825833e28115ee205a4"
+    },
+    {
+      "name": "diagnostic-binding.log",
+      "bytes": 11024,
+      "sha256": "60264d4fb177faf7c65f4dfb8a4ee83d1040074b1eb4850691e49624afd6d934"
+    },
+    {
+      "name": "eslint.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "evidence-sha256.json",
+      "bytes": 4616,
+      "sha256": "7508a0dc1a5c1eac02e2b8040c8794705c72c51721473a04f0eb647aaa08008d"
+    },
+    {
+      "name": "final-two-files.log",
+      "bytes": 9247,
+      "sha256": "0096686a7916b33bcdaabfe6b3ab593756b7c25998de93ca86a2620ff6fe6324"
+    },
+    {
+      "name": "green-binding.log",
+      "bytes": 282,
+      "sha256": "25b4e329fd3ba7dcbbd4283bbfae62a0d6e12d5e0a14412393d53a266dc54a72"
+    },
+    {
+      "name": "green-control-focused.log",
+      "bytes": 4480,
+      "sha256": "6dbf4eb53406f1542c7e50cacf7c2831ae97035af0cb396e6e0ceda5beefd77f"
+    },
+    {
+      "name": "green-control-focused2.log",
+      "bytes": 422,
+      "sha256": "b9486ee82e64b0ea6b622fa0fcc5445841e6e5d81af23f9dad047d567188259f"
+    },
+    {
+      "name": "green-runtime-provider.log",
+      "bytes": 264,
+      "sha256": "369c89f73777e2e74685a3b07b619173c6c50ed26a232dcdc99acd89fefcd476"
+    },
+    {
+      "name": "green-system-python.log",
+      "bytes": 348,
+      "sha256": "2ac832b15abf177a7f9448a041bced5682b5377e4136d64658a148a234bd692a"
+    },
+    {
+      "name": "interpreter-proof.json",
+      "bytes": 223,
+      "sha256": "34f543b880182e9bd86d6b96fe5d54348f0beece0ebf3cd83b36728d003d8993"
+    },
+    {
+      "name": "prettier-write.log",
+      "bytes": 133,
+      "sha256": "38dbd68bc9156ffd395f44753c21966619cd34b106f8927bc80242a993f20b0e"
+    },
+    {
+      "name": "prettier.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "name": "red-binding-local.log",
+      "bytes": 282,
+      "sha256": "f4134fcfef048ddd35f4de2992c0faf1f0e81074c9213a37d0a65034ffe0d0e3"
+    },
+    {
+      "name": "red-binding-no-manager.log",
+      "bytes": 953,
+      "sha256": "f5b1823f2fa8086c1ace9d3193b8f7a48977d86dbf53cba25b4b853f1952e64e"
+    },
+    {
+      "name": "red-missing312.log",
+      "bytes": 1895,
+      "sha256": "174eddc3844ff33d47bcaca511d3359815a4076d711120faadb7a182cb859840"
+    },
+    {
+      "name": "source-proof.json",
+      "bytes": 17217,
+      "sha256": "116ff349ddc340560bd56b57d9e6ff31ff6c99e9653c09cb33316f96b85edca1"
+    },
+    {
+      "name": "source-proof.log",
+      "bytes": 17271,
+      "sha256": "08e2c6d9d17a7a89d6e5ee6494c38e0e846801d3c9f4773bbd021f578d85c5b9"
+    },
+    {
+      "name": "whitespace.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "limitations": [
+    "This models fixed native3.12 on the actual ordinary component interpreter; it does not qualify3.14 as a native target",
+    "No production guard, native tool path or runtime policy changed",
+    "No runtime installation, skipped guard, native service, replayed nonce or retained-state write",
+    "Hosted CI was not manually rerun; new-head status remains separate"
+  ],
+  "runtimeAcceptance": {
+    "complete": 4,
+    "total": 11,
+    "task97Complete": false
+  },
+  "review": {
+    "verdict": "spec compliant; quality approved; no actionable findings",
+    "sha256": "37836bb9e65f2b95b7809cd656ae6dd2da62661e195ad9fbcfc4883773dbdcf2",
+    "reranTests": false
+  }
+}

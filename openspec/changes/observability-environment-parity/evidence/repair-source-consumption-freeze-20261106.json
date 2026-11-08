@@ -1,0 +1,50 @@
+{
+  "lab-raw-repair.py": {
+    "bytes": 124065,
+    "sha256": "2e6257aac4bfbd6e48d69abd94da5e3f7003d84aed0b5a26f542dadb0fd6bf66"
+  },
+  "lab-repair-worker.py": {
+    "bytes": 117435,
+    "sha256": "6c8f8d284bd5e1b1c63894e198e6dfbe72633601f9374a4d7bbd9a57a29a158f"
+  },
+  "lab-repair-lineage.py": {
+    "bytes": 18387,
+    "sha256": "ee44af6dbfd16f2300bbdb9f38ed82c0b202bd48e7706689ccef6dadf06af428"
+  },
+  "lab-raw-repair.ts": {
+    "bytes": 7118,
+    "sha256": "761f1463c626d1f7a038975bdc7c1358b2bf351770119f982bbd1e99c3b55548"
+  },
+  "lab-raw-repair-source.test.ts": {
+    "bytes": 32926,
+    "sha256": "f7f311b53b052bf96041e15645780d07c41cb081e765e4d2438625ae36531092"
+  },
+  "lab-raw-repair-recovery.test.ts": {
+    "bytes": 51635,
+    "sha256": "d865142623bf2c862212ff93c16179699e9bcdc352715c124886f6b5f3b2cbf2"
+  },
+  "lab-raw-preparation.py": {
+    "bytes": 55284,
+    "sha256": "3e78d2ea8aecced76bd82ea07fb006ce99a1b2212fec15fb805a8e8f7b27e8e8"
+  },
+  "lab-seed-preparation.py": {
+    "bytes": 53199,
+    "sha256": "a226b0fb582fb41636d04e83c5e7e1a54640811cd16cee465341835aa7c24c88"
+  },
+  "lab-guest-preparation.py": {
+    "bytes": 80680,
+    "sha256": "6d180f9c1d2cd116ef314215a75c88774789d29daa882f81fbbf06a2e9263f2c"
+  },
+  "lab-raw-allocation.py": {
+    "bytes": 15534,
+    "sha256": "be25ffe1740848c2dad861d87f42123a1a1664c8ffc0df6aa0a3062cf4d13ea8"
+  },
+  "lab-staging-native-cold-fixture.py": {
+    "bytes": 8183,
+    "sha256": "85d3f33b59b55a80fe3633b10e9f000f565285bf2db7a5d8c75adec80a7c9612"
+  },
+  "lab-staging-native-control.test.ts": {
+    "bytes": 57342,
+    "sha256": "6fac2f35aeb95d6e8e6fc88767bdbe87bcfbbc926a9757408583cb311aa7b6a3"
+  }
+}

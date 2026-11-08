@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "scope": "Current native-control source and accepted tiny primitive qualification; full observability remains open",
+  "sourcePins": [
+    {
+      "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control.py",
+      "sha256": "8b9efd098776b71a578b3d2ef7f4f12dbcbd44fe9488f4f17be2a542dd54ad2b",
+      "bytes": 65535,
+      "mode": "0644",
+      "uid": 1000
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-native-control.test.ts",
+      "sha256": "971dd14bd84fb93c719a606f1900728b51961b25edfc7670b972b61273a16474",
+      "bytes": 56833,
+      "mode": "0644",
+      "uid": 1000
+    }
+  ],
+  "history": {
+    "commit": "875ee612162e7ab194a1cffd5f09c287836db199",
+    "path": "openspec/changes/observability-environment-parity/evidence/repair-native-control-source-verification.json",
+    "bytes": 10960,
+    "sha256": "a17f4f69a74e55ecc1483067371490c04aaa852e73c65cd2bb4d2a23e3f5e6d9",
+    "note": "Complete previous record, all original private reports/patches/requests and failure capture preserved"
+  },
+  "startupFailureRetention": {
+    "task": 102,
+    "state": "source complete, independently reviewed after round1",
+    "tests": "3pass/12Bun assertions/19variants/7filtered/2.21s",
+    "proofs": "bound/provenance/category/schema faults, actual SIGINT/SIGTERM registration omissions, exact deadline/cancel categories, fsync failure with cleanup",
+    "statics": "named lint/format/PythonAST/diff, final Fleet tsc, strict owning OpenSpec and normal hooks passed",
+    "verification": "../verify.md",
+    "nativeExecuted": false
+  },
+  "nativeExecuted": true,
+  "requestGenerated": true,
+  "nativeQualified": true,
+  "limits": {
+    "metadataBytes": 1048576,
+    "fixtureBytes": 2097152,
+    "outputBytes": 65536,
+    "requestMaximumBytes": 65536,
+    "freshRequestPaddedBytes": 32768,
+    "liveMemoryBytes": 2147483648,
+    "initialTinyMemoryBytes": 2818572288,
+    "stagingBytes": 10737418240,
+    "outsideBytes": 167772160,
+    "sourceMaximumBytes": 65536,
+    "testMaximumBytes": 57344
+  },
+  "retainedBudgetPreparation": {
+    "state": "Complete1MiBsource and fresh actualtiny qualification; original plaintext retained, no archival utility shipped",
+    "reason": "Correct archival tooling/proofs exceed apparent savings; preserve original plaintext history and avoid new delivery bottleneck",
+    "extraReservedDiskBytes": 524288,
+    "archivalExecuted": false,
+    "draftCapsuleSha256": "56e85ca57e158878867ef5baae78896f90245c7908ba44225e49ec7fbc5488bb",
+    "draftCapsuleBytes": 14061,
+    "next": "Fresh separate actualrepair/seed/guest and complete full-rehearsal admission/execution remain; no repeat of qualified tiny source/kernel",
+    "debtCredit": false,
+    "sourceTests": "3pass/14assertions/8filtered/201ms; literal boundary and4old/smaller-reserve watched launch faults",
+    "review": "SpecPASS/QualityPASS; final owning tsc0/named statics0",
+    "capsuleSha256": "2697ae3fbc71726f9821712254883522126ee22896a9b207fbcc6791e56a1d56",
+    "capsuleBytes": 4713
+  },
+  "latestAttempt": "native-primitive-attempt-20261105-6f7d.json",
+  "procLimitPadding": {
+    "state": "Fixed/reviewed and exercised by accepted6f7d actualworker; fullobservability remains open",
+    "scope": "only trailing same-line spaces/tabs after required unit; exact values/status/bounds unchanged",
+    "tests": "1pass/3assert/11filtered;60.15ms test/86ms total; originalpaddedRED andwatchedwrongsoft omission",
+    "review": "SpecPASS/QualityPASS; final owning tsc0/named statics0",
+    "capsuleSha256": "54d8de51c2ffa51101007ca67e75e76089c12af83a4541d801d7a32632d69f58",
+    "capsuleBytes": 6944
+  },
+  "qualificationScope": "tiny-primitives-only",
+  "fullObservabilityAccepted": false,
+  "repairAccepted": false,
+  "historicalFirstAttempt": {
+    "evidence": "native-primitive-attempt-20261105.json",
+    "state": "failed-before-admission-readiness-unavailable",
+    "requestSha256": "2a0bc82b930bdb5bf075fcb81eefc1ab445f9e29c7243ced13613253ef6e30b3",
+    "counter": "unavailable",
+    "retryPerformed": false
+  },
+  "nativeQualification": {
+    "evidence": "native-primitive-attempt-20261105-6f7d.json",
+    "elapsedMilliseconds": 3198,
+    "durableSha256": "601f218300b84fe8f6a3e04e1730fdb4a299739216c63bde56dbb36730bd0523",
+    "terminalSha256": "045244a7f3dc26940fe92e3f24e5d787ccd120b9a612ace82fda4cd9faef3dbc",
+    "review": "independent runtime audit approved tiny scope",
+    "fixtureBytes": 1544192,
+    "metadataAtReceiptAuditBytes": 626688
+  }
+}

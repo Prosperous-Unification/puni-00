@@ -14,12 +14,16 @@ import { removeProcessRoot } from '.';
 // same error. The temporary assignment was removed after both runs.
 // Proof: omitting this allowance failed cleanup-budget.test.ts with an unnamed
 // hook timeout under injected rmSync latency; ordinary hangs still timed out at 20ms.
-afterAll(removeScratchAfterAll, 30_000);
+// Proof: PR 760 run 40591788802 exhausted 30s at 31094.74ms after named tests passed.
+// Injecting 31s at the copied actual rmSync boundary reproduced the unnamed timeout;
+// the revised 60s preload passed both named controls and physically removed their roots.
+// The fast exact-budget guard failed against 30s; inherited/reduced and 20ms hangs remain controls.
+afterAll(removeScratchAfterAll, 60_000);
 
 /**
  * Trace the global cleanup synchronously so an event-loop stall still has an entry marker.
  * Emits only its hook source and elapsed milliseconds; `return` means the existing
- * cleanup returned, not that its best-effort removal succeeded. Its explicit 30-second
+ * cleanup returned, not that its best-effort removal succeeded. Its explicit 60-second
  * allowance covers the observed 10.4-second hosted cleanup without changing ordinary
  * command-line test budgets or the existing cleanup error policy. A synchronous
  * overrun is reported after return; this allowance cannot interrupt a blocked syscall.

@@ -1,0 +1,250 @@
+{
+  "scope": "read-only-canonical-repair-ranges",
+  "pins": {
+    "base": "94068e4a3ff3ef4dfcb0d75f29e9dbbf39015bbe",
+    "frozenUtc": "2026-11-05T03:44:25.624578+00:00",
+    "sources": [
+      {
+        "path": "tools/tool-fleet/src/lab-raw-allocation.py",
+        "sha256": "be25ffe1740848c2dad861d87f42123a1a1664c8ffc0df6aa0a3062cf4d13ea8",
+        "gitBlob": "a61a49f2623484a6c94580e31413bfa2509af91a",
+        "mode": "0o644",
+        "gitMode": "100644",
+        "bytes": 15534
+      },
+      {
+        "path": "tools/tool-fleet/src/lab-raw-allocation.test.ts",
+        "sha256": "31b040ef63327a99742523410a95e6d3b10802ad4f860b6cadd1601eeb025be9",
+        "gitBlob": "d6754de26fbf8d81071a74dd2d0cee2e86b73c88",
+        "mode": "0o644",
+        "gitMode": "100644",
+        "bytes": 42280
+      }
+    ],
+    "fixRound": 1
+  },
+  "reviewSha256": "799041fd4e3bf31e6c8ef8e98351a92107138451c6e19f110042a2fb0c77ca7b",
+  "fixRoundReviewSha256": "9ca5f72ced163256aa5332418d85f84a770c26f5f85f28913022ff5ab8e708e7",
+  "commands": [
+    {
+      "stage": "RED missing APIs",
+      "command": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-fleet/src/lab-raw-allocation.test.ts",
+        "--test-name-pattern",
+        "repair ranges report exact bounded intervals for holes|initialized range keeps full allocation",
+        "--timeout=30000"
+      ],
+      "exit": 1,
+      "seconds": 0.29151578200253425
+    },
+    {
+      "stage": "first focused GREEN",
+      "command": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-fleet/src/lab-raw-allocation.test.ts",
+        "--test-name-pattern",
+        "repair ranges|repair range APIs|repair range fault|initialized range|repair range APIs",
+        "--timeout=30000"
+      ],
+      "exit": 1,
+      "seconds": 1.0561815759938327
+    },
+    {
+      "stage": "refined focused GREEN",
+      "command": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-fleet/src/lab-raw-allocation.test.ts",
+        "--test-name-pattern",
+        "repair ranges|repair range APIs|repair range fault|repair range completeness|initialized range",
+        "--timeout=30000"
+      ],
+      "exit": 0,
+      "seconds": 1.2580213110049954
+    },
+    {
+      "stage": "format-write",
+      "command": ["bunx", "prettier", "--write", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 0,
+      "seconds": 0.2861007459941902
+    },
+    {
+      "stage": "format-check",
+      "command": ["bunx", "prettier", "--check", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 0,
+      "seconds": 0.27301131100102793
+    },
+    {
+      "stage": "named-eslint",
+      "command": ["bunx", "eslint", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 1,
+      "seconds": 2.7985226529999636
+    },
+    {
+      "stage": "format-write-final",
+      "command": ["bunx", "prettier", "--write", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 0,
+      "seconds": 0.2696747689988115
+    },
+    {
+      "stage": "format-check-final",
+      "command": ["bunx", "prettier", "--check", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 0,
+      "seconds": 0.27059279400418745
+    },
+    {
+      "stage": "named-eslint-final",
+      "command": ["bunx", "eslint", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 0,
+      "seconds": 2.7781074379963684
+    },
+    {
+      "stage": "fleet-typecheck",
+      "command": ["bunx", "tsc", "--build", "--force", "tools/tool-fleet/tsconfig.json"],
+      "exit": 2,
+      "seconds": 2.274350299005164
+    },
+    {
+      "stage": "format-check-restored",
+      "command": ["bunx", "prettier", "--check", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 0,
+      "seconds": 0.26961548200051766
+    },
+    {
+      "stage": "named-eslint-restored",
+      "command": ["bunx", "eslint", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 0,
+      "seconds": 2.7574406589992577
+    },
+    {
+      "stage": "fleet-typecheck-restored",
+      "command": ["bunx", "tsc", "--build", "--force", "tools/tool-fleet/tsconfig.json"],
+      "exit": 0,
+      "seconds": 2.2711630589983542
+    },
+    {
+      "stage": "python-ast",
+      "command": [
+        "/usr/bin/python3.12",
+        "-I",
+        "-B",
+        "-c",
+        "import ast,pathlib;ast.parse(pathlib.Path('tools/tool-fleet/src/lab-raw-allocation.py').read_text());print('Python AST valid')"
+      ],
+      "exit": 0,
+      "seconds": 0.026274833995557856
+    },
+    {
+      "stage": "focused-final",
+      "command": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-fleet/src/lab-raw-allocation.test.ts",
+        "--test-name-pattern",
+        "repair ranges|repair range APIs|repair range fault|repair range completeness|initialized range|^source CLI accepts owned allocated file|^initialized guest inspection refuses UNWRITTEN|^repair observation accounts exactly for (holes|multipage|initialized|unwritten)$",
+        "--timeout=30000"
+      ],
+      "exit": 0,
+      "seconds": 1.6101303879986517
+    },
+    {
+      "stage": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "--",
+        "tools/tool-fleet/src/lab-raw-allocation.py",
+        "tools/tool-fleet/src/lab-raw-allocation.test.ts"
+      ],
+      "exit": 0,
+      "seconds": 0.007956949004437774
+    },
+    {
+      "stage": "freeze source diff",
+      "command": [
+        "git",
+        "diff",
+        "--binary",
+        "94068e4a3ff3ef4dfcb0d75f29e9dbbf39015bbe",
+        "--",
+        "tools/tool-fleet/src/lab-raw-allocation.py",
+        "tools/tool-fleet/src/lab-raw-allocation.test.ts"
+      ],
+      "exit": 0,
+      "seconds": 0.007744311005808413
+    },
+    {
+      "stage": "fix-round-1-focused-python314",
+      "command": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-fleet/src/lab-raw-allocation.test.ts",
+        "--test-name-pattern",
+        "repair ranges|repair range APIs|repair range fault|repair range completeness|initialized range",
+        "--timeout=30000"
+      ],
+      "environment": {
+        "CI": "true",
+        "FORCE_COLOR": "1",
+        "TERM": "xterm",
+        "NO_COLOR": null
+      },
+      "exit": 0,
+      "seconds": 0.9976127789996099
+    },
+    {
+      "stage": "fix-round-1-format",
+      "command": ["bunx", "prettier", "--check", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 1,
+      "seconds": 0.28068918400094844
+    },
+    {
+      "stage": "fix-round-1-format-write",
+      "command": ["bunx", "prettier", "--write", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 0,
+      "seconds": 0.28214443999604555
+    },
+    {
+      "stage": "fix-round-1-format-restored",
+      "command": ["bunx", "prettier", "--check", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 0,
+      "seconds": 0.26866706600412726
+    },
+    {
+      "stage": "fix-round-1-lint",
+      "command": ["bunx", "eslint", "tools/tool-fleet/src/lab-raw-allocation.test.ts"],
+      "exit": 0,
+      "seconds": 2.770561063000059
+    },
+    {
+      "stage": "fix-round-1-diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "--",
+        "tools/tool-fleet/src/lab-raw-allocation.test.ts"
+      ],
+      "exit": 0,
+      "seconds": 0.016510027002368588
+    }
+  ],
+  "reportSha256": "3e2947183a3df2b288bb05f0f4ee2f2aaae26f9886565cf29bb5bb01d168ea7b",
+  "runtimeRepairAuthorized": false,
+  "retainedRawAccessed": false,
+  "wholeCiPassed": false
+}

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "scope": "native read-only first-inventory resource query reproduction",
+  "observedAt": "2026-11-05T06:30:19.142728+00:00",
+  "execution": {
+    "observedAt": "2026-11-05T06:30:19.176839+00:00",
+    "seconds": 2.180341643994325,
+    "exitCode": 0,
+    "scriptSha256": "961962a56813dca9c328a39caf76f50122a034400c05e022e59030bd0f7ebd0d",
+    "transport": "same independently pinned existing Fleet route/known-hosts/keys; no credential contents read",
+    "stdoutSha256": "5ed774934d1f1d2500e82d96b142d14b8d589fdd722231067a744047a63a18cc",
+    "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "presence": {
+    "observedCRDs": [
+      "customresourcedefinition.apiextensions.k8s.io/helmreleases.helm.toolkit.fluxcd.io"
+    ],
+    "absentCRDs": ["elasticsearches.elasticsearch.k8s.elastic.co", "kibanas.kibana.k8s.elastic.co"],
+    "basis": "explicit named query with ignore-not-found and native exit0"
+  },
+  "combinedQuery": {
+    "resourceTypes": "deployments.apps,statefulsets.apps,daemonsets.apps,replicasets.apps,elasticsearches.elasticsearch.k8s.elastic.co,kibanas.kibana.k8s.elastic.co,helmreleases.helm.toolkit.fluxcd.io",
+    "exitCode": 1,
+    "stderr": "error: the server doesn't have a resource type \"elasticsearches\"\n",
+    "stderrSha256": "0478d56d2e69d2288aca8672af34e4d895e3584f0e9fdd02cf273a6cd6a61ed3",
+    "stdoutBytes": 0
+  },
+  "firstProbeClassifier": {
+    "field": "unknownElasticKind",
+    "value": false,
+    "limitation": "first heuristic expected fully qualified kind; native diagnostic uses short kind. Classification is based on exact preserved native stderr, not this heuristic."
+  },
+  "fullInventoryComplete": false,
+  "migrationReady": false,
+  "runtimeAuthority": false,
+  "mutation": false,
+  "secretValuesRequested": false
+}

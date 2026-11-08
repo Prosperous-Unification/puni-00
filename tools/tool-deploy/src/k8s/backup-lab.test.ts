@@ -40,9 +40,22 @@ describe('scheduled verification lab evidence', () => {
 
 async function createFixture() {
   const directory = await scratchAsync('verification-cronjob-');
+  const identityDirectory = join(directory, 'backup-tls');
+  const generation = Bun.spawnSync([
+    'bun',
+    join(import.meta.dir, '../../../tool-fleet/src/backup-identity.ts'),
+    directory,
+  ]);
+  if (generation.exitCode !== 0) throw new Error(generation.stderr.toString());
+  const identity = {
+    ca: join(identityDirectory, 'ca.crt'),
+    certificate: join(identityDirectory, 'tls.crt'),
+    key: join(identityDirectory, 'tls.key'),
+  };
   const objects = new Map<string, Uint8Array<ArrayBuffer>>();
   const server = Bun.serve({
     hostname: '127.0.0.1',
+    tls: { cert: Bun.file(identity.certificate), key: Bun.file(identity.key) },
     port: 0,
     async fetch(request) {
       const url = new URL(request.url);
@@ -80,6 +93,8 @@ async function createFixture() {
     }
     const environment = {
       S3_ENDPOINT: server.url.toString(),
+      S3_TRUST_MODE: 'system-roots-plus-ca',
+      NODE_EXTRA_CA_CERTS: identity.ca,
       S3_BUCKET: 'puni-sqlite',
       S3_REGION: 'us-east-1',
       AWS_ACCESS_KEY_ID: 'lab-only-access',

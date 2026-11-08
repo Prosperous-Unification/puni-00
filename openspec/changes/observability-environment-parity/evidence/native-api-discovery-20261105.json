@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "scope": "Task101 live selected-type discovery query only",
+  "sourceCommit": "8f76052b650cfacd8d94096cb22fa20bb2a5b8b1",
+  "sourcePath": "tools/tool-fleet/src/observability-preflight.ts",
+  "sourceSha256": "8a69f5643550a0af0f225e17524d411e064fd06568672bdf2951029bd40dcd97",
+  "productionProjectionSha256": "b9e884be7f21b01211248fab9f7e7b42096353e13d1a576783668371f385619b",
+  "privateEvidence": {
+    "bytes": 45636,
+    "sha256": "0d98772c0730eb1a2a331b958e3a2b7e7385c90d15381df8122325b6892cb973"
+  },
+  "observedAt": ["2026-11-05T08:39:46.027198+00:00", "2026-11-05T08:39:48.262792+00:00"],
+  "seconds": 4.513375611997617,
+  "customWorkloadAPIs": [
+    {
+      "resourceType": "elasticsearches.elasticsearch.k8s.elastic.co",
+      "state": "absent"
+    },
+    {
+      "resourceType": "kibanas.kibana.k8s.elastic.co",
+      "state": "absent"
+    },
+    {
+      "resourceType": "helmreleases.helm.toolkit.fluxcd.io",
+      "state": "present",
+      "uid": "0da90da7-8174-4f67-b728-b271c0ca75f7"
+    }
+  ],
+  "queriedWorkloadTypes": [
+    "deployments.apps",
+    "statefulsets.apps",
+    "daemonsets.apps",
+    "replicasets.apps",
+    "helmreleases.helm.toolkit.fluxcd.io"
+  ],
+  "workloadCount": 41,
+  "workloadsByKind": {
+    "Deployment": 14,
+    "DaemonSet": 1,
+    "ReplicaSet": 24,
+    "HelmRelease": 2
+  },
+  "nativeExits": [0, 0],
+  "stdoutSha256": [
+    "37991f12e44c188677e72524f207dad3772dddd46a61a1038eff60142b7efeab",
+    "6ed0fbbeab877d36f545305d81ce9f04e8a72a847156eff783614ecc762124e9"
+  ],
+  "stderrEmpty": true,
+  "transport": "same existing exact strict Fleet SSH route and target machine-id check; no credential payload reads",
+  "review": "independent read-only audit approved: exact committed selector, independently reconstructed projection, argv/output hashes and closed Resource shapes; no rerun",
+  "fullPreflightComplete": false,
+  "migrationReady": false,
+  "runtimeAuthority": false,
+  "liveMutation": false,
+  "secretValuesRead": false
+}

@@ -1,0 +1,71 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-creation.test.ts:
+(pass) Task37 complete serial transient observations close independently of permanent consumers [2.91ms]
+(pass) Task37 transient closure rejects missing [0.26ms]
+(pass) Task37 transient closure rejects duplicate [0.12ms]
+(pass) Task37 transient closure rejects image [0.17ms]
+(pass) Task37 transient closure rejects reference [0.08ms]
+(pass) Task37 transient closure rejects selection [0.06ms]
+(pass) Task37 transient closure rejects network [0.08ms]
+(pass) Task37 transient closure rejects mount [0.06ms]
+(pass) Task37 transient closure rejects mount-set [0.09ms]
+498 |     if (fault === 'selection') {input.plan.expected[1].configId = 'sha256:' + '9'.repeat(64); for (const observed of input.transients) observed.image = 'sha256:' + '9'.repeat(64);}
+499 |     if (fault === 'network') input.transients[0].networkIds = ['9'.repeat(64)];
+500 |     if (fault === 'mount') input.transients[0].mounts[0].source = '/foreign';
+501 |     if (fault === 'mount-set') input.transients[0].mounts = [];
+502 |     if (fault === 'overlap') input.events.find((event) => event.action === 'destroy' && event.id === '1'.repeat(64))!.time = '21';
+503 |     expect(() => closeCreation(input, 'forward')).toThrow();
+                                                        ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  containers: [
+    {
+      id: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      name: "registry",
+      image: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      configuredImage: "registry@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      networkIds: [ "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" ],
+      mounts: [
+        {
+          kind: "volume",
+          name: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          driver: "local",
+          source: "/var/lib/docker/volumes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/_data",
+          destination: "/var/lib/registry",
+          rw: true,
+        }
+      ],
+    }
+  ],
+  volumes: [
+    {
+      name: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      driver: "local",
+      mountpoint: "/var/lib/docker/volumes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/_data",
+      createdAt: "2026-10-27T00:00:00Z",
+      consumers: [ "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" ],
+    }
+  ],
+}
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.test.ts:503:51)
+(fail) Task37 transient closure rejects overlap [0.44ms]
+
+tools/tool-fleet/src/k3d-resource-runtime.test.ts:
+(pass) Task37 callback retains an exact transient before closure [42.95ms]
+(pass) Task37 callback refuses config before capture resolves [26.30ms]
+(pass) Task37 callback refuses reference before capture resolves [24.69ms]
+(pass) Task37 callback refuses name before capture resolves [21.96ms]
+(pass) Task37 callback refuses identity before capture resolves [21.19ms]
+(pass) Task37 callback refuses daemon before capture resolves [21.27ms]
+(pass) Task37 callback refuses inspection before capture resolves [23.35ms]
+(pass) Task37 callback refuses occupied before capture resolves [28.27ms]
+
+ 17 pass
+ 48 filtered out
+ 1 fail
+ 26 expect() calls
+Ran 18 tests across 2 files. [419.00ms]

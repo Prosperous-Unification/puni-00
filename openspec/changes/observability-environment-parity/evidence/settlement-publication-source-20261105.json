@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "scope": "Task111 bounded disposable production-primitive component evidence only",
+  "baseline": "42d402916b2cfac477a7b5a1399e93ff52ef9fde",
+  "status": "source, focused verification, scoped review and parent owning typing complete",
+  "sources": [
+    {
+      "path": "tools/tool-fleet/src/lab-raw-repair.py",
+      "bytes": 104741,
+      "sha256": "219355855bc76092e44e92ec2b072817e2165c436e5a0d05fc7e3f685414be0a"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-preparation.py",
+      "bytes": 54639,
+      "sha256": "a4b54fa650172830402f07c169b4162d31a21fc2a8f22a7b3d8f4d5457c68574"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-repair-worker.py",
+      "bytes": 13665,
+      "sha256": "228c46388b14258589deae9908e238df818c789f05545c5bc6ee1704f09e320c"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-seed-preparation.py",
+      "bytes": 53145,
+      "sha256": "c85ebe531dc69d146ae23b8e140bb9ef866ad81ad9e64197c15322804c0ceadf"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-guest-preparation.py",
+      "bytes": 80626,
+      "sha256": "f48f9f9d4fc53f2c7ba1c41ee9f91a5262dd3ac377f4f01af8cc1054aaaff0b6"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-raw-allocation.py",
+      "bytes": 15534,
+      "sha256": "be25ffe1740848c2dad861d87f42123a1a1664c8ffc0df6aa0a3062cf4d13ea8"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-settlement-publication.test.ts",
+      "bytes": 26998,
+      "sha256": "6da952b7e7faf18b8cfaa5a5ed903a63a538b1af61000bde3331f7a44ac03fb2"
+    }
+  ],
+  "sixSourceBytes": 322350,
+  "legacyRepairASTUnchanged": true,
+  "otherFiveHelperBytesUnchanged": true,
+  "command": "/home/df/.bun/bin/bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/lab-settlement-publication.test.ts --timeout=30000",
+  "finalRun": {
+    "passed": 81,
+    "failed": 0,
+    "assertions": 274,
+    "bunElapsedSeconds": "18.70",
+    "timeElapsedSeconds": "18.69",
+    "logSHA256": "2e06a745db53b7da7773d211a81cb46fd793ed07429f41e03a8448240813cbd3",
+    "testSHA256AtExecution": "696f7396a5f68e4f43bc154cda709bda78bc2c3b9191d1791f4c81060ccb2ec8"
+  },
+  "initialRed": {
+    "failed": 1,
+    "cause": "missing production publish_settlement_record API",
+    "elapsedMilliseconds": 166
+  },
+  "intermediateCampaign": {
+    "passed": 53,
+    "failed": 7,
+    "classification": "retained fixture defects corrected; not represented as a passing campaign"
+  },
+  "additionalREDs": [
+    "foreign platform published without a guard",
+    "failed open attempted cleanup of unowned negative FD",
+    "content changed during sync was previously accepted"
+  ],
+  "watchedControls": {
+    "executions": 56,
+    "distinctOmissions": 28,
+    "omissions": [
+      "cleanup-causes",
+      "cleanup-fd",
+      "cleanup-map",
+      "cleanup-primary",
+      "flag-O_CLOEXEC",
+      "flag-O_CREAT",
+      "flag-O_DIRECT",
+      "flag-O_DSYNC",
+      "flag-O_EXCL",
+      "flag-O_NOFOLLOW",
+      "flag-O_RDWR",
+      "prefix",
+      "settlement-alignment",
+      "settlement-completion",
+      "settlement-content",
+      "settlement-direct",
+      "settlement-directory-sync",
+      "settlement-file",
+      "settlement-file-sync",
+      "settlement-name",
+      "settlement-open",
+      "settlement-parent",
+      "settlement-platform",
+      "settlement-record",
+      "settlement-truncate",
+      "settlement-write",
+      "success-close-fd",
+      "success-close-map"
+    ],
+    "artifact": "settlement-publication-controls-20261105.json",
+    "rawSHA256": "2c0ed827bcdf10864e52eeb94d59edd2413f09fee0dfe8d5b306b8302ee1da79"
+  },
+  "statics": {
+    "namedESLint": "passed",
+    "namedPrettier": "passed",
+    "sixSourcePythonAST": "passed",
+    "whitespace": "passed",
+    "owningFleetTypecheck": "passed;2.04s after mechanical TypeScript fix"
+  },
+  "review": {
+    "verdict": "specification compliant; quality approved; no actionable findings",
+    "sha256": "2e06d4dda7c2e9626baf33ac1260006a5d6eb9f725bfe54785d5e398004162fd",
+    "reranTests": false
+  },
+  "limitations": [
+    "No runtime coordinator, request/bootstrap or namespace reader activation",
+    "No selected filesystem/kernel/security profile or physical/transient qualification",
+    "No actual retained-state publication, raw/ISO payload, drain, reservation credit or repair retry",
+    "No native service, guest, deployment or full stack acceptance",
+    "Existing v1 ledger/persistence/CLI semantics unchanged"
+  ],
+  "oldGrossBytesStillCharged": "141754548224",
+  "runtimeAcceptance": {
+    "complete": 4,
+    "total": 11,
+    "task97Complete": false
+  },
+  "postRunMechanicalChange": {
+    "change": "Bun.env.PUNI_TASK111_SOURCE to Bun.env['PUNI_TASK111_SOURCE'] for TS4111",
+    "bytesReconstructPriorTestHashExactly": true,
+    "behaviorTestsRerun": false,
+    "namedESLintPrettierWhitespace": "passed",
+    "parentOwningTypecheck": "passed after one observed failed run",
+    "parentTypecheckElapsedSeconds": "2.04",
+    "sourceUnchanged": true
+  }
+}

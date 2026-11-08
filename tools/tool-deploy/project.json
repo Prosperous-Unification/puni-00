@@ -65,6 +65,7 @@
         "{workspaceRoot}/.github/workflows/infra-check.yml",
         "{workspaceRoot}/tools/tool-devsync/src/burokrat-consumer.ts",
         "{workspaceRoot}/tools/tool-fleet/src/backup-sqlite.ts",
+        "{workspaceRoot}/tools/tool-fleet/src/backup-identity.ts",
         "{workspaceRoot}/infra/ci/deploy-runner/**/*"
       ],
       "options": {
@@ -128,7 +129,8 @@
       "{workspaceRoot}/infra/local/object-store/**/*",
       "{workspaceRoot}/infra/versions/object-store.json",
       "{workspaceRoot}/infra/versions/toolchain.json",
-      "{workspaceRoot}/infra/platform/backup/local/**/*"
+      "{workspaceRoot}/infra/platform/backup/local/**/*",
+      "{workspaceRoot}/tools/tool-fleet/src/backup-identity.ts"
     ],
     "production": [
       "default",

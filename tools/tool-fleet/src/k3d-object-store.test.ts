@@ -23,7 +23,12 @@ describe('Flux lab object-store prerequisite', () => {
       'k3d-owned-workers-agent-1',
     ]);
   });
-  for (const fault of ['absent digest', 'wrong manifest digest', 'failed import']) {
+  for (const fault of [
+    'absent digest',
+    'wrong manifest digest',
+    'failed import',
+    'missing TLS input',
+  ]) {
     it(`refuses ${fault} before Flux bootstrap`, async () => {
       let scheduled = false;
       await bootstrapLab(

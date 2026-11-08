@@ -1,0 +1,30 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/observability-rehearsal-obligations.test.ts:
+(pass) helper obligations preserve declared pins and every unresolved lifecycle without runtime authority [0.46ms]
+(pass) helper obligation source coordinates cannot silently disappear [0.12ms]
+(pass) helper obligation known role missing from chart lock refuses [0.21ms]
+(pass) shared helper descriptors preserve independent platform and worker expected names [0.08ms]
+(pass) inventory-only image adapter links exact repository digest while preserving strict platform pins [0.33ms]
+(pass) all four observed tag-omitted image occurrences have exact chart coordinates [0.12ms]
+(pass) Task37 helper image linkage requires exact selected repository and child digest [0.09ms]
+(pass) Task37 historical helper obligations remain explicitly unresolved without inventing pins [0.17ms]
+
+tools/tool-fleet/src/k3d-helper-images.test.ts:
+(pass) Task37 derives both cluster helpers from selected child references [0.04ms]
+(pass) Task37 current toolchain includes reviewed selected config identities [0.42ms]
+(pass) Task37 current reader rejects helper missing [3.49ms]
+(pass) Task37 current reader rejects helper provider [1.34ms]
+(pass) Task37 current reader rejects helper version [0.86ms]
+(pass) Task37 current reader rejects helper binary-version [0.36ms]
+(pass) Task37 current reader rejects helper arch [0.69ms]
+(pass) Task37 current reader rejects helper repository [0.58ms]
+(pass) Task37 current reader rejects helper digest [0.58ms]
+(pass) Task37 current reader rejects helper config [0.53ms]
+(pass) Task37 current reader rejects helper extra [0.54ms]
+(pass) Task37 retained historical toolchain requires exact independent content hash [11.32ms]
+
+ 20 pass
+ 0 fail
+ 40 expect() calls
+Ran 20 tests across 2 files. [263.00ms]

@@ -1,0 +1,132 @@
+{
+  "accepted": false,
+  "approvedSameUserBusRead": {
+    "command": [
+      "/usr/bin/systemctl",
+      "show",
+      "systemd-journald.service",
+      "--property=ActiveState,SubState,MainPID,FragmentPath,LogRateLimitIntervalUSec,LogRateLimitBurst,MemoryMax,TasksMax"
+    ],
+    "exitCode": 0,
+    "limit": "Unit logging-rate properties are not a global journal causal-volume bound; no policy change or Secret/event values read.",
+    "observed": {
+      "ActiveState": "active",
+      "FragmentPath": "/usr/lib/systemd/system/systemd-journald.service",
+      "LogRateLimitBurst": "0",
+      "LogRateLimitIntervalUSec": "0",
+      "MainPID": "486",
+      "MemoryMax": "infinity",
+      "SubState": "running",
+      "TasksMax": "37772"
+    },
+    "source": "approved read-only exec tool output d9d2a3, same user, no sudo"
+  },
+  "commands": [
+    {
+      "cmd": ["/usr/bin/systemd-analyze", "cat-config", "systemd/journald.conf"],
+      "declared": {
+        "ForwardToSyslog": "yes",
+        "SystemMaxUse": "1000M"
+      },
+      "exitCode": 0,
+      "limit": "Implicit defaults, effective allocations and causal volume are not qualified.",
+      "missingExplicit": [
+        "Storage",
+        "SystemKeepFree",
+        "SystemMaxFileSize",
+        "SystemMaxFiles",
+        "RuntimeMaxUse",
+        "RuntimeKeepFree",
+        "RuntimeMaxFileSize",
+        "RuntimeMaxFiles",
+        "RateLimitIntervalSec",
+        "RateLimitBurst",
+        "ForwardToKMsg",
+        "ForwardToConsole",
+        "ForwardToWall",
+        "MaxLevelStore",
+        "MaxRetentionSec",
+        "MaxFileSec"
+      ],
+      "overLimit": false,
+      "state": "observed-declarations-only",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdoutBytes": 1734,
+      "stdoutSha256": "cd902c53a3175e3d75dac1d043f0da5a2c52e111eeed5730181ab477f8bdae58",
+      "timedOut": false
+    },
+    {
+      "cmd": ["/usr/bin/journalctl", "--disk-usage", "--no-pager"],
+      "diagnostic": "",
+      "exitCode": 0,
+      "overLimit": false,
+      "state": "observed",
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdoutBytes": 64,
+      "stdoutSha256": "54e7b59baaa0a652fe1bb7ff1da4911a44a66bd650f425ab55de5bf3a638e3ce",
+      "text": "Archived and active journals take up 966.1M in the file system.\n",
+      "timedOut": false
+    },
+    {
+      "cmd": [
+        "/usr/bin/systemctl",
+        "show",
+        "systemd-journald.service",
+        "--property=ActiveState,SubState,MainPID,FragmentPath,LogRateLimitIntervalUSec,LogRateLimitBurst,MemoryMax,TasksMax"
+      ],
+      "executionBoundary": "restricted tool sandbox; initial bus refusal is not evidence of host authorization denial",
+      "exitCode": 1,
+      "overLimit": false,
+      "reason": "Failed to connect to bus: Operation not permitted\n",
+      "state": "unavailable",
+      "stderrBytes": 50,
+      "stderrSha256": "189b2e72a0d30aa2890b688326020c237179ed7551d682042f9011d1182a6be2",
+      "stdoutBytes": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "timedOut": false
+    },
+    {
+      "cmd": ["/usr/sbin/auditctl", "-s"],
+      "reason": "ENOENT: no such file or directory, posix_spawn '/usr/sbin/auditctl'",
+      "state": "unavailable"
+    }
+  ],
+  "diagnosticProgram": {
+    "bytes": 3614,
+    "perCommandDeadlineMs": 5000,
+    "perCommandOutputCapBytes": 65536,
+    "qualification": false,
+    "sha256": "ec63f7ecceca733aa0f03c15c8e22c54a802645a1640131e596e3853f92994cb"
+  },
+  "limitations": [
+    "No Secret or journal event values read",
+    "No permission escalation, policy changes, service changes, retained source/raw/ISO access or native request",
+    "Config declarations and bounded queues do not prove finite cumulative causal allocation or receiver closure",
+    "Bootstrap, quiescence, actual receiver/store allocation and full outside equation remain unqualified"
+  ],
+  "nextDecision": "Resolve complete launch first-access closure and finite causal consumer/allocation equation, including forwarded syslog. Configured1000M journal occupancy cap and finite inotify queues alone cannot substitute for the160MiB whole-operation bound. auditctl absence is a missing observation tool, not proof of audit disabled or of root authorization need.",
+  "observedAt": "2026-11-06T01:25:39.990Z",
+  "purpose": "Bounded read-only local consumer-cap diagnosis; not launch qualification or native admission",
+  "sysctls": [
+    {
+      "path": "/proc/sys/fs/inotify/max_queued_events",
+      "sha256": "33f50728129313570f6b953c08b559d9cb5f673e981e647cee4dc10d6cd48e99",
+      "state": "observed",
+      "value": "16384"
+    },
+    {
+      "path": "/proc/sys/fs/inotify/max_user_instances",
+      "sha256": "4f71bb761ace37c88826cd8cc1c948e1cf5b5d0cd153dc651a6efdb3dfb9f2b1",
+      "state": "observed",
+      "value": "1024"
+    },
+    {
+      "path": "/proc/sys/fs/inotify/max_user_watches",
+      "sha256": "8d77b567dc7d70c4790932171449ac8e807fd380f0b6446e09f47bd4f0ca946e",
+      "state": "observed",
+      "value": "254666"
+    }
+  ]
+}

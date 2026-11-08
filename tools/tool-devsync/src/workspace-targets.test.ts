@@ -1033,6 +1033,9 @@ describe('every cached target declares what it reads', () => {
     // Proof: omitting the backend live-test Browser consumer inputs failed this scan naming
     // wbs-be-01 and fe-01/src/components/wbs/gantt-geometry.ts plus fe-01/tsconfig.app.json.
     // Proof: omitting the Nx source input from tool-remote-scripts:test failed this scan naming node_modules/nx/dist/src.
+
+    // Proof: missing Fleet control inputs failed this production oracle naming both
+    // repair-native-control.py and staging-native-control.py (2026-11-05).
     expect(undeclared).toBeEmpty();
   });
 });
