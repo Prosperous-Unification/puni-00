@@ -21,11 +21,13 @@ const HOST_STATE_ROOT = '/home/puni1/wbs-dev/state';
 const REGISTRY_ENV = '/home/puni1/wbs/.env';
 const PROD_DEPLOY_LOCK = '/home/puni1/wbs/state/deploy.lock';
 /**
- * Lets an ordinary gate finish ahead of an automatic publish, then refuses.
- * The heavy-lock wrapper still rejects a stale owner immediately and reports a
- * live owner after this 15-minute ceiling instead of waiting without bound.
+ * Retains FIFO position behind long gates instead of repeatedly expiring after
+ * 15 minutes. The finite ten-hour queue ceiling can defer newer targets and
+ * alarm ticks. Existing lock ownership checks, execution deadlines and publisher
+ * capacity checks remain unchanged.
  */
-const SOLVER_PUBLISH_LOCK_WAIT_SECONDS = '900';
+// Proof: restoring 900 fails both exact publish-environment consumers in solver-binding-runtime.test.ts.
+const SOLVER_PUBLISH_LOCK_WAIT_SECONDS = '36000';
 const HOST_INPUT_MAX_BYTES = 256 * 1024;
 const PROD_CONTAINER_INSPECT_FORMAT =
   '{"name":{{json .Name}},"running":{{json .State.Running}},"image":{{json .Config.Image}}}';

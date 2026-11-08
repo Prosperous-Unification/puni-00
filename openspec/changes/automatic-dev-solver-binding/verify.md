@@ -339,3 +339,51 @@ marker: default `--max 10` exited 1 and named the stuck SHA and tmpfs cause,
 while the identical ten at `--max 11` exited 0. `notes/heartbeat.md` places that
 command in the owner-visible rotation. Thus a real solver-affecting refusal
 remains before mutation and reaches an owner within one ten-tick alarm period.
+
+## 2026-11-08 — finite publisher FIFO wait amendment
+
+Repeated normal publication attempts lost their FIFO position when the original
+900-second wait expired behind long host gates. Fourteen observed expiry/refusal
+cycles, later fifteen, motivated changing only the automatic publisher's queue
+ceiling to 36,000 seconds. Earlier 900-second results remain historical evidence;
+this amendment does not reinterpret them as tests of the new value.
+
+The selected cron/poller launch path had no shorter outer timeout: the selected
+cron entry directly launched the poller, its observed ancestry had no timeout
+wrapper, and cron/init runtime maxima were infinity. The target loader executes
+the immutable candidate before live reset. Root-owned executable observations
+that were unreadable remain unavailable. These scheduler observations support
+the finite wait; they do not prove eventual publication or current capacity.
+
+The longer queue residence can retain existing exclusion longer, defer newer
+pinned targets and delay subsequent ten-failure alarm ticks. It preserves FIFO,
+lock ownership checks, capacity-before-engine admission, original child observation,
+installer behavior and execution deadlines. A still-held lock after ten hours
+remains an exit-75 refusal before any release manifest read or live reset. There
+is no override knob. An already queued attempt retains its original budget.
+
+### Focused TDD and R5 evidence
+
+| Boundary                                                               | Watched failure                                                                                                                    | Restored observation                                                                                 |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Exact publication environment, both ordinary and Git-backed candidates | Updated existing consumers expected `36000` against unchanged production `900`: 6 pass / 2 fail, both exact environment mismatches | Only the production constant changed to `36000`: 8 pass / 0 fail, 44 assertions                      |
+| Changed production value remains observable                            | Temporarily restored only the constant to `900`: same two existing assertions failed                                               | Final production bytes restored exactly: 8 pass / 0 fail                                             |
+| Finite refusal does not consume a release                              | Existing exit-75 refusal case retained its zero-read assertion and now reports the 36,000-second ceiling                           | Included in all green owning runs                                                                    |
+| Existing wrapper contention semantics                                  | Unchanged short disposable real-lock controls                                                                                      | Immediate exit-75 refusal and queue-until-owner-release: 2 pass / 0 fail, 4 assertions, 2.23 seconds |
+
+Final affected binding runtime/command/host/preparation cohort:
+`bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/solver-binding-runtime.test.ts tools/tool-devsync/src/solver-binding-command.test.ts tools/tool-devsync/src/solver-binding-host.test.ts tools/tool-devsync/src/solver-preparation.test.ts`
+passed 57 tests across four files, 0 failures, 211 assertions, 11.03 seconds.
+Configured owning TypeScript, named ESLint after generating the Nx project graph,
+and `tool-devsync:check:docs --skip-nx-cache` passed. Owning OpenSpec validation
+passed; final formatting and documentation checks follow the completed record.
+Private original logs and the exact fault/restoration receipt are retained under
+`/tmp/puni-publisher-queue-evidence-20261108`.
+
+Only the runtime constant/rationale, existing exact expectations/refusal message
+and owning OpenSpec intent/spec/tasks/verification changed. Task 8 remains open.
+No full test matrix, host gate, actual publisher invocation, remote-host mutation,
+Fleet edit, queue bypass, cancellation, native harness, commit or PR action was
+performed by this implementation worker. Fresh published-head CI, independent
+review and the new actual-main canonical gate remain publisher-owned obligations;
+the earlier f642 gate cannot qualify this later runtime amendment.
