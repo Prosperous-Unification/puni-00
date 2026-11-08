@@ -144,6 +144,7 @@ test('non-Nx checks retain their own finite budget and each required original co
     'Solver image smoke',
     'Heavy-work lock',
     'Gate head pinning',
+    'Gate launcher refresh',
     'Dev entrypoint',
     'Secrets scan',
     'Private nesting',
@@ -156,6 +157,8 @@ test('non-Nx checks retain their own finite budget and each required original co
   ]);
   expect(step(checks, 'Format').run).toBe('bunx nx format:check --all');
   expect(step(checks, 'Solver image smoke').run).toBe('bunx nx run wbs-be-01:solver-image-smoke');
+  // Proof: omitted step and disabled command each failed this parsed-workflow consumer; restored passed (2026-11-08).
+  expect(step(checks, 'Gate launcher refresh').run).toBe('bash bin/gate-launcher-refresh.test.sh');
   expect(step(checks, 'Compose files').run).toContain(
     'docker compose -f deploy/compose/base.yml config -q',
   );
