@@ -6,13 +6,13 @@ import { expect, test } from 'bun:test';
 import { invokeRegistryCallback } from './registry-callback';
 import { registryHistorySha256 } from './registry-history';
 import { RegistryIndexPublication } from './registry-index-authority.fixture';
+import { requireRegistryHistoryCensus } from './registry-maintenance-history.native';
 import {
   assertConsumerUniverse,
   executeRegistryCommand,
   type RegistryJournal,
   type RegistryJournalPorts,
-} from './registry-journal';
-import { requireRegistryHistoryCensus } from './registry-maintenance-history.native';
+} from './registry-managed-journal';
 import { planRetirement } from './registry-policy';
 import { parseReaderConfiguration, verifyDockerSourceCoverage } from './registry-reader';
 import {

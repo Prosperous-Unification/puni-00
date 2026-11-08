@@ -6,13 +6,13 @@ import { expect, test } from 'bun:test';
 
 import { prepareRegistryBackupAttempt } from './registry-backup-attempt';
 import { invokeRegistryCallback } from './registry-callback';
+import { createRegistryRecoveryVerifier } from './registry-maintenance-recovery';
 import {
   executeRegistryCommand,
   parseRegistryCommandResponse,
   type RegistryJournalPorts,
   runRegistryMaintenance,
-} from './registry-journal';
-import { createRegistryRecoveryVerifier } from './registry-maintenance-recovery';
+} from './registry-managed-journal';
 import { requireRejection } from './registry-rejection.fixture';
 const GiB = 1024 ** 3;
 const guardian = {

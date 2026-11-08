@@ -71,7 +71,7 @@ read-only journal access, then removes only its own mounts/devices/files.
 The separately tagged `registry_authority` play stages the root-owned authenticated
 SSH command `/usr/local/sbin/puni-registry-authority` and pressure service. It accepts
 only JSON stdin; executable, UID59001, and journal directory are fixed. Build the
-exact reviewed CLI with `bun build --target=bun tools/tool-fleet/src/registry-journal-cli.ts
+exact reviewed CLI with `bun build --target=bun tools/tool-fleet/src/registry-managed-journal-cli.ts
 --outfile <artifact>`. Supply explicit controller paths and SHA256 values for that
 bundle and the pinned Bun executable through `puni_registry_authority_*` enrollment.
 The role validates source hashes before host writes and installed hashes before the

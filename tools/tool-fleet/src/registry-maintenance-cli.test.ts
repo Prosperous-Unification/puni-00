@@ -1,8 +1,8 @@
 import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
-import { parseRegistryCommandResponse } from './registry-journal';
 import { parseRegistryMaintenanceResume } from './registry-maintenance-cli';
+import { parseRegistryCommandResponse } from './registry-managed-journal';
 import type { RegistryPressureReport } from './registry-pressure-report';
 import { requireRejection } from './registry-rejection.fixture';
 
@@ -173,7 +173,7 @@ test('status output bound refuses a valid oversized canonical obligation list', 
 test('backup age comes from original verified receipt and future verification throws', async () => {
   const { readFile, writeFile } = await import('node:fs/promises');
   const { join } = await import('node:path');
-  const { executeRegistryCommand } = await import('./registry-journal');
+  const { executeRegistryCommand } = await import('./registry-managed-journal');
   const { collectRegistryMaintenanceStatus } = await import('./registry-maintenance-cli');
   const fixture = await pressureFixture();
   await executeRegistryCommand(
@@ -241,7 +241,7 @@ test('reservation summary exposes empty count and totals separately from measure
 test('reservation summary preserves populated exact safe-integer amounts without adding physical usage', async () => {
   const { readFile, writeFile } = await import('node:fs/promises');
   const { join } = await import('node:path');
-  const { executeRegistryCommand } = await import('./registry-journal');
+  const { executeRegistryCommand } = await import('./registry-managed-journal');
   const { collectRegistryMaintenanceStatus } = await import('./registry-maintenance-cli');
   const { createRegistryPressureReporter } = await import('./registry-pressure-report');
   const fixture = await pressureFixture();
@@ -295,7 +295,8 @@ for (const lineage of ['current-store', 'historical-store'] as const) {
   test(`verified backup exposes original ${lineage} identity and keeps age after actual operation failure`, async () => {
     const { readFile, writeFile } = await import('node:fs/promises');
     const { join } = await import('node:path');
-    const { executeRegistryCommand, runRegistryMaintenance } = await import('./registry-journal');
+    const { executeRegistryCommand, runRegistryMaintenance } =
+      await import('./registry-managed-journal');
     const { collectRegistryMaintenanceStatus } = await import('./registry-maintenance-cli');
     const fixture = await pressureFixture();
     await executeRegistryCommand(

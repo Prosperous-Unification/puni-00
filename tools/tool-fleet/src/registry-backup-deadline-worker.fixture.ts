@@ -12,7 +12,7 @@ import {
 } from './registry-backup-deadline-observation.fixture';
 import { invokeRegistryCallback } from './registry-callback';
 import { completeRegistryFixture } from './registry-fixture-completion.fixture';
-import * as journal from './registry-journal';
+import * as journal from './registry-managed-journal';
 
 const request = RegistryBackupDeadlineRequest.assert(JSON.parse(process.argv.at(2) ?? 'null'));
 const fault = request.family === 'deadline' ? request.fault : 'normal';
@@ -279,7 +279,7 @@ await completeRegistryFixture(async () => {
       });
     },
   }));
-  await mock.module('./registry-journal', () => ({
+  await mock.module('./registry-managed-journal', () => ({
     ...originalJournal,
     executeRegistryCommand: refuseEffect,
     parseRegistryCommandResponse: (input: unknown) => JournalInput.assert(input),
@@ -439,7 +439,7 @@ await completeRegistryFixture(async () => {
     console.log = nativeLog;
     await mock.module('node:fs/promises', () => originalFiles);
     await mock.module('bun:ffi', () => originalFfi);
-    await mock.module('./registry-journal', () => originalJournal);
+    await mock.module('./registry-managed-journal', () => originalJournal);
     await mock.module('./registry-backup-attempt', () => originalAttempts);
   },
 ]);

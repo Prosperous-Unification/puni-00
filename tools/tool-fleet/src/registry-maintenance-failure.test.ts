@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
-import { executeRegistryCommand, runRegistryMaintenance } from './registry-journal';
+import { executeRegistryCommand, runRegistryMaintenance } from './registry-managed-journal';
 import { requireRejection } from './registry-rejection.fixture';
 
 const GiB = 1024 ** 3;

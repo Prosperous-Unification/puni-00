@@ -5,7 +5,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import { invokeRegistryCallback } from './registry-callback';
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import { requireRejection } from './registry-rejection.fixture';
 const GiB = 1024 ** 3;
 const blob = {

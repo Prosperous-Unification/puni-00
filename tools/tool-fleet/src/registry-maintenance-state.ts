@@ -6,7 +6,7 @@ import { RegistryBackupAttempt } from './registry-backup-attempt';
 import { RegistryBackupLockRecovery, RegistryBackupLockReservation } from './registry-backup-locks';
 import { RegistryClientCompletion } from './registry-client-completion';
 import { requireRegistryClientRestoration } from './registry-client-evidence';
-import type { RegistryMaintenanceJournal } from './registry-journal';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import { RegistryReclamationReceipt, requireRegistryReclamation } from './registry-reclamation';
 
 const Identity = type('0 < string <= 256');

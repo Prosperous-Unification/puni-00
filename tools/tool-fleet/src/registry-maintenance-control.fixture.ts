@@ -2,9 +2,9 @@ import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runRegistryMaintenance } from './registry-journal';
 import { superviseRegistryMaintenance } from './registry-maintenance-control';
 import { awaitMaintenanceChild, installMaintenanceReaper } from './registry-maintenance-process';
+import { runRegistryMaintenance } from './registry-managed-journal';
 
 /** Owned native control-protocol fixture; no installed helper, privileged service or live endpoint is used. */
 async function main() {

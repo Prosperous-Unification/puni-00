@@ -9,13 +9,13 @@ import {
 } from './registry-client-attempt';
 import { openRegistryClientAttemptStore } from './registry-client-attempt-store';
 import type { RegistryClientPullPlan } from './registry-client-plan';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import type { RegistryMaintenanceHostRequest } from './registry-maintenance-control';
 import {
   type RegistryMaintenanceInstallation,
   requireRegistryClientInstallation,
 } from './registry-maintenance-installation';
 import { RegistryBackupReceipt } from './registry-maintenance-state';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import { completeRegistryOperation } from './registry-operation-completion';
 
 /**

@@ -16,7 +16,7 @@ import { dlopen } from 'bun:ffi';
 
 import { accountFilesystem, type FilesystemCounters } from './registry-capacity';
 import { readTrustedEnrollment } from './registry-enrollment';
-import { readRegistryJournalSnapshot } from './registry-journal';
+import { readRegistryJournalSnapshot } from './registry-managed-journal';
 import {
   draftRegistryPressureAlert,
   hashRegistryAlert,

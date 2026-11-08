@@ -750,7 +750,7 @@ test('actual store refuses a descriptor whose claimed kind differs from its fixe
 
 test('modeled sidecar pressure refusal still permits the real canonical maintenance failure receipt', async () => {
   const { executeRegistryCommand, runRegistryMaintenance, parseRegistryCommandResponse } =
-    await import('./registry-journal');
+    await import('./registry-managed-journal');
   const root = await scratchAsync('reservation-canonical-headroom-');
   const journalPath = join(root, 'contents');
   const sidecar = join(root, 'backup-effects');
@@ -901,7 +901,8 @@ test('new canonical recovery token keeps the same operation liability while an o
 });
 
 test('actual canonical recovery rotates token without refilling spent store slots', async () => {
-  const { executeRegistryCommand, runRegistryMaintenance } = await import('./registry-journal');
+  const { executeRegistryCommand, runRegistryMaintenance } =
+    await import('./registry-managed-journal');
   const root = await scratchAsync('reservation-real-lineage-');
   const journalPath = join(root, 'contents');
   const sidecar = join(root, 'backup-effects');

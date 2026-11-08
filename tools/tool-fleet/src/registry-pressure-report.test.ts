@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import type { RegistryPressureReport } from './registry-pressure-report';
 import {
   createRegistryPressureReporter,

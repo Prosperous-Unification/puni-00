@@ -7,12 +7,6 @@ import { dlopen, read as memory } from 'bun:ffi';
 
 import { measureFilesystem, measureVerifiedFilesystem } from './registry-capacity';
 import {
-  executeRegistryCommand,
-  parseRegistryCommandResponse,
-  type RegistryJournalPorts,
-  runRegistryMaintenance,
-} from './registry-journal';
-import {
   acceptMaintenanceChannel,
   authenticateMaintenanceChannel,
 } from './registry-maintenance-channel';
@@ -24,6 +18,12 @@ import { connectRegistryMaintenanceHost } from './registry-maintenance-host';
 import { awaitMaintenanceChild, installMaintenanceReaper } from './registry-maintenance-process';
 import { createMaintenanceSocketPair } from './registry-maintenance-socket';
 import { verifyRegistryMaintenanceSudo } from './registry-maintenance-sudo';
+import {
+  executeRegistryCommand,
+  parseRegistryCommandResponse,
+  type RegistryJournalPorts,
+  runRegistryMaintenance,
+} from './registry-managed-journal';
 
 const directory = '/var/lib/puni-registry/journal/contents';
 const registry = '/var/lib/puni-registry/registry/contents';

@@ -3,7 +3,7 @@ import { inspectOciArchive } from '../../../tools/tool-fleet/src/registry-artifa
 import {
   parseRegistryCommandResponse,
   type RegistryCommand,
-} from '../../../tools/tool-fleet/src/registry-journal';
+} from '../../../tools/tool-fleet/src/registry-managed-journal';
 import { publishArtifacts } from '../../../tools/tool-fleet/src/registry-publication';
 
 const url = process.argv.at(2);

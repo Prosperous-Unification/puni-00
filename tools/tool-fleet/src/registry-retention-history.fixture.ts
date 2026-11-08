@@ -6,14 +6,14 @@ import { type } from 'arktype';
 import { registryHistorySha256 } from './registry-history';
 import { RegistryIndexPublication } from './registry-index-authority.fixture';
 import type { RegistryInventory } from './registry-inventory';
-import type { EnvironmentHistory } from './registry-journal';
+import type { EnvironmentHistory } from './registry-managed-journal';
 import {
   executeRegistryCommand,
   parseRegistryCommandResponse,
   type RegistryConsumer,
   type RegistryJournal,
   type RegistryJournalPorts,
-} from './registry-journal';
+} from './registry-managed-journal';
 import { parseReaderConfiguration, type RegistryReaderConfiguration } from './registry-reader';
 
 export const registryHistoryEnvironments = ['history-old', 'history-new'] as const;

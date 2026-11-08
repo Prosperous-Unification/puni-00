@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 
 import { invokeRegistryCallback } from './registry-callback';
 import { runRegistryClientWorker } from './registry-client-worker';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import { registryClusterFixture } from './registry-maintenance-cluster.fixture';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import { requireRejection } from './registry-rejection.fixture';
 
 for (const action of ['verify-images', 'verify-recovery-images'] as const) {

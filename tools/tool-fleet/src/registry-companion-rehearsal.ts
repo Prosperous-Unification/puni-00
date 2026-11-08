@@ -3,7 +3,7 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import { runRegistryProcess } from './registry-process';
 
 /** Actual private hash-pinned client → bundled public lifecycle → durable disposable authority contract. */

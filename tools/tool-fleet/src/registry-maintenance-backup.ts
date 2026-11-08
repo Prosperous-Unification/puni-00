@@ -17,13 +17,13 @@ import {
 import { RegistryBackupSourceLimits } from './registry-backup-source';
 import { createRegistryBackupStore, type RegistryBackupAdmission } from './registry-backup-store';
 import { measureVerifiedFilesystem } from './registry-capacity';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import {
   type RegistryMaintenanceInstallation,
   requireRegistryRecoveryInstallation,
   verifyRegistryHostArtifact,
 } from './registry-maintenance-installation';
 import { RegistryRecoveryPreparation } from './registry-maintenance-state';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 
 const Configuration = type({
   // Proof: making this optional accepts a truly absent JSON property in the production parser negative.

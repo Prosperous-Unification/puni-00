@@ -2,7 +2,6 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 import { describeRegistryGuardObservationFailure } from './registry-guard-observation.fixture';
 import type { RegistryIndexPublication } from './registry-index-authority.fixture';
-import { parseRegistryCommandResponse } from './registry-journal';
 import { startRegistryFixtureGuard } from './registry-maintenance-guard.fixture';
 import { prepareRegistryHostFixture } from './registry-maintenance-host.fixture';
 import {
@@ -11,6 +10,7 @@ import {
   verifyPresent,
   verifyTags,
 } from './registry-maintenance-index.native';
+import { parseRegistryCommandResponse } from './registry-managed-journal';
 import { observeRegistryPopulationOutput } from './registry-population-diagnostics.fixture';
 import {
   prepareRegistryRetentionReaders,

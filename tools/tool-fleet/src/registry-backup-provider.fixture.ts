@@ -10,8 +10,8 @@ import { mock, spyOn } from 'bun:test';
 import type { RegistryBackupReservation } from './registry-backup-reservation';
 import { modelRegistryBackupEffects } from './registry-backup-reservation.fixture';
 import { invokeRegistryCallback } from './registry-callback';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import {
   encodedPrefix,
   uploads,

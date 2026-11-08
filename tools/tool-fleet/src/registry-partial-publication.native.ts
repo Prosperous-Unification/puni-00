@@ -9,7 +9,7 @@ import {
   planRegistryRetirement,
   type RegistryInventoryIdentity,
 } from './registry-inventory';
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import {
   recordRegistryPartialFailure,
   type RegistryPartialObservation,

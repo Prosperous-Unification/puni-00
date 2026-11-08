@@ -7,10 +7,10 @@ import { RegistryDeletionPublication } from './registry-deletion.fixture';
 import { completeRegistryFixture } from './registry-fixture-completion.fixture';
 import { describeRegistryGuardObservationFailure } from './registry-guard-observation.fixture';
 import { prepareRegistryIndexReaders } from './registry-index-authority.fixture';
-import { parseRegistryCommandResponse } from './registry-journal';
 import { startRegistryFixtureGuard } from './registry-maintenance-guard.fixture';
 import { prepareRegistryHostFixture } from './registry-maintenance-host.fixture';
 import { readRegistryIndexPublication, verifyPresent } from './registry-maintenance-index.native';
+import { parseRegistryCommandResponse } from './registry-managed-journal';
 import type { runRegistryServingCli } from './registry-serving-cli.fixture';
 import { readRegistryBytes } from './registry-stream';
 

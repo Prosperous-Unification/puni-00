@@ -103,7 +103,7 @@ def main():
         if len(matches)!=1:raise RuntimeError('Built artifact is missing or ambiguous: '+name)
         return matches[0]
     mapping={'activate':'activate-registry','backup':'backup-registry','backup-worker':'registry-backup-worker-cli','host':'registry-maintenance-host-cli','recover':'recover-registry','retire':'retire-registry','status':'registry-maintenance-status','client-worker':'registry-client-worker-cli'}
-    paths={'bun':options.bun,'authority.js':select('registry-journal-cli'),'crane':options.crane,'registry':options.registry}
+    paths={'bun':options.bun,'authority.js':select('registry-managed-journal-cli'),'crane':options.crane,'registry':options.registry}
     paths.update({'bundles/'+name+'.js':select(entry) for name,entry in mapping.items()})
     enrollment=output/'enrollment.ts';enrollment.write_text('import {createRegistryInstallation} from '+json.dumps(str(repository/'tools/tool-fleet/src/registry-installation.fixture.ts'))+';\nawait Bun.write('+json.dumps(str(output/'enrollment.json'))+',JSON.stringify(createRegistryInstallation()));\n')
     completed=run_command([str(options.bun),str(enrollment)],cwd=repository,timeout=30)

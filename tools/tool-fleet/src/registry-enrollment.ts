@@ -5,7 +5,7 @@ import { isAbsolute } from 'node:path';
 import { type } from 'arktype';
 
 import { admitBuilderScratch, admitScratch, measureVerifiedFilesystem } from './registry-capacity';
-import { parseRegistryCommandResponse } from './registry-journal';
+import { parseRegistryCommandResponse } from './registry-managed-journal';
 import type { RegistryAuthority } from './registry-publication';
 import { selectPublicationEnrollment } from './registry-selection';
 import { readRegistryBytes } from './registry-stream';

@@ -8,9 +8,9 @@ import { mock } from 'bun:test';
 import * as platform from './platform-registry';
 import { settleRegistryClientFixture } from './registry-client-completion.fixture';
 import * as inventory from './registry-inventory';
-import * as journal from './registry-journal';
 import * as host from './registry-maintenance-host';
 import { RegistryMaintenanceEvidence, RegistryRecoveryReceipt } from './registry-maintenance-state';
+import * as journal from './registry-managed-journal';
 
 const scope = type
   .enumerated(
@@ -326,7 +326,7 @@ const authority = {
   restore: () => Promise.reject(new Error('Unexpected unprepared restore')),
   deferActivation: () => Promise.resolve(),
 } as unknown as journal.RegistryMaintenanceSession;
-await mock.module('./registry-journal', () => ({
+await mock.module('./registry-managed-journal', () => ({
   ...journal,
   runRegistryMaintenance: (
     _directory: unknown,

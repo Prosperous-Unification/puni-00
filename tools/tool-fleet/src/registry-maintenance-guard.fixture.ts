@@ -109,7 +109,7 @@ export async function startRegistryFixtureGuard(
         startup,
         '/registry-journal/identities',
         '/var/lib/registry',
-        '/registry-journal',
+        '/registry-managed-journal',
         installed.distribution.path,
         'serve',
         config,

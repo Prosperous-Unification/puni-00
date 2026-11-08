@@ -11,7 +11,6 @@ import {
 import { runRegistryClientCustody } from './registry-client-custody';
 import { requireRegistryClientRecovery } from './registry-client-lineage';
 import { planRegistryClientPulls } from './registry-client-plan';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import type { RegistryMaintenanceHostRequest } from './registry-maintenance-control';
 import {
   type RegistryMaintenanceInstallation,
@@ -19,6 +18,7 @@ import {
   verifyRegistryHostArtifact,
 } from './registry-maintenance-installation';
 import { awaitMaintenanceChild } from './registry-maintenance-process';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import { completeRegistryOperation } from './registry-operation-completion';
 import { readRegistryBytes } from './registry-stream';
 

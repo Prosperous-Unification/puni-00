@@ -10,8 +10,8 @@ import {
   RegistryContenderRequest,
 } from './registry-contender-observation.fixture';
 import { completeRegistryFixture } from './registry-fixture-completion.fixture';
-import * as journal from './registry-journal';
 import * as preparation from './registry-maintenance-host.fixture';
+import * as journal from './registry-managed-journal';
 
 const request = RegistryContenderRequest.assert(JSON.parse(process.argv.at(2) ?? 'null'));
 const originalFiles = { ...filesystem },
@@ -147,7 +147,7 @@ await completeRegistryFixture(async () => {
       },
     }),
   }));
-  await mock.module('./registry-journal', () => ({
+  await mock.module('./registry-managed-journal', () => ({
     ...originalJournal,
     executeRegistryCommand(
       path: string,
@@ -256,7 +256,7 @@ await completeRegistryFixture(async () => {
     console.log = nativeLog;
     await mock.module('node:fs', () => originalSynchronous);
     await mock.module('node:fs/promises', () => originalFiles);
-    await mock.module('./registry-journal', () => originalJournal);
+    await mock.module('./registry-managed-journal', () => originalJournal);
     await mock.module('./registry-maintenance-host.fixture', () => originalPreparation);
   },
   async () => {

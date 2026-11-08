@@ -7,7 +7,6 @@ import {
   requireRegistryBackupAttempt,
 } from './registry-backup-attempt';
 import { requireRegistryBackupLockReservation } from './registry-backup-locks';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import type { RegistryMaintenanceHostRequest } from './registry-maintenance-control';
 import { RegistryMaintenanceRefusal } from './registry-maintenance-failure';
 import {
@@ -15,6 +14,7 @@ import {
   verifyRegistryHostArtifact,
 } from './registry-maintenance-installation';
 import { awaitRegistryBackupChild } from './registry-maintenance-process';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import { readRegistryBytes } from './registry-stream';
 
 /** Fixed reviewed utility creates UTS before Bun starts threads; no caller command/path/env crosses this launcher (ADR0059). Keeps the control pipe open until terminal-group and output collection settle, awaits each pipe effect, and preserves the original outcome through closure. Dual failure retains both errors and the original worker cause. */

@@ -11,7 +11,7 @@ import {
   imageLayerType,
   imageManifestType,
 } from './registry-client-layout.fixture';
-import type { RegistryJournal } from './registry-journal';
+import type { RegistryJournal } from './registry-managed-journal';
 
 export async function createRegistryClientPlanFixture() {
   const directory = await scratchAsync('registry-client-plan-'),

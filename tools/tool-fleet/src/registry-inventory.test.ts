@@ -14,14 +14,14 @@ import {
   collectRegistryInventory,
   planRegistryRetirement,
 } from './registry-inventory';
+import { maintainRegistry, type RegistryMaintenanceRuntime } from './registry-maintenance';
 import {
   executeRegistryCommand,
   parseRegistryCommandResponse,
   type RegistryConsumerReport,
   type RegistryJournal,
   type RegistryJournalPorts,
-} from './registry-journal';
-import { maintainRegistry, type RegistryMaintenanceRuntime } from './registry-maintenance';
+} from './registry-managed-journal';
 import { discardRegistryUploads, readRegistryUpload } from './registry-upload-census';
 const hash = (bytes: string | Uint8Array) =>
   `sha256:${createHash('sha256').update(bytes).digest('hex')}`;

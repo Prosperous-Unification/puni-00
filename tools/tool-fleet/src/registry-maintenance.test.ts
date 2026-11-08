@@ -6,13 +6,13 @@ import { type } from 'arktype';
 import { expect, test } from 'bun:test';
 
 import { settleRegistryClientFixture } from './registry-client-completion.fixture';
+import { maintainRegistry, type RegistryMaintenanceRuntime } from './registry-maintenance';
 import {
   executeRegistryCommand,
   parseRegistryCommandResponse,
   type RegistryJournalPorts,
   type RegistryMaintenanceSession,
-} from './registry-journal';
-import { maintainRegistry, type RegistryMaintenanceRuntime } from './registry-maintenance';
+} from './registry-managed-journal';
 import { requireRejection } from './registry-rejection.fixture';
 import { readRegistryBytes } from './registry-stream';
 import { discardRegistryUploads } from './registry-upload-census';

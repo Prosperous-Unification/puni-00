@@ -12,17 +12,17 @@ import {
   type RegistryInventoryIdentity,
 } from './registry-inventory';
 import {
-  type RegistryJournalPorts,
-  type RegistryMaintenanceSession,
-  runRegistryMaintenance,
-} from './registry-journal';
-import {
   type RegistryBackupReceipt,
   type RegistryMaintenanceEvidence,
   RegistryRecoveryReceipt,
   requireRegistryRecoveryReceipt,
   requireRegistryRestorationEvidence,
 } from './registry-maintenance-state';
+import {
+  type RegistryJournalPorts,
+  type RegistryMaintenanceSession,
+  runRegistryMaintenance,
+} from './registry-managed-journal';
 import { completeRegistryOperation } from './registry-operation-completion';
 import { consumeRegistryStream } from './registry-stream';
 

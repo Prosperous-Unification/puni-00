@@ -20,8 +20,6 @@ import { createRegistryBackupStore } from './registry-backup-store';
 import { measureVerifiedFilesystem } from './registry-capacity';
 import { settleRegistryClientFixture } from './registry-client-completion.fixture';
 import { collectRegistryInventory } from './registry-inventory';
-import type { RegistryJournal } from './registry-journal';
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
 import {
   completeRegistryRecovery,
   maintainRegistry,
@@ -29,6 +27,8 @@ import {
   stageRegistryRecovery,
 } from './registry-maintenance';
 import { createRegistryRecoveryVerifier } from './registry-maintenance-recovery';
+import type { RegistryJournal } from './registry-managed-journal';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import { publishPartialRegistryFixture } from './registry-partial-publication.native';
 import { discardRegistryUploads, readRegistryUpload } from './registry-upload-census';
 

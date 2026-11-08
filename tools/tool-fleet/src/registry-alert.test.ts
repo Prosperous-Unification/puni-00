@@ -6,7 +6,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import type { RegistryAlertSnapshot } from './registry-alert-store';
-import { executeRegistryCommand } from './registry-journal';
+import { executeRegistryCommand } from './registry-managed-journal';
 import { initializeRegistryPressureFixture } from './registry-pressure-report.fixture';
 import { requireRejection } from './registry-rejection.fixture';
 import { readRegistryBytes } from './registry-stream';
@@ -1955,7 +1955,7 @@ test('elapsed ten-minute horizon refuses an actual new HTTP admission', async ()
 test('canonical source identity mismatch refuses before any HTTP request', async () => {
   const prepared = await preparedAlert(),
     path = join(prepared.source.directory, 'journal.json');
-  const { readRegistryJournalSnapshot } = await import('./registry-journal');
+  const { readRegistryJournalSnapshot } = await import('./registry-managed-journal');
   const current = await readRegistryJournalSnapshot(prepared.source.directory);
   current.enrollment.storageId = 'foreign';
   await writeFile(path, JSON.stringify(current));
@@ -1994,7 +1994,7 @@ test('canonical path binding refuses a same-identity failure from another direct
     other = await scratchAsync('registry-alert-foreign-journal-');
   await writeFile(join(other, 'sample.json'), JSON.stringify({ usedBytes: 1024 ** 3, at: tick }));
   const foreign = await initializeRegistryPressureFixture(other);
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   await executeRegistryCommand(
     foreign.directory,
     { command: 'upgrade-maintenance' },
@@ -2017,7 +2017,7 @@ test('canonical path binding refuses a same-identity failure from another direct
 
 test('failed canonical observation below captured revision cannot replace the failure cursor', async () => {
   const prepared = await preparedAlert();
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   await executeRegistryCommand(
     prepared.source.directory,
     { command: 'upgrade-maintenance' },
@@ -2355,7 +2355,7 @@ test('a shorter Retry-After cannot overwrite a stronger persisted destination de
 
 test('periodic reconciliation does not invent a failure for active ordinary maintenance', async () => {
   const prepared = await preparedAlert();
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   await executeRegistryCommand(
     prepared.source.directory,
     { command: 'upgrade-maintenance' },
@@ -2398,7 +2398,7 @@ test('periodic reconciliation does not invent a failure for active ordinary main
 test('periodic reconciliation does not relabel a durable restore failure as backup or launcher', async () => {
   const prepared = await preparedAlert();
   const { runRegistryMaintenance, readRegistryJournalSnapshot } =
-    await import('./registry-journal');
+    await import('./registry-managed-journal');
   await executeRegistryCommand(
     prepared.source.directory,
     { command: 'upgrade-maintenance' },

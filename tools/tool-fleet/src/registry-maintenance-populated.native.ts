@@ -10,10 +10,10 @@ import {
   verifyRegistrySupervisorAcknowledgement,
 } from './registry-guard-observation.fixture';
 import { readRegistryHttpObservationOutput } from './registry-http-observation.fixture';
-import { parseRegistryCommandResponse } from './registry-journal';
 import { startRegistryFixtureGuard } from './registry-maintenance-guard.fixture';
 import { prepareRegistryHostFixture } from './registry-maintenance-host.fixture';
 import { RegistryPopulatedFixture } from './registry-maintenance-publication.fixture';
+import { parseRegistryCommandResponse } from './registry-managed-journal';
 import { observeRegistryPopulationOutput } from './registry-population-diagnostics.fixture';
 import { readRegistryPressureRecord } from './registry-pressure-ack.fixture';
 import { parseReaderConfiguration } from './registry-reader';

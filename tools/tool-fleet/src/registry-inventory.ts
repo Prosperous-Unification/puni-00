@@ -15,7 +15,7 @@ import {
   reconcileRegistryConsumers,
   type RegistryJournal,
   type RegistryJournalPorts,
-} from './registry-journal';
+} from './registry-managed-journal';
 import {
   planRetirement,
   type RegistryGraphNode,

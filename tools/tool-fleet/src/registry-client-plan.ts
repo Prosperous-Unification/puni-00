@@ -2,7 +2,7 @@ import { type } from 'arktype';
 
 import { type RegistryClientSelection, RegistryImagePlatform } from './registry-client-layout';
 import { collectRegistryStoredContent, type RegistryRevision } from './registry-inventory';
-import type { RegistryJournal } from './registry-journal';
+import type { RegistryJournal } from './registry-managed-journal';
 
 const Digest = type(/^sha256:[a-f0-9]{64}$/);
 const Descriptor = type({

@@ -3,11 +3,11 @@ import { RegistryBackupLockRecovery } from './registry-backup-locks';
 import { requireRegistryClientCompletion } from './registry-client-completion';
 import { requireRegistryClientPlan } from './registry-client-evidence';
 import type { RegistryClientPullPlan } from './registry-client-plan';
-import type { RegistryMaintenanceSession } from './registry-journal';
 import { authenticateMaintenanceChannel } from './registry-maintenance-channel';
 import type { RegistryMaintenanceHostRequest } from './registry-maintenance-control';
 import { createMaintenanceSocketPair } from './registry-maintenance-socket';
 import { verifyRegistryMaintenanceSudo } from './registry-maintenance-sudo';
+import type { RegistryMaintenanceSession } from './registry-managed-journal';
 
 const executable = '/usr/local/libexec/puni-registry-maintenance-host';
 

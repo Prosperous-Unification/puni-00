@@ -5,10 +5,10 @@ import { type } from 'arktype';
 
 import { measureVerifiedFilesystem } from './registry-capacity';
 import { pinFixtureFile, writeFixtureFile } from './registry-fixture-file';
-import type { RegistryConsumer } from './registry-journal';
 import { registryClusterFixture } from './registry-maintenance-cluster.fixture';
 import { parseRegistryMaintenanceInstallation } from './registry-maintenance-installation';
 import { registrySpecificationSha256 } from './registry-maintenance-observation';
+import type { RegistryConsumer } from './registry-managed-journal';
 import { parseReaderConfiguration, verifyDockerSourceCoverage } from './registry-reader';
 
 const home = '/root/task8-fixture';

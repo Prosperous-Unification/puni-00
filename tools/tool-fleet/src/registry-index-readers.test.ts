@@ -1,7 +1,7 @@
 import { expect, it } from 'bun:test';
 
 import { createRegistryIndexReaders } from './registry-index-authority.fixture';
-import { assertConsumerUniverse } from './registry-journal';
+import { assertConsumerUniverse } from './registry-managed-journal';
 import { parseReaderConfiguration, verifyDockerSourceCoverage } from './registry-reader';
 
 const primary = () =>

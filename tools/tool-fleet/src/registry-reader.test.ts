@@ -246,7 +246,7 @@ it('dispatches only exact installed remote source bytes through the real pinned 
   await expectRejection(executeReaderHost(request, ports), 'digest');
 });
 
-import { assertConsumerUniverse, type RegistryConsumer } from './registry-journal';
+import { assertConsumerUniverse, type RegistryConsumer } from './registry-managed-journal';
 import { verifyDockerSourceCoverage } from './registry-reader';
 it('requires exact registered global host coverage for each environment Compose source', () => {
   const host = {

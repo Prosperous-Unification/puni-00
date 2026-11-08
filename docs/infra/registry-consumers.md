@@ -49,14 +49,14 @@ Record source commit, Bun version and SHA256 of each installed bundle. The priva
 website `website-deploy:build` and fleet checks use their pinned Bun1.4.2; do not
 update their baseline or copy licensed private source into public bundles.
 
-| Owner                      | Bundled entrypoints                                                                                                        | Contract                                                                                             |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Public authority/lifecycle | `registry-journal-cli.js`, `registry-lifecycle-cli.js`                                                                     | Existing SSH journal authority; lifecycle JSON stdin `registry-lifecycle/1`                          |
-| Public desired Git         | `registry-flux-reader.js`                                                                                                  | Clean exact revision, configured origin/ref/roots and pinned kubectl renderer                        |
-| Public Kubernetes          | `registry-reader.js`, `registry-history-reader.js`, `registry-history-cli.js`                                              | Actual API discovery, immutable cluster/namespace UIDs, owner journals and explicit genesis/transfer |
-| Public host consumers      | `registry-docker-consumers.js`, `registry-compose-consumers.js`, `registry-compose-reader.js`, `registry-solver-reader.js` | Actual desired/runtime/idle refs; owner history; installed solver image map                          |
-| Source host dispatcher     | `registry-reader-host.js`                                                                                                  | Fixed authenticated transport to a source-owned reader                                               |
-| Private website            | `release-pin.js`, `registry-reader.js`                                                                                     | Private product mapping, owning Git receipts, pending desired edits and verified completion          |
+| Owner                       | Bundled entrypoints                                                                                                        | Contract                                                                                             |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Managed authority/lifecycle | `registry-managed-journal-cli.js`, `registry-lifecycle-cli.js`                                                             | Existing SSH journal authority; lifecycle JSON stdin `registry-lifecycle/1`                          |
+| Public desired Git          | `registry-flux-reader.js`                                                                                                  | Clean exact revision, configured origin/ref/roots and pinned kubectl renderer                        |
+| Public Kubernetes           | `registry-reader.js`, `registry-history-reader.js`, `registry-history-cli.js`                                              | Actual API discovery, immutable cluster/namespace UIDs, owner journals and explicit genesis/transfer |
+| Public host consumers       | `registry-docker-consumers.js`, `registry-compose-consumers.js`, `registry-compose-reader.js`, `registry-solver-reader.js` | Actual desired/runtime/idle refs; owner history; installed solver image map                          |
+| Source host dispatcher      | `registry-reader-host.js`                                                                                                  | Fixed authenticated transport to a source-owned reader                                               |
+| Private website             | `release-pin.js`, `registry-reader.js`                                                                                     | Private product mapping, owning Git receipts, pending desired edits and verified completion          |
 
 Only the private `publish-docker` child receives explicit `REGISTRY_USER` and
 `REGISTRY_PASS`; other lifecycle commands receive neither. Loader variables remain

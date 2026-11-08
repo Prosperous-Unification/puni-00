@@ -10,9 +10,9 @@ import {
   refreshRegistryIndexHistory,
   RegistryIndexPublication,
 } from './registry-index-authority.fixture';
-import { parseRegistryCommandResponse } from './registry-journal';
 import { startRegistryFixtureGuard } from './registry-maintenance-guard.fixture';
 import { prepareRegistryHostFixture } from './registry-maintenance-host.fixture';
+import { parseRegistryCommandResponse } from './registry-managed-journal';
 import { observeRegistryPopulationOutput } from './registry-population-diagnostics.fixture';
 import { readRegistryBytes } from './registry-stream';
 

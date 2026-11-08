@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 
 import { selectRegistryAuthorityStorage } from './registry-authority-host';
-import type { RegistryEnrollment } from './registry-journal';
 import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
+import type { RegistryEnrollment } from './registry-managed-journal';
 
 const ordinary = {
   path: '/var/lib/puni-registry/registry/contents',

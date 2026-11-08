@@ -10,12 +10,12 @@ import {
 } from './registry-capacity';
 import { readTrustedEnrollment } from './registry-enrollment';
 import { verifyStoredImages } from './registry-image-availability';
+import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
 import {
   assertConsumerUniverse,
   type RegistryEnrollment,
   type RegistryJournalPorts,
-} from './registry-journal';
-import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
+} from './registry-managed-journal';
 import { collectRegistryConsumers } from './registry-reader';
 
 /** Called with canonical enrollment by the held authority session. Paths/receipts are returned only from root-installed allowlisted storage, never from request strings or an unlocked journal read. */

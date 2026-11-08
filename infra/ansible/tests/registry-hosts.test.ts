@@ -620,7 +620,7 @@ it('stages the actual pinned authority and preserves prior installation on sourc
   const bundle = join(sources, 'authority.js');
   const built = await run(runtime, [
     'build',
-    join(repository, 'tools/tool-fleet/src/registry-journal-cli.ts'),
+    join(repository, 'tools/tool-fleet/src/registry-managed-journal-cli.ts'),
     '--target=bun',
     '--outfile',
     bundle,

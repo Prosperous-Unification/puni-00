@@ -1,9 +1,9 @@
 import { type } from 'arktype';
 import { mock, setSystemTime } from 'bun:test';
 
-import { parseRegistryCommandResponse } from './registry-journal';
 import { registryClusterFixture } from './registry-maintenance-cluster.fixture';
 import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
+import { parseRegistryCommandResponse } from './registry-managed-journal';
 import { readRegistryBytes } from './registry-stream';
 
 const mode = type

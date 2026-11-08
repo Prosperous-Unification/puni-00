@@ -36,8 +36,8 @@ test('actual reporter captures warning before publishing its replaceable report 
 
 import { initializeRegistryAlertFixture } from './registry-alert.fixture';
 import { readRegistryAlertSnapshot } from './registry-alert-store';
-import { executeRegistryCommand, runRegistryMaintenance } from './registry-journal';
 import * as maintenance from './registry-maintenance-cli';
+import { executeRegistryCommand, runRegistryMaintenance } from './registry-managed-journal';
 
 test('common ordinary maintenance boundary captures crash-before-enqueue failure before retry can clear it', async () => {
   const root = await scratchAsync('registry-alert-maintenance-');
@@ -226,7 +226,7 @@ test('periodic sender recovers a killed producer failure without maintenance ret
     expect(received).toHaveLength(1);
     expect(received[0]).toContain('backup-failure');
     const first = (await readRegistryAlertSnapshot(context)).events[0];
-    const { readRegistryJournalSnapshot } = await import('./registry-journal');
+    const { readRegistryJournalSnapshot } = await import('./registry-managed-journal');
     const current = await readRegistryJournalSnapshot(source.directory);
     // Model an unrelated trusted revision update without replacing the durable operation or its attempt identity.
     current.revision += 1;

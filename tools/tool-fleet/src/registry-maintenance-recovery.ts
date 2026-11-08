@@ -5,17 +5,17 @@ import { join } from 'node:path';
 import type { RegistryEndpoint } from './platform-registry';
 import { measureVerifiedFilesystem } from './registry-capacity';
 import { collectRegistryInventory, type RegistryInventory } from './registry-inventory';
-import {
-  parseRegistryCommandResponse,
-  projectRegistryRecovery,
-  type RegistryJournalPorts,
-} from './registry-journal';
 import { type RegistryMaintenanceAuthority, verifyRegistryPulls } from './registry-maintenance';
 import {
   type RegistryBackupReceipt,
   RegistryRecoveryPreparation,
   type RegistryRecoveryReceipt,
 } from './registry-maintenance-state';
+import {
+  parseRegistryCommandResponse,
+  projectRegistryRecovery,
+  type RegistryJournalPorts,
+} from './registry-managed-journal';
 import { completeRegistryOperation } from './registry-operation-completion';
 
 /** Fixed server configuration selects the targets; clients cannot supply paths, identities or capacities. */

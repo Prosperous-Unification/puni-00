@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { type } from 'arktype';
 
-import type { RegistryMaintenanceJournal } from './registry-journal';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 
 const Identity = type('0 < string <= 256');
 const Hash = type(/^[a-f0-9]{64}$/);

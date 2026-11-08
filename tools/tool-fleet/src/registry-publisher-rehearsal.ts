@@ -8,7 +8,7 @@ import {
   quoteFixtureString,
   renderDockerFixture,
 } from './registry-fixture-source';
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import { runRegistryProcess } from './registry-process';
 
 /** Actual private client/native publisher/uploader with synthetic credentials; export and capacity are explicit fixture ports. */

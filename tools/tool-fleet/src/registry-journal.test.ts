@@ -1,10 +1,11 @@
-import { chmod, readdir, readFile, statfs, writeFile } from 'node:fs/promises';
+import { chmod, readFile, statfs, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { expect, it } from 'bun:test';
 
 import { executeRegistryCommand } from './registry-journal';
+import { admitPublication } from './registry-policy';
 
 const GiB = 1024 ** 3;
 const root = `sha256:${'1'.repeat(64)}`;
@@ -391,7 +392,7 @@ it('rejects malformed claims and insecure journal paths before mutations', async
   await requireRefusal(executeRegistryCommand(directory, publication(), ports()), /ELOOP/);
 });
 
-it('refuses unenforced storage through the owner-only stdin CLI and bounds input', async () => {
+it('runs the owner-only stdin CLI with real measurements and bounds input', async () => {
   const directory = await scratchAsync('registry-command-');
   await chmod(directory, 0o700);
   const filesystem = await statfs(directory);
@@ -399,6 +400,8 @@ it('refuses unenforced storage through the owner-only stdin CLI and bounds input
     ...enrollment,
     registryPath: directory,
     rootPath: directory,
+    // Smoke test only: statfs measures this whole shared filesystem, so enrolling its full size
+    // admits commands without proving the dedicated journal filesystem a deployment requires.
     journalMaximumBytes: filesystem.blocks * filesystem.bsize,
   };
   const run = (request: string, extra: string[] = []) => {
@@ -419,9 +422,19 @@ it('refuses unenforced storage through the owner-only stdin CLI and bounds input
   const initialized = await run(
     JSON.stringify({ command: 'initialize', enrollment: localEnrollment }),
   );
-  expect(initialized[0]).not.toBe(0);
-  expect(initialized[1]).toBe('');
-  expect(initialized[2]).toContain('ENOENT');
+  expect(initialized[0]).toBe(0);
+  expect(
+    (JSON.parse(initialized[1]) as { state: { enrollment: { registryId: string } } }).state
+      .enrollment.registryId,
+  ).toBe('proof-registry');
+  const orphan = join(directory, `journal.${crypto.randomUUID()}.json`);
+  await writeFile(orphan, 'crashed replacement', { mode: 0o600 });
+  const readback = await run('{"command":"read"}');
+  expect(
+    (await import('node:fs/promises').then(({ readdir }) => readdir(directory))).sort(),
+  ).toEqual(['authority.lock', 'journal.json']);
+  expect(readback[0]).toBe(0);
+  expect((JSON.parse(readback[1]) as { state: { revision: number } }).state.revision).toBe(0);
   for (const [request, extra] of [
     ['{"command":"read"}' + ' '.repeat(65537), []],
     ['{"command":"read"}', ['--locked']],
@@ -517,27 +530,7 @@ it('recovers crashed maintenance at its durable phase and completes only after e
   }
   const completed = await read(directory);
   expect(completed.state.maintenance).toBeNull();
-  expect(completed.state.fenced).toBe(true);
-  expect(completed.state.maintenanceVerified).toBe(true);
-  const reopen = {
-    command: 'reopen',
-    expectedRevision: revision,
-    operationId: 'reopen',
-    owner: 'backup',
-  };
-  for (const pressure of [
-    { ...capacity, usedBytes: 35 * GiB },
-    { ...capacity, usedInodes: 70000 },
-    { ...capacity, rootFreeBytes: 19 * GiB },
-  ])
-    await requireRefusal(
-      executeRegistryCommand(directory, reopen, {
-        ...ports(),
-        measureRegistry: () => Promise.resolve(pressure),
-      }),
-      'low water',
-    );
-
+  expect(completed.state.fenced).toBe(false);
   await requireRefusal(
     executeRegistryCommand(
       directory,
@@ -655,7 +648,7 @@ it('refuses reinitialization, clock reversal, duplicate roots and malformed trus
     { ...state, enrollment: { ...state.enrollment, owners: ['publisher', 'publisher'] } },
     { ...state, reservations: [{ operationId: 'orphan', bytes: 1, inodes: 1 }] },
     { ...state, closedOperations: ['duplicate', 'duplicate'] },
-    { ...state, schemaVersion: 99 },
+    { ...state, schemaVersion: 2 },
   ];
   for (const corrupt of corruptions) {
     await writeFile(path, JSON.stringify(corrupt));
@@ -850,7 +843,6 @@ it('refuses unsafe replacement entries without deleting canonical or unrelated f
     else if (kind === 'directory') await mkdir(path, { mode: 0o700 });
     else if (kind === 'symlink') await symlink(join(directory, 'journal.json'), path);
     else await writeFile(path, 'preserve', { mode: kind === 'public-file' ? 0o644 : 0o600 });
-    // Creation mode is masked by umask; inject the actual public mode even under private077 callers.
     if (kind === 'public-file') await chmod(path, 0o644);
     await writeFile(join(directory, 'operator-notes'), 'unrelated', { mode: 0o600 });
     await requireRefusal(read(directory), 'replacement');
@@ -960,131 +952,230 @@ it('refuses a foreign-owner replacement reported by the filesystem boundary', as
   expect(await readFile(path, 'utf8')).toBe('foreign evidence');
 });
 
-it('persists pressure, requires verified low water to explicitly reopen, and preserves restart fence', async () => {
-  const directory = await fixture();
-  const high = {
-    ...ports(),
-    measureRegistry: () => Promise.resolve({ ...capacity, usedInodes: 90000 }),
-  };
-  const fenced = await executeRegistryCommand(directory, { command: 'check-capacity' }, high);
-  expect(fenced.state.fenced).toBe(true);
-  expect(fenced.state.fenceReason).toContain('inodes');
-  expect((await read(directory)).state.fenced).toBe(true);
-  await requireRefusal(
-    executeRegistryCommand(
-      directory,
-      { command: 'reopen', expectedRevision: 1, operationId: 'reopen', owner: 'backup' },
-      ports(),
-    ),
-    'verified maintenance',
-  );
-  const healthy = await executeRegistryCommand(directory, { command: 'check-capacity' }, ports());
-  expect(healthy.state.fenced).toBe(true);
-});
-
-it('requires explicit schema upgrade and preserves old recovery obligations', async () => {
-  const directory = await fixture();
-  const current = (await read(directory)).state;
-  const legacy: Record<string, unknown> = { ...current };
-  delete legacy['fenceReason'];
-  delete legacy['maintenanceVerified'];
-  delete legacy['measurement'];
-  delete legacy['environments'];
-  delete legacy['deployments'];
-  delete legacy['consumers'];
-  await writeFile(
-    join(directory, 'journal.json'),
-    JSON.stringify({ ...legacy, schemaVersion: 1, fenced: true }),
-  );
-  await requireRefusal(read(directory), 'registry journal');
-  const upgraded = await executeRegistryCommand(directory, { command: 'upgrade' }, ports());
-  expect(upgraded.state.schemaVersion).toBe(3);
-  expect(upgraded.state.fenced).toBe(true);
-  expect(upgraded.state.maintenanceVerified).toBe(false);
-});
-
-it('refuses pressure renewal when journal crosses its independent ninety percent boundary', async () => {
-  const directory = await fixture();
-  await requireRefusal(
-    executeRegistryCommand(directory, { command: 'check-capacity' }, ports(Math.ceil(GiB * 0.9))),
-    'journal capacity',
-  );
-});
-
-it('refuses inconsistent legacy recovery state before schema upgrade', async () => {
-  const directory = await fixture();
+async function completeBackup(directory: string, registry: typeof capacity, expectedRevision = 0) {
+  const measured = { ...ports(), measureRegistry: () => Promise.resolve(registry) };
+  const operationId = `backup-${String(expectedRevision)}`;
   const begun = await executeRegistryCommand(
     directory,
     {
       command: 'begin-maintenance',
-      expectedRevision: 0,
-      operationId: 'legacy-recovery',
+      expectedRevision,
+      operationId,
       owner: 'backup',
       kind: 'backup',
     },
+    measured,
+  );
+  let state = begun.state;
+  for (const phase of [
+    'reconciled',
+    'fenced',
+    'stopped',
+    'backed-up',
+    'verified',
+    'restored',
+    'completed',
+  ]) {
+    state = (
+      await executeRegistryCommand(
+        directory,
+        {
+          command: 'advance-maintenance',
+          expectedRevision: state.revision,
+          operationId,
+          owner: 'backup',
+          token: begun.token,
+          phase,
+        },
+        measured,
+      )
+    ).state;
+  }
+  return state;
+}
+
+it('maintenance completion stays fenced at exact seventy percent use or low host reserve', async () => {
+  for (const [changes, admission] of [
+    [{ usedBytes: 35 * GiB }, 'admitted'],
+    [{ usedInodes: 70000 }, 'admitted'],
+    [{ rootFreeBytes: 20 * GiB - 1 }, 'refused'],
+  ] as const) {
+    const directory = await fixture();
+    const registry = { ...capacity, ...changes };
+    const completed = await completeBackup(directory, registry);
+    expect(completed.maintenance).toBeNull();
+    expect(completed.closedOperations).toEqual(['backup-0']);
+    expect(completed.fenced).toBe(true);
+    // Pure admission still admits both exact-70% cases; it grants no reopening authority.
+    expect(
+      admitPublication({ capacity: registry, reservations: [], envelope: publication().envelope }),
+    ).toMatchObject({ status: admission });
+    await requireRefusal(
+      executeRegistryCommand(directory, publication(completed.revision), {
+        ...ports(),
+        measureRegistry: () => Promise.resolve(registry),
+      }),
+      'Registry writes are fenced',
+    );
+    expect((await read(directory)).state).toEqual(completed);
+  }
+});
+
+it('maintenance completion reopens strictly below seventy percent with adequate host reserve', async () => {
+  const directory = await fixture();
+  const registry = {
+    ...capacity,
+    usedBytes: 35 * GiB - 1,
+    usedInodes: 69999,
+    rootFreeBytes: 20 * GiB,
+  };
+  const completed = await completeBackup(directory, registry);
+  expect(completed.maintenance).toBeNull();
+  expect(completed.fenced).toBe(false);
+  const reopened = await executeRegistryCommand(directory, publication(completed.revision), {
+    ...ports(),
+    measureRegistry: () => Promise.resolve(registry),
+  });
+  expect(reopened.token).toMatch(/^[0-9a-f-]{36}$/);
+  expect(reopened.state.reservations).toEqual([
+    { operationId: 'publish-1', bytes: GiB, inodes: 100 },
+  ]);
+});
+
+it('failed publication fence survives abandonment until maintenance completes', async () => {
+  const directory = await fixture();
+  const reserved = await executeRegistryCommand(directory, publication(), ports());
+  const finish = {
+    command: 'finish-publication',
+    operationId: 'publish-1',
+    owner: 'publisher',
+    token: reserved.token,
+  };
+  await executeRegistryCommand(
+    directory,
+    {
+      ...finish,
+      expectedRevision: 1,
+      outcome: 'failed',
+      reconciled: false,
+      failure: 'upload interrupted',
+    },
     ports(),
   );
-  const legacy: Record<string, unknown> = { ...begun.state, schemaVersion: 1, fenced: false };
-  delete legacy['fenceReason'];
-  delete legacy['maintenanceVerified'];
-  delete legacy['measurement'];
-  delete legacy['environments'];
-  delete legacy['deployments'];
-  delete legacy['consumers'];
-  await writeFile(join(directory, 'journal.json'), JSON.stringify(legacy));
-  await requireRefusal(
-    executeRegistryCommand(directory, { command: 'upgrade' }, ports()),
-    'Unfenced recovery',
-  );
-});
-
-it('loads deferred host ports once after validation for an actual journal command', async () => {
-  const directory = await scratchAsync('registry-deferred-authority-');
-  await chmod(directory, 0o700);
-  let loaded = 0;
-  const initialized = await executeRegistryCommand(
+  const abandoned = await executeRegistryCommand(
     directory,
-    { command: 'initialize', enrollment },
-    () => {
-      loaded++;
-      return Promise.resolve(ports());
-    },
+    { ...finish, expectedRevision: 2, outcome: 'abandoned', reconciled: true },
+    ports(),
   );
-  expect(loaded).toBe(1);
-  expect(initialized.state.enrollment).toEqual(enrollment);
-  expect((await read(directory)).state).toEqual(initialized.state);
-});
-
-it('rejects malformed commands before deferred host bootstrap or journal effects', async () => {
-  const directory = await scratchAsync('registry-invalid-before-bootstrap-');
-  await chmod(directory, 0o700);
-  let loaded = 0;
+  expect(abandoned.state.publication).toBeNull();
+  expect(abandoned.state.reservations).toEqual([]);
+  expect(abandoned.state.bundles[0]?.receipt.state).toBe('abandoned');
+  expect(abandoned.state.fenced).toBe(true);
   await requireRefusal(
-    executeRegistryCommand(
-      directory,
-      { command: 'finish-publication', outcome: 'promoted' },
-      () => {
-        loaded++;
-        return Promise.reject(new Error('Host installation must not be consulted'));
-      },
-    ),
-    'Malformed registry command',
+    executeRegistryCommand(directory, publication(3, 'publish-2'), ports()),
+    'Registry writes are fenced',
   );
-  expect(loaded).toBe(0);
-  expect(await readdir(directory)).toEqual([]);
+  const completed = await completeBackup(directory, capacity, 3);
+  expect(completed.fenced).toBe(false);
+  const reopened = await executeRegistryCommand(
+    directory,
+    publication(completed.revision, 'publish-2'),
+    ports(),
+  );
+  expect(reopened.state.reservations).toEqual([
+    { operationId: 'publish-2', bytes: GiB, inodes: 100 },
+  ]);
 });
 
-it('preserves deferred bootstrap failure before acquiring a lock or touching trusted state', async () => {
-  const directory = await scratchAsync('registry-bootstrap-failure-');
-  await chmod(directory, 0o700);
-  const failure = new Error('Unavailable fixed installation');
-  let refused = false;
-  try {
-    await executeRegistryCommand(directory, { command: 'read' }, () => Promise.reject(failure));
-  } catch (cause) {
-    expect(cause).toBe(failure);
-    refused = true;
-  }
-  expect(refused).toBe(true);
-  expect(await readdir(directory)).toEqual([]);
-});
+for (const [name, initial, earlier, later] of [
+  ['standard', '2026-11-08T00:00:00.001Z', '2026-11-08T00:00:00.000Z', '2026-11-08T00:00:00.002Z'],
+  [
+    'expanded-boundary',
+    '+010000-01-01T00:00:00.000Z',
+    '9999-12-31T23:59:59.999Z',
+    '+010000-01-01T00:00:00.001Z',
+  ],
+  [
+    'negative-expanded',
+    '-000001-01-01T00:00:00.000Z',
+    '-000002-01-01T00:00:00.000Z',
+    '0000-01-01T00:00:00.000Z',
+  ],
+] as const) {
+  it(`chronology rejects ${name} reversal before durable mutation`, async () => {
+    const directory = await scratchAsync('registry-receipt-clock-');
+    await chmod(directory, 0o700);
+    await executeRegistryCommand(
+      directory,
+      { command: 'initialize', enrollment },
+      {
+        ...ports(),
+        now: () => initial,
+      },
+    );
+    const before = await readFile(join(directory, 'journal.json'), 'utf8');
+    await requireRefusal(
+      executeRegistryCommand(directory, publication(), { ...ports(), now: () => earlier }),
+      'clock moved backwards',
+    );
+    expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);
+    const retained = await read(directory);
+    expect(retained.state.revision).toBe(0);
+    expect(retained.state.reservations).toEqual([]);
+  });
+
+  it(`chronology accepts ${name} advancement from an earlier spelling`, async () => {
+    const directory = await scratchAsync('registry-receipt-clock-');
+    await chmod(directory, 0o700);
+    await executeRegistryCommand(
+      directory,
+      { command: 'initialize', enrollment },
+      {
+        ...ports(),
+        now: () => earlier,
+      },
+    );
+    const reserved = await executeRegistryCommand(directory, publication(), {
+      ...ports(),
+      now: () => initial,
+    });
+    expect(reserved.token).toMatch(/^[0-9a-f-]{36}$/);
+    expect(reserved.state.updatedAt).toBe(initial);
+    expect(reserved.state.revision).toBe(1);
+    const completed = await executeRegistryCommand(
+      directory,
+      {
+        command: 'finish-publication',
+        expectedRevision: 1,
+        operationId: 'publish-1',
+        owner: 'publisher',
+        token: reserved.token,
+        outcome: 'completed',
+        reconciled: true,
+      },
+      { ...ports(), now: () => later },
+    );
+    expect(completed.state.updatedAt).toBe(later);
+    expect(completed.state.revision).toBe(2);
+    expect((await read(directory)).state.bundles[0]?.receipt.at).toBe(later);
+  });
+
+  it(`chronology accepts ${name} equal receipt instants`, async () => {
+    const directory = await scratchAsync('registry-receipt-clock-');
+    await chmod(directory, 0o700);
+    await executeRegistryCommand(
+      directory,
+      { command: 'initialize', enrollment },
+      {
+        ...ports(),
+        now: () => initial,
+      },
+    );
+    const reserved = await executeRegistryCommand(directory, publication(), {
+      ...ports(),
+      now: () => initial,
+    });
+    expect(reserved.state.revision).toBe(1);
+    expect((await read(directory)).state.updatedAt).toBe(initial);
+  });
+}

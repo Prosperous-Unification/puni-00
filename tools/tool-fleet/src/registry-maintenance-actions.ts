@@ -7,7 +7,6 @@ import { runRegistryBackupWorker } from './registry-backup-worker';
 import { measureVerifiedFilesystem } from './registry-capacity';
 import { requireRegistryClientRecovery } from './registry-client-lineage';
 import { runRegistryClientWorker } from './registry-client-worker';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import {
   observeRegistryCluster,
   observeRegistryVolume,
@@ -29,6 +28,7 @@ import {
   requireRegistryRestorationEvidence,
 } from './registry-maintenance-state';
 import { readRegistryWriters } from './registry-maintenance-writers';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import { registryPodsUseStorage } from './registry-pod-writers';
 import { discardRegistryUploads } from './registry-upload-census';
 

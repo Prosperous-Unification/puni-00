@@ -8,12 +8,12 @@ import { dlopen, read as memory } from 'bun:ffi';
 import { readRegistryBackupGuardian, type RegistryBackupGuardian } from './registry-backup-attempt';
 import { requireRegistryBackupTerminal } from './registry-backup-terminal.fixture';
 import { describeRegistryGuardObservationFailure } from './registry-guard-observation.fixture';
+import { prepareRegistryHostFixture } from './registry-maintenance-host.fixture';
 import {
   executeRegistryCommand,
   parseRegistryCommandResponse,
   type RegistryJournalPorts,
-} from './registry-journal';
-import { prepareRegistryHostFixture } from './registry-maintenance-host.fixture';
+} from './registry-managed-journal';
 import { observeRegistryPopulationOutput } from './registry-population-diagnostics.fixture';
 
 export interface RegistryBackupFaultProcess {

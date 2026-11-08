@@ -74,7 +74,8 @@ if (import.meta.main) {
   if (root === undefined) throw new Error('Local alert fixture root required');
   if (mode === 'fail-before-enqueue') {
     const { createRegistryPressureFixture } = await import('./registry-pressure-report.fixture');
-    const { executeRegistryCommand, runRegistryMaintenance } = await import('./registry-journal');
+    const { executeRegistryCommand, runRegistryMaintenance } =
+      await import('./registry-managed-journal');
     const { withRegistryMaintenanceAlertCapture } = await import('./registry-maintenance-cli');
     const source = await createRegistryPressureFixture(root),
       context = await readRegistryAlertFixture(root);

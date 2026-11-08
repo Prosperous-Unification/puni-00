@@ -56,7 +56,7 @@ for (const fault of [
     if (fault === 'service-selector')
       resource('Service', 'registry').spec = { selector: { arbitrary: 'writer' } };
     if (fault === 'missing-journal')
-      proof.resources.delete('PersistentVolumeClaim/registry-journal');
+      proof.resources.delete('PersistentVolumeClaim/registry-managed-journal');
     if (fault === 'replicas')
       resource('Deployment', 'registry').spec = {
         ...resource('Deployment', 'registry').spec,

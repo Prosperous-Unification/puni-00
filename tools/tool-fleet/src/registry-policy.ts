@@ -249,6 +249,7 @@ function requireInventory(inventory: RetirementInput): Map<string, RegistryGraph
     inventory.histories.map((history) => history.environment),
     'environment history',
   );
+  // Proof: bypassed partial ownership failed refuses-partial-operations-without-an-abandoned-owning-bundle.
   const partial = new Set(inventory.partialOperations ?? []);
   requireUnique(inventory.partialOperations ?? [], 'partial operation');
   if (
@@ -260,6 +261,7 @@ function requireInventory(inventory: RetirementInput): Map<string, RegistryGraph
     )
   )
     throw new Error('Partial content lacks reconciled abandonment');
+  // Proof: bypassed retired identities/empty roots failed refuses-unknown-unfinished-or-empty-root-retired-declarations.
   const retired = new Set(inventory.retiredOperations ?? []);
   requireUnique(inventory.retiredOperations ?? [], 'retired operation');
   if (
@@ -289,6 +291,7 @@ function requireInventory(inventory: RetirementInput): Map<string, RegistryGraph
     // Proof: removing owner refusal failed throws-for-unknown-owner.
     if (!owned.has(node.digest)) throw new Error(`Unknown owner of ${node.digest}`);
   }
+  // Proof: duplicate, foreign and graph-overlapping content faults failed refuses-duplicate-physical-content-owners-and-unknown-or-graph-overlapping-content.
   const unreferenced = inventory.unreferencedContent ?? [];
   requireUnique(
     unreferenced.map((content) => content.digest),
@@ -304,6 +307,7 @@ function requireInventory(inventory: RetirementInput): Map<string, RegistryGraph
     )
       throw new Error('Invalid unreferenced physical content ownership');
   }
+  // Proof: removing the owner refusal failed refuses-staged-content-without-an-owning-bundle.
   if (
     (inventory.staging ?? []).some(
       (upload) => !inventory.bundles.some((bundle) => bundle.operationId === upload.operationId),
@@ -368,12 +372,13 @@ function retainBundles(
   for (const history of inventory.histories) {
     if (history.state === 'successful') {
       // Proof: retaining only current plus one prior failed preserves-older-environment-rollback.
-      // Proof: the fourteen-promotion history test substitutes current-consumer-only roots3/14; reducing this cutoff to one wrongly retires prior releases1/2 outside newest5–14. Native deployment protections are independently retained.
+      // Proof: current-consumer shared-tier history keeps prior releases1/2 outside newest5–14; reducing this cutoff to one failed preserves-older-environment-rollback.
       for (const operationId of history.releases.slice(0, 3))
         retain(operationId, `environment:${history.environment}`);
     }
   }
   for (const bundle of inventory.bundles) {
+    // Proof: bypassed retained-history refusal failed refuses-retired-releases-still-required-by-successful-history.
     if (inventory.retiredOperations?.includes(bundle.operationId)) {
       if (reasons.has(bundle.operationId))
         throw new Error('Retired bundle remains required by release history');
@@ -420,7 +425,7 @@ export function planRetirement(input: unknown): RetirementPlan {
   const protectedDigests = collectClosure(protectedRoots, nodes);
   const pressure = assessPressure(inventory.capacity);
   const isActive = inventory.mode === 'nightly' || pressure === 'retire' || pressure === 'fenced';
-  // Proof: selecting protected operations failed all-protected-exhaustion retirement.
+  // Proof: selecting protected operations failed all-protected-exhaustion; ignoring retired identities failed does-not-retire-an-already-retired-abandoned-operation-again.
   const eligible = inventory.bundles
     .filter(
       (bundle) =>
@@ -437,6 +442,7 @@ export function planRetirement(input: unknown): RetirementPlan {
     ...retired.map((bundle) => bundle.operationId),
     ...(inventory.retiredOperations ?? []),
   ]);
+  // Proof: replacing every owner with some failed retains-shared-unreferenced-content-until-every-owning-operation-releases-it.
   const orphanRetirements = (inventory.unreferencedContent ?? []).filter((content) =>
     content.operations.every((operationId) => released.has(operationId)),
   );

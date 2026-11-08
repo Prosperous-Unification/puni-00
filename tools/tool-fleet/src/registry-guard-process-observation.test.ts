@@ -59,7 +59,7 @@ test('actual observer closure keeps exact owned child identity on coherent reads
     '/etc/puni/registry-fixture-startup.sh',
     '/registry-journal/identities',
     '/var/lib/registry',
-    '/registry-journal',
+    '/registry-managed-journal',
     '/pinned/registry',
     'serve',
     '/etc/puni/ordinary-writer.json',

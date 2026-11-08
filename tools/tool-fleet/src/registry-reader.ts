@@ -7,7 +7,7 @@ import { isAbsolute, join } from 'node:path';
 import { type } from 'arktype';
 
 import { readTrustedEnrollment } from './registry-enrollment';
-import { EnvironmentHistory, type RegistryConsumer } from './registry-journal';
+import { EnvironmentHistory, type RegistryConsumer } from './registry-managed-journal';
 import { readRegistryBytes } from './registry-stream';
 
 const Identity = type('0 < string <= 256');

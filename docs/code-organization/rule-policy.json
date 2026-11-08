@@ -367,6 +367,14 @@
           {
             "kind": "path",
             "value": "infra/ansible/roles/registry_storage/files/k3s-storage.conf"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/files/maintenance.sudoers"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/files/maintenance.tmpfiles"
           }
         ],
         "exclude": [
@@ -766,6 +774,24 @@
         "regenerationAuthority": {
           "kind": "source",
           "path": "libs/shared/adapters/ui-core-01/src/fonts/README.md"
+        }
+      },
+      {
+        "path": "tools/tool-fleet/src/fixtures/dagger-0.21.9.oci.tar",
+        "format": "application/x-tar",
+        "consumer": "tools/tool-fleet/src/registry-artifact.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Pinned external Dagger 0.21.9 SDK/CLI and engine OCI export; retained provenance in openspec/changes/bound-registry-storage/verify.md. Re-export and characterize the pinned output before replacing this archive."
+        }
+      },
+      {
+        "path": "tools/tool-fleet/src/fixtures/docker-29.1.3-containerd.oci.tar",
+        "format": "application/x-tar",
+        "consumer": "tools/tool-fleet/src/registry-docker.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "External pinned Docker 29.1.3 containerd image-store OCI export. Regenerate with that exporter and re-characterize the root and metadata against tools/tool-fleet/src/registry-docker.test.ts before replacing this archive."
         }
       }
     ],

@@ -5,8 +5,8 @@ import { type } from 'arktype';
 import { uploadArtifact } from './platform-registry';
 import type { RegistryArtifact } from './registry-artifact';
 import { writeRegistryIndexFixture } from './registry-index.fixture';
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
 import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import { publishArtifacts } from './registry-publication';
 
 /** Fixed three-publication byte fixture for shared-root partial and repeated retirement; no registry or authority effect. */

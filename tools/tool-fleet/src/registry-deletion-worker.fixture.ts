@@ -12,9 +12,9 @@ import {
 } from './registry-deletion-observation.fixture';
 import { completeRegistryFixture } from './registry-fixture-completion.fixture';
 import * as indexReaders from './registry-index-authority.fixture';
-import * as journal from './registry-journal';
 import * as guard from './registry-maintenance-guard.fixture';
 import * as host from './registry-maintenance-host.fixture';
+import * as journal from './registry-managed-journal';
 
 const request = RegistryDeletionRequest.assert(JSON.parse(process.argv.at(2) ?? 'null'));
 const originalFiles = { ...filesystem },
@@ -202,7 +202,7 @@ await completeRegistryFixture(async () => {
     ...originalReaders,
     prepareRegistryIndexReaders: () => invokeRegistryCallback(() => undefined),
   }));
-  await mock.module('./registry-journal', () => ({
+  await mock.module('./registry-managed-journal', () => ({
     ...originalJournal,
     parseRegistryCommandResponse: (value: unknown) => value,
   }));
@@ -339,7 +339,7 @@ await completeRegistryFixture(async () => {
     await mock.module('node:fs/promises', () => originalFiles);
     await mock.module('./registry-maintenance-host.fixture', () => originalHost);
     await mock.module('./registry-index-authority.fixture', () => originalReaders);
-    await mock.module('./registry-journal', () => originalJournal);
+    await mock.module('./registry-managed-journal', () => originalJournal);
     await mock.module('./registry-maintenance-guard.fixture', () => originalGuard);
   },
   async () => {

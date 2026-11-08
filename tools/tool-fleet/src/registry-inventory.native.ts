@@ -13,7 +13,7 @@ import {
 import { join } from 'node:path';
 
 import { collectRegistryInventory, planRegistryRetirement } from './registry-inventory';
-import type { RegistryJournal } from './registry-journal';
+import type { RegistryJournal } from './registry-managed-journal';
 
 const expectedBinary = '8be11cd37a7d43b87e2a2ad11eb5d14dc64d15a040a37485e7e1cbb4c6c9dd37';
 const distributionDigest =

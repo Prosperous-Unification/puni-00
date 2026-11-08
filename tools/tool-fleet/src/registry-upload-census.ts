@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { type } from 'arktype';
 
-import type { RegistryJournal } from './registry-journal';
+import type { RegistryJournal } from './registry-managed-journal';
 
 const Repository = type(
   /^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*(?:\/[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*)*$/,

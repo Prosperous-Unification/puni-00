@@ -14,13 +14,13 @@ import {
 } from './registry-client-completion';
 import { planRegistryClientPulls } from './registry-client-plan';
 import { assertRegistryClientWorker, createRegistryClientExecutor } from './registry-client-pull';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import {
   type RegistryMaintenanceInstallation,
   requireRegistryClientInstallation,
   requireRegistryRecoveryInstallation,
 } from './registry-maintenance-installation';
 import { runRegistryMaintenanceServer } from './registry-maintenance-server';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import { completeRegistryOperation } from './registry-operation-completion';
 
 export interface RegistryClientVerificationInput {

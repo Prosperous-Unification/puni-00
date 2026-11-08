@@ -177,7 +177,10 @@ test('pressure cache is staged volatile bounded runtime state while monitor keep
     'ReadWritePaths=/var/lib/puni-registry/journal/contents /run/puni-registry-pressure',
   );
   expect(unit).toContain('authority.js /var/lib/puni-registry/journal/contents --monitor');
-  const source = await readFile(new URL('./registry-journal-cli.ts', import.meta.url), 'utf8');
+  const source = await readFile(
+    new URL('./registry-managed-journal-cli.ts', import.meta.url),
+    'utf8',
+  );
   expect(source).toContain('await monitorRegistryPressure(');
   expect(source).toContain('await Bun.sleep(registryRenewalSeconds * 1000)');
 });

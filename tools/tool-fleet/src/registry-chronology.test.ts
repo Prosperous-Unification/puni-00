@@ -10,7 +10,7 @@ import {
   type RegistryJournalPorts,
   type RegistryMaintenanceJournal,
   runRegistryMaintenance,
-} from './registry-journal';
+} from './registry-managed-journal';
 import { requireRejection } from './registry-rejection.fixture';
 
 const GiB = 1024 ** 3;

@@ -9,13 +9,13 @@ import {
   parseRegistryHistory,
   registryHistorySha256,
 } from './registry-history';
+import { kubernetesImageReferences } from './registry-kubernetes';
 import {
   assertConsumerUniverse,
   executeRegistryCommand,
   type RegistryConsumer,
   type RegistryJournalPorts,
-} from './registry-journal';
-import { kubernetesImageReferences } from './registry-kubernetes';
+} from './registry-managed-journal';
 import {
   managedImageReferences,
   parseReaderConfiguration,

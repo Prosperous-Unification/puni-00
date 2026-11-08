@@ -4,7 +4,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, it } from 'bun:test';
 
 import type { RegistryArtifact } from './registry-artifact';
-import { executeRegistryCommand, type RegistryCommand } from './registry-journal';
+import { executeRegistryCommand, type RegistryCommand } from './registry-managed-journal';
 import { publicationEnvelope, publishArtifacts } from './registry-publication';
 
 const GiB = 1024 ** 3;
@@ -231,7 +231,7 @@ it('refuses unknown or overflowing envelopes before creating any candidate', asy
   }
 });
 it('validates malformed authority responses before exposing a capability', async () => {
-  const { parseRegistryCommandResponse } = await import('./registry-journal');
+  const { parseRegistryCommandResponse } = await import('./registry-managed-journal');
   const proof = await fixture();
   try {
     const response = await proof.invoke({ command: 'read' });

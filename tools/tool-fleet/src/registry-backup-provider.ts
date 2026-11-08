@@ -7,10 +7,10 @@ import type {
   RegistryBackupSnapshotObserver,
   RegistryBackupSnapshotVersion,
 } from './registry-backup-retention';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import type { parseRegistryBackupConfiguration } from './registry-maintenance-backup';
 import { RegistryMaintenanceRefusal } from './registry-maintenance-failure';
 import { assertRegistryMaintenanceLock } from './registry-maintenance-process';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import {
   createRegistryS3Store,
   type RegistryS3Census,

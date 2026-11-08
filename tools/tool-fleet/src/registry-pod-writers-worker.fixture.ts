@@ -5,10 +5,10 @@ import { type } from 'arktype';
 import { mock } from 'bun:test';
 
 import * as capacity from './registry-capacity';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import * as cluster from './registry-maintenance-cluster';
 import { registryClusterFixture } from './registry-maintenance-cluster.fixture';
 import * as installation from './registry-maintenance-installation';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 
 const mode = type
   .enumerated(

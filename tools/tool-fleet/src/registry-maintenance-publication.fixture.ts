@@ -7,8 +7,8 @@ import { type } from 'arktype';
 import { type RegistryEndpoint, uploadArtifact } from './platform-registry';
 import type { RegistryArtifact } from './registry-artifact';
 import { measureVerifiedFilesystem } from './registry-capacity';
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
 import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import { publishPartialRegistryFixture } from './registry-partial-publication.native';
 import {
   describeRegistryPopulationFailure,

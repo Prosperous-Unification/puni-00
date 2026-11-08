@@ -38,11 +38,6 @@ import {
 } from './registry-index-authority.fixture';
 import { parseRegistryPressureAllocation } from './registry-inode-pressure.fixture';
 import { collectRegistryInventory, type RegistryInventoryIdentity } from './registry-inventory';
-import {
-  executeRegistryCommand,
-  parseRegistryCommandResponse,
-  runRegistryMaintenance,
-} from './registry-journal';
 import { maintainRegistry, stageRegistryRecovery } from './registry-maintenance';
 import { executeRegistryHostAction } from './registry-maintenance-actions';
 import type { RegistryBackupAdmissionPort } from './registry-maintenance-backup';
@@ -74,6 +69,11 @@ import {
   selectRegistrySharedRetirement,
 } from './registry-maintenance-shared.native';
 import { RegistryRecoveryPreparation } from './registry-maintenance-state';
+import {
+  executeRegistryCommand,
+  parseRegistryCommandResponse,
+  runRegistryMaintenance,
+} from './registry-managed-journal';
 import { proveRegistryPermitGuard } from './registry-permit-guard.native';
 import {
   describeRegistryPopulationFailure,

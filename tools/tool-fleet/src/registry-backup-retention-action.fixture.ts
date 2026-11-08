@@ -6,8 +6,8 @@ import { findRegistryBackupStage } from './registry-backup-diagnostics';
 import { modelRegistryBackupEffects } from './registry-backup-reservation.fixture';
 import type { RegistryBackupRetentionInput } from './registry-backup-retention';
 import { invokeRegistryCallback } from './registry-callback';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 
 const scenario = process.argv[2];
 const action = scenario.startsWith('snapshot')

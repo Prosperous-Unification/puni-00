@@ -8,12 +8,12 @@ import { dlopen } from 'bun:ffi';
 
 import { requireRegistryBackupLockReservation } from './registry-backup-locks';
 import type { RegistryBackupSourceObservation } from './registry-backup-source';
+import { assertRegistryMaintenanceLock } from './registry-maintenance-process';
 import {
   failureHeadroom,
   maximumJournalBytes,
   parseRegistryCommandResponse,
-} from './registry-journal';
-import { assertRegistryMaintenanceLock } from './registry-maintenance-process';
+} from './registry-managed-journal';
 import { completeRegistryOperation } from './registry-operation-completion';
 
 export type RegistryBackupEffectSlot =

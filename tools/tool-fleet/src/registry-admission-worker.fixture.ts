@@ -5,8 +5,8 @@ import { type } from 'arktype';
 import { mock } from 'bun:test';
 
 import { invokeRegistryCallback } from './registry-callback';
-import * as journal from './registry-journal';
 import * as actions from './registry-maintenance-actions';
+import * as journal from './registry-managed-journal';
 
 const Selection = type({
   family: "'collection'",
@@ -106,7 +106,7 @@ await mock.module('node:fs/promises', () => ({
     });
   },
 }));
-await mock.module('./registry-journal', () => ({
+await mock.module('./registry-managed-journal', () => ({
   ...originalJournal,
   executeRegistryCommand(path: string, request: unknown, selectedPorts: unknown) {
     return invokeRegistryCallback(() => {

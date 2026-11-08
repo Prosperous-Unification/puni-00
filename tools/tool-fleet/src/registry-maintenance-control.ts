@@ -4,8 +4,11 @@ import { join } from 'node:path';
 
 import { type } from 'arktype';
 
-import { parseRegistryCommandResponse, type RegistryMaintenanceJournal } from './registry-journal';
 import { assertRegistryMaintenanceLock } from './registry-maintenance-process';
+import {
+  parseRegistryCommandResponse,
+  type RegistryMaintenanceJournal,
+} from './registry-managed-journal';
 import { completeRegistryOperation } from './registry-operation-completion';
 
 const Request = type({

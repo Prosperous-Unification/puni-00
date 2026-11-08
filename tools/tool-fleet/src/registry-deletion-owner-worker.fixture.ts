@@ -11,12 +11,12 @@ import {
 } from './registry-deletion-owner-observation.fixture';
 import { completeRegistryFixture } from './registry-fixture-completion.fixture';
 import * as http from './registry-http-observation.fixture';
-import * as journal from './registry-journal';
 import * as maintenance from './registry-maintenance';
 import * as clock from './registry-maintenance-clock.fixture';
 import * as installation from './registry-maintenance-installation';
 import * as publication from './registry-maintenance-publication.fixture';
 import * as runtime from './registry-maintenance-runtime';
+import * as journal from './registry-managed-journal';
 
 const request = RegistryDeletionOwnerRequest.assert(JSON.parse(process.argv.at(2) ?? 'null'));
 const originalFiles = { ...filesystem },
@@ -130,7 +130,7 @@ await completeRegistryFixture(async () => {
       return configured;
     },
   }));
-  await mock.module('./registry-journal', () => ({
+  await mock.module('./registry-managed-journal', () => ({
     ...originalJournal,
     executeRegistryCommand: (directory: string, command: unknown, actualPorts: unknown) =>
       invokeRegistryCallback(() => {
@@ -349,7 +349,7 @@ await completeRegistryFixture(async () => {
     await mock.module('./registry-authority-host', () => originalAuthority);
     await mock.module('./registry-maintenance-clock.fixture', () => originalClock);
     await mock.module('./registry-maintenance-runtime', () => originalRuntime);
-    await mock.module('./registry-journal', () => originalJournal);
+    await mock.module('./registry-managed-journal', () => originalJournal);
     await mock.module('./registry-maintenance', () => originalMaintenance);
     await mock.module('./registry-deletion.fixture', () => originalDeletion);
     await mock.module('./registry-http-observation.fixture', () => originalHttp);

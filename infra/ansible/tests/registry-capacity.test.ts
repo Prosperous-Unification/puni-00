@@ -18,7 +18,8 @@ it('fences actual pinned Distribution writes across checker death and process re
     throw new Error('Explicit owned pinned Bun fixture required');
   const bundled = await Bun.build({
     entrypoints: [
-      new URL('../../../tools/tool-fleet/src/registry-journal-cli.ts', import.meta.url).pathname,
+      new URL('../../../tools/tool-fleet/src/registry-managed-journal-cli.ts', import.meta.url)
+        .pathname,
     ],
     target: 'bun',
   });

@@ -17,7 +17,6 @@ import {
   RegistryBackupSourceLimits,
   type RegistryBackupSourceObservation,
 } from './registry-backup-source';
-import type { RegistryMaintenanceSession } from './registry-journal';
 import {
   assertRegistryMaintenanceLock,
   awaitRegistryBackupChild,
@@ -25,6 +24,7 @@ import {
   installMaintenanceReaper,
 } from './registry-maintenance-process';
 import { RegistryBackupReceipt, RegistryRecoveryPreparation } from './registry-maintenance-state';
+import type { RegistryMaintenanceSession } from './registry-managed-journal';
 import { readRegistryBytes } from './registry-stream';
 
 const hash = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');

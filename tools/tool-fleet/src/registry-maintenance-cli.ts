@@ -9,7 +9,6 @@ import {
   type RegistryAlertContext,
 } from './registry-alert-store';
 import { createRegistryAuthorityPorts } from './registry-authority-host';
-import { readRegistryJournalSnapshot } from './registry-journal';
 import {
   completeRegistryRecovery,
   maintainRegistry,
@@ -18,6 +17,7 @@ import {
 import { readRegistryMaintenanceInstallation } from './registry-maintenance-installation';
 import { createRegistryRecoveryVerifier } from './registry-maintenance-recovery';
 import { createRegistryMaintenanceRuntime } from './registry-maintenance-runtime';
+import { readRegistryJournalSnapshot } from './registry-managed-journal';
 import {
   projectRegistryPressure,
   readRegistryPressureIdentity,

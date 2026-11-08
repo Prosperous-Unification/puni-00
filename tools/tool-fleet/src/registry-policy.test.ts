@@ -485,3 +485,101 @@ it.each(['deployment', 'recovery', 'consumer'])(
     expect(planRetirement(input).retireDigests).toEqual([]);
   },
 );
+
+it('refuses partial operations without an abandoned owning bundle', () => {
+  expect(() => planRetirement({ ...inventory(), partialOperations: ['missing'] })).toThrow();
+  expect(() => planRetirement({ ...inventory(), partialOperations: ['release-1'] })).toThrow();
+});
+
+it('refuses unknown unfinished or empty-root retired declarations', () => {
+  expect(() => planRetirement({ ...inventory(), retiredOperations: ['missing'] })).toThrow();
+  expect(() =>
+    planRetirement({
+      ...inventory(),
+      bundles: [{ ...bundle(1), receipt: { state: 'unfinished', at: now } }],
+      retiredOperations: ['release-1'],
+    }),
+  ).toThrow();
+  expect(() =>
+    planRetirement({
+      ...inventory(),
+      graph: { complete: true, nodes: [] },
+      bundles: [{ ...bundle(1), roots: [] }],
+    }),
+  ).toThrow();
+});
+
+it('refuses retired releases still required by successful history', () => {
+  expect(() => planRetirement({ ...inventory(), retiredOperations: ['release-1'] })).toThrow();
+});
+
+it('refuses duplicate physical content owners and unknown or graph-overlapping content', () => {
+  const content = { digest: digest(2), bytes: GiB, inodes: 1, operations: ['release-1'] };
+  for (const unreferencedContent of [
+    [content, content],
+    [{ ...content, operations: ['release-1', 'release-1'] }],
+    [{ ...content, operations: ['missing'] }],
+    [{ ...content, digest: digest(1) }],
+  ])
+    expect(() => planRetirement({ ...inventory(), unreferencedContent })).toThrow();
+});
+
+it('refuses staged content without an owning bundle', () => {
+  expect(() =>
+    planRetirement({
+      ...inventory(),
+      staging: [{ operationId: 'missing', bytes: 1, inodes: 1 }],
+    }),
+  ).toThrow();
+});
+
+it('accounts reconciled partial content and staging exactly once after retirement', () => {
+  const plan = planRetirement({
+    ...inventory(),
+    graph: { complete: true, nodes: [] },
+    bundles: [
+      { ...bundle(1), roots: [], receipt: { state: 'abandoned', at: '2026-10-01T00:00:00.000Z' } },
+    ],
+    partialOperations: ['release-1'],
+    staging: [{ operationId: 'release-1', bytes: 7, inodes: 2 }],
+    unreferencedContent: [{ digest: digest(2), bytes: 11, inodes: 3, operations: ['release-1'] }],
+  });
+  expect(plan.retireOperations).toEqual(['release-1']);
+  expect(plan.retireDigests).toEqual([digest(2)]);
+  expect(plan.estimatedReclaimableBytes).toBe(18);
+  expect(plan.estimatedReclaimableInodes).toBe(5);
+});
+
+it('retains shared unreferenced content until every owning operation releases it', () => {
+  const plan = planRetirement({
+    ...inventory(),
+    graph: { complete: true, nodes: [] },
+    bundles: [
+      { ...bundle(1), roots: [], receipt: { state: 'abandoned', at: '2026-10-01T00:00:00.000Z' } },
+      { ...bundle(2), roots: [], receipt: { state: 'abandoned', at: now } },
+    ],
+    partialOperations: ['release-1', 'release-2'],
+    staging: [{ operationId: 'release-2', bytes: 7, inodes: 2 }],
+    unreferencedContent: [
+      { digest: digest(3), bytes: 11, inodes: 3, operations: ['release-1', 'release-2'] },
+    ],
+  });
+  expect(plan.retireOperations).toEqual(['release-1']);
+  expect(plan.retireDigests).toEqual([]);
+  expect(plan.estimatedReclaimableBytes).toBe(0);
+  expect(plan.protectedBytes).toBe(18);
+});
+
+it('does not retire an already retired abandoned operation again', () => {
+  const plan = planRetirement({
+    ...inventory(),
+    graph: { complete: true, nodes: [] },
+    bundles: [
+      { ...bundle(1), roots: [], receipt: { state: 'abandoned', at: '2026-10-01T00:00:00.000Z' } },
+    ],
+    retiredOperations: ['release-1'],
+    unreferencedContent: [{ digest: digest(2), bytes: 11, inodes: 3, operations: ['release-1'] }],
+  });
+  expect(plan.retireOperations).toEqual([]);
+  expect(plan.retireDigests).toEqual([digest(2)]);
+});

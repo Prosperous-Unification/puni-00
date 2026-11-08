@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { type RegistryEndpoint, uploadArtifact } from './platform-registry';
 import type { RegistryArtifact } from './registry-artifact';
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import { publishArtifacts } from './registry-publication';
 import { readRegistryBytes } from './registry-stream';
 import { requireRegistryUploadEnospc } from './registry-upload-error.fixture';

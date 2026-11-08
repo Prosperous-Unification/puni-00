@@ -6,7 +6,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import { verifyContent } from './registry-artifact';
-import { executeRegistryCommand } from './registry-journal';
+import { executeRegistryCommand } from './registry-managed-journal';
 import { requireRejection } from './registry-rejection.fixture';
 
 // Builder changes that omit content, misdeclare its size/hash or change its physical bytes

@@ -3,13 +3,13 @@ import { join } from 'node:path';
 
 import { type } from 'arktype';
 
+import { collectRegistryMaintenanceStatus } from './registry-maintenance-cli';
 import {
   executeRegistryCommand,
   type RegistryJournalPorts,
   runRegistryMaintenance,
-} from './registry-journal';
-import { monitorRegistryPressure } from './registry-journal-cli';
-import { collectRegistryMaintenanceStatus } from './registry-maintenance-cli';
+} from './registry-managed-journal';
+import { monitorRegistryPressure } from './registry-managed-journal-cli';
 import { createRegistryPressureReporter } from './registry-pressure-report';
 
 export const registryPressureFixtureIdentity = {

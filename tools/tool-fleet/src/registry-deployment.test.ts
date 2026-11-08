@@ -8,7 +8,7 @@ import {
   executeRegistryCommand,
   type RegistryConsumer,
   type RegistryJournal,
-} from './registry-journal';
+} from './registry-managed-journal';
 
 const GiB = 1024 ** 3;
 const candidate = `sha256:${'a'.repeat(64)}`;
@@ -1173,7 +1173,7 @@ it('raw schema3 publication stdin cannot mint promotion or release upload owners
   const before = await readFile(`${directory}/journal.json`, 'utf8');
   await expectRejection(invoke(request), 'Malformed registry command');
   const child = Bun.spawn(
-    [process.execPath, `${import.meta.dir}/registry-journal-cli.ts`, directory],
+    [process.execPath, `${import.meta.dir}/registry-managed-journal-cli.ts`, directory],
     { stdin: new Response(JSON.stringify(request)), stdout: 'pipe', stderr: 'pipe' },
   );
   const [code, diagnostic] = await Promise.all([child.exited, new Response(child.stderr).text()]);

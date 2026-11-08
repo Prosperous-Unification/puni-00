@@ -20,7 +20,7 @@ import {
   executeRegistryCommand,
   type RegistryJournal,
   type RegistryJournalPorts,
-} from './registry-journal';
+} from './registry-managed-journal';
 import { completeRegistryOperation } from './registry-operation-completion';
 import { admitPublication } from './registry-policy';
 import { RegistryReclamationMeasurement } from './registry-reclamation';

@@ -6,13 +6,13 @@ import { type } from 'arktype';
 import { uploadArtifact } from './platform-registry';
 import { registryHistorySha256 } from './registry-history';
 import { writeRegistryIndexFixture } from './registry-index.fixture';
+import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
 import {
   executeRegistryCommand,
   parseRegistryCommandResponse,
   type RegistryConsumer,
   type RegistryJournalPorts,
-} from './registry-journal';
-import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
+} from './registry-managed-journal';
 import { publishArtifacts } from './registry-publication';
 import { parseReaderConfiguration, type RegistryReaderConfiguration } from './registry-reader';
 

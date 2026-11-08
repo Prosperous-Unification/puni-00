@@ -25,13 +25,13 @@ export {
   registryHistorySha256,
   type RegistryPromotionReceipt,
 } from './registry-history';
+export { isNonImageKubernetesResource, kubernetesImageReferences } from './registry-kubernetes';
 export {
   assertConsumerUniverse,
   executeRegistryCommand,
   type RegistryConsumer,
   type RegistryJournalPorts,
-} from './registry-journal';
-export { isNonImageKubernetesResource, kubernetesImageReferences } from './registry-kubernetes';
+} from './registry-managed-journal';
 export { runRegistryProcess, withRegistryExecutable } from './registry-process';
 export {
   type PublicationEnrollment,

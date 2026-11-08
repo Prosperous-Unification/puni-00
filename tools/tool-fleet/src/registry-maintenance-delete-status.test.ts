@@ -7,8 +7,8 @@ import { expect, test } from 'bun:test';
 import { verifyContent } from './registry-artifact';
 import { settleRegistryClientFixture } from './registry-client-completion.fixture';
 import { writeRegistryDeletionFixture } from './registry-deletion.fixture';
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
 import { maintainRegistry, type RegistryMaintenanceRuntime } from './registry-maintenance';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import { discardRegistryUploads } from './registry-upload-census';
 
 const GiB = 1024 ** 3;

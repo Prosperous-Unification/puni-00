@@ -6,7 +6,7 @@ import { expect, test } from 'bun:test';
 import { imageConfigType } from './registry-client-layout.fixture';
 import { planRegistryClientPulls } from './registry-client-plan';
 import { createRegistryClientPlanFixture } from './registry-client-plan.fixture';
-import type { RegistryJournal } from './registry-journal';
+import type { RegistryJournal } from './registry-managed-journal';
 import { requireRejection } from './registry-rejection.fixture';
 
 const signal = () => new AbortController().signal;

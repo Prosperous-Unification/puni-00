@@ -14,7 +14,7 @@ for (const validation of ['--validate-installation', '--validate-client-installa
       const child = Bun.spawn(
         [
           process.execPath,
-          new URL('./registry-journal-cli.ts', import.meta.url).pathname,
+          new URL('./registry-managed-journal-cli.ts', import.meta.url).pathname,
           validation,
           ...args,
         ],

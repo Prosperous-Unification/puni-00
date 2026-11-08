@@ -12,11 +12,11 @@ import {
   fillRegistryFixtureInodes,
   type RegistryPressureAllocation,
 } from './registry-inode-pressure.fixture';
-import { parseRegistryCommandResponse } from './registry-journal';
 import { startRegistryFixtureGuard } from './registry-maintenance-guard.fixture';
 import { prepareRegistryHostFixture } from './registry-maintenance-host.fixture';
 import { respondRegistryFixture } from './registry-maintenance-namespace-api.fixture';
 import { requireRegistryRecoveryReceipt } from './registry-maintenance-state';
+import { parseRegistryCommandResponse } from './registry-managed-journal';
 import { observeRegistryPopulationOutput } from './registry-population-diagnostics.fixture';
 import { readRegistryPressureRecord } from './registry-pressure-ack.fixture';
 import { prepareRegistryPressureEpoch } from './registry-pressure-epoch.fixture';

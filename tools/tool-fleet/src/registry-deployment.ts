@@ -6,7 +6,7 @@ import { type } from 'arktype';
 
 import { connectRegistryAuthority } from './registry-enrollment';
 import { parseRegistryPromotionReceipt, type RegistryPromotionReceipt } from './registry-history';
-import type { RegistryJournal } from './registry-journal';
+import type { RegistryJournal } from './registry-managed-journal';
 import type { RegistryAuthority } from './registry-publication';
 import { managedImageReferences } from './registry-reader';
 import { selectDeploymentEnrollment, selectEnvironmentEnrollment } from './registry-selection';

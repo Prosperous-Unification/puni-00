@@ -10,7 +10,7 @@ import {
   type RegistryJournal,
   type RegistryJournalPorts,
   runRegistryMaintenance,
-} from './registry-journal';
+} from './registry-managed-journal';
 
 const GiB = 1024 ** 3;
 const ports: RegistryJournalPorts = {

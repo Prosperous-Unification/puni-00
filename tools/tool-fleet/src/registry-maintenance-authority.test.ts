@@ -5,7 +5,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import { invokeRegistryCallback } from './registry-callback';
-import { executeRegistryCommand, type RegistryJournalPorts } from './registry-journal';
+import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 const GiB = 1024 ** 3;
 const enrollment = {
   registryId: 'maintenance',
@@ -110,7 +110,7 @@ test('schema4 rejects missing evidence fields and generic phase-only maintenance
   await requireRefusal(executeRegistryCommand(directory, { command: 'read' }, ports), 'Malformed');
 });
 test('session holds existing authority lock and failure retains ownership and fence', async () => {
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   const directory = await fixture();
   await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports);
   await requireRefusal(
@@ -133,7 +133,7 @@ test('session holds existing authority lock and failure retains ownership and fe
   });
 });
 test('session refuses phase evidence omissions and never clears a failed fence', async () => {
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   const directory = await fixture();
   await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports);
   await requireRefusal(
@@ -152,7 +152,7 @@ test('session refuses phase evidence omissions and never clears a failed fence',
   );
 });
 test('session persists independent fence without requesting a registry readonly acknowledgement', async () => {
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   const directory = await fixture();
   await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports);
   let confirmations = 0;
@@ -195,7 +195,7 @@ test('killed session releases kernel lock but preserves recovery ownership again
   const directory = await fixture();
   await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports);
   const marker = join(directory, 'session-started');
-  const source = `import { runRegistryMaintenance } from './registry-journal';
+  const source = `import { runRegistryMaintenance } from './registry-managed-journal';
     import { writeFile } from 'node:fs/promises';
     const capacities = await Bun.stdin.json();
     const ports = { measureJournal: () => Promise.resolve(capacities.journal), measureRegistry: () => Promise.resolve(capacities.registry) };
@@ -226,7 +226,7 @@ test('killed session releases kernel lock but preserves recovery ownership again
       [
         process.execPath,
         '-e',
-        `import { executeRegistryCommand } from './registry-journal'; await executeRegistryCommand(process.argv[1], {command:'read'}, {measureJournal:async()=>{throw Error('unexpected')},measureRegistry:async()=>{throw Error('unexpected')}});`,
+        `import { executeRegistryCommand } from './registry-managed-journal'; await executeRegistryCommand(process.argv[1], {command:'read'}, {measureJournal:async()=>{throw Error('unexpected')},measureRegistry:async()=>{throw Error('unexpected')}});`,
         directory,
       ],
       { cwd: import.meta.dir, stdout: 'pipe', stderr: 'pipe' },
@@ -240,7 +240,7 @@ test('killed session releases kernel lock but preserves recovery ownership again
       fenced: true,
       maintenance: { operationId: 'crashed', phase: 'acquired' },
     });
-    const { runRegistryMaintenance } = await import('./registry-journal');
+    const { runRegistryMaintenance } = await import('./registry-managed-journal');
     await requireRefusal(
       runRegistryMaintenance(
         directory,
@@ -283,7 +283,7 @@ test('genuine prior schema3 writer fixture upgrades without changing any obligat
   });
 });
 test('session gives native helpers the same held open-file-description lock', async () => {
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   const directory = await fixture();
   await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports);
   await requireRefusal(
@@ -322,7 +322,7 @@ async function requireRefusal(pending: Promise<unknown>, expected: string): Prom
   throw new Error('Expected production path to refuse');
 }
 test('schema4 read refuses maintenance evidence that belongs to another operation', async () => {
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   const directory = await fixture();
   await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports);
   await requireRefusal(
@@ -348,7 +348,7 @@ test('schema4 read refuses maintenance evidence that belongs to another operatio
   );
 });
 test('retirement receipt cannot precede exact deletion reconciliation', async () => {
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   const directory = await fixture();
   await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports);
   await requireRefusal(
@@ -366,7 +366,7 @@ test('retirement receipt cannot precede exact deletion reconciliation', async ()
   expect(state).toMatchObject({ fenced: true, retirements: [], maintenance: { phase: 'failed' } });
 });
 test('recovery rebind refuses caller-only identity without the trusted server verifier', async () => {
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   const directory = await fixture();
   await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports);
   await requireRefusal(
@@ -385,7 +385,7 @@ test('recovery rebind refuses caller-only identity without the trusted server ve
   expect(state).toMatchObject({ fenced: true, maintenance: { phase: 'failed' } });
 });
 test('unverified recovery text cannot bypass pending deletion reconciliation', async () => {
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   const directory = await fixture();
   await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports);
   await requireRefusal(
@@ -436,7 +436,7 @@ test('unverified recovery text cannot bypass pending deletion reconciliation', a
 });
 for (const change of ['clear', 'replace'] as const) {
   test(`verified operation backup cannot ${change} its recovery lineage`, async () => {
-    const { runRegistryMaintenance } = await import('./registry-journal');
+    const { runRegistryMaintenance } = await import('./registry-managed-journal');
     const directory = await fixture();
     await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports);
     await requireRefusal(
@@ -476,7 +476,7 @@ for (const change of ['clear', 'replace'] as const) {
   });
 }
 test('eventual retirement receipt and failure replacement must fit before destructive phase', async () => {
-  const { runRegistryMaintenance } = await import('./registry-journal');
+  const { runRegistryMaintenance } = await import('./registry-managed-journal');
   const directory = await fixture();
   const initial = (await executeRegistryCommand(directory, { command: 'read' }, ports)).state;
   const digests = Array.from(
@@ -602,7 +602,7 @@ test('eventual retirement receipt and failure replacement must fit before destru
   });
 });
 test('repeated exact retirement receipts preserve original provenance and restore clears only its operation plus snapshot lineage', async () => {
-  const { projectRegistryRecovery } = await import('./registry-journal');
+  const { projectRegistryRecovery } = await import('./registry-managed-journal');
   const directory = await fixture();
   const state = (await executeRegistryCommand(directory, { command: 'upgrade-maintenance' }, ports))
     .state;

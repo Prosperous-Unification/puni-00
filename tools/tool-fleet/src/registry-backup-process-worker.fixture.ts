@@ -11,7 +11,7 @@ import {
   RegistryBackupProcessRequest,
 } from './registry-backup-process-observation.fixture';
 import { invokeRegistryCallback } from './registry-callback';
-import * as journal from './registry-journal';
+import * as journal from './registry-managed-journal';
 
 const request = RegistryBackupProcessRequest.assert(
   JSON.parse(type('string').assert(process.argv.at(2))),
@@ -232,7 +232,7 @@ await mock.module('./registry-backup-attempt', () => ({
     }
   },
 }));
-await mock.module('./registry-journal', () => ({
+await mock.module('./registry-managed-journal', () => ({
   ...originalJournal,
   executeRegistryCommand: refuseEffect,
   parseRegistryCommandResponse(input: unknown) {
@@ -306,6 +306,6 @@ try {
   console.log = nativeLog;
   await mock.module('node:fs/promises', () => originalFiles);
   await mock.module('./registry-backup-attempt', () => originalAttempts);
-  await mock.module('./registry-journal', () => originalJournal);
+  await mock.module('./registry-managed-journal', () => originalJournal);
 }
 console.log(JSON.stringify(RegistryBackupProcessObservation.assert(observed)));

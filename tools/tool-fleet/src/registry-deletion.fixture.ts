@@ -6,13 +6,13 @@ import { uploadArtifact } from './platform-registry';
 import type { RegistryArtifact } from './registry-artifact';
 import { writeRegistryIndexFixture } from './registry-index.fixture';
 import { collectRegistryInventory } from './registry-inventory';
+import type { RegistryMaintenanceRuntime } from './registry-maintenance';
+import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
 import {
   executeRegistryCommand,
   type RegistryJournalPorts,
   type RegistryMaintenanceSession,
-} from './registry-journal';
-import type { RegistryMaintenanceRuntime } from './registry-maintenance';
-import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
+} from './registry-managed-journal';
 import { publishArtifacts } from './registry-publication';
 
 /** Fixed two-publication fixture seed; the expired image must have a single tagged revision. */

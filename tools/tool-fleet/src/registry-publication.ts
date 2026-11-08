@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { RegistryArtifact } from './registry-artifact';
-import type { RegistryCommand, RegistryCommandResponse } from './registry-journal';
+import type { RegistryCommand, RegistryCommandResponse } from './registry-managed-journal';
 import type { RegistryPublicationWrite } from './registry-publication-evidence';
 
 /** Managed schema4 uploaders acknowledge exact write/session ownership before sending bodies; schema3 has no such evidence capability. */

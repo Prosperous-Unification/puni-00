@@ -10,13 +10,6 @@ import { settleRegistryClientFixture } from './registry-client-completion.fixtur
 import { writeRegistryDeletionFixture } from './registry-deletion.fixture';
 import { collectRegistryInventory } from './registry-inventory';
 import {
-  executeRegistryCommand,
-  parseRegistryCommandResponse,
-  projectRegistryRecovery,
-  type RegistryJournalPorts,
-  runRegistryMaintenance,
-} from './registry-journal';
-import {
   maintainRegistry,
   type RegistryMaintenanceAuthority,
   type RegistryMaintenanceRuntime,
@@ -24,6 +17,13 @@ import {
 } from './registry-maintenance';
 import { createRegistryRecoveryVerifier } from './registry-maintenance-recovery';
 import type { RegistryBackupReceipt } from './registry-maintenance-state';
+import {
+  executeRegistryCommand,
+  parseRegistryCommandResponse,
+  projectRegistryRecovery,
+  type RegistryJournalPorts,
+  runRegistryMaintenance,
+} from './registry-managed-journal';
 import { discardRegistryUploads } from './registry-upload-census';
 
 const GiB = 1024 ** 3;

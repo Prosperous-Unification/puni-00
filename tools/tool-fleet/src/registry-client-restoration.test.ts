@@ -6,11 +6,11 @@ import { invokeRegistryCallback } from './registry-callback';
 import { createRegistryClientCompletion } from './registry-client-completion';
 import { requireRegistryClientRestoration } from './registry-client-evidence';
 import type { RegistryClientPullPlan } from './registry-client-plan';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import { executeRegistryHostAction } from './registry-maintenance-actions';
 import { registryClusterFixture } from './registry-maintenance-cluster.fixture';
 import * as kubernetes from './registry-maintenance-kubernetes';
 import { requireRegistryRestorationEvidence } from './registry-maintenance-state';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import { requireRejection } from './registry-rejection.fixture';
 
 let connected: ReturnType<typeof spyOn<typeof kubernetes, 'createRegistryKubernetes'>> | undefined;

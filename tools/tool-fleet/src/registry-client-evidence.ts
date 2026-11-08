@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 
 import type { RegistryClientCompletion } from './registry-client-completion';
 import type { RegistryClientPullPlan } from './registry-client-plan';
-import type { RegistryMaintenanceJournal } from './registry-journal';
 import { RegistryRecoveryPreparation, RegistryRecoveryReceipt } from './registry-maintenance-state';
+import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 
 /** A recovery client may verify only the durably prepared snapshot target, including after its canonical handoff. */
 function selectRegistryClientTarget(
