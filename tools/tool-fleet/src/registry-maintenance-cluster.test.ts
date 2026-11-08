@@ -55,8 +55,11 @@ for (const fault of [
       resource('PersistentVolumeClaim', 'registry-bounded').status = { phase: 'Pending' };
     if (fault === 'service-selector')
       resource('Service', 'registry').spec = { selector: { arbitrary: 'writer' } };
-    if (fault === 'missing-journal')
-      proof.resources.delete('PersistentVolumeClaim/registry-managed-journal');
+    if (fault === 'missing-journal') {
+      const journal = proof.installed.journalPvc;
+      // Proof: restoring the old nonexistent managed key made this setup assertion fail false; no missing-state admission is claimed.
+      expect(proof.resources.delete(`${journal.kind}/${journal.name}`)).toBe(true);
+    }
     if (fault === 'replicas')
       resource('Deployment', 'registry').spec = {
         ...resource('Deployment', 'registry').spec,
