@@ -3,7 +3,12 @@ import type * as WorkdayModule from '@wbs/domain/workday';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { PlanOptimizationView, ProjectOptimizationPatch } from '@/lib/wbs-api';
+import { AppFaultBoundary } from '@/components/chrome/app-fault';
+import type {
+  ConnectedPlanOptimizationView,
+  PlanOptimizationView,
+  ProjectOptimizationPatch,
+} from '@/lib/wbs-api';
 
 import { OptimizationCue } from './optimization-cue';
 
@@ -784,4 +789,247 @@ describe('the schedule cue', () => {
     fireEvent.click(pill());
     expect(items()).toEqual(['✓ Fast', 'Pri', 'Time · Optimizing…']);
   });
+});
+
+/** Deliberately small presentation fixture; producer/HTTP coverage belongs to B3. */
+const CONNECTED: ConnectedPlanOptimizationView = {
+  ...SUGGESTING,
+  scope: {
+    kind: 'connected-stage',
+    projectId: 'target',
+    originOrdinal: 0,
+    mode: 'isolated',
+    quantum: 48,
+    wireVersion: 1,
+    boundary: { format: 'wbs-connected-stage', version: 1, canonical: 'captured' },
+    fixed: [
+      {
+        projectId: 'foreign',
+        projectName: 'Foreign',
+        projectAbbreviation: 'FOR',
+        workItemId: 'work',
+        workItemName: 'Fixed work',
+        stepId: 'step',
+        stepName: 'Build',
+        start: 0.2,
+        finish: 1.2,
+      },
+    ],
+  },
+};
+function terminal(evidence: 'contradictory-bounds' | 'initial-model-infeasible') {
+  return {
+    state: 'boundary-infeasible' as const,
+    certificate: {
+      kind: 'boundary-infeasible' as const,
+      evidence,
+      question: {
+        projectId: 'target',
+        inputHash: 'hash-a',
+        questionHash: 'question',
+        objective: 'pri' as const,
+        contractVersion: '1.5+test',
+        budgetMs: 60000,
+        quantum: 48,
+        wireVersion: 1,
+        stageBytes: 'captured',
+      },
+    },
+  };
+}
+
+describe('the connected captured cue', () => {
+  itDom.each(['contradictory-bounds', 'initial-model-infeasible'] as const)(
+    'keeps %s inspectable without terminal actions or figures',
+    (evidence) => {
+      const choose = vi.fn();
+      const retry = vi.fn();
+      render(
+        <Harness
+          optimization={{
+            ...CONNECTED,
+            generation: null,
+            variants: { pri: terminal(evidence), time: { state: 'idle' } },
+            finishDays: { fast: 10 },
+            sameOrderAsFast: {},
+          }}
+          onChoose={choose}
+          onRetry={retry}
+        />,
+      );
+      expect(pill()).toHaveAccessibleName(/Fast is retained/);
+      const fact = pill().getAttribute('data-fact');
+      expect(fact).toContain('Target project target; Priority-first; captured fixed positions');
+      expect(fact).toContain('Foreign (FOR, foreign) / Fixed work (work) / Build (step)');
+      expect(fact).toContain('start 0.2, finish 1.2 workdays from the captured component origin');
+      expect(fact).toContain('Quantum 48; wire version 1; contract 1.5+test');
+      expect(fact).toContain('Question hash question');
+      expect(fact).toContain(
+        evidence === 'contradictory-bounds' ? 'rounded bounds' : 'initial fixed-boundary model',
+      );
+      expect(fact).toContain('Fast here is the retained placement at this captured stage');
+      expect(fact).toContain(
+        'Pri and Time optimize this target with captured foreign positions held fixed',
+      );
+      expect(fact).not.toContain('walking the graph once');
+      expect(document.querySelector('[data-cue-dot]')).toHaveAttribute(
+        'data-cue-dot',
+        'boundary-infeasible',
+      );
+      fireEvent.click(pill());
+      const pri = screen.getByRole('menuitem', { name: /^Pri/ });
+      expect(pri).toHaveAttribute('aria-disabled', 'true');
+      expect(pri.textContent).not.toMatch(/10 days|earlier|same order/);
+      expect(pri).toHaveAttribute('data-fact', expect.stringContaining('captured'));
+      fireEvent.keyDown(screen.getByRole('menuitem', { name: /^✓ Fast/ }), { key: 'ArrowDown' });
+      expect(pri).toHaveFocus();
+      fireEvent.keyDown(pri, { key: 'Enter' });
+      fireEvent.click(pri);
+      expect(choose).not.toHaveBeenCalled();
+      expect(screen.queryByRole('menuitem', { name: /Retry/ })).toBeNull();
+      fireEvent.keyDown(pri, { key: 'Escape' });
+      expect(pill()).toHaveFocus();
+      fireEvent.click(pill());
+      expect(screen.queryByRole('menuitem', { name: /Retry/ })).toBeNull();
+      expect(retry).not.toHaveBeenCalled();
+    },
+  );
+
+  itDom('retains the selected ready sibling and its scoped comparison', () => {
+    render(
+      <Harness
+        optimization={{
+          ...CONNECTED,
+          displayed: 'time',
+          variants: {
+            pri: terminal('contradictory-bounds'),
+            time: { state: 'ready', proof: 'proven' },
+          },
+          finishDays: { fast: 10, time: 8 },
+          sameOrderAsFast: { time: false },
+        }}
+        onChoose={vi.fn()}
+      />,
+    );
+    expect(pill()).toHaveAccessibleName(/selected Finish-first schedule remains displayed/);
+    expect(pill().getAttribute('data-fact')).not.toContain('Fast is retained');
+    fireEvent.click(pill());
+    expect(screen.getByRole('menuitem', { name: /^✓ Time/ })).toHaveTextContent('8 days');
+    expect(screen.getByRole('menuitem', { name: /^✓ Time/ })).toHaveTextContent(
+      'captured fixed positions',
+    );
+  });
+
+  itDom('keeps solving visible with a terminal sibling', () => {
+    render(
+      <Harness
+        optimization={{
+          ...CONNECTED,
+          variants: { pri: terminal('contradictory-bounds'), time: { state: 'pending' } },
+          finishDays: { fast: 10 },
+          sameOrderAsFast: {},
+        }}
+      />,
+    );
+    expect(document.querySelector('[data-cue-dot]')).toHaveAttribute('data-cue-dot', 'solving');
+    expect(screen.getByRole('status')).toHaveTextContent('Optimizing');
+    expect(pill().getAttribute('data-fact')).toContain('Question hash question');
+  });
+
+  itDom('offers Retry only for the failed sibling', () => {
+    const retry = vi.fn();
+    render(
+      <Harness
+        optimization={{
+          ...CONNECTED,
+          variants: {
+            pri: terminal('contradictory-bounds'),
+            time: { state: 'failed', reason: 'oom' },
+          },
+          finishDays: { fast: 10 },
+          sameOrderAsFast: {},
+        }}
+        onChoose={vi.fn()}
+        onRetry={retry}
+      />,
+    );
+    fireEvent.click(pill());
+    expect(screen.queryByRole('menuitem', { name: 'Retry Pri' })).toBeNull();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Retry Time' }));
+    expect(retry).toHaveBeenCalledExactlyOnceWith('time', 'hash-a');
+  });
+
+  itDom('keeps selected floor and stale evidence accessible without a writer', () => {
+    const optimization: ConnectedPlanOptimizationView = {
+      ...CONNECTED,
+      displayed: 'time',
+      variants: {
+        pri: terminal('initial-model-infeasible'),
+        time: { state: 'ready', proof: 'quantisation-floor' },
+      },
+      finishDays: { fast: 10, time: 10 },
+      sameOrderAsFast: { time: true },
+    };
+    const view = render(<Harness optimization={optimization} />);
+    pill().focus();
+    expect(pill()).toHaveFocus();
+    expect(pill()).not.toHaveAttribute('aria-haspopup');
+    expect(pill().getAttribute('data-fact')).toContain('retains the captured baseline');
+    expect(pill().getAttribute('data-fact')).not.toContain('Fast is retained');
+    view.rerender(<Harness optimization={optimization} stale />);
+    const fact = pill().getAttribute('data-fact');
+    expect(fact).toContain('This certificate and captured boundary may be stale');
+    expect(fact).toContain('displayed dates are from the last plan read');
+    expect(fact).toContain('start 0.2, finish 1.2');
+    expect(fact).not.toMatch(/10 days|earlier|same order/);
+    expect(document.querySelector('[data-cue-suggestion]')).toBeNull();
+  });
+
+  itDom('hides connected ready figures, contrasts and suggestions when stale', () => {
+    const optimization: ConnectedPlanOptimizationView = {
+      ...CONNECTED,
+      variants: {
+        pri: { state: 'ready', proof: 'proven' },
+        time: { state: 'ready', proof: 'incomplete' },
+      },
+      finishDays: { fast: 10, pri: 7, time: 8 },
+      sameOrderAsFast: { pri: true, time: false },
+    };
+    const view = render(<Harness optimization={optimization} onChoose={vi.fn()} />);
+    expect(document.querySelector('[data-cue-suggestion]')).toHaveTextContent('3 days earlier');
+    expect(pill().getAttribute('data-fact')).toContain('Pri against Time:');
+    view.rerender(<Harness optimization={optimization} stale onChoose={vi.fn()} />);
+    expect(document.querySelector('[data-cue-suggestion]')).toBeNull();
+    expect(pill().getAttribute('data-fact')).not.toMatch(/Pri against Time:|[0-9]+ days|earlier/);
+    expect(pill()).toHaveAccessibleName(/captured boundary may be stale/);
+    fireEvent.click(pill());
+    expect(items().join(' ')).not.toMatch(/[0-9]+ days|earlier/);
+  });
+
+  itDom.each(['state', 'proof', 'evidence', 'scope'] as const)(
+    'sends unknown internal %s to AppFaultBoundary',
+    (fault) => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const invalid = structuredClone(CONNECTED);
+      if (fault === 'state') Object.assign(invalid.variants.pri, { state: 'alien' });
+      if (fault === 'proof') Object.assign(invalid.variants.pri, { proof: 'alien' });
+      if (fault === 'evidence')
+        Object.assign(invalid.variants, {
+          pri: {
+            ...terminal('contradictory-bounds'),
+            certificate: { ...terminal('contradictory-bounds').certificate, evidence: 'alien' },
+          },
+        });
+      if (fault === 'scope') Object.assign(invalid.scope, { kind: 'alien' });
+      render(
+        <AppFaultBoundary>
+          <Harness optimization={invalid} />
+        </AppFaultBoundary>,
+      );
+      expect(screen.getByRole('alert')).toHaveAttribute('data-app-fault');
+      expect(screen.getByRole('button', { name: 'Reload' })).toBeVisible();
+      expect(document.querySelector('[data-optimization-cue]')).toBeNull();
+      error.mockRestore();
+    },
+  );
 });

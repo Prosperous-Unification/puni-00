@@ -1,0 +1,44 @@
+{"name":"baseline","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"cwd-bunfig","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"explicit-null-config","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"config-policy-removed","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"home-bunfig","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"home-explicit-null-config","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"xdg-bunfig","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG_PATH","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG_REGISTRY","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG_MAX_HTTP_REQUESTS","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_OPTIONS","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"NODE_OPTIONS","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_OPTIONS-positive-fault","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"environment-policy","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"environment-policy-removed","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"cwd-dotenv","exit":0,"stdout":"{\"fault\":null,\"env\":\"DOTENV\"}","stderr":""}
+{"name":"no-env-file","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"LD_PRELOAD-positive-fault","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":"LOADER_EXECUTED"}
+{"name":"loader-policy-removed","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":"LOADER_EXECUTED"}
+{"name":"loader-environment-policy","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":"LOADER_EXECUTED"}
+136 |   const loaderIsolated = probe(
+137 |     'loader-environment-policy',
+138 |     ['--no-env-file', '--no-install', '--config=/dev/null'],
+139 |     process.argv.includes('--mutant=loader') ? { LD_PRELOAD: library } : {},
+140 |   );
+141 |   assert.equal(loaderIsolated.stderr, '');
+               ^
+AssertionError: Expected values to be strictly equal:
++ actual - expected
+
++ 'LOADER_EXECUTED'
+- ''
+
+ generatedMessage: true,
+     actual: "LOADER_EXECUTED",
+   expected: "",
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /tmp/puni-supervisor-ambient-packet/openspec/changes/cross-project-dependencies/effective-supervisor-identity/evidence/ambient-spike.mjs:141:10
+
+Bun v1.4.2 (Linux x64)

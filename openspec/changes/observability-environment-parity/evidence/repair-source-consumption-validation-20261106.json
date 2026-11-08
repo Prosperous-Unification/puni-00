@@ -1,0 +1,40 @@
+{
+  "scope": "conditional repair-source implementation and staged CI fixture correction",
+  "checks": {
+    "fleetTypecheck": {
+      "exit": 0,
+      "log": "/tmp/puni-task118-fleet-typecheck.log"
+    },
+    "openspec": {
+      "items": 324,
+      "passed": 324,
+      "failed": 0
+    },
+    "nativePythonSyntax": {
+      "python": [3, 12, 3],
+      "executable": "/usr/bin/python3",
+      "parsed": ["lab-raw-repair.py", "lab-repair-worker.py", "lab-repair-lineage.py"],
+      "embeddedBootstrapParsed": true,
+      "execution": "syntax-only; no native/runtime qualification"
+    },
+    "rootMarkdownJsonFormatting": {
+      "files": 24,
+      "exit": 0
+    },
+    "whitespaceExit": 0,
+    "independentReview": {
+      "spec": "PASS",
+      "quality": "PASS WITH NONBLOCKING EVIDENCE LIMITS",
+      "actionableFindings": 0
+    }
+  },
+  "progress": {
+    "total": 67,
+    "complete": 58,
+    "remaining": 9
+  },
+  "newHeadHostedChecks": "pending after publication",
+  "runtimeAcceptance": "4/11",
+  "nativeAdmission": false,
+  "adminAuthorized": false
+}

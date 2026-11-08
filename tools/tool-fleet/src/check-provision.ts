@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
+import { basename, join, resolve } from 'node:path';
 
 import type { CheckRunner, CheckTools } from './check';
 import { readCheckTools } from './check';
@@ -230,4 +230,61 @@ export async function resolveController(
     );
   }
   return config;
+}
+
+/** Verify a prepared archive privately through the existing installer, then bind selected executable bytes before invocation. Missing preparation never downloads. */
+export async function authenticatePreparedHelm(
+  root: string,
+  tools: string,
+  run: CheckRunner,
+  archive?: string,
+) {
+  const lock = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+  const pin = lock.binaries.helm;
+  const name = basename(new URL(pin.url).pathname);
+  const prepared = archive ?? join(toolCacheDirectory(process.env), `helm-${pin.version}`, name);
+  // Proof: Task25c2a archive-source substitution admitted explicitly missing, unreadable and changed archives.
+  const bytes = await readFile(prepared);
+  // Proof: Task25c2a archive-hash removal reached the prohibited-download fault instead of refusing bad bytes.
+  if (sha256Of(bytes) !== pin.sha256) throw new Error('Rehearsal Helm archive integrity differs');
+  const directory = await mkdtemp(join(tmpdir(), 'rehearsal-helm-identity-'));
+  try {
+    const cache = join(directory, 'cache');
+    await mkdir(join(cache, `helm-${pin.version}`), { recursive: true });
+    await writeFile(join(cache, `helm-${pin.version}`, name), bytes);
+    const executable = await installLockedTool(
+      { name: 'helm', ...pin, member: 'linux-amd64/helm' },
+      cache,
+      run,
+    );
+    const executableSHA256 = sha256Of(await readFile(executable));
+    // Proof: Task25c2a selected-executable removal admitted the same-version substitute before invocation.
+    if (sha256Of(await readFile(join(resolve(tools), 'helm'))) !== executableSHA256)
+      throw new Error('Rehearsal Helm executable integrity differs');
+    return {
+      version: pin.version,
+      archiveSHA256: pin.sha256,
+      executableSHA256,
+      member: 'linux-amd64/helm' as const,
+    };
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+/** Authenticate the already prepared kubectl bytes and version; no installation or fallback is allowed. */
+export async function authenticatePreparedKubectl(root: string, tools: string, run: CheckRunner) {
+  const lock = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+  const executable = join(resolve(tools), 'kubectl');
+  // Proof: Task25c3d kubectl-digest removal admitted a same-version substitute before its probe.
+  if (sha256Of(await readFile(executable)) !== lock.binaries.kubectl.sha256)
+    throw new Error('Rehearsal kubectl integrity differs');
+  // Proof: Task25c3d kubectl-version removal lost the changed reported-version refusal.
+  const reported = await run([executable, 'version', '--client'], { timeoutMs: 60_000 });
+  if (
+    reported.exitCode !== 0 ||
+    !reported.stdout.includes(`Client Version: ${lock.binaries.kubectl.version}`)
+  )
+    throw new Error('Rehearsal kubectl version differs');
+  return lock.binaries.kubectl;
 }

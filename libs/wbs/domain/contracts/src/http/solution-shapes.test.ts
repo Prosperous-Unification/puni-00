@@ -9,6 +9,7 @@ const response = {
   project: {
     id: 'project',
     name: 'Plan',
+    abbreviation: 'PLAN',
     ownerId: 'owner',
     restricted: true,
     estimateMethod: 'pert' as const,

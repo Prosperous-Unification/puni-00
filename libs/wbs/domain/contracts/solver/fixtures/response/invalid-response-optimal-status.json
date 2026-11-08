@@ -1,4 +1,7 @@
 {
   "status": "optimal",
-  "wireVersion": 4
+  "wireVersion": 5,
+  "scope": {
+    "kind": "local"
+  }
 }

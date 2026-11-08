@@ -1,0 +1,12 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+(pass) mounted fresh store observation completes after durable drain before source replay [10825.18ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 38 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [10.87s]

@@ -1,0 +1,93 @@
+{
+  "format": "ordinary-historical-source-archive",
+  "version": 1,
+  "sourceEpoch": "ordinary-febb-custody-v1",
+  "sourceIdentity": "febb1c24427b2d368aa2d6446d6000dc1faabdb3",
+  "sources": [
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/edge-ownership.ts",
+      "bytes": 83874,
+      "sha256": "d979452d02089652c12515af8bfcaeede1fa13bc458a66013f5463555b528f68"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts",
+      "bytes": 34665,
+      "sha256": "e8ac098736b6cc538693437ae9c923819f5783fb8df61285d4f217a0f1b2154a"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts",
+      "bytes": 43658,
+      "sha256": "ab7766c66a8a53fb84f11f3e0262802295ad823854b1cb4df13899bfddd2b798"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/lock.ts",
+      "bytes": 8844,
+      "sha256": "6d2c29fa57f4356f28f0ba0287f15c0c8a49dded94b251d12a33c3e11a28d40d"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/initial-handoff-graph.ts",
+      "bytes": 91002,
+      "sha256": "bdf3da709f70238e073fcc7db1f51870e855959477048645c1fcd46bb3b042ef"
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/db.ts",
+      "bytes": 24545,
+      "sha256": "3071cca955b20084cac3c769dad23b0741a34ad4204d6f7e4dbb476392715120"
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/backup.ts",
+      "bytes": 25178,
+      "sha256": "c681a4ec8fc6d8b2787647507e8f8357146cff261cba75250ae446cea305a230"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/dependency-migration-artifact-scanner.ts",
+      "bytes": 9796,
+      "sha256": "fd749af5d221bafecfb7581d61e187a0ef15bcdb59a077eed25e86b0ce382ace"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/dependency-participant-restoration.ts",
+      "bytes": 5394,
+      "sha256": "32c05b771edbab3f5f6fd448aaa0de7184f16e6ffe21e1d84444c66087d841bc"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts",
+      "bytes": 17432,
+      "sha256": "ae37e7411040d680ab04419090a546fcddfc7f295697d99ff9e46ff7d915d91e"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/source-startup.ts",
+      "bytes": 4791,
+      "sha256": "0c8e0b6afc98008f34352d68254fbe137265c46a24fa0edf482dcf1ca341783b"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/source-database-binding.ts",
+      "bytes": 14053,
+      "sha256": "b83a928aae6880c6142c4dc6d0f584fa085d5039a1b4f70512c73f5819d5bbd4"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts",
+      "bytes": 5425,
+      "sha256": "a4f9378c421110a43d2a2db51edb9e56afc38cbb6bfc74f954322b2810d196c0"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/fixtures/namespace-audit.ts",
+      "bytes": 10450,
+      "sha256": "63a0506377f8d7c4ee7701e06a155bccb65ab8abd0783d5d4f6929e491bab015"
+    },
+    {
+      "relative": "tools/tool-remote-scripts/src/lib/directory-file.ts",
+      "bytes": 3520,
+      "sha256": "b3d0480ceaa6fc88e19278cfc667919d1803173f5fdccaf5e4b33bf2c97e7e0c"
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/sqlite-cleanup.ts",
+      "bytes": 2479,
+      "sha256": "83785f02655bf81514328255fe45e047b4b79a5374fdebb3a269d2d2687ac74b"
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/migrate.ts",
+      "bytes": 8962,
+      "sha256": "029cd9f29f1b555175c4fe6d758e2921c2d6abe320210b9b5f7cd079cace9f8f"
+    }
+  ]
+}

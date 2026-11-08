@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+597 |     const segments = path.split('.');
+598 |     const owner = segments.length === 1 ? omitted : (omitted['scope'] as Record<string, unknown>);
+599 |     Reflect.deleteProperty(owner, segments.at(-1)!);
+600 |     // Proof: each omitted connected response version or identity member makes
+601 |     // the production decoder refuse an otherwise valid unknown response.
+602 |     expect(parseConnectedSolverResponse(JSON.stringify(omitted), pair.pri.request)).toMatchObject({
+                                                                                          ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "failure": "schema-violation",
+-   "ok": false,
++   "ok": true,
++   "response": {
++     "scope": {
++       "inputHash": "input",
++       "kind": "connected-stage",
++       "projectId": "B",
++       "questionHash": "question-pri",
++     },
++     "status": "unknown",
++   },
+  }
+
+- Expected  - 2
++ Received  + 10
+
+      at <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:602:85)
+(fail) connected response parser requires the exact captured question identity [9.88ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [268.00ms]

@@ -122,7 +122,7 @@ open; the earlier accepted storage packet does not prove this newly observed edg
       Filter current WBS eligibility and durable waits/running/retry state before atomic
       RunStore admission; admission never completes work. Reconstruct independent sessions
       from accepted WBS facts and durable attempt history, rejecting old tickets and avoiding
-      duplicate running admission. The [native integration tasks](../ctt-work-session-integration/tasks.md)
+      duplicate running admission. The [native integration tasks](../archive/2026-11-08-ctt-work-session-integration/tasks.md)
       track this bounded local component; exact remote claim, intent-before-launch ordering
       and coordinator CLI composition remain open, so this full checkbox stays unchecked.
       The [execution-history tasks](execution-history-tasks.md) implement the bounded persistence

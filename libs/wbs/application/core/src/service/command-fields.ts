@@ -676,7 +676,11 @@ function endpointText(raw: object, field: string): string | undefined {
   return value;
 }
 
-/** Parses one typed endpoint before batch reference binding. */
+/**
+ * Parses one typed endpoint before batch reference binding. Explicit project forms
+ * require nonempty stable identities without surrounding whitespace; omitted
+ * projects preserve exact local IDs and batch aliases. Never trims an identity.
+ */
 export function normalizeTypedEndpoint(raw: unknown) {
   // Proof: this object check deleted made the mounted `refuses a missing or
   // malformed endpoint as 400` fail on `Expected: 400, Received: 500` for a
@@ -688,10 +692,28 @@ export function normalizeTypedEndpoint(raw: unknown) {
   if (!isDependencyEndpointScope(scope)) {
     throw new CommandNormalizationError('invalid_typed_endpoint');
   }
+  const projectId = endpointText(raw, 'projectId');
   const workItemId = endpointText(raw, 'workItemId');
   const workItemRef = endpointText(raw, 'workItemRef');
+  // Proof: before this guard, scoped aliases and blank project IDs normalized in
+  // `refuses malformed project addresses and explicitly scoped batch aliases`.
+  // Proof: scoped-alias-admission bypass failed `mounted scoped-alias`'s selected assertion
+  // (actual SQLite boundary; watched 2026-10-22).
+  if (projectId !== undefined && workItemRef !== undefined)
+    throw new CommandNormalizationError('invalid_typed_endpoint');
   const stepId = endpointText(raw, 'stepId');
   const stepNodeId = endpointText(raw, 'stepNodeId');
+  // Proof: without this explicit-ID guard, the booted HTTP/MCP explicit-ID
+  // regression received 404 not_found instead of indexed 400 invalid_typed_endpoint
+  // for a padded project identity (2026-10-22). Local identities stay unchanged.
+  if (
+    projectId !== undefined &&
+    [projectId, workItemId, stepId].some(
+      (identity) =>
+        identity !== undefined && (identity.length === 0 || identity !== identity.trim()),
+    )
+  )
+    throw new CommandNormalizationError('invalid_typed_endpoint');
   if (scope === 'whole') {
     // Proof: deleting this check made the mounted whole-with-step refusal return 200 instead of 400; watched 2026-09-27.
     if (
@@ -700,7 +722,7 @@ export function normalizeTypedEndpoint(raw: unknown) {
       stepNodeId !== undefined
     )
       throw new CommandNormalizationError('invalid_typed_endpoint');
-    return present({ scope, workItemId, workItemRef });
+    return present({ scope, projectId, workItemId, workItemRef });
   }
   if (scope === 'node' && stepNodeId !== undefined) {
     if (workItemId !== undefined || workItemRef !== undefined || stepId !== undefined)
@@ -712,7 +734,7 @@ export function normalizeTypedEndpoint(raw: unknown) {
           ? 'unknown_step_node_encoding'
           : 'invalid_step_node_id',
       );
-    return { scope, ...parsed.ref };
+    return present({ scope, projectId, ...parsed.ref });
   }
   if (
     (workItemId === undefined) === (workItemRef === undefined) ||
@@ -720,7 +742,7 @@ export function normalizeTypedEndpoint(raw: unknown) {
     stepNodeId !== undefined
   )
     throw new CommandNormalizationError('invalid_typed_endpoint');
-  return present({ scope, workItemId, workItemRef, stepId });
+  return present({ scope, projectId, workItemId, workItemRef, stepId });
 }
 
 export function normalizedRef(value: unknown) {

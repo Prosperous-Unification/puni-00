@@ -1,0 +1,30 @@
+Command: bun test /tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-exclusion.test.ts -t final membership --preload ./tools/test/scratch/preload.ts
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/solver-exclusion.test.ts:
+486 |   try {
+487 |     await promise;
+488 |   } catch (cause) {
+489 |     failure = cause;
+490 |   }
+491 |   expect(failure).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: undefined
+
+      at refuses (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-exclusion.test.ts:491:19)
+      at async <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-exclusion.test.ts:407:15)
+      at async acquire (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/edge-ownership.ts:105:20)
+      at async <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/edge-ownership.ts:91:24)
+      at async acquireLock (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) final membership and installed readbacks refuse changes made inside the protected callback [458.03ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 19 expect() calls
+Ran 1 test across 1 file. [484.00ms]
+
+Exit: 1

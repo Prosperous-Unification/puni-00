@@ -6,8 +6,11 @@ import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -31,12 +34,15 @@ async function seeded() {
     broadcast,
     scheduler: fastScheduler,
   };
-  const graph = servicesOver(source.stores, options);
+  const graph = servicesOver(source.stores, {
+    ...options,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  });
   await source.stores.users.create(
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = await graph.projects.create('Levelling', F);
+  const created = expectCreated(await graph.projects.create('Levelling', F));
   const projectId = created.project.id;
   for (const step of created.steps) {
     await source.stores.steps.add(
@@ -63,16 +69,21 @@ async function seeded() {
   );
   if (!bound.ok) throw new Error(`binding was refused: ${bound.reason}`);
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        ...options,
+        broadcast: announcements,
+      }),
   });
   const declared = await runner.runDirectory(F, [
     { kind: 'createResource', name: 'staging', resourceKind: 'exclusive', unitLabel: 'env' },
   ]);
-  if (!declared.ok) throw new Error(`staging was refused: ${declared.reason}`);
+  if (!declared.ok) throw new Error(`staging was refused: ${JSON.stringify(declared)}`);
   const [staging] = declared.results.map(({ id }) => id);
   if (staging === undefined) throw new Error('staging minted no id');
   // Both leaves carry two days on both steps, so each runs four days alone.
@@ -83,7 +94,7 @@ async function seeded() {
       steps.map((stepId) => ({ kind: 'setEstimate' as const, workItemId, stepId, days: TWO_DAYS })),
     ),
   );
-  if (!estimated.ok) throw new Error(`estimates were refused: ${estimated.reason}`);
+  if (!estimated.ok) throw new Error(`estimates were refused: ${JSON.stringify(estimated)}`);
   const tree = async (): Promise<PlanTree> => {
     const read = await graph.workItems.tree(projectId);
     if (read === null || 'kind' in read) throw new Error('the plan read was unavailable');
@@ -168,8 +179,10 @@ describe('the live plan read levels resource demands', () => {
     // Design R5's falsifier: a schedule reads plan data only, never a claim or
     // an occupancy, so claiming a demanding leaf leaves the cache key and every
     // date where they were.
-    const { source, runner, projectId, staging, tree, input } = await seeded();
+    const { source, runner, projectId, steps, staging, tree, input } = await seeded();
     try {
+      const firstStep = steps.at(0);
+      if (firstStep === undefined) throw new Error('seeded project has no first step');
       await runner.run(projectId, F, [
         { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '080.25', resourceId: staging, units: 1 },
@@ -178,7 +191,13 @@ describe('the live plan read levels resource demands', () => {
       const before = await tree();
       const key = canonicalScheduleInput(await input());
       const claimed = await runner.run(projectId, F, [
-        { kind: 'claimWorkItem', workItemId: '090', personId: 'claire-worker', runId: 'run-1' },
+        {
+          kind: 'claimWorkItem',
+          workItemId: '090',
+          personId: 'claire-worker',
+          runId: 'run-1',
+          steps: [firstStep],
+        },
       ]);
       expect(claimed).toMatchObject({ ok: true, results: [{ index: 0, alreadyHeld: false }] });
       expect(await source.stores.claims.listByProject(projectId)).not.toEqual([]);

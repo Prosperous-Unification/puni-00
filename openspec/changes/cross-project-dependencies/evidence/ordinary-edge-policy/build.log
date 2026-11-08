@@ -1,0 +1,52 @@
+
+ NX   Running target build for project tool-remote-scripts and 3 tasks it depends on:
+
+
+✔  nx run tool-test-scratch:build
+✔  nx run tool-compose:build
+✔  nx run wbs-solver-supervisor-protocol:build
+
+> nx run tool-remote-scripts:build
+
+> bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile dist/tool-remote-scripts/swap.js
+
+[32mBundled 151 modules in 24ms[0m
+
+  [34mswap.js[33m  0.40 MB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js
+
+[32mBundled 22 modules in 20ms[0m
+
+  [34msolver-supervisor.js[0m  65.61 KB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js
+
+[32mBundled 5 modules in 20ms[0m
+
+  [34mcheck-installed-solver.js[0m  21.10 KB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/activate-dependencies.ts --target=bun --outfile dist/tool-remote-scripts/activate-dependencies.js
+
+[32mBundled 40 modules in 20ms[0m
+
+  [34mactivate-dependencies.js[0m  123.27 KB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/initialize-edge-policy.ts --target=bun --outfile dist/tool-remote-scripts/initialize-edge-policy.js
+
+[32mBundled 5 modules in 18ms[0m
+
+  [34minitialize-edge-policy.js[0m  10.28 KB  [2m(entry point)[0m
+
+
+
+
+ NX   Successfully ran target build for project tool-remote-scripts and 3 tasks it depends on
+
+
+Output of 3 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      490ms
+  Cache:             0/4 hit (0%)
+  Critical path:     477ms (2 tasks)
+  Recoverable time:  <1ms

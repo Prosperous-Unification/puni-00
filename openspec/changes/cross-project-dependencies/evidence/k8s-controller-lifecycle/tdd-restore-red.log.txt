@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:
+(pass) conditionally suspends and restores exact undefined field [4.76ms]
+(pass) conditionally suspends and restores exact false field [0.99ms]
+(pass) conditionally suspends and restores exact true field [0.80ms]
+(pass) checkpoint failure refuses mutation [0.50ms]
+(pass) restart acknowledges only its exact patch after checkpoint failure [0.79ms]
+(pass) refuses foreign UID before mutation [0.37ms]
+(pass) refuses foreign template before mutation [0.30ms]
+(pass) refuses foreign token before mutation [0.21ms]
+(pass) refuses foreign suspension before mutation [0.28ms]
+(pass) drains actual UID descendants and refuses unrelated unlabelled source readers [2.85ms]
+(pass) atomic UID race refuses before changing suspension [0.62ms]
+(pass) atomic resourceVersion race refuses before changing suspension [0.31ms]
+(pass) atomic template race refuses before changing suspension [0.32ms]
+(pass) atomic token race refuses before changing suspension [0.29ms]
+(pass) lost Lease after suspension patch cannot acknowledge or restore [0.65ms]
+(pass) malformed lifecycle never reaches cluster transport [0.30ms]
+(pass) restore mismatch retains token and suspension [0.53ms]
+(pass) drain timeout retains suspended owner without deleting a foreign Pod [0.90ms]
+347 | for (const interrupted of ['restore-applied', 'restored']) test(`restart finishes exact restoration after ${interrupted} acknowledgment crash`, async () => {
+348 |   const cluster = fixture(false);
+349 |   const owner = await prepared(cluster);
+350 |   const suspended = await suspendController(owner, null, cluster.call, authority());
+351 |   let durable: any = suspended;
+352 |   await expect(restoreController(suspended, cluster.call, { ...authority(), checkpoint: async (record: any) => { await Promise.resolve(); if (record.stage === interrupted) throw new Error('crash'); durable = structuredClone(record); } })).rejects.toThrow('crash');
+                                                                                                                                                                                                                                                             ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:352:248)
+(fail) restart finishes exact restoration after restore-applied acknowledgment crash [0.92ms]
+200 |   if (prior.stage !== 'suspended' && prior.stage !== 'restore-pending')
+201 |     throw new Error('backup is not acknowledged suspended');
+202 |   await authority.assertLease();
+203 |   const observed = await observe(owner, call);
+204 |   if (observed.token !== owner.token || observed.spec['suspend'] !== true)
+205 |     throw new Error('owned backup suspension lost before restore');
+                    ^
+error: owned backup suspension lost before restore
+      at restoreController (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lifecycle.ts:205:15)
+      at async <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:353:26)
+(fail) restart finishes exact restoration after restored acknowledgment crash [0.72ms]
+
+ 18 pass
+ 2 fail
+ 61 expect() calls
+Ran 20 tests across 1 file. [75.00ms]

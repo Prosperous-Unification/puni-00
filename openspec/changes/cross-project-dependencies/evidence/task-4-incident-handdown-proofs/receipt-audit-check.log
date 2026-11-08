@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+308 |         corruption === 'remote-revision'
+309 |           ? 'external dependency endpoint changed'
+310 |           : 'incident transition refused: stale_undo',
+311 |       );
+312 |     } else {
+313 |       expect(outcome).toBeInstanceOf(Error);
+                            ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: false,
+  reason: "stale_undo",
+  detail: "incident transition refused: stale_undo.",
+  entryId: "d319d164-cddb-459a-aea9-336398c43ada",
+}
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:313:23)
+(fail) compound undo refuses changed-audit atomically after an earlier patch [510.75ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 13 expect() calls
+Ran 1 test across 1 file. [2.61s]

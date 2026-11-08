@@ -1,4 +1,5 @@
 import {
+  // Proof: restoring the core barrel failed MCP startup with poisoned barrels.
   isPublicIssuerUrl,
   type TrustedIssuerDiscovery,
   type TrustedIssuerDiscoveryOutcome,
@@ -6,7 +7,7 @@ import {
   type TrustedIssuerTokens,
   type TrustedIssuerVerdict,
   type UnverifiedJwtClaims,
-} from '@wbs/core';
+} from '@wbs/core/ports/trusted-issuers';
 import { createRemoteJWKSet, customFetch, decodeJwt, errors, jwtVerify } from 'jose';
 
 import { isInvalidCredential } from './oidc-verifier';

@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1223 |           afterId: null,
+1224 |         },
+1225 |         fixture.expectedAccess,
+1226 |       ),
+1227 |     ),
+1228 |   ).toMatchObject({ ok: false, reason: 'cycle' });
+           ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "cycle",
++   "ok": true,
++   "value": null,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-graph-closure-review-tree/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1228:5)
+(fail) admitted subtree move closes a real remote descendant cycle and rolls back [556.35ms]
+
+ 0 pass
+ 87 filtered out
+ 1 fail
+ 19 expect() calls
+Ran 1 test across 1 file. [2.98s]

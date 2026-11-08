@@ -1,0 +1,230 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+628 |             'a'.repeat(40),
+629 |             f.docker,
+630 |             performance.now() + 5000,
+631 |             async (token) => {
+632 |               const before = f.commands.length;
+633 |               await rejects(
+                          ^
+AssertionError: The input did not match the regular expression /source dev observer deadline invalid/. Input:
+
+'Error: source dev exclusion deadline exceeded'
+
+ generatedMessage: true,
+   expected: /source dev observer deadline invalid/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:633:21
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:247:18)
+      at acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+
+29 | }
+30 | const exclusions = new WeakMap<SourceDevExclusion, SourceScope>();
+31 | 
+32 | function assertScopeDeadline(scope: SourceScope): void {
+33 |   if (!Number.isFinite(scope.deadline) || performance.now() >= scope.deadline)
+34 |     throw new Error('source dev exclusion deadline exceeded');
+                   ^
+error: source dev exclusion deadline exceeded
+      at assertScopeDeadline (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:34:15)
+      at assertScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:45:3)
+      at inspectScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:151:9)
+      at inspectSourceDevExclusion (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:322:9)
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:635:21)
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:247:18)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection refuses invalid supplied deadline NaN before Docker reads [112.15ms]
+628 |             'a'.repeat(40),
+629 |             f.docker,
+630 |             performance.now() + 5000,
+631 |             async (token) => {
+632 |               const before = f.commands.length;
+633 |               await rejects(
+                          ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /source dev observer deadline invalid/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:633:21
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:247:18)
+      at acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection refuses invalid supplied deadline Infinity before Docker reads [110.66ms]
+628 |             'a'.repeat(40),
+629 |             f.docker,
+630 |             performance.now() + 5000,
+631 |             async (token) => {
+632 |               const before = f.commands.length;
+633 |               await rejects(
+                          ^
+AssertionError: The input did not match the regular expression /source dev observer deadline invalid/. Input:
+
+'Error: source dev exclusion deadline exceeded'
+
+ generatedMessage: true,
+   expected: /source dev observer deadline invalid/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:633:21
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:247:18)
+      at acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+
+29 | }
+30 | const exclusions = new WeakMap<SourceDevExclusion, SourceScope>();
+31 | 
+32 | function assertScopeDeadline(scope: SourceScope): void {
+33 |   if (!Number.isFinite(scope.deadline) || performance.now() >= scope.deadline)
+34 |     throw new Error('source dev exclusion deadline exceeded');
+                   ^
+error: source dev exclusion deadline exceeded
+      at assertScopeDeadline (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:34:15)
+      at assertScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:45:3)
+      at inspectScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:151:9)
+      at inspectSourceDevExclusion (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:322:9)
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:635:21)
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:247:18)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection refuses invalid supplied deadline -1 before Docker reads [92.14ms]
+628 |             'a'.repeat(40),
+629 |             f.docker,
+630 |             performance.now() + 5000,
+631 |             async (token) => {
+632 |               const before = f.commands.length;
+633 |               await rejects(
+                          ^
+AssertionError: The input did not match the regular expression /source dev observer deadline invalid/. Input:
+
+'Error: source dev exclusion deadline exceeded'
+
+ generatedMessage: true,
+   expected: /source dev observer deadline invalid/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:633:21
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:247:18)
+      at acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+
+29 | }
+30 | const exclusions = new WeakMap<SourceDevExclusion, SourceScope>();
+31 | 
+32 | function assertScopeDeadline(scope: SourceScope): void {
+33 |   if (!Number.isFinite(scope.deadline) || performance.now() >= scope.deadline)
+34 |     throw new Error('source dev exclusion deadline exceeded');
+                   ^
+error: source dev exclusion deadline exceeded
+      at assertScopeDeadline (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:34:15)
+      at assertScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:45:3)
+      at inspectExcludedSourceMember (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:290:9)
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:636:21)
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:247:18)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source recognition refuses invalid supplied deadline NaN before Docker reads [98.63ms]
+628 |             'a'.repeat(40),
+629 |             f.docker,
+630 |             performance.now() + 5000,
+631 |             async (token) => {
+632 |               const before = f.commands.length;
+633 |               await rejects(
+                          ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /source dev observer deadline invalid/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:633:21
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:247:18)
+      at acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source recognition refuses invalid supplied deadline Infinity before Docker reads [111.94ms]
+628 |             'a'.repeat(40),
+629 |             f.docker,
+630 |             performance.now() + 5000,
+631 |             async (token) => {
+632 |               const before = f.commands.length;
+633 |               await rejects(
+                          ^
+AssertionError: The input did not match the regular expression /source dev observer deadline invalid/. Input:
+
+'Error: source dev exclusion deadline exceeded'
+
+ generatedMessage: true,
+   expected: /source dev observer deadline invalid/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:633:21
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:247:18)
+      at acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+
+29 | }
+30 | const exclusions = new WeakMap<SourceDevExclusion, SourceScope>();
+31 | 
+32 | function assertScopeDeadline(scope: SourceScope): void {
+33 |   if (!Number.isFinite(scope.deadline) || performance.now() >= scope.deadline)
+34 |     throw new Error('source dev exclusion deadline exceeded');
+                   ^
+error: source dev exclusion deadline exceeded
+      at assertScopeDeadline (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:34:15)
+      at assertScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:45:3)
+      at inspectExcludedSourceMember (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:290:9)
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:636:21)
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:247:18)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source recognition refuses invalid supplied deadline -1 before Docker reads [86.73ms]
+
+ 0 pass
+ 41 filtered out
+ 6 fail
+Ran 6 tests across 1 file. [661.00ms]

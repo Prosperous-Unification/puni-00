@@ -1,0 +1,13 @@
+bunx eslint apps/wbs/be-01/src/testing/cross-project-browser-server.ts apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts
+Exit: 0 (silent)
+
+bunx prettier --check [two changed TypeScript files, tasks.md, verify.md, bounded verify, evidence JSON]
+Exit: 0
+Checking formatting...
+All matched files use Prettier code style!
+
+git diff --check
+Exit: 0 (silent)
+
+git diff --exit-code -- apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx apps/wbs/fe-01/src/components/wbs/plan-cards.tsx
+Exit: 0 (silent; both production mutation sites restored)

@@ -1,0 +1,42 @@
+[WebServer] (node:1363680) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 1 test using 1 worker
+
+(node:1363776) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:327:3 › phone whole to node successor scope survives accepted HTTP save and SQLite reload (11.3s)
+
+
+  1) apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:327:3 › phone whole to node successor scope survives accepted HTTP save and SQLite reload
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  getByRole('dialog', { name: 'Captured dependency' }).getByLabel('This work item')
+    Expected: "[\"2d331132-978e-4b0a-b1e1-582b45e5a0dc\",\"d0cf7049-0aa7-4293-a167-f459254b8c7e\",\"node\",\"f0d604e5-3c43-4102-afc9-67339094c7c6\"]"
+    Received: "[\"2d331132-978e-4b0a-b1e1-582b45e5a0dc\",\"d0cf7049-0aa7-4293-a167-f459254b8c7e\",\"whole\",null]"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveValue" getByRole('dialog', { name: 'Captured dependency' }).getByLabel('This work item') with timeout 5000ms
+      - waiting for getByRole('dialog', { name: 'Captured dependency' }).getByLabel('This work item')
+        14 × locator resolved to <select>…</select>
+           - unexpected value "["2d331132-978e-4b0a-b1e1-582b45e5a0dc","d0cf7049-0aa7-4293-a167-f459254b8c7e","whole",null]"
+
+
+      395 |       // Proof: independently forcing desktop/phone serialization to the persisted successor
+      396 |       // makes this post-reload selected-coordinate assertion fail (see bounded verify receipt).
+    > 397 |       await expect(reopened.getByLabel('This work item')).toHaveValue(chosen);
+          |                                                           ^
+      398 |       const persisted = await request.get('http://localhost:7500/__fixture/relationships');
+      399 |       expect(persisted.status()).toBe(200);
+      400 |       const rows = (await persisted.json()) as { id: string }[];
+        at /tmp/puni-successor-browser/apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:397:59
+
+    Error Context: test-results/cross-project-refresh.real-f3d83-HTTP-save-and-SQLite-reload/error-context.md
+
+  1 failed
+    apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:327:3 › phone whole to node successor scope survives accepted HTTP save and SQLite reload

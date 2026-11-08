@@ -1,0 +1,53 @@
+bun test v1.4.2 (744846f84)
+
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1175 |     return service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+1176 |       predecessor: { ...fixture.input.successor, scope: 'node', stepId: workflowStep(fixture.owner.projectId, 'QA') },
+1177 |       successor: { projectId: fixture.owner.projectId, workItemId: c, scope: 'node', stepId: workflowStep(fixture.owner.projectId, 'Dev') }, type: 'FS',
+1178 |     });
+1179 |   })).toMatchObject({ ok: false, reason: 'cycle' });
+1180 |   expect(effects()).toEqual(before);
+                           ^
+error: expect(received).toEqual(expected)
+
+@@ -163,10 +163,11 @@
+      "rows": [],
+    },
+    {
+      "name": "external_dependency",
+      "rows": [
++       "{"id":"18207e11-fb6f-4b60-90c2-a49e9c6f1225","organization_id":"org-a","predecessor_project_id":"7de6a19b-b7be-4152-b1dc-830b2c024049","successor_project_id":"37b80d6e-a93e-4bec-b780-9205821ea076","predecessor_work_item_id":"f94373b9-6c06-4448-82c3-8ac9caeff964","predecessor_scope":"whole","predecessor_step_id":null,"successor_work_item_id":"5f407382-b665-401b-b2af-2d4f5a40db78","successor_scope":"whole","successor_step_id":null,"type":"FS","created_at":1792654928084,"updated_at":1792654928084,"created_by":"252a6008-71ab-45d7-82b9-0f7caedfb0c9"}",
+        "{"id":"4e8fac71-cc35-4933-9b41-4f0bcc699359","organization_id":"org-a","predecessor_project_id":"37b80d6e-a93e-4bec-b780-9205821ea076","successor_project_id":"7de6a19b-b7be-4152-b1dc-830b2c024049","predecessor_work_item_id":"f0ecff1f-35e8-4f22-9b8a-d645a72346fe","predecessor_scope":"node","predecessor_step_id":"cc9a9dbf-6c52-4e35-a85e-a2d69813eab9","successor_work_item_id":"f94373b9-6c06-4448-82c3-8ac9caeff964","successor_scope":"node","successor_step_id":"559b3645-33e1-41d7-a359-b4fe39995253","type":"FS","created_at":1792654928070,"updated_at":1792654928070,"created_by":"252a6008-71ab-45d7-82b9-0f7caedfb0c9"}",
+      ],
+    },
+    {
+      "name": "external_identity",
+@@ -454,13 +455,13 @@
+      ],
+    },
+    {
+      "name": "work_item",
+      "rows": [
+-       "{"id":"5f407382-b665-401b-b2af-2d4f5a40db78","project_id":"37b80d6e-a93e-4bec-b780-9205821ea076","parent_id":null,"position":10,"name":"Owner row","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":50,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":1792654928019,"updated_at":1792654928019,"created_by":"252a6008-71ab-45d7-82b9-0f7caedfb0c9","deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
++       "{"id":"5f407382-b665-401b-b2af-2d4f5a40db78","project_id":"37b80d6e-a93e-4bec-b780-9205821ea076","parent_id":null,"position":10,"name":"Owner row","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":1,"priority":50,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":1792654928019,"updated_at":1792654928084,"created_by":"252a6008-71ab-45d7-82b9-0f7caedfb0c9","deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+        "{"id":"f0ecff1f-35e8-4f22-9b8a-d645a72346fe","project_id":"37b80d6e-a93e-4bec-b780-9205821ea076","parent_id":null,"position":5,"name":"Batch closing task","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":1,"priority":50,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":1792654928044,"updated_at":1792654928070,"created_by":"252a6008-71ab-45d7-82b9-0f7caedfb0c9","deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+-       "{"id":"f94373b9-6c06-4448-82c3-8ac9caeff964","project_id":"7de6a19b-b7be-4152-b1dc-830b2c024049","parent_id":null,"position":10,"name":"Predecessor row","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":1,"priority":50,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":1792654927979,"updated_at":1792654928070,"created_by":"252a6008-71ab-45d7-82b9-0f7caedfb0c9","deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
++       "{"id":"f94373b9-6c06-4448-82c3-8ac9caeff964","project_id":"7de6a19b-b7be-4152-b1dc-830b2c024049","parent_id":null,"position":10,"name":"Predecessor row","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":2,"priority":50,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":1792654927979,"updated_at":1792654928084,"created_by":"252a6008-71ab-45d7-82b9-0f7caedfb0c9","deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+      ],
+    },
+    {
+      "name": "work_item_external_ref",
+      "rows": [],
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-graph-closure/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1180:21)
+(fail) admitted batch rolls back an actual external write when a later command closes the remote cycle [420.74ms]
+
+ 0 pass
+ 87 filtered out
+ 1 fail
+ 16 expect() calls
+Ran 1 test across 1 file. [2.61s]

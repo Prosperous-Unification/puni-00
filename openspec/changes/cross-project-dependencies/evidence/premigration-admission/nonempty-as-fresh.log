@@ -1,0 +1,27 @@
+bun test v1.4.2 (744846f84)
+{"level":"info","time":1792705744292,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705744328,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705744330,"service":"be-01","msg":"migrations applied"}
+
+apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:
+132 |     if (running.services.retention.isRunning()) starts.push('retention');
+133 |     if (running.services.optimizer?.isRunning() === true) starts.push('optimizer');
+134 |     await running.stop();
+135 |     running = undefined;
+136 |   }
+137 |   expect(snapshot(path)).toBe(before);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: "{"schema":[{"type":"table","name":"unrelated","tbl_name":"unrelated","sql":"CREATE TABLE unrelated (id INTEGER)"}],"tables":[{"name":"unrelated","rows":[]}]}"
+Received: "{"schema":[{"type":"index","name":"actual_by_step","tbl_name":"actual","sql":"CREATE INDEX `actual_... (163935 bytes truncated) ...]},{"name":"work_item_type_organization","rows":[]},{"name":"work_item_work_item_type","rows":[]}]}"
+
+      at refuse (/tmp/puni-premigration-admission/apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:137:26)
+      at async <anonymous> (/tmp/puni-premigration-admission/apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:425:9)
+(fail) refuses an unrecorded partial schema rather than treating it as fresh [217.43ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [4.30s]

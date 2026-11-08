@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/dependency-graph.test.ts:
+(pass) findDependencyGraphCycle > accepts A.dev → B.dev beside B.qa → A.qa, which only looks cyclic by work item [1.07ms]
+(pass) findDependencyGraphCycle > refuses a legacy link that closes a cycle against a typed one [0.18ms]
+(pass) findDependencyGraphCycle > refuses the state an estimate clearing leaves when it moves the legacy anchor [0.14ms]
+(pass) findDependencyGraphCycle > refuses the state a reach change to whole-item leaves [0.07ms]
+(pass) findDependencyGraphCycle > ignores an estimate stored on a parent, which schedules nothing [0.07ms]
+(pass) findDependencyGraphCycle > resolves a stepless project to work-item boundaries [0.09ms]
+(pass) refuses legacy endpoints absent from the full tree before expanding to leaves [0.22ms]
+(pass) refuses a typed node endpoint absent from the full tree [0.16ms]
+(pass) exposes the same local graph with its own slices and scoped provenance [0.16ms]
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+(pass) walks incoming and outgoing incidents once, without an owned-empty shortcut [1.86ms]
+(pass) reads each project with its own reach, steps, estimate presence and unreduced holds [0.58ms]
+(pass) replaces complete successor-owned sets and seeds both old and new components [0.26ms]
+(pass) observes staged changes freshly on every evaluation and applies precise local overrides [0.55ms]
+(pass) finds incoming step references with project identity and preserves local links [0.50ms]
+(pass) refuses expired borrowed capabilities before reads and if expiry happens during a read [0.28ms]
+(pass) requires reached-project authority before any project or tree read [0.12ms]
+(pass) throws for missing required projects, unreadable facts and foreign work-item rows [0.61ms]
+(pass) rejects malformed owner, unrelated incident rows and conflicting stored identities [0.25ms]
+(pass) rejects duplicate overrides and a proposed set owned by another project [0.14ms]
+
+ 19 pass
+ 0 fail
+ 54 expect() calls
+Ran 19 tests across 2 files. [192.00ms]

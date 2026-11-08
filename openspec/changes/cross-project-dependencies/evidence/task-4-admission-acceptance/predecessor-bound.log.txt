@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+{"level":"error","time":1792693513892,"service":"be-01","err":{"occurrence_id":"AE_A3GYWYEQWJJHMXW47W9HXEGVYX","fingerprint":"fp1_23e81705d69d9332f6382884638f4dbe","as_json":{"sliceKey":"d4e1d818-0c54-49bb-a5b8-757967f0e703\u00004a1571b4-e41b-4808-b075-29a79134b6bf","name":"ScheduleInvalidOptimizedStartError"},"stack":["ScheduleInvalidOptimizedStartError: optimized start for d4e1d818-0c54-49bb-a5b8-757967f0e703\u00004a1571b4-e41b-4808-b075-29a79134b6bf is invalid: violates FS real boundary on publication","    at validateResolvedRealBoundaries (/tmp/puni-command-proofs/libs/wbs/domain/domain/src/real-boundaries.ts:57:17)","    at scheduleResolved (/tmp/puni-command-proofs/libs/wbs/domain/domain/src/schedule.ts:3883:3)","    at readSchedule (/tmp/puni-command-proofs/libs/wbs/adapters/runtime-portable/src/scheduler.ts:67:24)","    at treeIsolated (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2278:46)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+3308 |         successor: { scope: 'whole', workItemId: fixture.owner.workItemId },
+3309 |         type: 'FS',
+3310 |       },
+3311 |     ],
+3312 |   });
+3313 |   expect(response.status).toBe(200);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-command-proofs/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:3313:27)
+(fail) mounted low priority prerequisite finishes before its high priority successor starts [436.29ms]
+
+ 0 pass
+ 116 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [3.87s]

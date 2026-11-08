@@ -1,0 +1,1231 @@
+diff --git a/tools/tool-remote-scripts/src/lib/edge-ownership.ts b/tools/tool-remote-scripts/src/lib/edge-ownership.ts
+--- a/tools/tool-remote-scripts/src/lib/edge-ownership.ts
++++ b/tools/tool-remote-scripts/src/lib/edge-ownership.ts
+@@ -16,6 +16,8 @@
+   ActivationRecordByLabel,
+   ActivationRecordLabel,
+ } from './dependency-activation-records';
++import type { DependencyStorageCustody } from './dependency-activation-storage';
++import type { scanMigrationArtifact } from './dependency-migration-artifact-scanner';
+ import { openDirectoryFile, renameDirectoryFile } from './directory-file';
+ import type { RunDocker } from './docker-deadline';
+ import type { DockerExec } from './docker-exec';
+@@ -116,6 +118,12 @@
+   readonly [identity]: true;
+ }
+ interface Ownership {
++  attempt: string;
++  phase: 'active' | 'closing' | 'cleanup-unknown';
++  preparation: OriginalPreparation | undefined;
++  keeper: ReturnType<typeof setInterval> | undefined;
++  hold: Promise<never> | undefined;
++  reported: boolean;
+   directory: string;
+   publication: string;
+   locks: { path: string; descriptor: number }[];
+@@ -124,6 +132,302 @@
+   sha: string;
+ }
+ const owners = new WeakMap<DependencyOwner, Ownership>();
++
++interface PreparationArtifact {
++  readonly original: Awaited<ReturnType<typeof scanMigrationArtifact>>;
++  readonly close: Awaited<ReturnType<typeof scanMigrationArtifact>>['close'];
++  state: 'unattempted' | 'entered' | 'closed' | 'unknown';
++  cause: unknown;
++}
++interface OriginalPreparation {
++  readonly owner: DependencyOwner;
++  readonly attempt: string;
++  readonly deadline: number;
++  readonly pending: string;
++  readonly locks: Ownership['locks'];
++  readonly failures: unknown[];
++  operation:
++    | {
++        readonly original: Promise<unknown>;
++        readonly observer: Promise<void>;
++        state: 'pending' | 'fulfilled' | 'rejected';
++        cause: unknown;
++      }
++    | undefined;
++  storage: DependencyStorageCustody | undefined;
++  artifact: PreparationArtifact | undefined;
++  context: { readonly prepared: object; readonly original: object } | undefined;
++  released: boolean;
++  unknown: boolean;
++}
++
++function originalPreparation(owner: DependencyOwner): {
++  ownership: Ownership;
++  preparation: OriginalPreparation;
++} {
++  // Cleanup authority remains available while work is revoked: membership is removed only after settlement.
++  const ownership = owners.get(owner);
++  if (ownership?.preparation === undefined)
++    throw new Error('original dependency preparation is not retained');
++  return { ownership, preparation: ownership.preparation };
++}
++
++/** Enrolls the one original activation preparation before its first acquisition.
++ * @internal
++ */
++export function enrollDependencyPreparation(owner: DependencyOwner, deadline: number): void {
++  if (!Number.isFinite(deadline) || performance.now() >= deadline)
++    throw new Error('dependency preparation requires a live finite deadline');
++  const ownership = owners.get(owner);
++  if (ownership?.phase !== 'active')
++    throw new Error('dependency owner is not live for preparation');
++  if (ownership.preparation !== undefined)
++    throw new Error('dependency owner already enrolled its original preparation');
++  for (const lock of ownership.locks) assertInheritedLock(lock.path, lock.descriptor);
++  ownership.preparation = {
++    owner,
++    deadline,
++    attempt: ownership.attempt,
++    pending: ownership.publication,
++    locks: [...ownership.locks],
++    failures: [],
++    operation: undefined,
++    storage: undefined,
++    artifact: undefined,
++    context: undefined,
++    released: false,
++    unknown: false,
++  };
++}
++
++/** Retains the exact preparation Promise; runtime gates never await their enclosing preparation.
++ * @internal
++ */
++export function observeDependencyPreparation(
++  owner: DependencyOwner,
++  original: Promise<unknown>,
++): void {
++  const { preparation } = originalPreparation(owner);
++  if (preparation.operation !== undefined)
++    throw new Error('original dependency preparation already observed');
++  const outcome: {
++    original: Promise<unknown>;
++    observer: Promise<void>;
++    state: 'pending' | 'fulfilled' | 'rejected';
++    cause: unknown;
++  } = {
++    original,
++    observer: original.then(
++      () => {
++        outcome.state = 'fulfilled';
++      },
++      (cause: unknown) => {
++        outcome.state = 'rejected';
++        outcome.cause = cause;
++        preparation.failures.push(cause);
++      },
++    ),
++    state: 'pending',
++    cause: undefined,
++  };
++  preparation.operation = outcome;
++}
++
++/** Fixed storage association, not a caller-supplied cleanup registry.
++ * @internal
++ */
++export function bindDependencyPreparationStorage(
++  owner: DependencyOwner,
++  storage: DependencyStorageCustody,
++): void {
++  const { ownership, preparation } = originalPreparation(owner);
++  if (ownership.phase !== 'active' || storage.owner !== owner || preparation.storage !== undefined)
++    throw new Error('original dependency storage association differs');
++  preparation.storage = storage;
++}
++
++/** Retains the actual returned scanner independently of the weak preparation key.
++ * @internal
++ */
++export function bindDependencyPreparationArtifact(
++  owner: DependencyOwner,
++  artifact: Awaited<ReturnType<typeof scanMigrationArtifact>>,
++): void {
++  const { ownership, preparation } = originalPreparation(owner);
++  if (preparation.artifact !== undefined)
++    throw new Error('original dependency artifact association differs');
++  preparation.artifact = {
++    original: artifact,
++    // The selected method is invoked only with this original scanner as receiver below.
++
++    close: artifact.close,
++    state: 'unattempted',
++    cause: undefined,
++  };
++  // The actual successful return belongs to cleanup even when its in-flight acquisition outlasted work authority.
++  if (ownership.phase !== 'active' || preparation.unknown || preparation.released)
++    throw new Error('dependency preparation work is closed');
++}
++
++/** Strongly associates the original weak-map identities before their return.
++ * @internal
++ */
++export function bindDependencyPreparationContext(
++  owner: DependencyOwner,
++  prepared: object,
++  original: object,
++): void {
++  const { ownership, preparation } = originalPreparation(owner);
++  if (ownership.phase !== 'active' || preparation.context !== undefined)
++    throw new Error('original dependency context association differs');
++  preparation.context = { prepared, original };
++}
++
++/** Work checks never substitute for the cleanup-only lookup.
++ * @internal
++ */
++export function assertDependencyPreparationWork(owner: DependencyOwner): void {
++  const { ownership, preparation } = originalPreparation(owner);
++  if (ownership.phase !== 'active' || preparation.unknown || preparation.released)
++    throw new Error('dependency preparation work is closed');
++}
++
++/** Records direct or genuinely classified UNKNOWN before any safe wrapping can discard it.
++ * @internal
++ */
++export function noteDependencyPreparationUnknown(owner: DependencyOwner, cause: unknown): void {
++  const { ownership, preparation } = originalPreparation(owner);
++  preparation.failures.push(cause);
++  preparation.unknown = true;
++  ownership.phase = 'cleanup-unknown';
++  ownership.hold ??= new Promise<never>(() => undefined);
++  // This referenced timer only retains Ownership and its preparation; its ignored return performs no observation, cleanup or deadline renewal.
++  ownership.keeper ??= setInterval(() => ownership, 30000);
++  if (!ownership.reported) {
++    ownership.reported = true;
++    try {
++      process.stderr.write('dependency owner HOLD: original cleanup outcomes incomplete\n');
++    } catch (diagnostic) {
++      preparation.failures.push(diagnostic);
++    }
++  }
++}
++
++function closeOriginalPreparation(owner: DependencyOwner, ownership: Ownership): void {
++  const preparation = ownership.preparation;
++  if (preparation === undefined || preparation.released) return;
++  if (preparation.storage?.hasPendingInspection)
++    throw new Error('original dependency inspection is still pending');
++  const failures: unknown[] = [];
++  try {
++    preparation.storage?.settle();
++  } catch (cause) {
++    preparation.failures.push(cause);
++    failures.push(cause);
++  }
++  const artifact = preparation.artifact;
++  if (artifact?.state === 'unattempted') {
++    artifact.state = 'entered';
++    try {
++      artifact.close.call(artifact.original);
++      artifact.state = 'closed';
++    } catch (cause) {
++      artifact.state = 'unknown';
++      artifact.cause = cause;
++      noteDependencyPreparationUnknown(owner, cause);
++      failures.push(cause);
++    }
++  }
++  if (preparation.storage?.hasUnknown || artifact?.state === 'unknown') preparation.unknown = true;
++  if (!preparation.unknown) preparation.released = true;
++  if (failures.length === 1) throw failures[0];
++  if (failures.length > 1)
++    throw new AggregateError(failures, 'private dependency cleanup outcomes');
++  if (preparation.unknown) throw new Error('original dependency cleanup outcome remains unknown');
++}
++
++/** Synchronous release uses original cleanup authority even after work deadline expiry.
++ * @internal
++ */
++export function releaseDependencyPreparation(owner: DependencyOwner): void {
++  const { ownership } = originalPreparation(owner);
++  closeOriginalPreparation(owner, ownership);
++}
++
++async function settlePreparationBoundary(
++  owner: DependencyOwner,
++  ownership: Ownership,
++  boundary: 'runtime' | 'owner',
++  refused: boolean,
++): Promise<void> {
++  const preparation = ownership.preparation;
++  if (preparation === undefined) return;
++  // Stop new owner work before waiting; already-started original returns still have cleanup authority.
++  if (boundary === 'owner' && ownership.phase === 'active') ownership.phase = 'closing';
++  const operation = boundary === 'owner' ? preparation.operation : undefined;
++  const hasPendingOriginal = () =>
++    operation?.state === 'pending' || preparation.storage?.hasPendingInspection === true;
++  const expired = () => {
++    if (hasPendingOriginal())
++      noteDependencyPreparationUnknown(
++        owner,
++        new Error('original dependency preparation settlement deadline exceeded'),
++      );
++  };
++  const remaining = preparation.deadline - performance.now();
++  let deadline: ReturnType<typeof setTimeout> | undefined;
++  if (!Number.isFinite(remaining) || remaining <= 0) expired();
++  else deadline = setTimeout(expired, remaining);
++  let readRefused = false;
++  try {
++    if (operation !== undefined) {
++      // Even expired pending work must reach its actual boundary before any cleanup. No timeout authorizes closing beneath it.
++      await Promise.allSettled([operation.original, operation.observer]);
++    }
++    // The dropped core may have enrolled storage while settling: use its current fixed association now.
++    const storage = preparation.storage;
++    if (storage !== undefined) {
++      if (performance.now() >= preparation.deadline) expired();
++      readRefused = await storage.joinInspections();
++    }
++  } finally {
++    if (deadline !== undefined) clearTimeout(deadline);
++  }
++  if (hasPendingOriginal()) {
++    // A pending refusal is never a known cleanup outcome or permission to remove membership/locks.
++    noteDependencyPreparationUnknown(
++      owner,
++      new Error('original dependency preparation settlement remains incomplete'),
++    );
++    if (ownership.hold === undefined)
++      throw new Error('unknown dependency preparation lacks its hold');
++    return await ownership.hold;
++  }
++  let cleanupRefused = false;
++  if (
++    boundary === 'owner' ||
++    refused ||
++    readRefused ||
++    preparation.unknown ||
++    (preparation.storage !== undefined && !preparation.storage.isRetained)
++  ) {
++    try {
++      closeOriginalPreparation(owner, ownership);
++    } catch (cause) {
++      preparation.failures.push(cause);
++      if (hasPendingOriginal()) noteDependencyPreparationUnknown(owner, cause);
++      else cleanupRefused = true;
++    }
++  }
++  if (preparation.unknown) {
++    // UNKNOWN is permanent; membership and the currently held locks stay in this continuation.
++    if (ownership.hold === undefined)
++      throw new Error('unknown dependency preparation lacks its hold');
++    return await ownership.hold;
++  }
++  if (!refused && (readRefused || cleanupRefused || operation?.state === 'rejected'))
++    throw new Error('dependency preparation observation or cleanup refused');
++}
+ 
+ async function requireDirectory(path: string): Promise<void> {
+   // Proof: omitted canonical directory guard; noncanonical-layout-root publisher reached callback (exit 1).
+@@ -189,16 +493,38 @@
+     for (const lock of locks) assertInheritedLock(lock.path, lock.descriptor);
+     // Proof: omitted admission; retained committed-owner negative reached callback (exit 1).
+     await recheck();
+-    const publication = `${JSON.stringify({ format: 'dependency-edge-owner', version: 1, attempt: randomUUID(), plan: { sha, layouts } })}\n`;
++    const attempt = randomUUID();
++    const publication = `${JSON.stringify({ format: 'dependency-edge-owner', version: 1, attempt, plan: { sha, layouts } })}\n`;
+     // Proof: omitted publication; real callback could not read required pending marker (exit 1).
+     await publishRecord(join(directory, 'edge-owner.pending'), publication);
+     const owner: DependencyOwner = Object.freeze({ [identity]: true as const });
+-    owners.set(owner, { directory, publication, locks, layouts, sequence: 0, sha });
++    const ownership: Ownership = {
++      directory,
++      publication,
++      locks,
++      layouts,
++      sequence: 0,
++      sha,
++      attempt,
++      phase: 'active',
++      preparation: undefined,
++      keeper: undefined,
++      hold: undefined,
++      reported: false,
++    };
++    owners.set(owner, ownership);
++    let refused = true;
+     try {
+-      return await action(owner);
++      const value = await action(owner);
++      refused = false;
++      return value;
+     } finally {
+-      // Proof: omitted expiry; expired-owner negative lost its live-authority refusal (exit 1).
+-      owners.delete(owner);
++      try {
++        await settlePreparationBoundary(owner, ownership, 'owner', refused);
++      } finally {
++        // Proof: omitted expiry; expired-owner negative lost its live-authority refusal (exit 1).
++        owners.delete(owner);
++      }
+     }
+   }
+   const edgePath = join(directory, 'edge.lock');
+@@ -223,7 +549,7 @@
+   sha?: string,
+ ): Promise<void> {
+   const ownership = owners.get(owner);
+-  if (ownership === undefined) throw new Error('dependency owner is not live');
++  if (ownership?.phase !== 'active') throw new Error('dependency owner is not live');
+   // Proof: omitted SHA binding; wrong-SHA owner fence reached real fake-Docker cohort work (exit 1).
+   if (sha !== undefined && sha !== ownership.sha) throw new Error('dependency owner SHA differs');
+   // Proof: omitted layout binding; foreign-layout production Docker negative executed its effect (exit 1).
+@@ -326,15 +652,23 @@
+     // Proof: omitting checked description lets replaced runtime inode pass an owner boundary (solver-runtime-admission.test.ts).
+     const lock = { path, descriptor };
+     ownership.locks.push(lock);
++    ownership.preparation?.locks.push(lock);
++    let refused = true;
+     try {
+       await assertDependencyOwner(owner, layout);
+       const value = await action();
+       // Proof: omitting this check returned success after callback changed owner
+       // bytes (solver-runtime-admission.test.ts, owner-post-check mutation, exit 1).
+       await assertDependencyOwner(owner, layout);
++      refused = false;
+       return value;
+     } finally {
+-      ownership.locks.splice(ownership.locks.indexOf(lock), 1);
++      try {
++        await settlePreparationBoundary(owner, ownership, 'runtime', refused);
++      } finally {
++        ownership.preparation?.storage?.resumeInspections();
++        ownership.locks.splice(ownership.locks.indexOf(lock), 1);
++      }
+     }
+   });
+ }
+diff --git a/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts b/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts
+--- a/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts
++++ b/tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts
+@@ -19,6 +19,7 @@
+   parseDependencyReceipt,
+ } from '@wbs/contracts/dependency-runtime';
+ import {
++  isSnapshotCleanupUnknown,
+   snapshotDatabase,
+   snapshotDatabaseBounded,
+   verifySnapshot,
+@@ -28,7 +29,11 @@
+   activateDependencies,
+   inspectDependencyActivation,
+ } from '@wbs/store-sqlite/cross-project-dependency-activation';
+-import { openReadOnlyConnection, openReadOnlyDatabase } from '@wbs/store-sqlite/db';
++import {
++  isSqliteCleanupUnknown,
++  openReadOnlyConnection,
++  openReadOnlyDatabase,
++} from '@wbs/store-sqlite/db';
+ import {
+   captureAppliedMigrationSet,
+   type MigrationSetCapture,
+@@ -47,7 +52,10 @@
+ import { inspectDormantDependencies } from './dependency-inventory';
+ import {
+   assertDependencyOwner,
++  assertDependencyPreparationWork,
++  bindDependencyPreparationStorage,
+   type DependencyOwner,
++  noteDependencyPreparationUnknown,
+   retainActivationRecord,
+ } from './edge-ownership';
+ import { captureEdgeRecord, type EdgeRecordSnapshot } from './edge-policy';
+@@ -55,18 +63,306 @@
+ import {
+   captureInitialHandoffArtifacts,
+   type InitialHandoffArtifactObservation,
++  isInitialHandoffCleanupUnknown,
+ } from './initial-handoff-graph';
+ import { assertSame, readRecord } from './managed-cohort';
+ import { writeNewMigrationCapture } from './migration-capture-file';
+ 
++type StorageCloseState = 'unattempted' | 'entered' | 'closed' | 'unknown';
++type StorageOriginal = {
++  state: StorageCloseState;
++  cause: unknown;
++} & (
++  | { readonly kind: 'file'; readonly original: number; readonly close: typeof closeSync }
++  | {
++      readonly kind: 'database';
++      readonly original: ReturnType<typeof openReadOnlyDatabase>;
++      readonly close: ReturnType<typeof openReadOnlyDatabase>['close'];
++    }
++  | {
++      readonly kind: 'connection';
++      readonly original: ReturnType<typeof openReadOnlyConnection>;
++      readonly close: ReturnType<typeof openReadOnlyConnection>['close'];
++    }
++  | {
++      readonly kind: 'graph';
++      readonly original: InitialHandoffArtifactObservation;
++      readonly close: InitialHandoffArtifactObservation['closeFiles'];
++    }
++);
++interface StorageInspection {
++  readonly kind: 'stores.inspect' | 'evidence.inspect';
++  readonly original: Promise<void>;
++  observer: Promise<void>;
++  state: 'pending' | 'fulfilled' | 'rejected';
++  cause: unknown;
++}
++
++/** Original storage lifetime bound to one already-enrolled owner; never exposed in the public packet. */
++class StorageCustody {
++  private readonly originals: StorageOriginal[] = [];
++  private readonly failures: unknown[] = [];
++  private readonly inspections: StorageInspection[] = [];
++  private association: { readonly evidence: { close(): void } } | undefined;
++  private joiningInspections = false;
++  private retained = false;
++  private unknown = false;
++
++  constructor(
++    readonly owner: DependencyOwner,
++    private readonly deadline: number,
++  ) {
++    bindDependencyPreparationStorage(owner, this);
++  }
++  get hasUnknown(): boolean {
++    return this.unknown;
++  }
++  get isRetained(): boolean {
++    return this.retained;
++  }
++  get hasPendingInspection(): boolean {
++    return this.inspections.some((read) => read.state === 'pending');
++  }
++  get isExpired(): boolean {
++    return !Number.isFinite(this.deadline) || performance.now() >= this.deadline;
++  }
++  assertWork(): void {
++    assertDependencyPreparationWork(this.owner);
++    if (this.isExpired || this.joiningInspections)
++      throw new Error('dependency storage work is closed');
++  }
++  retain(association: { readonly evidence: { close(): void } }): void {
++    this.association = association;
++    this.retained = true;
++  }
++  observeFailure(cause: unknown): void {
++    this.failures.push(cause);
++    if (
++      isInitialHandoffCleanupUnknown(cause) ||
++      isSqliteCleanupUnknown(cause) ||
++      isSnapshotCleanupUnknown(cause)
++    ) {
++      this.unknown = true;
++      noteDependencyPreparationUnknown(this.owner, cause);
++    }
++  }
++  openFile(...args: Parameters<typeof openSync>): number {
++    this.assertWork();
++    const original = openSync(...args);
++    this.originals.push({
++      kind: 'file',
++      original,
++      close: closeSync,
++      state: 'unattempted',
++      cause: undefined,
++    });
++    return original;
++  }
++  openDatabase(path: string): ReturnType<typeof openReadOnlyDatabase> {
++    this.assertWork();
++    try {
++      const original = openReadOnlyDatabase(path);
++      // Exact selected method is invoked below only with its retained original receiver and no arguments.
++      // eslint-disable-next-line @typescript-eslint/unbound-method -- actual database receiver is retained in the same record
++      const close = original.close;
++      this.originals.push({
++        kind: 'database',
++        original,
++        close,
++        state: 'unattempted',
++        cause: undefined,
++      });
++      return original;
++    } catch (cause) {
++      this.observeFailure(cause);
++      throw cause;
++    }
++  }
++  openConnection(path: string): ReturnType<typeof openReadOnlyConnection> {
++    this.assertWork();
++    try {
++      const original = openReadOnlyConnection(path);
++
++      const close = original.close;
++      this.originals.push({
++        kind: 'connection',
++        original,
++        close,
++        state: 'unattempted',
++        cause: undefined,
++      });
++      return original;
++    } catch (cause) {
++      this.observeFailure(cause);
++      throw cause;
++    }
++  }
++  captureGraph(
++    ...args: Parameters<typeof captureInitialHandoffArtifacts>
++  ): InitialHandoffArtifactObservation {
++    this.assertWork();
++    try {
++      const original = captureInitialHandoffArtifacts(...args);
++      // eslint-disable-next-line @typescript-eslint/unbound-method -- the exact original graph remains the selected closeFiles receiver
++      const close = original.closeFiles;
++      this.originals.push({
++        kind: 'graph',
++        original,
++        close,
++        state: 'unattempted',
++        cause: undefined,
++      });
++      return original;
++    } catch (cause) {
++      this.observeFailure(cause);
++      throw cause;
++    }
++  }
++  private close(original: StorageOriginal): void {
++    if (original.state === 'closed') return;
++    if (original.state !== 'unattempted')
++      throw new Error('original storage cleanup remains unknown');
++    original.state = 'entered';
++    try {
++      switch (original.kind) {
++        case 'file':
++          original.close.call(undefined, original.original);
++          break;
++        case 'database':
++          original.close.call(original.original);
++          break;
++        case 'connection':
++          original.close.call(original.original);
++          break;
++        case 'graph':
++          original.close.call(original.original);
++          break;
++      }
++      original.state = 'closed';
++    } catch (cause) {
++      original.state = 'unknown';
++      original.cause = cause;
++      this.failures.push(cause);
++      this.unknown = true;
++      noteDependencyPreparationUnknown(this.owner, cause);
++      throw cause;
++    }
++  }
++  closeFile(descriptor: number): void {
++    const original = this.originals.findLast(
++      (record) =>
++        record.kind === 'file' && record.original === descriptor && record.state !== 'closed',
++    );
++    if (original === undefined) throw new Error('original storage descriptor is not retained');
++    this.close(original);
++  }
++  closeDatabase(database: ReturnType<typeof openReadOnlyDatabase>): void {
++    const original = this.originals.findLast(
++      (record) => record.kind === 'database' && record.original === database,
++    );
++    if (original === undefined) throw new Error('original storage database is not retained');
++    this.close(original);
++  }
++  closeConnection(connection: ReturnType<typeof openReadOnlyConnection>): void {
++    const original = this.originals.findLast(
++      (record) => record.kind === 'connection' && record.original === connection,
++    );
++    if (original === undefined) throw new Error('original storage Connection is not retained');
++    this.close(original);
++  }
++  closeGraph(graph: InitialHandoffArtifactObservation): void {
++    const original = this.originals.findLast(
++      (record) => record.kind === 'graph' && record.original === graph,
++    );
++    if (original === undefined) throw new Error('original storage graph is not retained');
++    this.close(original);
++  }
++  observeStoreInspection(original: Promise<void>): Promise<void> {
++    return this.observeInspection('stores.inspect', original);
++  }
++  observeEvidenceInspection(original: Promise<void>): Promise<void> {
++    return this.observeInspection('evidence.inspect', original);
++  }
++  private observeInspection(
++    kind: StorageInspection['kind'],
++    original: Promise<void>,
++  ): Promise<void> {
++    const read: StorageInspection = {
++      kind,
++      original,
++      state: 'pending',
++      cause: undefined,
++      observer: original.then(
++        () => {
++          read.state = 'fulfilled';
++        },
++        (cause: unknown) => {
++          read.state = 'rejected';
++          read.cause = cause;
++          this.observeFailure(cause);
++        },
++      ),
++    };
++    this.inspections.push(read);
++    return original;
++  }
++  async joinInspections(): Promise<boolean> {
++    this.joiningInspections = true;
++    await Promise.allSettled(this.inspections.flatMap((read) => [read.original, read.observer]));
++    return this.inspections.some((read) => read.state === 'rejected');
++  }
++  resumeInspections(): void {
++    this.joiningInspections = false;
++  }
++  /** Cleanup never checks or renews the work deadline, and never closes while a named read is pending. */
++  settle(): void {
++    if (this.hasPendingInspection)
++      throw new Error('original dependency inspection is still pending');
++    this.retained = false;
++    const failures: unknown[] = [];
++    if (
++      this.association !== undefined &&
++      this.originals.some((original) => original.state === 'unattempted')
++    ) {
++      try {
++        this.association.evidence.close();
++      } catch (cause) {
++        this.failures.push(cause);
++        failures.push(cause);
++      }
++    }
++    // The returned evidence closer handles its established order first. This sweep covers partial construction or interrupted closure.
++    for (const original of [...this.originals].reverse()) {
++      if (original.state !== 'unattempted') continue;
++      try {
++        this.close(original);
++      } catch (cause) {
++        failures.push(cause);
++      }
++    }
++    if (failures.length === 1) throw failures[0];
++    if (failures.length > 1) throw new AggregateError(failures, 'private storage cleanup outcomes');
++    if (this.unknown) throw new Error('original dependency storage cleanup remains unknown');
++  }
++}
++/** Concrete private storage association type; there is no public constructor or raw accessor.
++ * @internal
++ */
++export type DependencyStorageCustody = StorageCustody;
++
+ /** Weak diagnostic retention only: raw owner/outcomes may be collected when the safe error is discarded; this is not UNKNOWN custody. */
+ const storageFailures = new WeakMap<DependencyActivationFailure, readonly unknown[]>();
+-function settleStorage<T>(operation: () => T, cleanups: readonly (() => void)[]): T {
++function settleStorage<T>(
++  operation: () => T,
++  cleanups: readonly (() => void)[],
++  custody?: StorageCustody,
++): T {
+   const failures: unknown[] = [];
+   let outcome: { value: T } | undefined;
+   try {
+     outcome = { value: operation() };
+   } catch (cause) {
++    custody?.observeFailure(cause);
+     failures.push(cause);
+   }
+   for (const close of cleanups) {
+@@ -83,9 +379,17 @@
+ }
+ const inode = (stats: { dev: bigint; ino: bigint }) => `${String(stats.dev)}:${String(stats.ino)}`;
+ /** Retains the canonical parent across census; main descriptors exist only during synchronous storage boundaries. */
+-export function retainActivationDatabase(binding: DatabaseIdentity) {
++export function retainActivationDatabase(binding: DatabaseIdentity, custody?: StorageCustody) {
++  const acquire = (...args: Parameters<typeof openSync>) =>
++    custody === undefined ? openSync(...args) : custody.openFile(...args);
++  const retire = (descriptor: number) => {
++    if (custody === undefined) closeSync(descriptor);
++    else custody.closeFile(descriptor);
++  };
++  const settle = <T>(operation: () => T, cleanups: readonly (() => void)[]) =>
++    settleStorage(operation, cleanups, custody);
+   const parentPath = dirname(binding.host);
+-  const parent = openSync(
++  const parent = acquire(
+     parentPath,
+     constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+   );
+@@ -119,18 +423,18 @@
+   }
+   function withPath<T>(operation: (path: string) => T): T {
+     inspectParent();
+-    const main = openSync(
++    const main = acquire(
+       accessPath,
+       constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+     );
+-    return settleStorage(() => {
++    return settle(() => {
+       inspectMain(main);
+       const value = operation(accessPath);
+       inspectMain(main);
+       return value;
+     }, [
+       () => {
+-        closeSync(main);
++        retire(main);
+       },
+     ]);
+   }
+@@ -144,15 +448,15 @@
+       close: () => {
+         if (closed) throw new Error('activation database anchor already closed');
+         closed = true;
+-        closeSync(parent);
++        retire(parent);
+       },
+     };
+   } catch (cause) {
+-    return settleStorage<never>(() => {
++    return settle<never>(() => {
+       throw cause;
+     }, [
+       () => {
+-        closeSync(parent);
++        retire(parent);
+       },
+     ]);
+   }
+@@ -169,6 +473,9 @@
+ ) {
+   const scope = await assertCompleteDependencyExclusion(owner, token);
+   const { layouts, request, deadline, attempt, directory, artifactDirectory } = scope;
++  const custody = new StorageCustody(owner, deadline);
++  const settle = <T>(operation: () => T, cleanups: readonly (() => void)[]) =>
++    settleStorage(operation, cleanups, custody);
+   const limits = { maxBytes: 1073741824, deadline };
+   const isInitial = scope.purpose === 'initial-handoff';
+   let raw: InitialHandoffArtifactObservation | undefined;
+@@ -181,11 +488,11 @@
+     }
+     checkDeadline();
+   }
+-  /** A failed raw close is UNKNOWN, never retried here; GraphFiles settlement and strong UNKNOWN custody remain separate prerequisites. */
++  /** A failed raw close records original UNKNOWN in the owner capsule before safe wrapping; it is never retried. */
+   function closeRawFiles() {
+     if (raw === undefined) return;
+     try {
+-      raw.closeFiles();
++      custody.closeGraph(raw);
+     } catch (failure) {
+       const cleanup = Object.assign(new Error('private raw cleanup unknown'), {
+         state: 'unknown-raw-cleanup' as const,
+@@ -216,7 +523,7 @@
+   function closeAnchors() {
+     const held = [...anchors.values()];
+     anchors.clear();
+-    settleStorage(
++    settle(
+       () => undefined,
+       held.map((anchored) => anchored.close),
+     );
+@@ -229,6 +536,7 @@
+   let evidence: number | undefined;
+   let state: number | undefined;
+   const checkDeadline = () => {
++    custody.assertWork();
+     if (performance.now() >= deadline) throw new Error('activation deadline exceeded');
+   };
+   const evidencePath = join(directory, `dependency-activation-${attempt}`);
+@@ -260,11 +568,11 @@
+   function readCapture(path: string, expectedIdentity: string): string | Promise<string> {
+     if (!isInitial) return readRecord(path);
+     inspectEvidence();
+-    const descriptor = openSync(
++    const descriptor = custody.openFile(
+       path,
+       constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+     );
+-    return settleStorage(() => {
++    return settle(() => {
+       const original = fstatSync(descriptor, { bigint: true });
+       const identity = (stats: typeof original) =>
+         [
+@@ -316,7 +624,7 @@
+       return contents;
+     }, [
+       () => {
+-        closeSync(descriptor);
++        custody.closeFile(descriptor);
+       },
+     ]);
+   }
+@@ -347,18 +655,18 @@
+     checkDeadline();
+     anchor(env).withPath((path) => {
+       if (receipt === undefined) {
+-        const database = openReadOnlyDatabase(path);
+-        settleStorage(
++        const database = custody.openDatabase(path);
++        settle(
+           () => inspectDormantDependencies(database),
+           [
+             () => {
+-              database.close();
++              custody.closeDatabase(database);
+             },
+           ],
+         );
+       } else {
+-        const connection = openReadOnlyConnection(path);
+-        settleStorage(() => {
++        const connection = custody.openConnection(path);
++        settle(() => {
+           assertSame(
+             { state: 'ENABLED', receipt },
+             inspectDependencyActivation(connection.db),
+@@ -366,7 +674,7 @@
+           );
+         }, [
+           () => {
+-            connection.close();
++            custody.closeConnection(connection);
+           },
+         ]);
+       }
+@@ -406,11 +714,11 @@
+     }
+     for (const backup of backups) {
+       inspectEvidence();
+-      const descriptor = openSync(
++      const descriptor = custody.openFile(
+         `/proc/self/fd/${String(evidence)}/${basename(backup.path)}`,
+         constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+       );
+-      settleStorage(() => {
++      settle(() => {
+         const before = fstatSync(descriptor, { bigint: true });
+         if (
+           !before.isFile() ||
+@@ -437,7 +745,7 @@
+         }
+       }, [
+         () => {
+-          closeSync(descriptor);
++          custody.closeFile(descriptor);
+         },
+       ]);
+     }
+@@ -474,7 +782,7 @@
+     for (const env of ['prod', 'dev'] as const) {
+       environment = env;
+       const binding = scope.databases[env];
+-      anchors.set(env, retainActivationDatabase(binding));
++      anchors.set(env, retainActivationDatabase(binding, custody));
+       inspectAuthority(env);
+       scope.authority.set(env, 'DISABLED');
+       const identity = JSON.stringify({
+@@ -507,12 +815,15 @@
+       'joint installed migration ledger',
+     );
+     stage = 'allocate-evidence';
+-    state = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
++    state = custody.openFile(
++      directory,
++      constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
++    );
+     if (inode(fstatSync(state, { bigint: true })) !== scope.stateDirectoryIdentity)
+       throw new Error('activation state directory identity changed');
+     mkdirSync(`/proc/self/fd/${String(state)}/dependency-activation-${attempt}`, { mode: 0o700 });
+     fsyncSync(state);
+-    evidence = openSync(
++    evidence = custody.openFile(
+       evidencePath,
+       constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+     );
+@@ -569,11 +880,11 @@
+       checkDeadline();
+       evidenceNames.add(`${env}.before.sqlite`);
+       inspectEvidence();
+-      const backup = openSync(
++      const backup = custody.openFile(
+         backupAccess,
+         constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+       );
+-      const backupIdentity = settleStorage(() => {
++      const backupIdentity = settle(() => {
+         const observed = fstatSync(backup, { bigint: true });
+         if (!observed.isFile()) throw new Error('activation backup is not a regular file');
+         fchmodSync(backup, 0o600);
+@@ -581,7 +892,7 @@
+         return inode(observed);
+       }, [
+         () => {
+-          closeSync(backup);
++          custody.closeFile(backup);
+         },
+       ]);
+       fsyncSync(evidence);
+@@ -596,12 +907,12 @@
+       });
+       checkDeadline();
+       assertSame(capture, backupCapture, 'activation backup complete ledger');
+-      const copied = openReadOnlyDatabase(backupAccess);
+-      settleStorage(
++      const copied = custody.openDatabase(backupAccess);
++      settle(
+         () => inspectDormantDependencies(copied),
+         [
+           () => {
+-            copied.close();
++            custody.closeDatabase(copied);
+           },
+         ],
+       );
+@@ -631,7 +942,7 @@
+     }
+     if (isInitial) {
+       stage = 'initial-raw-observation';
+-      raw = captureInitialHandoffArtifacts(
++      raw = custody.captureGraph(
+         {
+           edgeState: directory,
+           owner: scope.pending,
+@@ -759,12 +1070,12 @@
+           const authority = expected.get(env);
+           const captured = original(env);
+           if (authority === undefined) throw new Error('expected store authority absent');
+-          const anchored = retainActivationDatabase(scope.databases[env]);
+-          settleStorage(() => {
++          const anchored = retainActivationDatabase(scope.databases[env], custody);
++          settle(() => {
+             anchored.withPath((path) => {
+               if (authority.state === 'ENABLED') {
+-                const connection = openReadOnlyConnection(path);
+-                settleStorage(() => {
++                const connection = custody.openConnection(path);
++                settle(() => {
+                   assertSame(
+                     authority,
+                     inspectDependencyActivation(connection.db),
+@@ -773,17 +1084,17 @@
+                 }, [
+                   () => {
+                     // Proof: omitting this close exposed real SQLite/main/WAL/SHM descriptors at the next awaited owner boundary; prepared-store lifetime test failed its empty-FD assertion.
+-                    connection.close();
++                    custody.closeConnection(connection);
+                   },
+                 ]);
+               } else {
+-                const database = openReadOnlyDatabase(path);
+-                settleStorage(() => {
++                const database = custody.openDatabase(path);
++                settle(() => {
+                   // Proof: omitting this post-finalizer check admitted a nonselected ENABLED marker; prepared-store lifetime negative missed its rejection.
+                   inspectDormantDependencies(database);
+                 }, [
+                   () => {
+-                    database.close();
++                    custody.closeDatabase(database);
+                   },
+                 ]);
+               }
+@@ -806,6 +1117,7 @@
+         await assertDependencyOwner(owner, layouts.dev, request.owner.sha);
+         closeRaw();
+       } catch (cause) {
++        custody.observeFailure(cause);
+         const failure = new DependencyActivationFailure(
+           attempt,
+           'restoration-store-readback',
+@@ -833,11 +1145,21 @@
+       participantRecord,
+       commitRecords,
+       intentRecords,
+-      stores: Object.freeze({ inspect: inspectStores }),
++      stores: Object.freeze({
++        inspect: () => {
++          custody.assertWork();
++          return custody.observeStoreInspection(inspectStores());
++        },
++      }),
+       evidence: {
+-        inspect: inspectPublications,
++        inspect: () => {
++          custody.assertWork();
++          return custody.observeEvidenceInspection(inspectPublications());
++        },
+         assertStable: closeRaw,
+         close: () => {
++          if (custody.hasPendingInspection)
++            throw new Error('original dependency inspection is still pending');
+           if (evidence === undefined || state === undefined)
+             throw new Error('activation evidence monitor closed');
+           const descriptions = [evidence, state];
+@@ -848,7 +1170,7 @@
+           for (const close of [
+             closeRawFiles,
+             ...descriptions.map((descriptor) => () => {
+-              closeSync(descriptor);
++              custody.closeFile(descriptor);
+             }),
+           ]) {
+             try {
+@@ -873,8 +1195,10 @@
+     stage = 'anchor-finalizers';
+     closeAnchors();
+     closeRaw();
++    custody.retain(packet);
+     return packet;
+   } catch (cause) {
++    custody.observeFailure(cause);
+     // Private SQL/config/transport causes never escape; durable commits remain monotone.
+     const publicFailure = new DependencyActivationFailure(
+       attempt,
+@@ -889,14 +1213,14 @@
+       const descriptor = evidence;
+       evidence = undefined;
+       cleanups.push(() => {
+-        closeSync(descriptor);
++        custody.closeFile(descriptor);
+       });
+     }
+     if (state !== undefined) {
+       const descriptor = state;
+       state = undefined;
+       cleanups.push(() => {
+-        closeSync(descriptor);
++        custody.closeFile(descriptor);
+       });
+     }
+     const failures: unknown[] = [];
+diff --git a/tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts b/tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts
+--- a/tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts
++++ b/tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts
+@@ -28,10 +28,15 @@
+ import {
+   assertDependencyOwner,
+   assertDependencyOwnerDirectory,
++  bindDependencyPreparationArtifact,
++  bindDependencyPreparationContext,
+   type DependencyOwner,
++  enrollDependencyPreparation,
+   inspectDependencyOwnerPublication,
++  observeDependencyPreparation,
+   ownerDockerExec,
+   ownerDockerHashed,
++  releaseDependencyPreparation,
+   retainActivationRecord,
+ } from './edge-ownership';
+ import { captureEdgePolicy, captureEdgeRecord, decodeOrdinaryEdgePolicy } from './edge-policy';
+@@ -197,7 +202,33 @@
+   PreparedDependencyActivation
+ >();
+ /** Internal fixed-profile composition under an already retained outer owner; return follows every physical finalizer. */
+-async function activateCompleteUnderOwner(
++function activateCompleteUnderOwner(
++  owner: DependencyOwner,
++  request: CompleteDependencyActivationRequest,
++  layouts: SolverLayouts,
++  deadline: number,
++  directory: string,
++  ports: CompleteActivationTransports,
++  purpose: 'fenced' | 'restoration' | 'initial-handoff',
++): Promise<{
++  completion: CompleteDependencyActivationCompletion;
++  prepared?: PreparedDependencyActivation;
++}> {
++  enrollDependencyPreparation(owner, deadline);
++  const original = activateCompleteUnderOwnerCore(
++    owner,
++    request,
++    layouts,
++    deadline,
++    directory,
++    ports,
++    purpose,
++  );
++  observeDependencyPreparation(owner, original);
++  return original;
++}
++
++async function activateCompleteUnderOwnerCore(
+   owner: DependencyOwner,
+   request: CompleteDependencyActivationRequest,
+   layouts: SolverLayouts,
+@@ -796,6 +827,7 @@
+               deadline,
+               true,
+             );
++            bindDependencyPreparationArtifact(owner, restorationArtifact);
+             await assertCompleteDependencyExclusion(owner, token);
+             const original = {
+               owner,
+@@ -887,6 +919,7 @@
+         [preparationIdentity]: true as const,
+       });
+       const context = { ...provisional, completion, fencedComplete: fencedRecord };
++      bindDependencyPreparationContext(owner, key, context);
+       preparations.set(key, context);
+       preparedContexts.set(context, key);
+       isRetainedForRestoration = true;
+@@ -902,10 +935,7 @@
+   if (!isRetainedForRestoration) {
+     const failures = closeObservations([
+       () => {
+-        evidence?.close();
+-      },
+-      () => {
+-        restorationArtifact?.close();
++        releaseDependencyPreparation(owner);
+       },
+     ]);
+     if (failures.length > 0)
+@@ -1043,14 +1073,9 @@
+   const context = preparations.get(prepared);
+   if (context?.owner !== owner)
+     throw new Error('participant restoration preparation is not retained');
+-  preparations.delete(prepared);
+-  preparedContexts.delete(context);
+   const failures = closeObservations([
+     () => {
+-      context.storage.evidence.close();
+-    },
+-    () => {
+-      context.artifact.close();
++      releaseDependencyPreparation(owner);
+     },
+   ]);
+   if (failures.length > 0)
+@@ -1060,4 +1085,6 @@
+       new Map(context.storage.receipts.map(({ environment, receipt }) => [environment, receipt])),
+       failures,
+     );
+-}
++  preparations.delete(prepared);
++  preparedContexts.delete(context);
++}
+diff --git a/libs/wbs/adapters/store-sqlite/src/db.ts b/libs/wbs/adapters/store-sqlite/src/db.ts
+--- a/libs/wbs/adapters/store-sqlite/src/db.ts
++++ b/libs/wbs/adapters/store-sqlite/src/db.ts
+@@ -4,6 +4,8 @@
+ import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
+ 
+ import { createSqliteCleanupFailure } from './sqlite-cleanup';
++
++export { isSqliteCleanupUnknown } from './sqlite-cleanup';
+ 
+ export { SQLiteError };
+ 

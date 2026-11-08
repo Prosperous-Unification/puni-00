@@ -1,0 +1,101 @@
+
+ NX   Running targets typecheck, lint for 4 projects and 2 tasks they depend on:
+
+- wbs-domain
+- wbs-core
+- wbs-contracts
+- wbs-be-01
+
+
+
+> nx run wbs-core:"typecheck:module"
+
+> bun tools/tool-devsync/src/typecheck-modules.ts libs/wbs/application/core/src/module
+
+typecheck libs/wbs/application/core/src/module/authentication
+typecheck libs/wbs/application/core/src/module/bounded-replay-sweep
+typecheck libs/wbs/application/core/src/module/calendar-marker
+typecheck libs/wbs/application/core/src/module/capacity
+typecheck libs/wbs/application/core/src/module/directory
+typecheck libs/wbs/application/core/src/module/event-log
+typecheck libs/wbs/application/core/src/module/plan-commands
+typecheck libs/wbs/application/core/src/module/plan-document
+typecheck libs/wbs/application/core/src/module/plan-event
+typecheck libs/wbs/application/core/src/module/plan-history
+typecheck libs/wbs/application/core/src/module/plan-import
+typecheck libs/wbs/application/core/src/module/priority-band
+typecheck libs/wbs/application/core/src/module/project
+typecheck libs/wbs/application/core/src/module/realtime
+typecheck libs/wbs/application/core/src/module/saved-plans
+typecheck libs/wbs/application/core/src/module/step
+typecheck libs/wbs/application/core/src/module/work-item
+
+> nx run wbs-be-01:"typecheck:module"
+
+> bun tools/tool-devsync/src/typecheck-modules.ts apps/wbs/be-01/src/module
+
+typecheck apps/wbs/be-01/src/module/optimization
+typecheck apps/wbs/be-01/src/module/solver-launcher
+typecheck apps/wbs/be-01/src/module/solver-supervisor
+
+> nx run wbs-domain:typecheck
+
+> bunx tsc --build --force libs/wbs/domain/domain/tsconfig.json
+
+
+> nx run wbs-domain:lint
+
+> bunx eslint libs/wbs/domain/domain/src
+
+
+> nx run wbs-contracts:typecheck
+
+> bunx tsc --build --force libs/wbs/domain/contracts/tsconfig.json
+
+
+> nx run wbs-contracts:lint
+
+> bunx eslint libs/wbs/domain/contracts/src libs/wbs/domain/contracts/solver/src
+
+
+> nx run wbs-core:lint
+
+> bunx eslint libs/wbs/application/core/src libs/wbs/application/core/testing libs/wbs/application/core/playwright.config.ts
+
+
+> nx run wbs-core:typecheck
+
+> bunx tsc --build --force libs/wbs/application/core/tsconfig.json
+
+
+> nx run wbs-be-01:lint
+
+> bunx eslint apps/wbs/be-01/src
+
+Warning: command "bunx eslint apps/wbs/be-01/src" exited with non-zero status code
+> nx run wbs-be-01:typecheck
+
+> bunx tsc --build --force apps/wbs/be-01/tsconfig.json
+
+apps/wbs/be-01/src/service/saved-plan-current.db.test.ts(206,40): error TS2345: Argument of type 'CanonicalPlanInput | CanonicalPlanInputV9' is not assignable to parameter of type 'CanonicalPlanInput'.
+  Type 'CanonicalPlanInputV9' is not assignable to type 'CanonicalPlanInput'.
+    Types of property 'schemaVersion' are incompatible.
+      Type '9' is not assignable to type '8'.
+Warning: command "bunx tsc --build --force apps/wbs/be-01/tsconfig.json" exited with non-zero status code
+
+
+ NX   Running targets typecheck, lint for 4 projects and 2 tasks they depend on failed
+
+Failed tasks:
+
+- wbs-be-01:lint
+- wbs-be-01:typecheck
+
+  Run duration:      5m 34s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     1m 43s (2 tasks)
+  Recoverable time:  3m 51s (69% of the run)
+
+  Recommendations:
+    - Increase parallelism to recover up to 3m 51s → https://nx.dev/docs/concepts/ci-concepts/parallelization-distribution?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=parallelization.
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.

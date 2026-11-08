@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/work-item.controller.test.ts:
+(pass) work item routes > resolves canonical and alias references to the nodes in the work-item read [193.28ms]
+(pass) work item routes > refuses an old revision after a renumbering move and reports the current revision [131.62ms]
+(pass) work item routes > reads leaf step nodes and address revision without nodes on parents [110.12ms]
+
+ 3 pass
+ 103 filtered out
+ 0 fail
+ 20 expect() calls
+Ran 3 tests across 1 file. [2.67s]

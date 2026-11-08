@@ -52,3 +52,14 @@ export function unknownMessage(unknown: readonly string[]): string | null {
   if (unknown.length === 1) return `No work item numbered ${unknown[0] ?? ''}.`;
   return `No work items numbered ${unknown.join(', ')}.`;
 }
+
+/** The last comma/space-delimited token, with the exact earlier text retained for selection. */
+export function currentDependencyToken(typed: string): { prefix: string; token: string } {
+  const start = Math.max(typed.lastIndexOf(','), typed.search(/\s[^\s]*$/)) + 1;
+  return { prefix: typed.slice(0, start), token: typed.slice(start) };
+}
+
+/** Replaces only the active token when project discovery advances into endpoint lookup. */
+export function replaceDependencyToken(typed: string, replacement: string): string {
+  return currentDependencyToken(typed).prefix + replacement;
+}

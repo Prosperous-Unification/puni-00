@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts:
+93 |   return text;
+94 | }
+95 | // Proof: omitting comparisons let lying-update reach stop; the mounted negative observes the forbidden stop.
+96 | export function assertSame(expected: unknown, observed: unknown, description: string): void {
+97 |   if (JSON.stringify(expected) !== JSON.stringify(observed))
+98 |     throw new Error(`managed cohort ${description} changed or was not excluded`);
+                   ^
+error: managed cohort parked backend full inventory changed or was not excluded
+      at assertSame (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/managed-cohort.ts:98:15)
+      at assertParkedBackendCohort (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/backend-cohort.ts:596:3)
+      at assertParkedBackendFenceUnderOwner (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/backend-exclusion.ts:448:9)
+      at inspect (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/parked-dependencies.ts:135:11)
+      at captureParkedDependencies (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/parked-dependencies.ts:142:9)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/dependency-activation-owner.ts:314:32
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/dependency-activation-owner.ts:264:24
+      at withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:232:18)
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/solver-exclusion.ts:259:20
+      at /tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:304:27
+      at acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+      at processTicksAndRejections (unknown:7:39)
+(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: none [3225.04ms]
+
+ 0 pass
+ 95 filtered out
+ 1 fail
+ 66 expect() calls
+Ran 1 test across 1 file. [3.30s]

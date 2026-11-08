@@ -123,6 +123,14 @@ Twilight Burokrat SHALL enforce this statement as the inventory-classification r
 - **WHEN** the inventory rule evaluates the candidate
 - **THEN** every tracked entry is classified exactly once or the rule is not evaluated
 
+#### Scenario: Classify the three declared retained source snapshots without broad fixture exemptions
+
+- **GIVEN** either shipped policy and the retained snapshots `openspec/changes/cross-project-dependencies/evidence/source-role-observer/baseline/tools/tool-remote-scripts/src/fixtures/product-readiness-byte-transport.ts.txt`, `openspec/changes/cross-project-dependencies/evidence/source-role-observer/baseline/tools/tool-remote-scripts/src/fixtures/source-role-process.ts.txt`, and `openspec/changes/cross-project-dependencies/evidence/source-role-observer/baseline/tools/tool-remote-scripts/test/source-role-process-model-child.test.ts.txt`
+- **WHEN** the production classifier evaluates their committed tuples
+- **THEN** each exact path is ordinary OpenSpec content with its original mode and blob identity
+- **AND** a same-byte unlisted neighboring fixture archive still refuses multiple matching rules
+- **AND** active source fixture and test paths retain their fixture and test classes; unknown or ambiguous content still refuses
+
 ### Requirement: Relationship resolution
 
 Every declared relationship of the candidate resolves to an extracted selector.

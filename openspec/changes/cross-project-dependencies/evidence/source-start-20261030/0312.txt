@@ -1,0 +1,13 @@
+# Source-start actual pairs eleven through fifteen
+
+PASS for closed V2 indexes10–14 only. Manifest /tmp/puni-source-start-20261029/r5-v2/third-five-manifest.json SHA d5f65de1cad296db3c606f5ae3f8da93cf5e922bfc3f6a2f8d15c46e690c4588: independently verified187 immutable regular/mode/byte/size bodies. Reconstructed each mutant from saved production1f964750 and approved recipe; inverse records exact original bytes/mode0664 and same device/inode. Pinned driver checks controls after inverse and before/after restored execution. No active f7 source or running process was read.
+
+Read all ten full raw stderr logs, verified ten original outer and wrapper receipts plus stream hashes and exact typed original inner custody. Every fault is normal1/nullsignal/bothEOF; every SAME restored consumer normal0/nullsignal/bothEOF. Required reached/independent-fault markers are present, fault success markers absent, exact selected inner/outer outcome names match. All scratch cleanup returns; no timeout/setup/incidental failure is credited.
+
+Three grouped retained-monitor witnesses each show an independently injected fault from the actual source HTTP response (backend-drift, gateway-drift, solver-drift). Omitting ONE shared inspectSourceRetained closure makes each source restoration wrongly resolve; model228 reports Expected promise that rejects/Received promise resolved. Each restored consumer refuses at the real source-phase consumer and passes548 inner assertions. These are three distinct witnesses for one grouped dependency, not separate predicate/monitor necessity claims.
+
+Composer copied-context dependency makes the genuine positive refuse at model266 after509 assertions; exact restoration reaches READY593. The sanitized throw is not evidence of a separately observed hidden cause or a replay of inherited six-response decoder proofs.
+
+Ready-reference fault reaches the actual source-ready record comparison at model317: original participant-restore-intent name/SHA are expected, but the recorded gateway participant-ready name/SHA appear. Only those reference fields differ in the shown assertion. Exact restoration reaches READY593. This establishes the durable record reference binding dependency, not generic filesystem durability or all record-field proof.
+
+Outer fault/restored seconds:110.614/158.851,135.716/124.915,75.938/98.277,123.072/134.837,173.872/128.530. These identify epochs, not capacity acceptance. Earlier audits0c8468b7 andd0e29521 remain separately bound; fifteen of twenty are now independently accepted. Remaining five, final source/static review and all native/cold-start/controller/policy/exposure/full-restoration claims remain pending. No runtime/test/supplied driver, Git mutation or current mutant comparison was performed.

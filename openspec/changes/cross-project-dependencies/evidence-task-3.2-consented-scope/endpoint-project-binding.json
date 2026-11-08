@@ -1,0 +1,7 @@
+{
+  "fault": "endpoint-project-binding",
+  "path": "libs/wbs/application/core/src/service/command-fields.ts",
+  "before": "const projectId = endpointText(raw, 'projectId');",
+  "after": "const projectId = scope === 'whole' ? endpointText(raw, 'projectId') : undefined;",
+  "exitCode": 1
+}

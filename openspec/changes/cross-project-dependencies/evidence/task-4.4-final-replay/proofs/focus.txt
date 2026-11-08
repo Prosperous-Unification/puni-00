@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+(pass) synthetic mounted compound undo restores the exact relationship and flips its selected journal [666.26ms]
+(pass) synthetic mounted compound undo refuses a remote-only cycle atomically and prunes exactly its selected journal [544.96ms]
+(pass) synthetic mounted compound undo refuses a final-only graph finding after healthy reattachment [524.94ms]
+(pass) synthetic mounted compound redo restores the exact relationship and flips its selected journal [529.41ms]
+(pass) synthetic mounted compound redo refuses a remote-only cycle atomically and prunes exactly its selected journal [529.81ms]
+(pass) synthetic mounted compound redo refuses a final-only graph finding after healthy reattachment [511.04ms]
+
+ 6 pass
+ 26 filtered out
+ 0 fail
+ 172 expect() calls
+Ran 6 tests across 1 file. [6.37s]

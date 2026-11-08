@@ -1,0 +1,250 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+714 |   expect((await startable()).status).toBe(200);
+715 | });
+716 |
+717 | test('remote holds remain visible in mounted tree and prevent governed claims', async () => {
+718 |   harness.sqlite.run("UPDATE work_item SET hold='on_hold' WHERE id='predecessor-leaf'");
+719 |   expect(await tree()).toMatchObject({
+                             ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
++     "addressRevision": "ar1:a7a30926f116d844fdaaf9b28859028ae977132a880c9d5663c62693a458ba6f",
++     "assignedPeople": [],
++     "connectedDependencies": [
++       {
++         "id": "prerequisite",
++         "predecessor": {
++           "endpoint": {
++             "projectId": "5bbac554-bc2f-45a3-894f-69183c8c45b7",
++             "scope": "node",
++             "stepId": "bf71093a-f05c-4635-a5e3-eb0e9eed6399",
++             "workItemId": "predecessor-leaf",
++           },
++           "isLeaf": true,
++           "name": "predecessor-leaf",
++           "projectAbbreviation": "PRE",
++           "qualifiedReference": "PRE.010.s1-dev",
++           "revision": 0,
++           "step": {
++             "code": "dev",
++             "id": "bf71093a-f05c-4635-a5e3-eb0e9eed6399",
++             "name": "Dev",
++             "position": 10,
++           },
++           "stepNodeId": "sn1.predecessor-leaf.bf71093a-f05c-4635-a5e3-eb0e9eed6399",
++           "stepReference": "010.s1-dev",
++           "workItemNumber": "010",
++         },
++         "projectId": "cda1f3b7-08cf-4c23-9f7b-cac09459dbd7",
++         "successor": {
++           "endpoint": {
++             "projectId": "cda1f3b7-08cf-4c23-9f7b-cac09459dbd7",
++             "scope": "node",
++             "stepId": "81165781-efba-408f-a918-4f6f3957d3fa",
++             "workItemId": "target-leaf",
++           },
++           "isLeaf": true,
++           "name": "target-leaf",
++           "projectAbbreviation": "TAR",
++           "qualifiedReference": "TAR.010.s1-dev",
++           "revision": 0,
++           "step": {
++             "code": "dev",
++             "id": "81165781-efba-408f-a918-4f6f3957d3fa",
++             "name": "Dev",
++             "position": 10,
++           },
++           "stepNodeId": "sn1.target-leaf.81165781-efba-408f-a918-4f6f3957d3fa",
++           "stepReference": "010.s1-dev",
++           "workItemNumber": "010",
++         },
++         "type": "FS",
++       },
++     ],
++     "depReach": "whole-item",
++     "estimateMethod": "pert",
++     "estimateRounding": "ceil",
++     "pertWeights": {
++       "optimistic": 1,
++       "pessimistic": 1,
++       "realistic": 4,
++     },
++     "priorityBands": [
++       {
++         "defaultValue": 10,
++         "label": "Critical",
++         "startsAt": 1,
++       },
++       {
++         "defaultValue": 30,
++         "label": "High",
++         "startsAt": 21,
++       },
++       {
++         "defaultValue": 50,
++         "label": "Medium",
++         "startsAt": 41,
++       },
++       {
++         "defaultValue": 70,
++         "label": "Low",
++         "startsAt": 61,
++       },
++       {
++         "defaultValue": 90,
++         "label": "Lowest",
++         "startsAt": 81,
++       },
++     ],
++     "projectRevision": 0,
++     "redoable": false,
++     "remoteBlockageLabels": [],
++     "scheduleError": {
++       "kind": "dependency_calendar_missing",
++       "projects": [
++         {
++           "abbreviation": "TAR",
++           "name": "Target",
++           "projectId": "cda1f3b7-08cf-4c23-9f7b-cac09459dbd7",
++         },
++       ],
++     },
++     "seq": -1,
++     "slices": [],
++     "startDate": null,
++     "stepNodes": [
++       {
++         "id": "sn1.target-leaf.81165781-efba-408f-a918-4f6f3957d3fa",
++         "reference": "010.s1-dev",
++         "stepId": "81165781-efba-408f-a918-4f6f3957d3fa",
++         "workItemId": "target-leaf",
++       },
++       {
++         "id": "sn1.target-leaf.ef9f8628-bbb2-4885-bdc8-10cd32464d01",
++         "reference": "010.s2-qa",
++         "stepId": "ef9f8628-bbb2-4885-bdc8-10cd32464d01",
++         "workItemId": "target-leaf",
++       },
++     ],
++     "steps": [
++       {
++         "allowancePercent": 0,
++         "code": "dev",
++         "estimateUnit": "workdays",
++         "id": "81165781-efba-408f-a918-4f6f3957d3fa",
++         "name": "Dev",
++         "position": 10,
++         "projectId": "cda1f3b7-08cf-4c23-9f7b-cac09459dbd7",
++       },
++       {
++         "allowancePercent": 0,
++         "code": "qa",
++         "estimateUnit": "workdays",
++         "id": "ef9f8628-bbb2-4885-bdc8-10cd32464d01",
++         "name": "QA",
++         "position": 20,
++         "projectId": "cda1f3b7-08cf-4c23-9f7b-cac09459dbd7",
++       },
++     ],
++     "teamCapacities": [],
++     "timezone": "UTC",
++     "typedDependencies": [],
++     "undoable": false,
++     "waitingForCapacity": 0,
++     "waitingForPerson": 0,
+      "workItems": [
+        {
++         "actuals": {},
++         "assignees": {},
++         "blockageCauses": {
++           "81165781-efba-408f-a918-4f6f3957d3fa": [],
++           "ef9f8628-bbb2-4885-bdc8-10cd32464d01": [],
++         },
++         "blockages": {},
++         "charged": {},
++         "dates": null,
++         "deadline": null,
++         "dependsOn": [],
++         "doesEveryStep": null,
++         "estimates": {},
++         "externalRefs": [],
++         "factEnd": null,
++         "factStart": null,
++         "finalDays": {},
++         "finalTotal": 0,
++         "frozenNumber": null,
++         "hold": null,
+          "id": "target-leaf",
+-         "status": "blocked_by_proxy",
++         "maxParallel": 1,
++         "measures": {},
++         "name": "target-leaf",
++         "nodeReadings": {
++           "81165781-efba-408f-a918-4f6f3957d3fa": "unknown",
++           "ef9f8628-bbb2-4885-bdc8-10cd32464d01": "unknown",
++         },
++         "nodeResources": {
++           "81165781-efba-408f-a918-4f6f3957d3fa": {
++             "assignment": {
++               "kind": "unassigned",
++             },
++             "maxParallel": 1,
++             "nodeId": "sn1.target-leaf.81165781-efba-408f-a918-4f6f3957d3fa",
++             "teams": {
++               "kind": "unstated",
++             },
++             "width": 1,
++           },
++           "ef9f8628-bbb2-4885-bdc8-10cd32464d01": {
++             "assignment": {
++               "kind": "unassigned",
++             },
++             "maxParallel": 1,
++             "nodeId": "sn1.target-leaf.ef9f8628-bbb2-4885-bdc8-10cd32464d01",
++             "teams": {
++               "kind": "unstated",
++             },
++             "width": 1,
++           },
++         },
++         "notes": "",
++         "number": "010",
++         "parentId": null,
++         "position": 0,
++         "priority": null,
++         "progress": {},
++         "projectId": "cda1f3b7-08cf-4c23-9f7b-cac09459dbd7",
++         "readiness": "ready",
++         "revision": 0,
++         "rolledUp": false,
++         "schedule": null,
++         "serviceId": null,
++         "serviceIds": [],
++         "serviceTeamId": null,
++         "startNoEarlierThan": null,
++         "startNoEarlierThanReason": null,
++         "status": "ready",
++         "tagIds": [],
++         "teamIds": [],
++         "typeIds": [],
+        },
+      ],
+    },
+    "status": 200,
+  }
+
+- Expected  - 1
++ Received  + 215
+
+      at <anonymous> (/tmp/puni-63-evidence/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:719:24)
+(fail) remote holds remain visible in mounted tree and prevent governed claims [495.56ms]
+
+ 0 pass
+ 36 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [4.45s]

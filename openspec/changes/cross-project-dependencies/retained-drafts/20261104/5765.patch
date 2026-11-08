@@ -1,0 +1,350 @@
+diff --git a/bun.lock b/bun.lock
+index d91deeafb555386325f8084b39a53d500da01d04..1b64aa2129dd48bc021e4b1ee5e5dfc58b843529 100644
+--- a/bun.lock
++++ b/bun.lock
+@@ -109,6 +109,9 @@
+       },
+     },
+   },
++  "patchedDependencies": {
++    "@ark/schema@0.56.2": "patches/@ark%2Fschema@0.56.2.patch",
++  },
+   "packages": {
+     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],
+ 
+diff --git a/openspec/changes/compiled-traversal-sharing/design.md b/openspec/changes/compiled-traversal-sharing/design.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..fc3ea585adf5a86bddf710f7610cf61a9742f425
+--- /dev/null
++++ b/openspec/changes/compiled-traversal-sharing/design.md
+@@ -0,0 +1,31 @@
++# PRIVATE, unapproved technical shape
++
++The only runtime edits are the native-generated root package property, its exact three lock registration lines and the unchanged native patch. This is a separate change from Stage B source work. The current R16 package/lock are the authenticated native base: minimal insertions produce the existing native hashes, and inverse insertions recover the complete current bytes. No fresh bookkeeping generation is necessary or allowed by this packet.
++
++## Version and artifact boundary
++
++The registration selects nested `@ark/schema@0.56.2`; top-level0.56.0 remains unchanged. ArkType2.2.3 and the qualified util/resolution/integrity identities remain fixed. Patch SHA256 is `95380ed9b554038220bc538ec54cb02834a0a3134e391b4a195358338fbbec1c`; only package-relative `out/scope.js` changes. The derived `.bun-tag-35e6c4b58501c484` is installer bookkeeping and is excluded from repository source. Later materialization checks all105 canonical files plus that exact marker, not a `.bun-*` wildcard. Its observed mode0664 belongs to the retained campaign premise, not a universal tool guarantee.
++
++## Existing qualified algorithm
++
++`precompileReferences` builds the current ID→object map and a per-call eligibility map. A node must already have precompilation and belong outside the owning scope, unless no owning scope is supplied. Own Allows/Apply functions, and Optimistic for every union, are required; a broken compiled-callback invariant throws before publishing borrowed slots.
++
++Eligibility also requires exact current ID/object membership, no alias/cyclic node and a reusable complete non-self `referencesById` closure. Marking a node visiting before recursion forces nonalias cycles to fall back. Ineligible dependencies and same-ID different objects prevent borrowing for affected nodes. The unchanged original emitters generate their callbacks. There is no second optimizer or expanded eligibility rule.
++
++For eligible nodes, registry references publish exact existing bound callbacks into every required slot. They already carry their old table as receiver; `bindPrecompilation` retains existing external bindings. Scope export passes `this` as owning scope so owned nodes generate and rebind into the scope's new table even when previously compiled. All union Allows/Apply/Optimistic slots remain required.
++
++## Ownership and measured limits
++
++Registry references strongly retain the borrowed callbacks; bound functions retain their old compiled tables. Fewer emitted functions and lower observed RSS increment do not imply less retained heap or shorter lifetime. No weak table, eviction, GC scheduling or retention mechanism is introduced or qualified.
++
++Historical fixed memory readings were C381/379/384MB versus B509/513MB. All C readings passed the unchanged strict<500MB assertion; both B expected failures remain. This measures rounded RSS increment after HTTP shape import relative to the child after ArkType import, not total/peak RSS or512MiB pod headroom.
++
++The fixed validation workload pooled median ratio was1.130153967375641, within its declared1.20 aggregate budget. Raw Standard Schema was40.164781% slower. These measurements retain their original fixture/environment/corpus scope; no new sampling, tuning or retention claim is authorized.
++
++## Evidence transfer and maintenance
++
++The native-generation receipt and accepted two-materialization audit are provenance for exactly these unchanged artifacts. Original reproduction stage remains FAILED; its separate successful continuation supplies the second materialization and finite fault/diagnostic evidence. Existing mechanism/semantic/type/producer/structural/memory/cost results apply only to their exact input hashes. R16 source differences do not inherit old candidate-suite acceptance.
++
++WBS contracts maintainers own target/canonical pins, patch compatibility review and removal. Upstream replacement, a version change, lost canonical identity, failed candidate semantics or an unacceptable tradeoff triggers removal or separately reviewed replacement. Removal deletes the property, exact lock registration and patch together, then verifies ordinary stock resolution and complete normal candidate checks. Reversibility does not confer adoption authority.
++
++All exact integrated-candidate checks listed in tasks.md remain pending. MAIN, PR630, deployment and adoption remain held; this private draft creates no accepted ADR or new domain term.
+diff --git a/openspec/changes/compiled-traversal-sharing/proposal.md b/openspec/changes/compiled-traversal-sharing/proposal.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..46356ca9e18b9b587c789f5b049635d46afeb9e5
+--- /dev/null
++++ b/openspec/changes/compiled-traversal-sharing/proposal.md
+@@ -0,0 +1,21 @@
++# Compiled traversal sharing — PRIVATE, unapproved intent
++
++## Problem
++
++Repeated ArkType compilation emits duplicate traversal wrappers for already compiled references. The existing HTTP-contract import test measures an RSS increment above its strict500MB bound with stock nested `@ark/schema@0.56.2`. A private qualified patch reduces that fixed increment, while retaining existing callback/table references and increasing validation cost.
++
++## Desired outcome
++
++Review a version-specific native Bun patch registration for exactly the already qualified compiler bytes. Reuse eligible existing bound callbacks while preserving owning-scope generation, conservative alias/cycle/identity-conflict fallback and all union callback slots. Preserve contracts, types, producer behavior and consumer resolution on the exact integrated candidate before considering adoption.
++
++## Non-goals
++
++No second optimization, generic compiler/allocator framework, fork, upgrade, weakening of the memory assertion, new benchmark, tuning, resampling, GC/retention experiment, deployment, accepted MAIN ADR or PR630 action. Stage B source work remains separate.
++
++## Constraints
++
++The reversible runtime proposal changes exactly root `package.json`, three native `bun.lock` registration lines and the unchanged version-qualified patch. Every unrelated current R16 byte/value remains; inverse edits must recover the current manifests exactly. Native generation and two-materialization allowances are consumed.
++
++Historical candidate readings381/379/384MB passed unchanged strict<500MB; baseline509/513MB retained expected failures. These are rounded RSS increments, not total/peak RSS, retained heap or512MiB pod headroom. Aggregate validation cost rose13.02%, within its predeclared1.20 budget; raw Standard Schema rose40.16%. Registry sharing strongly retains callbacks and their old tables.
++
++WBS contracts maintainers own the private patch's review, pinned inputs, removal and future version compatibility. Upstream replacement, version/canonical identity change, candidate semantic failure or an unacceptable measured tradeoff requires removal or a separately reviewed replacement. Exact-candidate materialization, type negatives, consumer resolution/parity and normal repository/CI/host gates remain pending. Architecture, MAIN, PR630 and adoption remain held. This draft authorizes no source application or execution.
+diff --git a/openspec/changes/compiled-traversal-sharing/specs/compiled-traversal-sharing/spec.md b/openspec/changes/compiled-traversal-sharing/specs/compiled-traversal-sharing/spec.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..7b38da6ad8776771f5c3dd236591ea19ff725ddd
+--- /dev/null
++++ b/openspec/changes/compiled-traversal-sharing/specs/compiled-traversal-sharing/spec.md
+@@ -0,0 +1,81 @@
++## ADDED Requirements
++
++### Requirement: Native patch registration is exact and version-specific
++
++The candidate SHALL register only the authenticated `@ark/schema@0.56.2` patch at `patches/@ark%2Fschema@0.56.2.patch`. Its body SHALL change only package-relative `out/scope.js`, from qualified stock SHA256 `1f31a41cd404c84460837145bf7569087bfdedf3cb2d949299caac592a9729f4` to canonical SHA256 `53763b12710126fe3027f60e7adfc67f012a415a13d6ddf3b8dd15827d693446`. Existing top-level0.56.0, dependency graph, integrity/resolution and unrelated manifest values SHALL remain unchanged.
++
++#### Scenario: Integrate the pinned R16 metadata proposal
++
++- **WHEN** the proposed native property and exact three native lock lines are added to pinned R16 inputs
++- **THEN** proposed package/lock hashes equal the authenticated native artifacts
++- **AND** removing only those insertions restores the entire current package/lock bytes exactly
++- **AND** a changed starting pin or conflicting registration stops preparation for renewed inspection
++
++#### Scenario: Materialize the exact candidate under ordinary policy
++
++- **WHEN** later authorized normal frozen candidate materialization completes
++- **THEN** its native inputs remain unchanged and all105 canonical nested schema files match
++- **AND** its exact native-derived empty regular marker is separately checked without wildcard acceptance
++- **AND** top-level0.56.0 remains stock; marker bookkeeping never replaces canonical-file checks
++
++### Requirement: Reuse requires an exact eligible reference closure
++
++A callback SHALL be borrowed only for a precompiled node outside the current owning scope, or with no owning scope, whose complete non-self reference closure is reusable. Every represented reference SHALL match the same object at its ID in the current reference map. Cyclic nodes, aliases, an ineligible descendant, an identity mismatch or a visiting nonalias cycle SHALL cause conservative original code generation for affected nodes rather than borrowed callbacks.
++
++#### Scenario: Reuse an external compiled reference
++
++- **WHEN** a precompiled external node and every non-self reference satisfy exact-object eligibility
++- **THEN** its generated table slots reference the exact existing bound callback objects
++- **AND** its existing node callbacks are not rebound to the new table
++
++#### Scenario: Refuse borrowing across closure conflicts
++
++- **WHEN** the closure contains an alias, cyclic node, same-ID different object, visiting cycle or owning-scope reference
++- **THEN** the affected node retains the original generated implementation path
++- **AND** semantic results and complete slot coverage remain unchanged
++
++### Requirement: Owning scopes generate and bind their own callbacks
++
++Scope export SHALL pass its owning scope into compilation. A node owned by that scope SHALL use original code generation and binding even if already compiled. Anonymous compilation and other-scope references SHALL retain the existing binding policy.
++
++#### Scenario: Export an already compiled owned node
++
++- **WHEN** the owning scope exports its already compiled node
++- **THEN** the scope generates and binds its own new table callbacks
++- **AND** externally owned compiled nodes preserve their original bound callback identities
++
++### Requirement: All required callbacks preserve identity and union coverage
++
++Borrowing SHALL require own function-valued Allows and Apply callbacks; a union SHALL additionally require its own function-valued Optimistic callback. A precompiled external node missing a required callback during reuse evaluation SHALL throw the existing compiled-traversal invariant error. Borrowed slots SHALL preserve exact callback identity and their original bound receiver/table behavior.
++
++#### Scenario: Borrow a fully eligible three-unit union
++
++- **WHEN** an eligible precompiled union and its exact three-unit closure are compiled
++- **THEN** Allows, Apply and Optimistic slots preserve exact existing callback objects
++- **AND** valid and invalid inputs preserve the qualified slot behavior
++
++#### Scenario: A compiled callback invariant is broken
++
++- **WHEN** a required callback is absent or not an own function during reuse evaluation
++- **THEN** compilation throws the compiled-traversal invariant error instead of publishing an incomplete borrowed table
++
++### Requirement: Candidate acceptance preserves semantics and reports tradeoffs accurately
++
++The exact integrated candidate SHALL preserve complete contract/producer parity and broader type-negative behavior under normal candidate checks. The existing memory test SHALL retain its strict less-than500MB assertion. Historical evidence SHALL be inherited only for exact byte-bound inputs and SHALL retain its original provenance and limits.
++
++#### Scenario: Interpret historical qualification
++
++- **WHEN** the private result is cited
++- **THEN** candidate381/379/384MB and stock509/513MB are identified as RSS increments with unchanged threshold outcomes
++- **AND** aggregate+13.02% within the1.20 budget and raw Standard Schema+40.16% are reported together
++- **AND** no retained-heap, total/peak RSS, long-lived retention or512MiB deployed-headroom claim follows
++
++### Requirement: Patch maintenance retains explicit removal conditions
++
++WBS contracts maintainers SHALL own the private patch and its canonical/target pins. Registry-held callbacks and their old bound tables SHALL be acknowledged as strongly retained; sharing SHALL NOT be described as weak ownership or a proven retained-memory improvement.
++
++#### Scenario: The patch loses its qualified basis
++
++- **WHEN** upstream replaces the mechanism, target version changes, canonical identity is lost, candidate semantics fail or the measured tradeoff is unacceptable
++- **THEN** maintainers remove the registration/patch together or prepare a separately reviewed replacement
++- **AND** normal candidate checks confirm stock/replacement resolution before any adoption decision
+diff --git a/openspec/changes/compiled-traversal-sharing/tasks.md b/openspec/changes/compiled-traversal-sharing/tasks.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..da505da1adc5f9f14ac62f5ef7302bb92c77eb47
+--- /dev/null
++++ b/openspec/changes/compiled-traversal-sharing/tasks.md
+@@ -0,0 +1,12 @@
++# PRIVATE, unapproved ordered integration slices
++
++All tasks below are future work. This source-only packet supplies no execution permission. Existing native generation/reproduction allowances are consumed.
++
++- [ ] 1. Independently review exact three-file proposal and these separate drafts; confirm current pins, inverse-diff proof, maintenance ownership and slowdown/strong-retention limits. Test: saved-current→proposed→inverse byte equality, exact native patch hash and one-file stock→canonical text replay. Any changed base/target/registration refuses preparation; no invented lock normalization.
++- [ ] 2. After separate authorization, apply only reviewed paths to an isolated candidate and materialize its dependencies under normal frozen policy. Test: unchanged native package/lock/patch; complete105 canonical nested files plus exact native marker; unchanged stock top-level0.56.0 and graph/integrity/resolution. Preserve old same-production-path missing-patch, stock-scope and malformed-marker proofs with exact input bindings; they do not replace candidate checks or prove every guard. If a new safety check is introduced, require its own production-path negative and watched omission/restoration before a completed Proof comment. Do not rerun the consumed two-install experiment or native generation.
++- [ ] 3. Run exact candidate type-negative and consumer-resolution checks before runtime parity. Test: normal contracts typing plus broader rejecting type fixtures, actual current application source paths and intended ArkType/schema/util resolution; no historical dist/alias substitution. Missing required tools or unresolved paths block the slice visibly. Record precise commands/outputs after mapping current Nx projects.
++- [ ] 4. Verify unchanged mechanism/semantics on actual candidate inputs. Test: eligible exact callback identity, all three union slots, owned-scope generation/binding, aliases/cycles/identity-conflict fallback and missing-callback invariant. Reuse retained watched mutant/restoration evidence only for unchanged inputs; candidate changes require separately scoped production-path negatives. No widened eligibility or replacement optimization.
++- [ ] 5. Verify current complete contracts and producer parity. Test: full descriptors/OpenAPI/MCP/public/direct captures and producer Allows/Standard Schema/normal-root outputs, including input/issue custody and relevant connected feature suites, compared against pinned stock-candidate expectations for the SAME current source graph. Retain historical original expectations only for byte-identical inputs; authorize any needed current stock baseline separately and never copy patched candidate outputs into expectations to green. Historical151/107/142/155/24 counts identify prior fixture scope, not a cap on the current complete candidate graph.
++- [ ] 6. Run normal candidate Nx tests/lint/typecheck/build, formatting with --all and OpenSpec validation. Test: all required current project checks plus `openspec validate --all --json`; retain exact output, skipped checks and candidate identity. If the normal authorized suite includes the unchanged memory test, preserve strict<500MB and classify it as normal candidate validation; this task grants no new campaign, benchmark, profiling, GC or resampling.
++- [ ] 7. Complete required exact-SHA CI and host gate via `bin/h2puni-gate.sh <candidate-sha>` from a clean isolated safe h2 gate tree, or the documented h4 gate host. Trust printed running SHA and retain all full-gate output; never run raw full Nx gates on h2. CI still adds required secret/migration checks. No commit/push/PR/host action is authorized by these drafts.
++- [ ] 8. Review the complete candidate evidence and measured tradeoff with the maintenance/removal owner. Explicitly retain strong old-table/callback retention and absence of total/peak RSS, retained-heap or512MiB pod-headroom proof. Architecture, MAIN, PR630, deployment and adoption require their own subsequent authority; private proposal completion is not acceptance.
+diff --git a/openspec/changes/compiled-traversal-sharing/verify.md b/openspec/changes/compiled-traversal-sharing/verify.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..4e80e927953c03f930b83462812aab831c743cfc
+--- /dev/null
++++ b/openspec/changes/compiled-traversal-sharing/verify.md
+@@ -0,0 +1,71 @@
++# PRIVATE verification draft — candidate checks pending
++
++## Fresh preparation evidence
++
++Only source/file inspection, hashing, JSON/text comparisons, read-only Git status/show and private artifact writes ran. No install, source application, native generation, patch commit, runtime/compiler import, test, build, benchmark, performance sample, network, Git mutation, OpenSpec command or host/CI gate ran.
++
++`prepare.py` read pinned clean R16 HEAD `64963ac904853379bc13b4aad0f0915f1b11331b`, made minimal edits to private current-file snapshots and verified exact inverse recovery. One initial audit invocation stopped at its final status assertion because a local stat variable shadowed the saved Git status. The script variable was corrected; the complete rerun passed. This was a preparation self-check defect, with no managed-source/Git mutation or runtime execution. Its failed invocation supplies no completion credit.
++
++Fresh complete output from the corrected invocation:
++
++```json
++{
++  "head": "64963ac904853379bc13b4aad0f0915f1b11331b",
++  "files": 3,
++  "currentStockFiles": 454,
++  "nestedStockFiles": 105,
++  "sourcePins": 1712,
++  "sourcePinsExact": 1700,
++  "bothManifestInversesExact": true,
++  "patchReplayExact": true,
++  "noSourceOrGitMutation": true
++}
++```
++
++Package SHA256 current `f45fbd5d2e891934027c86d85896aa07a519ee074ca48ea3b9a4bf65e751a22d`, proposed/native `bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74`; lock current `ce438c27003f3ac7cbf0ab95019c9058dfcb10707be6310871de680cda8b471b`, proposed/native `bf54a6c6202a5d8f54f9bb8fe7e76935a8f4c667c660da720db3fd5f16391383`. Both saved inverse files exactly equal current bytes. Native patch SHA256 remains `95380ed9b554038220bc538ec54cb02834a0a3134e391b4a195358338fbbec1c`; strict text replay against current stock scope produces canonical `53763b12710126fe3027f60e7adfc67f012a415a13d6ddf3b8dd15827d693446`. These are file-fidelity facts, not runtime proof.
++
++Complete six-package current stock inventory has454 files, including105 nested0.56.2 files. Top-level schema0.56.0 and nested schema0.56.2 are the only schema occurrences in the checked installed tree. Current target patch path is absent. All checked installed bytes/modes and both worktrees' status/HEAD remained unchanged. No general node_modules ownership/isolation claim follows from this stock content comparison.
++
++## Inherited evidence and exact bindings
++
++All evidence is PRIVATE and historical. `native-provenance.json` pins the read reports and original native artifacts. Historical report assertions are not represented as new executions or a fresh independent re-audit of all underlying logs.
++
++| Evidence                                                                                     | Existing scope                                                                                                                                                                                                                                              | Transfer boundary                                                                                                                                               |
++| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
++| Native receipt `0b5db3fc17c94cb8f0f4dfad25944ddd872bb3db50b01727223a10d020034ce6`            | One authentic metadata generation                                                                                                                                                                                                                           | Exact unchanged package/lock/patch hashes; generation allowance consumed                                                                                        |
++| Actual reproduction audit `8f164c7fb512c4f8accf422c1b64aeabe02777aa5ad86048da6f406c3640f336` | Two ordinary independent materializations across FAILED original stage and successful204.686s continuation; full equality/resolution, faults and unchanged eight-case diagnostic                                                                            | Exact native inputs/runtime bytes, reviewed ordinary policy/cache provenance and scoped fixtures; never a successful original/composite phase or candidate gate |
++| Pre-memory independent review                                                                | Original corrected8test/174assertion diagnostic and restoration, five watched mutant groups; native contracts typing;331validation +540feature tests;151descriptors,107MCP,142public,155direct and24producer outputs; structural653Ajv/1313compilation rows | Exact source/fixture/runtime input hashes only; no global R16 suite acceptance                                                                                  |
++| Actual memory independent review                                                             | Fixed B509/513MB expected failures; C381/379/384MB each strict<500MB                                                                                                                                                                                        | Rounded RSS increment on that unchanged private fixture; not total/peak RSS, retained heap, retention lifetime or512MiB pod headroom                            |
++| Actual cost independent review                                                               | Aggregate ratio1.130153967375641 passes1.20 budget; raw Standard Schema+40.164781%                                                                                                                                                                          | Fixed mixed workload and original environment/corpus; not current endpoint latency, every-component20% pass or new sampling authority                           |
++
++`historic-source-comparisons.json` compares all1,712 retained original source pins:1,700 exact,12 changed. Differences include WBS contract definitions, infrastructure/work-item/refusal shapes and tests, work-item routes and plan-command bindings/references/feature/tests. Therefore historical full graph semantic/type/producer/structural/memory results are not promoted into current R16 correctness or memory/cost claims. Complete current-source parity must use a same-source stock-candidate control or authoritative current expectations; changed semantics must not be “fixed” by blindly refreshing expected results.
++
++## Failure-proof table
++
++No new runtime safety check is implemented by this three-file proposal beyond the unchanged qualified patch. No fresh fault is injected here. Existing faults remain historical with exact input bindings and their limits.
++
++| Check / fault                                                        | Existing observed test                                                                         | Result / qualification                                                                                     |
++| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
++| Callback sharing omitted by duplicate generation                     | Qualified ordinary and unit-union exact callback identity assertions                           | Historical intended RED; restored canonical diagnostic GREEN; unchanged canonical bytes only               |
++| Owning scope incorrectly borrows                                     | Qualified owned-node generation assertion                                                      | Historical intended RED; exact canonical restoration GREEN                                                 |
++| Closure protection bypassed                                          | Qualified optimistic conflict, same-ID different-object and injected nonalias cycle assertions | Historical separate intended RED assertions; canonical restoration GREEN                                   |
++| Union Optimistic omission                                            | Qualified eligible three-unit union slot/identity test                                         | Historical intended RED; canonical restoration GREEN                                                       |
++| Wrong Apply callback                                                 | Qualified ordinary/unit exact identity assertions                                              | Historical intended RED; canonical restoration GREEN                                                       |
++| Declared patch absent                                                | Original actual production preflight                                                           | DECLARED_PATCH_MISSING, restored same preflight; preflight/dependencies unchanged in accepted reproduction |
++| Stock scope substitution                                             | Actual continuation production postflight                                                      | CANONICAL_SCOPE_REQUIRED; complete restoration before diagnostic                                           |
++| One-byte malformed exact native marker                               | Same actual continuation postflight                                                            | NATIVE_MARKER_CONTENT; complete restoration before diagnostic                                              |
++| Other guard conjuncts, authorization/cleanup/integrity failure paths | Not established by those finite controls                                                       | Unverified; no full R5 claim                                                                               |
++| Exact integrated candidate checks                                    | Not run                                                                                        | Pending; historical evidence cannot establish them                                                         |
++
++The first five mutation rows summarize the read qualification/pre-memory reports; their individual raw traces were not replayed or re-audited here. No new adjacent completed Proof comment is invented. Any future changed safety check needs its own production-path watched failure/omission/restoration and explicit evidence before completion.
++
++## Required current-candidate checks — all NOT RUN
++
++- Ordinary frozen materialization of the exact integrated candidate under normal policy; unchanged package/lock/patch afterward; complete canonical nested package/marker and stock top-level package.
++- Broader type-negative checks, normal contracts typing, actual current consumer/dependency resolution and no old dist/source alias substitution.
++- Current complete contracts/producers/descriptors/OpenAPI/MCP/public/direct/feature parity using the same current source graph, plus relevant current mechanism/semantic tests.
++- Normal Nx tests, lint, typecheck, build and formatting with --all; `openspec validate --all --json`. No command output exists for these checks on this private proposal.
++- Required exact-SHA CI and safe host gate through `bin/h2puni-gate.sh <candidate-sha>` (or documented h4 route). No candidate SHA/application/commit, printed host running-SHA evidence or gate output exists here.
++- If separately authorized normal candidate validation includes the unchanged memory test, record it under that scope and preserve strict<500MB. No new memory/cost campaign, resampling, tuning, profiling or GC/retention experiment is granted.
++
++No OpenSpec validation was run on these separate private drafts; local structure/word-count inspection is not CLI acceptance. Architecture, MAIN, PR630, deployment, adoption and broader gates remain held.
+diff --git a/package.json b/package.json
+index d6b243d534207e60cadc7c7b7f00e9a9bc04543a..298c1a5f139b735cbab04dc1d74444b442149ded 100644
+--- a/package.json
++++ b/package.json
+@@ -133,5 +133,8 @@
+     "typescript-eslint": "^8.69.0",
+     "vite": "8.2.2",
+     "vitest": "^5.0.0"
++  },
++  "patchedDependencies": {
++    "@ark/schema@0.56.2": "patches/@ark%2Fschema@0.56.2.patch"
+   }
+ }
+diff --git a/patches/@ark%2Fschema@0.56.2.patch b/patches/@ark%2Fschema@0.56.2.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..82ed6902a8e197e52ff09d1782736e3a4f489e12
+--- /dev/null
++++ b/patches/@ark%2Fschema@0.56.2.patch
+@@ -0,0 +1,71 @@
++diff --git a/out/scope.js b/out/scope.js
++index ed17995b473f7742000c25184e3ce4abb518f141..211506ecf1335a23415b84e1bae1082cb9122697 100644
++--- a/out/scope.js
+++++ b/out/scope.js
++@@ -6,7 +6,7 @@ import { RootModule, bindModule } from "./module.js";
++ import { nodesByRegisteredId, parseNode, registerNodeId, schemaKindOf, withId } from "./parse.js";
++ import { Alias } from "./roots/alias.js";
++ import { CompiledFunction, NodeCompiler } from "./shared/compile.js";
++-import { $ark } from "./shared/registry.js";
+++import { $ark, registeredReference } from "./shared/registry.js";
++ import { Traversal } from "./shared/traversal.js";
++ import { arkKind, hasArkKind, isNode } from "./shared/utils.js";
++ const schemaBranchesOf = (schema) => isArray(schema) ? schema
++@@ -44,7 +44,39 @@ const bindPrecompilation = (references, precompiler, owningScope) => {
++         node.precompilation = precompilation;
++     }
++ };
++-const precompileReferences = (references) => new CompiledFunction().return(references.reduce((js, node) => {
+++const precompileReferences = (references, owningScope) => {
+++    const currentById = new Map(references.map(node => [node.id, node]));
+++    const eligibility = new Map();
+++    const canReuse = node => {
+++        if (!(node.precompilation && (!owningScope || node.$ !== owningScope)))
+++            return false;
+++        const kinds = node.hasKind("union") ? ["Allows", "Apply", "Optimistic"] : ["Allows", "Apply"];
+++        for (const kind of kinds) {
+++            if (!Object.hasOwn(node, `traverse${kind}`) || typeof node[`traverse${kind}`] !== "function")
+++                throwInternalError(`Compiled traversal missing ${node.id}${kind}`);
+++        }
+++        if (currentById.get(node.id) !== node || node.isCyclic || node.hasKind("alias"))
+++            return false;
+++        const state = eligibility.get(node);
+++        if (state !== undefined)
+++            return state === "eligible";
+++        eligibility.set(node, "visiting");
+++        for (const reference of Object.values(node.referencesById)) {
+++            if (reference === node)
+++                continue;
+++            if (currentById.get(reference.id) !== reference || !canReuse(reference)) {
+++                eligibility.set(node, "ineligible");
+++                return false;
+++            }
+++        }
+++        eligibility.set(node, "eligible");
+++        return true;
+++    };
+++    return new CompiledFunction().return(references.reduce((js, node) => {
+++    if (canReuse(node)) {
+++        const kinds = node.hasKind("union") ? ["Allows", "Apply", "Optimistic"] : ["Allows", "Apply"];
+++        return js + kinds.map(kind => `${node.id}${kind}: ${registeredReference(node[`traverse${kind}`])},\n`).join("");
+++    }
++     const allowsCompiler = new NodeCompiler({ kind: "Allows" }).indent();
++     node.compile(allowsCompiler);
++     const allowsJs = allowsCompiler.write(`${node.id}Allows`);
++@@ -62,6 +94,7 @@ const precompileReferences = (references) => new CompiledFunction().return(refer
++     const optimisticJs = optimisticCompiler.write(`${node.id}Optimistic`);
++     return `${result}${optimisticJs},\n`;
++ }, "{\n") + "}");
+++};
++ export class BaseScope {
++     config;
++     resolvedConfig;
++@@ -339,7 +372,7 @@ export class BaseScope {
++             Object.assign(this.resolutions, this._exportedResolutions);
++             this.references = Object.values(this.referencesById);
++             if (!this.resolvedConfig.jitless) {
++-                const precompiler = precompileReferences(this.references);
+++                const precompiler = precompileReferences(this.references, this);
++                 this.precompilation = precompiler.write(rootScopeFnName, 4);
++                 bindPrecompilation(this.references, precompiler, this);
++             }

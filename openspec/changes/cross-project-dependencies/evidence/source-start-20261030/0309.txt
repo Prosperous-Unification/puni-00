@@ -1,0 +1,23 @@
+{
+  "actual20AuditSHA256": "1732a99bd1cece65d7f5254243f19f6b77dfaa655fc2b334a7dbcd4e6da1a461",
+  "entries": [
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts",
+      "beforeSHA256": "1f96475065f6b79228c6ea0e7bd80b60f93cf0be5d3d9bb5a46db2f93a05720d",
+      "afterSHA256": "7134748cc738d9404c786de2f038f8247992514355a5c4be8328437e7c0a0cf0",
+      "inverse": "/tmp/puni-source-start-20261029/annotation-preparation/production.before.txt",
+      "mode": 436,
+      "device": 66307,
+      "inode": 22631290
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts",
+      "beforeSHA256": "c45ac129b4592348739a53f06d84250c8f47ee529c984a17e47ce07214756b3c",
+      "afterSHA256": "098cbc9e9493f61ed9cf486d75dee4eaf20090fe3bb9668b22adfa42f165855f",
+      "inverse": "/tmp/puni-source-start-20261029/annotation-preparation/model.before.txt",
+      "mode": 436,
+      "device": 66307,
+      "inode": 22669562
+    }
+  ]
+}

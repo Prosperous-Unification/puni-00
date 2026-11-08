@@ -1,0 +1,136 @@
+Sending build context to Docker daemon  36.84MB
+Step 1/23 : FROM oven/bun:1.4.2 AS deps
+ ---> 9114c058aeae
+Step 2/23 : WORKDIR /app
+ ---> Using cache
+ ---> ee03666d4106
+Step 3/23 : COPY package.json bun.lock ./
+ ---> Using cache
+ ---> 562681dc8edf
+Step 4/23 : RUN bun install --frozen-lockfile --production
+ ---> Using cache
+ ---> 1b2fc4b16f75
+Step 5/23 : FROM python:3.14.4-slim-trixie AS solver
+ ---> 2ca02f32b4d9
+Step 6/23 : WORKDIR /solver
+ ---> Running in fc3652992b47
+ ---> Removed intermediate container fc3652992b47
+ ---> 010fd483b70b
+Step 7/23 : COPY libs/wbs/adapters/solver-py/requirements.lock ./requirements.lock
+ ---> 5b4c938213b9
+Step 8/23 : RUN python3 -m pip install --no-cache-dir --require-hashes -r requirements.lock
+ ---> Running in 2e0337777127
+Collecting absl-py==2.5.0 (from -r requirements.lock (line 45))
+  Downloading absl_py-2.5.0-py3-none-any.whl (137 kB)
+Collecting attrs==26.1.0 (from -r requirements.lock (line 48))
+  Downloading attrs-26.1.0-py3-none-any.whl (67 kB)
+Collecting immutabledict==4.3.1 (from -r requirements.lock (line 51))
+  Downloading immutabledict-4.3.1-py3-none-any.whl (5.0 kB)
+Collecting jsonschema==4.26.0 (from -r requirements.lock (line 54))
+  Downloading jsonschema-4.26.0-py3-none-any.whl (90 kB)
+Collecting jsonschema-specifications==2025.9.1 (from -r requirements.lock (line 57))
+  Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+Collecting numpy==2.5.2 (from -r requirements.lock (line 60))
+  Downloading numpy-2.5.2-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.7 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.7/16.7 MB 111.4 MB/s  0:00:00
+Collecting ortools==9.15.6755 (from -r requirements.lock (line 63))
+  Downloading ortools-9.15.6755-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (29.8 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 29.8/29.8 MB 153.9 MB/s  0:00:00
+Collecting pandas==3.0.5 (from -r requirements.lock (line 66))
+  Downloading pandas-3.0.5-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (11.0 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 11.0/11.0 MB 200.4 MB/s  0:00:00
+Collecting protobuf==6.33.6 (from -r requirements.lock (line 69))
+  Downloading protobuf-6.33.6-cp39-abi3-manylinux2014_x86_64.whl (323 kB)
+Collecting python-dateutil==2.9.0.post0 (from -r requirements.lock (line 72))
+  Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Collecting referencing==0.37.0 (from -r requirements.lock (line 75))
+  Downloading referencing-0.37.0-py3-none-any.whl (26 kB)
+Collecting rpds-py==2026.6.3 (from -r requirements.lock (line 78))
+  Downloading rpds_py-2026.6.3-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (367 kB)
+Collecting six==1.17.0 (from -r requirements.lock (line 81))
+  Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Collecting typing_extensions==4.16.0 (from -r requirements.lock (line 84))
+  Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Installing collected packages: typing_extensions, six, rpds-py, protobuf, numpy, immutabledict, attrs, absl-py, referencing, python-dateutil, pandas, jsonschema-specifications, ortools, jsonschema
+
+Successfully installed absl-py-2.5.0 attrs-26.1.0 immutabledict-4.3.1 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 numpy-2.5.2 ortools-9.15.6755 pandas-3.0.5 protobuf-6.33.6 python-dateutil-2.9.0.post0 referencing-0.37.0 rpds-py-2026.6.3 six-1.17.0 typing_extensions-4.16.0
+[91mWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+[0m[91m
+[notice] A new release of pip is available: 26.0.1 -> 26.2.2
+[notice] To update, run: pip install --upgrade pip
+[0m ---> Removed intermediate container 2e0337777127
+ ---> f51ea57318f8
+Step 9/23 : COPY libs/wbs/adapters/solver-py ./
+ ---> b2b923b75e76
+Step 10/23 : RUN python3 -m pip install --no-cache-dir --no-deps .
+ ---> Running in 4efcad116f9d
+Processing ./.
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: wbs-solver
+  Building wheel for wbs-solver (pyproject.toml): started
+  Building wheel for wbs-solver (pyproject.toml): finished with status 'done'
+  Created wheel for wbs-solver: filename=wbs_solver-0.4.0-py3-none-any.whl size=92216 sha256=6e7fa74148b8e579dbc70d53699ef5816bfe5e549171b40fe53cdcf33319121e
+  Stored in directory: /tmp/pip-ephem-wheel-cache-bfrzd5re/wheels/29/25/56/1d95ec873b7a9ea791f186e604eae1c6111f848473cd83c378
+Successfully built wbs-solver
+Installing collected packages: wbs-solver
+Successfully installed wbs-solver-0.4.0
+[91mWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+[0m[91m
+[notice] A new release of pip is available: 26.0.1 -> 26.2.2
+[notice] To update, run: pip install --upgrade pip
+[0m ---> Removed intermediate container 4efcad116f9d
+ ---> 3dcdabcb9b4e
+Step 11/23 : FROM busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092 AS audit
+ ---> 5cec3fc171c8
+Step 12/23 : FROM solver AS runtime
+ ---> 3dcdabcb9b4e
+Step 13/23 : COPY --from=audit /bin/busybox /bin/busybox
+ ---> 63e0fc50e9f1
+Step 14/23 : ENV NODE_ENV=production
+ ---> Running in 0a60a9dbe725
+ ---> Removed intermediate container 0a60a9dbe725
+ ---> c532651f7610
+Step 15/23 : WORKDIR /app
+ ---> Running in 396474f4d457
+ ---> Removed intermediate container 396474f4d457
+ ---> 72ca16f5b784
+Step 16/23 : COPY --from=deps /usr/local/bin/bun /usr/local/bin/bun
+ ---> ae483a217b19
+Step 17/23 : COPY --from=deps /app/node_modules ./node_modules
+ ---> 351a850c478c
+Step 18/23 : COPY package.json bun.lock tsconfig.base.json ./
+ ---> 341c8d230ebe
+Step 19/23 : COPY libs ./libs
+ ---> 8aa0d830010d
+Step 20/23 : COPY apps/wbs/be-01 ./apps/wbs/be-01
+ ---> cc3928cd50a3
+Step 21/23 : WORKDIR /app/apps/wbs/be-01
+ ---> Running in 63a2cc6c1584
+ ---> Removed intermediate container 63a2cc6c1584
+ ---> 854dfd28e616
+Step 22/23 : EXPOSE 3100
+ ---> Running in 4b317a389b28
+ ---> Removed intermediate container 4b317a389b28
+ ---> f3574105908d
+Step 23/23 : CMD ["bun", "run", "src/main.ts"]
+ ---> Running in eca93a987a1b
+ ---> Removed intermediate container eca93a987a1b
+ ---> f50af01d352b
+Successfully built f50af01d352b
+Successfully tagged wbs-be-01:solver-smoke-30713734-970e-4caf-80bc-f8f66693e7e2
+[solver-image-smoke] supervisor authenticated and accepted /app/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json
+[solver-image-smoke] supervisor authenticated and accepted shared-person
+[solver-image-smoke] supervisor authenticated and accepted connected-feasible
+[solver-image-smoke] supervisor authenticated and accepted connected-fractional
+[solver-image-smoke] composed installed Python published improved Pri, durable ready evidence and recomposed read reuse
+[solver-image-smoke] cleanup-complete dc52b789-8328-4961-a7ba-b99fce70b084
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+curl: (56) Recv failure: Connection reset by peer

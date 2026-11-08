@@ -620,14 +620,14 @@ describe('shared incoming calendars', () => {
     const connection = openConnection(h.databasePath());
     try {
       const inputHash = scheduleInputHash(input);
-      const generation = allocateGeneration(connection.db, platform, '17+0.1.0', inputHash, 1);
+      const generation = allocateGeneration(connection.db, platform, '18+0.1.0', inputHash, 1);
       connection.db
         .insert(optimizedScheduleCache)
         .values({
           projectId: platform,
           inputHash,
           generation,
-          contractVersion: '17+0.1.0',
+          contractVersion: '18+0.1.0',
           budgetMs: 60000,
           objective: 'pri',
           status: 'ok',

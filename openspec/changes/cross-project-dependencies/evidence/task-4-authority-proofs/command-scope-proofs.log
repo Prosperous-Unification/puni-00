@@ -1,0 +1,3 @@
+execute-write-scope: watched assertion failure, exit 1
+replay-write-scope: watched assertion failure, exit 1
+repair-discard: watched assertion failure, exit 1

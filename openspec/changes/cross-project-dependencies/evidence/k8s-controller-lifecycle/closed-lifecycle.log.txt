@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:
+457 |         await Promise.resolve();
+458 |         throw new Error('unexpected transport');
+459 |       },
+460 |       authority(),
+461 |     ),
+462 |   ).rejects.toThrow('malformed controller lifecycle');
+                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "malformed controller lifecycle"
+Received message: "unexpected transport"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:462:13)
+(fail) unknown lifecycle fields refuse before any cluster transport [2.89ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [37.00ms]

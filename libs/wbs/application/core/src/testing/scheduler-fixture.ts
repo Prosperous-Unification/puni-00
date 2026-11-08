@@ -1,4 +1,4 @@
-import { schedule } from '@wbs/domain';
+import { schedule, scheduleResolved } from '@wbs/domain';
 
 import type {
   CapturedScheduleAsk,
@@ -38,4 +38,5 @@ function readFast(ask: ScheduleAsk): ScheduleRead | Promise<ScheduleRead> {
 export const fastScheduler: Scheduler = {
   supports: (engine) => engine === 'fast',
   read: readFast,
+  readResolvedFast: scheduleResolved,
 };

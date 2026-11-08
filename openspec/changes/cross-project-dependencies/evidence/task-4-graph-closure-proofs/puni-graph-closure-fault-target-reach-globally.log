@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1216 |   }))).toMatchObject({ ok: true });
+1217 |   expect(await semantic(remote, (service) => service.addTypedDependency(a.projectId, fixture.principal.id, {
+1218 |     predecessor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'QA') },
+1219 |     successor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'QA') }, type: 'FS',
+1220 |   }))).toMatchObject({ ok: true });
+1221 |   expect(await semantic(fixture, (service) => service.setEstimate(b.workItemId, fixture.principal.id, workflowStep(b.projectId, 'Dev'), { optimistic: 1, realistic: 1, pessimistic: 1 }))).toMatchObject({ ok: true });
+                                                                                                                                                                                                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "ok": false,
++   "reason": "cycle",
+  }
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-cross-graph-closure/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1221:188)
+(fail) admitted remote legacy anchors retain their own reach when the owner uses whole-item reach [447.89ms]
+
+ 0 pass
+ 87 filtered out
+ 1 fail
+ 24 expect() calls
+Ran 1 test across 1 file. [2.64s]

@@ -28,7 +28,7 @@ import { packPackage } from './pack';
 
 const workspace = resolve(import.meta.dir, '../../../../../..');
 const packageSource = join(workspace, 'apps/twilight-structure/twilight-burokrat/cli');
-const packedTarball = join(workspace, 'dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz');
+const packedTarball = join(workspace, 'dist/twilight-burokrat-pack/twilight-burokrat-0.2.0.tgz');
 const scratchRoots: string[] = [];
 
 function scratch(prefix: string): string {
@@ -223,7 +223,7 @@ describe('packed Twilight Burokrat installation', () => {
     };
     expect(manifest).toMatchObject({
       name: 'twilight-burokrat',
-      version: '0.1.0',
+      version: '0.2.0',
       bin: { 'twilight-burokrat': 'dist/bin.mjs', twib: 'dist/bin.mjs' },
     });
     const installedFiles = listFiles(installed);
@@ -240,7 +240,7 @@ describe('packed Twilight Burokrat installation', () => {
     ).toBe(false);
     const version = invoke(executable, ['--version'], consumer);
     expect(version.exitCode, version.stderr.toString()).toBe(0);
-    expect(version.stdout.toString()).toBe('0.1.0\n');
+    expect(version.stdout.toString()).toBe('0.2.0\n');
     // Proof: removing the `twib` entry from the manifest and repacking failed the `toMatchObject`
     // manifest expectation; renaming node_modules/.bin/twib aside failed the existence assertion;
     // clearing its executable bit aborted the test with `EACCES: permission denied, posix_spawn`
@@ -252,7 +252,7 @@ describe('packed Twilight Burokrat installation', () => {
     expect(existsSync(fullCommand), 'the installer did not link the full command').toBe(true);
     const shortRun = run([shortCommand, '--version'], consumer, sanitizedEnvironment(consumer));
     expect(shortRun.exitCode, shortRun.stderr.toString()).toBe(0);
-    expect(shortRun.stdout.toString()).toBe('0.1.0\n');
+    expect(shortRun.stdout.toString()).toBe('0.2.0\n');
     const fullRun = run([fullCommand, '--version'], consumer, sanitizedEnvironment(consumer));
     expect(fullRun.exitCode, fullRun.stderr.toString()).toBe(0);
     expect(fullRun.stdout.toString()).toBe(shortRun.stdout.toString());
@@ -261,7 +261,7 @@ describe('packed Twilight Burokrat installation', () => {
       BUN_CONFIG_REGISTRY: 'http://127.0.0.1:1',
     });
     expect(offlineVersion.exitCode, offlineVersion.stderr.toString()).toBe(0);
-    expect(offlineVersion.stdout.toString()).toBe('0.1.0\n');
+    expect(offlineVersion.stdout.toString()).toBe('0.2.0\n');
     const help = invoke(executable, ['--help'], consumer);
     expect(help.exitCode, help.stderr.toString()).toBe(0);
     expect(help.stdout.toString()).toContain('twilight-burokrat validate-record');
@@ -554,7 +554,7 @@ describe('packed Twilight Burokrat installation', () => {
     writeFileSync(join(repackedRoot, 'dist/toolkit/validator.mjs'), '\ncorrupted\n', { flag: 'a' });
     const destination = scratch('twilight-burokrat-tampered-pack-');
     await packPackage(repackedRoot, destination);
-    const tamperedTarball = join(destination, 'twilight-burokrat-0.1.0.tgz');
+    const tamperedTarball = join(destination, 'twilight-burokrat-0.2.0.tgz');
     const { consumer, executable } = installTarball(tamperedTarball);
     const fixture = createRelocationCandidate();
     const out = scratch('twilight-burokrat-tampered-run-');
@@ -615,7 +615,7 @@ describe('packed Twilight Burokrat installation', () => {
     const destination = scratch('twilight-burokrat-substituted-pack-');
     await packPackage(repackedRoot, destination);
     const { consumer, executable } = installTarball(
-      join(destination, 'twilight-burokrat-0.1.0.tgz'),
+      join(destination, 'twilight-burokrat-0.2.0.tgz'),
     );
     const fixture = join(consumer, 'benchmark-corpus.v1.json');
     cpSync(join(packageSource, 'src/contracts/fixtures/benchmark-corpus.v1.json'), fixture);

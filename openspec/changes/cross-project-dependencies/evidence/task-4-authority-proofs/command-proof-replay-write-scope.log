@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+316 |       access,
+317 |     ),
+318 |     runner.undoWithin(fixture.projectId, principal, access),
+319 |     runner.redoWithin(fixture.projectId, principal, access),
+320 |   ])
+321 |     expect(await pending).toEqual({ ok: false, error: 'insufficient_scope' });
+                                ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "error": "insufficient_scope",
+-   "ok": false,
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "add “Row”",
++   },
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:321:27)
+(fail) direct authenticated runner entries refuse read-only principals before opening any write graph [362.95ms]
+
+ 0 pass
+ 60 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [2.56s]

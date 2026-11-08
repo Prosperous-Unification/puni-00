@@ -2,9 +2,9 @@ import { createLogger, type CreateLoggerOptions } from '@wbs/observability';
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { SignJWT } from 'jose';
 
-import { buildApp } from './app';
 import { loadConfig } from './config';
 import { type JwtClaims, JwtVerifier, type TokenVerifier } from './service/jwt-auth';
+import { buildApp } from './testing/app-fixture';
 import { GRANT_EVERY_PROJECT } from './testing/project-access';
 
 const JWT_KEY = 'k'.repeat(32);

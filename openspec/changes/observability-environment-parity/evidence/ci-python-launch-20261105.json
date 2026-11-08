@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "scope": "component-test-interpreter-availability",
+  "run": "https://github.com/Prosperous-Unification/puni-00/actions/runs/42079692741",
+  "head": "85656053065850bbcebd4dca424d892f486c6fd4",
+  "workflow": "infra-check",
+  "job": "fleet-check",
+  "step": "tool-fleet:check (test, lint, typecheck, then every artifact family)",
+  "conclusion": "failure",
+  "tests": {
+    "pass": 4934,
+    "skip": 7,
+    "fail": 129,
+    "total": 5070,
+    "files": 123,
+    "durationSeconds": 1287.5,
+    "assertions": 13500
+  },
+  "observedError": "ENOENT: no such file or directory, posix_spawn '/usr/bin/python3.12'",
+  "affectedFixtures": {
+    "currentInputs": 14,
+    "liveSampling": 35,
+    "sourceAdmission": 80
+  },
+  "log": {
+    "bytes": 1977325,
+    "sha256": "51d8b4577d595bfdccd7d6477fa7b4311997605784d8d5f39d3e6c65c3fbca15"
+  },
+  "runtimeAcceptance": false,
+  "nativePythonRequirementChanged": false,
+  "rerunRequested": false
+}

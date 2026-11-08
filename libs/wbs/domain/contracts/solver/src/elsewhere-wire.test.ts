@@ -37,14 +37,15 @@ const baselineOf = (input: ScheduleInput) =>
     input.typed,
     input.elsewhere,
   );
-const build = (input: ScheduleInput, solverVersion = '0.3.0') =>
+const build = (input: ScheduleInput, solverVersion = '0.4.0') =>
   buildSolverRequest(input, 'time', {
     baselineOffsets: baselineOf(input),
     solverVersion,
     budgetMs: 1000,
   });
 const response = (start: number): SolverResponse => ({
-  wireVersion: 4,
+  wireVersion: 5,
+  scope: { kind: 'local' },
   status: 'feasible',
   offsets: { [key]: start },
   objectiveValues: {
@@ -72,7 +73,7 @@ describe('bookings on solver wire 3', () => {
     );
     const built = build(input);
     if (!built.ok) throw new Error(built.detail);
-    expect(built.request.wireVersion).toBe(4);
+    expect(built.request.wireVersion).toBe(5);
     expect(built.request.elsewhere).toEqual({
       ana: [
         [0, 2],
@@ -122,7 +123,7 @@ describe('bookings on solver wire 3', () => {
       expect(
         revalidateSolverResult(
           { ...built.request, elsewhere: { ana: intervals } },
-          { wireVersion: 4, status: 'unknown' },
+          { wireVersion: 5, scope: { kind: 'local' }, status: 'unknown' },
         ),
       ).toMatchObject({ ok: false, failure: 'malformed-request' });
     }
@@ -133,7 +134,7 @@ describe('bookings on solver wire 3', () => {
     expect(
       revalidateSolverResult(
         { ...built.request, elsewhere: { ana: [] } },
-        { wireVersion: 4, status: 'unknown' },
+        { wireVersion: 5, scope: { kind: 'local' }, status: 'unknown' },
       ),
     ).toEqual({ ok: true, published: false });
   });
@@ -144,7 +145,7 @@ describe('bookings on solver wire 3', () => {
       expect(
         revalidateSolverResult(
           { ...built.request, elsewhere: elsewhere as unknown as typeof built.request.elsewhere },
-          { wireVersion: 4, status: 'unknown' },
+          { wireVersion: 5, scope: { kind: 'local' }, status: 'unknown' },
         ),
       ).toMatchObject({ ok: false, failure: 'malformed-request' });
     }

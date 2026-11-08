@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+../puni-71-review-sandbox/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+(pass) each connected request boundary and version member is required on the production path [13.20ms]
+
+ 1 pass
+ 20 filtered out
+ 0 fail
+ 54 expect() calls
+Ran 1 test across 1 file. [321.00ms]

@@ -77,11 +77,11 @@ const PILL =
  * grey pill is not a quiet indicator, it is a smudge that reads as a margin
  * somebody got wrong (Dany, 2026-09-08). A plan whose variants are solved, or
  * whose input has nothing to solve, says so by the figures on the pill and in
- * its card; the dot is for the four states a reader has to notice.
+ * its card; the dot is for the five states a reader has to notice.
  */
 function dotState(
   optimization: PlanOptimizationView,
-): 'solving' | 'unavailable' | 'infeasible' | 'incomplete' | null {
+): 'solving' | 'unavailable' | 'infeasible' | 'boundary-infeasible' | 'incomplete' | null {
   const states = [optimization.variants.pri.state, optimization.variants.time.state];
   if (states.includes('failed') || states.includes('corrupt')) return 'unavailable';
   if (states.includes('plan-infeasible')) return 'infeasible';
@@ -96,6 +96,8 @@ function dotState(
     (optimization.generation !== null && states.includes('idle'))
   )
     return 'solving';
+  // Proof: removing this arm lost the terminal warning dot in both mounted evidence cases (2026-10-22).
+  if (states.includes('boundary-infeasible')) return 'boundary-infeasible';
   if (
     Object.values(optimization.variants).some(
       (variant) => variant.state === 'ready' && variant.proof === 'incomplete',
@@ -117,12 +119,16 @@ function dotState(
  * that is going to change on its own. Incomplete and unavailable deliberately
  * share the warning highlight: both mean the optimizer could not supply a
  * proved answer, while the adjacent card names whether it stopped with a
- * usable schedule or supplied none.
+ * usable schedule or supplied none. Boundary infeasibility shares that highlight
+ * while naming its captured question, without claiming the whole plan infeasible.
  */
-const DOT: Readonly<Record<'solving' | 'unavailable' | 'infeasible' | 'incomplete', string>> = {
+const DOT: Readonly<
+  Record<'solving' | 'unavailable' | 'infeasible' | 'boundary-infeasible' | 'incomplete', string>
+> = {
   solving: 'var(--muted-foreground)',
   unavailable: 'var(--highlight)',
   infeasible: 'var(--destructive)',
+  'boundary-infeasible': 'var(--highlight)',
   incomplete: 'var(--highlight)',
 };
 
@@ -177,7 +183,8 @@ function factWords(
   // read as a wall (Dany, 2026-09-08); `HintLayer` renders the breaks.
   const schedules = reading.rows.flatMap((row) => {
     const active = row.which === reading.active ? ' · active' : '';
-    const lines = [`${rowWords(row)}${active}`];
+    // Proof: dropping row.details lost captured identities, positions and question hashes in mounted cue tests (2026-10-22).
+    const lines = [`${rowWords(row)}${active}`, ...row.details.map((detail) => `· ${detail}`)];
     if (row.unmeetable !== null && row.unmeetable.length > 0) {
       // Indented under the row it belongs to — with a bullet rather than
       // leading spaces, which `pre-line` does not keep.
@@ -197,10 +204,16 @@ function factWords(
     `plan ${optimization.inputHash.slice(0, 8)}`,
   ].join(' · ');
   return [
+    // The connected sentence includes scopeWords and the displayed-schedule
+    // retention derived by cueReading, shared with the accessible announcement.
+    // Proof: removing this overview lost retained-Fast and stale-boundary facts in mounted cue tests (2026-10-22).
+    ...(reading.scopeWords === null ? [] : [reading.sentence]),
     schedules.join('\n'),
     ...(reading.variantContrast === null ? [] : [reading.variantContrast]),
     ...(reading.stale ? [`${STALE_WORDS}.`] : []),
-    ALGORITHM_WORDS,
+    optimization.scope === undefined
+      ? ALGORITHM_WORDS
+      : 'Pri and Time optimize this target with captured foreign positions held fixed. Fast is the retained stage baseline. Proof applies to this captured question only.',
     identity,
   ].join('\n\n');
 }

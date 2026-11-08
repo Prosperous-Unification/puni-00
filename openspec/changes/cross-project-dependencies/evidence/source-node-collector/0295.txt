@@ -1,0 +1,19 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-inner-transport.test.ts:
+
+test/source-inner-transport-child.test.ts:
+source Node transport namespace actual UID/GID1000:1000 observed
+actual immutable Node production byte transport ACK/reap and fresh original-group census observed
+(pass) actual Node program uses production byte ACK transport and a fresh empty-group census [377.32ms]
+
+ 1 pass
+ 0 fail
+ 36 expect() calls
+Ran 1 test across 1 file. [397.00ms]
+(pass) actual source Node program runs through an isolated exact production byte transport adapter [413.92ms]
+
+ 1 pass
+ 0 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [447.00ms]

@@ -1,0 +1,42 @@
+const root = '/tmp/puni-cross-solver-backend';
+const path = `${root}/libs/wbs/domain/contracts/solver/solver-wire.v5.json`;
+const original = await Bun.file(path).text();
+const cases: [string, string, string[]][] = [
+  ['request-connected', 'top-level', ['wireVersion','contractVersion','solverVersion','objective','budgetMs','stageBudgetSplit','quantum','horizonUnits','slices','edges','pools','resources','elsewhere','scope','movementReferenceOffsets','feasibleBaselineOffsets','seedOffsets']],
+  ['scope-connected', 'scope', ['kind','projectId','inputHash','questionHash','originOrdinal','projects','fixed','boundaries','occupancy']],
+  ['scope-connected', 'projects', ['projectId','rank','anchorOrdinal']],
+  ['scope-connected', 'fixed', ['projectId','key','start','finish']],
+  ['boundary', 'boundary', ['localKey','foreignProjectId','foreignKey','relationshipId','type','direction','minimumStartUnits','maximumStartUnits']],
+  ['scope-connected', 'occupancy', ['personId','projectId','key','start','finish']],
+];
+const lines: string[] = [];
+try {
+  for (const [definition, location, members] of cases) {
+    for (const member of members) {
+      const schema = JSON.parse(original);
+      const base = schema.$defs[definition];
+      const target = location === 'top-level' || location === 'scope' || location === 'boundary'
+        ? base
+        : base.properties[location].items;
+      if (location === 'boundary' && member === 'minimumStartUnits') {
+        target.allOf[0].then.required = [];
+      } else if (location === 'boundary' && member === 'maximumStartUnits') {
+        target.allOf[0].else.required = [];
+      } else {
+        if (!target.required.includes(member)) throw Error(`${location}.${member} absent`);
+        target.required = target.required.filter((candidate: string) => candidate !== member);
+      }
+      await Bun.write(path, JSON.stringify(schema));
+      const child = Bun.spawn(['bun','test','libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts','--test-name-pattern','each connected request boundary and version member'], { cwd: root, stdout: 'pipe', stderr: 'pipe' });
+      const code = await child.exited;
+      const output = await new Response(child.stderr).text();
+      const label = `${location}.${member}`;
+      lines.push(`${label}: ${code === 1 && output.includes('(fail) each connected request boundary and version member') ? 'watched-red' : `UNEXPECTED-${code}`}`);
+      await Bun.write(path, original);
+    }
+  }
+} finally {
+  await Bun.write(path, original);
+}
+await Bun.write('/tmp/puni-wire-member-mutations.log', lines.join('\n') + '\n');
+console.log(lines.join('\n'));

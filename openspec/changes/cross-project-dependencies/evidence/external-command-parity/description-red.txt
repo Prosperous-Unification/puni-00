@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/generated-document.test.ts:
+(pass) default MCP document is generated directly from the shared declarations [50.86ms]
+(pass) generated project command tool exposes addTypedDependency with endpoints [4.70ms]
+52 |   if (tool === undefined) throw new Error('Project command tool missing');
+53 |   const commands = tool.inputSchema.properties['commands'] as { items: { anyOf: { description: string; properties: Record<string, { const?: string; type?: string; enum?: string[]; properties?: Record<string, unknown>; required?: string[] }>; required: string[] }[] } };
+54 |   for (const kind of ['addTypedDependency', 'updateTypedDependency']) {
+55 |     const arm = commands.items.anyOf.find((candidate) => candidate.properties['kind']?.const === kind);
+56 |     if (arm === undefined) throw new Error(`Missing ${kind}`);
+57 |     expect(arm.description).toContain('projectId');
+                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "projectId"
+Received: "Add a typed FS, SS or FF dependency. Each endpoint is whole work item, leaf step node, or one step across all descendant leaves. Returns a stable relationship id."
+
+      at <anonymous> (/tmp/puni-external-command-contracts/apps/wbs/mcp-01/src/generated-document.test.ts:57:29)
+(fail) generated dependency tools publish local aliases, scoped identity rules and stable removal [5.08ms]
+(pass) required exclusion drift remains a failure when operational routes are absent [4.60ms]
+(pass) keeps browser organization selection out of the generated MCP tools [5.38ms]
+(pass) keeps provisioning-token administration out of the generated MCP tools [4.65ms]
+(pass) keeps machine credential administration out of the generated MCP tools [4.22ms]
+(pass) keeps trusted issuer administration out of the generated MCP tools [3.56ms]
+(pass) pins every generated MCP operation name independently of the registry [3.60ms]
+(pass) refuses a generated operation whose name was lost before MCP derivation [3.56ms]
+(pass) optional operational deny paths cannot become tools in external documents [4.03ms]
+(pass) keeps browser current-context discovery out of generated MCP tools [3.68ms]
+(pass) generated command and startable documents expose execution prerequisites [5.13ms]
+
+ 12 pass
+ 1 fail
+ 39 expect() calls
+Ran 13 tests across 1 file. [3.77s]

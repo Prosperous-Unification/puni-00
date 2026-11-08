@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:
+409 |   const cluster = fixture(false);
+410 |   const owner = await prepared(cluster);
+411 |   const suspended = await suspendController(owner, null, cluster.call, authority());
+412 |   const restored = await restoreController(suspended, cluster.call, authority());
+413 |   cluster.objects['cronjob/sqlite-backup'].spec.suspend = true;
+414 |   await expect(restoreController(restored, cluster.call, authority())).rejects.toThrow('restored');
+                                                                                     ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:414:80)
+(fail) completed restore history is checked against current state before writer rollout [4.12ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [44.00ms]

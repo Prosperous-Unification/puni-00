@@ -1,0 +1,81 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/src/http/infrastructure-shapes.test.ts:
+(pass) declares public health JSON and Prometheus text without request input [1.21ms]
+(pass) every GET shape declares the adapter invalid-body refusal as a 400 [2.99ms]
+(pass) health distinguishes ready, migration and dependency states while retaining commit metadata [0.85ms]
+
+apps/wbs/be-01/src/http/elysia/mount.test.ts:
+(pass) endpoint policies before Elysia parsing > refuses malformed JSON with a read-only token before parsing or writing [13.40ms]
+(pass) endpoint policies before Elysia parsing > refuses anonymous identity and preserves an unexpected account-store failure [4.10ms]
+(pass) endpoint policies before Elysia parsing > blocks missing or foreign cookie origins while admitting bearer-only writes [3.54ms]
+(pass) endpoint policies before Elysia parsing > always checks login-style origin without relying on OIDC configuration or cookies [2.89ms]
+(pass) endpoint policies before Elysia parsing > checks internal identity before parsing [2.88ms]
+(pass) endpoint request and response boundaries > refuses unknown nested request fields and malformed JSON with declared envelopes [3.39ms]
+(pass) endpoint request and response boundaries > validates both successful and refusal replies against their declared status [6.03ms]
+(pass) endpoint request and response boundaries > keeps empty and JSON-null replies distinct [4.91ms]
+(pass) endpoint request and response boundaries > preserves redirect Location and all three Set-Cookie headers [3.88ms]
+(pass) endpoint request and response boundaries > renders declared text with its content type [3.93ms]
+(pass) endpoint metadata and asynchronous boundaries > preserves decoded params, last query value, raw duplicates, headers and arrived HEAD [9.55ms]
+(pass) endpoint metadata and asynchronous boundaries > uses declared validation status and refuses invalid params before the handler [7.43ms]
+(pass) endpoint metadata and asynchronous boundaries > awaits asynchronous request and reply validators and preserves validator outages [11.06ms]
+(pass) endpoint metadata and asynchronous boundaries > rejects resolver principal mismatches before handler invocation [6.95ms]
+(pass) endpoint metadata and asynchronous boundaries > admits static and parameter siblings with their own ordered policies [4.15ms]
+(pass) endpoint metadata and asynchronous boundaries > refuses successful error envelopes even when the JSON schema is permissive [4.42ms]
+(pass) endpoint metadata and asynchronous boundaries > rejects undeclared statuses and mismatched empty, text and JSON representations [18.87ms]
+(pass) endpoint declaration failures and status preservation > preserves declared 405, 429, 501 and 503 refusals and their headers [16.43ms]
+(pass) endpoint declaration failures and status preservation > throws for missing validation refusals and unexpected handler failures [2.60ms]
+(pass) endpoint declaration failures and status preservation > refuses a second binding that disagrees with its admitted endpoint [2.46ms]
+(pass) endpoint declaration failures and status preservation > refuses a text representation on a JSON null endpoint [3.31ms]
+(pass) retains preparse policies and repeated headers when composed into a parent Elysia app [3.73ms]
+(pass) leaves an unrelated legacy route parser and error boundary intact [4.43ms]
+(pass) delivers resolved user and internal principals and follows declared policy order [8.60ms]
+(pass) preserves unexpected decoder failures instead of labeling them malformed JSON [2.87ms]
+(pass) accepts every same-status JSON, text and refusal alternative [22.69ms]
+(pass) rejects mixed internal and user policies before mounting an erased endpoint table [0.15ms]
+(pass) refuses every nonempty undeclared request body without calling the handler [3.02ms]
+(pass) refuses undeclared query fields while deriving unschematized path params [3.17ms]
+(pass) bound request refusal hooks > classifies earlier command semantics before a later structural failure without admitting input [9.10ms]
+(pass) bound request refusal hooks > checks callback HEAD and duplicate keys before query validation or consumption, after policies [7.78ms]
+(pass) bound request refusal hooks > accepts arbitrary singleton query keys and refuses a repeated key before the handler [6.13ms]
+(pass) bound request refusal hooks > validates classifier status and body, rejects successful hook replies, and preserves hook failures [16.39ms]
+(pass) classifies params, query, body and JSON failures with their exact rejected boundary values [7.13ms]
+(pass) awaits metadata prevalidation before reading a request body [2.88ms]
+(pass) decodes declared URL encoded and multipart bodies without coercing or dropping fields [3.72ms]
+(pass) models malformed multipart syntax but preserves unexpected parser and stream failures [3.27ms]
+(pass) checks policies and metadata before consuming form bodies [5.23ms]
+(pass) refuses missing or undeclared body media without guessing JSON from the bytes [3.16ms]
+(pass) rejects malformed erased media configuration when mounting [0.13ms]
+(pass) rejects a malformed erased arbitrary-singleton query when mounting [0.05ms]
+(pass) refuses an array masquerading as an optional-only object before invoking the mounted handler [6.38ms]
+(pass) distinguishes absent required bodies from explicitly empty form and JSON bytes [4.76ms]
+(pass) refuses a resource declaration whose user identity policy was lost [3.65ms]
+
+apps/wbs/be-01/src/controller/project-address.controller.db.test.ts:
+(pass) creates and normalizes abbreviation [428.94ms]
+(pass) refuses invalid manual input without writes [474.98ms]
+(pass) duplicate manual edit is a typed conflict [400.12ms]
+(pass) rename preserves stable project and relationship identities [397.82ms]
+{"level":"error","time":1792628225570,"service":"be-01","err":{"occurrence_id":"AE_Y3B3K0698FHK2GBA47M2331HQG","fingerprint":"fp1_508bd7a284c5c0df3236347b44e14fe1","stack":["Error: project 7554cefa-9c42-4489-ba7a-18f3748a5572 abbreviation is missing","    at decodeProjectAbbreviation (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at fromJoined (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project.ts:199:19)","    at async readWithin (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/module/project/project.resource.ts:339:32)","    at async <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/http/project.routes.ts:319:36)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792628225573,"service":"be-01","err":{"occurrence_id":"AE_3R6TQEGACBWR97ZHFBR0DH4JP8","fingerprint":"fp1_5b90c7d0ace699eb61aa1bb30219fff6","stack":["Error: project 7554cefa-9c42-4489-ba7a-18f3748a5572 abbreviation is missing","    at decodeProjectAbbreviation (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project.ts:930:27)","    at map (native:1:11)","    at async listForInOrganization (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project.ts:853:23)","    at async <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/http/project.routes.ts:200:41)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792628225575,"service":"be-01","err":{"occurrence_id":"AE_MM03PTV1Z1X0N3VY4H6Y3F4RS9","fingerprint":"fp1_613878844c1932348acb844e439c0f8d","stack":["Error: project 7554cefa-9c42-4489-ba7a-18f3748a5572 abbreviation is malformed","    at decodeProjectAbbreviation (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:52:15)","    at fromJoined (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project.ts:199:19)","    at async readWithin (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/module/project/project.resource.ts:339:32)","    at async <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/http/project.routes.ts:319:36)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792628225577,"service":"be-01","err":{"occurrence_id":"AE_KQKFKZ5A9B8AHHTZQGW2JJFWG3","fingerprint":"fp1_345732578a7533b12dbf18119356cf52","stack":["Error: project 7554cefa-9c42-4489-ba7a-18f3748a5572 abbreviation is malformed","    at decodeProjectAbbreviation (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:52:15)","    at <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project.ts:930:27)","    at map (native:1:11)","    at async listForInOrganization (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project.ts:853:23)","    at async <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/http/project.routes.ts:200:41)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) absent and malformed abbreviation rows refuse reads [397.66ms]
+(pass) foreign organization cannot edit code [409.41ms]
+(pass) counter exhaustion rolls back creation and import [451.09ms]
+{"level":"error","time":1792628226844,"service":"be-01","err":{"occurrence_id":"AE_21VR3ZYYFXFEAGEWPDV6GCJDW7","fingerprint":"fp1_923d657b5b191eb20cd31bcf291e7aa0","stack":["Error: project 6bcd54d6-a1e9-4684-b240-bfb1396b8c18 abbreviation namespace is malformed","    at decodeProjectAbbreviation (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:57:15)","    at fromJoined (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project.ts:199:19)","    at async readWithin (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/module/project/project.resource.ts:339:32)","    at async <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/http/project.routes.ts:319:36)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792628226847,"service":"be-01","err":{"occurrence_id":"AE_H2MZBE8HXEJ2RG5X25BHWMJRHR","fingerprint":"fp1_89f7ed22d7cff10d5a777668f314c02b","stack":["Error: project 6bcd54d6-a1e9-4684-b240-bfb1396b8c18 abbreviation namespace is malformed","    at decodeProjectAbbreviation (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:57:15)","    at <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project.ts:930:27)","    at map (native:1:11)","    at async listForInOrganization (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project.ts:853:23)","    at async <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/http/project.routes.ts:200:41)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) rejects forged trusted namespaces before rendering project labels [409.31ms]
+{"level":"error","time":1792628227268,"service":"be-01","err":{"occurrence_id":"AE_MBZAEADQKQG2AE8824VSSKSTZQ","fingerprint":"fp1_613878844c1932348acb844e439c0f8d","stack":["Error: project 5e84aef2-b995-47ed-82dc-7739be77c855 abbreviation is malformed","    at decodeProjectAbbreviation (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:52:15)","    at fromJoined (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/adapters/store-sqlite/src/project.ts:199:19)","    at async readWithin (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/module/project/project.resource.ts:339:32)","    at async <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/application/core/src/http/project.routes.ts:319:36)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) refuses trusted newline abbreviations [421.47ms]
+(pass) bounded name family exhaustion rolls back all project and import writes [1513.56ms]
+(pass) creation excludes its own temporary code and older writers preserve their persisted code [391.10ms]
+(pass) keeps historical version ten documents independent of required live abbreviations [452.34ms]
+(pass) abbreviation-only edits stamp the parent project audit and revision [409.84ms]
+(pass) writes abbreviation and timezone in one revision [388.69ms]
+(pass) writes abbreviation and timezone in one revision with a name [404.77ms]
+
+ 62 pass
+ 0 fail
+ 455 expect() calls
+Ran 62 tests across 3 files. [9.75s]

@@ -195,9 +195,14 @@ describe('poolReadConnections', () => {
     first.close();
     second.close();
     expect(opened).toEqual({ now: 2, ever: 2 });
-    expect(clientOf(pool.acquire())).toBe(secondClient);
-    pool.close();
-    writer.close();
+    const reused = pool.acquire();
+    try {
+      expect(clientOf(reused)).toBe(secondClient);
+    } finally {
+      reused.close();
+      pool.close();
+      writer.close();
+    }
   });
 
   // Proof: handing out the connection's own `db` made this read through the released handle

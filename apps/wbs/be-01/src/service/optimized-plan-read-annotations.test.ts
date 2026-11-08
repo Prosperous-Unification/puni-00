@@ -2,6 +2,8 @@ import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimize
 import { quantisedFastBaseline } from '@wbs/contracts/solver/quantised-baseline';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import type { WorkItemServiceOptions } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -82,6 +84,8 @@ beforeEach(async () => {
   const harness = inMemoryServices();
   ({ projects, workItems, estimates, capacity, directory } = harness.stores);
   serviceOptions = {
+    dependencyContext: createLocalDependencyContext(harness.stores),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     admission: CREATOR_ADMISSION,
     clock: testClock,
     ...harness.stores,

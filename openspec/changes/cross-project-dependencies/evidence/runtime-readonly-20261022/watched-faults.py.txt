@@ -1,0 +1,35 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-dependency-cli')
+records=[]
+def fault(name,path,before,after,tests,pattern=None):
+ p=root/path; original=p.read_text(); assert before in original,(name,before)
+ try:
+  p.write_text(original.replace(before,after))
+  command=['bun','test',*tests,'--timeout=15000']
+  if pattern: command+=['--test-name-pattern',pattern]
+  run=subprocess.run(command,cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+  Path('/tmp/dependency-fault-'+name+'.log').write_text(run.stdout)
+  records.append((name,run.returncode))
+ finally:p.write_text(original)
+parser='libs/wbs/domain/contracts/src/dependency-runtime.ts'; tests=['libs/wbs/domain/contracts/src/dependency-runtime.test.ts']
+for name,before,after in [
+ ('protocol',"capability.protocol !== 'wbs-dependency-runtime'",'false'),('version','capability.version !== 1','false'),
+ ('role',"(capability.role !== 'backend' && capability.role !== 'gateway' && capability.role !== 'mcp')",'false'),
+ ('keyset',"Object.keys(capability).sort().join(',') !== 'protocol,role,semantics,version'",'false'),
+ ('semantics',"capability.semantics.some(\n      (semantic: unknown) => semantic !== 'cross-project-dependencies-v1',\n    )",'false'),
+ ('duplicate','new Set(capability.semantics).size !== capability.semantics.length','false')]:fault('parser-'+name,parser,before,after,tests)
+cap='apps/wbs/be-01/src/dependency-capabilities-cli.ts'; capt=['apps/wbs/be-01/src/dependency-capabilities-cli.test.ts']
+fault('cap-args',cap,'process.argv.length !== 2','false',capt)
+fault('cap-db',cap,'console.log(',"if (!process.env.DB_PATH) throw new Error('injected DB requirement');\nconsole.log(",capt)
+fault('cap-migrations',cap,'console.log(',"if (!(await Bun.file('./drizzle/meta/_journal.json').exists())) throw new Error('injected migrations requirement');\nconsole.log(",capt)
+fault('cap-support','apps/wbs/be-01/src/runtime/dependency-support.ts','Object.freeze([])',"Object.freeze(['cross-project-dependencies-v1'] as const)",capt)
+cli='apps/wbs/be-01/src/dependency-activation-cli.ts'; clit=['apps/wbs/be-01/src/dependency-activation-cli.db.test.ts']
+fault('inspect-args',cli,"process.argv.length !== 3 || process.argv[2] !== 'inspect'",'false',clit,'refuses arguments')
+fault('inspect-path',cli,"path === undefined || path.trim() === ''",'false',clit,'requires explicit')
+fault('inspect-create',cli,'openReadOnlyConnection','openConnection',clit,'absent database')
+fault('inspect-writable',cli,'openReadOnlyConnection','openConnection',clit,'real write')
+# This delegation command was run separately after correcting the multi-statement fixture.
+fault('inspect-delegation',cli,'inspectDependencyActivation(connection.db)',"({ state: 'DISABLED', receipt: null })",clit,'corrupt authority')
+print(records)
+assert all(code!=0 for _,code in records)

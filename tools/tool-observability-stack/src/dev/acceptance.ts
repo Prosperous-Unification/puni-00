@@ -8,6 +8,12 @@ import {
 } from './observation';
 import type { PreviousObservationPort, ProbeObservation } from './probe';
 import { readBounded } from './source';
+import {
+  bindTransport,
+  type BoundTransport,
+  fetchTransport,
+  type TransportEndpoint,
+} from './transport';
 
 const Document = type({
   '@timestamp': 'string | number',
@@ -19,9 +25,10 @@ const Document = type({
     'puni.observation.id': 'string',
     'puni.observation.timestamp_ms': 'number',
     'puni.source.kind': 'string',
-    'puni.target.container': 'string',
-    'puni.target.container.id': 'string',
-    'puni.target.mount.source': 'string',
+    'puni.target.container?': 'string',
+    'puni.target.container.id?': 'string',
+    'puni.target.mount.source?': 'string',
+    'puni.source.identity?': 'string',
     'puni.probe.success': 'boolean',
     'transaction.root?': 'boolean',
   },
@@ -68,11 +75,52 @@ const names = [
   'puni_dev_revision_info',
   'puni_dev_probe_success',
 ] as const;
-class QueryFault extends Error {}
+/** Bounded backend protocol failure, distinct from trusted configuration/programming errors. */
+export class QueryFault extends Error {}
 
+const Privileges = type({
+  '+': 'reject',
+  cluster: 'string[]',
+  global: 'unknown[]',
+  applications: 'unknown[]',
+  run_as: 'string[]',
+  indices: type({
+    '+': 'reject',
+    names: 'string[]',
+    privileges: 'string[]',
+    allow_restricted_indices: 'boolean',
+  }).array(),
+  'remote_indices?': 'unknown[]',
+  'remote_cluster?': 'unknown[]',
+});
+/** Complete effective rights must be exactly the two health read scopes, with no other authority. */
+export function assertElasticQueryAuthority(wire: unknown, namespace: string): void {
+  const privileges = Privileges(wire);
+  const expected = [`logs-*.otel-${namespace}`, `traces-*.otel-${namespace}`];
+  // Proof: effective-query-authority removal makes the actual pinned ES admin identity produce complete health; unit negatives cover extra authority and missing read scope.
+  if (
+    privileges instanceof type.errors ||
+    privileges.cluster.length !== 0 ||
+    privileges.global.length !== 0 ||
+    privileges.applications.length !== 0 ||
+    privileges.run_as.length !== 0 ||
+    (privileges.remote_indices !== undefined && privileges.remote_indices.length !== 0) ||
+    (privileges.remote_cluster !== undefined && privileges.remote_cluster.length !== 0) ||
+    privileges.indices.some(
+      (index) =>
+        index.allow_restricted_indices ||
+        index.names.length === 0 ||
+        index.names.some((name) => !expected.includes(name)) ||
+        index.privileges.length !== 1 ||
+        index.privileges[0] !== 'read',
+    ) ||
+    !expected.every((name) => privileges.indices.some((index) => index.names.includes(name)))
+  )
+    throw new QueryFault('query-authority');
+}
 export interface BackendConfiguration {
-  elastic: string;
-  prometheus: string;
+  elastic: TransportEndpoint;
+  prometheus: TransportEndpoint;
   freshnessMs: number;
   deadlineMs?: number;
 }
@@ -81,6 +129,8 @@ export interface AcceptanceReport {
   health: ObservationHealth;
   evidence: ObservationEvidence;
   provenance: {
+    source: AcceptedObservation['source'];
+    elasticAuthority: 'legacy-security-disabled' | 'unverified' | 'verified-read-only';
     log: { provider: 'elastic' };
     trace: { provider: 'elastic' };
     metric: {
@@ -90,21 +140,6 @@ export interface AcceptanceReport {
     };
   };
 }
-function endpoint(text: string): URL {
-  const url = new URL(text);
-  // Proof: bypassing loopback policy fails the unsafe query endpoint negatives.
-  if (
-    url.protocol !== 'http:' ||
-    url.hostname !== '127.0.0.1' ||
-    url.username !== '' ||
-    url.password !== '' ||
-    !['', '/'].includes(url.pathname) ||
-    url.search !== '' ||
-    url.hash !== ''
-  )
-    throw new Error('Invalid loopback query endpoint');
-  return url;
-}
 function epoch(value: string | number): number {
   if (typeof value === 'string' && !/^\d+(?:\.\d+)?$/.test(value))
     throw new QueryFault('invalid-time');
@@ -112,15 +147,24 @@ function epoch(value: string | number): number {
   if (!Number.isFinite(milliseconds) || milliseconds < 0) throw new QueryFault('invalid-time');
   return milliseconds;
 }
-async function query(url: URL, signal: AbortSignal, body?: unknown): Promise<unknown> {
-  const response = await fetch(url, {
+async function query(
+  url: URL,
+  transport: BoundTransport,
+  signal: AbortSignal,
+  body?: unknown,
+): Promise<unknown> {
+  const response = await fetchTransport(url, transport, {
+    ...transport.options,
+    headers: transport.options.headers,
     signal,
-    redirect: 'manual',
     ...(body === undefined
       ? {}
       : {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            ...Object.fromEntries(new Headers(transport.options.headers)),
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify(body),
         }),
   });
@@ -135,7 +179,7 @@ async function query(url: URL, signal: AbortSignal, body?: unknown): Promise<unk
     throw error;
   }
 }
-function identity(previous: ProbeObservation) {
+function identity(previous: AcceptedObservation) {
   if (previous.revision === null) throw new Error('Source revision is required for assessment');
   return {
     environment: previous.environment,
@@ -144,22 +188,25 @@ function identity(previous: ProbeObservation) {
     observationId: previous.observationId,
   };
 }
-function validateDocument(wire: unknown, previous: ProbeObservation) {
+function validateDocument(wire: unknown, previous: AcceptedObservation, scope: AcceptanceScope) {
   const document = Document(wire);
   if (document instanceof type.errors) throw new QueryFault('invalid-document');
   const attrs = document.attributes,
     resource = document.resource.attributes;
-  // Proof: removing source-kind/container-ID checks independently fails stored wrong-source negatives.
+  // Proof: scoped-source-kind/identity removals independently produce complete health for wrong stored provenance/identity. Legacy source-kind/container-ID negatives remain independent.
   // Exact source binding is independent of the collector's resource environment admission.
   if (
-    previous.source.kind !== 'ssh-dev-container' ||
-    !previous.source.containerValidated ||
-    resource['deployment.environment.name'] !== 'dev' ||
-    resource['service.name'] !== 'puni-dev-probe' ||
-    attrs['puni.source.kind'] !== 'ssh-dev-container' ||
-    attrs['puni.target.container'] !== 'wbs-dev-src' ||
-    attrs['puni.target.container.id'] !== previous.source.containerId ||
-    attrs['puni.target.mount.source'] !== '/home/puni1/wbs-dev/src'
+    resource['deployment.environment.name'] !== scope.environment ||
+    resource['service.name'] !== scope.producer ||
+    (previous.source.kind === 'scoped'
+      ? attrs['puni.source.kind'] !== scope.provenance ||
+        attrs['puni.source.identity'] !== scope.sourceIdentity
+      : previous.source.kind !== 'ssh-dev-container' ||
+        !previous.source.containerValidated ||
+        attrs['puni.source.kind'] !== 'ssh-dev-container' ||
+        attrs['puni.target.container'] !== 'wbs-dev-src' ||
+        attrs['puni.target.container.id'] !== previous.source.containerId ||
+        attrs['puni.target.mount.source'] !== '/home/puni1/wbs-dev/src')
   )
     throw new QueryFault('source-mismatch');
   // Proof: removing each environment/service/revision/observation-ID comparison fails its stored identity negative.
@@ -179,26 +226,32 @@ function validateDocument(wire: unknown, previous: ProbeObservation) {
   return document;
 }
 async function search(
-  base: URL,
+  base: BoundTransport,
+  scope: AcceptanceScope,
   kind: 'logs' | 'traces',
-  previous: ProbeObservation,
+  previous: AcceptedObservation,
   signal: AbortSignal,
 ) {
-  const wire = await query(new URL(`/${kind}-*.otel-dev/_search`, base), signal, {
-    size: 16,
-    track_total_hits: true,
-    timeout: '3s',
-    _source: fields,
-    query: {
-      bool: {
-        filter: [
-          { term: { 'attributes.puni.observation.id': previous.observationId } },
-          { term: { 'resource.attributes.service.name': 'puni-dev-probe' } },
-          { term: { 'resource.attributes.deployment.environment.name': 'dev' } },
-        ],
+  const wire = await query(
+    new URL(`/${kind}-*.otel-${scope.namespace}/_search`, base.url),
+    base,
+    signal,
+    {
+      size: 16,
+      track_total_hits: true,
+      timeout: '3s',
+      _source: fields,
+      query: {
+        bool: {
+          filter: [
+            { term: { 'attributes.puni.observation.id': previous.observationId } },
+            { term: { 'resource.attributes.service.name': scope.producer } },
+            { term: { 'resource.attributes.deployment.environment.name': scope.environment } },
+          ],
+        },
       },
     },
-  });
+  );
   const checked = Search(wire);
   if (checked instanceof type.errors) throw new QueryFault('invalid-search');
   // Proof: removing timeout, failed-shard, relation, total or record-cap checks independently fails bounded-search negatives.
@@ -211,24 +264,17 @@ async function search(
     checked.hits.hits.length > 16
   )
     throw new QueryFault('incomplete-search');
-  return checked.hits.hits.map((hit) => validateDocument(hit._source, previous));
+  return checked.hits.hits.map((hit) => validateDocument(hit._source, previous, scope));
 }
 async function logEvidence(
-  base: URL,
-  previous: ProbeObservation,
+  base: BoundTransport,
+  scope: AcceptanceScope,
+  previous: AcceptedObservation,
   signal: AbortSignal,
 ): Promise<SignalEvidence> {
-  const documents = await search(base, 'logs', previous, signal);
+  const documents = await search(base, scope, 'logs', previous, signal);
   if (documents.length === 0) return { state: 'missing' };
-  for (const document of documents) {
-    // Proof: removing stored log timestamp equality accepts the wrong-timestamp HTTP fixture.
-    if (
-      document.body?.text !== 'dev health observation' ||
-      document.span_id !== previous.parentSpanId ||
-      epoch(document['@timestamp']) !== previous.observedAt
-    )
-      throw new QueryFault('invalid-log');
-  }
+  validateLogs(documents, previous, scope);
   return {
     state: 'found',
     identity: identity(previous),
@@ -237,12 +283,48 @@ async function logEvidence(
   };
 }
 async function traceEvidence(
-  base: URL,
-  previous: ProbeObservation,
+  base: BoundTransport,
+  scope: AcceptanceScope,
+  previous: AcceptedObservation,
   signal: AbortSignal,
 ): Promise<SignalEvidence> {
-  const documents = await search(base, 'traces', previous, signal);
+  const documents = await search(base, scope, 'traces', previous, signal);
   if (documents.length === 0) return { state: 'missing' };
+  validateTraces(documents, previous, scope);
+  return {
+    state: 'found',
+    identity: identity(previous),
+    observedAt: previous.observedAt,
+    proof: {
+      kind: 'trace',
+      traceId: previous.traceId,
+      parentSpanId: previous.parentSpanId,
+      childSpanId: previous.childSpanId,
+      childParentSpanId: previous.parentSpanId,
+    },
+  };
+}
+type StoredDocument = ReturnType<typeof validateDocument>;
+function validateLogs(
+  documents: StoredDocument[],
+  previous: AcceptedObservation,
+  scope: AcceptanceScope,
+): void {
+  for (const document of documents) {
+    // Proof: removing stored log timestamp equality accepts the wrong-timestamp HTTP fixture.
+    if (
+      document.body?.text !== scope.logName ||
+      document.span_id !== previous.parentSpanId ||
+      epoch(document['@timestamp']) !== previous.observedAt
+    )
+      throw new QueryFault('invalid-log');
+  }
+}
+function validateTraces(
+  documents: StoredDocument[],
+  previous: AcceptedObservation,
+  scope: AcceptanceScope,
+): void {
   const canonical = new Map<string, string>();
   for (const document of documents) {
     const time = epoch(document['@timestamp']);
@@ -257,12 +339,12 @@ async function traceEvidence(
     if (
       root
         ? document.kind !== 'Internal' ||
-          document.name !== 'dev health observation' ||
+          document.name !== scope.logName ||
           document.attributes['transaction.root'] !== true ||
           (document.parent_span_id !== undefined && document.parent_span_id !== '')
         : document.span_id !== previous.childSpanId ||
           document.kind !== 'Client' ||
-          document.name !== 'GET be-01 /health' ||
+          document.name !== scope.childName ||
           document.parent_span_id !== previous.parentSpanId
     )
       throw new QueryFault('incomplete-trace');
@@ -283,35 +365,69 @@ async function traceEvidence(
   }
   // Proof: accepting a single root fails the partial-trace HTTP fixture.
   if (canonical.size !== 2) throw new QueryFault('incomplete-trace');
-  return {
-    state: 'found',
-    identity: identity(previous),
-    observedAt: previous.observedAt,
-    proof: {
-      kind: 'trace',
-      traceId: previous.traceId,
-      parentSpanId: previous.parentSpanId,
-      childSpanId: previous.childSpanId,
-      childParentSpanId: previous.parentSpanId,
-    },
-  };
+}
+/**
+ * Validates frozen legacy records independently of freshness, using the same source,
+ * identity and trace relationship checks as current acceptance. Returns only selected
+ * validated fields: arbitrary attributes and document bodies never enter a receipt hash.
+ */
+export function selectRetainedDocuments(
+  previous: ProbeObservation,
+  kind: 'log' | 'trace',
+  wires: unknown[],
+): unknown[] {
+  const documents = wires.map((wire) => validateDocument(wire, previous, legacyScope));
+  if (kind === 'log') validateLogs(documents, previous, legacyScope);
+  else validateTraces(documents, previous, legacyScope);
+  return documents.map((document) => ({
+    timestamp: epoch(document['@timestamp']),
+    environment: document.resource.attributes['deployment.environment.name'],
+    producer: document.resource.attributes['service.name'],
+    target: [
+      document.attributes['puni.target.environment'],
+      document.attributes['puni.target.service'],
+      document.attributes['puni.target.revision'],
+    ],
+    observation: [
+      document.attributes['puni.observation.id'],
+      document.attributes['puni.observation.timestamp_ms'],
+      document.attributes['puni.probe.success'],
+    ],
+    source: [
+      document.attributes['puni.source.kind'],
+      document.attributes['puni.target.container'],
+      document.attributes['puni.target.container.id'],
+      document.attributes['puni.target.mount.source'],
+    ],
+    trace: [document.trace_id, document.span_id, document.parent_span_id ?? ''],
+    ...(kind === 'log'
+      ? { message: document.body?.text }
+      : {
+          name: document.name,
+          kind: document.kind,
+          status: document.status?.code,
+          root: document.attributes['transaction.root'] ?? false,
+        }),
+  }));
 }
 async function metricEvidence(
-  base: URL,
-  previous: ProbeObservation,
+  base: BoundTransport,
+  scope: AcceptanceScope,
+  previous: AcceptedObservation,
   now: number,
   signal: AbortSignal,
 ): Promise<{ evidence: SignalEvidence; scrapeTimestamp: number | null }> {
-  const url = new URL('/api/v1/query', base);
+  const url = new URL('/api/v1/query', base.url);
   // A raw range selector retains actual scrape timestamps; query_range evaluation times do not.
+  // Proof: removing the canary selector made the production query assertion fail (72-correlation-query-fault).
   url.searchParams.set(
     'query',
-    `{__name__=~"${names.join('|')}",environment="dev",service="be-01"}[180s]`,
+    `{__name__=~"${scope.metricNames.join('|')}",environment=${JSON.stringify(scope.environment)},service=${JSON.stringify(scope.service)}${scope.metricObservationId === undefined ? '' : `,puni_observation_id=${JSON.stringify(scope.metricObservationId)}`}}[180s]`,
   );
   url.searchParams.set('time', String(now / 1000));
   url.searchParams.set('timeout', '3s');
   // Proof: accepting vector results or ignoring warnings/infos independently fails partial-matrix negatives.
-  const checked = Matrix(await query(url, signal));
+  const checked = Matrix(await query(url, base, signal));
   if (
     checked instanceof type.errors ||
     (checked.warnings !== undefined && checked.warnings.length !== 0) ||
@@ -326,9 +442,12 @@ async function metricEvidence(
   for (const series of checked.data.result) {
     const name = series.metric['__name__'];
     if (
-      !names.some((known) => known === name) ||
-      series.metric['environment'] !== 'dev' ||
-      series.metric['service'] !== 'be-01'
+      !scope.metricNames.some((known) => known === name) ||
+      series.metric['environment'] !== scope.environment ||
+      series.metric['service'] !== scope.service ||
+      // Proof: ignoring returned correlation certified foreign canary metrics (73-correlation-response-fault).
+      (scope.metricObservationId !== undefined &&
+        series.metric['puni_observation_id'] !== scope.metricObservationId)
     )
       throw new QueryFault('metric-identity');
     for (const wire of series.values) {
@@ -350,18 +469,19 @@ async function metricEvidence(
   }
   // Proof: ignoring exact gauge equality fails wrong stored timestamp independently of stored revision.
   const matches = samples.filter(
-    (sample) => sample.name === names[0] && sample.value === previous.observedAt / 1000,
+    (sample) => sample.name === scope.metricNames[0] && sample.value === previous.observedAt / 1000,
   );
   if (matches.length === 0) throw new QueryFault('metric-observation-time');
   for (const match of matches) {
     const revisions = samples.filter(
-      (sample) => sample.name === names[1] && sample.time === match.time && sample.value === 1,
+      (sample) =>
+        sample.name === scope.metricNames[1] && sample.time === match.time && sample.value === 1,
     );
     // Proof: ignoring active uniqueness, revision or scrape equality independently fails ambiguous/wrong-revision/wrong-scrape negatives.
     if (revisions.length !== 1 || revisions[0].revision !== previous.revision)
       throw new QueryFault('metric-revision');
     const successes = samples.filter(
-      (sample) => sample.name === names[2] && sample.time === match.time,
+      (sample) => sample.name === scope.metricNames[2] && sample.time === match.time,
     );
     // Proof: ignoring the stored measurement accepts the wrong-success gauge fixture.
     if (successes.length !== 1 || successes[0].value !== (previous.success ? 1 : 0))
@@ -400,13 +520,18 @@ async function available(
 }
 
 /** Bounded private-backend adapter. A failed latest source has no fabricated expected identity. */
-export function createBackendAcceptance(
+function createAcceptance(
   configuration: BackendConfiguration,
-): PreviousObservationPort & {
-  inspect(previous: ProbeObservation, signal: AbortSignal): Promise<AcceptanceReport>;
+  scope: AcceptanceScope,
+): {
+  inspect(previous: AcceptedObservation, signal: AbortSignal): Promise<AcceptanceReport>;
+  assess(previous: AcceptedObservation, signal: AbortSignal): Promise<ObservationHealth>;
 } {
-  const elastic = endpoint(configuration.elastic),
-    prometheus = endpoint(configuration.prometheus);
+  // Proof: binding-snapshot-red shows caller mutation otherwise certifies the actual admin credential; classification and freshness are captured with the bound route.
+  const requiresAuthority = typeof configuration.elastic !== 'string';
+  const freshnessMs = configuration.freshnessMs;
+  const elastic = bindTransport(configuration.elastic),
+    prometheus = bindTransport(configuration.prometheus);
   // Proof: invalid query-bound negatives fail with the configuration guard removed.
   const deadlineMs = configuration.deadlineMs ?? 5000;
   if (
@@ -419,10 +544,12 @@ export function createBackendAcceptance(
   )
     throw new Error('Invalid query bounds');
   const inspect = async (
-    previous: ProbeObservation,
+    previous: AcceptedObservation,
     parent: AbortSignal,
   ): Promise<AcceptanceReport> => {
     const provenance: AcceptanceReport['provenance'] = {
+      source: previous.source,
+      elasticAuthority: requiresAuthority ? 'unverified' : 'legacy-security-disabled',
       log: { provider: 'elastic' },
       trace: { provider: 'elastic' },
       metric: {
@@ -431,12 +558,16 @@ export function createBackendAcceptance(
         scrapeTimestamp: null,
       },
     };
-    // Proof: bypassing rehearsal/failed-source preflight performs forbidden queries in their independent HTTP negatives.
+    // Proof: expected environment/service guard removal sends forbidden queries; expected source identity/provenance removals produce complete scoped health. Legacy rehearsal/failed-source negatives remain independent.
     if (
       previous.revision === null ||
       !previous.success ||
-      previous.source.kind !== 'ssh-dev-container' ||
-      !previous.source.containerValidated
+      previous.environment !== scope.environment ||
+      previous.service !== scope.service ||
+      (previous.source.kind === 'scoped'
+        ? previous.source.identity !== scope.sourceIdentity ||
+          previous.source.provenance !== scope.provenance
+        : previous.source.kind !== 'ssh-dev-container' || !previous.source.containerValidated)
     ) {
       const evidence: SignalEvidence = { state: 'unavailable', reason: 'source-not-validated' };
       return {
@@ -455,21 +586,110 @@ export function createBackendAcceptance(
     // Proof: extending this timeout fails the actual delayed-HTTP deadline negative.
     const signal = AbortSignal.any([parent, AbortSignal.timeout(deadlineMs)]),
       now = Date.now();
+    // The same verified route and credential inspect their own effective rights; HTTP compatibility has no security realm.
+    const authority = !requiresAuthority
+      ? Promise.resolve()
+      : query(new URL('/_security/user/_privileges', elastic.url), elastic, signal).then((wire) => {
+          assertElasticQueryAuthority(wire, scope.namespace);
+          provenance.elasticAuthority = 'verified-read-only';
+        });
+    const authorized = async (
+      operation: () => Promise<SignalEvidence>,
+    ): Promise<SignalEvidence> => {
+      await authority;
+      return operation();
+    };
     const [log, trace, metric] = await Promise.all([
-      available(() => logEvidence(elastic, previous, signal), signal),
-      available(() => traceEvidence(elastic, previous, signal), signal),
+      available(() => authorized(() => logEvidence(elastic, scope, previous, signal)), signal),
+      available(() => authorized(() => traceEvidence(elastic, scope, previous, signal)), signal),
       available(async () => {
-        const measured = await metricEvidence(prometheus, previous, now, signal);
+        const measured = await metricEvidence(prometheus, scope, previous, now, signal);
         provenance.metric.scrapeTimestamp = measured.scrapeTimestamp;
         return measured.evidence;
       }, signal),
     ]);
     const evidence = { log, metric, trace };
     return {
-      health: assessObservation(identity(previous), evidence, now, configuration.freshnessMs),
+      health: assessObservation(identity(previous), evidence, now, freshnessMs),
       evidence,
       provenance,
     };
   };
   return { inspect, assess: async (previous, signal) => (await inspect(previous, signal)).health };
+}
+
+/** Explicit component or measured-source identity; never the legacy inspected SSH source. */
+export interface ScopedObservation extends Omit<
+  ProbeObservation,
+  'environment' | 'service' | 'source'
+> {
+  environment: string;
+  service: string;
+  source: { kind: 'scoped'; identity: string; provenance: 'component' | 'measured' };
+}
+type AcceptedObservation = ProbeObservation | ScopedObservation;
+const Scope = type({
+  '+': 'reject',
+  environment: 'string',
+  service: 'string',
+  producer: 'string',
+  namespace: 'string',
+  sourceIdentity: 'string',
+  provenance: "'component' | 'measured'",
+  metricNames: ['string', 'string', 'string'],
+  'metricObservationId?': 'string>0',
+  logName: 'string',
+  childName: 'string',
+});
+/** Trusted expected source plus concrete storage mapping; independent of deployment placement. */
+export interface AcceptanceScope extends Omit<typeof Scope.infer, 'metricNames'> {
+  metricNames: readonly [string, string, string];
+}
+const legacyScope: AcceptanceScope = {
+  environment: 'dev',
+  service: 'be-01',
+  producer: 'puni-dev-probe',
+  namespace: 'dev',
+  sourceIdentity: 'legacy-ssh',
+  provenance: 'measured',
+  metricNames: names,
+  logName: 'dev health observation',
+  childName: 'GET be-01 /health',
+};
+/** Legacy adapter preserves validated SSH/container/mount provenance and its existing storage mapping. */
+export function createBackendAcceptance(
+  configuration: BackendConfiguration,
+): PreviousObservationPort & {
+  inspect(previous: ProbeObservation, signal: AbortSignal): Promise<AcceptanceReport>;
+} {
+  return createAcceptance(configuration, legacyScope);
+}
+/** Mapped storage acceptance preserves inspected SSH provenance or explicit scoped provenance.
+ * Optional canary correlation filters and validates every returned metric series independently.
+ */
+export function createScopedBackendAcceptance(
+  configuration: BackendConfiguration,
+  expected: AcceptanceScope,
+): {
+  inspect(previous: AcceptedObservation, signal: AbortSignal): Promise<AcceptanceReport>;
+  assess(previous: AcceptedObservation, signal: AbortSignal): Promise<ObservationHealth>;
+} {
+  Scope.assert(expected);
+  // Proof: malformed/absent scope and query-injection negatives fail with scoped configuration guard removed.
+  if (
+    [
+      expected.environment,
+      expected.service,
+      expected.producer,
+      expected.sourceIdentity,
+      expected.logName,
+      expected.childName,
+    ].some((text) => text.trim() === '') ||
+    !/^[a-z0-9][a-z0-9-]*$/.test(expected.namespace) ||
+    expected.metricNames.some((name) => !/^[a-zA-Z_:][a-zA-Z0-9_:]*$/.test(name)) ||
+    new Set(expected.metricNames).size !== 3
+  )
+    throw new Error('Invalid acceptance scope');
+  // Proof: construction-snapshots negative changes a caller-owned expectation after binding; retaining its reference fails complete scoped health.
+  return createAcceptance(configuration, { ...expected, metricNames: [...expected.metricNames] });
 }

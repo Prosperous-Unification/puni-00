@@ -1,0 +1,273 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "9777c942-5aa1-44b7-a9aa-236fc16793d4",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) isolated local FS manual completion and actual correction preserve historical observations [444.48ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "b05961cc-b729-44c9-855b-ec0ef8d1b8a1",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) isolated local SS manual completion and actual correction preserve historical observations [319.91ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "f60c3647-24ee-4825-9dad-d3dfdb697dc2",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) isolated local FF manual completion and actual correction preserve historical observations [311.37ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "b17bb8f5-b59c-4525-93ba-33ec90c06e97",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) isolated remote FS manual completion and actual correction preserve historical observations [433.07ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "f67e9a15-7c5a-4044-8132-791f5b50a467",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) isolated remote SS manual completion and actual correction preserve historical observations [402.51ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "df84ea3e-26ce-42b6-b508-c471755c7ccf",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) isolated remote FF manual completion and actual correction preserve historical observations [409.85ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "0810214c-8065-455e-94c1-55ab08b2c4a8",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) shared local FS manual completion and actual correction preserve historical observations [362.13ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "6c104405-8ef0-4b0d-a390-38718f5d90ef",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) shared local SS manual completion and actual correction preserve historical observations [409.03ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "3c57969a-40d9-49b4-ac20-e2e04d5bac55",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) shared local FF manual completion and actual correction preserve historical observations [380.24ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "c11996ae-5ccd-4b34-b437-7c41bbfa0e9c",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) shared remote FS manual completion and actual correction preserve historical observations [407.75ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "54832eff-c5de-40f2-8bc2-d188d9115f27",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) shared remote SS manual completion and actual correction preserve historical observations [380.02ms]
+272 |         ).toBe(200);
+273 |         const actuals = () =>
+274 |           harness.sqlite
+275 |             .query("SELECT step_id,days FROM actual WHERE work_item_id='target-leaf'")
+276 |             .all();
+277 |         expect(actuals()).toEqual([{ step_id: targetStep, days: 2.5 }]);
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "days": 2.5,
++     "days": 1,
+      "step_id": "c6a1cbd3-d563-4060-bf4e-dd71e900b702",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:277:27)
+(fail) shared remote FF manual completion and actual correction preserve historical observations [381.62ms]
+
+ 0 pass
+ 12 filtered out
+ 12 fail
+ 228 expect() calls
+Ran 12 tests across 1 file. [7.71s]

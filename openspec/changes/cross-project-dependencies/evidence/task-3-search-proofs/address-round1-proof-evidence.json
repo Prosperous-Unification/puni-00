@@ -1,0 +1,146 @@
+[
+  {
+    "fault": "null-cursor",
+    "checks": [
+      {
+        "phase": "control",
+        "exit": 0,
+        "passed": 4,
+        "failed": 0,
+        "command": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts",
+          "-t",
+          "rejects present JSON null"
+        ],
+        "log": "/tmp/address-round1-null-cursor-control.txt"
+      },
+      {
+        "phase": "fault",
+        "exit": 1,
+        "passed": 0,
+        "failed": 4,
+        "command": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts",
+          "-t",
+          "rejects present JSON null"
+        ],
+        "log": "/tmp/address-round1-null-cursor-fault.txt"
+      },
+      {
+        "phase": "restored",
+        "exit": 0,
+        "passed": 4,
+        "failed": 0,
+        "command": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts",
+          "-t",
+          "rejects present JSON null"
+        ],
+        "log": "/tmp/address-round1-null-cursor-restored.txt"
+      }
+    ]
+  },
+  {
+    "fault": "scope-type",
+    "checks": [
+      {
+        "phase": "control",
+        "exit": 0,
+        "passed": 2,
+        "failed": 0,
+        "command": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts",
+          "-t",
+          "rejects array cursor scope"
+        ],
+        "log": "/tmp/address-round1-scope-type-control.txt"
+      },
+      {
+        "phase": "fault",
+        "exit": 1,
+        "passed": 1,
+        "failed": 1,
+        "command": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts",
+          "-t",
+          "rejects array cursor scope"
+        ],
+        "log": "/tmp/address-round1-scope-type-fault.txt"
+      },
+      {
+        "phase": "restored",
+        "exit": 0,
+        "passed": 2,
+        "failed": 0,
+        "command": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts",
+          "-t",
+          "rejects array cursor scope"
+        ],
+        "log": "/tmp/address-round1-scope-type-restored.txt"
+      }
+    ]
+  },
+  {
+    "fault": "placement-validation",
+    "checks": [
+      {
+        "phase": "control",
+        "exit": 0,
+        "passed": 2,
+        "failed": 0,
+        "command": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts",
+          "-t",
+          "malformed.*placement evidence"
+        ],
+        "log": "/tmp/address-round1-placement-validation-control.txt"
+      },
+      {
+        "phase": "fault",
+        "exit": 1,
+        "passed": 0,
+        "failed": 2,
+        "command": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts",
+          "-t",
+          "malformed.*placement evidence"
+        ],
+        "log": "/tmp/address-round1-placement-validation-fault.txt"
+      },
+      {
+        "phase": "restored",
+        "exit": 0,
+        "passed": 2,
+        "failed": 0,
+        "command": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts",
+          "-t",
+          "malformed.*placement evidence"
+        ],
+        "log": "/tmp/address-round1-placement-validation-restored.txt"
+      }
+    ]
+  }
+]

@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-connected.test.ts:
+(pass) resolved connected placement > Fast producer retains FS boundary with predecessor 0.3 and successor 0.7 [3.18ms]
+(pass) resolved connected placement > Fast producer retains SS boundary with predecessor 3 and successor 0.5 [1.18ms]
+133 |       input.order.projectIdByWorkItem.set('b', 'A');
+134 |       const graph = { ...input.graph, edges: [edge('a', 0, 'b', 0, type)] };
+135 |       const resolved = { ...input, graph, notBefore: new Map([['a', floor]]) };
+136 |       const plan = scheduleResolved(resolved);
+137 |       expect(start(plan, 'a')).toBe(floor);
+138 |       expect(start(plan, 'b')).toBeCloseTo(expectedStart, 12);
+                                     ^
+error: expect(received).toBeCloseTo(expected, precision)
+
+Expected: 2.4
+Received: 2.7
+
+Expected precision: 12
+Expected difference: < 0.0000000000005
+Received difference: 0.30000000000000027
+
+      at <anonymous> (/tmp/puni-fast-boundaries-61/libs/wbs/domain/domain/src/schedule-connected.test.ts:138:32)
+(fail) resolved connected placement > Fast producer retains FF boundary with predecessor 0.7 and successor 0.3 [0.29ms]
+133 |       input.order.projectIdByWorkItem.set('b', 'A');
+134 |       const graph = { ...input.graph, edges: [edge('a', 0, 'b', 0, type)] };
+135 |       const resolved = { ...input, graph, notBefore: new Map([['a', floor]]) };
+136 |       const plan = scheduleResolved(resolved);
+137 |       expect(start(plan, 'a')).toBe(floor);
+138 |       expect(start(plan, 'b')).toBeCloseTo(expectedStart, 12);
+                                     ^
+error: expect(received).toBeCloseTo(expected, precision)
+
+Expected: 1.6
+Received: 2.3
+
+Expected precision: 12
+Expected difference: < 0.0000000000005
+Received difference: 0.6999999999999997
+
+      at <anonymous> (/tmp/puni-fast-boundaries-61/libs/wbs/domain/domain/src/schedule-connected.test.ts:138:32)
+(fail) resolved connected placement > Fast producer retains FF boundary with predecessor 0.3 and successor 0.7 [0.22ms]
+
+ 2 pass
+ 24 filtered out
+ 2 fail
+ 10 expect() calls
+Ran 4 tests across 1 file. [56.00ms]

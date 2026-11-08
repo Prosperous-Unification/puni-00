@@ -1,11 +1,17 @@
 import type { Decision, Scope, UnitOfWork } from '@wbs/core';
 import type { TransactionalStores } from '@wbs/core';
-import type { FanoutCaptureStore } from '@wbs/core/ports/fanout-capture-store';
 import { sql } from 'drizzle-orm';
 
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
+import { createReadSnapshotLifetime, type ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { translateStepBlockageFailure } from './step-blockage-activation';
+
+/** Fresh admitted scopes retain one run's lifetime; repair has only surviving base stores. */
+export interface SqliteScopeFactory {
+  createScope(lifetime: ReadSnapshotLifetime): Scope<TransactionalStores>;
+  createRepairScope(): Scope<TransactionalStores>;
+}
 
 /**
  * The SQLite source's {@link UnitOfWork}: one turn, one `BEGIN IMMEDIATE`, and
@@ -16,19 +22,17 @@ import { translateStepBlockageFailure } from './step-blockage-activation';
  * the batch into `SQLITE_BUSY` halfway through — ADR 0007, measured against
  * `bun:sqlite` and drizzle rather than read off the documentation.
  *
- * `admitted` is the stores the act writes through: the same adapter classes the
- * process's graph is built from, over the **open** gate, because their caller
- * holds this run's turn. Built once at composition rather than per batch — an
- * adapter holds no batch state, only its connection and its gate.
+ * Each run receives a fresh scope whose borrowed readers retain that run's
+ * irreversible lifetime. Stateless repositories may be shared over OPEN because
+ * the run holds the coordinator turn. Repair receives separate journal-only
+ * base stores after rollback, with no expired observation capability.
  */
 export function sqliteUnitOfWork(
   db: Drizzle,
   gate: Gate,
-  admitted: TransactionalStores,
-  fanoutCapture?: FanoutCaptureStore,
+  scopes: SqliteScopeFactory,
   onRun?: () => void,
 ): UnitOfWork<TransactionalStores> {
-  const scope: Scope<TransactionalStores> = { stores: admitted, fanoutCapture };
   return {
     run<T>(
       act: (scope: Scope<TransactionalStores>) => Promise<Decision<T, TransactionalStores>>,
@@ -38,7 +42,15 @@ export function sqliteUnitOfWork(
         db.run(sql.raw('BEGIN IMMEDIATE'));
         let decision: Decision<T, TransactionalStores>;
         try {
-          decision = await act(scope);
+          // Proof: reusing one token made the following source UoW refuse its fresh reader.
+          const lifetime = createReadSnapshotLifetime();
+          try {
+            const scope = scopes.createScope(lifetime);
+            decision = await act(scope);
+          } finally {
+            // Proof: omitted expiry let retained source readers answer isolated after success.
+            lifetime.expire();
+          }
           // Proof: unconditional COMMIT injected; sparse override refused-batch read lost its original fact (sqlite-rollback.txt), 2026-10-15.
           db.run(sql.raw(decision.commit ? 'COMMIT' : 'ROLLBACK'));
         } catch (cause) {
@@ -64,12 +76,11 @@ export function sqliteUnitOfWork(
         // a failure inside it must propagate as itself rather than trigger a
         // second `ROLLBACK` on a transaction that is no longer open.
         //
-        // The scope it is handed is the same admitted one, which on SQLite is
-        // the surviving state the moment the rollback returned. Handing it the
-        // *public* stores instead would deadlock: this run still holds the
-        // turn, and they would ask for another.
+        // Repair gets fresh base stores over OPEN and the surviving state.
+        // Public stores would deadlock while this run still holds the turn;
+        // the expired transaction scope would retain obsolete read authority.
         if (!decision.commit && decision.afterRollback !== undefined) {
-          await decision.afterRollback(scope);
+          await decision.afterRollback(scopes.createRepairScope());
         }
         return decision.value;
       });

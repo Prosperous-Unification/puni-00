@@ -1,0 +1,21 @@
+Command: bun test src test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts --preload ../test/scratch/preload.ts --timeout=10000
+
+Sandbox EPERM representative packet:
+src/solver-supervisor-install-operation.test.ts:
+63 |   }
+64 |   await chmod(join(staging, '0'), 0o755);
+65 |   await chmod(join(staging, '3'), 0o600);
+66 |   const socket = join(root, 'ready.sock');
+67 |   listeners.push(
+68 |     Bun.listen({
+             ^
+error: Failed to listen at /tmp/solver-install-operation-aisBVU/ready.sock
+ syscall: "listen",
+   errno: 1,
+ address: "/tmp/solver-install-operation-aisBVU/ready.sock",
+    code: "EPERM"
+
+      at fixture (/tmp/puni-solver-drain-acceptance/tools/tool-remote-scripts/src/solver-supervisor-install-operation.test.ts:68:9)
+      at async <anonymous> (/tmp/puni-solver-drain-acceptance/tools/tool-remote-scripts/src/solver-supervisor-install-operation.test.ts:200:22)
+
+Observed outcome: run later stalled and was explicitly cancelled through its own exec session; exit 130. Full original local output remains /tmp/solver-drain-configured-unit.log. This is not a passing configured-unit verdict.

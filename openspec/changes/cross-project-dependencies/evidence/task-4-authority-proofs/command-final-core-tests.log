@@ -1,0 +1,239 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-commands/working-plan.types.test.ts:
+
+libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts:
+(pass) public blockage authoring over transactional memory > collects one undo unit, refreshes retained facts, and emits committed readings [40.52ms]
+(pass) public blockage authoring over transactional memory > rolls back a prior mutation and emits no fanout after a refuse store write [5.58ms]
+(pass) public blockage authoring over transactional memory > rolls back a prior mutation and emits no fanout after a throw store write [2.78ms]
+(pass) public blockage authoring over transactional memory > rolls back an earlier fact when the later command is unknown [3.82ms]
+(pass) public blockage authoring over transactional memory > refuses direct service ownership before an equivalent clear [1.61ms]
+(pass) public blockage authoring over transactional memory > refuses stale memory undo without accepting forged owner revisions [7.20ms]
+(pass) public blockage authoring over transactional memory > refuses stale memory redo without accepting forged owner revisions [6.61ms]
+(pass) public blockage authoring over transactional memory > keeps progress, canonical input and full Fast schedule unchanged [9.54ms]
+(pass) public blockage authoring over transactional memory > refuses an unknown service step before an equivalent clear [1.87ms]
+
+libs/wbs/application/core/src/module/plan-commands/module.test.ts:
+(pass) the Plan commands module > passes the committed fan-out capability through its installed command graph [4.18ms]
+(pass) the Plan commands module > drains a committed batch into the broadcaster installPlanCommands wires [3.06ms]
+(pass) the Plan commands module > hands every batch its own collector, never the direct broadcaster [2.43ms]
+(pass) the Plan commands module > exposes only the contract exports from its installer [0.98ms]
+(pass) the Plan commands module > keeps its private bindings out of a host graph [0.42ms]
+(pass) the Plan commands module > labels its private bindings with the module name [0.68ms]
+(pass) the Plan commands module > names itself when a host omits a requirement [0.98ms]
+(pass) a step allowance edit over the memory source > undoes an allowance edit committed in an earlier unit of work [4.25ms]
+
+libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts:
+(pass) the admission a batch graph is built with > admits the granted actor on the granted project only while its unit of work runs [0.38ms]
+(pass) the admission a batch graph is built with > never falls back to the creator rule under scoped access [0.17ms]
+(pass) the admission a batch graph is built with > grants a journal walk until it settles, and its repair nothing [0.14ms]
+(pass) the admission a batch graph is built with > builds a legacy journal walk with the creator rule [0.07ms]
+(pass) refuses a direct runner principal without write scope before opening a graph [0.06ms]
+
+libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts:
+(pass) refuses an endpoint conflict missing its relationship ids at the command boundary [0.08ms]
+
+libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts:
+(pass) working plan batch ownership > refuses then runs another batch without leaked values [10.90ms]
+(pass) working plan batch ownership > ordinary write between batches is the next before-image [9.59ms]
+(pass) working plan batch ownership > closes the admitted graph after success, refusal, and throw [5.65ms]
+(pass) working plan batch ownership > announces after commit through the nonworking graph [4.90ms]
+(pass) working plan command before-images > two patches undo to the value before the batch [7.99ms]
+(pass) working plan directory mutations through runner commands > delegates person reads and target-refreshes an assignment before the next patch [10.35ms]
+(pass) working plan directory mutations through runner commands > runs a team cascade before the next patch through the memory working graph [5.38ms]
+(pass) working plan dependency mutations through runner commands > lets a later command read the committed FF type after an edit [10.85ms]
+(pass) working plan dependency mutations through runner commands > refuses a reversed edge through the dependency added earlier in the batch [3.40ms]
+(pass) working plan subtree mutations through runner commands > patches a copied descendant immediately after duplicating its subtree [6.89ms]
+(pass) working plan value mutations through runner commands > keeps mixed-case memory value groups in the full readers order after population [10.63ms]
+(pass) working plan value mutations through runner commands > keeps every memory value group in source order after sets populate an earlier group [8.44ms]
+(pass) working plan value mutations through runner commands > refreshes every set, hand-down endpoint, and measure metric before later commands [12.08ms]
+(pass) working plan value mutations through runner commands > removes every moveAll source during the same create command [9.09ms]
+(pass) working plan value mutations through runner commands > refreshes every delete-last-child hand-up before editing the parent [16.61ms]
+(pass) working plan value mutations through runner commands > removes every value and metric from retained reads before the store method returns [6.32ms]
+(pass) working plan row mutations through runner commands > refreshes an inserted row and every densely respaced sibling before the next placement [3.40ms]
+(pass) working plan row mutations through runner commands > refreshes a moved row and dense destination siblings before the next move [4.76ms]
+(pass) working plan row mutations through runner commands > freezes arranged numbers from the preceding command in the same batch [5.14ms]
+(pass) working plan row mutations through runner commands > refreshes every frozen row before an unfreeze in the same batch [2.97ms]
+(pass) working plan row mutations through runner commands > refreshes removed rows and promoted children before the next placement [3.53ms]
+(pass) working plan row mutations through runner commands > does not advance a retained row after a refused patch [2.76ms]
+(pass) working plan placement validation rolls back its production unit of work > rejects an omitted placement from a multi-row subtree refresh [2.97ms]
+(pass) working plan placement validation rolls back its production unit of work > rejects a malformed placement from a multi-row subtree refresh [2.90ms]
+(pass) working plan placement validation rolls back its production unit of work > rejects an omitted placement [2.06ms]
+(pass) working plan placement validation rolls back its production unit of work > rejects an unexpected placement identity [1.68ms]
+(pass) working plan placement validation rolls back its production unit of work > rejects a duplicate placement identity [1.50ms]
+(pass) working plan placement validation rolls back its production unit of work > rejects a missing placement predecessor [1.37ms]
+(pass) working plan placement validation rolls back its production unit of work > rejects a malformed placement predecessor [1.41ms]
+(pass) working plan placement validation rolls back its production unit of work > rejects a placement that follows itself [1.45ms]
+(pass) working plan placement validation rolls back its production unit of work > rejects a newly returned identity without an authorized insertion [2.28ms]
+(pass) working plan value placement validation rolls back its production unit of work > rejects an omitted estimates group placement [2.12ms]
+(pass) working plan value placement validation rolls back its production unit of work > rejects an omitted actuals group placement [1.60ms]
+(pass) working plan value placement validation rolls back its production unit of work > rejects an omitted progress group placement [2.09ms]
+(pass) working plan value placement validation rolls back its production unit of work > rejects an omitted measures group placement [1.31ms]
+(pass) transactional memory move blockage closure > rolls back cleared facts and moved rows when a later batch command refuses [2.56ms]
+(pass) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress [5.09ms]
+(pass) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner [4.57ms]
+(pass) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner [4.17ms]
+(pass) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner [4.96ms]
+(pass) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner [4.16ms]
+(pass) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it [6.20ms]
+(pass) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it [5.47ms]
+(pass) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it [5.34ms]
+(pass) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay [12.63ms]
+(pass) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay [10.42ms]
+(pass) transactional memory move blockage closure > rolls back memory deletion facts and rows when a later batch command refuses [3.14ms]
+(pass) transactional memory move blockage closure > preserves collected memory deletion facts and progress through undo redo [8.47ms]
+(pass) transactional memory move blockage closure > refuses memory parent state changes before deletion undo [4.49ms]
+(pass) transactional memory move blockage closure > refuses memory parent time changes before deletion undo [3.95ms]
+(pass) transactional memory move blockage closure > refuses memory parent missing changes before deletion undo [4.07ms]
+(pass) transactional memory move blockage closure > refuses memory parent blockage changes before deletion undo [3.85ms]
+(pass) transactional memory move blockage closure > rolls back memory restore rows and earlier blockage writes after an injected insertion failure [4.23ms]
+
+libs/wbs/application/core/src/module/plan-commands/plan-command-scope.test.ts:
+(pass) the command runner builds services from each unit-of-work scope > settles staged writes, repairs through the surviving scope, and reads after commit publicly [1.12ms]
+(pass) AdmittedScope > keeps the raw scope out of reach at run time [0.03ms]
+
+libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts:
+(pass) assignments that run the plan past the calendar > refuses assignSubtree with calendar_range and writes nothing [8.14ms]
+(pass) assignments that run the plan past the calendar > refuses a claim that assigns past the calendar, and admits the same claim without assign [13.81ms]
+
+libs/wbs/application/core/src/module/plan-commands/admitted-write.test.ts:
+(pass) admittedWrites > checks and writes a project update inside one unit of work, announcing after commit [0.53ms]
+(pass) admittedWrites > rolls a refused step removal back and announces nothing [0.15ms]
+(pass) refuses current command authority before constructing a direct-write graph [0.07ms]
+
+libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts:
+(pass) the live plan read levels resource demands > serialises two leaves on the one staging environment and names it [10.76ms]
+(pass) the live plan read levels resource demands > constrains nothing while the capacity is unstated [8.03ms]
+(pass) the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed [8.77ms]
+
+libs/wbs/application/core/src/module/plan-commands/working-plan-directory.test.ts:
+(pass) working plan global directory barrier > delegates every directory read on every call [0.64ms]
+(pass) working plan global directory barrier > reloads after every successful global entry or membership mutation [0.53ms]
+(pass) working plan global directory barrier > does not reload after any modeled global refusal or a thrown write [0.35ms]
+(pass) working plan assignment boundary > refreshes only the successful target and never uses the global barrier [0.16ms]
+(pass) working plan assignment boundary > does not advance after either assignment refusal or a thrown assignment [0.22ms]
+
+libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts:
+(pass) the resource directory commands > declares a host’s RAM, lists it, and refuses a second of one name as taken [4.73ms]
+(pass) the resource directory commands > renames a resource and changes its unit label, keeping its kind [5.37ms]
+(pass) the resource directory commands > refuses a patch naming the kind at the command boundary [0.34ms]
+(pass) the resource directory commands > refuses removing a demanded resource, naming 2 demands, 0 capacities, 0 occupancies [5.44ms]
+(pass) the resource directory commands > removes a resource with cascade, taking its demands and capacities with it [6.22ms]
+(pass) setResourceCapacity > states, zeroes, remembers and clears one pair, journalling nothing [5.91ms]
+(pass) setResourceCapacity > refuses units below 0 or above the bound at the command boundary [0.23ms]
+(pass) setDemand > states, replaces and removes a demand, each one undoable entry [29.91ms]
+(pass) setDemand > refuses 2 units on an exclusive resource, writing nothing [6.31ms]
+(pass) setDemand > keeps a parent’s demand on the parent: its leaves state none and no date moves [5.97ms]
+(pass) setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed [4.61ms]
+(pass) setDemand > goes with its work item [4.69ms]
+(pass) setDemand > holds every stored demand at 1 unit or more, exactly 1 on an exclusive resource, after any sequence [250.49ms]
+
+libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts:
+(pass) the admitted working batch baseline > keeps blockage calls inside the project and batch lifetime and refreshes successful writes [1.48ms]
+(pass) the admitted working batch baseline > passes typed links through the batch and refuses cross-project and closed access [0.77ms]
+(pass) the admitted working batch baseline > reads the committed SS type and endpoints after an FF edit [0.37ms]
+(pass) the admitted working batch baseline > preserves the four mutation sequences through a working collection [17.91ms]
+(pass) the admitted working batch baseline > throws after its batch closes [2.14ms]
+(pass) the admitted working batch baseline > closes the working plan when graph composition throws [0.91ms]
+(pass) the admitted working batch baseline > loads on first demand and detaches every retained answer [2.03ms]
+(pass) targeted working-plan refreshes > reloads every loaded collection and keeps unloaded collections lazy after a global write [1.55ms]
+(pass) targeted working-plan refreshes > preserves the admitted work-item order when one row refreshes [1.09ms]
+(pass) targeted working-plan refreshes > preserves unrelated dependency interleaving when incident edges refresh [1.15ms]
+(pass) targeted working-plan refreshes > keeps a newly added edge in authoritative order and returned edges detached [1.20ms]
+(pass) targeted working-plan refreshes > refreshes every restore-related collection and preserves borrowed before-images [2.26ms]
+(pass) targeted working-plan refreshes > refreshes a labelled row and rejects an unrequested satellite row [2.31ms]
+(pass) targeted working-plan refreshes > rejects dependencies outside the requested incident project set [2.65ms]
+(pass) targeted working-plan refreshes > hydrates only the affected identity after ordinary single-row patches [4.03ms]
+(pass) targeted working-plan refreshes > rejects work items outside the requested project and identity set [2.21ms]
+(pass) working plan value failures > does not advance a retained value after a modeled set refusal [1.35ms]
+(pass) working plan value failures > does not advance a retained value before a throwing mutation succeeds [1.32ms]
+(pass) working plan value failures > does not advance retained edges before throwing dependency mutations succeed [1.07ms]
+
+libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts:
+(pass) claimWorkItem in a batch > claims every step that is not done, states the unstated one, one journal entry [6.15ms]
+(pass) claimWorkItem in a batch > answers alreadyHeld to the holder repeating it and adds no entry [3.96ms]
+(pass) claimWorkItem in a batch > undo removes exactly the claims and the progress it stated; redo puts them back [8.20ms]
+(pass) claimWorkItem in a batch > claims and assigns in one entry; undo clears both the claim and the assignment [10.02ms]
+(pass) claimWorkItem in a batch > leaves assignments untouched when assign is false or absent [4.92ms]
+(pass) claimWorkItem in a batch > assigns nothing with a subtree claim, which claims no step [2.95ms]
+(pass) claimWorkItem in a batch > refuses a claim on a leaf whose only worked step is done: it reads done [3.15ms]
+(pass) claimWorkItem in a batch > refuses a redo of a claim once another holder took the step [6.85ms]
+(pass) claimWorkItem in a batch > shows the batch the progress its claim stated [10.61ms]
+(pass) claimWorkItem in a batch > lets two agents hold two steps of one leaf [4.76ms]
+(pass) claimWorkItem in a batch > refuses a step another holder has, naming the holder, and writes nothing [3.72ms]
+(pass) claimWorkItem in a batch > refuses a leaf reading blocked_by_proxy with that status [4.17ms]
+(pass) claimWorkItem in a batch > refuses a person nobody bound to a non-admin caller [1.63ms]
+(pass) claimWorkItem in a batch > refuses a pinned credential claiming as another agent [3.58ms]
+(pass) claimWorkItem in a batch > claims as an owned person bound to a member of its organization [3.54ms]
+(pass) claimWorkItem in a batch > chains a subagent’s leaf claim to the superagent’s subtree, and refuses a stranger [5.69ms]
+(pass) a claimed leaf that gains its first child > hands a claimed leaf's claims to its first child and back on undo [16.01ms]
+(pass) a claimed leaf that gains its first child > releases the handed-down claim on the child [6.61ms]
+(pass) a claimed leaf that gains its first child > refuses a move under a claimed leaf, naming its holders, until they are released [9.52ms]
+(pass) a claimed leaf that gains its first child > refuses an undo of a claim once another actor split the leaf [5.94ms]
+(pass) a claimed leaf that gains its first child > refuses an undo of a split once the child's claims changed [8.17ms]
+(pass) releaseWorkItem in a batch > releases a half-done leaf and leaves its progress as it was [4.31ms]
+(pass) releaseWorkItem in a batch > cascades a subtree release in one entry, and undo restores all three [8.94ms]
+(pass) releaseWorkItem in a batch > refuses releasing what the person does not hold [1.53ms]
+
+libs/wbs/application/core/src/module/transaction-boundary.types.test.ts:
+(pass) feature transactions expose only mapped resources [0.05ms]
+(pass) composition keeps source capabilities outside feature callbacks [8.25ms]
+
+libs/wbs/application/core/src/http/step.routes.test.ts:
+(pass) publishes a dependent recovery only after its unit of work commits [0.56ms]
+(pass) scoped step service cannot borrow a recovery grant for another project, actor, or settled unit [0.88ms]
+(pass) typed step bindings preserve the service value, actor and trimmed name [1.88ms]
+(pass) typed name bindings preserve every modeled service refusal without a status fallback [0.54ms]
+(pass) typed removal carries every usage field and only literal true confirms cascade [1.56ms]
+(pass) typed removal preserves project refusals and unknown repository failures reject [0.56ms]
+(pass) adds a step with the allowance it names, and refuses one with three decimals [0.40ms]
+(pass) a patched allowance runs as the one journalled setStepAllowance command [0.55ms]
+(pass) a rename sent with an allowance is the batch prelude, and its refusal runs no command [0.31ms]
+
+libs/wbs/application/core/src/http/work-item.routes.test.ts:
+(pass) typed undo and redo preserve actor and details without exposing journal entry ids [1.07ms]
+
+libs/wbs/application/core/src/http/project.routes.test.ts:
+(pass) direct project bindings create, read, patch and record opening with admitted actor [1.92ms]
+(pass) direct project and export failures propagate without conversion to not_found [0.78ms]
+
+libs/wbs/application/core/src/http/calendar-marker.routes.test.ts:
+(pass) direct marker bindings preserve IDs, resolve automatic color and publish only marker refresh [1.54ms]
+(pass) direct missing projects never blame a marker and marker misses do [0.23ms]
+(pass) a refused store write neither publishes nor becomes a successful marker response [0.24ms]
+
+libs/wbs/application/core/src/use-cases/admission.test.ts:
+(pass) runCommandBatch > refuses a read-only actor before the runner can mutate [0.09ms]
+(pass) runCommandBatch > refuses a trusted actor absent from the account and project authorization state [0.57ms]
+(pass) runCommandBatchAfter > refuses a read-only actor before the prelude or the runner can write [0.09ms]
+(pass) savePlan > refuses read-only, wrong-owner, and absent-project calls before save [0.29ms]
+(pass) savePlan > publishes exactly once after success and never for quota or busy refusals [0.13ms]
+(pass) replay refuses a noninternal principal without calling the orchestrator [0.06ms]
+(pass) retention refuses a noninternal principal without pruning either store [0.14ms]
+
+libs/wbs/application/core/src/compose.test.ts:
+(pass) stored outcome and downstream recipient retain their sequences while reaction precedes held outcome transport [4.50ms]
+(pass) accountless composition has no auth capability [0.98ms]
+(pass) accountful composition exposes auth when its source and runtime both offer accounts [2.39ms]
+(pass) composeServices > commits a mixed-store batch and rolls every store back on refusal [4.31ms]
+(pass) composeServices > installs Plan commands once, building every batch over its own admitted scope [2.64ms]
+(pass) composeServices > composes one Saved plans instance behind both the plans and savedPlans names [0.78ms]
+(pass) composeServices > denies a foreign save and persists an owner save through independent history [4.90ms]
+(pass) composeServices > replays two committed batches from their public buffer after durable rows are pruned [4.78ms]
+(pass) composeServices > retention waits for an admitted batch to release the source turn [1.48ms]
+(pass) composeServices > shares runtime identities while creating a fresh scope, collector and graph per batch [2.36ms]
+(pass) composeServices > discards a stale journal entry through the fresh repair scope [3.76ms]
+(pass) servicesOver > installs Calendar marker per supplied scope, over that scope's own stores [1.30ms]
+(pass) servicesOver > installs Capacity per supplied scope, over that scope's own stores [0.98ms]
+(pass) servicesOver > installs Priority band per supplied scope, over that scope's own stores [1.10ms]
+(pass) servicesOver > hands its admission to every gated writing service it installs [0.63ms]
+(pass) servicesOver > fails closed on a write through a graph built without an admission [0.57ms]
+(pass) servicesOver > installs Step per supplied scope, over that scope's own stores [1.02ms]
+(pass) servicesOver > installs Project per supplied scope, over that scope's own stores [1.11ms]
+(pass) servicesOver > installs Directory per supplied scope, over that scope's own stores [0.95ms]
+(pass) servicesOver > installs Work item per supplied scope, over that scope's own stores [1.73ms]
+
+ 191 pass
+ 0 fail
+ 946 expect() calls
+Ran 191 tests across 21 files. [3.22s]

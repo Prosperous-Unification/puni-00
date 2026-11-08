@@ -1,0 +1,34 @@
+Injected fallback-grammar; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+214 |   expect(() => new FixtureFailure('PRIVATE_STAGE' as FixtureStage, new Error('opaque'))).toThrow(
+215 |     'fixture stage invalid',
+216 |   );
+217 |   expect(() =>
+218 |     summarizeFixtureFailure(new Error('opaque'), 'PRIVATE_FALLBACK' as FixtureStage),
+219 |   ).toThrow('fixture diagnostic fallback invalid');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "fixture diagnostic fallback invalid"
+
+Received function did not throw
+Received value: {
+  stage: "PRIVATE_FALLBACK",
+  chain: [
+    {
+      category: "unclassified",
+      fingerprint: "2c859163e9ebb3e02b7d7ca7a2153a71ea0ae21993a74d85a46d4bdc1e545558",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:219:5)
+(fail) invalid external diagnostic coordinates fail closed without retaining their values [0.65ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [45.00ms]

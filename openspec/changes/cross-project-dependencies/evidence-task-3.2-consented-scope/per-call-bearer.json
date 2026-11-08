@@ -1,0 +1,7 @@
+{
+  "fault": "per-call-bearer",
+  "path": "apps/wbs/mcp-01/src/server.ts",
+  "before": "await bearerFor(sessionOfCall, upstreamToken, authInfo.scopes)",
+  "after": "upstreamToken",
+  "exitCode": 1
+}

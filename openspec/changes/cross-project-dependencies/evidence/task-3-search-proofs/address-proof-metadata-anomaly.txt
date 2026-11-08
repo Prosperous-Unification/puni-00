@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+121 |   expect((await candidates(selected)).addressRevision).not.toBe(second.addressRevision);
+122 | });
+123 | it('fails missing abbreviation evidence visibly even outside the discovery match', async () => {
+124 |   const selected = await create('ada','Broken','BROKEN');
+125 |   h.sqlite.run('DELETE FROM project_abbreviation WHERE project_id=?',[selected]);
+126 |   expect((await h.call('ada','GET','/api/project-addresses/projects?q=unrelated')).status).toBe(500);
+                                                                                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:126:92)
+(fail) fails missing abbreviation evidence visibly even outside the discovery match [177.91ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.56s]

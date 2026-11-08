@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1302 |             { depReach: 'whole-item' },
+1303 |             fixture.expectedAccess,
+1304 |           );
+1305 |       }
+1306 |     });
+1307 |     expect(refused).toMatchObject({
+                           ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "dependency_cycle",
++   "ok": true,
++   "value": {
++     "abbreviation": "OWN",
++     "createdAt": 1792655445290,
++     "depReach": "whole-item",
++     "estimateMethod": "pert",
++     "estimateRounding": "ceil",
++     "id": "37f3b096-c475-46cf-9ef0-fa76e11f22a4",
++     "name": "Owner",
++     "optimizationEnabled": false,
++     "ownerId": "75f1471c-6439-40f8-8d9b-a2667a16e04b",
++     "pertWeights": {
++       "optimistic": 1,
++       "pessimistic": 1,
++       "realistic": 4,
++     },
++     "restricted": false,
++     "revision": 2,
++     "scheduleEngine": "fast",
++     "scheduleObjective": "pri",
++     "solutionRef": null,
++     "startDate": null,
++     "timezone": "UTC",
++   },
+  }
+
+- Expected  - 2
++ Received  + 24
+
+      at <anonymous> (/tmp/puni-graph-closure-review-tree/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1307:21)
+(fail) admitted project-reach moves a legacy anchor into a real remote cycle and rolls back [506.80ms]
+
+ 0 pass
+ 87 filtered out
+ 1 fail
+ 24 expect() calls
+Ran 1 test across 1 file. [3.08s]

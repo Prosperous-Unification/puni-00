@@ -23,11 +23,15 @@ The 2026-10-17 probe measured only 5,771 MiB `MemAvailable`, while the repositor
 observability graph requests 5,830 MiB on h3mon (including its 128 MiB unrequested-DaemonSet
 allowance), so activation correctly stopped. Dany resized and rebooted h3mon on 2026-10-19.
 After boot it had 15,602 MiB total and 14,170 MiB available, and Kubernetes reported 13.6 GiB
-allocatable. The 5,830 MiB graph therefore has 8,340 MiB of host headroom while the legacy
-services coexist; the resize resolves the memory admission failure without reducing the 2 GiB
-Elasticsearch heap. The graph is still not activated: all six externally provided platform
-Secrets are absent, the registry Pod is Pending, and Flux keeps `observability` dependency
-blocked. Credentials must come from the documented operator inputs; do not fabricate them.
+allocatable. That snapshot exceeded the then-current 5,830 MiB request allowance by
+8,340 MiB without reducing the 2 GiB Elasticsearch heap. It resolved that historical
+request-only shortfall; it does not admit today's separate dev/production instances,
+complete effective memory limits or migration overlap. At that observation the graph
+remained inactive: all six externally provided platform Secrets were absent, the registry
+Pod was Pending, and Flux kept `observability` dependency blocked. These are dated facts,
+not current readiness. Use the [current capacity scopes](observability-preflight.md#capacity-scopes)
+and fresh source-bound preflight before activation. Credentials must come from the
+documented operator inputs; do not fabricate them.
 Swap is not a substitute for pod memory: pods cannot swap.
 
 ### h4claw reconciliation on 2026-10-17 (WBS 50.10)
@@ -86,7 +90,7 @@ From the read-only probe of 2026-09-27:
 
 - **h4claw** (8 cores, 15 GiB, private 10.1.0.4) is the single platform server with `product` and
   `ingress`.
-- **h3mon** (8 cores, 15.6 GiB after the 2026-10-19 resize, private 10.1.0.2) is an agent with `observability` only. Its
+- **h3mon** (8 cores, 15,602 MiB after the 2026-10-19 resize, private 10.1.0.2) is an agent with `observability` only. Its
   Docker-run Victoria, Grafana and MLflow stay outside k3s and keep running.
 - **h2puni** (private 10.1.0.3) stays outside k3s. It is live production, the build box, the
   registry and the host-wide gate; a join would share its memory and firewall with k3s before
@@ -107,10 +111,11 @@ contain the machine IDs captured by the 2026-09-27 preflight.
 | h4claw | apt prerequisites, account `puni-fleet` with sudo (the cloud-init sudo grant is kept), bounded journald, k3s sysctls and modules, fleet nftables table, MTU unit, k3s server with embedded etcd; later Flux (`platform.yml`) | Docker and OpenHands (`127.0.0.1:3000`), SSH                                     |
 | h3mon  | the same base and network changes, a 4 GiB `/swap.puni`, k3s agent capped by 1024Mi system + 384Mi kube reservations; later Elasticsearch, Kibana, Prometheus and collectors pinned to it                                    | Docker, Victoria (8428, 9428, 10428), Grafana (3000), MLflow (5000), OTel (4318) |
 
-Pods never swap; host services may. The budget test
-`tools/tool-fleet/src/observability-budget.test.ts` fits every pinned workload and DaemonSet in
-h3mon's allocatable memory, but does not include the preserved Docker services. The live-headroom
-check above is an additional admission gate while those services coexist.
+Pods never swap; host services may. The source budget tests in
+`tools/tool-fleet/src/observability-budget.test.ts` cover their explicitly selected graph
+and request allowances. They do not establish a complete effective-Pod limit budget,
+current preserved-service demand or two-instance migration admission. The dated headroom
+comparison above cannot replace the [read-only inventory and admission](observability-preflight.md).
 
 ## Operator inputs
 

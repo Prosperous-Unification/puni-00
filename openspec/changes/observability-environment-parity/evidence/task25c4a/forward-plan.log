@@ -1,0 +1,28 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-runtime.test.ts:
+191 |   await createCreationAttempt(directory, identity);
+192 |   const captured = type({ files: 'Record<string,string>' }).assert(await Bun.file(join(import.meta.dir, 'fixtures/k3d-creation-v1.json')).json());
+193 |   const plan: unknown = JSON.parse(
+194 |     Object.entries(captured.files).find(([name]) => name.endsWith('/plan.json'))![1],
+195 |   );
+196 |   await rejects(createResourceWitness(directory, directory, identity, plan,
+              ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.test.ts:196:9
+(fail) Task37 actual forward witness refuses historical plan before retaining any resource record [30.94ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+Ran 1 test across 1 file. [240.00ms]

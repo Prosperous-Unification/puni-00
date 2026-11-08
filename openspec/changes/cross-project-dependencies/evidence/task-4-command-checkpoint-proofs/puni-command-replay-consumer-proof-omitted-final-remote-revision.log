@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1155 |
+1156 | test('recordCollected rejects an omitted final remote revision and rolls back the actual SQLite typed write', async () => {
+1157 |   const fixture = await open();
+1158 |   const before = effects();
+1159 |   const failure = await observed(semantic(fixture, (service) => service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input), undefined, undefined, undefined, true));
+1160 |   expect(failure).toBeInstanceOf(Error);
+                         ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: true,
+  value: "7e27ff58-4b71-47d1-aa31-ba24a485002f",
+}
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1160:19)
+(fail) recordCollected rejects an omitted final remote revision and rolls back the actual SQLite typed write [372.79ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [2.60s]

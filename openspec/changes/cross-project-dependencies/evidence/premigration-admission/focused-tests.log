@@ -1,0 +1,218 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:
+(pass) refuses enabled empty authority before service factories and writes on every restart [375.33ms]
+(pass) refuses broken authority before service factories: DELETE FROM cross_project_dependency_activation [476.31ms]
+(pass) refuses broken authority before service factories: DROP TABLE cross_project_dependency_activation_receipt [424.12ms]
+(pass) refuses broken authority before service factories: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [484.28ms]
+(pass) refuses broken authority before service factories: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [262.19ms]
+{"level":"info","time":1792705685105,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705685182,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705685184,"service":"be-01","msg":"migrations applied"}
+(pass) admits dormant authority and serves health after dev migrations [307.29ms]
+(pass) refuses disabled authority retaining an external relationship before service factories [249.15ms]
+(pass) closes storage when the authority read becomes unreadable before any service [212.46ms]
+(pass) refuses enabled empty authority before a pending migration changes schema or ledger [154.98ms]
+(pass) refuses damaged authority before pending migration: DROP TABLE cross_project_dependency_activation_receipt [206.20ms]
+(pass) refuses damaged authority before pending migration: DELETE FROM cross_project_dependency_activation [251.36ms]
+(pass) refuses damaged authority before pending migration: DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation'; DROP TABLE cross_project_dependency_activation_receipt; DROP TABLE cross_project_dependency_activation [158.69ms]
+(pass) rechecks authority after a pending migration corrupts dormant state [136.35ms]
+{"level":"info","time":1792705686801,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705686840,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705686840,"service":"be-01","msg":"migrations applied"}
+(pass) admits dormant authority with a pending migration [260.71ms]
+{"level":"info","time":1792705687236,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705687265,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705687265,"service":"be-01","msg":"migrations applied"}
+(pass) admits a certified pre-authority historical schema and ledger [414.51ms]
+(pass) refuses uncertified historical storage before pending migration: UPDATE __drizzle_migrations SET hash='altered' WHERE name='20261022211000_add_external_dependencies' [200.17ms]
+(pass) refuses uncertified historical storage before pending migration: DROP INDEX actual_by_step [248.88ms]
+(pass) refuses uncertified historical storage before pending migration: DROP TABLE __drizzle_migrations [149.97ms]
+(pass) refuses uncertified historical storage before pending migration: DELETE FROM __drizzle_migrations WHERE name='20261022210000_add_project_abbreviations' [250.89ms]
+(pass) refuses an unrecorded partial schema rather than treating it as fresh [15.95ms]
+
+apps/wbs/be-01/src/boot.db.test.ts:
+{"level":"info","time":1792705688361,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"warn","time":1792705688728,"service":"be-01","err":{"occurrence_id":"AE_HCBBN7H9TYZ96PS4P74JW1HPK3","fingerprint":"fp1_72dc127f8a2dfa01c6c7d061f52b53d6","as_json":{"code":"ENOTFOUND","path":"http://gw.invalid/internal/push","syscall":"getaddrinfo","hostname":"gw.invalid","errno":4},"stack":["TypeError: getaddrinfo ENOTFOUND gw.invalid","    at async <anonymous> (/tmp/puni-premigration-admission/libs/wbs/adapters/runtime-portable/src/push-client.ts:83:36)","    at async untilAborted (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-premigration-admission/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async pushRecorded (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:101:28)","    at async <anonymous> (/tmp/puni-premigration-admission/libs/wbs/application/core/src/compose.ts:329:27)","    at async <anonymous> (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/plan-commands/composition.ts:194:31)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:a2","msg":"project event recorded but not pushed"}
+{"level":"warn","time":1792705688802,"service":"be-01","err":{"occurrence_id":"AE_G33HGX0J1RFCNFPA1HJ4691NFP","fingerprint":"fp1_31b9d644c40d9bd353ad3490e8a46dff","as_json":{"code":"ENOTFOUND","path":"http://gw.invalid/internal/push","syscall":"getaddrinfo","hostname":"gw.invalid","errno":4},"stack":["TypeError: getaddrinfo ENOTFOUND gw.invalid","    at async <anonymous> (/tmp/puni-premigration-admission/libs/wbs/adapters/runtime-portable/src/push-client.ts:83:36)","    at async untilAborted (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-premigration-admission/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async pushRecorded (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:101:28)","    at async publish (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:85:16)","    at async publish (/tmp/puni-premigration-admission/libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.ts:43:22)","    at async announceTree (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:9202:31)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:a1","msg":"project event recorded but not pushed"}
+{"level":"warn","time":1792705688896,"service":"be-01","err":{"occurrence_id":"AE_SX0VBY2FNT4T2H2E6PRF0M331E","fingerprint":"fp1_5f55bc7576f915fe519a716735042577","as_json":{"code":"ENOTFOUND","path":"http://gw.invalid/internal/push","syscall":"getaddrinfo","hostname":"gw.invalid","errno":4},"stack":["TypeError: getaddrinfo ENOTFOUND gw.invalid","    at async <anonymous> (/tmp/puni-premigration-admission/libs/wbs/adapters/runtime-portable/src/push-client.ts:83:36)","    at async untilAborted (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-premigration-admission/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async pushRecorded (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:101:28)","    at async <anonymous> (/tmp/puni-premigration-admission/libs/wbs/application/core/src/compose.ts:329:27)","    at async moveAfter (/tmp/puni-premigration-admission/libs/wbs/application/core/src/service/standalone-rank.ts:65:53)","    at async move (/tmp/puni-premigration-admission/libs/wbs/application/core/src/service/project-rank.resource.ts:62:41)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:a1","msg":"project event recorded but not pushed"}
+{"level":"warn","time":1792705688899,"service":"be-01","err":{"occurrence_id":"AE_TS1FNFWYVA80CRENBGETTT4WVK","fingerprint":"fp1_5f55bc7576f915fe519a716735042577","as_json":{"code":"ENOTFOUND","path":"http://gw.invalid/internal/push","syscall":"getaddrinfo","hostname":"gw.invalid","errno":4},"stack":["TypeError: getaddrinfo ENOTFOUND gw.invalid","    at async <anonymous> (/tmp/puni-premigration-admission/libs/wbs/adapters/runtime-portable/src/push-client.ts:83:36)","    at async untilAborted (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-premigration-admission/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async pushRecorded (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:101:28)","    at async <anonymous> (/tmp/puni-premigration-admission/libs/wbs/application/core/src/compose.ts:329:27)","    at async moveAfter (/tmp/puni-premigration-admission/libs/wbs/application/core/src/service/standalone-rank.ts:65:53)","    at async move (/tmp/puni-premigration-admission/libs/wbs/application/core/src/service/project-rank.resource.ts:62:41)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:a2","msg":"project event recorded but not pushed"}
+(pass) boots committed fan-out into cold scoped commands and rank moves [739.01ms]
+{"level":"info","time":1792705689298,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > validates configured delegation keys before opening storage and keeps generic issuance inactive [405.90ms]
+{"level":"info","time":1792705689635,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > reconciles an abandoned optimizer drain before reporting healthy [336.48ms]
+{"level":"info","time":1792705689803,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705689832,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705689833,"service":"be-01","msg":"migrations applied"}
+{"level":"warn","time":1792705689879,"service":"be-01","err":{"occurrence_id":"AE_0FV5V3WZBXJY48HR77P8JKFMDN","fingerprint":"fp1_5cd186200181b277568e2007cbbe3f8b","as_json":{"code":"ENOTFOUND","path":"http://gw.invalid/internal/push","syscall":"getaddrinfo","hostname":"gw.invalid","errno":4},"stack":["TypeError: getaddrinfo ENOTFOUND gw.invalid","    at async <anonymous> (/tmp/puni-premigration-admission/libs/wbs/adapters/runtime-portable/src/push-client.ts:83:36)","    at async untilAborted (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-premigration-admission/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-premigration-admission/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async pushRecorded (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:101:28)","    at async publish (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:85:16)","    at async publish (/tmp/puni-premigration-admission/libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.ts:43:22)","    at async <anonymous> (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/project/project.resource.ts:536:37)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:e474fca4-ff18-4c1f-a2b1-0f8162c22a19","msg":"project event recorded but not pushed"}
+(pass) bootBe01 > hands the installed optimizer runtime into the serving process graph [488.14ms]
+{"level":"info","time":1792705690237,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705690263,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705690263,"service":"be-01","msg":"migrations applied"}
+(pass) bootBe01 > persists the fixed local identity after migrating an empty development database [146.74ms]
+{"level":"info","time":1792705690467,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705690494,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705690494,"service":"be-01","msg":"migrations applied"}
+(pass) bootBe01 > refuses the project and directory lists after activation until a session binds an organization [232.30ms]
+{"level":"info","time":1792705690631,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > serves SCIM provisioning from the shared database once activated [120.82ms]
+{"level":"info","time":1792705690820,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > serves the organization limits with the configured defaults once activated [174.98ms]
+{"level":"info","time":1792705690971,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > enforces the agent person cap with the configured defaults once activated [153.71ms]
+{"level":"info","time":1792705691072,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > serves machine credential administration from the shared database once activated [97.87ms]
+{"level":"info","time":1792705691223,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > serves trusted issuer administration from the shared database once activated [152.92ms]
+{"level":"info","time":1792705691358,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > refuses a stranger issuer's JWT invalid_token once booted [197.40ms]
+{"level":"info","time":1792705691549,"service":"be-01","coded":1,"msg":"step codes backfilled"}
+{"level":"info","time":1792705691568,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705691568,"service":"be-01","msg":"migrations applied"}
+(pass) bootBe01 > codes the steps an older writer left uncoded once it has migrated [157.55ms]
+{"level":"info","time":1792705691692,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > starts the retention timer [123.62ms]
+{"level":"info","time":1792705691862,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > mounts the composed login throttle instead of constructing another public graph [173.97ms]
+{"level":"info","time":1792705692039,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > stops optimizer and retention before closing its opened source [173.29ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-premigration-admission/apps/wbs/be-01/src/boot.ts:674:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+(pass) bootBe01 > releases the source when the port it was given is already taken [145.24ms]
+(pass) bootBe01 > closes the source when the service graph cannot be composed [132.05ms]
+(pass) bootBe01 > releases the source without binding the port when schema admission fails [9.37ms]
+{"level":"info","time":1792705692526,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > releases every other resource when one release is refused [204.04ms]
+{"level":"info","time":1792705692684,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > refuses to report a clean stop when a release is refused [150.67ms]
+(pass) bootBe01 > does not mistake a stalled listener for a closed one [2005.42ms]
+(pass) bootBe01 > releases nothing and rejects when the source cannot be opened [23.51ms]
+{"level":"info","time":1792705695258,"service":"be-01","port":34837,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > stops accepting before it closes the source it opened [571.51ms]
+{"level":"info","time":1792705695867,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > stops twice without complaining [605.45ms]
+(pass) bootBe01 > refuses an unmigrated database before becoming ready [73.95ms]
+{"level":"info","time":1792705696528,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > serves health on the port it bound [584.96ms]
+{"level":"info","time":1792705696907,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > names the commit its checkout is at, not one captured at startup [374.24ms]
+{"level":"info","time":1792705697223,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > holds a command batch out while the write coordinator is taken [325.26ms]
+{"level":"info","time":1792705697637,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) bootBe01 > answers a resume from the log it opened [560.47ms]
+{"level":"info","time":1792705698260,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) OIDC boot wiring > mounts the configured browser login route [490.88ms]
+{"level":"info","time":1792705698737,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) OIDC boot wiring > stops accepting an issued password session when the kill switch is false [761.49ms]
+{"level":"info","time":1792705699406,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+(pass) OIDC boot wiring > accepts an issued password session when the kill switch is true [603.46ms]
+{"level":"info","time":1792705699899,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"error","time":1792705700243,"service":"be-01","err":{"occurrence_id":"AE_HV0SV2NEF1QHGN4ZR8B978PSVM","fingerprint":"fp1_f1b0e85cafca4eb12c657931df68d0fa","stack":["Error: discovery unavailable","    at verify (/tmp/puni-premigration-admission/apps/wbs/be-01/src/boot.db.test.ts:1555:56)","    at verify (/tmp/puni-premigration-admission/libs/wbs/adapters/auth/src/oidc-verifier.ts:16:54)","    at authenticateOrRefuse (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/authentication/authentication.feature.ts:274:45)","    at async authenticate (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/authentication/authentication.feature.ts:230:32)","    at async <anonymous> (/tmp/puni-premigration-admission/apps/wbs/be-01/src/controller/auth-password-endpoints.ts:209:31)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) keeps boot verifier outages as 500 with password login false [579.97ms]
+{"level":"info","time":1792705700618,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"error","time":1792705700903,"service":"be-01","err":{"occurrence_id":"AE_W5HEZA5A3DRHEQ6TRZFMN4JCMG","fingerprint":"fp1_f1b0e85cafca4eb12c657931df68d0fa","stack":["Error: discovery unavailable","    at verify (/tmp/puni-premigration-admission/apps/wbs/be-01/src/boot.db.test.ts:1555:56)","    at verify (/tmp/puni-premigration-admission/libs/wbs/adapters/auth/src/oidc-verifier.ts:16:54)","    at authenticateOrRefuse (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/authentication/authentication.feature.ts:274:45)","    at async authenticate (/tmp/puni-premigration-admission/libs/wbs/application/core/src/module/authentication/authentication.feature.ts:230:32)","    at async <anonymous> (/tmp/puni-premigration-admission/apps/wbs/be-01/src/controller/auth-password-endpoints.ts:209:31)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) keeps boot verifier outages as 500 with password login true [652.07ms]
+(pass) refuses boot after migrations when blockage admission authority is missing [184.41ms]
+
+libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:
+(pass) migrates to durable disabled authority and rereads on every authoring access [200.36ms]
+(pass) restarts without changing disabled authority or existing local audit [229.39ms]
+(pass) refuses dormant repository insert atomically [276.02ms]
+(pass) refuses dormant repository update atomically [189.14ms]
+(pass) refuses dormant repository delete atomically [264.03ms]
+(pass) refuses corrupt trusted authority: DROP TABLE cross_project_dependency_activation [122.70ms]
+(pass) refuses corrupt trusted authority: DROP TABLE cross_project_dependency_activation_receipt [202.96ms]
+(pass) refuses corrupt trusted authority: DROP TABLE cross_project_dependency_activation; CREATE TABLE cross_project_dependency_activation(id,state); INSERT INTO cross_project_dependency_activation VALUES (1,'DISABLED'),(1,'DISABLED') [176.12ms]
+(pass) refuses corrupt trusted authority: DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation' [147.12ms]
+(pass) refuses corrupt trusted authority: DELETE FROM cross_project_dependency_activation [141.01ms]
+(pass) refuses corrupt trusted authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET id=2 [128.83ms]
+(pass) refuses corrupt trusted authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [154.74ms]
+(pass) refuses corrupt trusted authority: DROP TABLE cross_project_dependency_activation; CREATE TABLE cross_project_dependency_activation(id,state); INSERT INTO cross_project_dependency_activation VALUES (1,'DISABLED') [149.40ms]
+(pass) refuses corrupt trusted authority: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [145.64ms]
+(pass) refuses corrupt trusted authority: UPDATE cross_project_dependency_activation SET state='ENABLED' [99.50ms]
+(pass) refuses corrupt trusted authority: DROP TABLE cross_project_dependency_activation_receipt; CREATE TABLE cross_project_dependency_activation_receipt(id,receipt) [213.79ms]
+(pass) refuses missing insert trigger [332.78ms]
+(pass) refuses altered insert trigger [274.67ms]
+(pass) refuses missing update trigger [253.94ms]
+(pass) refuses altered update trigger [421.85ms]
+(pass) refuses missing delete trigger [205.28ms]
+(pass) refuses altered delete trigger [105.69ms]
+(pass) refuses unreadable connection [204.53ms]
+(pass) reads exact enabled receipt and refuses malformed persisted receipt [192.50ms]
+(pass) refuses enabled-empty rollback without losing authority or ledger [258.92ms]
+(pass) rolls dormant authority back without changing local rows [422.23ms]
+(pass) refuses preexisting external rows atomically in the real migration runner [324.29ms]
+(pass) independent insert writer refuses invalid authority: UPDATE cross_project_dependency_activation SET state='DISABLED' [409.79ms]
+(pass) independent insert writer refuses invalid authority: DROP TABLE cross_project_dependency_activation; CREATE TABLE cross_project_dependency_activation(id,state); INSERT INTO cross_project_dependency_activation VALUES (1,'ENABLED'),(1,'ENABLED') [301.65ms]
+(pass) independent insert writer refuses invalid authority: DROP TABLE cross_project_dependency_activation_receipt; CREATE TABLE cross_project_dependency_activation_receipt(id,receipt); INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{"protocol":"wbs-dependency-activation","version":1}'),(1,'{"protocol":"wbs-dependency-activation","version":1}') [370.35ms]
+(pass) independent insert writer refuses invalid authority: DELETE FROM cross_project_dependency_activation [338.69ms]
+(pass) independent insert writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET id=2 [224.47ms]
+(pass) independent insert writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [471.76ms]
+(pass) independent insert writer refuses invalid authority: DELETE FROM cross_project_dependency_activation_receipt [309.02ms]
+(pass) independent insert writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation_receipt SET id=2 [279.63ms]
+(pass) independent insert writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt='{}' [319.21ms]
+(pass) independent insert writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.protocol','wrong') [357.89ms]
+(pass) independent insert writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',2) [217.87ms]
+(pass) independent insert writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true')) [224.89ms]
+(pass) independent update writer refuses invalid authority: UPDATE cross_project_dependency_activation SET state='DISABLED' [310.17ms]
+(pass) independent update writer refuses invalid authority: DROP TABLE cross_project_dependency_activation; CREATE TABLE cross_project_dependency_activation(id,state); INSERT INTO cross_project_dependency_activation VALUES (1,'ENABLED'),(1,'ENABLED') [240.68ms]
+(pass) independent update writer refuses invalid authority: DROP TABLE cross_project_dependency_activation_receipt; CREATE TABLE cross_project_dependency_activation_receipt(id,receipt); INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{"protocol":"wbs-dependency-activation","version":1}'),(1,'{"protocol":"wbs-dependency-activation","version":1}') [255.74ms]
+(pass) independent update writer refuses invalid authority: DELETE FROM cross_project_dependency_activation [197.71ms]
+(pass) independent update writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET id=2 [235.45ms]
+(pass) independent update writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [155.93ms]
+(pass) independent update writer refuses invalid authority: DELETE FROM cross_project_dependency_activation_receipt [312.24ms]
+(pass) independent update writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation_receipt SET id=2 [205.40ms]
+(pass) independent update writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt='{}' [142.58ms]
+(pass) independent update writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.protocol','wrong') [282.27ms]
+(pass) independent update writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',2) [239.02ms]
+(pass) independent update writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true')) [251.95ms]
+(pass) independent delete writer refuses invalid authority: UPDATE cross_project_dependency_activation SET state='DISABLED' [341.44ms]
+(pass) independent delete writer refuses invalid authority: DROP TABLE cross_project_dependency_activation; CREATE TABLE cross_project_dependency_activation(id,state); INSERT INTO cross_project_dependency_activation VALUES (1,'ENABLED'),(1,'ENABLED') [131.99ms]
+(pass) independent delete writer refuses invalid authority: DROP TABLE cross_project_dependency_activation_receipt; CREATE TABLE cross_project_dependency_activation_receipt(id,receipt); INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{"protocol":"wbs-dependency-activation","version":1}'),(1,'{"protocol":"wbs-dependency-activation","version":1}') [538.97ms]
+(pass) independent delete writer refuses invalid authority: DELETE FROM cross_project_dependency_activation [516.17ms]
+(pass) independent delete writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET id=2 [371.20ms]
+(pass) independent delete writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [601.65ms]
+(pass) independent delete writer refuses invalid authority: DELETE FROM cross_project_dependency_activation_receipt [300.62ms]
+(pass) independent delete writer refuses invalid authority: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation_receipt SET id=2 [664.11ms]
+(pass) independent delete writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt='{}' [201.85ms]
+(pass) independent delete writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.protocol','wrong') [946.79ms]
+(pass) independent delete writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',2) [317.31ms]
+(pass) independent delete writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true')) [262.82ms]
+(pass) rollback refuses corrupt authority without changing ledger: DELETE FROM cross_project_dependency_activation [557.99ms]
+(pass) rollback refuses corrupt authority without changing ledger: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET id=2 [1089.03ms]
+(pass) rollback refuses corrupt authority without changing ledger: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [337.40ms]
+(pass) rollback refuses corrupt authority without changing ledger: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [595.49ms]
+(pass) rollback refuses corrupt authority without changing ledger: DROP TABLE cross_project_dependency_activation [178.24ms]
+(pass) rollback refuses corrupt authority without changing ledger: DROP TABLE cross_project_dependency_activation_receipt [371.12ms]
+(pass) rollback refuses replaced cross_project_dependency_activation schema [689.50ms]
+(pass) rollback refuses replaced cross_project_dependency_activation_receipt schema [981.67ms]
+(pass) refuses wrong receipt identity even with a valid receipt body [239.05ms]
+(pass) keeps local relationship add update and remove usable while disabled [533.49ms]
+(pass) refuses dormant rollback with retained external rows and preserves the full ledger [387.24ms]
+(pass) rolls back earlier command writes through the real source unit of work [248.42ms]
+(pass) constrained authority refuses independent corruption: UPDATE cross_project_dependency_activation SET id=2 [490.93ms]
+(pass) constrained authority refuses independent corruption: UPDATE cross_project_dependency_activation SET state='UNKNOWN' [504.41ms]
+(pass) constrained authority refuses independent corruption: UPDATE cross_project_dependency_activation SET state=NULL [224.97ms]
+(pass) constrained authority refuses independent corruption: INSERT INTO cross_project_dependency_activation_receipt VALUES (2,'{}') [330.32ms]
+(pass) constrained authority refuses independent corruption: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'malformed') [407.59ms]
+(pass) constrained authority refuses independent corruption: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,NULL) [543.64ms]
+(pass) refuses unknown marker state even with an exact receipt [251.74ms]
+(pass) accepts numeric JSON version 1.0 for independent writes [432.15ms]
+(pass) accepts numeric JSON version 1e0 for independent writes [457.05ms]
+(pass) rollback refuses missing insert trigger before newer downs [154.67ms]
+(pass) rollback refuses missing update trigger before newer downs [241.78ms]
+(pass) rollback refuses missing delete trigger before newer downs [355.11ms]
+(pass) rollback refuses missing activation ledger before newer downs [478.86ms]
+(pass) unrelated newer rollback and no-op do not inspect enabled authority [347.68ms]
+(pass) rollback admission refuses unreadable native connection [387.31ms]
+(pass) independent SQL down guard refuses enabled authority without runner admission [245.82ms]
+
+ 147 pass
+ 0 fail
+ 343 expect() calls
+Ran 147 tests across 3 files. [57.07s]

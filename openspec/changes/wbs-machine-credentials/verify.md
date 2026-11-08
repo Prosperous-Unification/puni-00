@@ -734,6 +734,115 @@ still rejects every touch.
 - Reviews: every slice had a Fable review before merging into the plan branch (#628 slice 1 after fixes incl. A23; #631 slice 2 after fixes incl. A24; #633 slice 5 after fixes incl. A25; #634 slice 6 after fixes; #641 slice 3 MERGE with S3 follow-ups landed).
 - Not observed live: tasks 3.5 (consent as an agent on dev), 4.x (slice 4, retirement of the operator links, waits for the fleets' self-serve onboarding), 5.4 (a real GitHub Actions token on dev), 6.3 (by-eye acceptance on dev).
 
+## Writer authority integration (2026-10-22, merged base dc5f7a40c)
+
+The retained-operation contract is `409 organization_context_changed` for current credential
+absence, revocation or identity/context mismatch. Initial authentication retains its 401
+contract. `SqliteCommandAccess` now requires a read-only credential collaborator wired to the
+same SQLite database in boot and the composed integration harness. It does not acquire the
+writer, update last use, or consume delegations.
+
+TDD: the 25 new credential mismatch and HTTP queue cases failed before implementation,
+reaching capture rather than refusing; the missing-row fixture was corrected to delete its
+secret first, then both machine/consent missing-row cases failed through production capture
+(`evidence/writer-authority/red-missing.log`). After implementation, all 25 passed. A further
+14 current-principal/queued-direct-runner/trusted-storage cases passed. Consent direct-runner
+tests install already-verified consent evidence over actual persisted credentials; they do
+not claim to reexercise the delegation verifier. Existing MCP boot regressions exercise it.
+
+R5: each production predicate was bypassed independently and its corresponding mounted
+`direct runner refuses current credential …` case failed (0 pass, 1 fail). Logs are in
+`evidence/writer-authority/proof-*.log`:
+
+| Fault                  | Injected production mutation      | Observed negative                                                                 |
+| ---------------------- | --------------------------------- | --------------------------------------------------------------------------------- |
+| Missing row            | Remove null-row refusal           | `missing` throws instead of returning typed conflict                              |
+| Revoked row            | Remove revocation predicate       | `revoked` reaches forbidden capture                                               |
+| Changed person         | Remove person equality            | `person` reaches forbidden capture                                                |
+| Changed account        | Remove account equality           | `account` reaches forbidden capture                                               |
+| Unbound person         | Remove account equality           | `unbound` reaches forbidden capture                                               |
+| Missing context        | Remove absent-context refusal     | `no-context` throws instead of returning typed conflict                           |
+| Changed organization   | Remove organization equality      | `organization` reaches forbidden capture                                          |
+| Machine source         | Accept `mcp_consent` as machine   | machine `source` reaches forbidden capture                                        |
+| Consent source         | Accept non-consent source         | consent `source` reaches forbidden capture                                        |
+| Consent direct context | Accept direct branch              | `direct-consent` reaches forbidden capture                                        |
+| Consent family         | Remove family equality            | `family` reaches forbidden capture                                                |
+| Trusted read           | Bypass machine/consent read block | all four `throws on trusted credential` cases return success rather than throwing |
+
+The first direct-consent mutation removed only the direct disjunct, and the family mismatch
+still refused it. The production check was reshaped as an explicit direct-context branch;
+accepting that branch then failed the specific negative. Every fault was restored.
+
+Scoped verification:
+
+- Final `bun test apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts libs/wbs/application/core/src/compose.test.ts`: 123 pass, 0 fail, 736 assertions.
+- Final targeted Prettier check and `git diff --check`: passed.
+
+- `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-be-01,wbs-store-sqlite`: passed all three tasks (includes module typecheck), zero cache hits.
+- `bun node_modules/eslint/bin/eslint.js` on changed TypeScript files: passed. The initial direct lint before Nx graph generation skipped module boundaries; the recorded successful run followed graph generation and did not skip them.
+- `bunx openspec validate wbs-machine-credentials --json`: valid, no errors; requirement-length warnings and existing fleet-credentials archive info remain.
+- Scoped 10-file credential, current-authority, boot, command/claim and MCP regression run with localhost networking: 320 pass, 5 fail. Failures are existing eligible-step fixture assumptions: three API claim positives and two MCP consent/human claim positives. A two-case probe with unchanged merged `SqliteCommandAccess` reproduced the same API failures and showed `409 prerequisites_unmet`, unrelated to credential context (`evidence/writer-authority/baseline-claims.log`). The coordinating change adapts those claims to the first eligible step separately.
+- The initial sandbox regression run could not listen on localhost (`EPERM listen`), producing 191 pass/36 fail; it does not establish regression behavior. The network-enabled rerun above supersedes it.
+
+Verifier expiry/rotation-window freshness and restricted-project recovery ceiling remain
+open and are explicitly outside this packet. No full remote host gate, build, full product
+lint, secrets scan or full migration lint was run by this packet; the coordinator must run
+the required host gate on the integrated commit before release/completion claims.
+
+## Restricted-project recovery ceiling repair — 2026-10-22
+
+This restores the existing A23 member ceiling; it introduces no new authority.
+The repository still reads current membership inside the writer transaction and
+intersects it with the authenticated scope role. Command/replay, dependent
+step/marker recovery, project edits, saved-plan save/touch and optimizer Retry
+carry that ceiling; borrowed project/step/import fan-out also retains it.
+
+Fresh focused results on merged baseline `ba129970f` plus this repair:
+
+- `bun test apps/wbs/be-01/src/controller/machine-credential.controller.db.test.ts`:
+  32 pass, including command, undo, redo, step, marker, Retry and saved-plan
+  refusals with unchanged mutation/audit/event state, ordinary writes, restricted
+  creator writes, person pinning and the human account's unpinned session.
+- `bun test apps/wbs/mcp-01/src/organization-delegation.boot.test.ts`: 16 pass,
+  91 assertions, through real MCP OAuth and booted be-01. Consent recovery
+  refusals include saved-plan save/rename/delete and unchanged state.
+- Mounted human command/project/saved-plan organization suites plus
+  `organization-audit.db.test.ts`: 73 pass, including human super-admin
+  recovery and queued membership revocation.
+- SQLite saved-plan organization, fanout capture and optimizer repository
+  suites: 35 pass. The low-level Retry negative refuses before eligibility,
+  audit or slot writes even for a current stored super-admin.
+
+Watched R5 faults, restored afterward:
+
+- Returning the stored role from `capStoredRole` admitted a machine batch and
+  step (200), marker (201), and saved-plan touch (200); undo/redo reached replay
+  handling (409), all where admission requires 403. The complete ordered MCP
+  boot suite's consent recovery negative also failed (admitted tool call).
+- The same fault wrote the low-level capped saved plan and let capped Retry
+  reach `not-retryable` instead of `forbidden`.
+- Removing the borrowed ceilings independently from their production call
+  sites made all four restricted-project/viewer-project/viewer-step/viewer-import
+  fan-out negatives admit. Adjacent `Proof:` comments identify these faults.
+
+The broader command/core selection reports 160 pass and three prerequisite
+failures in resource-command/resource-schedule/assignee-calendar. All three
+reproduce on a fresh unchanged `ba129970f` clone. Typechecking be-01 and the
+SQLite specs remains blocked by the merged baseline's `person-load.feature.ts`
+432 and `space.resource.ts` 405 scheduling error types; no ceiling-related type
+errors remain. Full host gate, build, CI secrets checks and live acceptance were
+not run for this repair packet. Changed-file lint is recorded separately by the
+integration review; the repository's lazy-loaded core boundary rule can report
+existing static imports once an Nx project graph is present.
+
+The [independent Astra review](evidence/restricted-project-role-ceiling-review.md)
+approved this bounded repair without an introduced finding. Its fresh relevant
+runs passed 156 tests; unchanged-base probes reproduced the three prerequisite
+failures, two scheduling type errors and ten static-import lint findings. On
+the combined feature/main branch, all eight mounted machine restricted-project
+role-ceiling cases passed (28 assertions), including ordinary creator success.
+Full CI and the exact-SHA host gate remain pending.
+
 ## Slice 4 record (2026-10-25): retirement of the operator links, tasks 4.1 and 4.2
 
 Branch `feat/wbs-machine-credentials-retire-links` from main `93b6f3555`. Held from merging
@@ -853,3 +962,101 @@ credentials, #785 REST off).
 - **The groups-less half of M9** landed with this merge (`wbs-mcp-agent-surface` verify.md
   slice 21): 4.1's `unknown_identity` for a groups-less configured-issuer token on `/api` is
   now `machine_bearer_not_accepted`; `sessionUser` and refresh are unchanged.
+
+## Private main reconciliation (2026-10-31)
+
+The conflicting private and incoming verification histories above were preserved when preparing the uncommitted union of private `7789ddc55` and
+main `1860660a`. Their commands, failure proofs and counts qualify their recorded
+revisions; they are not added together or relabeled as combined acceptance.
+Fresh combined compilation, auth/credential/runtime/conformance and coherent
+backend verification must be recorded separately. No new source-omission proof
+was performed during this document resolution.
+
+The incoming retirement and missing-groups contracts remain required alongside
+the private dependency/current-authority protections. Historical fleet/swap
+readiness notes do not establish current deployment readiness. This private
+reconciliation neither migrates fleet credentials nor authorizes main adoption,
+credential deletion or deployment. Frozen Reader and other proof carriers are
+outside this worktree and remain held.
+
+### Combined source review and component checks
+
+The isolated union retains incoming missing-groups refusal, machine/consent/run
+pins and retirement, together with private current-authority, dependency,
+capability, first-step, QA and19-migration expectations. A full semantic review
+reported no material reconciliation defect. The only catalog retirement is
+`directory.credentialPinOf:unlinked` and
+`directory.removePerson:pinned-credential`; all private cross-project cases and
+strict catalog equality remain.
+
+Fresh component checks on the reconciled source passed:
+
+- Core focused44 and configured owning1780 tests across141 files.
+- Focused backend auth/pin/runtime211 tests across8 files; MCP/swarm/directory88.
+- Auth adapter125 tests across9 files and the three lease/race fixtures14.
+- Frontend auth/directory83 tests across2 files and configured frontend types.
+- Full normal adapter conformance168 tests/13592 assertions and strict catalog135.
+  SQLite offers135 cases without gaps; memory offers127 with six declared
+  exclusions and two absent families. These declarations are not silently
+  treated as implemented memory coverage. Existing negative adapter fixtures
+  operate in process and temporary databases; no production file was patched.
+- Configured SQLite types passed after removing only three unreachable legacy
+  fixture arms; the original six TS2339 diagnostics are retained separately.
+- Scoped lint on58 existing TypeScript/TSX paths and authored formatting passed.
+
+These overlapping component counts are not summed into a whole-suite total.
+The configured coherent backend suite is still running at this record. Its
+normal pure-descriptor prerequisite generated an ignored OpenAPI build output
+(4061532 bytes), SHA256
+`3587f1ce57604cc2e402f20317236072e2802a004a7688be7e14fc17de5d8b86`;
+no committed document or app fixture was used as generator input.
+
+Frozen61-path source manifest SHA256:
+`fa64f90ff75cee525be94683f45132f805134125b5e92582b6ff38b3427c4a53`.
+Full source-review SHA256:
+`bf02c6763a13f7c8c487fdae9915bcfcb752b6813d59fa6f29cb0c2ed8bd68f5`.
+Private component report at its frozen current version:
+`/tmp/puni-main186-reconciliation-current-20261031.md`, SHA256
+`3f0ba45dfdd04845b93803b3db7c151766a042a211f926c857c276a17dd03bca`.
+An earlier summary at that same path was superseded without a retained body;
+it is not used as immutable evidence. Raw command logs and the source manifest
+remain the primary records. Current7789 hosted and host-gate checks remain
+evidence for7789 only; neither qualifies this different union.
+
+### Coherent combined backend final result
+
+The same original configured `bunx nx run wbs-be-01:test` session8839 completed
+with observed exit0 after the pending component record above. Its mandatory
+pure-descriptor prerequisite and test target both succeeded without cache hits.
+The backend reported4959 passes, three skips, zero failures and104547
+expectations across4962 tests/321 files. Bun elapsed3343.86s; Nx elapsed55m48s.
+These are the combined suite's own counts, not a sum of component runs.
+
+The two real shared blue/green host-restore cases were skipped because
+`WBS_HOST_RESTORE_REAL_DOCKER` was absent. The real solver orphan-process case
+was skipped because `WBS_SOLVER_ORPHAN_IMAGE` was absent. All three native opt-in
+variables, including `WBS_HOST_RESTORE_PROOF_IMAGE`, were absent before launch;
+no real container/image proof was enabled or credited. The raw summary repeats
+three distinct skip names; it does not represent six skipped tests.
+
+Primary backend log SHA256:
+`45a92ab791b17f0af68c9743ffc7c9b5cc274945714e95b282d589eebdb2868f`.
+The final immutable receipt is
+`/tmp/puni-main186-reconciliation-final-v1-20261031.md`, SHA256
+`5ee39c80968cf2752ae8cbdc08aa862c9c1884cbbf5dd919eea493b3cf3d55e4`.
+Its separate raw-log manifest SHA256 is
+`04a22aefb758fcb319e020caed6a6a1dbc7b2d0221dce304e1e3a6dc29e59a96`.
+
+After settlement all61 original source entries and the two separately reviewed
+diagnostic files matched their frozen hashes. The closing63-entry manifest
+SHA256 is `4ef407165d24606fee8cbf326ec29b30fb9f9e9eadc643e3c49dc7527f3e4b63`.
+All owned local command sessions joined. File-redirected logs and observed exec
+completion do not independently prove separate pipe-EOF events; none are claimed.
+
+The complete package review found no material source/documentation issue and
+required this actual terminal result before a private checkpoint. Its SHA256 is
+`f04130c16704f3b74105da172dd266aa7f3aa646206dcc352fedcf853701a2cf`.
+Normal final formatting, OpenSpec validation and commit hooks remain separate
+checkpoint records. Whole-candidate CI and the canonical host gate must qualify
+the eventual committed SHA. Main adoption, deployment, native acceptance and
+held Reader/proof campaigns remain outside this result.

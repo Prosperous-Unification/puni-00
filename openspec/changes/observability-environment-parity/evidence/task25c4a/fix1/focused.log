@@ -1,0 +1,42 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+(pass) Task37 authentic baseline sealed receipt still tears down with volumes and history retained [4230.81ms]
+killed 1 dangling process
+(fail) Task37 sealed reader refuses inputs-version before teardown [5002.71ms]
+  ^ this test timed out after 5000ms.
+
+# Unhandled error between tests
+-------------------------------
+661 |   'lineage-cohort',
+662 |   'unknown-version',
+663 | ]) {
+664 |   it(`Task37 sealed reader refuses ${fault} before teardown`, async () => {
+665 |     const lab = await fixture();
+666 |     expect(await lab.up()).toMatchObject({ exit: 0, stderr: '' });
+                                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "exit": 0,
++   "exit": 143,
+    "stderr": "",
++   "stdout": "",
+  }
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:666:28)
+-------------------------------
+
+(pass) Task37 sealed reader refuses observation-cohort before teardown [3780.51ms]
+(pass) Task37 sealed reader refuses observation-missing before teardown [2539.75ms]
+(pass) Task37 historical cohort rejects effective observation records before teardown [653.39ms]
+
+ 4 pass
+ 65 filtered out
+ 1 fail
+ 1 error
+ 66 expect() calls
+Ran 5 tests across 1 file. [17.60s]

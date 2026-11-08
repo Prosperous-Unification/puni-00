@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+122 |   } catch (cause) {
+123 |     // Proof: removing this modeled conversion made a finite 1e15-day fixed
+124 |     // placement throw instead of returning horizon-overflow.
+125 |     if (false && cause instanceof ConnectedBoundaryOverflow)
+126 |       return { kind: 'failed', failure: 'horizon-overflow', detail: cause.message };
+127 |     throw cause;
+                ^
+error: connected boundary exceeds safe integer range
+      at buildConnectedSolverRequest (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts:127:11)
+      at buildConnectedSolverRequestPair (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts:306:10)
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:234:10)
+(fail) finite unrepresentable incoming, reference and outgoing evidence yields typed horizon failure [2.43ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+Ran 1 test across 1 file. [212.00ms]

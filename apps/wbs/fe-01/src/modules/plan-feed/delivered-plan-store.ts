@@ -51,9 +51,9 @@ export interface DeliveredPlan {
  * changes no member leaves the snapshot the same object and tells nobody; a
  * write that changes one replaces the snapshot once and tells every listener
  * once, after the replacement. "Changes" is decided per member: by identity for
- * the tree, the directory, the markers and the claims (each delivery of them is a new
- * generation); by content for the steps (id and name, in order) and for the
- * stale list; by the identity of the **cause** for the tree failure, because
+ * the tree, the directory, the markers and the claims (each delivery of them is a
+ * new generation); by content for the steps (id, name, code and allowance, in
+ * order) and for the stale list; by the identity of the **cause** for the tree failure, because
  * the feed builds a fresh wrapper around the same cause on every publication;
  * by value for `connected`.
  *
@@ -100,6 +100,8 @@ export function sameSteps(a: readonly StepView[], b: readonly StepView[]): boole
     a.every(
       (step, i) =>
         step.id === b[i]?.id &&
+        // Proof: dropping code retained the old snapshot during a code-only delivered-plan refresh (same-steps.test.ts, 2026-10-22).
+        step.code === b[i]?.code &&
         step.name === b[i]?.name &&
         step.allowancePercent === b[i]?.allowancePercent,
     )

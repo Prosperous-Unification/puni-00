@@ -1,0 +1,24 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node ACK bound BEGIN
+861 |   const [exit, stdout, stderr] = receipts;
+862 |   if (exit.status !== 'fulfilled' || stdout.status !== 'fulfilled' || stderr.status !== 'fulfilled')
+863 |     throw new AggregateError(receipts, 'open ACK channel original custody unproved');
+864 |   expect(child.signalCode).toBeNull();
+865 |   expect(exit.value).toBe(1);
+866 |   expect(stderr.value).toContain('source-test-stop:source ACK bound');
+                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "source-test-stop:source ACK bound"
+Received: "source-test-stop:source independent work/ACK deadline exceeded\nsource collector session refused\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:866:24)
+(fail) actual source launcher bounds an open ACK channel before its work deadline [15116.78ms]
+
+ 0 pass
+ 48 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [15.16s]

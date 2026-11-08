@@ -11,7 +11,8 @@ export type DiscoverySource =
   | `kubernetes-pvcs:${string}`
   | `kubernetes-pvs:${string}`
   | `kubernetes-volumeattachments:${string}`
-  | `ssh-facts:${string}`;
+  | `ssh-facts:${string}`
+  | `observability-kubernetes:${string}`;
 
 export type ObservedNodeState =
   'enrolled' | 'discovered-unenrolled' | 'missing' | 'ready' | 'not-ready' | 'retiring';

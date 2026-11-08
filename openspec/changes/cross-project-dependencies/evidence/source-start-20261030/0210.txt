@@ -1,0 +1,28 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts", "--test-name-pattern=^isolated source restoration refuses gateway drift during source HTTP$", "--timeout=320000"], "pid": 3115637, "exit": 0, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 124.91518230794463, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "d4a71f3398468de22905e3e75c435ff8dc66f98a24624189636be2903b378d34"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_HTTP_FAULT: gateway-drift actual source response
+SOURCE_RESTORATION_REFUSED: gateway-drift reached actual new source-phase consumer
+(pass) source restoration refuses gateway drift during source HTTP [124813.22ms]
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 548 expect() calls
+Ran 1 test across 1 file. [124.88s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses gateway drift during source HTTP","exitCode":0,"signal":null,"stdoutEof":true,"stderrEof":true}
+(pass) isolated source restoration refuses gateway drift during source HTTP [124900.30ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [124.91s]
+

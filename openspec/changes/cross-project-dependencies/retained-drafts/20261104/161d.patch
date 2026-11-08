@@ -1,0 +1,1409 @@
+diff --git a/tools/tool-remote-scripts/src/lib/dependency-operation-custody.test.ts b/tools/tool-remote-scripts/src/lib/dependency-operation-custody.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..0e81c99f63e68b1ee9a9e7fdf4ef1d12696dd13a
+--- /dev/null
++++ b/tools/tool-remote-scripts/src/lib/dependency-operation-custody.test.ts
+@@ -0,0 +1,34 @@
++import { rejects } from 'node:assert/strict';
++
++import { expect, test } from 'bun:test';
++
++import {
++  closeOriginal,
++  createDependencyOperationCustody,
++  reserveAuthorityOperation,
++  settleAuthoritySpawnThrow,
++} from './dependency-operation-custody';
++
++test('owned original empty custody closes and rejects later dispatch', async () => {
++  const scope = createDependencyOperationCustody();
++  await closeOriginal(scope);
++  expect(() => reserveAuthorityOperation(scope, {}, 'fixture')).toThrow('closing');
++});
++
++test('owned original copied custody cannot authorize dispatch or closing', async () => {
++  const scope = createDependencyOperationCustody();
++  const copy = { ...scope };
++  expect(() => reserveAuthorityOperation(copy, {}, 'fixture')).toThrow('custody');
++  await rejects(closeOriginal(copy), /custody/);
++  await closeOriginal(scope);
++});
++
++test('owned original synchronous spawn throw closes without inventing a child', async () => {
++  const scope = createDependencyOperationCustody();
++  const attempt = reserveAuthorityOperation(scope, {}, 'fixture');
++  settleAuthoritySpawnThrow(attempt);
++  await closeOriginal(scope);
++  expect(() => {
++    settleAuthoritySpawnThrow(attempt);
++  }).toThrow('spawn');
++});
+diff --git a/tools/tool-remote-scripts/src/lib/dependency-operation-custody.ts b/tools/tool-remote-scripts/src/lib/dependency-operation-custody.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..c0b30108546d994887318f4d8554bf4f91449e88
+--- /dev/null
++++ b/tools/tool-remote-scripts/src/lib/dependency-operation-custody.ts
+@@ -0,0 +1,293 @@
++import type { ChildProcessWithoutNullStreams } from 'node:child_process';
++import type { Readable } from 'node:stream';
++
++/** Invocation-private resource custody. It grants no owner or effect authority. */
++export interface DependencyOperationCustody {
++  readonly kind: 'dependency-operation-custody';
++}
++
++/** Internal reservation used only by the fixed authority adapter. */
++export interface AuthorityOperationCustody {
++  readonly kind: 'authority-operation-custody';
++}
++
++interface Scope {
++  closing: boolean;
++  attempts: Set<Attempt>;
++  changed: Set<() => void>;
++}
++interface Attempt {
++  scope: Scope;
++  child: ChildProcessWithoutNullStreams | undefined;
++  noChild: boolean;
++  exit:
++    | { state: 'pending' }
++    | { state: 'observed'; code: number | null; signal: NodeJS.Signals | null }
++    | { state: 'unavailable' };
++  closed: boolean;
++  output: 'pending' | 'eof' | 'read-failed';
++  errors: 'pending' | 'eof' | 'read-failed';
++  tasks: Set<Promise<void>>;
++  request: unknown;
++  nonce: string;
++  inputFinished: boolean;
++  inputClosed: boolean;
++  pendingWrites: number;
++  remoteClosed: boolean;
++  unknown: boolean;
++}
++const scopes = new WeakMap<DependencyOperationCustody, Scope>();
++const attempts = new WeakMap<AuthorityOperationCustody, Attempt>();
++
++function readScope(scope: DependencyOperationCustody): Scope {
++  const retained = scopes.get(scope);
++  if (retained === undefined) throw new Error('original operation custody is not registered');
++  return retained;
++}
++function readAttempt(reservation: AuthorityOperationCustody): Attempt {
++  const attempt = attempts.get(reservation);
++  if (attempt === undefined) throw new Error('original authority custody is not registered');
++  return attempt;
++}
++function notifyScope(attempt: Attempt): void {
++  for (const notify of attempt.scope.changed) notify();
++}
++function markUnknown(attempt: Attempt): void {
++  attempt.unknown = true;
++  notifyScope(attempt);
++}
++
++/** Allocates resource accounting only; final production construction belongs to the full entry. */
++export function createDependencyOperationCustody(): DependencyOperationCustody {
++  const scope: DependencyOperationCustody = Object.freeze({ kind: 'dependency-operation-custody' });
++  scopes.set(scope, { closing: false, attempts: new Set(), changed: new Set() });
++  return scope;
++}
++
++/** Reserves before dispatch. Closing seals the scope against further original work. */
++export function reserveAuthorityOperation(
++  scope: DependencyOperationCustody,
++  request: unknown,
++  nonce: string,
++): AuthorityOperationCustody {
++  const retained = readScope(scope);
++  if (retained.closing) throw new Error('original operation custody is closing');
++  const reservation: AuthorityOperationCustody = Object.freeze({
++    kind: 'authority-operation-custody',
++  });
++  const attempt: Attempt = {
++    scope: retained,
++    child: undefined,
++    noChild: false,
++    exit: { state: 'pending' },
++    closed: false,
++    output: 'pending',
++    errors: 'pending',
++    tasks: new Set(),
++    request,
++    nonce,
++    inputFinished: false,
++    inputClosed: false,
++    pendingWrites: 0,
++    remoteClosed: false,
++    unknown: false,
++  };
++  retained.attempts.add(attempt);
++  attempts.set(reservation, attempt);
++  return reservation;
++}
++
++/** Only the synchronous spawn-throw boundary may establish that no child was returned. */
++export function settleAuthoritySpawnThrow(reservation: AuthorityOperationCustody): void {
++  const attempt = readAttempt(reservation);
++  if (attempt.child !== undefined || attempt.noChild)
++    throw new Error('original authority spawn already dispatched or settled');
++  attempt.noChild = true;
++  notifyScope(attempt);
++}
++
++/** Actual child operations retained by the fixed parser, never a caller completion certificate. */
++export interface AuthorityChildCustody {
++  drainOutput(consume: (chunk: Buffer) => void): Promise<void>;
++  drainErrors(consume: (chunk: Buffer) => void): Promise<void>;
++  writeInput(bytes: Buffer | string): Promise<void>;
++  endInput(): void;
++  observeTerminal(phase: Record<string, unknown>): void;
++  invalidateProtocol(): void;
++  isUnknown(): boolean;
++}
++
++/** Attaches original event/pipe/input observations synchronously before transport observation. */
++export function retainAuthorityChild(
++  reservation: AuthorityOperationCustody,
++  child: ChildProcessWithoutNullStreams,
++): AuthorityChildCustody {
++  const attempt = readAttempt(reservation);
++  if (attempt.child !== undefined || attempt.noChild)
++    throw new Error('original authority spawn already dispatched or settled');
++  attempt.child = child;
++  child.on('error', () => {
++    if (attempt.exit.state !== 'observed') attempt.exit = { state: 'unavailable' };
++    markUnknown(attempt);
++  });
++  child.once('exit', (code, signal) => {
++    if (code === null && signal === null) {
++      attempt.exit = { state: 'unavailable' };
++      markUnknown(attempt);
++    } else attempt.exit = { state: 'observed', code, signal };
++    notifyScope(attempt);
++  });
++  child.once('close', () => {
++    attempt.closed = true;
++    notifyScope(attempt);
++  });
++  child.stdin.on('error', () => {
++    markUnknown(attempt);
++  });
++  for (const [stream, pipe] of [
++    [child.stdout, 'output'],
++    [child.stderr, 'errors'],
++  ] as const)
++    stream.on('error', () => {
++      attempt[pipe] = 'read-failed';
++      markUnknown(attempt);
++    });
++  child.stdin.once('finish', () => {
++    attempt.inputFinished = true;
++    notifyScope(attempt);
++  });
++  child.stdin.once('close', () => {
++    attempt.inputClosed = true;
++    notifyScope(attempt);
++  });
++  const started = new Set<Readable>();
++  async function drain(
++    stream: Readable,
++    pipe: 'output' | 'errors',
++    consume: (chunk: Buffer) => void,
++  ): Promise<void> {
++    if (started.has(stream)) throw new Error('original authority pipe drain already started');
++    started.add(stream);
++    try {
++      for await (const chunk of stream) {
++        if (!Buffer.isBuffer(chunk)) throw new Error('original authority pipe emitted nonbytes');
++        consume(chunk);
++      }
++      if (!stream.readableEnded) throw new Error('original authority pipe ended without EOF');
++      if (attempt[pipe] !== 'read-failed') attempt[pipe] = 'eof';
++      notifyScope(attempt);
++    } catch (cause) {
++      attempt[pipe] = 'read-failed';
++      markUnknown(attempt);
++      throw cause;
++    }
++  }
++  const retainTask = (task: Promise<void>) => {
++    attempt.tasks.add(task);
++    return task;
++  };
++  return {
++    drainOutput: (consume) => retainTask(drain(child.stdout, 'output', consume)),
++    drainErrors: (consume) => retainTask(drain(child.stderr, 'errors', consume)),
++    writeInput(bytes) {
++      attempt.pendingWrites++;
++      return retainTask(
++        new Promise<void>((resolve, reject) => {
++          let callbackComplete = false;
++          let drained = false;
++          let settled = false;
++          const settleWrite = () => {
++            if (callbackComplete && drained && !settled) {
++              settled = true;
++              attempt.pendingWrites--;
++              notifyScope(attempt);
++              resolve();
++            }
++          };
++          try {
++            const accepted = child.stdin.write(bytes, (cause) => {
++              if (cause !== null && cause !== undefined) {
++                markUnknown(attempt);
++                reject(cause);
++              }
++              callbackComplete = true;
++              settleWrite();
++            });
++            if (accepted) {
++              drained = true;
++              settleWrite();
++            } else
++              child.stdin.once('drain', () => {
++                drained = true;
++                settleWrite();
++              });
++          } catch (cause) {
++            markUnknown(attempt);
++            reject(
++              cause instanceof Error
++                ? cause
++                : new Error('original authority write failed', { cause }),
++            );
++          }
++        }),
++      );
++    },
++    endInput() {
++      child.stdin.end();
++    },
++    observeTerminal(phase) {
++      if (
++        phase['nonce'] !== attempt.nonce ||
++        !['complete', 'refused'].includes(String(phase['phase'])) ||
++        phase['cleanup'] !== 'complete'
++      )
++        markUnknown(attempt);
++      else attempt.remoteClosed = true;
++      notifyScope(attempt);
++    },
++    invalidateProtocol: () => {
++      markUnknown(attempt);
++    },
++    isUnknown: () => !isAttemptClosed(attempt),
++  };
++}
++
++function isAttemptClosed(attempt: Attempt): boolean {
++  return (
++    attempt.noChild ||
++    (!attempt.unknown &&
++      attempt.exit.state === 'observed' &&
++      attempt.closed &&
++      attempt.output === 'eof' &&
++      attempt.errors === 'eof' &&
++      attempt.inputFinished &&
++      attempt.inputClosed &&
++      attempt.pendingWrites === 0 &&
++      attempt.remoteClosed)
++  );
++}
++
++/** Seals dispatch and holds the original invocation until every actual resource is known.
++ * Unknown is sticky. A referenced passive keeper retains an otherwise idle HOLD; there is
++ * deliberately no reset, discharge, timeout or resume API. This does not extend work deadlines.
++ */
++export async function closeOriginal(scope: DependencyOperationCustody): Promise<void> {
++  const retained = readScope(scope);
++  retained.closing = true;
++  const isClosed = () => [...retained.attempts].every(isAttemptClosed);
++  if (isClosed()) return;
++  const keeper = setInterval(() => undefined, 60000);
++  try {
++    await new Promise<void>((resolve) => {
++      const inspect = () => {
++        if (!isClosed()) return;
++        retained.changed.delete(inspect);
++        resolve();
++      };
++      retained.changed.add(inspect);
++      inspect();
++    });
++  } finally {
++    clearInterval(keeper);
++  }
++}
+diff --git a/tools/tool-remote-scripts/src/lib/installed-authority-supervision.test.ts b/tools/tool-remote-scripts/src/lib/installed-authority-supervision.test.ts
+index f7bb69525eda42a7d168fb87870ed639948039de..c95318617748666797aa4459769f0a166d974a53 100644
+--- a/tools/tool-remote-scripts/src/lib/installed-authority-supervision.test.ts
++++ b/tools/tool-remote-scripts/src/lib/installed-authority-supervision.test.ts
+@@ -1,10 +1,11 @@
+ import { rejects } from 'node:assert/strict';
+ import { spawn } from 'node:child_process';
++import { createHash } from 'node:crypto';
+ import { existsSync } from 'node:fs';
+ import { readFile, writeFile } from 'node:fs/promises';
+ 
+ import { scratchSync } from '@tools/test-scratch';
+-import { expect, spyOn, test } from 'bun:test';
++import { afterAll, expect, spyOn, test } from 'bun:test';
+ 
+ import { AUTHORITY_COLLECTOR } from './installed-authority-collector';
+ import {
+@@ -1012,3 +1013,694 @@ def fixture_worker(request,host):return {'observed':'fresh'}
+     clock.mockRestore();
+   }
+ });
++
++interface AuthorityFixtureCase {
++  key: string;
++  name: string;
++  expectedFailure?: string;
++}
++
++const STRUCTURAL_RUNTIME_PIN = 'PHASE1_UNREVIEWED_NO_RUNTIME_AUTHORIZATION';
++const PREPARATION_DIRECTORY =
++  '/tmp/puni-original-custody-structural-preparation-20261101/phase1-v2';
++
++async function readAuthorityPreparation(scenario: string, inputs: unknown) {
++  if (!/^[a-f0-9]{64}$/.test(STRUCTURAL_RUNTIME_PIN))
++    throw new Error('reviewed structural runtime pin is absent');
++  const pinBytes = await readFile(PREPARATION_DIRECTORY + '/runtime-authorization.json');
++  if (createHash('sha256').update(pinBytes).digest('hex') !== STRUCTURAL_RUNTIME_PIN)
++    throw new Error('structural runtime authorization bytes differ');
++  const decoded: unknown = JSON.parse(pinBytes.toString('utf8'));
++  const pin = readClosed(decoded, [
++    'version',
++    'bundleSha256',
++    'driverSha256',
++    'programsSha256',
++    'exports',
++  ]);
++  if (
++    pin['version'] !== 1 ||
++    !Array.isArray(pin['exports']) ||
++    !pin['exports'].every((member) => typeof member === 'string')
++  )
++    throw new Error('structural runtime authorization shape differs');
++  const readPinned = async (name: string, expected: unknown) => {
++    if (typeof expected !== 'string' || !/^[a-f0-9]{64}$/.test(expected))
++      throw new Error('structural artifact pin malformed');
++    const bytes = await readFile(PREPARATION_DIRECTORY + '/' + name);
++    if (createHash('sha256').update(bytes).digest('hex') !== expected)
++      throw new Error('structural artifact bytes differ');
++    return bytes;
++  };
++  await readPinned('candidate.mjs', pin['bundleSha256']);
++  const driver = await readPinned('driver-template.mjs', pin['driverSha256']);
++  const programBytes = await readPinned('programs.json', pin['programsSha256']);
++  const programs: unknown = JSON.parse(programBytes.toString('utf8'));
++  if (
++    typeof programs !== 'object' ||
++    programs === null ||
++    Array.isArray(programs) ||
++    !(scenario in programs)
++  )
++    throw new Error('reviewed fixture scenario missing');
++  const program: unknown = Reflect.get(programs, scenario);
++  if (typeof program !== 'string') throw new Error('reviewed fixture program malformed');
++  const programSha256 = createHash('sha256').update(program).digest('hex');
++  const configuration = {
++    scenario,
++    inputs,
++    program,
++    programSha256,
++    bundleSha256: pin['bundleSha256'],
++    exports: pin['exports'],
++  };
++  return {
++    driver:
++      'const fixtureConfiguration=' +
++      JSON.stringify(configuration) +
++      ';\n' +
++      driver.toString('utf8'),
++    programSha256,
++    executable:
++      scenario === 'async-spawn' ? '/nonexistent/owned-original-executable' : '/usr/bin/python3',
++    argumentsSha256: createHash('sha256')
++      .update(JSON.stringify(scenario === 'async-spawn' ? [] : ['-I', '-c', program]))
++      .digest('hex'),
++  };
++}
++
++const authorityFixtureCases: readonly AuthorityFixtureCase[] = [
++  {
++    key: 'uninstalled',
++    name: 'owned original compiled bridge refuses uninstalled dispatch',
++  },
++  {
++    key: 'binding-trap',
++    name: 'owned original fixture rejects production dispatch through the imported spawn binding',
++  },
++  {
++    key: 'guards',
++    name: 'owned original factory refuses expired and nonfinite deadlines before dispatch',
++  },
++  {
++    key: 'synchronous-spawn',
++    name: 'owned original synchronous factory spawn failure preserves the original refusal',
++  },
++  {
++    key: 'positive',
++    name: 'owned original factory retains all request fields and joins actual child resources',
++  },
++  {
++    key: 'refused',
++    name: 'owned original actual refused terminal permits only settled failure unwind',
++  },
++  {
++    key: 'late-callback',
++    name: 'owned original late actual control callback permits only the original failure unwind',
++  },
++  {
++    key: 'late-deadline',
++    name: 'owned original deadline refusal unwinds after genuine terminal and late local settlement',
++  },
++  {
++    key: 'registry',
++    name: 'owned original actual terminal cannot substitute for independently retained exit and pipe EOF',
++  },
++  {
++    key: 'driver-setup',
++    name: 'owned original fixture retires after injected setup failure',
++    expectedFailure: 'injected-owner-setup-failure',
++  },
++  {
++    key: 'driver-assertion',
++    name: 'owned original fixture retires after injected assertion failure',
++    expectedFailure: 'injected-after-observation-assertion',
++  },
++  {
++    key: 'driver-classification',
++    name: 'owned original fixture retires after wrong original classification',
++    expectedFailure: 'require-unknown-classification',
++  },
++  {
++    key: 'seal-launch',
++    name: 'owned original fixture seals paused body before raw launch',
++    expectedFailure: 'owner-selftest-stop',
++  },
++  {
++    key: 'seal-write',
++    name: 'owned original fixture refuses physical input after seal',
++    expectedFailure: 'owner-selftest-write-stop',
++  },
++  {
++    key: 'stdout',
++    name: 'owned original unknown retains original resources after stdout',
++  },
++  {
++    key: 'stderr',
++    name: 'owned original unknown retains original resources after stderr',
++  },
++  {
++    key: 'exit',
++    name: 'owned original unknown retains original resources after exit',
++  },
++  {
++    key: 'suffix',
++    name: 'owned original unknown retains original resources after suffix',
++  },
++  {
++    key: 'nonce',
++    name: 'owned original unknown retains original resources after nonce',
++  },
++  {
++    key: 'cleanup',
++    name: 'owned original unknown retains original resources after cleanup',
++  },
++  {
++    key: 'serialization',
++    name: 'owned original unknown retains original resources after serialization',
++  },
++  {
++    key: 'first-write',
++    name: 'owned original unknown retains original resources after first-write',
++  },
++  {
++    key: 'control-callback',
++    name: 'owned original unknown retains original resources after control-callback',
++  },
++  {
++    key: 'first-callback',
++    name: 'owned original unknown retains original resources after first-callback',
++  },
++  {
++    key: 'async-spawn',
++    name: 'owned original unknown retains original resources after async-spawn',
++  },
++];
++
++const authorityFixtureOwners = new Set<Promise<void>>();
++
++afterAll(async () => {
++  await Promise.all(authorityFixtureOwners);
++});
++
++/** Runs only the fixed Bun driver. No original factory executes in the test runner.
++ * The parent retains independent outer exit/error/EOF/input/close observations before
++ * parsing or asserting. It sends retirement only after an attributable fixture ACK.
++ * Failure to obtain actual closure within the authored bounds enters visible HOLD;
++ * it never kills an unacknowledged driver or treats a timeout as successful cleanup.
++ */
++async function runAuthorityFixture(scenario: AuthorityFixtureCase): Promise<void> {
++  const inputs = {
++    ...(await request()),
++    databases: [
++      { family: 'prod', path: '/fixture/prod.sqlite' },
++      { family: 'dev', path: '/fixture/dev.sqlite' },
++    ],
++  };
++  const prepared = await readAuthorityPreparation(scenario.key, inputs);
++  const outer = spawn(process.execPath, ['-e', prepared.driver], {
++    stdio: ['pipe', 'pipe', 'pipe'],
++  });
++  let releaseOwner: () => void = () => {
++    throw new Error('outer fixture owner missing');
++  };
++  const ownership = new Promise<void>((resolve) => {
++    releaseOwner = resolve;
++  });
++  authorityFixtureOwners.add(ownership);
++  const facts: {
++    pid: number | undefined;
++    exit: { code: number | null; signal: NodeJS.Signals | null } | undefined;
++    errors: string[];
++    closed: boolean;
++    stdoutEof: boolean;
++    stderrEof: boolean;
++    inputFinished: boolean;
++    inputClosed: boolean;
++  } = {
++    pid: outer.pid,
++    exit: undefined,
++    errors: [],
++    closed: false,
++    stdoutEof: false,
++    stderrEof: false,
++    inputFinished: false,
++    inputClosed: false,
++  };
++  const exited = new Promise<void>((resolve) => {
++    outer.on('exit', (code, signal) => {
++      facts.exit = { code, signal };
++      resolve();
++    });
++  });
++  const closed = new Promise<void>((resolve) => {
++    outer.on('close', () => {
++      facts.closed = true;
++      resolve();
++    });
++  });
++  outer.on('error', (cause) => {
++    facts.errors.push(cause.name);
++  });
++  outer.stdin.on('error', (cause) => {
++    facts.errors.push(cause.name);
++  });
++  outer.stdin.on('finish', () => {
++    facts.inputFinished = true;
++  });
++  outer.stdin.on('close', () => {
++    facts.inputClosed = true;
++  });
++  let retire: (frame: Record<string, unknown>) => void = () => {
++    throw new Error('fixture ACK observer missing');
++  };
++  const retired = new Promise<Record<string, unknown>>((resolve) => {
++    retire = resolve;
++  });
++  let parentFailure: unknown;
++  let finalDriverFrame: Record<string, unknown> | undefined;
++  const observed = { bindingTrapped: false, driverRetiring: false };
++  let stderrBytes = 0;
++  const stdout = (async () => {
++    let buffered = '';
++    let bytes = 0;
++    for await (const chunk of outer.stdout) {
++      if (!Buffer.isBuffer(chunk)) throw new Error('fixture driver emitted nonbytes');
++      bytes += chunk.length;
++      if (bytes > 131072) {
++        parentFailure = new Error('fixture driver output bound');
++        continue;
++      }
++      buffered += chunk.toString('utf8');
++      for (;;) {
++        const newline = buffered.indexOf('\n');
++        if (newline < 0) break;
++        const line = buffered.slice(0, newline);
++        buffered = buffered.slice(newline + 1);
++        try {
++          const decoded: unknown = JSON.parse(line);
++          if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded))
++            throw new Error('fixture frame malformed');
++          const frame = readClosed(decoded, [
++            'version',
++            'phase',
++            'scenario',
++            'driverPid',
++            'programSha256',
++            'dispatches',
++            'child',
++            'failure',
++            'unexpectedFailures',
++            'expectedStop',
++            'productionOutcome',
++            'sealWitness',
++            'productionCloseReturned',
++            'retirementRequested',
++            'fixtureLaunches',
++            'ownerSealed',
++            'bodySettled',
++            'effectTasks',
++            'uninstalledDenied',
++            'deadline',
++            'fixtureSpawnThrow',
++          ]);
++          if (frame['version'] !== 2) throw new Error('fixture ACK version differs');
++          if (frame['scenario'] !== scenario.key || frame['driverPid'] !== outer.pid)
++            throw new Error('fixture frame attribution differs');
++          if (
++            !Array.isArray(frame['unexpectedFailures']) ||
++            frame['unexpectedFailures'].length !== 0 ||
++            frame['failure'] !== null
++          )
++            parentFailure = new Error('unexpected fixture harness failure');
++          if (frame['phase'] === 'binding-trapped') observed.bindingTrapped = true;
++          else if (frame['phase'] === 'fixture-retired') retire(frame);
++          else if (frame['phase'] === 'driver-retiring') {
++            observed.driverRetiring = true;
++            finalDriverFrame = frame;
++          } else if (frame['phase'] === 'fixture-unknown')
++            parentFailure = new Error('fixture original resources remain unknown');
++          else throw new Error('fixture phase differs');
++        } catch (cause) {
++          parentFailure = cause;
++        }
++      }
++    }
++    facts.stdoutEof = outer.stdout.readableEnded;
++    if (buffered !== '') parentFailure = new Error('fixture driver partial frame');
++  })().catch((cause: unknown) => {
++    parentFailure = cause;
++  });
++  const stderr = (async () => {
++    for await (const chunk of outer.stderr) {
++      if (!Buffer.isBuffer(chunk)) throw new Error('fixture driver emitted nonbyte stderr');
++      stderrBytes += chunk.length;
++    }
++    facts.stderrEof = outer.stderr.readableEnded;
++  })().catch((cause: unknown) => {
++    parentFailure = cause;
++  });
++  const wait = async <T>(promise: Promise<T>, milliseconds: number): Promise<T> => {
++    let timer: ReturnType<typeof setTimeout> | undefined;
++    try {
++      return await Promise.race([
++        promise,
++        new Promise<never>((_resolve, reject) => {
++          timer = setTimeout(() => {
++            reject(new Error('fixture observation bound'));
++          }, milliseconds);
++        }),
++      ]);
++    } finally {
++      clearTimeout(timer);
++    }
++  };
++  const send = (command: 'abort' | 'retire'): Promise<void> =>
++    new Promise((resolve, reject) => {
++      let callback = false;
++      let drained = false;
++      let finished = false;
++      const complete = () => {
++        if (callback && drained && !finished) {
++          finished = true;
++          resolve();
++        }
++      };
++      const accepted = outer.stdin.write(command + '\n', (cause) => {
++        if (cause) {
++          reject(cause);
++          return;
++        }
++        callback = true;
++        complete();
++      });
++      if (accepted) {
++        drained = true;
++        complete();
++      } else
++        outer.stdin.once('drain', () => {
++          drained = true;
++          complete();
++        });
++    });
++  const hold = async (reason: string): Promise<never> => {
++    console.error(
++      JSON.stringify({
++        fixture: 'owned-original-HOLD',
++        scenario: scenario.key,
++        reason,
++        outer: facts,
++      }),
++    );
++    setInterval(() => undefined, 60000);
++    return await new Promise<never>(() => undefined);
++  };
++  let frame: Record<string, unknown> | undefined;
++  try {
++    try {
++      frame = await wait(retired, 10000);
++    } catch (cause) {
++      parentFailure = cause;
++      try {
++        await wait(send('abort'), 500);
++      } catch (controlCause) {
++        parentFailure = controlCause;
++      }
++      try {
++        frame = await wait(retired, 3000);
++      } catch {
++        await hold('missing-attributable-fixture-teardown');
++      }
++    }
++  } finally {
++    const acknowledged = frame ?? (await hold('fixture-ACK-unavailable'));
++    const expectedProgram = prepared.programSha256;
++    if (acknowledged['programSha256'] !== expectedProgram)
++      await hold('fixture-program-attribution-differs');
++    if (!observed.bindingTrapped && scenario.key !== 'uninstalled')
++      parentFailure = new Error('imported binding trap was not observed');
++    if (
++      acknowledged['bodySettled'] !== true ||
++      acknowledged['effectTasks'] !== 0 ||
++      acknowledged['ownerSealed'] !== true
++    )
++      await hold('original-driver-body-or-effect-work-unsettled');
++    const dispatches = acknowledged['dispatches'];
++    const direct = ['registry', 'driver-setup', 'seal-launch', 'seal-write'].includes(scenario.key);
++    const noFixture = [
++      'uninstalled',
++      'binding-trap',
++      'guards',
++      'synchronous-spawn',
++      'seal-launch',
++    ].includes(scenario.key);
++    const expectedDispatches =
++      scenario.key === 'uninstalled'
++        ? 0
++        : scenario.key === 'binding-trap' || scenario.key === 'guards' || direct
++          ? 1
++          : 2;
++    if (
++      !Array.isArray(dispatches) ||
++      dispatches.length !== expectedDispatches ||
++      acknowledged['fixtureLaunches'] !== (noFixture ? 0 : 1)
++    )
++      parentFailure = new Error('case-specific dispatch or fixture count differs');
++    if (scenario.key === 'uninstalled' && acknowledged['uninstalledDenied'] !== true)
++      parentFailure = new Error('uninstalled default deny was not observed');
++    const expectedPhases =
++      scenario.key === 'uninstalled'
++        ? []
++        : scenario.key === 'synchronous-spawn'
++          ? ['trap', 'spawn-throw']
++          : expectedDispatches === 1
++            ? ['trap']
++            : ['trap', 'fixture'];
++    if (
++      Array.isArray(dispatches) &&
++      dispatches.some(
++        (dispatch: unknown, index: number) =>
++          typeof dispatch !== 'object' ||
++          dispatch === null ||
++          Array.isArray(dispatch) ||
++          Object.keys(dispatch).sort().join(',') !== 'phase,shapeMatches' ||
++          !('phase' in dispatch) ||
++          dispatch.phase !== expectedPhases[index] ||
++          !('shapeMatches' in dispatch) ||
++          dispatch.shapeMatches !== true,
++      )
++    )
++      parentFailure = new Error('closed dispatch record shape or phase differs');
++    const actualLaunches = acknowledged['fixtureLaunches'];
++    if (
++      typeof actualLaunches !== 'number' ||
++      !Number.isInteger(actualLaunches) ||
++      actualLaunches < 0 ||
++      actualLaunches > 1 ||
++      (actualLaunches === 0) !== (acknowledged['child'] === null)
++    )
++      await hold('actual-fixture-owner-budget-or-child-association-differs');
++    const child = acknowledged['child'];
++    if (child !== null) {
++      if (typeof child !== 'object' || Array.isArray(child))
++        await hold('fixture-child-facts-malformed');
++      const retained = child as Record<string, unknown>;
++      const pipeClosed = (name: string) => {
++        const pipe = retained[name];
++        return (
++          typeof pipe === 'object' && pipe !== null && 'closed' in pipe && pipe.closed === true
++        );
++      };
++      const input = retained['stdin'];
++      const callbacksKnown =
++        typeof input === 'object' &&
++        input !== null &&
++        'callbacks' in input &&
++        'writes' in input &&
++        input.callbacks === input.writes;
++      const actualExit = retained['exit'];
++      const actualExitKnown =
++        typeof actualExit === 'object' &&
++        actualExit !== null &&
++        (('code' in actualExit && typeof actualExit.code === 'number') ||
++          ('signal' in actualExit && typeof actualExit.signal === 'string'));
++      if (retained['programSha256'] !== expectedProgram)
++        await hold('fixture-child-program-attribution-differs');
++      const errors = retained['errors'];
++      const error =
++        Array.isArray(errors) && errors.length === 1 ? (errors[0] as unknown) : undefined;
++      const exactSpawnError =
++        typeof error === 'object' &&
++        error !== null &&
++        !Array.isArray(error) &&
++        Object.keys(error).sort().join(',') ===
++          'argumentCount,argumentsSha256,code,name,path,syscall' &&
++        'name' in error &&
++        error.name === 'Error' &&
++        'code' in error &&
++        error.code === 'ENOENT' &&
++        'path' in error &&
++        error.path === prepared.executable &&
++        'syscall' in error &&
++        error.syscall === 'spawn ' + prepared.executable &&
++        'argumentCount' in error &&
++        error.argumentCount === (scenario.key === 'async-spawn' ? 0 : 3) &&
++        'argumentsSha256' in error &&
++        error.argumentsSha256 === prepared.argumentsSha256;
++      const failedLaunch =
++        retained['pid'] === null &&
++        retained['spawned'] === false &&
++        retained['exit'] === null &&
++        exactSpawnError;
++      if (retained['executable'] !== prepared.executable)
++        await hold('fixture-executable-attribution-differs');
++      const failedIo = (name: string) => {
++        const pipe = retained[name];
++        return (
++          typeof pipe === 'object' &&
++          pipe !== null &&
++          'closed' in pipe &&
++          pipe.closed === true &&
++          'bytes' in pipe &&
++          pipe.bytes === 0 &&
++          'errors' in pipe &&
++          Array.isArray(pipe.errors) &&
++          pipe.errors.length === 0
++        );
++      };
++      if (scenario.key === 'async-spawn') {
++        if (
++          !failedLaunch ||
++          !failedIo('stdout') ||
++          !failedIo('stderr') ||
++          typeof input !== 'object' ||
++          input === null ||
++          !('writes' in input) ||
++          input.writes !== 0 ||
++          !('callbacks' in input) ||
++          input.callbacks !== 0
++        )
++          parentFailure = new Error('expected ENOENT failed-launch witness differs');
++      } else if (failedLaunch) parentFailure = new Error('unexpected fixture launch failure');
++
++      if (
++        (!actualExitKnown && !failedLaunch) ||
++        retained['closed'] !== true ||
++        !pipeClosed('stdout') ||
++        !pipeClosed('stderr') ||
++        !pipeClosed('stdin') ||
++        !callbacksKnown
++      )
++        await hold('fixture-ACK-lacks-actual-closure');
++    }
++    if (scenario.key === 'seal-launch' || scenario.key === 'seal-write') {
++      const witness = acknowledged['sealWitness'];
++      const expectedLaunches = scenario.key === 'seal-launch' ? 0 : 1;
++      const validWitness =
++        typeof witness === 'object' &&
++        witness !== null &&
++        !Array.isArray(witness) &&
++        Object.keys(witness).sort().join(',') ===
++          'ackBeforeBodySettled,afterLaunches,afterWrites,beforeLaunches,beforeWrites,kind,refused' &&
++        'kind' in witness &&
++        witness.kind === (scenario.key === 'seal-launch' ? 'launch' : 'write') &&
++        'beforeLaunches' in witness &&
++        witness.beforeLaunches === expectedLaunches &&
++        'afterLaunches' in witness &&
++        witness.afterLaunches === expectedLaunches &&
++        'beforeWrites' in witness &&
++        witness.beforeWrites === 0 &&
++        'afterWrites' in witness &&
++        witness.afterWrites === 0 &&
++        'refused' in witness &&
++        witness.refused === true &&
++        'ackBeforeBodySettled' in witness &&
++        witness.ackBeforeBodySettled === false;
++      if (!validWitness)
++        parentFailure = new Error('post-seal actual launch/write refusal witness differs');
++      if (
++        scenario.key === 'seal-write' &&
++        typeof child === 'object' &&
++        child !== null &&
++        'stdin' in child
++      ) {
++        const input = child.stdin;
++        if (
++          typeof input !== 'object' ||
++          input === null ||
++          !('writes' in input) ||
++          input.writes !== 0 ||
++          !('refusedAfterSeal' in input) ||
++          input.refusedAfterSeal !== 1
++        )
++          parentFailure = new Error('post-seal physical write count differs');
++      }
++    }
++    await wait(send('retire'), 500).catch(async () => {
++      await hold('retirement-control-unobserved');
++    });
++    outer.stdin.end();
++    await wait(Promise.all([exited, closed, stdout, stderr]), 3000).catch(async () => {
++      await hold('outer-resource-settlement-unavailable');
++    });
++    if (
++      !facts.stdoutEof ||
++      !facts.stderrEof ||
++      !facts.inputClosed ||
++      !facts.inputFinished ||
++      !observed.driverRetiring ||
++      facts.exit === undefined ||
++      (facts.exit.code === null && facts.exit.signal === null)
++    )
++      await hold('outer-resource-facts-incomplete');
++    console.log(
++      JSON.stringify({
++        fixture: 'owned-original-retired',
++        scenario: scenario.key,
++        outer: facts,
++        fixtureChild: acknowledged['child'],
++        productionCloseReturned: acknowledged['productionCloseReturned'],
++        failure: acknowledged['failure'],
++        unexpectedFailures: finalDriverFrame?.['unexpectedFailures'],
++        expectedStop: finalDriverFrame?.['expectedStop'],
++        productionOutcome: acknowledged['productionOutcome'],
++        sealWitness: acknowledged['sealWitness'],
++      }),
++    );
++    if (facts.errors.length > 0) parentFailure = new Error('outer fixture emitted an error');
++    releaseOwner();
++    authorityFixtureOwners.delete(ownership);
++  }
++  if (parentFailure !== undefined)
++    throw parentFailure instanceof Error
++      ? parentFailure
++      : new Error('fixture driver failed', { cause: parentFailure });
++  const acknowledged = frame ?? (await hold('completed-fixture-ACK-unavailable'));
++  expect(stderrBytes).toBe(0);
++  const final = finalDriverFrame ?? (await hold('final-driver-frame-missing'));
++  expect(acknowledged['unexpectedFailures']).toEqual([]);
++  expect(final['unexpectedFailures']).toEqual([]);
++  expect(acknowledged['failure']).toBeNull();
++  expect(final['failure']).toBeNull();
++  if (scenario.expectedFailure === undefined) {
++    expect(acknowledged['expectedStop']).toBeNull();
++    expect(final['expectedStop']).toBeNull();
++    expect(facts.exit?.code).toBe(0);
++  } else {
++    const expected = readClosed(final['expectedStop'], ['kind', 'check', 'name']);
++    expect(expected['kind']).toBe('expected-stop');
++    expect(expected['check']).toBe(scenario.expectedFailure);
++    expect(acknowledged['expectedStop']).toEqual(final['expectedStop']);
++    expect(facts.exit?.code).toBe(1);
++  }
++}
++
++for (const scenario of authorityFixtureCases) {
++  test(
++    scenario.name,
++    async () => {
++      await runAuthorityFixture(scenario);
++    },
++    30000,
++  );
++}
+diff --git a/tools/tool-remote-scripts/src/lib/installed-authority-supervision.ts b/tools/tool-remote-scripts/src/lib/installed-authority-supervision.ts
+index c2bad74ca2eef529a68ce4add82be568ea1513ab..c27d085224a31b3988f9c14bf42aaf61b6fb3235 100644
+--- a/tools/tool-remote-scripts/src/lib/installed-authority-supervision.ts
++++ b/tools/tool-remote-scripts/src/lib/installed-authority-supervision.ts
+@@ -1,6 +1,14 @@
+ import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+ import { spawn } from 'node:child_process';
+ 
++import {
++  type AuthorityOperationCustody,
++  type DependencyOperationCustody,
++  reserveAuthorityOperation,
++  retainAuthorityChild,
++  settleAuthoritySpawnThrow,
++} from './dependency-operation-custody';
++import type { InstalledAuthorityPorts } from './installed-authorities';
+ import { AUTHORITY_COLLECTOR } from './installed-authority-collector';
+ import { AUTHORITY_SUPERVISOR } from './installed-authority-supervisor';
+ import { readClosed, readString } from './managed-cohort';
+@@ -30,8 +38,42 @@ export async function joinAuthoritySupervisor(
+   signal?: AbortSignal,
+   options?: Readonly<{ initialEnvelope: 'bounded' }>,
+ ): Promise<string> {
+-  const strict = options?.initialEnvelope === 'bounded';
++  return joinAuthorityCore(
++    child,
++    request,
++    nonce,
++    deadline,
++    signal,
++    options?.initialEnvelope === 'bounded' ? { kind: 'bounded' } : { kind: 'legacy' },
++  );
++}
++
++type JoinMode =
++  | { kind: 'legacy' }
++  | { kind: 'bounded' }
++  | { kind: 'owned'; reservation: AuthorityOperationCustody };
++async function joinAuthorityCore(
++  child: ChildProcessWithoutNullStreams,
++  request: unknown,
++  nonce: string,
++  deadline: number,
++  signal: AbortSignal | undefined,
++  mode: JoinMode,
++): Promise<string> {
++  const strict = mode.kind !== 'legacy';
++  const custody = mode.kind === 'owned' ? retainAuthorityChild(mode.reservation, child) : undefined;
++  const writeInput = (bytes: string | Buffer) => {
++    if (custody === undefined) child.stdin.write(bytes);
++    else
++      void custody.writeInput(bytes).catch(() => {
++        session.malformed = true;
++        cancellationRequested = true;
++        custody.endInput();
++      });
++  };
+   let transmitted = false;
++  let admitted = custody === undefined;
++  let pendingReady: (() => void) | undefined;
+   const session: {
+     ready: boolean;
+     terminal: Record<string, unknown> | undefined;
+@@ -65,7 +107,7 @@ export async function joinAuthoritySupervisor(
+       !child.stdin.destroyed &&
+       child.stdin.writable
+     )
+-      child.stdin.write(`${kind} ${nonce}\n`);
++      writeInput(`${kind} ${nonce}\n`);
+   };
+   child.stdin.on('error', () => {
+     session.malformed = true;
+@@ -74,47 +116,47 @@ export async function joinAuthoritySupervisor(
+     cancellationRequested = true;
+     if (session.ready) send('cancel');
+   };
+-  async function drainOutput(): Promise<void> {
+-    for await (const chunk of child.stdout) {
+-      if (!Buffer.isBuffer(chunk)) throw new Error('authority supervisor emitted nonbyte output');
+-      count += chunk.length;
+-      if (count > 32 * 1024 * 1024) {
+-        session.malformed = true;
+-        send('cancel');
+-        continue;
+-      }
+-      buffered += chunk.toString('utf8');
+-      for (;;) {
+-        const newline = buffered.indexOf('\n');
+-        if (newline < 0) break;
+-        const line = buffered.slice(0, newline);
+-        buffered = buffered.slice(newline + 1);
+-        try {
+-          const decoded: unknown = JSON.parse(line);
+-          const phase = readClosed(
+-            decoded,
+-            session.ready
+-              ? [
+-                  'phase',
+-                  'nonce',
+-                  'cleanup',
+-                  ...(typeof decoded === 'object' && decoded !== null && 'observation' in decoded
+-                    ? ['observation']
+-                    : []),
+-                ]
+-              : ['phase', 'nonce', 'monotonic'],
+-          );
+-          if (phase['nonce'] !== nonce || session.terminal !== undefined)
+-            throw new Error('authority supervisor response differs');
+-          if (!session.ready) {
+-            if (strict && !transmitted)
+-              throw new Error('authority acknowledgement preceded request');
+-            if (phase['phase'] !== 'ready')
+-              throw new Error('authority supervisor acknowledgement missing');
+-            const monotonic = phase['monotonic'];
+-            if (typeof monotonic !== 'number' || !Number.isFinite(monotonic) || monotonic <= 0)
+-              throw new Error('authority supervisor clock malformed');
+-            session.ready = true;
++  function consumeOutput(chunk: Buffer): void {
++    if (!Buffer.isBuffer(chunk)) throw new Error('authority supervisor emitted nonbyte output');
++    count += chunk.length;
++    if (count > 32 * 1024 * 1024) {
++      custody?.invalidateProtocol();
++      session.malformed = true;
++      send('cancel');
++      return;
++    }
++    buffered += chunk.toString('utf8');
++    for (;;) {
++      const newline = buffered.indexOf('\n');
++      if (newline < 0) break;
++      const line = buffered.slice(0, newline);
++      buffered = buffered.slice(newline + 1);
++      try {
++        const decoded: unknown = JSON.parse(line);
++        const phase = readClosed(
++          decoded,
++          session.ready
++            ? [
++                'phase',
++                'nonce',
++                'cleanup',
++                ...(typeof decoded === 'object' && decoded !== null && 'observation' in decoded
++                  ? ['observation']
++                  : []),
++              ]
++            : ['phase', 'nonce', 'monotonic'],
++        );
++        if (phase['nonce'] !== nonce || session.terminal !== undefined)
++          throw new Error('authority supervisor response differs');
++        if (!session.ready) {
++          if (strict && !transmitted) throw new Error('authority acknowledgement preceded request');
++          if (phase['phase'] !== 'ready')
++            throw new Error('authority supervisor acknowledgement missing');
++          const monotonic = phase['monotonic'];
++          if (typeof monotonic !== 'number' || !Number.isFinite(monotonic) || monotonic <= 0)
++            throw new Error('authority supervisor clock malformed');
++          session.ready = true;
++          const startReady = () => {
+             if (strict && (signal?.aborted === true || deadline - performance.now() <= 0))
+               cancellationRequested = true;
+             if (cancellationRequested) send('cancel');
+@@ -128,12 +170,12 @@ export async function joinAuthoritySupervisor(
+                 cancellationRequested = true;
+                 send('cancel');
+               } else {
+-                child.stdin.write(
++                writeInput(
+                   'start ' + nonce + ' ' + String(monotonic + startRemaining / 1000) + '\n',
+                 );
+               }
+             } else {
+-              child.stdin.write(
++              writeInput(
+                 'start ' +
+                   nonce +
+                   ' ' +
+@@ -142,19 +184,38 @@ export async function joinAuthoritySupervisor(
+               );
+             }
+             if (!strict || !cancellationRequested) send('ping');
+-          } else {
+-            if (!['complete', 'refused'].includes(readString(phase['phase'])))
+-              throw new Error('authority supervisor terminal malformed');
+-            session.terminal = phase;
+-          }
+-        } catch {
+-          session.malformed = true;
+-          send('cancel');
++          };
++          if (admitted) startReady();
++          else pendingReady = startReady;
++        } else {
++          if (!['complete', 'refused'].includes(readString(phase['phase'])))
++            throw new Error('authority supervisor terminal malformed');
++          session.terminal = phase;
++          custody?.observeTerminal(phase);
++          custody?.endInput();
+         }
++      } catch {
++        custody?.invalidateProtocol();
++        session.malformed = true;
++        send('cancel');
+       }
+     }
+   }
++  async function drainOutput(): Promise<void> {
++    if (custody !== undefined) return custody.drainOutput(consumeOutput);
++    for await (const chunk of child.stdout) {
++      if (!Buffer.isBuffer(chunk)) throw new Error('authority supervisor emitted nonbyte output');
++      consumeOutput(chunk);
++    }
++  }
+   async function drainErrors(): Promise<void> {
++    if (custody !== undefined)
++      return custody.drainErrors((chunk) => {
++        if (chunk.length > 0) {
++          session.stderr = true;
++          send('cancel');
++        }
++      });
+     for await (const chunk of child.stderr) {
+       if (!Buffer.isBuffer(chunk) || chunk.length > 0) {
+         session.stderr = true;
+@@ -171,6 +232,28 @@ export async function joinAuthoritySupervisor(
+   const output = strict ? drainOutput().catch(failPipe) : undefined;
+   const errors = strict ? drainErrors().catch(failPipe) : undefined;
+   let remaining = deadline - performance.now();
++  let originalTimer: ReturnType<typeof setTimeout> | undefined;
++  const expired =
++    custody === undefined
++      ? undefined
++      : new Promise<never>((_resolve, reject) => {
++          originalTimer = setTimeout(
++            () => {
++              session.timedOut = true;
++              custody.invalidateProtocol();
++              requestCancellation();
++              custody.endInput();
++              child.kill('SIGKILL');
++              reject(new AuthorityCleanupUnknown());
++            },
++            Math.max(1, remaining),
++          );
++        });
++  // A synchronous prewrite refusal can win before the deadline race is installed.
++  // Observe that timer's rejection too; its sticky custody failure remains retained.
++  void expired?.catch(() => undefined);
++  const beforeDeadline = <T>(observation: Promise<T>): Promise<T> =>
++    expired === undefined ? observation : Promise.race([observation, expired]);
+   if (!strict) {
+     if (child.pid === undefined) {
+       await exited.catch(() => null);
+@@ -186,13 +269,11 @@ export async function joinAuthoritySupervisor(
+       await closed;
+       throw new AuthorityCleanupUnknown();
+     }
+-    child.stdin.write(
+-      JSON.stringify({ request, transport, budgetSeconds: remaining / 1000 }) + '\n',
+-    );
++    writeInput(JSON.stringify({ request, transport, budgetSeconds: remaining / 1000 }) + '\n');
+   } else {
+     try {
+       if (child.pid === undefined) throw new AuthorityCleanupUnknown();
+-      const transport = await observeSolverProcess(child.pid);
++      const transport = await beforeDeadline(observeSolverProcess(child.pid));
+       remaining = deadline - performance.now();
+       if (!Number.isFinite(remaining) || remaining <= 0 || remaining > 120000)
+         throw new Error('strict authority deadline expired before serialization');
+@@ -207,13 +288,21 @@ export async function joinAuthoritySupervisor(
+       if (deadline - performance.now() <= 0)
+         throw new Error('strict authority deadline expired before transmission');
+       transmitted = true;
+-      child.stdin.write(envelope);
++      if (custody === undefined) writeInput(envelope);
++      else {
++        await beforeDeadline(custody.writeInput(envelope));
++        admitted = true;
++        pendingReady?.();
++      }
+     } catch {
+-      child.stdin.end();
++      if (custody === undefined) child.stdin.end();
++      else custody.endInput();
+       await Promise.all([output, errors, exited.catch(() => null)]);
+       await closed;
++      clearTimeout(originalTimer);
+       throw new AuthorityCleanupUnknown();
+     }
++    clearTimeout(originalTimer);
+     remaining = deadline - performance.now();
+   }
+   signal?.addEventListener('abort', requestCancellation, { once: true });
+@@ -227,6 +316,7 @@ export async function joinAuthoritySupervisor(
+   const unknown = setTimeout(
+     () => {
+       session.timedOut = true;
++      custody?.invalidateProtocol();
+       send('cancel');
+       child.kill('SIGKILL');
+     },
+@@ -242,7 +332,9 @@ export async function joinAuthoritySupervisor(
+       }),
+     ]);
+     await closed;
++    if (buffered !== '') custody?.invalidateProtocol();
+     if (
++      custody?.isUnknown() === true ||
+       session.failedRead ||
+       session.timedOut ||
+       session.terminal?.['cleanup'] !== 'complete' ||
+@@ -269,7 +361,7 @@ export async function joinAuthoritySupervisor(
+ }
+ 
+ /** Fixed ephemeral supervisor; only private request/control bytes use stdin. */
+-export async function collectAuthorityHost(request: unknown, deadline: number): Promise<string> {
++function prepareAuthorityHost(request: unknown, deadline: number) {
+   const requestFields = readClosed(request, [
+     'nonce',
+     'writerManifestSha256',
+@@ -294,6 +386,38 @@ export async function collectAuthorityHost(request: unknown, deadline: number):
+       : ['/usr/bin/sudo', '-n', '/usr/bin/python3', '-I', '-c', program];
+   const executable = command.shift();
+   if (executable === undefined) throw new Error('fixed authority executable missing');
++  return { executable, command, nonce };
++}
++
++/** Fixed ephemeral supervisor; legacy callers retain their existing behavior. */
++export async function collectAuthorityHost(request: unknown, deadline: number): Promise<string> {
++  const { executable, command, nonce } = prepareAuthorityHost(request, deadline);
+   const child = spawn(executable, command, { stdio: ['pipe', 'pipe', 'pipe'] });
+   return joinAuthoritySupervisor(child, request, nonce, deadline);
+ }
++
++/** Fixed owned collector for the full original entry. Custody is reserved before actual spawn;
++ * actual event/pipe/input work is retained in the private core before its first await.
++ * This factory grants no owner authority and does not change default or bounded-only callers.
++ */
++export function createOwnedAuthorityCollector(
++  scope: DependencyOperationCustody,
++): InstalledAuthorityPorts['collect'] {
++  return async (request, deadline) => {
++    if (!Number.isFinite(deadline))
++      throw new Error('authority observation requires a bounded deadline');
++    const { executable, command, nonce } = prepareAuthorityHost(request, deadline);
++    const reservation = reserveAuthorityOperation(scope, request, nonce);
++    let child: ChildProcessWithoutNullStreams;
++    try {
++      child = spawn(executable, command, { stdio: ['pipe', 'pipe', 'pipe'] });
++    } catch (cause) {
++      settleAuthoritySpawnThrow(reservation);
++      throw cause;
++    }
++    return joinAuthorityCore(child, request, nonce, deadline, undefined, {
++      kind: 'owned',
++      reservation,
++    });
++  };
++}

@@ -1,0 +1,507 @@
+--- a/node_modules/vite/dist/node/chunks/node.js
++++ b/node_modules/vite/dist/node/chunks/node.js
+@@ -10486,11 +10486,21 @@
+ 			this.closed = true;
+ 			this.removeAllListeners();
+ 			const closers = [];
++			const attempts = [];
+ 			this._closers.forEach((closerList) => closerList.forEach((closer) => {
+-				const promise = closer();
+-				if (promise instanceof Promise) closers.push(promise);
++				const attempt = { failure: void 0 };
++				attempts.push(attempt);
++				try {
++					const original = closer();
++					if (original?.then) closers.push({ original, attempt });
++				} catch (cause) { attempt.failure = { cause }; }
+ 			}));
+-			this._streams.forEach((stream) => stream.destroy());
++			this._streams.forEach((stream) => {
++				const attempt = { failure: void 0 };
++				attempts.push(attempt);
++				try { stream.destroy(); }
++				catch (cause) { attempt.failure = { cause }; }
++			});
+ 			this._userIgnored = void 0;
+ 			this._readyCount = 0;
+ 			this._readyEmitted = false;
+@@ -10504,7 +10514,14 @@
+ 			].forEach((key) => {
+ 				this[`_${key}`].clear();
+ 			});
+-			this._closePromise = closers.length ? Promise.all(closers).then(() => void 0) : Promise.resolve();
++			this._closePromise = Promise.allSettled(closers.map((closer) => closer.original)).then((settlements) => {
++				for (let index = 0; index < settlements.length; index++) {
++					const settlement = settlements[index];
++					if (settlement.status === "rejected") closers[index].attempt.failure = { cause: settlement.reason };
++				}
++				const failures = attempts.filter((attempt) => attempt.failure !== void 0).map((attempt) => attempt.failure.cause);
++				if (failures.length) throw new AggregateError(failures, "Vite watcher close failed");
++			});
+ 			return this._closePromise;
+ 		}
+ 		/**
+@@ -26430,15 +26447,24 @@
+ 	let closeServerPromise;
+ 	const closeServer = async () => {
+ 		if (!middlewareMode) teardownSIGTERMListener(closeServerAndExit);
+-		await Promise.allSettled([
+-			watcher.close(),
+-			ws.close(),
+-			Promise.allSettled(Object.values(server.environments).map((environment) => environment.close())),
+-			closeHttpServer(),
+-			server._ssrCompatModuleRunner?.close()
+-		]);
++		const started = [];
++		const failures = [];
++		const invoke = (label, receiver, close) => {
++			const record = { label, receiver, close, original: void 0 };
++			started.push(record);
++			try { record.original = close.call(receiver); }
++			catch (cause) { failures.push(cause); }
++		};
++		invoke("watcher", watcher, watcher.close);
++		invoke("websocket", ws, ws.close);
++		for (const environment of Object.values(server.environments)) invoke(`environment:${environment.name}`, environment, environment.close);
++		invoke("http", void 0, closeHttpServer);
++		if (server._ssrCompatModuleRunner) invoke("ssr runner", server._ssrCompatModuleRunner, server._ssrCompatModuleRunner.close);
++		const settlements = await Promise.allSettled(started.map((record) => record.original));
++		for (const settlement of settlements) if (settlement.status === "rejected") failures.push(settlement.reason);
+ 		server.resolvedUrls = null;
+ 		server._ssrCompatModuleRunner = void 0;
++		if (failures.length) throw new AggregateError(failures, "Vite server close failed");
+ 	};
+ 	let hot = ws;
+ 	let server = {
+@@ -30700,6 +30726,7 @@
+ 	_pluginContextMap = /* @__PURE__ */ new Map();
+ 	_resolvedRolldownOptions;
+ 	_processesing = /* @__PURE__ */ new Set();
++	_ownedHookPromises = [];
+ 	_seenResolves = {};
+ 	_moduleNodeToLoadAddedImports = /* @__PURE__ */ new WeakMap();
+ 	getSortedPluginHooks;
+@@ -30751,6 +30778,12 @@
+ 	handleHookPromise(maybePromise) {
+ 		if (!maybePromise?.then) return maybePromise;
+ 		const promise = maybePromise;
++		const record = { original: promise, outcome: void 0 };
++		this._ownedHookPromises.push(record);
++		promise.then(
++			(value) => { record.outcome = { status: "fulfilled", value }; },
++			(cause) => { record.outcome = { status: "rejected", cause }; }
++		);
+ 		this._processesing.add(promise);
+ 		return promise.finally(() => this._processesing.delete(promise));
+ 	}
+@@ -30773,18 +30806,48 @@
+ 		return this._pluginContextMap.get(plugin);
+ 	}
+ 	async hookParallel(hookName, context, args, condition) {
+-		const parallelPromises = [];
++		const invocations = [];
++		const parallelInvocations = [];
++		const drainParallel = async () => {
++			const started = parallelInvocations.splice(0);
++			const settlements = await Promise.allSettled(started.map((invocation) => invocation.original));
++			for (let index = 0; index < started.length; index++) {
++				const settlement = settlements[index];
++				started[index].outcome = settlement.status === "rejected" ? { status: "rejected", cause: settlement.reason } : { status: "fulfilled" };
++			}
++		};
+ 		for (const plugin of this.getSortedPlugins(hookName)) {
+ 			if (condition && !condition(plugin)) continue;
+ 			const hook = plugin[hookName];
+ 			const handler = getHookHandler(hook);
+ 			if (hook.sequential) {
+-				await Promise.all(parallelPromises);
+-				parallelPromises.length = 0;
+-				await handler.apply(context(plugin), args(plugin));
+-			} else parallelPromises.push(handler.apply(context(plugin), args(plugin)));
+-		}
+-		await Promise.all(parallelPromises);
++				await drainParallel();
++				if (invocations.some((invocation) => invocation.outcome?.status === "rejected")) break;
++				const invocation = { original: void 0, outcome: void 0 };
++				invocations.push(invocation);
++				try {
++					invocation.original = handler.apply(context(plugin), args(plugin));
++					await invocation.original;
++					invocation.outcome = { status: "fulfilled" };
++				} catch (cause) {
++					invocation.outcome = { status: "rejected", cause };
++					break;
++				}
++			} else {
++				const invocation = { original: void 0, outcome: void 0 };
++				invocations.push(invocation);
++				try {
++					invocation.original = handler.apply(context(plugin), args(plugin));
++					parallelInvocations.push(invocation);
++				} catch (cause) {
++					invocation.outcome = { status: "rejected", cause };
++					break;
++				}
++			}
++		}
++		await drainParallel();
++		const failures = invocations.filter((invocation) => invocation.outcome?.status === "rejected").map((invocation) => invocation.outcome.cause);
++		if (failures.length) throw new AggregateError(failures, `Vite ${hookName} hooks failed`);
+ 	}
+ 	async buildStart(_options) {
+ 		if (this._started) {
+@@ -30960,10 +31023,16 @@
+ 	async close() {
+ 		if (this._closed) return;
+ 		this._closed = true;
+-		await Promise.allSettled(Array.from(this._processesing));
++		const failures = [];
++		const processing = this._ownedHookPromises.map((record) => record.original);
++		const settlements = await Promise.allSettled(processing);
++		for (const record of this._ownedHookPromises) if (record.outcome?.status === "rejected") failures.push(record.outcome.cause);
+ 		const config = this.environment.getTopLevelConfig();
+-		await this.hookParallel("buildEnd", (plugin) => this._getPluginContext(plugin), () => [], (plugin) => this.environment.name === "client" || config.server.perEnvironmentStartEndDuringDev || plugin.perEnvironmentStartEndDuringDev);
+-		await this.hookParallel("closeBundle", (plugin) => this._getPluginContext(plugin), () => []);
++		try { await this.hookParallel("buildEnd", (plugin) => this._getPluginContext(plugin), () => [], (plugin) => this.environment.name === "client" || config.server.perEnvironmentStartEndDuringDev || plugin.perEnvironmentStartEndDuringDev); }
++		catch (cause) { failures.push(cause); }
++		try { await this.hookParallel("closeBundle", (plugin) => this._getPluginContext(plugin), () => []); }
++		catch (cause) { failures.push(cause); }
++		if (failures.length) throw new AggregateError(failures, "Vite plugin container close failed");
+ 	}
+ };
+ const basePluginContextMeta = {
+@@ -32221,25 +32290,31 @@
+ 	const metadata = initDepsOptimizerMetadata(environment);
+ 	metadata.browserHash = getOptimizedBrowserHash(metadata.hash, depsFromOptimizedDepInfo(depsInfo));
+ 	const qualifiedIds = Object.keys(depsInfo);
+-	let cleaned = false;
+ 	let committed = false;
++	let cleanupAttempted = false;
++	let cleanupFailure;
+ 	const cleanUp = () => {
+-		if (!cleaned && !committed) {
+-			cleaned = true;
+-			debug$4?.(import_picocolors.default.green(`removing cache dir ${processingCacheDir}`));
++		if (cleanupFailure) throw cleanupFailure.thrown;
++		if (!cleanupAttempted && !committed) {
++			cleanupAttempted = true;
+ 			try {
++				debug$4?.(import_picocolors.default.green(`removing cache dir ${processingCacheDir}`));
+ 				fs.rmSync(processingCacheDir, {
+ 					recursive: true,
+ 					force: true
+ 				});
+-			} catch {}
++			} catch (thrown) {
++				cleanupFailure = { thrown };
++				throw thrown;
++			}
+ 		}
+ 	};
+ 	const successfulResult = {
+ 		metadata,
+ 		cancel: cleanUp,
+ 		commit: async () => {
+-			if (cleaned) throw new Error("Can not commit a Deps Optimization run as it was cancelled");
++			if (cleanupFailure) throw cleanupFailure.thrown;
++			if (cleanupAttempted) throw new Error("Can not commit a Deps Optimization run as it was cancelled");
+ 			committed = true;
+ 			const dataPath = path.join(processingCacheDir, METADATA_FILENAME);
+ 			debug$4?.(import_picocolors.default.green(`creating ${METADATA_FILENAME} in ${processingCacheDir}`));
+@@ -32329,15 +32404,35 @@
+ 			throw e;
+ 		});
+ 	});
+-	runResult.catch(() => {
+-		cleanUp();
+-	});
++	const failureCleanup = runResult.then(void 0, () => cleanUp());
++	let failureCleanupOutcome;
++	failureCleanup.then(
++		() => { failureCleanupOutcome = { status: "fulfilled" }; },
++		(cause) => { failureCleanupOutcome = { status: "rejected", cause }; }
++	);
+ 	return {
+ 		async cancel() {
+ 			optimizerContext.cancelled = true;
+-			const { context } = await preparedRun;
+-			context?.cancel();
+-			cleanUp();
++			const failures = [];
++			let prepared;
++			try { prepared = await preparedRun; }
++			catch (cause) { failures.push(cause); }
++			if (prepared?.context) {
++				try {
++					const cancellation = prepared.context.cancel();
++					await cancellation;
++				} catch (cause) { failures.push(cause); }
++			}
++			try { await runResult; }
++			catch (cause) { failures.push(cause); }
++			let failureCleanupRejected = false;
++			try { await failureCleanup; }
++			catch (cause) { failures.push(cause); failureCleanupRejected = true; }
++			if (!failureCleanupRejected) {
++				try { cleanUp(); }
++				catch (cause) { failures.push(cause); }
++			}
++			if (failures.length) throw new AggregateError(failures, "Vite dependency run cancellation failed");
+ 		},
+ 		result: runResult
+ 	};
+@@ -34419,13 +34514,41 @@
+ 	let waitingForCrawlEnd = false;
+ 	let optimizationResult;
+ 	let discover;
++	let crawlContinuation;
++	const retainedOriginals = [];
++	function retainOriginal(label, original) {
++		const record = { label, original, outcome: void 0 };
++		retainedOriginals.push(record);
++		original.then(
++			(value) => { record.outcome = { status: "fulfilled", value }; },
++			(cause) => { record.outcome = { status: "rejected", cause }; }
++		);
++		return original;
++	}
++	function startOptimizer(preRunResult) {
++		return retainOriginal("optimizer processing", runOptimizer(preRunResult));
++	}
+ 	async function close() {
+ 		closed = true;
+-		await Promise.allSettled([
+-			discover?.cancel(),
+-			depsOptimizer.scanProcessing,
+-			optimizationResult?.cancel()
+-		]);
++		if (debounceProcessingHandle) clearTimeout(debounceProcessingHandle);
++		if (newDepsToLogHandle) clearTimeout(newDepsToLogHandle);
++		const failures = [];
++		const started = [];
++		const invoke = (label, receiver, cancel) => {
++			const record = { label, receiver, cancel, original: void 0 };
++			started.push(record);
++			try { record.original = cancel.call(receiver); }
++			catch (cause) { failures.push(cause); }
++		};
++		if (discover) invoke("discover cancellation", discover, discover.cancel);
++		if (optimizationResult) invoke("optimization cancellation", optimizationResult, optimizationResult.cancel);
++		if (depsOptimizer.scanProcessing) started.push({ label: "scan processing", original: depsOptimizer.scanProcessing });
++		if (crawlContinuation) started.push({ label: "crawl continuation", original: crawlContinuation });
++		const settlements = await Promise.allSettled(started.map((record) => record.original));
++		for (const settlement of settlements) if (settlement.status === "rejected") failures.push(settlement.reason);
++		await Promise.allSettled(retainedOriginals.map((record) => record.original));
++		for (const record of retainedOriginals) if (record.outcome?.status === "rejected") failures.push(record.outcome.cause);
++		if (failures.length) throw new AggregateError(failures, "Vite optimizer close failed");
+ 	}
+ 	let initState = "idle";
+ 	async function init() {
+@@ -34447,10 +34570,10 @@
+ 				});
+ 				newDepsDiscovered = true;
+ 			}
+-			environment.waitForRequestsIdle().then(onCrawlEnd);
+-			if (noDiscovery) runOptimizer();
++			crawlContinuation = retainOriginal("crawl continuation", environment.waitForRequestsIdle().then(onCrawlEnd));
++			if (noDiscovery) startOptimizer();
+ 			else depsOptimizer.scanProcessing = new Promise((resolve) => {
+-				(async () => {
++				const scanTask = (async () => {
+ 					try {
+ 						debug$2?.(import_picocolors.default.green(`scanning for dependencies...`));
+ 						const scanTimer = setTimeout(() => {
+@@ -34459,32 +34582,40 @@
+ 						let deps;
+ 						try {
+ 							discover = discoverProjectDependencies(devToScanEnvironment(environment));
++							retainOriginal("dependency discovery", discover.result);
+ 							deps = await discover.result;
+ 							discover = void 0;
+ 						} catch (e) {
+ 							environment.logger.error(import_picocolors.default.red("(!) Failed to run dependency scan. Skipping dependency pre-bundling. " + e.stack));
+-							return;
++							throw e;
+ 						} finally {
+ 							clearTimeout(scanTimer);
+ 						}
+ 						const manuallyIncluded = Object.keys(manuallyIncludedDepsInfo);
+ 						discoveredDepsWhileScanning.push(...Object.keys(metadata.discovered).filter((dep) => !deps[dep] && !manuallyIncluded.includes(dep)));
+ 						for (const id of Object.keys(deps)) if (!metadata.discovered[id]) addMissingDep(id, deps[id]);
++						if (closed) return;
+ 						const knownDeps = prepareKnownDeps();
+ 						startNextDiscoveredBatch();
+ 						optimizationResult = runOptimizeDeps(environment, knownDeps);
+-						if (!holdUntilCrawlEnd) optimizationResult.result.then((result) => {
+-							if (!waitingForCrawlEnd) return;
+-							optimizationResult = void 0;
+-							runOptimizer(result);
+-						});
++						retainOriginal("dependency run", optimizationResult.result);
++						if (!holdUntilCrawlEnd) {
++							const continuation = optimizationResult.result.then((result) => {
++								if (!waitingForCrawlEnd || closed) return;
++								optimizationResult = void 0;
++								startOptimizer(result);
++							});
++							retainOriginal("post-scan continuation", continuation);
++						}
+ 					} catch (e) {
+ 						logger.error(e.stack || e.message);
++						throw e;
+ 					} finally {
+ 						resolve();
+ 						depsOptimizer.scanProcessing = void 0;
+ 					}
+ 				})();
++				retainOriginal("dependency scan task", scanTask);
+ 			});
+ 		}
+ 		initState = "initialized";
+@@ -34516,6 +34647,7 @@
+ 			return;
+ 		}
+ 		currentlyProcessing = true;
++		let processingFailure;
+ 		try {
+ 			let processingResult;
+ 			if (preRunResult) processingResult = preRunResult;
+@@ -34523,6 +34655,7 @@
+ 				const knownDeps = prepareKnownDeps();
+ 				startNextDiscoveredBatch();
+ 				optimizationResult = runOptimizeDeps(environment, knownDeps);
++				retainOriginal("dependency run", optimizationResult.result);
+ 				processingResult = await optimizationResult.result;
+ 				optimizationResult = void 0;
+ 			}
+@@ -34597,9 +34730,11 @@
+ 			});
+ 			resolveEnqueuedProcessingPromises();
+ 			metadata.discovered = {};
++			processingFailure = { thrown: e };
+ 		}
+ 		currentlyProcessing = false;
+ 		enqueuedRerun?.();
++		if (processingFailure) throw processingFailure.thrown;
+ 	}
+ 	function fullReload() {
+ 		environment.moduleGraph.invalidateAll();
+@@ -34611,7 +34746,7 @@
+ 	function rerun() {
+ 		const depsString = depsLogString(Object.keys(metadata.discovered));
+ 		debug$2?.(import_picocolors.default.green(`new dependencies found: ${depsString}`));
+-		runOptimizer();
++		startOptimizer();
+ 	}
+ 	function getDiscoveredBrowserHash(hash, deps, missing) {
+ 		return getHash(hash + JSON.stringify(deps) + JSON.stringify(missing) + sessionTimestamp);
+@@ -34649,7 +34784,8 @@
+ 			if (!currentlyProcessing) enqueuedRerun();
+ 		}, timeout);
+ 	}
+-	async function onCrawlEnd() {
++	async function onCrawlEnd(outcome) {
++		if (outcome === VITE_CRAWL_CANCELLED) return;
+ 		waitingForCrawlEnd = false;
+ 		debug$2?.(import_picocolors.default.green(`static imports crawl ended`));
+ 		if (closed) return;
+@@ -34664,7 +34800,7 @@
+ 			if (scanDeps.length === 0 && crawlDeps.length === 0) {
+ 				debug$2?.(import_picocolors.default.green(`no dependencies found by the scanner or crawling static imports`));
+ 				startNextDiscoveredBatch();
+-				runOptimizer(result);
++				startOptimizer(result);
+ 				return;
+ 			}
+ 			const needsInteropMismatch = findInteropMismatches(metadata.discovered, result.metadata.optimized);
+@@ -34678,7 +34814,7 @@
+ 			} else {
+ 				debug$2?.(import_picocolors.default.green(`using post-scan optimizer result, the scanner found every used dependency`));
+ 				startNextDiscoveredBatch();
+-				runOptimizer(result);
++				startOptimizer(result);
+ 			}
+ 		} else if (!holdUntilCrawlEnd) {
+ 			if (newDepsDiscovered) {
+@@ -35580,15 +35716,31 @@
+ 	}
+ 	async close() {
+ 		this._closing = true;
+-		this._crawlEndFinder.cancel();
+-		await Promise.allSettled([
+-			this.bundledDev ? this.bundledDev.close() : this.pluginContainer.close(),
+-			this.depsOptimizer?.close(),
+-			isWebSocketServer in this.hot ? Promise.resolve() : this.hot.close(),
+-			(async () => {
+-				while (this._pendingRequests.size > 0) await Promise.allSettled([...this._pendingRequests.values()].map((pending) => pending.request));
+-			})()
+-		]);
++		const failures = [];
++		const started = [];
++		try { started.push({ label: "crawl cancellation", original: this._crawlEndFinder.cancel() }); }
++		catch (cause) { failures.push(cause); }
++		const invoke = (label, receiver, close) => {
++			const record = { label, receiver, close, original: void 0 };
++			started.push(record);
++			try { record.original = close.call(receiver); }
++			catch (cause) { failures.push(cause); }
++		};
++		if (this.bundledDev) invoke("bundled dev", this.bundledDev, this.bundledDev.close);
++		else invoke("plugins", this.pluginContainer, this.pluginContainer.close);
++		if (this.depsOptimizer) invoke("optimizer", this.depsOptimizer, this.depsOptimizer.close);
++		if (!(isWebSocketServer in this.hot)) invoke("hot channel", this.hot, this.hot.close);
++		const pendingSweep = (async () => {
++			while (this._pendingRequests.size > 0) {
++				const requests = [...this._pendingRequests.values()].map((pending) => pending.request);
++				const settlements = await Promise.allSettled(requests);
++				for (const settlement of settlements) if (settlement.status === "rejected") failures.push(settlement.reason);
++			}
++		})();
++		started.push({ label: "pending requests", original: pendingSweep });
++		const settlements = await Promise.allSettled(started.map((record) => record.original));
++		for (const settlement of settlements) if (settlement.status === "rejected") failures.push(settlement.reason);
++		if (failures.length) throw new AggregateError(failures, "Vite environment close failed");
+ 	}
+ 	/**
+ 	* Calling `await environment.waitForRequestsIdle(id)` will wait until all static imports
+@@ -35609,20 +35761,39 @@
+ 	}
+ };
+ const callCrawlEndIfIdleAfterMs = 50;
++const VITE_CRAWL_CANCELLED = Symbol("Vite crawl waiter cancelled");
+ function setupOnCrawlEnd() {
+ 	const registeredIds = /* @__PURE__ */ new Set();
+ 	const seenIds = /* @__PURE__ */ new Set();
++	const requestTasks = [];
+ 	const onCrawlEndPromiseWithResolvers = promiseWithResolvers();
+ 	let timeoutHandle;
+ 	let cancelled = false;
+ 	function cancel() {
+ 		cancelled = true;
++		if (timeoutHandle) clearTimeout(timeoutHandle);
++		onCrawlEndPromiseWithResolvers.resolve(VITE_CRAWL_CANCELLED);
++		return Promise.allSettled(requestTasks.filter((record) => record.original !== void 0).map((record) => record.original)).then((settlements) => {
++			const failures = requestTasks.filter((record) => record.syncFailure !== void 0).map((record) => record.syncFailure.thrown);
++			failures.push(...settlements.filter((settlement) => settlement.status === "rejected").map((settlement) => settlement.reason));
++			if (failures.length) throw new AggregateError(failures, "Vite crawl request processing failed");
++			return VITE_CRAWL_CANCELLED;
++		});
+ 	}
+ 	function registerRequestProcessing(id, done) {
++		if (cancelled) throw new Error("Vite crawl request registered after cancellation");
+ 		if (!seenIds.has(id)) {
+ 			seenIds.add(id);
+ 			registeredIds.add(id);
+-			done().catch(() => {}).finally(() => markIdAsDone(id));
++			const record = { id, original: void 0, syncFailure: void 0 };
++			requestTasks.push(record);
++			try { record.original = done(); }
++			catch (cause) {
++				record.syncFailure = { thrown: cause };
++				markIdAsDone(id);
++				return;
++			}
++			record.original.then(() => markIdAsDone(id), () => markIdAsDone(id));
+ 		}
+ 	}
+ 	function waitForRequestsIdle(ignoredId) {

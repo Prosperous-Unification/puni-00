@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+1051 |   const failure: unknown = await source.uow.run(async (scope)=>{
+1052 |     await scope.stores.typedDependencies.incidents.detach(mapped);
+1053 |     await scope.stores.typedDependencies.incidents.restore(receipt,mapped.dependency,{at:3,by:'owner'});
+1054 |     return {commit:true,value:undefined};
+1055 |   }).then(()=>null,(error:unknown)=>error);
+1056 |   expect(failure).toBeInstanceOf(Error);
+                         ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: null
+
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-memory/src/memory-source.test.ts:1056:19)
+(fail) incident source restore preserves receipts across commit rollback and bumps only completed endpoint unions [12.13ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [2.00s]

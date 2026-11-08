@@ -1,0 +1,5 @@
+
+/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts
+  327:52  error  Async arrow function has no 'await' expression  @typescript-eslint/require-await
+
+✖ 1 problem (1 error, 0 warnings)

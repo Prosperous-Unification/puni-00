@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+1367 |         harness.sqlite.query('SELECT id FROM command_journal WHERE id=?').get(journal.id),
+1368 |       ).toBeNull();
+1369 |       return;
+1370 |     }
+1371 |     const undoResponse = await fixture.request(`${route}/undo`);
+1372 |     expect(undoResponse.status).toBe(200);
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 404
+
+      at <anonymous> (/tmp/puni-promote-lifecycle/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:1372:33)
+(fail) synthetic mounted promote replay preserves surviving child incidents [843.74ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 29 expect() calls
+Ran 1 test across 1 file. [3.60s]

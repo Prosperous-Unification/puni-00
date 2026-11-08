@@ -1,0 +1,135 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed input context on read and either comparison side [630.13ms]
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed external project label on read and either comparison side [562.63ms]
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed graph ownership on read and either comparison side [664.77ms]
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed stage packet on read and either comparison side [1098.16ms]
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed candidate question on read and either comparison side [1066.80ms]
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed target membership on read and either comparison side [1244.50ms]
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed target placement on read and either comparison side [1242.35ms]
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed body version on read and either comparison side [1229.39ms]
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed local input with connected schedule on read and either comparison side [1266.53ms]
+
+ 0 pass
+ 49 filtered out
+ 9 fail
+ 9 expect() calls
+Ran 9 tests across 1 file. [14.59s]

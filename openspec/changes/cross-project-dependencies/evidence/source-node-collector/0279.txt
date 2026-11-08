@@ -1,0 +1,12 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node writer BEGIN excess
+actual source excess writer boundary observed
+(pass) actual source writer handles excess byte progress at its output boundary [23.17ms]
+
+ 1 pass
+ 48 filtered out
+ 0 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [41.00ms]

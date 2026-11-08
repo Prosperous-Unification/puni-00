@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/schedule-parts.test.ts:
+(pass) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=$anchor held=false [17.16ms]
+(pass) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=$anchor held=true [3.10ms]
+(pass) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=2026-10-05, held=false [3.11ms]
+(pass) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=2026-10-05, held=true [2.70ms]
+(pass) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=$anchor held=false [2.39ms]
+(pass) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=$anchor held=true [2.42ms]
+(pass) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=2026-10-05, held=false [2.34ms]
+(pass) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=2026-10-05, held=true [2.23ms]
+(pass) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=$anchor held=false [2.06ms]
+(pass) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=$anchor held=true [2.38ms]
+(pass) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=2026-10-05, held=false [2.18ms]
+(pass) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=2026-10-05, held=true [2.23ms]
+(pass) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=$anchor held=false [2.32ms]
+(pass) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=$anchor held=true [2.46ms]
+(pass) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=2026-10-05, held=false [2.76ms]
+(pass) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=2026-10-05, held=true [2.43ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=$anchor held=false [2.25ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=$anchor held=true [2.29ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=2026-10-05, held=false [2.02ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=2026-10-05, held=true [1.87ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=$anchor held=false [2.00ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=$anchor held=true [1.74ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=2026-10-05, held=false [1.89ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=2026-10-05, held=true [2.09ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=$anchor held=false [2.21ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=$anchor held=true [1.92ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=2026-10-05, held=false [1.88ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=2026-10-05, held=true [1.66ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=$anchor held=false [1.71ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=$anchor held=true [1.63ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=2026-10-05, held=false [1.52ms]
+(pass) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=2026-10-05, held=true [1.61ms]
+
+ 32 pass
+ 0 fail
+ 576 expect() calls
+Ran 32 tests across 1 file. [2.45s]

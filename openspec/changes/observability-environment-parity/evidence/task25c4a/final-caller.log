@@ -1,0 +1,32 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+(pass) uses the existing up and receipt-consuming down while retaining every volume and private record [3219.24ms]
+(pass) accepts only a permutation of the same complete mount set during receipt teardown [2734.41ms]
+(pass) Task21 strict platform caller freezes and imports without Buildx through creator IDs [2651.38ms]
+(pass) Task37 real up persists selection, process environment and every serial effective observation [1753.05ms]
+(pass) Task37 real up refuses preimage-config without ready evidence or cleanup [750.00ms]
+(pass) Task37 real up refuses preimage-arch without ready evidence or cleanup [724.58ms]
+(pass) Task37 real up refuses preimage-reference without ready evidence or cleanup [749.79ms]
+(pass) Task37 real up refuses effective-permanent without ready evidence or cleanup [1763.78ms]
+(pass) Task37 real up refuses effective-transient without ready evidence or cleanup [1173.25ms]
+(pass) Task37 real up refuses reference-transient without ready evidence or cleanup [1111.59ms]
+(pass) Task37 real up refuses inspection-race without ready evidence or cleanup [1117.48ms]
+(pass) Task37 real up refuses inherited-override without ready evidence or cleanup [572.55ms]
+(pass) Task37 ordinary up propagates the same owned helper references [976.14ms]
+(pass) Task37 strict up rejects changed source lock before direct creation [786.27ms]
+(pass) Task37 authentic baseline sealed receipt still tears down with volumes and history retained [1113.06ms]
+(pass) Task37 sealed reader refuses inputs-version before teardown [2215.09ms]
+(pass) Task37 sealed reader refuses plan-cohort before teardown [2266.37ms]
+(pass) Task37 sealed reader refuses config-cohort before teardown [2179.00ms]
+(pass) Task37 sealed reader refuses selection-cohort before teardown [2229.36ms]
+(pass) Task37 sealed reader refuses observation-cohort before teardown [2184.98ms]
+(pass) Task37 sealed reader refuses observation-missing before teardown [2175.91ms]
+(pass) Task37 sealed reader refuses lineage-cohort before teardown [2170.33ms]
+(pass) Task37 sealed reader refuses unknown-version before teardown [2275.91ms]
+
+ 23 pass
+ 46 filtered out
+ 0 fail
+ 236 expect() calls
+Ran 23 tests across 1 file. [39.12s]

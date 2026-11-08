@@ -1,0 +1,690 @@
+[
+  {
+    "name": "collector-credentials",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector function boundary refuses uid",
+    "begin": "source Node function BEGIN uid",
+    "observed": "actual source function uid refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(process.getuid()===1000&&process.getgid()===1000,'source collector UID/GID differs');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "Actual collector credential admission at invocation; synthetic reported UID fault, no host credential change."
+  },
+  {
+    "name": "collector-arguments",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector function boundary refuses pid-argument",
+    "begin": "source Node function BEGIN pid-argument",
+    "observed": "actual source function pid-argument refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(/^[A-Za-z0-9-]{1,64}$/.test(nonce),'source nonce malformed');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(mode==='observe'||mode==='cleanup','source mode unsupported');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(/^[1-9][0-9]*$/.test(text)&&Number.isSafeInteger(Number(text))&&Number(text)<=4194304,'source PID malformed');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(arguments_.length>0&&arguments_.length<=10000&&new Set(arguments_).size===arguments_.length,'source roster unsupported');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "Closed collector invocation arguments as one parser group; selected out-of-range PID function-entry consumer, not isolated proof of every predicate."
+  },
+  {
+    "name": "bounded-proc-read",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector function boundary refuses proc-bound",
+    "begin": "source Node function BEGIN proc-bound",
+    "observed": "actual source function proc-bound refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(count<=maximum,'source read bound exceeded');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "Actual bounded read helper invoked against owned65537byte input at unchanged65536 limit."
+  },
+  {
+    "name": "proc-stat-grammar",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector function boundary refuses stat-identity",
+    "begin": "source Node function BEGIN stat-identity",
+    "observed": "actual source function stat-identity refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(text.startsWith(String(pid)+' (')&&closing>1,'source proc identity malformed');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(fields.length>=20&&/^[1-9][0-9]*$/.test(fields[19]),'source start malformed');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One proc stat parser group; requested-PID mismatch after real read."
+  },
+  {
+    "name": "link-projection",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector function boundary refuses link-input",
+    "begin": "source Node function BEGIN link-input",
+    "observed": "actual source function link-input refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(Buffer.byteLength(text)<=65536&&!text.includes('\\0'),'source link unsupported');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "Readlink field boundary rejects NUL; one length/NUL predicate group."
+  },
+  {
+    "name": "fatal-byte-decoder",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector function boundary refuses link-utf8",
+    "begin": "source Node function BEGIN link-utf8",
+    "observed": "actual source function link-utf8 refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "new TextDecoder('utf-8',{fatal:true})",
+        "after": "new TextDecoder('utf-8',{fatal:false})"
+      }
+    ],
+    "scope": "Actual owned symlink nonUTF8 bytes; shared fatal decode used by text/link, no source path fallback."
+  },
+  {
+    "name": "timestamp-projection",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector normal proc boundary observes timestamp-range",
+    "begin": "source Node normal proc BEGIN timestamp-range",
+    "observed": "actual source normal proc timestamp-range boundary observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(seconds>=-62167219200n&&seconds<=253402300799n,'source timestamp range unsupported');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.000Z$/.test(iso),'source timestamp unsupported');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One UTC formatter grammar/range group reached through normal observed PROC metadata."
+  },
+  {
+    "name": "receipt-output-bounds",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector function boundary refuses output-total",
+    "begin": "source Node function BEGIN output-total",
+    "observed": "actual source function output-total refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(output<=32*1024*1024&&tokens.every(token=>Buffer.byteLength(token)<=4*1024*1024),'source output bound exceeded');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One emitter byte/token bound group at actual emitter function entry; stdout directed to devnull, no transport/native frame claim."
+  },
+  {
+    "name": "write-progress",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source writer handles excess byte progress at its output boundary",
+    "begin": "source Node writer BEGIN excess",
+    "observed": "actual source excess writer boundary observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(Number.isSafeInteger(written)&&written>0&&written<=bytes.length-offset,'source output write progress refused');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One write-all progress/count check; actual write with excess reported count expects direct collector refusal; avoids using a later timeout as this witness."
+  },
+  {
+    "name": "address-projection",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source address projection refuses canonical-v6 builtin observation",
+    "begin": "source Node address BEGIN canonical-v6",
+    "observed": "actual source canonical-v6 address observation refusal reached",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(/^[A-Za-z0-9_.:@-]{1,64}$/.test(name),'source interface name unsupported');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(Array.isArray(entries),'source interface absent');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(family!==0&&net.isIP(entry.address)===family&&typeof entry.cidr==='string'&&!entry.address.includes('%')&&!entry.address.toLowerCase().startsWith('::ffff:'),'source address unsupported');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(extra.length===0&&address===entry.address&&/^(0|[1-9][0-9]*)$/.test(prefix)&&Number(prefix)<=(family===4?32:128),'source address CIDR unsupported');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(canonical===entry.address.toLowerCase(),'source address noncanonical');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(count<=256,'source address count exceeded');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(lines.length>0&&new Set(lines.map(line=>line.split(' ')[3].split('/')[0])).size<=64,'source addresses absent or oversized');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(Buffer.byteLength(text)<=65536,'source addresses bound exceeded');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One addresses() validation/projection group. Expanded validIPv6 observation is selected witness; no isolated native/count/range qualification is claimed."
+  },
+  {
+    "name": "executable-capture",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector normal proc boundary observes short-read",
+    "begin": "source Node normal proc BEGIN short-read",
+    "observed": "actual source normal proc short-read boundary observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(attributes.isFile()&&attributes.size>0n&&attributes.size<=134217728n,'source executable bound exceeded');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(metadata(fs.statSync(root+'/exe',{bigint:true}))===first,'source executable open drift');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(count<=134217728n&&count<=attributes.size,'source executable read exceeded');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(count===attributes.size&&metadata(fs.fstatSync(descriptor,{bigint:true}))===first&&metadata(fs.statSync(root+'/exe',{bigint:true}))===first,'source executable readback drift');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One captured executable descriptor/hash stability group; actual short read after real bytes, with closing metadata/read count checks omitted together."
+  },
+  {
+    "name": "process-readback",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector normal proc boundary observes pid-start",
+    "begin": "source Node normal proc BEGIN pid-start",
+    "observed": "actual source normal proc pid-start boundary observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(cwd.startsWith('/')&&executable.startsWith('/')&&!cwd.endsWith(' (deleted)')&&!executable.endsWith(' (deleted)'),'source executable path unsupported');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(before.ticks===after.ticks&&link(root+'/exe')===executable&&metadata(fs.statSync(root+'/exe',{bigint:true}))===metadata(attributes),'source process changed');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One process image/path/start boundary group; after-read start drift is selected normal-PROC witness."
+  },
+  {
+    "name": "descriptor-roster",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source collector normal proc boundary observes fd-identity",
+    "begin": "source Node normal proc BEGIN fd-identity",
+    "observed": "actual source normal proc fd-identity boundary observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(descriptors.length<=4096,'source FD count exceeded');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(/^(0|[1-9][0-9]*)$/.test(descriptor)&&Number(descriptor)<=4096,'source FD unsupported');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One FD roster boundary group; unsupported4097 descriptor view aliases an owned real descriptor so no later missing-path refusal can supply credit."
+  },
+  {
+    "name": "census-provenance",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source fresh census refuses arguments at its identity boundary",
+    "begin": "source Node census identity BEGIN arguments",
+    "observed": "actual source census arguments identity refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(arguments_.length===4,'source census identity absent');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(group===original&&session===original&&/^[1-9][0-9]*$/.test(ticks),'source census identity malformed');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(own.group===String(process.pid)&&own.session===String(process.pid)&&own.group!==group,'source census own session differs');",
+        "after": "void 0;"
+      },
+      {
+        "before": "requireTrue(name!==original||observed.ticks===ticks,'source census PID reused');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One fresh-census identity/provenance consumer; all inputs/processes are owned or explicitly synthetic views, no native process-count campaign."
+  },
+  {
+    "name": "census-bound",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source fresh census refuses count at its identity boundary",
+    "begin": "source Node census identity BEGIN count",
+    "observed": "actual source census count identity refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "requireTrue(names.length<=10000,'source census count exceeded');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One fresh-census bounded-discovery consumer; all inputs/processes are owned or explicitly synthetic views, no native process-count campaign."
+  },
+  {
+    "name": "census-probe",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source census second probe models EACCES explicitly",
+    "begin": "source Node census probe BEGIN EACCES",
+    "observed": "actual source census second-probe EACCES outcome observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "if(probeFailure&&probeFailure.code==='ENOENT')continue;throw probeFailure;",
+        "after": "continue;"
+      }
+    ],
+    "scope": "Explicit second probe unreadability must not become disappearance after initial real ENOENT."
+  },
+  {
+    "name": "launcher-input",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source launcher rejects credential before granting reap",
+    "begin": "source Node launcher BEGIN credential",
+    "observed": "actual source launcher credential refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "if(process.getuid()!==1000||process.getgid()!==1000||!/^[A-Za-z0-9-]{1,64}$/.test(nonce)||!['observe','cleanup'].includes(mode))throw new Error('source launcher input refused');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One launcher invocation admission group; reported GID mismatch fixture, actual host credentials stay1000."
+  },
+  {
+    "name": "owned-child-identity",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source launcher rejects identity before granting reap",
+    "begin": "source Node launcher BEGIN identity",
+    "observed": "actual source launcher identity refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "if(Buffer.byteLength(text)>65536)throw new Error('source child stat bound');",
+        "after": "void 0;"
+      },
+      {
+        "before": "if(!text.startsWith(String(child.pid)+' (')||closing<2||fields[2]!==String(child.pid)||fields[3]!==String(child.pid)||!/^[1-9][0-9]*$/.test(fields[19]))throw new Error('source owned child identity differs');",
+        "after": "void 0;"
+      },
+      {
+        "before": "if(JSON.stringify(current)!==JSON.stringify(identity))throw new Error('source owned child identity drift');",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One owned-child tuple boundary, initial and termination readback policy. Initial foreign group report is selected; that omitted run takes no failure/kill path."
+  },
+  {
+    "name": "independent-watchdog",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual independent launcher deadline kills a synchronously blocked collector",
+    "begin": "source Node independent watchdog BEGIN",
+    "observed": "actual blocked collector independent watchdog and reap refusal observed",
+    "failure": "Received: \"SIGKILL\"",
+    "edits": [
+      {
+        "before": "const timer=setTimeout(()=>stop(new Error('source independent work/ACK deadline exceeded')),15000);",
+        "after": "const timer=setTimeout(()=>{},15000);"
+      }
+    ],
+    "scope": "Independent watchdog omitted; original model-owned launcher hits its unchanged20s outer guard and selected no-signal assertion fails. Disposable PID namespace must settle at original wrapper exit before restoration."
+  },
+  {
+    "name": "input-settlement",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source launcher refuses withheld ACK and settles original custody",
+    "begin": "source Node ACK BEGIN withheld",
+    "observed": "actual Node withheld ACK refusal and original custody observed",
+    "failure": "Received: \"SIGKILL\"",
+    "edits": [
+      {
+        "before": "if(settleAcknowledgement!==null){settleAcknowledgement();process.stdin.destroy();}",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "Stop must settle original open input promise; collector is actually killed at15s but omitted launcher reaches unchanged20s outer guard."
+  },
+  {
+    "name": "ack-validation",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source launcher refuses malformed ACK and settles original custody",
+    "begin": "source Node ACK BEGIN malformed",
+    "observed": "actual Node malformed ACK refusal and original custody observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "if(input!=='ACK '+nonce+'\\n'){stop(new Error('source ACK malformed'));}else ack=true;",
+        "after": "ack=true;"
+      }
+    ],
+    "scope": "Exact single ACK/EOF grammar consumer; malformed complete input must not grant REAPED."
+  },
+  {
+    "name": "ack-bound",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source launcher bounds an open ACK channel before its work deadline",
+    "begin": "source Node ACK bound BEGIN",
+    "observed": "actual source open ACK bound refusal observed",
+    "failure": "Expected to contain:.*source-test-stop:source ACK bound[\\s\\S]*source-test-stop:source independent work/ACK deadline exceeded",
+    "edits": [
+      {
+        "before": "if(Buffer.byteLength(input)>128){stop(new Error('source ACK bound'));resolve();}",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "Open129byte input; test-owned stop diagnostic must report ACK bound, not later15s watchdog. No timing threshold increase."
+  },
+  {
+    "name": "launcher-stdout",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source launcher refuses stdout from its owned collector boundary",
+    "begin": "source Node launcher channel BEGIN stdout",
+    "observed": "actual source launcher stdout boundary refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "if(stdoutBytes>32*1024*1024){stop(new Error('source collector output bound'));return;}",
+        "after": "void 0;"
+      },
+      {
+        "before": "if(identity===null){stop(new Error('source output before identity'));return;}",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One child stdout forwarding policy group; bounded synthetic33MiB child output goes to devnull, target collector image not claimed."
+  },
+  {
+    "name": "launcher-stderr",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source launcher refuses stderr from its owned collector boundary",
+    "begin": "source Node launcher channel BEGIN stderr",
+    "observed": "actual source launcher stderr boundary refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "if(stderrBytes>65536){stop(new Error('source collector stderr bound'));return;}",
+        "after": "void 0;"
+      },
+      {
+        "before": "if(bytes.length>0)stop(new Error('source collector stderr refused'));",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One child stderr refusal/bound policy; small owned warning is selected witness and is never forwarded as public source diagnostics."
+  },
+  {
+    "name": "original-reap",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+    "kind": "program",
+    "test": "actual source launcher rejects exit-status before granting reap",
+    "begin": "source Node launcher BEGIN exit-status",
+    "observed": "actual source launcher exit-status refusal observed",
+    "failure": "Expected: 1\\s+Received: 0",
+    "edits": [
+      {
+        "before": "if(outcome.status!=='fulfilled'||outcome.value.code!==0||outcome.value.signal!==null||!ack||!inputEnded||identity===null||failures.length>0){process.stderr.write('source collector session refused\\n');process.exitCode=1;return;}",
+        "after": "void 0;"
+      }
+    ],
+    "scope": "One final original exit/streams/ACK/failure acceptance gate before REAPED; nonzero original child exit is selected after real complete output/ACK."
+  },
+  {
+    "name": "fixed-source-command",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node command actual dispatch captured",
+    "observed": "source Node complete command observed",
+    "failure": "-\\s+[\"\\']1000:1000[\"\\'][\\s\\S]*\\+\\s+[\"\\']0:0[\"\\']",
+    "edits": [
+      {
+        "before": "      '1000:1000',",
+        "after": "      '0:0',"
+      }
+    ],
+    "scope": "Complete source command creation only; genuine original context uses modeled raw receipt peer, no target UID0 execution."
+  },
+  {
+    "name": "source-receipt-bound",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node private receipt consumer BEGIN source-token-bound",
+    "observed": "source Node private receipt consumer observed source-token-bound",
+    "failure": "Expected: 2\\s+Received: [0-9]+",
+    "edits": [
+      {
+        "before": "    if (Buffer.byteLength(token) > 4 * 1024 * 1024 || frames.length > 40000)\n      throw new Error('source receipt bound exceeded');",
+        "after": "    void 0;"
+      }
+    ],
+    "scope": "One token/frame resource-bound guard. Selected token fault must stop at2 forwarded tokens, not consume the remaining malformedSESSION."
+  },
+  {
+    "name": "source-tag-boundary",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node private receipt consumer BEGIN source-unknown-tag",
+    "observed": "source Node private receipt consumer observed source-unknown-tag",
+    "failure": "Expected: 7\\s+Received: [0-9]+",
+    "edits": [
+      {
+        "before": "      if (!Object.hasOwn(arity, token) || (done && token !== 'REAPED'))\n        throw new Error('source receipt tag unsupported');",
+        "after": "      void 0;"
+      }
+    ],
+    "scope": "One tag/phase grammar boundary. Unknown tag must stop at collection token7, not defer to another guard."
+  },
+  {
+    "name": "source-session-tuple",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node private receipt consumer BEGIN source-session-nonce",
+    "observed": "source Node private receipt consumer observed source-session-nonce",
+    "failure": "Missing expected rejection",
+    "edits": [
+      {
+        "before": "      if (\n        session !== null ||\n        frames.length !== 0 ||\n        attempt !== nonce ||\n        !/^[1-9][0-9]*$/.test(pid) ||\n        group !== pid ||\n        sid !== pid ||\n        !/^[1-9][0-9]*$/.test(ticks)\n      )\n        throw new Error('source private session malformed');",
+        "after": "      void 0;"
+      }
+    ],
+    "scope": "One private SESSION tuple/nonce admission guard; foreign attempt nonce is selected."
+  },
+  {
+    "name": "source-session-before-ack",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node private receipt consumer BEGIN source-no-session",
+    "observed": "source Node private receipt consumer observed source-no-session",
+    "failure": "Expected: 0\\s+Received: 1",
+    "edits": [
+      {
+        "before": "    if (session === null) throw new Error('source receipt lacks private session');",
+        "after": "    void 0;"
+      }
+    ],
+    "scope": "Actual missingSESSION consumer must emit noACK even though later final-session guard also refuses."
+  },
+  {
+    "name": "source-done",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node private receipt consumer BEGIN source-completion-count",
+    "observed": "source Node private receipt consumer observed source-completion-count",
+    "failure": "Missing expected rejection",
+    "edits": [
+      {
+        "before": "      if (\n        done ||\n        fields[0] !== nonce ||\n        (mode === 'observe'\n          ? fields[1] !== '2'\n          : !/^[0-9]+$/.test(fields[1]) || Number(fields[1]) > 10000)\n      )\n        throw new Error('source completion malformed');",
+        "after": "      void 0;"
+      }
+    ],
+    "scope": "One DONE nonce/order/pass-count/census-count grammar guard; observe pass count1 is selected."
+  },
+  {
+    "name": "source-before-ack-join",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node private receipt consumer BEGIN missing",
+    "observed": "source Node private receipt consumer observed missing",
+    "failure": "Missing expected rejection",
+    "edits": [
+      {
+        "before": "        if (roster === undefined) throw new Error('source expected process roster absent');\n        decodePasses(frames, roster);",
+        "after": "        void 0;"
+      }
+    ],
+    "scope": "One observed roster/pass join before ACK; missing actual modeledMCP process must not return accepted frames."
+  },
+  {
+    "name": "source-reap-frame",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node private receipt consumer BEGIN source-reap-foreign",
+    "observed": "source Node private receipt consumer observed source-reap-foreign",
+    "failure": "Missing expected rejection",
+    "edits": [
+      {
+        "before": "      if (!done || reaped || fields[0] !== nonce) throw new Error('source reap malformed');",
+        "after": "      void 0;"
+      }
+    ],
+    "scope": "One REAPED ordering/nonce/duplicate guard; forged rawREAPED nonce is selected before genuine peerREAPED."
+  },
+  {
+    "name": "source-mode-frame",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node private receipt consumer BEGIN source-member-observe",
+    "observed": "source Node private receipt consumer observed source-member-observe",
+    "failure": "Expected: 10\\s+Received: [0-9]+",
+    "edits": [
+      {
+        "before": "    if (done || (mode === 'observe') === (frame === 'MEMBER'))\n      throw new Error('source receipt frame unsupported');",
+        "after": "    void 0;"
+      }
+    ],
+    "scope": "One frame-mode/phase guard; collection MEMBER must stop at10 forwarded tokens before later decoder."
+  },
+  {
+    "name": "source-complete-reap",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node private receipt consumer BEGIN source-missing-reap",
+    "observed": "source Node private receipt consumer observed source-missing-reap",
+    "failure": "Missing expected rejection",
+    "edits": [
+      {
+        "before": "  const isComplete = () => tag === null && done && reaped;",
+        "after": "  const isComplete = () => tag === null && done;"
+      }
+    ],
+    "scope": "One completed-session closing guard shared by both audit/readback consumers; source dependency deliberately loses REAPED after actual peer transport."
+  },
+  {
+    "name": "source-transport-failure",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node private receipt consumer BEGIN source-completion-count",
+    "observed": "source Node private receipt consumer observed source-completion-count",
+    "failure": "Missing expected rejection",
+    "edits": [
+      {
+        "before": "  if (receipt.failure !== null) throw new Error('source observer receipt refused');",
+        "after": "  void 0;"
+      }
+    ],
+    "scope": "The earlier badDONE failure cannot be ignored merely because complete raw passes were already collected; selected earliest nonnull-session failure is completion-count."
+  },
+  {
+    "name": "source-empty-census",
+    "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+    "kind": "context",
+    "test": "source original context dispatches the complete fixed Node command",
+    "begin": "source Node original cleanup member consumer BEGIN",
+    "observed": "source Node original cleanup member and terminal refusal observed",
+    "failure": "Missing expected rejection",
+    "edits": [
+      {
+        "before": "  if (receipt.failure !== null || receipt.session === null || receipt.frames.length !== 0)\n    throw new Error('source observer group remains');",
+        "after": "  void 0;"
+      }
+    ],
+    "scope": "One fresh cleanup receipt acceptance guard; raw MEMBER through full original observer must refuse and terminalize context."
+  }
+]

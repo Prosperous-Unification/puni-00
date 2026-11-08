@@ -393,7 +393,7 @@ function repositoryFixture(): RepositoryFixture {
   write(join(repository, 'nx.json'), '{}\n');
   write(
     join(repository, 'tsconfig.json'),
-    `${JSON.stringify({ compilerOptions: { module: 'ESNext', target: 'ESNext' }, include: ['apps/**/*.ts'] })}\n`,
+    `${JSON.stringify({ compilerOptions: { module: 'ESNext', target: 'ESNext', lib: ['ES5'] }, include: ['apps/**/*.ts'] })}\n`,
   );
   write(
     join(repository, 'apps/alpha/project.json'),

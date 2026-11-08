@@ -1,0 +1,38 @@
+heavy lock: waited 0s behind 0 tickets
+205 |         { cause },
+206 |       );
+207 |     }
+208 |   }
+209 |   if (failure !== undefined)
+210 |     throw new Error(`fixture ${name} failed; retain private evidence at ${directory}`, {
+                    ^
+error: fixture dependency-ingress-e284dcec-3c61-4ad2-92ac-e17cc51e5fc4 failed; retain private evidence at /var/tmp/dependency-ingress-acceptance-Epr0DN
+      at runDependencyIngressAcceptance (/home/puni1/puni-dependency-ingress-d16c5d980/tools/tool-remote-scripts/test/dependency-ingress.ts:210:15)
+
+130 |         } catch (cause) {
+131 |           last = cause;
+132 |         }
+133 |         await new Promise<void>((resolve) => setTimeout(resolve, 100));
+134 |       }
+135 |       throw new Error('fixture HTTP convergence exhausted', { cause: last });
+                      ^
+error: fixture HTTP convergence exhausted
+      at request (/home/puni1/puni-dependency-ingress-d16c5d980/tools/tool-remote-scripts/test/dependency-ingress.ts:135:17)
+      at async runDependencyIngressAcceptance (/home/puni1/puni-dependency-ingress-d16c5d980/tools/tool-remote-scripts/test/dependency-ingress.ts:169:11)
+
+113 |       throw new Error('fixture port is not loopback');
+114 |     async function request(host: string, status: number, body: string): Promise<void> {
+115 |       let last: unknown;
+116 |       for (let attempt = 0; attempt < 100; attempt++) {
+117 |         try {
+118 |           const response = await fetch(
+                                       ^
+TypeError: Unable to connect. Is the computer able to access the url?
+  path: "https://127.0.0.1:33137/nested/path?session=fixture-secret",
+ errno: 0,
+  code: "ConnectionRefused"
+
+      at async request (/home/puni1/puni-dependency-ingress-d16c5d980/tools/tool-remote-scripts/test/dependency-ingress.ts:118:34)
+      at async runDependencyIngressAcceptance (/home/puni1/puni-dependency-ingress-d16c5d980/tools/tool-remote-scripts/test/dependency-ingress.ts:169:11)
+
+Bun v1.4.2 (Linux x64)

@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/delivery.integration.test.ts:
+225 |   });
+226 |   await Bun.sleep(2);
+227 |   cancellation.abort();
+228 |   gate.release();
+229 |   await subscribing;
+230 |   expect([...subs.socketsFor(PROJECT)]).toEqual([]);
+                                              ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "send": [Function],
++   },
++ ]
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-egress-1031/apps/wbs/gw-01/src/delivery.integration.test.ts:230:41)
+(fail) held project admission cannot restore subscription after connection cancellation [14.16ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [4.70s]

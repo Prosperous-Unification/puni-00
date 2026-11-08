@@ -1,0 +1,44 @@
+
+ NX   Nx was denied permission to create a plugin worker socket. Running plugins in the main process instead.
+
+Plugins that expect isolation may misbehave, and this is slower than a worker.
+Nx was denied permission to use its unix socket under /tmp/.nx or ~/.nx.
+To fix this, do one of the following:
+  - In `~/.codex/config.toml`, set `sandbox_workspace_write.network_access` to true and add /tmp/.nx or ~/.nx to `sandbox_workspace_write.writable_roots`. Codex has no setting that scopes sockets to a path, and `network_access` also grants general network access, so this is a broader grant than the other agents need.
+  - Get permission to create sockets under /tmp/.nx or ~/.nx, or set NX_SOCKET_DIR to a directory you do have permission for.
+See https://nx.dev/docs/kb/nx-sandbox-unix-sockets for details.
+
+
+ NX   Running target typecheck for project wbs-fe-01 and 1 task it depends on:
+
+
+
+> nx run wbs-fe-01:"typecheck:module"
+
+> status=0; for module in apps/wbs/fe-01/src/modules/*/; do echo "typecheck:module $module"; bunx tsc -p "$module"tsconfig.json --noEmit || status=1; done; exit $status
+
+typecheck:module apps/wbs/fe-01/src/modules/calendar-markers/
+typecheck:module apps/wbs/fe-01/src/modules/dependency-lookup/
+typecheck:module apps/wbs/fe-01/src/modules/directory-management/
+typecheck:module apps/wbs/fe-01/src/modules/directory/
+typecheck:module apps/wbs/fe-01/src/modules/plan-commands/
+typecheck:module apps/wbs/fe-01/src/modules/plan-feed/
+typecheck:module apps/wbs/fe-01/src/modules/plan-writer/
+typecheck:module apps/wbs/fe-01/src/modules/preferences/
+typecheck:module apps/wbs/fe-01/src/modules/project/
+typecheck:module apps/wbs/fe-01/src/modules/saved-plans/
+
+> nx run wbs-fe-01:typecheck
+
+> bunx tsc --build --force apps/wbs/fe-01/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project wbs-fe-01 and 1 task it depends on
+
+
+  Run duration:      8.6s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     8.6s (2 tasks)
+  Recoverable time:  <1ms

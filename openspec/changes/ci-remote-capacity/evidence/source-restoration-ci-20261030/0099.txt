@@ -1,0 +1,50 @@
+
+tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:
+179 | });
+180 | 
+181 | // Proof: dropping remote-source failed this parsed matrix consumer; exact restoration passed (2026-10-29).
+182 | test('isolated remote matrix is exactly four independent whole-file runners', () => {
+183 |   const runtime = job('gate_remote_model');
+184 |   expect(runtime.strategy).toEqual({
+                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "fail-fast": false,
+    "matrix": {
+      "partition": [
+        "remote-model",
+        "remote-model-continuation",
+        "remote-source",
+-       "remote-source-restoration",
+      ],
+    },
+  }
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:184:28)
+(fail) isolated remote matrix is exactly four independent whole-file runners [0.25ms]
+190 | // Proof: changing only the configured Node version to 24.20.1 failed this metadata consumer (2026-10-29).
+191 | test('both source matrix members provision the exact CI Node runtime', () => {
+192 |   const runtime = job('gate_remote_model');
+193 |   const setup = step(runtime, 'Set up source test Node');
+194 |   expect(setup.uses).toBe('actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38');
+195 |   expect(setup.if).toBe("${{ matrix.partition == 'remote-source' || matrix.partition == 'remote-source-restoration' }}");
+                         ^
+error: expect(received).toBe(expected)
+
+Expected: "${{ matrix.partition == 'remote-source' || matrix.partition == 'remote-source-restoration' }}"
+Received: "${{ matrix.partition == 'remote-source' }}"
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:195:20)
+(fail) both source matrix members provision the exact CI Node runtime [0.19ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 4 filtered out
+ 2 fail
+ 3 expect() calls
+Ran 2 tests across 1 file. [74.00ms]

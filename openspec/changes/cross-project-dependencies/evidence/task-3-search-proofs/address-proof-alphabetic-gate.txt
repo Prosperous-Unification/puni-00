@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+27 |   expect((next.body as { projects: { abbreviation: string }[] }).projects.map(project => project.abbreviation)).toEqual(['AY']);
+28 | });
+29 | it('numeric input is not external discovery', async () => {
+30 |   await create('ada', '010 project', 'NUM');
+31 |   for (const q of ['010', '', '_']) {
+32 |     expect(await h.call('ada', 'GET', `/api/project-addresses/projects?q=${q}`)).toEqual({ status: 200, body: { projects: [], nextCursor: null } });
+                                                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+      "nextCursor": null,
+-     "projects": [],
++     "projects": [
++       {
++         "abbreviation": "NUM",
++         "name": "010 project",
++         "projectId": "aa76840f-3c17-4614-ac49-1670e4864e73",
++       },
++     ],
+    },
+    "status": 200,
+  }
+
+- Expected  - 1
++ Received  + 7
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:32:82)
+(fail) numeric input is not external discovery [189.26ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.83s]

@@ -3,6 +3,7 @@ import {
   GONE,
   INVALID_REQUEST,
   isAmbiguousWriteFailure,
+  isOptimizationRetryRefusal,
   refusalSentence,
 } from '@/components/wbs/plan-refusal';
 import { createLocalWrite } from '@/lib/local-write';
@@ -42,7 +43,8 @@ export function createPlanWriter({
      * screen when the next action succeeds` failed with the toast gone. Watched,
      * 2026-08-06.
      *
-     * A refused request contributes no new obligation: be-01 changed nothing in
+     * A refused Retry obligates a tree read to reconcile the current question.
+     * Other refused requests contribute no new obligation: be-01 changed nothing in
      * that request. Requests already completed in the same gesture keep theirs,
      * so a create that landed before an attachment refusal remains visible.
      * {@link GONE} is the no-prefix exception: it says the row this client acted
@@ -84,6 +86,8 @@ export function createPlanWriter({
           // A refusal from a project the reader has left is not a refusal of
           // anything on the screen now. The old burst stops without putting
           // its toast or refetch into the next project.
+          // Proof: removing this guard published a terminal refusal in `a retired writer
+          // does not publish or reread a typed terminal Retry refusal` (2026-10-22).
           if (!isCurrent()) return 'refused';
           // Proof, two faults, both watched 2026-08-09. `refusalSentence`
           // replaced by `failureText`, `says a row that has gone is gone, and
@@ -107,10 +111,14 @@ export function createPlanWriter({
           // Proof: replacing the completed prefix below with `[]` made
           // `refreshes a created tag after its attachment refuses` time out
           // with one tag read instead of two. Watched, 2026-09-13.
+          // Proof: removing the Retry obligation left Q1→Q2 mounted race tests at
+          // one tree read instead of two (2026-10-22).
           const resources =
             ambiguous || refusal === GONE || INVALID_REQUEST.has(refusal)
               ? ALL_RESOURCES
-              : completed;
+              : isOptimizationRetryRefusal(thrown)
+                ? [...new Set([...completed, 'tree' as const])]
+                : completed;
           if (resources.length > 0) await rereadResources(resources);
           return 'refused';
         }

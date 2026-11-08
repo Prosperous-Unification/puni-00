@@ -1,0 +1,424 @@
+import { strict as assert } from 'node:assert';
+import { createHash } from 'node:crypto';
+import { mkdtemp,rm,writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createReadinessByteTransportFixture } from '/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/fixtures/product-readiness-byte-transport';
+import { sourceNodeTestNamespace,sourceNodeTestRuntime } from '/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/fixtures/source-node-runtime';
+interface Choice {readonly kind:'program'|'context';readonly test:string;readonly begin:string;readonly observed:string;readonly failure:string;}
+const choices=new Map<string,Choice>([
+  [
+    "collector-credentials",
+    {
+      "kind": "program",
+      "test": "actual source collector function boundary refuses uid",
+      "begin": "source Node function BEGIN uid",
+      "observed": "actual source function uid refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "collector-arguments",
+    {
+      "kind": "program",
+      "test": "actual source collector function boundary refuses pid-argument",
+      "begin": "source Node function BEGIN pid-argument",
+      "observed": "actual source function pid-argument refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "bounded-proc-read",
+    {
+      "kind": "program",
+      "test": "actual source collector function boundary refuses proc-bound",
+      "begin": "source Node function BEGIN proc-bound",
+      "observed": "actual source function proc-bound refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "proc-stat-grammar",
+    {
+      "kind": "program",
+      "test": "actual source collector function boundary refuses stat-identity",
+      "begin": "source Node function BEGIN stat-identity",
+      "observed": "actual source function stat-identity refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "link-projection",
+    {
+      "kind": "program",
+      "test": "actual source collector function boundary refuses link-input",
+      "begin": "source Node function BEGIN link-input",
+      "observed": "actual source function link-input refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "fatal-byte-decoder",
+    {
+      "kind": "program",
+      "test": "actual source collector function boundary refuses link-utf8",
+      "begin": "source Node function BEGIN link-utf8",
+      "observed": "actual source function link-utf8 refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "timestamp-projection",
+    {
+      "kind": "program",
+      "test": "actual source collector normal proc boundary observes timestamp-range",
+      "begin": "source Node normal proc BEGIN timestamp-range",
+      "observed": "actual source normal proc timestamp-range boundary observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "receipt-output-bounds",
+    {
+      "kind": "program",
+      "test": "actual source collector function boundary refuses output-total",
+      "begin": "source Node function BEGIN output-total",
+      "observed": "actual source function output-total refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "write-progress",
+    {
+      "kind": "program",
+      "test": "actual source writer handles excess byte progress at its output boundary",
+      "begin": "source Node writer BEGIN excess",
+      "observed": "actual source excess writer boundary observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "address-projection",
+    {
+      "kind": "program",
+      "test": "actual source address projection refuses canonical-v6 builtin observation",
+      "begin": "source Node address BEGIN canonical-v6",
+      "observed": "actual source canonical-v6 address observation refusal reached",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "executable-capture",
+    {
+      "kind": "program",
+      "test": "actual source collector normal proc boundary observes short-read",
+      "begin": "source Node normal proc BEGIN short-read",
+      "observed": "actual source normal proc short-read boundary observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "process-readback",
+    {
+      "kind": "program",
+      "test": "actual source collector normal proc boundary observes pid-start",
+      "begin": "source Node normal proc BEGIN pid-start",
+      "observed": "actual source normal proc pid-start boundary observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "descriptor-roster",
+    {
+      "kind": "program",
+      "test": "actual source collector normal proc boundary observes fd-identity",
+      "begin": "source Node normal proc BEGIN fd-identity",
+      "observed": "actual source normal proc fd-identity boundary observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "census-provenance",
+    {
+      "kind": "program",
+      "test": "actual source fresh census refuses arguments at its identity boundary",
+      "begin": "source Node census identity BEGIN arguments",
+      "observed": "actual source census arguments identity refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "census-bound",
+    {
+      "kind": "program",
+      "test": "actual source fresh census refuses count at its identity boundary",
+      "begin": "source Node census identity BEGIN count",
+      "observed": "actual source census count identity refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "census-probe",
+    {
+      "kind": "program",
+      "test": "actual source census second probe models EACCES explicitly",
+      "begin": "source Node census probe BEGIN EACCES",
+      "observed": "actual source census second-probe EACCES outcome observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "launcher-input",
+    {
+      "kind": "program",
+      "test": "actual source launcher rejects credential before granting reap",
+      "begin": "source Node launcher BEGIN credential",
+      "observed": "actual source launcher credential refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "owned-child-identity",
+    {
+      "kind": "program",
+      "test": "actual source launcher rejects identity before granting reap",
+      "begin": "source Node launcher BEGIN identity",
+      "observed": "actual source launcher identity refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "independent-watchdog",
+    {
+      "kind": "program",
+      "test": "actual independent launcher deadline kills a synchronously blocked collector",
+      "begin": "source Node independent watchdog BEGIN",
+      "observed": "actual blocked collector independent watchdog and reap refusal observed",
+      "failure": "Received: \"SIGKILL\""
+    }
+  ],
+  [
+    "input-settlement",
+    {
+      "kind": "program",
+      "test": "actual source launcher refuses withheld ACK and settles original custody",
+      "begin": "source Node ACK BEGIN withheld",
+      "observed": "actual Node withheld ACK refusal and original custody observed",
+      "failure": "Received: \"SIGKILL\""
+    }
+  ],
+  [
+    "ack-validation",
+    {
+      "kind": "program",
+      "test": "actual source launcher refuses malformed ACK and settles original custody",
+      "begin": "source Node ACK BEGIN malformed",
+      "observed": "actual Node malformed ACK refusal and original custody observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "ack-bound",
+    {
+      "kind": "program",
+      "test": "actual source launcher bounds an open ACK channel before its work deadline",
+      "begin": "source Node ACK bound BEGIN",
+      "observed": "actual source open ACK bound refusal observed",
+      "failure": "Expected to contain:.*source-test-stop:source ACK bound[\\s\\S]*source-test-stop:source independent work/ACK deadline exceeded"
+    }
+  ],
+  [
+    "launcher-stdout",
+    {
+      "kind": "program",
+      "test": "actual source launcher refuses stdout from its owned collector boundary",
+      "begin": "source Node launcher channel BEGIN stdout",
+      "observed": "actual source launcher stdout boundary refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "launcher-stderr",
+    {
+      "kind": "program",
+      "test": "actual source launcher refuses stderr from its owned collector boundary",
+      "begin": "source Node launcher channel BEGIN stderr",
+      "observed": "actual source launcher stderr boundary refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "original-reap",
+    {
+      "kind": "program",
+      "test": "actual source launcher rejects exit-status before granting reap",
+      "begin": "source Node launcher BEGIN exit-status",
+      "observed": "actual source launcher exit-status refusal observed",
+      "failure": "Expected: 1\\s+Received: 0"
+    }
+  ],
+  [
+    "fixed-source-command",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node command actual dispatch captured",
+      "observed": "source Node complete command observed",
+      "failure": "-\\s+[\"\\']1000:1000[\"\\'][\\s\\S]*\\+\\s+[\"\\']0:0[\"\\']"
+    }
+  ],
+  [
+    "source-receipt-bound",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node private receipt consumer BEGIN source-token-bound",
+      "observed": "source Node private receipt consumer observed source-token-bound",
+      "failure": "Expected: 2\\s+Received: [0-9]+"
+    }
+  ],
+  [
+    "source-tag-boundary",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node private receipt consumer BEGIN source-unknown-tag",
+      "observed": "source Node private receipt consumer observed source-unknown-tag",
+      "failure": "Expected: 7\\s+Received: [0-9]+"
+    }
+  ],
+  [
+    "source-session-tuple",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node private receipt consumer BEGIN source-session-nonce",
+      "observed": "source Node private receipt consumer observed source-session-nonce",
+      "failure": "Missing expected rejection"
+    }
+  ],
+  [
+    "source-session-before-ack",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node private receipt consumer BEGIN source-no-session",
+      "observed": "source Node private receipt consumer observed source-no-session",
+      "failure": "Expected: 0\\s+Received: 1"
+    }
+  ],
+  [
+    "source-done",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node private receipt consumer BEGIN source-completion-count",
+      "observed": "source Node private receipt consumer observed source-completion-count",
+      "failure": "Missing expected rejection"
+    }
+  ],
+  [
+    "source-before-ack-join",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node private receipt consumer BEGIN missing",
+      "observed": "source Node private receipt consumer observed missing",
+      "failure": "Missing expected rejection"
+    }
+  ],
+  [
+    "source-reap-frame",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node private receipt consumer BEGIN source-reap-foreign",
+      "observed": "source Node private receipt consumer observed source-reap-foreign",
+      "failure": "Missing expected rejection"
+    }
+  ],
+  [
+    "source-mode-frame",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node private receipt consumer BEGIN source-member-observe",
+      "observed": "source Node private receipt consumer observed source-member-observe",
+      "failure": "Expected: 10\\s+Received: [0-9]+"
+    }
+  ],
+  [
+    "source-complete-reap",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node private receipt consumer BEGIN source-missing-reap",
+      "observed": "source Node private receipt consumer observed source-missing-reap",
+      "failure": "Missing expected rejection"
+    }
+  ],
+  [
+    "source-transport-failure",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node private receipt consumer BEGIN source-completion-count",
+      "observed": "source Node private receipt consumer observed source-completion-count",
+      "failure": "Missing expected rejection"
+    }
+  ],
+  [
+    "source-empty-census",
+    {
+      "kind": "context",
+      "test": "source original context dispatches the complete fixed Node command",
+      "begin": "source Node original cleanup member consumer BEGIN",
+      "observed": "source Node original cleanup member and terminal refusal observed",
+      "failure": "Missing expected rejection"
+    }
+  ]
+]);
+const selected=process.argv[2],phase=process.argv[3],custodyPath=process.argv[4];
+if(process.argv.length!==5||selected===undefined||phase===undefined||custodyPath===undefined||!choices.has(selected)||!['ordinary','omitted','restored'].includes(phase)||!/^\/tmp\/puni-source-node-proofs-[A-Za-z0-9_-]+\/[a-z-]+\.(?:ordinary|omitted|restored)\.custody\.json$/.test(custodyPath)||!custodyPath.endsWith('/'+selected+'.'+phase+'.custody.json'))throw new Error('exact closed Node proof case/phase/custody path required');
+const choice=choices.get(selected);if(choice===undefined)throw new Error('closed Node proof choice absent');
+let directory:string;
+let environment:NodeJS.ProcessEnv;
+let command:string[];
+const pattern='^'+choice.test.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$';
+if(choice.kind==='program'){
+ directory=await mkdtemp(join(tmpdir(),'source-node-selected-'));
+ const node=await sourceNodeTestRuntime();
+ environment={...process.env,TMPDIR:directory,SOURCE_NODE_TEST_BINARY:node,FORCE_COLOR:'0'};
+ command=[...sourceNodeTestNamespace(directory),process.execPath,'test','test/source-inner-program-child.test.ts','--test-name-pattern',pattern,'--timeout=10000'];
+}else{
+ const peer=await createReadinessByteTransportFixture();directory=peer.directory;
+ environment={...peer.environment,FORCE_COLOR:'0'};
+ command=[process.execPath,'test','test/source-inner-command-child.test.ts','--test-name-pattern',pattern,'--timeout=300000'];
+}
+delete environment['SOURCE_ROLE_PROOF'];
+let joined=false;
+try{
+ const child=Bun.spawn(command,{cwd:'/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts',env:environment,stdin:'ignore',stdout:'pipe',stderr:'pipe',signal:AbortSignal.timeout(choice.kind==='program'?65000:310000),killSignal:'SIGKILL'});
+ const settled=await Promise.allSettled([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
+ const [exit,stdout,stderr]=settled;
+ if(exit.status!=='fulfilled'||stdout.status!=='fulfilled'||stderr.status!=='fulfilled')throw new AggregateError(settled,`original proof exit/streams unproved; retained ${directory}`);
+ joined=child.signalCode===null&&(exit.value===0||exit.value===1);
+ await writeFile(custodyPath,JSON.stringify({selected,phase,kind:choice.kind,test:choice.test,childPid:child.pid,childExit:exit.value,childSignal:child.signalCode,originalExitAndBothEOF:true,namespaceRequested:choice.kind==='program',namespaceModelReached:choice.kind==='program'&&stderr.value.includes('source Node owning namespace actual UID/GID1000:1000 observed'),stdoutBytes:Buffer.byteLength(stdout.value),stderrBytes:Buffer.byteLength(stderr.value),stdoutSha256:createHash('sha256').update(stdout.value).digest('hex'),stderrSha256:createHash('sha256').update(stderr.value).digest('hex')})+'\n',{flag:'wx',mode:0o600});
+ process.stdout.write(stdout.value);process.stderr.write(stderr.value);
+ assert.equal(child.signalCode,null,'original model namespace/child was externally signaled');
+ assert.ok(stderr.value.includes(choice.begin),'selected reached consumer BEGIN absent');
+ if(choice.kind==='program'){
+  assert.ok(stderr.value.includes('source Node owning namespace actual UID/GID1000:1000 observed'),'actual test UID/GID marker absent');
+  assert.match(stderr.value,/\b48 filtered out\b/);
+ }else assert.ok(!/[0-9]+ filtered out/.test(stderr.value),'genuine-context selected test cardinality differs');
+ if(phase==='omitted'){
+  assert.equal(exit.value,1);assert.match(stderr.value,/\b0 pass\b/);assert.match(stderr.value,/\b1 fail\b/);
+  assert.ok(stderr.value.includes('(fail) '+choice.test+' ['),'selected failing test name absent');
+  assert.ok(!stderr.value.includes(choice.observed),'selected consumer passed before a later failure');
+  assert.match(stderr.value,new RegExp(choice.failure),'intended raw selected assertion absent');
+ }else{
+  assert.equal(exit.value,0);assert.match(stderr.value,/\b1 pass\b/);assert.match(stderr.value,/\b0 fail\b/);
+  const passed=[...stderr.value.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map(match=>match[1]);
+  assert.deepEqual(passed,[choice.test]);assert.ok(stderr.value.includes(choice.observed),'selected observed consumer marker absent');
+ }
+}finally{if(joined)await rm(directory,{recursive:true});}

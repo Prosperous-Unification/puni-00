@@ -1,0 +1,133 @@
+# Task 9.1 frontend implementation freeze
+
+Worktree `/tmp/puni-cross-autocomplete`; branch `feat/cross-project-autocomplete`; base `427d34c41`. Full frontend vertical slice follows `/tmp/puni-autocomplete-editor-decision.md`, authorized by root. No commits, WBS edits, OpenSpec edits, branch switches, agents or other-worktree edits by this worker.
+
+## Behavior and ownership
+
+Actual desktop table and phone fields now share bounded, debounced project discovery and project-scoped endpoint choices. Empty, numeric and local `010.s1-dev` tokens stay local. Alphabetic tokens retain local title choices beside case-insensitive discovery. Choosing a project preserves earlier comma/whitespace bytes and never writes. More is explicit; loading, empty, query failure, retry, refusal, cancellation and incompatible revision refresh states are modeled. Token/project changes immediately hide stale options and abort pending reads; late responses are fenced independently of transport cancellation.
+
+Selections retain stable project/work-item/scope/step coordinates; pending locks and deduplication use that tuple. One click preserves exact predecessor scope and local whole FS successor semantics. Customize uses independent local/remote endpoint models and observed remote step identity. Remote folded defaults require complete revision-consistent pages and exactly one known matching local code. Absent/null optional local code never means missing remote step. Explicit remote node choices stay selected. Mixed Enter submission retains legacy numeric list behavior, stable dedupe, earlier unresolved tokens and one summary. Explicit keyboard project/endpoint selection works with earlier tokens.
+
+A required read-only dependencyLookup feature is created by session/project composition using the authenticated project credential and identical ResourceScope. Runtime disposal and organization replacement withdraw it. Existing actual ProjectAddressApi routes and command transport are used. StepView preserves code string/null/absence; delivered-store equality publishes code-only updates. Actual HTTP client rejects missing or mismatching non-whole remote step evidence. No backend/routes/source/command implementation changes are owned here.
+
+The existing production server remains deliberately dormant: the real HTTP command returns external_dependencies_inactive and the draft remains visible with a readable refusal. This frontend packet does not activate cross-project writes, implement persisted remote-link presentation, 9.2 settings/outcomes, or certify backend semantic integration. Directory reference-set components remain untouched because they are not dependency callers.
+
+## Fresh checks
+
+Commands run from `apps/wbs/fe-01` unless stated. Exact logs are under `/tmp`.
+
+- Configured View Vitest, 15 files / 336 tests passed, `/tmp/puni-autocomplete-regressions-final.log`. Command: `TZ=UTC bunx vitest run src/components/wbs/plan-dependencies.test.tsx src/components/wbs/plan-cards.test.tsx src/components/wbs/dependency-autocomplete.test.tsx src/components/wbs/dependency-search.test.tsx src/components/wbs/remote-dependency-editor.test.tsx src/components/wbs/scoped-dependency-editor.test.tsx src/components/wbs/typed-dependency-editor.test.tsx src/components/wbs/depends-input.test.ts src/lib/dependency-command-serialization.test.ts src/lib/step-view.test.ts src/modules/plan-feed/same-steps.test.ts src/runtime/project-runtime.test.ts src/runtime/session-runtime.test.ts src/modules/project/composition.test.ts src/test-tiers.test.ts --no-file-parallelism --maxWorkers=1`.
+- Actual HTTP request serialization + exact mounted409 response refusal and actual desktop/phone tests: 2 files / 12 tests passed, `/tmp/puni-autocomplete-actual-final.log`. Command: `TZ=UTC bunx vitest run src/components/wbs/dependency-autocomplete.test.tsx src/lib/dependency-command-serialization.test.ts --no-file-parallelism --maxWorkers=1`. These same suites are included in the 336 run; counts are not additive.
+- Configured Node Vitest: 3 files / 9 tests passed, `/tmp/puni-autocomplete-node-final.log`. Command: `TZ=UTC bunx vitest run --config vitest.node.config.ts src/components/wbs/dependency-draft.test.ts src/modules/dependency-lookup/dependency-lookup.feature.test.ts src/runtime/dependency-lookup.test.ts --no-file-parallelism --maxWorkers=1`.
+- Real plan-writer refusal mapping: 1 file / 17 tests passed, `/tmp/puni-autocomplete-writer-final.log`. Command: `TZ=UTC bunx vitest run --config vitest.node.config.ts src/modules/plan-writer/plan-writer.test.ts --no-file-parallelism --maxWorkers=1`.
+- `bunx tsc -p tsconfig.app.json --noEmit` and `bunx tsc -p tsconfig.spec.json --noEmit`: exit0. Logs `/tmp/puni-autocomplete-types-{app,spec}-final.log`.
+- Full owned TypeScript ESLint: exit0, zero warnings, `/tmp/puni-autocomplete-lint-final.log`. Actual Nx boundaries enabled after `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx graph --file=/tmp/puni-autocomplete-project-graph.json` exited0. Root command: `bunx eslint <all owned .ts/.tsx paths from /tmp/puni-autocomplete-owned-paths.txt>`.
+- Owned `bunx prettier --check <all55ownedpaths>`: exit0, `/tmp/puni-autocomplete-format-check-final.log`.
+- `bunx tsc -p src/modules/dependency-lookup/tsconfig.json --noEmit` and `bunx tsc -p src/modules/project/tsconfig.json --noEmit`: exit0, `/tmp/puni-autocomplete-types-{lookup,project}-final.log`.
+- `sha256sum -c /tmp/puni-autocomplete-owned-sha256.txt`: exit0, all55ownedpaths match, `/tmp/puni-autocomplete-hashes-final.log`. Upstream hashes also rechecked exact.
+- `git diff --check`: exit0.
+
+The installed OpenSpec CLI `./node_modules/.bin/openspec` status and apply instructions succeeded earlier. Root owns packet validation/evidence integration. No full repository gate, heavy build or h2/h4 gate run locally. Vite prints existing future-native-loader warnings (`__dirname`, Node JSON import attributes); tests use the configured current loader. No browser/manual visual pass or production activation claimed.
+
+## R5 observed negative assertions
+
+All faults were restored. Adjacent production `Proof:` comments name observations. Logs `/tmp/puni-autocomplete-negative-<fault>.log`:
+
+| Fault | Observed failure |
+| --- | --- |
+| alphabetic | numeric/local-step inputs unexpectedly sent project discovery |
+| debounce | discovery occurred before199ms |
+| render-identity | old PUNI choices remained clickable immediately after OTHER |
+| response-generation | ignored-abort OLD answer erased ready NEW choice |
+| hook-abort | unmount signal.aborted was false |
+| page-revision | r2 continuation was accepted under r1 instead of Refresh |
+| initial-revision | stale Customize scope enabled before explicit refresh |
+| project-evidence | reused project address accepted without Refresh |
+| scope-key | node/descendant-step same-step choices collapsed |
+| project-key | second project with same opaque IDs could not write while first pending |
+| completeness | Add enabled before complete remote candidate pages |
+| remote-step-key | successor UUID reuse prevented observed remote match selection |
+| required-step-evidence | real HTTP absent/mismatched remote step metadata resolved instead of rejecting |
+| request-bound | actual API port received200 instead of25 |
+| runtime-current / closed-service | withdrawn/closed lookup sent a second request |
+| runtime-late-current / caller-late-cancel | success published after withdrawal/cancellation |
+| close / lookup-disposal | pending signal was not aborted / project runtime did not close lookup |
+| step-code-publication | delivered store retained old snapshot on code-only update |
+| project-discovery-completeness | truncated discovery bound an incomplete project match |
+| multi-token-highlight | actual comma-separated list missed earlier010 dependency |
+| dormant-refusal | actual writer command/history threw Unexpected response variant |
+| dormant-sentence | actual writer produced generic fallback instead of readable refusal |
+
+The first scope-key attempt did not distinguish node/whole because different step IDs already separated them; the fixture was strengthened to node/descendant-step with the same step, then the watched assertion failed. An initial runtime-current attempt timed out; its test was strengthened and the final fault log contains an explicit request-count assertion failure. Neither initial attempt is claimed as proof. Boundary candidate validation is frontend-only; upstream schema tightening remains backend/command-owned.
+
+## Provisional upstream contracts (not frontend-owned)
+
+Root copied these exact frozen command-owner dependencies for actual HTTP integration testing. They remain subject to independent command-packet review; this does not approve their full implementation. Exclude all three from frontend commit/manifest:
+
+- `libs/wbs/domain/contracts/src/commands/definitions.ts`: `438ebadf345ce8e9a9177baa7f410be0d2fd6ea08ffa7874974c664bc9ed603f`
+- `libs/wbs/domain/contracts/src/http/work-item-shapes.ts`: `d1e5fbe31cc477c817df9ac4c58501fe7ae10d391cecc4a6e2be0ad70245f84f`
+- `libs/wbs/domain/contracts/src/http/refusal.ts`: `7853e77b8d0f7a8c7dc33a06aab3cf5046a08d5c6e5f7008705cf5bb1dd9108e`
+
+Handoff evidence `/tmp/puni-autocomplete-provisional-contract-handoff.md`. Exact409 body: `{error:'external_dependencies_inactive',at:0,kind:'addTypedDependency'}`. The serialization test previously failed invalid_request without the request handoff, and invalid_response without the response handoff; no assertion was weakened or schema duplicated to pass.
+
+## Owned source manifest
+
+55 paths, exact hashes also in `/tmp/puni-autocomplete-owned-sha256.txt`; path list `/tmp/puni-autocomplete-owned-paths.txt`. Includes necessary frontend refusal mapping exposed by new command response union. No provisional upstream path included.
+
+```text
+6d69130924b69470d450599b0c67866d009b533166e3323820177e57198c3fee  apps/wbs/fe-01/src/app-router.test.tsx
+988d68cf1728edf04e218c61b5ded61175c77f7ea8dba93a220982fd30ad4944  apps/wbs/fe-01/src/components/wbs/dependency-autocomplete.test.tsx
+d6ffe1b3baf9d37d4066a2ac4f77bd7b1bfa3a6692727e11f9682c2da59def55  apps/wbs/fe-01/src/components/wbs/dependency-draft.test.ts
+e0e51a3b9cc81abc9305cc1da6024ef38551a6acd01d651d08eced73fb3525f8  apps/wbs/fe-01/src/components/wbs/dependency-draft.ts
+413f4f3155a016cdc02b553b736dd33018233db4bf1ebf31b68df2b8fdf34ce8  apps/wbs/fe-01/src/components/wbs/dependency-options.tsx
+2aa8c8bab4bdf009558a65d84fb8e281d8a059d752c9d28a29dd087ff3c7613b  apps/wbs/fe-01/src/components/wbs/dependency-search.test.tsx
+f5a61009f306afecafd5fa0c3e62d7d5cff22ce873f4f180bdda3a7b4ae3f3b5  apps/wbs/fe-01/src/components/wbs/dependency-selection.ts
+303d2938a6338f2d6d972746a32f6191a293936b74204212c8d3ae9f31bf5eb3  apps/wbs/fe-01/src/components/wbs/depends-input.test.ts
+3910c51abd78a58b7411dbf5efc197609b9431ff368fb19ac6b5347e60138ddb  apps/wbs/fe-01/src/components/wbs/depends-input.ts
+2f9247a743c7eefe231289974aa09fc39f064ba6334e9a28bd56228db2a9b67d  apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx
+593198b56b6a42da0b5b23626b90c87b5cfb07ff65fa86144ce2c47473602b98  apps/wbs/fe-01/src/components/wbs/plan-cards.tsx
+499893bc78cf3d24a28b46e48132fb0c7ce7cc81cc7bb1e465fa5d96065c8a50  apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx
+f2ea570062b472d4a36313e047e45ee328b033e39fe49205122c902b99ea0db6  apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx
+f5ba5fdba6b4762a131d05721745ed1da4670934a44fc673eb1522fe8d537e42  apps/wbs/fe-01/src/components/wbs/plan-live.ts
+b7600d12ccc2ae79be55c332e17bb63b876b0f2ad17e1453854155060f353a21  apps/wbs/fe-01/src/components/wbs/plan-refusal.ts
+e53665d8f9d435caaa9d1dcc204a16c13c95a20ded3af5ea3a0ac18a3e6f2bfe  apps/wbs/fe-01/src/components/wbs/remote-dependency-editor.test.tsx
+20a183a46b0b8d90e55f41b93931599d6843255bcbf32e87c5225a1ae60a5451  apps/wbs/fe-01/src/components/wbs/remote-dependency-editor.tsx
+186677e46bae58884d750e3fcbe3518dcb87a86381f5618faf345dd82234809e  apps/wbs/fe-01/src/components/wbs/scoped-dependency-editor.test.tsx
+9767aff611cbc6818c72317f5a11341b6c4d0f92a092a6a4be33d7d16f19df36  apps/wbs/fe-01/src/components/wbs/typed-dependency-editor.test.tsx
+b386c1d533d74e79fba9c0c2e1379c5022ee5b9f839b91fe14974d4f045214f9  apps/wbs/fe-01/src/components/wbs/typed-dependency-editor.tsx
+e00a41b32cc9160b18f77b1fcec3f3117fd13fa2b757c32596cd25eb458e844a  apps/wbs/fe-01/src/components/wbs/use-dependency-search.ts
+08da4558c42abe49d263c9eb6ec5e88869e0c1f1fb785ca69283ff761faf14b8  apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts
+66a93853e915b672a1b07cc1af66eb1e35555ffee78f028a9b22d5f2139bb85c  apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
+02dabfe854dfd5381450e9f99cbe9b56137300445112bfc0cac758b1122319bb  apps/wbs/fe-01/src/lib/dependency-command-serialization.test.ts
+6e88cc08167e99045f68c4354a28de0b06e2955c42ad699670a9cc2545c3bdb8  apps/wbs/fe-01/src/lib/step-view.test.ts
+912eb8d8227a0bbccec815355d1c74e33c8e32cbf109a1aaa64b7ddfd1cbf047  apps/wbs/fe-01/src/lib/wbs-api.ts
+d04bc677c3d4ca8302a6701db8b2911305ad42d6b6b94eda462dff50b866bb8b  apps/wbs/fe-01/src/modules/dependency-lookup/contract.ts
+a53185056892525b5b88bb3cfeb587a5b8e93f50a098ed817c5538fcdedb4b66  apps/wbs/fe-01/src/modules/dependency-lookup/dependency-lookup.feature.test.ts
+aa98ed13c7f8a456c190dc36a83ee352abb811513c6d13d0b75ddfb13237f0ae  apps/wbs/fe-01/src/modules/dependency-lookup/dependency-lookup.feature.ts
+e71000bf7da1c3c122d4b83d0d2f03f2264fc0c77faeb2b7eea4b6e3d83201e7  apps/wbs/fe-01/src/modules/dependency-lookup/tsconfig.json
+86667547e5566d63e9738b5a966e708e4776be7c31d71172a973019e7f3495de  apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts
+97dbfe027c0d866ad4f2d9953b59fe276a4e802835c7fe20c3055b102e17a02d  apps/wbs/fe-01/src/modules/plan-feed/same-steps.test.ts
+b7d61e4f08f9edb86710439a01ab9d9c828f41343f44eccb41b78706e0732942  apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts
+d946f1696e545827bf6f2a00cfffbc888dfa17c3ccaa47090737e3b17afc05d3  apps/wbs/fe-01/src/modules/project/composition.test.ts
+7c43542e358f96d1efead2bd064766faa86c6ae0162b2a4a613fde3a7b2b09c7  apps/wbs/fe-01/src/modules/project/composition.ts
+5339860d00741a976812881c7355ded44508b36680ba28f6917fa429d85ae242  apps/wbs/fe-01/src/modules/project/contract.ts
+b8d250e89a3712aa9c19f61cb1de6ad4d2b7d35f51b6735f234e9ada15c35c0c  apps/wbs/fe-01/src/modules/project/tsconfig.json
+131935f0e71ffa74970dffce56b8d9db56e5eb23c524fab70a18166372b6aeca  apps/wbs/fe-01/src/runtime/dependency-lookup.test.ts
+869c62948eabd60db92bb7abb977ad9d61b9d883aea463f2260576ff776bee99  apps/wbs/fe-01/src/runtime/project-runtime.model.test.ts
+8d7d4134f0988b96e2da99d832fbd13f2a64cdce6a987c0f5282b5084c0f43f5  apps/wbs/fe-01/src/runtime/project-runtime.test.ts
+21866d8faefbd2f3665f2a667a953d54f1ec953ada2190456b5b759c974a9554  apps/wbs/fe-01/src/runtime/project-runtime.ts
+b6649e8d67332acd4a20078e7279f109896e9b6ea853309bfabc7962ecca6052  apps/wbs/fe-01/src/runtime/session-exit.model.test.ts
+608344d618c7e38dd13f1adf1c6ded0d12bbf8480bbe0ea8223efbe57cde851a  apps/wbs/fe-01/src/runtime/session-runtime.test.ts
+04c29117ae28094aebd150ecc517057c586a9cfb2dc61558d23eacbe7e8988d5  apps/wbs/fe-01/src/runtime/session-runtime.ts
+2f33ddf60c518bca51c955e311ac8155b91d892197765fc8547fde0d3b14fb1d  apps/wbs/fe-01/src/testing/fake-project-api.ts
+433279256810165f1b0314d98b7e44c4a6a6fc9ff26d9b3411c733d8a93d1a8a  apps/wbs/fe-01/src/testing/project-page-over-owner.tsx
+c4f1c35ec0ad44699662413475d641d05085c9bf43bb0871f7aff856bd643134  apps/wbs/fe-01/src/testing/project-services-of.ts
+d8405436c4dd092fcc0d28117828b63693755f2862c5c3e205f76f37bc499acc  apps/wbs/fe-01/src/testing/refusing-address-api.ts
+922f2947e19e647c54ff43d122a1de1039ade14af2ab7671207f9dba53c671fb  apps/wbs/fe-01/tsconfig.app.json
+49d0dcf262a7e0c86f56253b9a136c43f79537269b394e1c1e70740fc078b641  apps/wbs/fe-01/tsconfig.e2e.json
+89774c5fad53c49c020f0489cfd831e34cf92af8861bd2091b5b3b10b59ce6a5  apps/wbs/fe-01/tsconfig.json
+11ce8c69dd1e491f8515500653bcc78dff584365676a3e968786c02f7ead58a3  apps/wbs/fe-01/tsconfig.spec.json
+1c5f24a0a008c7b9d356e6195426bfd3fd74955deecd21d8c498a95f4bf69f51  apps/wbs/fe-01/vite.config.ts
+0c28a7ef227d45acd7de08078eb86b677b7ef12fd7228bae25e041e6c783931f  apps/wbs/fe-01/vitest.config.ts
+54f518cb5d94f28e778d9876cd66b2759acde15f3138babbcf5b58658d45e3db  apps/wbs/fe-01/vitest.node-suites.json
+```

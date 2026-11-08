@@ -169,5 +169,9 @@ export interface SourceReaders {
   readonly savedPlans: Pick<Stores['savedPlans'], 'readOf' | 'listOf' | 'principalsOf'>;
 }
 
-export type TransactionalPortName = keyof TransactionalStores;
+/** Writer authority is a source lifetime capability, outside CRUD store conformance. */
+export type TransactionalPortName = Exclude<
+  keyof TransactionalStores,
+  'externalDependencyAuthoring'
+>;
 export type HistoryPortName = keyof HistoryStores;

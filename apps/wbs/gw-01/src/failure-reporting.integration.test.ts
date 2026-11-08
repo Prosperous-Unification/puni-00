@@ -4,7 +4,7 @@ import { createLogger, type CreateLoggerOptions, LogRecord } from '@wbs/observab
 import { parseOrThrow } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
 
-import { buildApp } from './app';
+import { buildApp } from './testing/app-fixture';
 import { GRANT_EVERY_PROJECT } from './testing/project-access';
 
 const INTERNAL_SECRET = 'internal-secret-for-gateway-reporting';

@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+187 |       (value) => value,
+188 |       (error: unknown) => error,
+189 |     );
+190 |     expect(failure).toBeInstanceOf(Error);
+191 |     expect(failure instanceof Error ? failure.message : '').toContain('incident mapping');
+192 |     expect(structures).toBe(fault === 'detached-child' ? 1 : 0);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:192:24)
+(fail) bound structural capability refuses existing-destination instead of admitting an arbitrary node retarget [509.18ms]
+187 |       (value) => value,
+188 |       (error: unknown) => error,
+189 |     );
+190 |     expect(failure).toBeInstanceOf(Error);
+191 |     expect(failure instanceof Error ? failure.message : '').toContain('incident mapping');
+192 |     expect(structures).toBe(fault === 'detached-child' ? 1 : 0);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:192:24)
+(fail) bound structural capability refuses foreign-destination instead of admitting an arbitrary node retarget [379.13ms]
+(pass) bound structural capability refuses detached-child instead of admitting an arbitrary node retarget [359.56ms]
+
+ 1 pass
+ 7 filtered out
+ 2 fail
+ 40 expect() calls
+Ran 3 tests across 1 file. [4.01s]

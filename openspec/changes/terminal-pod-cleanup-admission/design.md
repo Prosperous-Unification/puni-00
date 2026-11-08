@@ -1,0 +1,9 @@
+# Native cleanup of retired-image Pods
+
+Image execution admission and object cleanup have different lifetimes. The image list continues to constrain all creates and ordinary workload changes. A single CEL predicate may bypass only container-image membership for an already terminal, deleting Pod whose spec and the runtime-relevant metadata maps/references are unchanged and whose finalizers strictly decrease by removing only Kubernetes Job-tracking/orphan keys. Optional absent metadata compares as empty maps/lists.
+
+Kubernetes already supplies immutable UID/deletion identity and refuses additions to a deleting object's finalizers. The ephemeral-container update strategy resets ordinary metadata, so it cannot satisfy strict decrease; an explicit subresource condition proved redundant and was removed. No independent omission credit is claimed for API invariants. Parameter formatting, namespace identities, token/security/host-path restrictions and every other validation remain unchanged.
+
+The existing disposable release lab invokes a small actual API probe before runtime bootstrap. Inert unschedulable fixtures retain native keys plus a private sentinel. A separately labelled, namespace-scoped fixture-only admission policy blocks real finalizer changes while permitting server-side dry-runs; its actual denial is observed before native fixtures are created. The source policy alone determines those dry-run admission outcomes. Whole-object UID/resourceVersion-bound before/after observations prevent a controller race from being credited as an assertion pass.
+
+The synthetic backup Job's replacement command uses no S3. Its existing local JSONPatch validates exact CA mount/volume identities before removing them and its unused environment; all other serialized fields survive. Reordered or altered trusted fixture layout refuses rather than guessing which storage to remove.

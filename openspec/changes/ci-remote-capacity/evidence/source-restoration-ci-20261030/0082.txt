@@ -1,0 +1,24 @@
+
+tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:
+197 | // Proof: changing only the configured Node version to 24.20.1 failed this metadata consumer (2026-10-29).
+198 | test('both source matrix members provision the exact CI Node runtime', () => {
+199 |   const runtime = job('gate_remote_model');
+200 |   const setup = step(runtime, 'Set up source test Node');
+201 |   expect(setup.uses).toBe('actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38');
+202 |   expect(setup.if).toBe(
+                         ^
+error: expect(received).toBe(expected)
+
+Expected: "${{ matrix.partition == 'remote-source' || matrix.partition == 'remote-source-restoration' }}"
+Received: "${{ matrix.partition == 'remote-source' }}"
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:202:20)
+(fail) both source matrix members provision the exact CI Node runtime [0.28ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [32.00ms]

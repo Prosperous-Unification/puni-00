@@ -1,0 +1,67 @@
+[
+  {
+    "fault": "project-label-guard",
+    "exitCode": 1,
+    "failures": [
+      "(fail) historical comparison side projection > refuses missing captured project labels rather than inventing them [4.34ms]"
+    ]
+  },
+  {
+    "fault": "row-label-guard",
+    "exitCode": 1,
+    "failures": [
+      "(fail) historical comparison side projection > refuses missing captured row labels rather than inventing them [3.60ms]"
+    ]
+  },
+  {
+    "fault": "step-label-guard",
+    "exitCode": 1,
+    "failures": [
+      "(fail) historical comparison side projection > refuses missing captured step labels rather than inventing them [3.77ms]"
+    ]
+  },
+  {
+    "fault": "omit-fixed-members",
+    "exitCode": 1,
+    "failures": [
+      "(fail) historical comparison side projection > retains captured context and exact stage boundaries when the diff is empty [15.66ms]",
+      "(fail) historical comparison side projection > refuses missing captured row labels rather than inventing them [3.75ms]",
+      "(fail) historical comparison side projection > refuses missing captured step labels rather than inventing them [3.79ms]"
+    ]
+  },
+  {
+    "fault": "final-composite-boundary",
+    "exitCode": 1,
+    "failures": [
+      "(fail) historical comparison side projection > retains captured context and exact stage boundaries when the diff is empty [19.19ms]"
+    ]
+  },
+  {
+    "fault": "terminal-plan-scope",
+    "exitCode": 1,
+    "failures": [
+      "(fail) historical comparison side projection > preserves boundary and plan terminal outcomes distinctly without losing a present schedule [6.03ms]"
+    ]
+  },
+  {
+    "fault": "legacy-local-inference",
+    "exitCode": 1,
+    "failures": [
+      "(fail) historical comparison side projection > marks legacy input unknown while explicit input9 local stays local [3.96ms]"
+    ]
+  },
+  {
+    "fault": "omit-detachment",
+    "exitCode": 1,
+    "failures": [
+      "(fail) historical comparison side projection > detaches summaries from caller changes and never needs live capabilities [4.71ms]"
+    ]
+  },
+  {
+    "fault": "replace-canonical",
+    "exitCode": 1,
+    "failures": [
+      "(fail) historical comparison side projection > retains captured context and exact stage boundaries when the diff is empty [21.64ms]"
+    ]
+  }
+]

@@ -1,0 +1,23 @@
+313 |       } catch (cause) {
+314 |         lastFailure = cause;
+315 |         await Bun.sleep(100);
+316 |       }
+317 |     }
+318 |     throw new Error(`probe ${role} never became ready`, { cause: lastFailure });
+                    ^
+error: probe child never became ready
+      at connect (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/test/gateway-exclusion.ts:318:15)
+      at runAcceptance (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/test/gateway-exclusion.ts:369:27)
+      at processTicksAndRejections (unknown:7:39)
+
+34 |       const timer = setTimeout(() => {
+35 |         reject(new Error(`probe ${role} challenge timed out`));
+36 |       }, 3000);
+37 |       const fail = () => {
+38 |         clearTimeout(timer);
+39 |         reject(new Error(`probe ${role} challenge failed`));
+                        ^
+error: probe child challenge failed
+      at fail (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/test/gateway-exclusion.ts:39:20)
+
+Bun v1.4.2 (Linux x64)

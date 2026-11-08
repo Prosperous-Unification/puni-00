@@ -1,0 +1,42 @@
+[WebServer] (node:108000) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 1 test using 1 worker
+
+(node:108064) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:212:3 › phone whole to node predecessor scope survives accepted HTTP save and SQLite reload (11.9s)
+
+
+  1) apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:212:3 › phone whole to node predecessor scope survives accepted HTTP save and SQLite reload
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  getByRole('dialog', { name: 'Captured dependency' }).getByLabel('Predecessor scope')
+    Expected: "[\"21e90573-907d-45e2-99c4-73c52eb39388\",\"9c413e6c-31b5-4b16-944b-1ce79d9f38cb\",\"node\",\"57432f81-26f0-4118-97c2-b17f4466afbb\"]"
+    Received: "[\"21e90573-907d-45e2-99c4-73c52eb39388\",\"9c413e6c-31b5-4b16-944b-1ce79d9f38cb\",\"whole\",null]"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveValue" getByRole('dialog', { name: 'Captured dependency' }).getByLabel('Predecessor scope') with timeout 5000ms
+      - waiting for getByRole('dialog', { name: 'Captured dependency' }).getByLabel('Predecessor scope')
+        14 × locator resolved to <select>…</select>
+           - unexpected value "["21e90573-907d-45e2-99c4-73c52eb39388","9c413e6c-31b5-4b16-944b-1ce79d9f38cb","whole",null]"
+
+
+      278 |       // Proof: independently forcing desktop/phone serialization to the old predecessor
+      279 |       // makes this post-reload selected-coordinate assertion fail (see bounded verify receipt).
+    > 280 |       await expect(reopened.getByLabel('Predecessor scope')).toHaveValue(chosen);
+          |                                                              ^
+      281 |       const persisted = await request.get('http://localhost:7500/__fixture/relationships');
+      282 |       expect(persisted.status()).toBe(200);
+      283 |       const rows = (await persisted.json()) as { id: string }[];
+        at /tmp/predecessor-scope-acceptance/apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:280:62
+
+    Error Context: test-results/cross-project-refresh.real-ccc05-HTTP-save-and-SQLite-reload/error-context.md
+
+  1 failed
+    apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:212:3 › phone whole to node predecessor scope survives accepted HTTP save and SQLite reload

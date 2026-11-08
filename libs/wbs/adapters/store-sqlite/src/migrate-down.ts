@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { assertDependencyRollbackAdmitted } from './cross-project-dependency-rollback';
 import { openDatabase } from './db';
 
 const FOREIGN_KEYS_OFF_MARKER = '-- foreign-keys-off-rebuild';
@@ -184,14 +185,20 @@ export function rollbackTo(dbPath: string, migrationsFolder: string, target: str
   }
 }
 
-/** Execute selected down scripts and delete each paired ledger row atomically. */
+/**
+ * Validates the complete selection and semantic rollback admission before any down.
+ * Executes each down script and paired ledger deletion in its own transaction;
+ * a later script failure preserves earlier reversals for exact-set retry.
+ */
 export function rollbackAppliedRows(
   db: ReturnType<typeof openDatabase>,
   folders: ReadonlyMap<string, MigrationFolder>,
   doomed: readonly AppliedMigration[],
 ): string[] {
-  const reversed: string[] = [];
-  for (const row of doomed) {
+  // Proof: restoring per-row validation made older unnamed/missing-folder/hash faults
+  // reverse the newer schema and ledger before refusal; all three certificates failed
+  // in migrate-down.db.test.ts (2026-10-23).
+  const selected = doomed.map((row) => {
     if (row.name === null) {
       throw new Error(
         `a migration applied at ${String(row.created_at)} has no name recorded, ` +
@@ -210,6 +217,17 @@ export function rollbackAppliedRows(
           'its down.sql cannot be trusted to reverse it',
       );
     }
+    return { row, folder, name: row.name };
+  });
+  // Proof: omitting admission, moving it after the loop, or passing only the first
+  // selected name each failed 14 activation rollback certificate/refusal cases while
+  // no-op/unrelated paths stayed green (2026-10-23).
+  assertDependencyRollbackAdmitted(
+    db,
+    selected.map(({ name }) => name),
+  );
+  const reversed: string[] = [];
+  for (const { row, folder, name } of selected) {
     const rebuild = folder.downSql.includes(FOREIGN_KEYS_OFF_MARKER);
     if (rebuild) db.run('PRAGMA foreign_keys = OFF;');
     // Proof: committing the first down statement before this per-migration transaction
@@ -229,12 +247,12 @@ export function rollbackAppliedRows(
       db.run('ROLLBACK');
       if (rebuild) db.run('PRAGMA foreign_keys = ON;');
       throw new Error(
-        `rolling back ${row.name} failed: ${e instanceof Error ? e.message : String(e)}`,
+        `rolling back ${name} failed: ${e instanceof Error ? e.message : String(e)}`,
         { cause: e },
       );
     }
     if (rebuild) db.run('PRAGMA foreign_keys = ON;');
-    reversed.push(row.name);
+    reversed.push(name);
   }
   return reversed;
 }

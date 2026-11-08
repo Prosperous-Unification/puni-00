@@ -1,0 +1,48 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+ 98 |
+ 99 | test('concurrent predecessor edit yields one coherent state until next observation', async () => {
+100 |   await snapshots().withSnapshot({ id: 'ada' }, 'a1', async (snapshot) => {
+101 |     write("UPDATE project SET name = 'edited' WHERE id = 'a2'");
+102 |     const captured = await snapshot.captureConnected('a1');
+103 |     expect(captured.projects.find(({ projectId }) => projectId === 'a2')?.reads.project.name).toBe(
+                                                                                                    ^
+error: expect(received).toBe(expected)
+
+Expected: "a2"
+Received: "edited"
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:103:95)
+      at async readOpenSnapshot (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:566:18)
+      at async withSnapshot (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:120:29)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:100:21)
+(fail) concurrent predecessor edit yields one coherent state until next observation [150.23ms]
+208 |       return { kind: 'not_found' };
+209 |     });
+210 |   }
+211 |   await select(true);
+212 |   await select(false);
+213 |   expect(cacheStates.map((state) => state.variants.pri.state)).toEqual(['idle','idle','failed','failed']);
+                                                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    "idle",
+-   "idle",
++   "failed",
+    "failed",
+    "failed",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:213:64)
+(fail) connected isolated cache publication stays invisible through sequential selections [121.42ms]
+
+ 0 pass
+ 16 filtered out
+ 2 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [2.28s]

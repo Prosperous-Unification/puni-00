@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:
+(pass) historical comparison side projection > retains captured context and exact stage boundaries when the diff is empty [17.23ms]
+(pass) historical comparison side projection > marks legacy input unknown while explicit input9 local stays local [3.55ms]
+(pass) historical comparison side projection > retains unavailable scope and absence without manufacturing stages [3.62ms]
+(pass) historical comparison side projection > preserves boundary and plan terminal outcomes distinctly without losing a present schedule [5.52ms]
+(pass) historical comparison side projection > detaches summaries from caller changes and never needs live capabilities [5.44ms]
+(pass) historical comparison side projection > preserves pending without inferring readiness or changing selection [7.85ms]
+(pass) historical comparison side projection > preserves retrying without inferring readiness or changing selection [5.19ms]
+(pass) historical comparison side projection > preserves idle without inferring readiness or changing selection [4.80ms]
+(pass) historical comparison side projection > preserves failed without inferring readiness or changing selection [4.68ms]
+(pass) historical comparison side projection > preserves corrupt without inferring readiness or changing selection [4.60ms]
+(pass) historical comparison side projection > preserves baseline without inferring readiness or changing selection [4.65ms]
+(pass) historical comparison side projection > preserves quantisation-floor without inferring readiness or changing selection [6.69ms]
+(pass) historical comparison side projection > retains captured idle project labels without manufacturing an idle stage [5.46ms]
+(pass) historical comparison side projection > refuses missing captured project labels rather than inventing them [3.75ms]
+(pass) historical comparison side projection > refuses missing captured row labels rather than inventing them [3.42ms]
+367 |         input.dependencyHistory.projects = input.dependencyHistory.projects.filter(
+368 |           (project) => project.projectId !== 'B',
+369 |         );
+370 |       if (missing === 'row') input.dependencyHistory.projects[1].workItems = [];
+371 |       if (missing === 'step') input.dependencyHistory.projects[1].steps = [];
+372 |       expect(() => summarizeSavedComparisonSide({ ...side, input }, { kind: 'current' })).toThrow(
+                                                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /captured .* label/
+Received message: "undefined is not an object (evaluating 'step.name')"
+
+      at <anonymous> (/tmp/puni-saved-comparison-c/libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:372:91)
+(fail) historical comparison side projection > refuses missing captured step labels rather than inventing them [3.77ms]
+
+ 15 pass
+ 1 fail
+ 32 expect() calls
+Ran 16 tests across 1 file. [388.00ms]
