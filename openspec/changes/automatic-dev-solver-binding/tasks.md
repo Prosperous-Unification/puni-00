@@ -26,3 +26,8 @@
 - [x] 11. Fail closed on unreadable clone/worktree metadata, validate injected
       repository/runtime/config paths, keep config diagnostics and host calls
       on one path, and qualify malformed object ids with repository identity.
+- [x] 12. Extend only the automatic publisher queue ceiling from 900 to 36,000
+      seconds; watch existing exact-environment consumers fail against 900,
+      pass at 36,000 and fail again on temporary restoration. Preserve exit-75
+      refusal with no release read, FIFO/capacity/admission and execution
+      deadlines. Run affected tests and scoped statics; record costs and limits.

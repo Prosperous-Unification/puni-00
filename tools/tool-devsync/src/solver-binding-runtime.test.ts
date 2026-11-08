@@ -121,7 +121,7 @@ describe('the production solver binding runtime', () => {
     expect(invocations[1]?.argv).toEqual([`${SOURCE_REPOSITORY}/bin/solver-image-publish.sh`, SHA]);
     expect(invocations[1]?.env).toEqual({
       REGISTRY_PASS: 'protected-value',
-      HEAVY_LOCK_WAIT_SECONDS: '900',
+      HEAVY_LOCK_WAIT_SECONDS: '36000',
       SOLVER_PUBLISH_BUN: BUN,
       SOLVER_PUBLISH_ROOT: ROOT,
       WBS_CLEAN_TREE_REPOSITORY: SOURCE_REPOSITORY,
@@ -360,7 +360,7 @@ describe('the production solver binding runtime', () => {
     expect(invocations[0]?.argv).toEqual([BUN, 'install', '--frozen-lockfile']);
     expect(invocations[1]?.env).toEqual({
       REGISTRY_PASS: 'protected-value',
-      HEAVY_LOCK_WAIT_SECONDS: '900',
+      HEAVY_LOCK_WAIT_SECONDS: '36000',
       SOLVER_PUBLISH_BUN: BUN,
       SOLVER_PUBLISH_ROOT: ROOT,
     });
@@ -389,7 +389,7 @@ describe('the production solver binding runtime', () => {
           Promise.resolve(
             invocation.argv[0] === BUN
               ? { exitCode: 0, stderr: '' }
-              : { exitCode: 75, stderr: 'heavy work lock remained held after 900s' },
+              : { exitCode: 75, stderr: 'heavy work lock remained held after 36000s' },
           ),
         query: () => Promise.reject(new Error('publish must not query')),
         writeAtomic: () => Promise.resolve(),
@@ -398,7 +398,7 @@ describe('the production solver binding runtime', () => {
     );
 
     expect(await rejection(runtime.dependencies.publish(SHA, 'protected-value'))).toMatch(
-      /solver image publish failed \(exit 75\).*remained held after 900s/,
+      /solver image publish failed \(exit 75\).*remained held after 36000s/,
     );
     expect(reads).toBe(0);
   });

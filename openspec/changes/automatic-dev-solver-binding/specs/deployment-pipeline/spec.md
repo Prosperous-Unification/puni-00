@@ -35,3 +35,13 @@ image-selection authority out of application containers and CI.
   tick retries the same compatibility identity
 - **THEN** it reuses only a verified immutable digest, never installs a binding
   for different source bytes, and completes or fails closed before reset
+
+#### Scenario: automatic publication waits behind existing heavy work
+
+- **WHEN** automatic solver publication queues behind existing heavy work
+- **THEN** it passes a fixed 36,000-second finite wait to the existing FIFO lock
+  wrapper without changing admission, capacity checks or execution deadlines
+- **AND** expiry remains a visible exit-75 preparation refusal before reading a
+  release manifest or resetting the live checkout
+- **AND** the immutable selected target stays pinned while waiting, which may
+  defer newer targets and subsequent deploy-health alarm ticks

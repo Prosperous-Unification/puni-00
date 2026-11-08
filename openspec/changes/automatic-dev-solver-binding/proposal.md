@@ -20,6 +20,9 @@ the dev queue. A ten-tick alarm now exposes a recurrence but does not deploy it.
   bytes. Revisions with no compatibility change reuse the installed binding.
 - Any preparation failure remains before reset and is reported by the existing
   deploy-health alarm.
+- Automatic publication keeps its FIFO queue position for at most 36,000 seconds
+  so long gates do not repeatedly expire its wait. Expiry still refuses before
+  reading a release; longer waiting can defer newer targets and alarm ticks.
 
 ## Non-Goals
 
