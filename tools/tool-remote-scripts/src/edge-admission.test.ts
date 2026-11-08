@@ -17,6 +17,178 @@ import { initializeOrdinaryEdgePolicy } from './lib/edge-policy';
 import { readPhase } from './lib/phase';
 import { execute } from './swap';
 
+type WaitingChild = Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
+
+/** Joins every original observation before propagating read failure or returning captured values. */
+async function joinChild(
+  exited: Promise<number>,
+  stdout: Promise<string>,
+  stderr: Promise<string>,
+) {
+  // Proof: fail-fast Promise.all makes the pending-originals rejection test finish before
+  // the controlled original exit and stdout settle; allSettled restores its refusal oracle.
+  const [exit, out, err] = await Promise.allSettled([exited, stdout, stderr]);
+  if (exit.status !== 'fulfilled' || out.status !== 'fulfilled' || err.status !== 'fulfilled')
+    throw new AggregateError(
+      [exit, out, err].flatMap((observation) =>
+        observation.status === 'rejected' ? [observation.reason as unknown] : [],
+      ),
+      'original child observations failed',
+    );
+  return { exit: exit.value, stdout: out.value, stderr: err.value };
+}
+
+test('a failed child observation retains original exit and sibling stream settlement', async () => {
+  const exit = Promise.withResolvers<number>();
+  const stdout = Promise.withResolvers<string>();
+  const failure = new Error('original stderr observation failed');
+  let finished = false;
+  const completion = joinChild(exit.promise, stdout.promise, Promise.reject(failure)).then(
+    () => {
+      finished = true;
+      return undefined;
+    },
+    (cause: unknown) => {
+      finished = true;
+      return cause;
+    },
+  );
+  try {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(finished).toBe(false);
+    exit.resolve(0);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(finished).toBe(false);
+    stdout.resolve('original stdout');
+    const refusal = await completion;
+    expect(refusal).toBeInstanceOf(AggregateError);
+    if (!(refusal instanceof AggregateError))
+      throw new Error('original observation failure absent');
+    expect(refusal.errors).toEqual([failure]);
+  } finally {
+    // Emergency completion follows the pending oracle; it cannot supply its proof.
+    exit.resolve(0);
+    stdout.resolve('original stdout');
+    await completion;
+  }
+});
+
+/** Owns the original exit and both pipes before readiness can fail; release never replaces a reader. */
+function ownWaitingChild(child: WaitingChild, release: string) {
+  const stdout = new Response(child.stdout).text();
+  const stderr = new Response(child.stderr).text();
+  const settled = Promise.allSettled([child.exited, stdout, stderr] as const);
+  const releaseWritten = Promise.withResolvers<undefined>();
+  return {
+    settled,
+    releaseWritten: releaseWritten.promise,
+    async run(body: () => Promise<void>): Promise<void> {
+      let outcome: { status: 'returned' } | { status: 'failed'; cause: unknown } = {
+        status: 'returned',
+      };
+      try {
+        await body();
+      } catch (cause) {
+        outcome = { status: 'failed', cause };
+      }
+      // Proof: moving the body before cleanup coverage fails both real forced-READY release
+      // oracles before outer rescue; restoring coverage settles the original children.
+      const failures: unknown[] = [];
+      try {
+        await writeFile(release, 'release');
+        releaseWritten.resolve(undefined);
+      } catch (cause) {
+        failures.push(cause);
+      }
+      // Proof: bypassing this join makes the release-ACK/finish-permit regression observe
+      // run completed while original child exit and both EOF remain pending, before rescue.
+      const outcomes = await settled;
+      for (const observation of outcomes)
+        if (observation.status === 'rejected') failures.push(observation.reason);
+      if (failures.length !== 0)
+        throw new AggregateError(
+          [...(outcome.status === 'failed' ? [outcome.cause] : []), ...failures],
+          'waiting child cleanup failed',
+        );
+
+      if (outcome.status === 'failed') throw outcome.cause;
+    },
+  };
+}
+
+test('original waiting child remains owned after its release acknowledgment', async () => {
+  const state = await mkdtemp(join(tmpdir(), 'edge-release-join-'));
+  roots.push(state);
+  const ready = join(state, 'ready');
+  const release = join(state, 'release');
+  const acknowledgment = join(state, 'release-ack');
+  const finish = join(state, 'finish');
+  const child = Bun.spawn(
+    [
+      'flock',
+      '-n',
+      join(state, 'edge.lock'),
+      'bash',
+      '-c',
+      'touch "$1"; while [ ! -e "$2" ]; do sleep 0.01; done; touch "$3"; while [ ! -e "$4" ]; do sleep 0.01; done; printf "original stdout"; printf "original stderr" >&2',
+      'hold',
+      ready,
+      release,
+      acknowledgment,
+      finish,
+    ],
+    { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+  );
+  const owned = ownWaitingChild(child, release);
+  const primary = new Error('forced readiness body failure');
+  let finished = false;
+  let observationsSettled = false;
+  void owned.settled.then(() => {
+    observationsSettled = true;
+  });
+  const completion = owned
+    .run(async () => {
+      for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
+        await Bun.sleep(5);
+      expect(await Bun.file(ready).exists()).toBe(true);
+      throw primary;
+    })
+    .then(
+      () => {
+        finished = true;
+        return undefined;
+      },
+      (cause: unknown) => {
+        finished = true;
+        return cause;
+      },
+    );
+  try {
+    await owned.releaseWritten;
+    for (let attempt = 0; attempt < 100 && !(await Bun.file(acknowledgment).exists()); attempt++)
+      await Bun.sleep(5);
+    expect(await Bun.file(acknowledgment).exists()).toBe(true);
+    // Child ACK proves it consumed release, but its separate finish gate retains exit/both EOF.
+    // One event-loop turn drains promise reactions; elapsed time grants no readiness credit.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(child.exitCode).toBeNull();
+    expect(observationsSettled).toBe(false);
+    expect(finished).toBe(false);
+    await writeFile(finish, 'finish');
+    expect(await completion).toBe(primary);
+    const [exit, stdout, stderr] = await owned.settled;
+    expect(exit).toEqual({ status: 'fulfilled', value: 0 });
+    expect(stdout).toEqual({ status: 'fulfilled', value: 'original stdout' });
+    expect(stderr).toEqual({ status: 'fulfilled', value: 'original stderr' });
+  } finally {
+    // Emergency rescue follows the pending oracle and never supplies its passing join.
+    await writeFile(release, 'release');
+    await writeFile(finish, 'finish');
+    await owned.settled;
+    await completion;
+  }
+});
+
 const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
@@ -100,6 +272,102 @@ async function command(launcher: string, state: string): Promise<string[]> {
   return [launcher.includes('tool-bootstrap') ? 'sh' : 'bash', script];
 }
 
+for (const flavor of ['flock', 'configure'] as const)
+  test(`failed READY observation settles the original ${flavor} child and streams`, async () => {
+    const state = await mkdtemp(join(tmpdir(), 'edge-ready-failure-'));
+    roots.push(state);
+    const release = join(state, 'release');
+    const absentReady = join(state, 'absent-ready');
+    let child: WaitingChild;
+    if (flavor === 'configure') {
+      const commands = join(state, 'commands');
+      await mkdir(commands);
+      await writeFile(
+        join(commands, 'id'),
+        '#!/bin/sh\ntouch "$WBS_EDGE_STATE/ready"\nwhile [ ! -e "$WBS_EDGE_STATE/release" ]; do sleep 0.01; done\nprintf "1000\\n"\n',
+        { mode: 0o755 },
+      );
+      const executablePath = process.env['PATH'];
+      if (executablePath === undefined) throw new Error('test requires PATH');
+      await writeFile(
+        join(state, 'edge-policy.json'),
+        JSON.stringify({
+          format: 'dependency-edge-policy',
+          version: 1,
+          phase: 'ordinary',
+          edgeState: state,
+        }),
+      );
+      child = Bun.spawn(await command('tools/tool-bootstrap/src/configure.sh', state), {
+        env: { ...process.env, WBS_EDGE_STATE: state, PATH: `${commands}:${executablePath}` },
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+    } else {
+      child = Bun.spawn(
+        [
+          'flock',
+          '-n',
+          join(state, 'edge.lock'),
+          'bash',
+          '-c',
+          'touch "$1"; while [ ! -e "$2" ]; do sleep 0.01; done; printf "stdout-settled"; printf "stderr-settled" >&2',
+          'hold',
+          join(state, 'ready'),
+          release,
+        ],
+        { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+      );
+    }
+    const owned = ownWaitingChild(child, release);
+    let readinessFailure: unknown;
+    try {
+      const failure = await owned
+        .run(async () => {
+          for (let attempt = 0; attempt < 100 && !(await Bun.file(absentReady).exists()); attempt++)
+            await Bun.sleep(5);
+          expect(await Bun.file(join(state, 'ready')).exists()).toBe(true);
+          try {
+            expect(await Bun.file(absentReady).exists()).toBe(true);
+          } catch (cause) {
+            readinessFailure = cause;
+            throw cause;
+          }
+        })
+        .then(
+          () => undefined,
+          (cause: unknown) => cause,
+        );
+      expect(readinessFailure).toBeInstanceOf(Error);
+      expect(failure).toBe(readinessFailure);
+      expect(await Bun.file(release).exists()).toBe(true);
+      const [exit, stdout, stderr] = await owned.settled;
+      expect(exit.status).toBe('fulfilled');
+      expect(stdout.status).toBe('fulfilled');
+      expect(stderr.status).toBe('fulfilled');
+      if (
+        exit.status !== 'fulfilled' ||
+        stdout.status !== 'fulfilled' ||
+        stderr.status !== 'fulfilled'
+      )
+        throw new Error('original waiting child did not settle');
+      if (flavor === 'configure') {
+        expect(exit.value).not.toBe(0);
+        expect(stderr.value).toContain('must run as root');
+      } else {
+        expect(exit.value).toBe(0);
+        expect(stdout.value).toBe('stdout-settled');
+        expect(stderr.value).toBe('stderr-settled');
+      }
+    } finally {
+      // The RED oracle above must run before this fixture-only emergency rescue.
+      // Rescue never counts as the cleanup path being proved.
+      if (!(await Bun.file(release).exists())) await writeFile(release, 'release');
+      await owned.settled;
+    }
+  });
+
 async function readManualOperation(state: string): Promise<string> {
   await writeFile(join(state, 'edge.lock'), '', { flag: 'a' });
   const installed = await prepareInstalledReader(state);
@@ -160,25 +428,28 @@ for (const launcher of launchers) {
         ready,
         join(state, 'release'),
       ],
-      { stdin: 'pipe' },
+      { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
     );
-    for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
-      await Bun.sleep(5);
-    expect(await Bun.file(ready).exists()).toBe(true);
-    try {
+    const owned = ownWaitingChild(holder, join(state, 'release'));
+    await owned.run(async () => {
+      for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
+        await Bun.sleep(5);
+      expect(await Bun.file(ready).exists()).toBe(true);
       const child = Bun.spawn(await command(launcher, state), {
         env: { ...process.env, WBS_EDGE_STATE: state },
         stdout: 'pipe',
         stderr: 'pipe',
       });
-      expect(await new Response(child.stderr).text()).toMatch(
+      const { stderr: childStderr, exit: childExit } = await joinChild(
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      );
+      expect(childStderr).toMatch(
         /shared edge lock held|deploy lock held|existing canonical lock held/,
       );
-      expect(await child.exited).not.toBe(0);
-    } finally {
-      await writeFile(join(state, 'release'), 'release');
-      await holder.exited;
-    }
+      expect(childExit).not.toBe(0);
+    });
   });
 }
 
@@ -237,21 +508,25 @@ test('separately opened inherited descriptor cannot borrow another process lock'
   const state = await mkdtemp(join(tmpdir(), 'edge-independent-'));
   roots.push(state);
   const ready = join(state, 'ready');
-  const holder = Bun.spawn([
-    'flock',
-    '-n',
-    join(state, 'edge.lock'),
-    'bash',
-    '-c',
-    'touch "$1"; while [ ! -e "$2" ]; do sleep 0.01; done',
-    'hold',
-    ready,
-    join(state, 'release'),
-  ]);
-  for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
-    await Bun.sleep(5);
-  expect(await Bun.file(ready).exists()).toBe(true);
-  try {
+  const holder = Bun.spawn(
+    [
+      'flock',
+      '-n',
+      join(state, 'edge.lock'),
+      'bash',
+      '-c',
+      'touch "$1"; while [ ! -e "$2" ]; do sleep 0.01; done',
+      'hold',
+      ready,
+      join(state, 'release'),
+    ],
+    { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+  );
+  const owned = ownWaitingChild(holder, join(state, 'release'));
+  await owned.run(async () => {
+    for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
+      await Bun.sleep(5);
+    expect(await Bun.file(ready).exists()).toBe(true);
     const child = Bun.spawn(
       [
         'bash',
@@ -262,12 +537,14 @@ test('separately opened inherited descriptor cannot borrow another process lock'
       ],
       { env: { ...process.env, WBS_EDGE_STATE: state }, stdout: 'pipe', stderr: 'pipe' },
     );
-    expect(await new Response(child.stderr).text()).toContain('shared edge lock held');
-    expect(await child.exited).not.toBe(0);
-  } finally {
-    await writeFile(join(state, 'release'), 'release');
-    await holder.exited;
-  }
+    const { stderr: childStderr, exit: childExit } = await joinChild(
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    );
+    expect(childStderr).toContain('shared edge lock held');
+    expect(childExit).not.toBe(0);
+  });
 });
 
 test('configure writer excludes concurrent prod and dev swaps and bootstrap', async () => {
@@ -295,35 +572,43 @@ test('configure writer excludes concurrent prod and dev swaps and bootstrap', as
   );
   const configure = Bun.spawn(await command('tools/tool-bootstrap/src/configure.sh', state), {
     env: { ...process.env, WBS_EDGE_STATE: state, PATH: `${commands}:${executablePath}` },
+    stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
   });
-  for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
-    await Bun.sleep(5);
-  expect(await Bun.file(ready).exists()).toBe(true);
-  try {
+  const owned = ownWaitingChild(configure, release);
+  await owned.run(async () => {
+    for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
+      await Bun.sleep(5);
+    expect(await Bun.file(ready).exists()).toBe(true);
     for (const environment of ['prod', 'dev']) {
       const swap = Bun.spawn(await command('tools/tool-remote-scripts/src/swap.ts', state), {
         env: { ...process.env, WBS_EDGE_STATE: state, WBS_ENV: environment },
         stdout: 'pipe',
         stderr: 'pipe',
       });
-      expect(await new Response(swap.stderr).text()).toMatch(
-        /deploy lock held|existing canonical lock held/,
+      const { stderr: swapStderr, exit: swapExit } = await joinChild(
+        swap.exited,
+        new Response(swap.stdout).text(),
+        new Response(swap.stderr).text(),
       );
-      expect(await swap.exited).not.toBe(0);
+      expect(swapStderr).toMatch(/deploy lock held|existing canonical lock held/);
+      expect(swapExit).not.toBe(0);
     }
     const bootstrap = Bun.spawn(await command('tools/tool-bootstrap/src/bootstrap.sh', state), {
       env: { ...process.env, WBS_EDGE_STATE: state },
       stdout: 'pipe',
       stderr: 'pipe',
     });
-    expect(await new Response(bootstrap.stderr).text()).toContain('shared edge lock held');
-    expect(await bootstrap.exited).not.toBe(0);
-  } finally {
-    await writeFile(release, 'release');
-    expect(await configure.exited).not.toBe(0);
-  }
+    const { stderr: bootstrapStderr, exit: bootstrapExit } = await joinChild(
+      bootstrap.exited,
+      new Response(bootstrap.stdout).text(),
+      new Response(bootstrap.stderr).text(),
+    );
+    expect(bootstrapStderr).toContain('shared edge lock held');
+    expect(bootstrapExit).not.toBe(0);
+  });
+  expect(await configure.exited).not.toBe(0);
 });
 
 for (const launcher of ['bin/dev-poll-sync.sh', 'tools/tool-remote-scripts/src/swap.ts']) {
