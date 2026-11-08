@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { env } from 'node:process';
 import { chromium } from 'playwright';
 
-const app = 'https://dev.app.puni.dev';
+const app = 'https://dev.request.puni.dev';
 const site = 'https://dev.puni.dev';
 const api = env['PUNI_API_ORIGIN'] ?? 'http://127.0.0.1:3197';
 const build = env['PUNI_APP_ORIGIN'] ?? 'http://127.0.0.1:4297';
