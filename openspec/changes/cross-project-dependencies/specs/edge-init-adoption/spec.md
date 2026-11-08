@@ -177,3 +177,19 @@ The private custody diagnostic SHALL retain the first parent STOP site, original
 
 - **WHEN** another STOP occurs or the first write is short, throws or returns an unsupported value
 - **THEN** first-site/context remains unchanged, no diagnostic retry or terminal eligibility follows, and original custody remains held
+
+## ADDED Requirements
+
+### Requirement: Explicit existing legacy-reader administration
+
+The system SHALL provide a separate dry-run-default administrative adoption action that validates a closed selection of target, account, original artifacts and parent identities, creates a new lock exclusively, and uses the actual ordinary initializer with original receipt. It SHALL verify the selected original parent and created lock before policy publication and retain the same inode during reader-only replacement. It SHALL preserve Bun, configuration, unit, parent modes and service process. Existing installation routes SHALL retain their original authority checks.
+
+#### Scenario: Known legacy tuple is adopted
+
+- **WHEN** the exact selected tuple has absent policy and owner markers and the selected new reader passes both singleton modes under the created lock
+- **THEN** only the reader is atomically replaced after original initializer receipt validation, original evidence remains private, and both installed singleton checks complete before success
+
+#### Scenario: Selection or original custody changes
+
+- **WHEN** a selected identity changes, a policy or marker exists, an original observation fails, or an installed check refuses
+- **THEN** adoption refuses without automatic retry or inverse, preserving the original reader before publication and retaining partial published state afterward

@@ -1566,3 +1566,10 @@ superseded by the independently reconstructed actualLF0a contract.
 - [x] RI1. Preserve both cleanup registries and the ready unit's exact complete-exclusion wiring under one owner state, keeper and tagged outcome; retain later runtime-original/observer joins.
 - [x] RI2. Observe the naive early ready HOLD starve a known capsule original, then drain both populations before the shared terminal HOLD; prove both mixed UNKNOWN directions with inert actual-source ports and no native image execution.
 - [x] RI3. Re-run changed merged-source ready guards and both drain/HOLD omissions as watched owning assertion failures, restore the same source, and require actual changed-current owner/complete bytes to refuse historical authority. Final aggregate CI, native qualification, host gate, adoption and deployment remain separate.
+
+## Explicit existing legacy-reader adoption
+
+- [x] Actual initializer selected-lock/parent drift: original RED missing rejection, restored prepublication refusal.
+- [x] Explicit dry-run and actual isolated adoption preserve the installed tuple; original opening-observation absence observed RED then GREEN.
+- [x] Cover actual refusal/publication phases and 32 watched omission/restoration families.
+- [x] Verify existing routes, configured static checks, OpenSpec and independent source review.

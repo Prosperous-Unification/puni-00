@@ -86,7 +86,7 @@ const TRANSITION_CLOCK = {
   pause: (milliseconds: number) => Bun.sleep(milliseconds),
 };
 
-async function runTransitionChild(
+export async function runTransitionChild(
   argv: readonly string[],
   state: string,
   descriptor: number,
@@ -211,7 +211,7 @@ async function runTransitionChild(
   }
 }
 
-function sameTransitionIdentity(first: BigIntStats, second: BigIntStats): boolean {
+export function sameTransitionIdentity(first: BigIntStats, second: BigIntStats): boolean {
   return (
     first.dev === second.dev &&
     first.ino === second.ino &&
@@ -221,7 +221,7 @@ function sameTransitionIdentity(first: BigIntStats, second: BigIntStats): boolea
   );
 }
 
-async function captureTransitionDirectory(
+export async function captureTransitionDirectory(
   path: string,
   uid: number,
   privateMode: boolean,
@@ -241,7 +241,7 @@ async function captureTransitionDirectory(
 }
 
 /** Writes every byte or refuses a stalled regular-file write. */
-function writeTransitionBytes(descriptor: number, bytes: Uint8Array): void {
+export function writeTransitionBytes(descriptor: number, bytes: Uint8Array): void {
   let offset = 0;
   while (offset < bytes.byteLength) {
     const written = writeSync(descriptor, bytes, offset, bytes.byteLength - offset);
@@ -251,7 +251,7 @@ function writeTransitionBytes(descriptor: number, bytes: Uint8Array): void {
 }
 
 /** Retains inert original bytes and observations; this record cannot resume or authorize a controller. */
-async function retainOriginalTransitionReader(
+export async function retainOriginalTransitionReader(
   artifact: SolverReaderArtifact,
   openingReader: SolverReaderArtifactObservation,
   openingBun: SolverReaderArtifactObservation,
@@ -520,103 +520,135 @@ export async function transitionSolverReader(
       await closeOpening();
       await assertObservation(oldReader, openingReader, true);
       await assertObservation(selection.reader, openingCandidate, false);
-      const sibling = join(dirname(layout.reader), `.reader-transition-${randomUUID()}`);
-      let published = false;
-      let created: BigIntStats | undefined;
-      try {
-        const source = await open(
-          selection.reader.path,
-          constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-        );
-        try {
-          const destination = await open(
-            sibling,
-            constants.O_RDWR | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-            0o755,
-          );
-          created = await destination.stat({ bigint: true });
-          try {
-            const digest = createHash('sha256');
-            const bytes = Buffer.alloc(65536);
-            let length = 0;
-            for (;;) {
-              const { bytesRead } = await source.read(bytes, 0, bytes.length, length);
-              if (bytesRead === 0) break;
-              length += bytesRead;
-              if (length > selection.reader.byteLength)
-                throw new Error('reader transition candidate grew');
-              digest.update(bytes.subarray(0, bytesRead));
-              let written = 0;
-              while (written < bytesRead) {
-                const write = await destination.write(
-                  bytes,
-                  written,
-                  bytesRead - written,
-                  length - bytesRead + written,
-                );
-                if (write.bytesWritten === 0)
-                  throw new Error('reader transition sibling write stalled');
-                written += write.bytesWritten;
-              }
-            }
-            if (
-              length !== selection.reader.byteLength ||
-              digest.digest('hex') !== selection.reader.sha256
-            )
-              throw new Error('reader transition sibling copy differs');
-            await destination.chmod(0o755);
-            await destination.sync();
-          } finally {
-            await destination.close();
-          }
-        } finally {
-          await source.close();
-        }
-        const siblingArtifact = { ...selection.reader, path: sibling };
-        const openingSibling = await capture(siblingArtifact, true);
-        if (
-          openingSibling.device !== String(created.dev) ||
-          openingSibling.inode !== String(created.ino)
-        )
-          throw new Error('reader transition sibling differs from the exclusively created inode');
-        await construction.observe?.('sibling-ready');
-        await closeOpening();
-        await assertObservation(oldReader, openingReader, true);
-        await assertObservation(selection.reader, openingCandidate, false);
-        await assertObservation(siblingArtifact, openingSibling, true);
-        await assertEvidence();
-        await rename(sibling, layout.reader);
-        published = true;
-        const parent = await open(
-          dirname(layout.reader),
-          constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-        );
-        try {
-          await parent.sync();
-        } finally {
-          await parent.close();
-        }
-        const installedArtifact = { ...selection.reader, path: layout.reader };
-        const installed = await capture(installedArtifact, true);
-        if (installed.device !== openingSibling.device || installed.inode !== openingSibling.inode)
-          throw new Error('reader transition published inode differs');
-        await construction.observe?.('published');
-        for (const mode of ['legacy', 'required']) {
-          await runTransitionChild(
-            [layout.bun, layout.reader, `--check-controller-admission-inherited=${mode}`],
-            layout.state,
-            descriptor,
-            deadline,
-            construction,
-          );
-          await construction.observe?.(`installed-${mode}`);
+      const installedArtifact = { ...selection.reader, path: layout.reader };
+      const installed = await publishSolverReader({
+        selection,
+        layout,
+        construction,
+        capture,
+        assertObservation,
+        recheckOriginals: async () => {
           await closeOpening();
-          await assertObservation(installedArtifact, installed, true);
+          await assertObservation(oldReader, openingReader, true);
+          await assertObservation(selection.reader, openingCandidate, false);
           await assertEvidence();
-        }
-      } finally {
-        if (created !== undefined && !published) await removeTransitionSibling(sibling, created);
+        },
+      });
+      for (const mode of ['legacy', 'required']) {
+        await runTransitionChild(
+          [layout.bun, layout.reader, `--check-controller-admission-inherited=${mode}`],
+          layout.state,
+          descriptor,
+          deadline,
+          construction,
+        );
+        await construction.observe?.(`installed-${mode}`);
+        await closeOpening();
+        await assertObservation(installedArtifact, installed, true);
+        await assertEvidence();
       }
     });
   });
+}
+
+/** Reader-only publication; both callers supply mandatory original authority/evidence rechecking. */
+export async function publishSolverReader(context: {
+  readonly selection: SolverReaderTransition;
+  readonly layout: SolverReaderLayout;
+  readonly construction: SolverReaderTransitionConstruction;
+  readonly capture: (
+    artifact: SolverReaderArtifact,
+    installed: boolean,
+  ) => Promise<SolverReaderArtifactObservation>;
+  readonly assertObservation: (
+    artifact: SolverReaderArtifact,
+    opening: SolverReaderArtifactObservation,
+    installed: boolean,
+  ) => Promise<void>;
+  readonly recheckOriginals: () => Promise<void>;
+}): Promise<SolverReaderArtifactObservation> {
+  const { selection, layout, construction, capture, assertObservation, recheckOriginals } = context;
+  await recheckOriginals();
+  const sibling = join(dirname(layout.reader), `.reader-transition-${randomUUID()}`);
+  let published = false;
+  let created: BigIntStats | undefined;
+  try {
+    const source = await open(
+      selection.reader.path,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    try {
+      const destination = await open(
+        sibling,
+        constants.O_RDWR | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+        0o755,
+      );
+      created = await destination.stat({ bigint: true });
+      try {
+        const digest = createHash('sha256');
+        const bytes = Buffer.alloc(65536);
+        let length = 0;
+        for (;;) {
+          const { bytesRead } = await source.read(bytes, 0, bytes.length, length);
+          if (bytesRead === 0) break;
+          length += bytesRead;
+          if (length > selection.reader.byteLength)
+            throw new Error('reader transition candidate grew');
+          digest.update(bytes.subarray(0, bytesRead));
+          let written = 0;
+          while (written < bytesRead) {
+            const write = await destination.write(
+              bytes,
+              written,
+              bytesRead - written,
+              length - bytesRead + written,
+            );
+            if (write.bytesWritten === 0)
+              throw new Error('reader transition sibling write stalled');
+            written += write.bytesWritten;
+          }
+        }
+        if (
+          length !== selection.reader.byteLength ||
+          digest.digest('hex') !== selection.reader.sha256
+        )
+          throw new Error('reader transition sibling copy differs');
+        await destination.chmod(0o755);
+        await destination.sync();
+      } finally {
+        await destination.close();
+      }
+    } finally {
+      await source.close();
+    }
+    const siblingArtifact = { ...selection.reader, path: sibling };
+    const openingSibling = await capture(siblingArtifact, true);
+    if (
+      openingSibling.device !== String(created.dev) ||
+      openingSibling.inode !== String(created.ino)
+    )
+      throw new Error('reader transition sibling differs from the exclusively created inode');
+    await construction.observe?.('sibling-ready');
+    await recheckOriginals();
+    await assertObservation(siblingArtifact, openingSibling, true);
+    await rename(sibling, layout.reader);
+    published = true;
+    const parent = await open(
+      dirname(layout.reader),
+      constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+    );
+    try {
+      await parent.sync();
+    } finally {
+      await parent.close();
+    }
+    const installedArtifact = { ...selection.reader, path: layout.reader };
+    const installed = await capture(installedArtifact, true);
+    if (installed.device !== openingSibling.device || installed.inode !== openingSibling.inode)
+      throw new Error('reader transition published inode differs');
+    await construction.observe?.('published');
+    return installed;
+  } finally {
+    if (created !== undefined && !published) await removeTransitionSibling(sibling, created);
+  }
 }

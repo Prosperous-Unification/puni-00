@@ -1113,3 +1113,27 @@ test('ordinary controller recheck expires when its original action settles', asy
   );
   await rejects(recheck(), /expired/);
 });
+
+for (const fault of ['lock', 'parent'] as const) {
+  test(`selected initializer ${fault} drift refuses before policy publication`, async () => {
+    const root = scratchSync('selected-origin-');
+    const state = `${root}/state`;
+    await mkdir(state, { mode: 0o775 });
+    await writeFile(`${state}/edge.lock`, '');
+    const parent = await lstat(state, { bigint: true });
+    const lock = await lstat(`${state}/edge.lock`, { bigint: true });
+    if (fault === 'lock') {
+      await rename(`${state}/edge.lock`, `${root}/retained-lock`);
+      await writeFile(`${state}/edge.lock`, '');
+    } else {
+      await rename(state, `${root}/retained-state`);
+      await mkdir(state, { mode: 0o775 });
+      await writeFile(`${state}/edge.lock`, '');
+    }
+    // Test intentionally supplies the new internal prepublication contract before implementation.
+    await rejects(
+      Reflect.apply(initializeOrdinaryEdgePolicy, undefined, [state, undefined, { parent, lock }]),
+    );
+    expect(await Bun.file(`${state}/edge-policy.json`).exists()).toBe(false);
+  });
+}
