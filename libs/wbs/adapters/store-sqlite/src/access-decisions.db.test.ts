@@ -9,6 +9,7 @@ import {
   may,
   PermissionKindRow,
   UnknownPermissionRow,
+  type WorkPackageChain,
 } from '@wbs/domain';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -132,17 +133,17 @@ const machine = (accountId: string, credentialId: string): ScopedPrincipal => ({
   authentication: { kind: 'machine', credentialId, personId: `agent-${accountId}` },
 });
 
-async function packageTarget(workPackageId: string): Promise<AccessTarget> {
-  const target = await decisions.packageTargetOf(workPackageId);
-  if (target === null) throw new Error(`no package ${workPackageId}`);
+async function packageTarget(packageId: string): Promise<AccessTarget> {
+  const target = await decisions.packageTargetOf(packageId);
+  if (target === null) throw new Error(`no package ${packageId}`);
   return target;
 }
 
 async function permissionsOn(
   principal: ScopedPrincipal,
-  workPackageId: string,
+  packageId: string,
 ): Promise<string[] | null> {
-  const effective = await decisions.effectiveRoleAt(principal, await packageTarget(workPackageId));
+  const effective = await decisions.effectiveRoleAt(principal, await packageTarget(packageId));
   return effective === null ? null : [...effective.permissions].sort();
 }
 
@@ -162,6 +163,24 @@ async function rejectionOf(pending: Promise<unknown>): Promise<unknown> {
 
 const organization: AccessTarget = { kind: 'organization', organizationId: ORG };
 
+/**
+ * The name SQLite gave `access_grant`'s six-column UNIQUE key. Autoindex names
+ * (`sqlite_autoindex_<table>_<n>`) are SQLite's, numbered by constraint order,
+ * so the plan assertion reads the name instead of spelling it.
+ */
+function grantKeyIndex(): string {
+  const unique = sqlite
+    .query<{ name: string; origin: string }, []>('PRAGMA index_list(access_grant)')
+    .all()
+    .filter(({ origin }) => origin === 'u')
+    .map(({ name }) => name)
+    .filter(
+      (name) => sqlite.query<{ name: string }, []>(`PRAGMA index_info(${name})`).all().length === 6,
+    );
+  if (unique.length !== 1) throw new Error(`expected one six-column key, found ${String(unique)}`);
+  return unique[0] ?? '';
+}
+
 describe('the interim package target', () => {
   it('reads the organization and restriction from the package rows, null when absent', async () => {
     expect(await decisions.packageTargetOf('wp-closed')).toEqual({
@@ -170,6 +189,18 @@ describe('the interim package target', () => {
       restricted: true,
     });
     expect(await decisions.packageTargetOf('missing')).toBeNull();
+  });
+
+  it('a project grant reaches no package, in detail or in the listing, until task 3.2', async () => {
+    grant('project', 'proj', 'user', 'ada', 'project-contributor');
+    // A WorkPackageChain is assignable to the interim member; its projectId is
+    // ignored, as the listing has no project branch.
+    const interim = await packageTarget('wp-open');
+    if (interim.kind !== 'work_package') throw new Error('not a package target');
+    const chain: WorkPackageChain = { ...interim.chain, spaceId: null, projectId: 'proj' };
+    const target: AccessTarget = { kind: 'work_package', chain, restricted: false };
+    expect(await decisions.effectiveRoleAt(person('ada'), target)).toBeNull();
+    expect(await listed(person('ada'))).toEqual([]);
   });
 });
 
@@ -362,11 +393,12 @@ describe('visibility and membership', () => {
   it('an organization role without package.read lists nothing and every detail is invisible', async () => {
     customRole('budgets-only', 'organization', ['project.manage_budgets']);
     grant('organization', ORG, 'user', 'cy', 'budgets-only');
-    for (const workPackageId of ['wp-open', 'wp-two', 'wp-closed'])
-      expect(await permissionsOn(person('cy'), workPackageId)).toBeNull();
+    for (const packageId of ['wp-open', 'wp-two', 'wp-closed'])
+      expect(await permissionsOn(person('cy'), packageId)).toBeNull();
     expect(await listed(person('cy'))).toEqual([]);
     const atOrganization = await decisions.effectiveRoleAt(person('cy'), organization);
     expect(may(atOrganization, 'project.manage_budgets')).toBe(true);
+    expect(may(atOrganization, 'organization.navigate')).toBe(true);
   });
 
   it('a removed member keeps no access', async () => {
@@ -468,6 +500,37 @@ describe('corrupt role rows throw on both statements (CP9)', () => {
   });
 });
 
+describe('corrupt stored columns throw (R5)', () => {
+  // Each column below is bounded by a CHECK (or, for `project.restricted`, by
+  // its only writers); the fault is written past the CHECK on purpose.
+  it('throws on a reaches_restricted outside 0 and 1, on both statements', async () => {
+    grant('work_package', 'wp-open', 'user', 'ada', 'package-viewer');
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    sqlite.run("UPDATE access_role SET reaches_restricted = 2 WHERE id = 'package-viewer'");
+    const pattern = /access_role\.reaches_restricted of package-viewer is 2/;
+    expect(String(await rejectionOf(permissionsOn(person('ada'), 'wp-open')))).toMatch(pattern);
+    expect(String(await rejectionOf(listed(person('ada'))))).toMatch(pattern);
+  });
+
+  it('throws on a package restricted flag outside 0 and 1', async () => {
+    sqlite.run("UPDATE project SET restricted = 2 WHERE id = 'wp-open'");
+    expect(String(await rejectionOf(decisions.packageTargetOf('wp-open')))).toMatch(
+      /restricted of package wp-open is 2/,
+    );
+  });
+
+  it('throws on a grant scope kind outside its vocabulary, on both statements', async () => {
+    grant('organization', ORG, 'user', 'ada', 'org-viewer');
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    sqlite.run("UPDATE access_grant SET scope_kind = 'space', scope_id = 'space-1'");
+    const pattern = /stored access_grant\.scope_kind space is outside its vocabulary/;
+    expect(
+      String(await rejectionOf(decisions.effectiveRoleAt(person('ada'), organization))),
+    ).toMatch(pattern);
+    expect(String(await rejectionOf(listed(person('ada'))))).toMatch(pattern);
+  });
+});
+
 describe('one statement per call', () => {
   it('issues exactly one statement for each method, searching access_grant by subject', async () => {
     grant('organization', ORG, 'user', 'ada', 'org-admin');
@@ -478,7 +541,7 @@ describe('one statement per call', () => {
       // the organization target and the listing read the principal's grants
       // through `access_grant_subject`. Neither scans `access_grant`.
       for (const [call, index] of [
-        [() => decisions.effectiveRoleAt(principal, target), 'sqlite_autoindex_access_grant_2'],
+        [() => decisions.effectiveRoleAt(principal, target), grantKeyIndex()],
         [() => decisions.effectiveRoleAt(principal, organization), 'access_grant_subject'],
         [() => decisions.readablePackageIds(principal, ORG), 'access_grant_subject'],
       ] as const) {
@@ -603,9 +666,8 @@ describe('list and detail agree', () => {
       }
       for (const principal of [person('dee'), machine('dee', 'cred-dee')]) {
         const readable: string[] = [];
-        for (const workPackageId of packages)
-          if ((await permissionsOn(principal, workPackageId)) !== null)
-            readable.push(workPackageId);
+        for (const packageId of packages)
+          if ((await permissionsOn(principal, packageId)) !== null) readable.push(packageId);
         expect(
           await listed(principal),
           `fixture ${String(fixture)}: ${[...written].join(', ')}`,

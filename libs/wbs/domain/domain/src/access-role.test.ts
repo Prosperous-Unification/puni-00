@@ -17,6 +17,7 @@ import {
   PERMISSIONS,
   permissionsOnTarget,
   type ReachingGrant,
+  reachingGrantsOf,
   READ_ONLY,
   roleMayHold,
 } from './access-role';
@@ -361,5 +362,27 @@ describe('permissionsOnTarget (P5 in sets, CP18)', () => {
         roleId: 'package-contributor',
       },
     ]);
+  });
+});
+
+describe('reachingGrantsOf', () => {
+  // Unreachable through SQLite (`access_grant.id` is the key and `role_id` one
+  // column), so the guard is proven on the pure function. Proof: with the
+  // check removed this case did not throw; watched 2026-11-08.
+  it('refuses one grant read with two roles', () => {
+    const row = {
+      grantId: 'grant-1',
+      scopeKind: 'work_package',
+      scopeId: 'wp-1',
+      subjectKind: 'user',
+      subjectId: 'ada',
+      roleId: 'package-viewer',
+      objectKind: 'work_package',
+      reachesRestricted: false,
+      permission: 'package.read',
+    };
+    expect(() => reachingGrantsOf([row, { ...row, roleId: 'package-manager' }])).toThrow(
+      'grant grant-1 was read with two roles',
+    );
   });
 });

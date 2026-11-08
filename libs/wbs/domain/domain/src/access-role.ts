@@ -484,6 +484,9 @@ function checkedMember<T extends string>(
   column: string,
 ): T {
   const member = vocabulary.find((candidate) => candidate === value);
+  // Proof: returning the value unchecked made `throws on a grant scope kind
+  // outside its vocabulary, on both statements` (access-decisions.db.test.ts)
+  // resolve; watched 2026-11-08.
   if (member === undefined) throw new Error(`stored ${column} ${value} is outside its vocabulary`);
   return member;
 }
@@ -567,9 +570,9 @@ const READ_PERMISSION_OF: Readonly<Record<'project' | 'work_package', Permission
  * null when its read permission is not in the set (CP17), never merely when
  * the set is empty or no grant reaches it. The organization target is never
  * null (P10: membership is `resolve`'s question) and evaluates navigation in
- * the `any` mode (CP16, CP20): a grant at a project or work package
- * contributes only `organization.navigate` there, an organization-scope grant
- * its whole set.
+ * the `any` mode (CP16, CP20): every reaching grant implies
+ * `organization.navigate`; a grant at a project or work package contributes
+ * only that there, an organization-scope grant its whole set besides.
  *
  * Proof: answering the set whenever a grant reached the target made `an
  * organization role without package.read lists nothing and every detail is
@@ -581,11 +584,19 @@ export function effectiveRoleOn(
   target: GrantTarget,
   cap: ReadonlySet<Permission> | null,
 ): EffectiveRole | null {
+  // Proof: passing an organization-scope grant's set through without the
+  // navigation union made `an organization role without package.read lists
+  // nothing and every detail is invisible` (access-decisions.db.test.ts) lose
+  // `organization.navigate` at the organization; watched 2026-11-08.
   if (target.kind === 'organization')
     return combineGrants(
-      grants.map((grant) =>
-        grant.scopeKind === 'organization' ? grant : { ...grant, permissions: NAVIGATION },
-      ),
+      grants.map((grant) => ({
+        ...grant,
+        permissions:
+          grant.scopeKind === 'organization'
+            ? new Set([...grant.permissions, ...NAVIGATION])
+            : NAVIGATION,
+      })),
       target,
       cap,
     );

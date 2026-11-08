@@ -108,7 +108,7 @@ validation and the visibility rule in `@wbs/domain` `access-role.ts` (`reachingG
 installed by `buildStores` on the public catalogs and on every catalog a unit of work
 admits (optional `PlanTransactionalStores.accessDecisions`, conformance family
 `accessDecisions`: SQLite offered, memory absent, the `projectRanks` precedent). Test
-`libs/wbs/adapters/store-sqlite/src/access-decisions.db.test.ts` (24 cases); grants are
+`libs/wbs/adapters/store-sqlite/src/access-decisions.db.test.ts` (28 cases, after the review round below); grants are
 inserted with SQL, the grant store being task 1.4's.
 
 | Command                                                                                             | Result                                                                             |
@@ -152,10 +152,49 @@ through `access_grant_subject`; neither scans `access_grant`. The subject CTE dr
 counted through Drizzle's logger, for a person and a machine principal.
 
 Assumptions taken: the organization target is never null and evaluates navigation in the
-`any` mode (a project or package grant contributes only `organization.navigate` there);
+`any` mode (every reaching grant implies `organization.navigate`; a project or package
+grant contributes only that there);
 `ScopedPrincipal` is `Pick<AuthenticatedUser, 'id' | 'authentication'>`; the interim
 package target is read by the store-private `AccessDecisionRepository.packageTargetOf`;
 no project grant admits a package until `wbs-work-packages` slice 2 adds
 `work_package.project_id`; corrupt-row detection on the listing returns the raw rows to
 `@wbs/domain` instead of the design's SQL `'corrupt'` marker, so all three errors throw on
 both statements.
+
+### Review round (Fable review of #890, 2026-11-08)
+
+Fixes: the rename tool's collision test (two `new`-sense `PROTECTED_LINES` patterns for this
+slice's shapes, locals renamed to `packageId`, the restricted-flag message reworded);
+`effectiveRoleOn` adds `organization.navigate` to every organization-scope grant at the
+organization target (CP20); `AccessTarget`'s package member narrowed to
+`InterimPackageChain` and `scopeRows` adds no project row, so no project grant reaches a
+package in detail while the listing has no project branch (narrowing chosen over a throw:
+one type member and no new runtime path); negatives for the four new throws; the plan
+assertion reads the unique key's autoindex name from `PRAGMA index_list`/`index_info`
+(SQLite numbers `sqlite_autoindex_<table>_<n>` by constraint order); the two design.md
+amendments and task 2.1's single-reader rule.
+
+| Command                                                                                               | Result                |
+| ----------------------------------------------------------------------------------------------------- | --------------------- |
+| `env -u CLAUDECODE bunx nx run tool-rename-work-package:test --skip-nx-cache`                         | exit 0                |
+| `bunx nx run tool-rename-work-package:typecheck`                                                      | exit 0                |
+| `env -u CLAUDECODE bun test src/access-decisions.db.test.ts` (store-sqlite)                           | 28 pass, 0 fail       |
+| `nx run-many -t test -p wbs-domain,wbs-conformance,wbs-store-memory,wbs-store-sqlite --skip-nx-cache` | exit 0, 4 projects    |
+| `nx run-many -t typecheck,typecheck:module` (11 wbs projects)                                         | exit 0, 11 projects   |
+| `nx run-many -t lint` (5 touched wbs projects)                                                        | exit 0, 5 projects    |
+| Burokrat `check-indexes working . HEAD`                                                               | exit 0                |
+| `nx format:check --all`                                                                               | exit 0                |
+| `openspec validate --all --json`                                                                      | 328 items, 328 passed |
+
+| Fault                                                                      | Case that failed                                                                                        |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| the two new `PROTECTED_LINES` patterns absent (the head before this round) | tool-rename-work-package collision test: 17 collisions on this slice's lines                            |
+| navigation union dropped at the organization target                        | an organization role without package.read lists nothing… (`may(…, 'organization.navigate')` false)      |
+| `reaches_restricted` 0/1 guard removed                                     | throws on a reaches_restricted outside 0 and 1, on both statements (the read resolved)                  |
+| package `restricted` 0/1 guard removed                                     | throws on a package restricted flag outside 0 and 1 (resolved)                                          |
+| `checkedMember` returns the value unchecked                                | throws on a grant scope kind outside its vocabulary, on both statements (resolved)                      |
+| "grant read with two roles" check removed                                  | `access-role.test.ts` refuses one grant read with two roles (did not throw)                             |
+| a `('project', projectId)` scope row restored for a chain naming one       | a project grant reaches no package, in detail or in the listing, until task 3.2 (detail answered a set) |
+
+Unreachable from a production path: "grant read with two roles" (`access_grant.id` is the
+key and `role_id` one column); proven on the pure function only.

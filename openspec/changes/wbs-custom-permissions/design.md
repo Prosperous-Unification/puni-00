@@ -285,6 +285,18 @@ kept.
 
 ## Effective set of one principal on one target
 
+_Shipped 2026-11-08 as `wbs-permissions` task 1.3, with three deviations from the statements
+below (`wbs-permissions` verify.md, section 1.3):_ the listing returns every reaching grant's
+raw permission rows beside the admitted package ids instead of a SQL `'corrupt'` marker built
+on `:vocabulary`, and `@wbs/domain` validates them, so `UnknownPermissionRow`,
+`PermissionKindRow` and `EmptyRoleSet` all throw on both statements (the CP7 kind check
+included); both statements drive the grant read from the `subject` CTE (`FROM subject s
+CROSS JOIN access_grant g`) and the listing's `reaching` and `readers` CTEs are
+`MATERIALIZED`, so a package target reads the six-column unique key and the organization
+target and the listing read `access_grant_subject`, never scanning `access_grant`; and until
+`wbs-work-packages` slice 2 neither statement has a project branch (no project scope row, no
+`wp.project_id` arm).
+
 One statement, replacing `wbs-permissions` "Effective level of one principal on one work
 package". It returns raw rows; validation (CP9), the P5 transformation (CP18) and the cap
 (CP8) run in `@wbs/domain`, in that order, so no filter can hide a corrupt row:

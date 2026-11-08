@@ -187,12 +187,12 @@ export function existingStoreRegistrations(
               // owner's on the first project.
               const [granted, ungranted] = seed.projectIds;
               const principal = { id: seed.ownerIds[0] };
-              const targetOf = (workPackageId: string) => ({
+              const targetOf = (packageId: string) => ({
                 kind: 'work_package' as const,
                 chain: {
                   level: 'work_package' as const,
                   organizationId: ACCESS_CONFORMANCE_ORGANIZATION,
-                  workPackageId,
+                  workPackageId: packageId,
                 },
                 restricted: false,
               });

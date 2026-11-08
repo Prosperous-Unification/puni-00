@@ -35,6 +35,11 @@ type ListingRecord =
   | ({ readonly row_kind: 'grant'; readonly package_id: null } & GrantPermissionRecord)
   | { readonly row_kind: 'package'; readonly package_id: string };
 
+/**
+ * Proof: with the 0/1 guard removed, `throws on a reaches_restricted outside
+ * 0 and 1, on both statements` (access-decisions.db.test.ts) resolved;
+ * watched 2026-11-08.
+ */
 function storedGrantRowOf(record: GrantPermissionRecord): StoredGrantRow {
   if (record.reaches_restricted !== 0 && record.reaches_restricted !== 1)
     throw new Error(
@@ -91,18 +96,19 @@ function membershipHolds(subject: AccessSubject, organizationId: string): SQL {
 
 /**
  * The scope rows a target's grants may name, nearest last: a work package
- * reaches its organization, its project when it has one and itself; a project
- * its organization and itself. The organization target has none: it reads
- * every grant in the organization (the `any` mode of CP16).
+ * reaches its organization and itself (no project until `wbs-work-packages`
+ * slice 2); a project its organization and itself. The organization target
+ * has none: it reads every grant in the organization (the `any` mode of CP16).
+ *
+ * Proof: with a `('project', projectId)` row added for a chain naming its
+ * project, `a project grant reaches no package, in detail or in the listing,
+ * until task 3.2` (access-decisions.db.test.ts) read the package in detail
+ * while the listing omitted it; watched 2026-11-08.
  */
 function scopeRows(target: Exclude<AccessTarget, { kind: 'organization' }>): SQL {
-  const { chain } = target;
-  if (target.kind === 'project')
-    return sql`VALUES ('organization', ${chain.organizationId}), ('project', ${target.chain.projectId})`;
-  return 'projectId' in target.chain
-    ? sql`VALUES ('organization', ${chain.organizationId}), ('project', ${target.chain.projectId}),
-        ('work_package', ${target.chain.workPackageId})`
-    : sql`VALUES ('organization', ${chain.organizationId}), ('work_package', ${target.chain.workPackageId})`;
+  return target.kind === 'project'
+    ? sql`VALUES ('organization', ${target.chain.organizationId}), ('project', ${target.chain.projectId})`
+    : sql`VALUES ('organization', ${target.chain.organizationId}), ('work_package', ${target.chain.workPackageId})`;
 }
 
 function organizationOf(target: AccessTarget): string {
@@ -234,22 +240,28 @@ export class AccessDecisionRepository implements AccessDecisions {
    * `project_organization`), or null when it is absent or no organization
    * owns it. Task 3.4 replaces it with the project chain.
    */
-  async packageTargetOf(workPackageId: string): Promise<AccessTarget | null> {
+  async packageTargetOf(packageId: string): Promise<AccessTarget | null> {
     await Promise.resolve();
     const row = this.db
       .all<{ organization_id: string; restricted: number }>(
         sql`
       SELECT wpo.organization_id, wp.restricted FROM project wp
       JOIN project_organization wpo ON wpo.resource_id = wp.id
-      WHERE wp.id = ${workPackageId}`,
+      WHERE wp.id = ${packageId}`,
       )
       .at(0);
     if (row === undefined) return null;
+    // Proof: with this guard removed, `throws on a package restricted flag
+    // outside 0 and 1` resolved; watched 2026-11-08.
     if (row.restricted !== 0 && row.restricted !== 1)
-      throw new Error(`project.restricted of ${workPackageId} is ${String(row.restricted)}`);
+      throw new Error(`restricted of package ${packageId} is ${String(row.restricted)}`);
     return {
       kind: 'work_package',
-      chain: { level: 'work_package', organizationId: row.organization_id, workPackageId },
+      chain: {
+        level: 'work_package',
+        organizationId: row.organization_id,
+        workPackageId: packageId,
+      },
       restricted: row.restricted === 1,
     };
   }

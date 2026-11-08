@@ -98,6 +98,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       (`OrganizationScope.role` stays for the old helpers until 2.4); `scopesOfRoles` is left to `wbs-machine-credentials` slice 4 (#731), which deletes it, so no rewiring here whichever lands first — test: `authorize.test.ts` (not_found, forbidden-with-permission, ok) and the
       existing `authentication.feature` tests with grants; negative: answer `forbidden`
       where the level is null and the "invisible is 404" controller case leaks; watched.
+      `authorize` is the single reader of `stores.accessDecisions`: it throws when the
+      catalog carries none (negative: answer `ok` on `undefined` and a memory-backed
+      decision admits; watched), and call sites never `?.` the port.
 - [ ] 2.2 Rewire the work-package sites, old helpers kept: batches
       (`admitted-scope.resource.ts`, per kind from permission-matrix.md), project, step,
       calendar marker, saved plan, import, create (P16: `organization.create_project`

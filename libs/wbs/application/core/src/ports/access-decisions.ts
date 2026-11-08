@@ -5,13 +5,13 @@ import {
   type InterimPackageChain,
   type Permission,
   type ProjectChain,
-  type WorkPackageChain,
 } from '@wbs/domain';
 
 /**
  * Who a decision is about (`wbs-permissions` P12, P17): the account `id`
- * (for a machine or consent credential, its agent person's bound account,
- * whose membership still decides) and what authenticated the request.
+ * whose membership decides (for a machine credential its agent person's
+ * bound account; for a consent delegation the mapped sign-in account the
+ * delegation verifier installs) and what authenticated the request.
  */
 export type ScopedPrincipal = Pick<AuthenticatedUser, 'id' | 'authentication'>;
 
@@ -49,15 +49,18 @@ export function capOf(subject: AccessSubject): ReadonlySet<Permission> | null {
 /**
  * What a decision is about (`wbs-permissions` "The `may` port", P13). A work
  * package carries its `restricted` flag (P5) and, until `wbs-work-packages`
- * slice 2 gives it a project, an {@link InterimPackageChain}: no project
- * grant can reach it then. Task 3.4 removes the interim member.
+ * slice 2 gives it a project, only an {@link InterimPackageChain}: the
+ * listing has no project branch, so no project grant reaches a package in
+ * detail either (a `projectId` on a structurally wider chain is ignored),
+ * and list and detail agree. Task 3.4 widens the member to `WorkPackageChain`
+ * together with the listing's project branch (3.2).
  */
 export type AccessTarget =
   | { readonly kind: 'organization'; readonly organizationId: string }
   | { readonly kind: 'project'; readonly chain: ProjectChain }
   | {
       readonly kind: 'work_package';
-      readonly chain: WorkPackageChain | InterimPackageChain;
+      readonly chain: InterimPackageChain;
       readonly restricted: boolean;
     };
 
