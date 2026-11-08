@@ -27,6 +27,36 @@ spec:
         object.metadata.namespace.matches('^puni-forge-[a-z]([a-z0-9-]{0,18}[a-z0-9])?$')
     - name: isTrusted
       expression: object.metadata.namespace == 'wbs-solver' || variables.isForge
+    - name: oldFinalizers
+      expression: >-
+        oldObject != null && has(oldObject.metadata.finalizers) ? oldObject.metadata.finalizers : []
+    - name: finalizers
+      expression: >-
+        has(object.metadata.finalizers) ? object.metadata.finalizers : []
+    # Kubernetes makes UID/deletionTimestamp immutable and forbids adding finalizers after
+    # deletion. Only the retired-image membership check may waive native terminal cleanup.
+    # Proof: terminal-cleanup-check.mjs accepted API-valid faults when deleting, terminal,
+    # spec, labels, annotations, owners, strict-decrease or native-removal guards were omitted;
+    # each owning expected-denial assertion failed, and exact restoration passed 20 controls.
+    # Kubernetes resets ephemeral-container metadata before admission; strict decrease
+    # excludes that subresource without a redundant independently-unprovable guard.
+    - name: isNativeFinalizerCleanup
+      expression: >-
+        request.operation == 'UPDATE' &&
+        oldObject != null &&
+        has(oldObject.metadata.deletionTimestamp) &&
+        has(oldObject.status) && has(oldObject.status.phase) &&
+        oldObject.status.phase in ['Failed', 'Succeeded'] &&
+        object.spec == oldObject.spec &&
+        (has(object.metadata.labels) ? object.metadata.labels : {}) ==
+          (has(oldObject.metadata.labels) ? oldObject.metadata.labels : {}) &&
+        (has(object.metadata.annotations) ? object.metadata.annotations : {}) ==
+          (has(oldObject.metadata.annotations) ? oldObject.metadata.annotations : {}) &&
+        (has(object.metadata.ownerReferences) ? object.metadata.ownerReferences : []) ==
+          (has(oldObject.metadata.ownerReferences) ? oldObject.metadata.ownerReferences : []) &&
+        variables.finalizers.size() < variables.oldFinalizers.size() &&
+        variables.oldFinalizers.all(finalizer, finalizer in variables.finalizers ||
+          finalizer in ['batch.kubernetes.io/job-tracking', 'orphan'])
   validations:
     # Proof: the per-environment source identity, path and security negatives were admitted
     # by the original literal-name guards on disposable k3d on 2026-10-13.
@@ -71,7 +101,7 @@ spec:
           image.matches('^[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'))
       message: every solverImages entry must be a digest-pinned image reference
     - expression: >-
-        object.metadata.namespace != 'wbs-solver' ||
+        object.metadata.namespace != 'wbs-solver' || variables.isNativeFinalizerCleanup ||
         (object.spec.containers.all(container, container.image in params.data.solverImages.split(',')) &&
          (!has(object.spec.initContainers) ||
           object.spec.initContainers.all(container, container.image in params.data.solverImages.split(','))) &&
