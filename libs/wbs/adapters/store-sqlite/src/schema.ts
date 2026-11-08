@@ -4634,7 +4634,7 @@ export const accessGrant = sqliteTable(
     ),
     check(
       'access_grant_origin',
-      sql`${t.origin} IN ('backfill', 'route', 'invitation', 'creation')`,
+      sql`${t.origin} IN ('backfill', 'route', 'invitation', 'creation', 'operator')`,
     ),
     check(
       'access_grant_organization_scope',
