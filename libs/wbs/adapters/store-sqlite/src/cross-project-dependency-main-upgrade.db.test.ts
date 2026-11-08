@@ -19,7 +19,10 @@ const OLDER_DEPENDENCIES = [
   '20261022212000_add_cross_project_dependency_activation',
   '20261022213000_add_optimization_boundary_certificates',
 ];
-/** Tables created by the given forward migrations, read from their SQL. */
+/**
+ * Tables created by the given forward migrations, read from their SQL. A regex miss or
+ * over-match can only make the exact six-table assertion fail, never pass.
+ */
 function createdTables(folder: string, names: readonly string[]): Set<string> {
   const tables = new Set<string>();
   for (const name of names)
@@ -193,7 +196,8 @@ test('upgrades the exact fresh main pool database with four older dependency ide
     expect(baseline.map(({ name, hash }) => ({ name, hash }))).toEqual(
       readMigrationFolders(mainMigrations).map(({ name, hash }) => ({ name, hash })),
     );
-    const mainEnd = baseline.at(-1)?.name ?? '';
+    const mainEnd = baseline.at(-1)?.name;
+    if (mainEnd === undefined) throw new Error('main ledger has no last entry');
     // Live forward migrations after main, so later additions need no edit to these expectations.
     const forward = readMigrationFolders(candidateMigrations)
       .map(({ name }) => name)

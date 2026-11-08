@@ -3038,7 +3038,7 @@ Startup with migrations enabled SHALL admit the exact 103 applied migration name
 
 - **GIVEN** the exact known main store with no delayed dependency migrations
 - **WHEN** the real backend boots with startup migrations enabled
-- **THEN** it serves health, retains the complete original ledger and project values, and adds exactly the four dependency migrations with dormant authority
+- **THEN** it serves health, retains the complete original ledger and project values, and adds the four dependency migrations and every pending forward migration (exactly the four when none is pending) with dormant authority
 
 #### Scenario: Uncertified main history refuses before mutation
 

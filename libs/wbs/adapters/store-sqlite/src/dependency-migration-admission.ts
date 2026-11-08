@@ -32,8 +32,8 @@ const SCHEMA = 'SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,n
  * it never rewrites the source ledger, schema or current migration files. Data-dependent schema changes or
  * operator schema extensions require attended upgrade, rather than an inferred repair.
  *
- * Once the ledger reaches past the authority migration, the certificate covers only the
- * ledger's prefix: disk migrations named at or before the ledger's last name, minus the four
+ * Once the ledger reaches at or past the authority migration, the certificate covers only the
+ * ledger's prefix: disk migrations named at or before the ledger's last string name, minus the four
  * delayed dependency additions. Pending forward migrations named after the ledger's end are
  * excluded because the ordinary startup migrator applies them right after this check and no
  * pin can know them in advance; an unknown migration sorting inside the ledger range stays in
@@ -64,22 +64,19 @@ export function inspectDependencyBootstrap(
   const ledger = db.all<{ name: unknown; hash: unknown }>(
     'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
   );
-  const hasLaterMigrations = ledger.some(
-    (row) => typeof row.name === 'string' && row.name >= AUTHORITY_MIGRATION,
-  );
+  // Non-string names are skipped here; the pin or identity check below refuses them.
+  const ledgerEnd = ledger
+    .flatMap(({ name }) => (typeof name === 'string' ? [name] : []))
+    .sort()
+    .at(-1);
+  const hasLaterMigrations = ledgerEnd !== undefined && ledgerEnd >= AUTHORITY_MIGRATION;
   const known = readMigrationFiles({ migrationsFolder });
-  const ledgerEnd = ledger.at(-1)?.name;
-  if (hasLaterMigrations && typeof ledgerEnd !== 'string')
-    throw new Error('uncertified dependency authority history');
   // Proof: dropping the ledgerEnd bound refused the current-main store with one trailing
   // pending forward migration (uncertified dependency authority migration set) in
   // "boots the exact current-main store with a trailing pending forward migration" (2026-11-08).
   let certifiedMigrations = hasLaterMigrations
     ? known.filter(
-        (migration) =>
-          !DELAYED_MIGRATIONS.has(migration.name) &&
-          typeof ledgerEnd === 'string' &&
-          migration.name <= ledgerEnd,
+        (migration) => !DELAYED_MIGRATIONS.has(migration.name) && migration.name <= ledgerEnd,
       )
     : known.slice(0, ledger.length);
   let usesHistoricalDependency = false;

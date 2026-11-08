@@ -16,6 +16,7 @@ import { inspectDependencyBootstrap, openSqliteSource } from '@wbs/store-sqlite'
 import { openConnection } from '@wbs/store-sqlite/db';
 import { HISTORICAL_DEPENDENCY_MIGRATION } from '@wbs/store-sqlite/dependency-bootstrap-history';
 import { OPEN } from '@wbs/store-sqlite/gate';
+import { readMigrationFolders } from '@wbs/store-sqlite/migrate-down';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, expect, it } from 'bun:test';
@@ -494,9 +495,9 @@ function readMigrationIdentities(folder: string): { name: string; hash: string }
 /** Last migration of main acfdc02c; later folders are forward migrations main never applied. */
 const MAIN_LEDGER_END = '20261101120000_add_host_job_projection';
 /** Live forward migrations after main, so later additions need no edit to these expectations. */
-const FORWARD_MIGRATIONS = readdirSync(FOLDER)
-  .filter((name) => !DELAYED_DEPENDENCY_MIGRATIONS.includes(name) && name > MAIN_LEDGER_END)
-  .sort();
+const FORWARD_MIGRATIONS = readMigrationFolders(FOLDER)
+  .map(({ name }) => name)
+  .filter((name) => !DELAYED_DEPENDENCY_MIGRATIONS.includes(name) && name > MAIN_LEDGER_END);
 
 /** Replays the exact 103 migration.sql blobs from main acfdc02c, without Git at test runtime. */
 function currentMainDatabase(usesHistoricalDependency = false): string {
@@ -528,7 +529,7 @@ function currentMainDatabase(usesHistoricalDependency = false): string {
 }
 
 for (const usesHistoricalDependency of [false, true])
-  it(`boots the exact current-main store and applies only the four delayed dependency migrations (historical dependency=${String(usesHistoricalDependency)})`, async () => {
+  it(`boots the exact current-main store and applies the four delayed dependency migrations and every pending forward migration (historical dependency=${String(usesHistoricalDependency)})`, async () => {
     const path = currentMainDatabase(usesHistoricalDependency);
     const sqlite = openDatabase(path);
     const before = sqlite
@@ -604,6 +605,9 @@ for (const fault of [
   'DROP INDEX actual_by_step',
   'DROP TABLE __drizzle_migrations',
   'ALTER TABLE __drizzle_migrations RENAME COLUMN hash TO unreadable_hash',
+  "UPDATE __drizzle_migrations SET name=X'41' WHERE name='20261101120000_add_host_job_projection'",
+  "UPDATE __drizzle_migrations SET name=NULL WHERE name='20261101120000_add_host_job_projection'",
+  "UPDATE __drizzle_migrations SET name=41 WHERE name='20261101120000_add_host_job_projection'",
 ])
   it(`refuses uncertified current-main storage before startup migration: ${fault}`, async () => {
     const path = currentMainDatabase();
@@ -690,7 +694,7 @@ it('refuses an unknown pending migration on the known main profile', async () =>
 const TRAILING_MIGRATION = '20261231000000_probe_forward';
 
 /** Copies the live folder plus one pending forward migration named after every main entry. */
-function trailingMigrations(): string {
+function stageTrailingMigration(): string {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-trailing-'));
   directories.push(directory);
   cpSync(FOLDER, directory, { recursive: true });
@@ -705,7 +709,7 @@ function trailingMigrations(): string {
 // "uncertified dependency authority migration set" (0 pass/1 fail); restored it passed (2026-11-08).
 it('boots the exact current-main store with a trailing pending forward migration', async () => {
   const path = currentMainDatabase();
-  const staged = trailingMigrations();
+  const staged = stageTrailingMigration();
   const sqlite = openDatabase(path);
   let before: { name: string; hash: string }[];
   try {
@@ -732,9 +736,10 @@ it('boots the exact current-main store with a trailing pending forward migration
   expect((await fetch(`http://127.0.0.1:${String(running.port)}/health`)).status).toBe(200);
   const migrated = openDatabase(path);
   try {
+    // Application order: the delayed four, then forward migrations, then the trailing probe.
     const after = migrated
       .query<{ name: string; hash: string }, []>(
-        'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
+        'SELECT name,hash FROM __drizzle_migrations ORDER BY id',
       )
       .all();
     const added = after.filter(({ name }) => !before.some((row) => row.name === name));
@@ -744,7 +749,6 @@ it('boots the exact current-main store with a trailing pending forward migration
       ...FORWARD_MIGRATIONS,
       TRAILING_MIGRATION,
     ]);
-    expect(after.at(-1)?.name).toBe(TRAILING_MIGRATION);
     expect(
       migrated
         .query("SELECT name FROM sqlite_master WHERE type='table' AND name='probe_forward'")
