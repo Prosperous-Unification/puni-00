@@ -34,10 +34,33 @@ export function lookupRegistryVersion(
   if (invocation.exitCode === 0) return Promise.resolve('present');
   const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
   const diagnostic = `${decode(invocation.stdout)}\n${decode(invocation.stderr)}`;
+  // An unknown package: the registry answers 404 and Bun reports it on stderr.
   if (/404|not found/i.test(diagnostic)) return Promise.resolve('absent');
+  // A known package without this version: Bun prints one JSON object on stdout naming the exact
+  // coordinate. Proof: release run 42451249726 (twilight-burokrat-v0.2.0, after 0.1.0 was
+  // published) refused with "cannot determine registry version state: { "error": "No matching
+  // version found" ... }"; with this branch removed, release.test.ts's absent-version case fails
+  // the same way, and the case naming another coordinate still refuses.
+  if (isAbsentVersionAnswer(decode(invocation.stdout), `${packageName}@${version}`)) {
+    return Promise.resolve('absent');
+  }
   // Proof: injecting a registry timeout exited nonzero and was misclassified as an available name
   // until this branch preserved unknown registry state as a release-blocking failure.
   return Promise.reject(new Error(`cannot determine registry version state: ${diagnostic.trim()}`));
+}
+
+function isAbsentVersionAnswer(stdout: string, coordinate: string): boolean {
+  let answer: unknown;
+  try {
+    answer = JSON.parse(stdout);
+  } catch {
+    return false;
+  }
+  return (
+    isRecord(answer) &&
+    answer['error'] === 'No matching version found' &&
+    answer['version'] === coordinate
+  );
 }
 
 type Delay = (milliseconds: number) => Promise<void>;

@@ -177,6 +177,28 @@ describe('package release planner', () => {
         stdout: new Uint8Array(),
       })),
     ).toBe('absent');
+    // Bun answers a missing version of an existing package with this JSON on stdout (observed on
+    // release run 42451249726 for twilight-burokrat-v0.2.0, after 0.1.0 had been published).
+    expect(
+      await lookupRegistryVersion('twilight-burokrat', '0.2.0', () => ({
+        exitCode: 1,
+        stderr: new Uint8Array(),
+        stdout: new TextEncoder().encode(
+          '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
+        ),
+      })),
+    ).toBe('absent');
+    expect(
+      await refusal(
+        lookupRegistryVersion('twilight-burokrat', '0.2.0', () => ({
+          exitCode: 1,
+          stderr: new Uint8Array(),
+          stdout: new TextEncoder().encode(
+            '{ "error": "No matching version found", "version": "other-package@0.2.0" }\n',
+          ),
+        })),
+      ),
+    ).toContain('cannot determine registry version state');
     expect(
       await refusal(
         lookupRegistryVersion('twilight-burokrat', '0.2.0', () => ({
