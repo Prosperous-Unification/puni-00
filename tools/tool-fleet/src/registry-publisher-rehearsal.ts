@@ -7,6 +7,7 @@ import {
   quoteFixtureJson,
   quoteFixtureString,
   renderDockerFixture,
+  renderManagedJournalImport,
 } from './registry-fixture-source';
 import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import { runRegistryProcess } from './registry-process';
@@ -133,7 +134,7 @@ export async function rehearseRegistryPublisher(
       const entry = join(directory, `entry-${mode}.ts`);
       await writeFile(
         entry,
-        `import {executeRegistryLifecycle} from ${quoteFixtureString(join(import.meta.dir, 'registry-lifecycle-cli.ts'))};import {publishNativeDockerBundle} from ${quoteFixtureString(join(import.meta.dir, 'registry-docker-publication.ts'))};import {executeRegistryCommand} from ${quoteFixtureString(join(import.meta.dir, 'registry-journal.ts'))};const capacity=JSON.parse(${quoteFixtureJson(capacity)});const ports={verifyConsumers:()=>Promise.resolve(),verifyImages:()=>Promise.resolve(),measureJournal:()=>Promise.resolve({usableBytes:capacity.usableBytes,usedBytes:0,totalInodes:100000,usedInodes:10,allocationUnitBytes:4096}),measureRegistry:()=>Promise.resolve(capacity),collectConsumers:()=>Promise.reject(new Error('Unexpected consumer read')),now:()=> '2026-10-25T12:00:00.000Z'};const authority=()=>request=>executeRegistryCommand(JSON.parse(${quoteFixtureJson(journal)}),request,ports);if(process.env.NODE_OPTIONS!==undefined || process.env.BUN_OPTIONS!==undefined)throw new Error('Loader environment leaked');console.log(JSON.stringify(await executeRegistryLifecycle(await Bun.stdin.json(),{publication:()=>Promise.resolve(JSON.parse(${quoteFixtureJson(enrollment)})),deployment:()=>Promise.reject(new Error('unused')),environment:()=>Promise.reject(new Error('unused')),authority,publish:(enrollment,images)=>publishNativeDockerBundle(enrollment,images,{admit:()=>Promise.resolve({}),check:()=>Promise.resolve(),authority})})));`,
+        `import {executeRegistryLifecycle} from ${quoteFixtureString(join(import.meta.dir, 'registry-lifecycle-cli.ts'))};import {publishNativeDockerBundle} from ${quoteFixtureString(join(import.meta.dir, 'registry-docker-publication.ts'))};${renderManagedJournalImport()}const capacity=JSON.parse(${quoteFixtureJson(capacity)});const ports={verifyConsumers:()=>Promise.resolve(),verifyImages:()=>Promise.resolve(),measureJournal:()=>Promise.resolve({usableBytes:capacity.usableBytes,usedBytes:0,totalInodes:100000,usedInodes:10,allocationUnitBytes:4096}),measureRegistry:()=>Promise.resolve(capacity),collectConsumers:()=>Promise.reject(new Error('Unexpected consumer read')),now:()=> '2026-10-25T12:00:00.000Z'};const authority=()=>request=>executeRegistryCommand(JSON.parse(${quoteFixtureJson(journal)}),request,ports);if(process.env.NODE_OPTIONS!==undefined || process.env.BUN_OPTIONS!==undefined)throw new Error('Loader environment leaked');console.log(JSON.stringify(await executeRegistryLifecycle(await Bun.stdin.json(),{publication:()=>Promise.resolve(JSON.parse(${quoteFixtureJson(enrollment)})),deployment:()=>Promise.reject(new Error('unused')),environment:()=>Promise.reject(new Error('unused')),authority,publish:(enrollment,images)=>publishNativeDockerBundle(enrollment,images,{admit:()=>Promise.resolve({}),check:()=>Promise.resolve(),authority})})));`,
       );
       const build = await Bun.build({
         entrypoints: [entry],

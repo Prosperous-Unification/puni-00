@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+
 /** Quote one JS/Python string literal; escape every closing-tag/Unicode-separator character after JSON quoting handles controls, quotes and backslashes. */
 export function quoteFixtureString(text: string): string {
   // Proof: removing global escaping leaves repeated raw closing-tag/separator characters; registry-fixture-source.test.ts fails its emitted-literal contract.
@@ -20,4 +22,10 @@ if sys.argv[1:3]==['image','inspect'] and sys.argv[-1]==json.loads(${quoteFixtur
 elif sys.argv[1:4]==['image','save','--output'] and sys.argv[-1]==json.loads(${quoteFixtureJson(imageId)}): shutil.copyfile(json.loads(${quoteFixtureJson(archive)}),sys.argv[4])
 else: sys.exit(23)
 `;
+}
+
+/** Render the fixed managed authority import shared by generated disposable fixture children, using the safe literal formatter. */
+export function renderManagedJournalImport(): string {
+  // Proof: selecting the foundation basename makes the compiled/copied schema3 reader fail with schemaVersion must be 1 (was 3) in registry-fixture-source.test.ts.
+  return `import {executeRegistryCommand} from ${quoteFixtureString(join(import.meta.dir, 'registry-managed-journal.ts'))};`;
 }

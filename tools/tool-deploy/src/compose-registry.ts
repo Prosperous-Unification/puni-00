@@ -1,4 +1,4 @@
-import type { Tier } from '@tools/deploy-contract';
+import { type Tier, TIERS } from '@tools/deploy-contract';
 import type { EnvLayout } from '@tools/env';
 import {
   type DeploymentEnrollment,
@@ -21,10 +21,10 @@ export async function selectComposeDeployment(
   select = readDeploymentEnrollment,
 ): Promise<DeploymentEnrollment | undefined> {
   const enrollment = await select(Object.values(plan.images), `compose:${plan.layout.root}`);
+  // Proof: removing only membership validation admits the equal-length duplicate/missing set in compose-registry.test.ts while its subset still fails the length check.
   if (
     enrollment !== undefined &&
-    (plan.tiers.length !== 3 ||
-      !['be', 'gw', 'fe'].every((tier) => plan.tiers.includes(tier as 'be' | 'gw' | 'fe')))
+    (plan.tiers.length !== TIERS.length || !TIERS.every((tier) => plan.tiers.includes(tier)))
   )
     throw new Error('Managed Compose requires all configured tiers');
   return enrollment;

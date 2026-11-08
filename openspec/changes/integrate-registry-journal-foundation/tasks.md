@@ -21,6 +21,9 @@
 
 - [x] 3.4 Restore only five exact owner memberships and navigation in the findings and Dagger library READMEs after actual clean-A pilot failure; retain all source, policies, mappings, guards and pilot assertions. Normal follow-up B precedes the unchanged eleven-case cohort.
 
+- [x] 3.5 Repair the two generated child import basenames through one safe fixed-managed fixture renderer; observe actual compiled/copied schema3 read fail with the foundation module, then pass. Extend the source inventory beyond relative imports to basename literals.
+- [x] 3.6 Restore four explicit Fleet test-output environments, two exact Dagger script inputs and the canonical Compose tier vocabulary. Keep complete-set admission, test full/duplicate controls, observe membership-only omission admit the invalid set, restore and run only the three existing workspace inventory selectors. ADR numbering and new-main integration remain separately held.
+
 ## 4. Freeze and required acceptance
 
 - [x] 4.1 Run finite focused policy/foundation/managed/cross-contract/control suites and justified new proofs, owning lint/type/build, format/OpenSpec/scanner/migrations, active closure/baseline/retention checks; record exact source, timings, failures/skips and proof classifications.

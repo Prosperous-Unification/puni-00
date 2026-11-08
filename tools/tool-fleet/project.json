@@ -215,6 +215,10 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
         "command": "bun test ./infra/ansible/tests/registry-storage.test.ts --timeout=120000"
       }
     },
@@ -222,6 +226,10 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
         "command": "bun test ./infra/ansible/tests/registry-scratch.test.ts ./infra/ansible/tests/registry-publication.test.ts --timeout=120000"
       }
     },
@@ -229,6 +237,10 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
         "command": "bun test ./infra/ansible/tests/registry-capacity.test.ts --timeout=240000"
       }
     },
@@ -250,6 +262,10 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
         "command": "bun test ./infra/ansible/tests/registry-pulls.test.ts --timeout=180000"
       }
     },

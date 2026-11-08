@@ -3,6 +3,7 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { renderManagedJournalImport } from './registry-fixture-source';
 import { executeRegistryCommand, type RegistryJournalPorts } from './registry-managed-journal';
 import { runRegistryProcess } from './registry-process';
 
@@ -150,7 +151,7 @@ export async function rehearseRegistryCompanion(
     const wrapper = join(directory, 'lifecycle-entry.ts');
     await writeFile(
       wrapper,
-      `import {executeRegistryLifecycle} from ${JSON.stringify(join(import.meta.dir, 'registry-lifecycle-cli.ts'))};\nimport {executeRegistryCommand} from ${JSON.stringify(join(import.meta.dir, 'registry-journal.ts'))};\nconst capacity=${JSON.stringify(capacity)};const enrollment=${JSON.stringify(enrollment)};const ports={verifyConsumers:()=>Promise.resolve(),verifyImages:()=>Promise.resolve(),measureJournal:()=>Promise.resolve({usableBytes:capacity.usableBytes,usedBytes:0,totalInodes:100000,usedInodes:10,allocationUnitBytes:4096}),measureRegistry:()=>Promise.resolve(capacity),collectConsumers:(sources,revision)=>Promise.resolve(sources.map(source=>({id:source.id,source:source.source,role:source.role,revision,sourceRevision:'explicit-disposable-genesis',...(source.role==='history'?{history:{state:'first-install',at:'2026-10-25T12:00:00.000Z'},historySha256:'4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'}:{}),references:[],currentReferences:[]}))),now:()=> '2026-10-25T12:00:00.000Z'};\nconsole.log(JSON.stringify(await executeRegistryLifecycle(await Bun.stdin.json(),{publication:()=>Promise.reject(new Error('No upload permitted')),deployment:()=>Promise.resolve(enrollment),environment:()=>Promise.resolve(enrollment),publish:()=>Promise.reject(new Error('No upload permitted')),authority:()=>request=>executeRegistryCommand(${JSON.stringify(journal)},request,ports)})));\n`,
+      `import {executeRegistryLifecycle} from ${JSON.stringify(join(import.meta.dir, 'registry-lifecycle-cli.ts'))};\n${renderManagedJournalImport()}\nconst capacity=${JSON.stringify(capacity)};const enrollment=${JSON.stringify(enrollment)};const ports={verifyConsumers:()=>Promise.resolve(),verifyImages:()=>Promise.resolve(),measureJournal:()=>Promise.resolve({usableBytes:capacity.usableBytes,usedBytes:0,totalInodes:100000,usedInodes:10,allocationUnitBytes:4096}),measureRegistry:()=>Promise.resolve(capacity),collectConsumers:(sources,revision)=>Promise.resolve(sources.map(source=>({id:source.id,source:source.source,role:source.role,revision,sourceRevision:'explicit-disposable-genesis',...(source.role==='history'?{history:{state:'first-install',at:'2026-10-25T12:00:00.000Z'},historySha256:'4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'}:{}),references:[],currentReferences:[]}))),now:()=> '2026-10-25T12:00:00.000Z'};\nconsole.log(JSON.stringify(await executeRegistryLifecycle(await Bun.stdin.json(),{publication:()=>Promise.reject(new Error('No upload permitted')),deployment:()=>Promise.resolve(enrollment),environment:()=>Promise.resolve(enrollment),publish:()=>Promise.reject(new Error('No upload permitted')),authority:()=>request=>executeRegistryCommand(${JSON.stringify(journal)},request,ports)})));\n`,
     );
     const built = await Bun.build({
       entrypoints: [wrapper],

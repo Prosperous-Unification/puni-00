@@ -1,3 +1,4 @@
+import { TIERS } from '@tools/deploy-contract';
 import { envLayout } from '@tools/env';
 import { expect, it } from 'bun:test';
 
@@ -38,6 +39,18 @@ it('local managed Compose refuses subsets and consumes exactly one authority-ver
   };
   await expectRejection(
     selectComposeDeployment(plan, () => Promise.resolve(enrollment)),
+    'all configured',
+  );
+  expect(
+    await selectComposeDeployment({ ...plan, tiers: TIERS }, () => Promise.resolve(enrollment)),
+  ).toEqual(enrollment);
+  const first = TIERS.at(0);
+  if (first === undefined || TIERS.length < 2)
+    throw new Error('Expected multiple canonical fixture tiers');
+  const duplicated = TIERS.map((tier, index) => (index === 1 ? first : tier));
+  expect(duplicated.length).toBe(TIERS.length);
+  await expectRejection(
+    selectComposeDeployment({ ...plan, tiers: duplicated }, () => Promise.resolve(enrollment)),
     'all configured',
   );
   const calls: string[] = [];

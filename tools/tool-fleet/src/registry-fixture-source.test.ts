@@ -8,7 +8,9 @@ import {
   quoteFixtureJson,
   quoteFixtureString,
   renderDockerFixture,
+  renderManagedJournalImport,
 } from './registry-fixture-source';
+import { executeRegistryCommand } from './registry-managed-journal';
 
 const characters =
   '<</script>><</script>>\u2028\u2028\u2029\u2029' +
@@ -110,4 +112,70 @@ test('copied standalone Python Docker fixture keeps runtime values as data', asy
     runFixture(['/usr/bin/python3', path, 'image', 'save', '--output', output, imageId], directory),
   ).toBe('');
   expect(await readFile(output, 'utf8')).toBe('owned archive contents');
+});
+
+test('generated managed authority import reads schema3 after compiling and copying', async () => {
+  for (const builder of ['registry-companion-rehearsal.ts', 'registry-publisher-rehearsal.ts']) {
+    const source = await readFile(new URL(builder, import.meta.url), 'utf8');
+    expect(source).toContain('${renderManagedJournalImport()}');
+  }
+  const directory = await scratchAsync('registry-managed-import-');
+  const journal = join(directory, 'journal');
+  await mkdir(journal, { mode: 0o700 });
+  const GiB = 1024 ** 3;
+  const initialized = await executeRegistryCommand(
+    journal,
+    {
+      command: 'initialize',
+      enrollment: {
+        registryId: 'import',
+        storageId: 'owned',
+        owners: ['fixture'],
+        registryPath: '/unused',
+        rootPath: '/',
+        maximumBytes: GiB,
+        journalMaximumBytes: GiB,
+      },
+    },
+    {
+      measureJournal: () =>
+        Promise.resolve({
+          usableBytes: GiB,
+          usedBytes: 1000,
+          totalInodes: 10000,
+          usedInodes: 10,
+          allocationUnitBytes: 4096,
+        }),
+      measureRegistry: () =>
+        Promise.resolve({
+          maximumBytes: GiB,
+          usableBytes: GiB,
+          usedBytes: 0,
+          totalInodes: 10000,
+          usedInodes: 10,
+          rootFreeBytes: 30 * GiB,
+        }),
+    },
+  );
+  expect(initialized.state.schemaVersion).toBe(3);
+  const before = await readFile(join(journal, 'journal.json'), 'utf8');
+  const entry = join(directory, 'entry.ts');
+  await writeFile(
+    entry,
+    `${renderManagedJournalImport()}const ports={measureJournal:()=>Promise.reject(new Error('Unexpected measurement')),measureRegistry:()=>Promise.reject(new Error('Unexpected measurement'))};console.log(JSON.stringify((await executeRegistryCommand(JSON.parse(${quoteFixtureJson(journal)}),{command:'read'},ports)).state));`,
+  );
+  const built = await Bun.build({
+    entrypoints: [entry],
+    target: 'bun',
+    outdir: join(directory, 'bundle'),
+  });
+  const artifact = built.outputs.at(0);
+  if (!built.success || artifact === undefined)
+    throw new Error('Managed import fixture build failed');
+  await mkdir(join(directory, 'copy'));
+  const copied = join(directory, 'copy/authority.js');
+  await copyFile(artifact.path, copied);
+  await rm(entry);
+  expect(JSON.parse(runFixture([process.execPath, copied], directory))).toEqual(initialized.state);
+  expect(await readFile(join(journal, 'journal.json'), 'utf8')).toBe(before);
 });
