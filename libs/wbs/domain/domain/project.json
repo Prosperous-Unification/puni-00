@@ -23,6 +23,8 @@
         "default",
         "^production",
         "{workspaceRoot}/apps/wbs/be-01/drizzle/*/migration.sql",
+        "{workspaceRoot}/openspec/changes/wbs-permissions/permission-matrix.md",
+        "{workspaceRoot}/openspec/changes/wbs-permissions/design.md",
         "{workspaceRoot}/docs/adr/*.md",
         "{workspaceRoot}/apps/wbs/fe-01/src/styles.css",
         "{workspaceRoot}/libs/shared/adapters/ui-saas-01/src/theme.css"
@@ -39,6 +41,8 @@
         "default",
         "^production",
         "{workspaceRoot}/apps/wbs/be-01/drizzle/*/migration.sql",
+        "{workspaceRoot}/openspec/changes/wbs-permissions/permission-matrix.md",
+        "{workspaceRoot}/openspec/changes/wbs-permissions/design.md",
         "{workspaceRoot}/docs/adr/*.md",
         "{workspaceRoot}/apps/wbs/fe-01/src/styles.css",
         "{workspaceRoot}/libs/shared/adapters/ui-saas-01/src/theme.css"

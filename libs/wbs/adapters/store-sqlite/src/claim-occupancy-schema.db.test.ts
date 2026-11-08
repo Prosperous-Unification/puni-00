@@ -94,6 +94,7 @@ describe(MIGRATION, () => {
 
   it('refuses rollback while a claim holds units, keeping the table and the ledger', () => {
     expect(rollbackTo(path, FOLDER, MIGRATION)).toEqual([
+      '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
       '20261101100000_widen_organization_audit_directory_capacity',
@@ -131,6 +132,7 @@ describe(MIGRATION, () => {
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
       '20261101100000_widen_organization_audit_directory_capacity',

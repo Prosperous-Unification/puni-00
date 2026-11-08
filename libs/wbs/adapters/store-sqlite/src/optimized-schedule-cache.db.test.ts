@@ -346,6 +346,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
@@ -461,6 +462,7 @@ describe('the optimizer migration', () => {
             name !== 'measure' &&
             name !== 'measure_estimate' &&
             name !== 'work_item_budget' &&
+            !name.startsWith('access_') &&
             name !== 'compute_provider' &&
             name !== 'resource_capacity_report' &&
             name !== 'resource_authority' &&

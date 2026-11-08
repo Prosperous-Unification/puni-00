@@ -61,6 +61,8 @@ describe('runtime ledger lifecycle', () => {
       '20261022130100_widen_organization_audit_organization_limits',
       // Alters `machine_credential`, which this old branch never had.
       '20261028100000_add_agent_pool',
+      // Reads `machine_credential` for its P17 backfill, likewise.
+      '20261102120000_add_access_grants',
     ]);
     for (const name of readdirSync(migrations)) {
       if (mainAdditions.has(name)) continue;

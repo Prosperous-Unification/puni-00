@@ -21,6 +21,7 @@
           "^production",
           "{workspaceRoot}/libs/wbs/domain/domain/src/schedule.ts",
           "{workspaceRoot}/openspec/changes/dual-optimized-scheduler/design.md",
+          "{workspaceRoot}/openspec/changes/wbs-permissions/permission-matrix.md",
           "{workspaceRoot}/tools/tool-remote-scripts/src/fixtures/solver-supervisor-orphan-host.ts",
           "{workspaceRoot}/apps/wbs/gw-01/src/**/*",
           "{workspaceRoot}/apps/wbs/fe-01/src/**/*",
@@ -81,6 +82,8 @@
           "default",
           "^production",
           "{workspaceRoot}/apps/wbs/be-01/drizzle/*/migration.sql",
+          "{workspaceRoot}/openspec/changes/wbs-permissions/permission-matrix.md",
+          "{workspaceRoot}/openspec/changes/wbs-permissions/design.md",
           "{workspaceRoot}/docs/adr/*.md",
           "{workspaceRoot}/apps/wbs/fe-01/src/styles.css",
           "{workspaceRoot}/libs/shared/adapters/ui-saas-01/src/theme.css"

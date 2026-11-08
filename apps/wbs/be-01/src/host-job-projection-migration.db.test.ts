@@ -10,8 +10,10 @@ import { afterEach, describe, expect, it } from 'bun:test';
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
-/** The folder right below {@link HOST_JOB_PROJECTION}: rolling back to it reverses this migration alone. */
+/** The folder right below {@link HOST_JOB_PROJECTION}: rolling back to it reverses this migration after {@link ACCESS_GRANTS}. */
 const DIRECTORY_CAPACITY = '20261101100100_add_resource_directory_capacity';
+/** `wbs-permissions`' access grants, the newest folder, which reverses first. */
+const ACCESS_GRANTS = '20261102120000_add_access_grants';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -141,7 +143,7 @@ describe(HOST_JOB_PROJECTION, () => {
     const down = await rollBack(root, dbPath, DIRECTORY_CAPACITY);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${HOST_JOB_PROJECTION}\n`);
+    expect(down.stdout).toContain(`rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}\n`);
     expect(columnsOf(dbPath, 'resource_capacity_report')).not.toContain('reserved_units');
     expect(columnsOf(dbPath, 'resource_capacity_report')).not.toContain('reserved_dimension');
     expect(columnsOf(dbPath, 'resource_host_job')).toEqual([]);

@@ -110,6 +110,9 @@ export default [
       // no tsconfig includes them; the project targets never lint them either, so
       // the pre-commit hook (which lints every staged file) must not stop on them.
       'tools/*/feasibility/**',
+      // OpenSpec evidence snapshots are the same kind of artefact: main carries
+      // `.ts` probes under openspec/changes/*/evidence that no tsconfig includes.
+      'openspec/**/evidence/**',
     ],
   },
 
