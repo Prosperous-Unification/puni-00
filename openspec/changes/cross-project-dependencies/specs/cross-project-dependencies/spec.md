@@ -3042,9 +3042,15 @@ Startup with migrations enabled SHALL admit the exact 103 applied migration name
 
 #### Scenario: Uncertified main history refuses before mutation
 
-- **WHEN** any known identity is changed or missing, an unknown identity or migration is present, the ledger is absent or unreadable, a delayed dependency addition is partially recorded, or the schema differs from the exact replay
+- **WHEN** any known identity is changed or missing, an unknown identity is recorded, an unknown migration sorts at or before the ledger's last name, the ledger is absent or unreadable, a delayed dependency addition is partially recorded, or the schema differs from the exact replay
 - **THEN** startup refuses before migrations, service factories or listener startup and preserves the complete source snapshot
 - **AND** existing enabled authority still receives strict semantic inspection rather than this historical certificate
+
+#### Scenario: Trailing forward migrations follow the certified prefix
+
+- **GIVEN** the exact known main store and a pending migration named after the ledger's last name
+- **WHEN** the real backend boots with startup migrations enabled
+- **THEN** the certificate covers only the ledger's prefix, startup applies the four dependency migrations and the trailing migration, and the ledger ends with the trailing name
 
 ### Requirement: The traced historical main profile preserves its original migration
 
