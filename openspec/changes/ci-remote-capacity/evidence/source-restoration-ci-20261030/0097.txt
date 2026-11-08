@@ -1,0 +1,36 @@
+
+tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:
+145 |   const source = invoke(root, 'source');
+146 |   expect(source.exitCode, source.stderr.toString()).toBe(0);
+147 |   const sourceCases = executed(source.stdout.toString());
+148 |   expect(sourceCases).toEqual([...SOURCE].sort());
+149 |   const restoration = invoke(root, 'source-restoration');
+150 |   expect(restoration.exitCode, restoration.stderr.toString()).toBe(0);
+                                                                    ^
+error: 197 |     leafName !== 'model' &&
+198 |     leafName !== 'model-continuation' &&
+199 |     leafName !== 'source' &&
+200 |     leafName !== 'rest'
+201 |   )
+202 |     throw new Error('Unknown remote test leaf');
+                    ^
+error: Unknown remote test leaf
+      at runRemoteTests (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/test/ci-leaf.ts:202:15)
+      at /home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/test/ci-leaf.ts:280:11
+
+Bun v1.4.4 (Linux x64)
+
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:150:63)
+(fail) fresh fixed leaves preserve real canonical Bun discovery including future and collision files [225.34ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=2
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [259.00ms]

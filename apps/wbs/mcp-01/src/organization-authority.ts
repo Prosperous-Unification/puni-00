@@ -1,4 +1,5 @@
-import { MCP_INTERNAL_SECRET_HEADER, type WbsScope } from '@wbs/contracts';
+import type { WbsScope } from '@wbs/contracts';
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts/mcp-internal-auth';
 import { type } from '@wbs/validation';
 
 import type { McpConfig } from './config';

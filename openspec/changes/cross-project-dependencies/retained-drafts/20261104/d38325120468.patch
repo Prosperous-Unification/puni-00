@@ -1,0 +1,808 @@
+From d38325120468cedc2ddfc71d04fb8d02840bca7e Mon Sep 17 00:00:00 2001
+From: Dany Fedorov <fedorov.dda@gmail.com>
+Date: Wed, 28 Oct 2026 22:27:38 +0200
+Subject: [PATCH] feat(remote-scripts): retain original-context solver
+ readiness
+
+Restore the compatible solver under the original consumed activation context, preserving its owner, deadline, installed tuple, barriers and empty DB opener set. Keep products and exposure fenced. Verify six owning scenarios, five guard omission/restoration pairs and scoped normal checks.
+---
+ .../cross-project-dependencies/tasks.md       |   6 +
+ .../verify-solver-first-context.md            | 127 +++++
+ .../dependency-complete-activation.ts         |   8 +
+ ...ncy-participant-solver-restoration.test.ts | 474 ++++++++++++++++++
+ ...pendency-participant-solver-restoration.ts | 131 +++++
+ 5 files changed, 746 insertions(+)
+ create mode 100644 openspec/changes/cross-project-dependencies/verify-solver-first-context.md
+ create mode 100644 tools/tool-remote-scripts/src/lib/dependency-participant-solver-restoration.test.ts
+ create mode 100644 tools/tool-remote-scripts/src/lib/dependency-participant-solver-restoration.ts
+
+diff --git a/openspec/changes/cross-project-dependencies/tasks.md b/openspec/changes/cross-project-dependencies/tasks.md
+index 3675d4fab9267f29cc54e61920d420f4f1917a22..2929d092acf0889b41af9434d52f05d1c572476f 100644
+--- a/openspec/changes/cross-project-dependencies/tasks.md
++++ b/openspec/changes/cross-project-dependencies/tasks.md
+@@ -890,6 +890,12 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
+ - [ ] P2 Implement complete restoring/active policy verification before accepting either phase.
+ - [ ] P3 Integrate compatible restoration controllers and prove S4 reopening. Parent 10.2-S4 remains open.
+ 
++### Original-context solver-first restoration checkpoint (bounded P2b-3)
++
++- [x] Observe genuine preparation/finalizer/consumption RED at the missing solver-first entry, then restore the pinned solver under the same original context, owner and deadline without starting products.
++- [x] Retain actual primitive readiness privately; preserve original tuple/static authority, empty openers and closing activation barriers. Observe six ordinary cases and five finite guard omissions with exact same-case restoration. [Local evidence and limits](verify-solver-first-context.md).
++- [ ] Complete solver→backend→gateway→source composition, restart-policy/controller handoff, exposure and separately authorized host/Kubernetes acceptance. Parent P2b/P3/S4 and 10.2 remain open.
++
+ ### Bounded source/solver physical acceptance runner source
+ 
+ - [x] XS1 Add the invocation-labelled complete-inventory transport and reuse the strict solver fixture lifecycle for the unchanged source/managed coordinator; include focused transport tests and watched fault receipts. See [runner source receipt](verify-source-exclusion-acceptance.md).
+diff --git a/openspec/changes/cross-project-dependencies/verify-solver-first-context.md b/openspec/changes/cross-project-dependencies/verify-solver-first-context.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..9f2254bbc51d758f72ba05706f260e9eaa2d2399
+--- /dev/null
++++ b/openspec/changes/cross-project-dependencies/verify-solver-first-context.md
+@@ -0,0 +1,127 @@
++# Original-context solver-first restoration
++
++This bounded P2b-3 component restores only the pinned compatible solver after
++actual activation finalizers. It retains the same consumed in-memory context,
++outer owner, absolute deadline, parked inventory, solver intent and original
++`authorities.solver.tuple`. The request decoder already checks the independent
++solver pins; no second installed baseline or owner is introduced.
++
++`restoreSolverForPreparedParticipants` requires the original transport's callable
++socket operation before any primitive/removal/policy/start effect. The original
++context, evidence, artifact, stores, cold source and parked inventory are checked
++before restoration and again after the last authority/readiness observations.
++Fresh authority must retain every original static field and tuple, the full
++original stopped service before startup, running phase afterwards and no DB
++openers. The real primitive's unchanged readiness monitor brackets that census.
++Only its actual successful return is retained privately under the consumed
++context. The closed returned summary grants no subsequent startup or exposure.
++Failure is terminal, including repair of a missing transport after refusal.
++
++The existing parked-solver-only backend callable is unchanged. Products,
++controllers, ingress and original restart policies are not restored. The public
++fenced-only activation entry remains unchanged; there is no new restoration CLI,
++controller adoption or serving handoff.
++
++## Actual setup and RED
++
++Worktree `/home/df/.codex/worktrees/9242/puni-00`, isolated branch
++`integration/dependencies-solver-first-20261028`, base
++`766ce699dc14eb9a157f8b7ad2b4fe2b91380fe7`. Frozen Bun installation added no
++tracked dependency or lockfile changes. Bun 1.4.4.
++
++- Existing closed-reader baseline: 19 pass, 0 fail, 58 assertions, 31ms.
++- Approved V3 genuine positive: 0 pass, 1 fail, 1 filtered, 131 assertions,
++  45.94s. Actual preparation/finalizers/consumption and baseline assertions reached
++  the explicit throwing entry stub. The preceding wrong-directory invocation
++  failed preload lookup before testing and earns no RED credit.
++- First GREEN attempt: 1 pass / 1 fail. The positive reached real restoration,
++  then its test incorrectly expected only one `solver-restore-complete` record.
++  Existing publishers actually write policy-publication-intent, policy-published
++  and solver-ready. The corrected test requires all three ordered full payloads,
++  original owner/hash/references and exactly one actual unit/process/cgroup ready
++  record. No production assertion was weakened.
++- A new late-source case then observed RED: missing closing reinspection accepted
++  restart-policy drift at the third real socket callback; expected Error was
++  undefined (150 assertions, 50.77s). Closing barrier reinspection was added before
++  private ready-state retention.
++
++## Final ordinary observations
++
++From `tools/tool-remote-scripts`:
++
++```sh
++bun test src/lib/dependency-participant-solver-restoration.test.ts --preload ../test/scratch/preload.ts --timeout=300000
++```
++
++Actual final ordinary file: **6 pass, 0 fail, 1,016 assertions, 378.79s total**.
++Per-case durations were 50–73s, each under its existing 300s budget; 300s is not a
++whole-file bound. Cases cover actual solver readiness with copied/reused context
++refusal, absent socket plus repaired terminal attempt, released original context,
++late source restart-policy drift, raw collector boot drift and raw collector DB
++openers. Every ordinary cleanup hook returned. No old backend fourteen/five,
++public-parity, native or performance campaign was replayed.
++
++The raw fixture now opens the actual independently created `installed-0` file
++for REQUEST's solver PID. Other PIDs and stopped requests delegate unchanged.
++Its real descriptor supplies executable inode/hash to the unchanged production
++collector. This replaces the old PID123 memfd mismatch, without manufacturing
++expected identities, collector output or ready observations. The same modeled
++host transition drives solver and authority transports, preserving the canonical
++state-path rewrite. Two actual post-start authority observations retain original
++static facts and exact tuple. A scratch Unix listener/connection is real;
++service/process/cgroup and installed binary bytes are modeled fixture inputs,
++not installed-host or native supervisor acceptance.
++
++## Five watched production-path omissions
++
++Each pair used one exact selected case with normal preload and 300s test budget,
++then exact source restoration and the same case once. Every omitted run exited1
++at its intended consumer (5 filtered), and every restored run exited0 (5 filtered).
++All three source control hashes were checked after each pair and at the end.
++
++| Omission  | Selected case   | Actual omitted consumer                                         | Exact-restored observation              |
++| --------- | --------------- | --------------------------------------------------------------- | --------------------------------------- |
++| socket    | absent          | primitive calls: expected 0, received 1; 150 assertions, 66.72s | 1 pass / 0 fail; 158 assertions, 68.71s |
++| terminal  | absent          | expected Error, received undefined; 156 assertions, 73.51s      | 1 pass / 0 fail; 158 assertions, 52.95s |
++| context   | present         | expected Error, received undefined; 150 assertions, 53.51s      | 1 pass / 0 fail; 207 assertions, 54.27s |
++| authority | authority-drift | expected Error, received undefined; 150 assertions, 63.09s      | 1 pass / 0 fail; 170 assertions, 53.95s |
++| closing   | late-source     | expected Error, received undefined; 150 assertions, 65.78s      | 1 pass / 0 fail; 171 assertions, 58.19s |
++
++The context proof removes the original-context admission dependency at both new
++call sites; it does not qualify each call or every existing invariant separately.
++The authority proof removes the grouped equality and uses actual boot drift; it
++does not separately qualify every field/subclause. The ordinary real-collector
++opener negative independently covers the no-opener phase contract. The closing
++proof removes only the last barrier call after actual authority/readiness.
++
++Raw assertions, source restoration and cleanup returns were independently
++accepted in private review
++`puni-r18-solver-first-six-and-five-actual-independent-review-20261028.md`, SHA
++`db1a9f4f9ff7014f92f09a2ce29853ccf004ce6b0298fd6a92bdcaaa8967facf`.
++Actual logs, receipts and control readbacks are retained privately under
++`/tmp/puni-r18-solver-first-focused-proofs-20261028/execution`.
++The ten runs qualify these finite guards, not every field or a universal cleanup
++claim. Python orchestration joins the Bun process and restores source in finally;
++it has no independent wall-clock/process-group deadline. Adjacent `Proof:`
++comments were added only after these actual outcomes were accepted. Removing
++only those comments reconstructs tested production SHA
++`3132b9c3b61716f9978425ee770cefe72091e2df5df138fb7195e8a6fb35511c`.
++
++## Scoped checks and remaining delivery
++
++Final commented source passed the configured project lint and typecheck targets
++with Nx cache bypassed (22.1s). Formatting passed for all five changed paths, and
++the new internal entry bundled successfully with its actual dependency closure.
++OpenSpec validation passed this change (1 valid, 0 failed), with 29 warnings
++about long text in unchanged requirement files. Final independent source review
++is required before private commit. Normal hooks are retained.
++
++The full tool-remote-scripts test target, full CI and isolated host gate were not
++run in this lane. These scoped checks do not qualify the integrated final SHA or
++replace the parent release gates.
++
++Next work remains solver→backend→gateway→source readiness under the retained
++phase, exact restart-policy restoration, ordinary-controller adoption, owner
++retirement and verified exposure. Kubernetes retains its separate unfinished
++ownership/drain/activation/restoration lifecycle. Native acceptance, full P2b-3,
++P2b-4/P3, 10.2/S4/O4, architectural adoption, MAIN and deployment remain open.
+diff --git a/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts b/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts
+index d8ac0b844e35ec2f74b2746daaf29676096e5b98..4cf415cf27f39bbd0a22d589998911ea15a98882 100644
+--- a/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts
++++ b/tools/tool-remote-scripts/src/fixtures/dependency-complete-activation.ts
+@@ -348,7 +348,15 @@ REQUEST=json.loads(${JSON.stringify(JSON.stringify(request))})
+ FAULT=${JSON.stringify(authorityFault)}
+ COLLECTION=${String(collections)}
+ for database in REQUEST['databases']: database['host']='/home/puni1/'+('wbs' if database['environment']=='prod' else 'wbs-dev')+'/data/main'
++SOLVER_EXECUTABLE_PATH=${JSON.stringify(join(base.root, 'installed-0'))}
+ class ActivationHost(Complete):
++ def fixture_executable(self,path):
++  solver=REQUEST.get('solver')
++  if solver is not None and path=='/proc/'+str(solver['pid'])+'/exe':
++   descriptors=self.__dict__.setdefault('fixture_executable_descriptors',{})
++   if solver['pid'] not in descriptors:descriptors[solver['pid']]=os.open(SOLVER_EXECUTABLE_PATH,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
++   return descriptors[solver['pid']]
++  return super().fixture_executable(path)
+  def read(self,path,limit):
+   if FAULT=='boot-drift' and COLLECTION>1 and path=='/proc/sys/kernel/random/boot_id':return b'22222222-2222-2222-2222-222222222222\n'
+   if FAULT=='prior' and path=='/proc/4242/cmdline':return b'/usr/bin/bun\x00/home/puni1/wbs/bin/swap.js\x00'
+diff --git a/tools/tool-remote-scripts/src/lib/dependency-participant-solver-restoration.test.ts b/tools/tool-remote-scripts/src/lib/dependency-participant-solver-restoration.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..9aed4cd06942fae57ce61b4a5c60dfdff76e1f0c
+--- /dev/null
++++ b/tools/tool-remote-scripts/src/lib/dependency-participant-solver-restoration.test.ts
+@@ -0,0 +1,474 @@
++import { createHash } from 'node:crypto';
++import { readdir, readFile, rm } from 'node:fs/promises';
++import { createConnection, createServer } from 'node:net';
++import { basename, join } from 'node:path';
++
++import { Database } from 'bun:sqlite';
++import { afterEach, expect, spyOn, test } from 'bun:test';
++
++import { productProcessFixture } from '../fixtures/dependency-product-process';
++import { roots } from '../fixtures/source-startup';
++import {
++  assertParticipantRestorationContext,
++  consumePreparedDependencyActivation,
++  prepareActivatedParticipantsUnderOwner,
++  releasePreparedDependencyActivation,
++} from './complete-dependency-exclusion';
++import { inspectDependencyIngress } from './dependency-ingress';
++import type { FinalizedParticipantRestorationContext } from './dependency-participant-preparation';
++import { restoreSolverForPreparedParticipants } from './dependency-participant-solver-restoration';
++import * as solverRestoration from './dependency-solver-restoration';
++import { withDependencyOwner } from './edge-ownership';
++import { captureEdgePolicy, captureEdgeRecord, captureParticipantFence } from './edge-policy';
++import type { InstalledAuthorityObservation } from './installed-authorities';
++import { readFields, readString } from './managed-cohort';
++import { SOLVER_EDGE_STATE, type SolverRestorePorts } from './solver-host';
++
++function readStore(path: string) {
++  const database = new Database(path, { readonly: true, create: false });
++  try {
++    return {
++      authority: database
++        .query('SELECT * FROM cross_project_dependency_activation ORDER BY id')
++        .all(),
++      receipts: database
++        .query('SELECT * FROM cross_project_dependency_activation_receipt ORDER BY id')
++        .all(),
++      ledger: database.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all(),
++    };
++  } finally {
++    database.close();
++  }
++}
++
++function projectAuthorityIdentity(authority: InstalledAuthorityObservation) {
++  return {
++    format: authority.format,
++    version: authority.version,
++    activation: authority.activation,
++    sourceSha: authority.sourceSha,
++    writerManifestSha256: authority.writerManifestSha256,
++    hostMachineIdSha256: authority.hostMachineIdSha256,
++    bootId: authority.bootId,
++    launchConfigurationSha256: authority.launchConfigurationSha256,
++    files: authority.files,
++    scope: authority.scope,
++  };
++}
++
++async function assertRunningAuthority(context: FinalizedParticipantRestorationContext) {
++  const observed = await context.observeAuthorities();
++  expect(projectAuthorityIdentity(observed)).toEqual(projectAuthorityIdentity(context.authorities));
++  expect(observed.solver).toEqual({
++    phase: 'running',
++    pid: 123,
++    startTime: '12345',
++    cgroup: '/user.slice/user-1000.slice/user@1000.service/app.slice/wbs-solver-supervisor.service',
++    tuple: context.authorities.solver.tuple,
++  });
++  expect(observed.databaseOpeners).toEqual([]);
++  expect(observed.relevantProcesses).toHaveLength(1);
++  expect(observed.relevantProcesses.at(0)).toMatchObject({
++    pid: 123,
++    startTime: '12345',
++    cgroup: '/user.slice/user-1000.slice/user@1000.service/app.slice/wbs-solver-supervisor.service',
++  });
++}
++
++async function assertRestorationRefusal(context: FinalizedParticipantRestorationContext) {
++  let refusal: unknown;
++  try {
++    await restoreSolverForPreparedParticipants(context);
++  } catch (cause) {
++    refusal = cause;
++  }
++  expect(refusal).toBeInstanceOf(Error);
++  if (!(refusal instanceof Error)) throw new Error('solver restoration refusal absent');
++  expect(refusal.message).toBe('solver participant restoration refused');
++  expect(refusal.cause).toBeUndefined();
++}
++
++afterEach(async () => {
++  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
++  delete process.env['WBS_EDGE_STATE'];
++});
++
++for (const scenario of [
++  'present',
++  'absent',
++  'released',
++  'late-source',
++  'authority-drift',
++  'openers',
++] as const)
++  test(`original-context solver restoration precedes every product: ${scenario}`, async () => {
++    const fixture = await productProcessFixture();
++    process.env['WBS_EDGE_STATE'] = fixture.root;
++    const deadline = performance.now() + 300000;
++    const socketPath = join(fixture.root, 'solver-ready.sock');
++    let socketConnections = 0;
++    const server = createServer((connection) => connection.destroy());
++    const runHost = fixture.ports.solver.runHost;
++    const observeCgroup = fixture.ports.solver.observeCgroup;
++    const initialUnit = await runHost({ kind: 'show' });
++    let context: FinalizedParticipantRestorationContext | undefined;
++    let solverStarts = 0;
++    let primitiveCalls = 0;
++    let collectionsAtFault = 0;
++    let releasedPolicy: Awaited<ReturnType<typeof captureEdgePolicy>> | undefined;
++    let releasedStores:
++      { prod: ReturnType<typeof readStore>; dev: ReturnType<typeof readStore> } | undefined;
++    let restored: Awaited<ReturnType<typeof solverRestoration.restoreSolverUnderOwner>> | undefined;
++    const events: string[] = [];
++    const ports: SolverRestorePorts = {
++      ...fixture.ports.solver,
++      runHost: async (command, signal) => {
++        signal?.throwIfAborted();
++        if (command.kind === 'start') {
++          if (context === undefined) throw new Error('solver start preceded finalized consumption');
++          await assertParticipantRestorationContext(context);
++          expect(context.deadline).toBe(deadline);
++          expect(fixture.backend.State.Running).toBe(false);
++          expect(fixture.gateway.State.Running).toBe(false);
++          expect(fixture.source.State.Running).toBe(false);
++          expect((await captureEdgePolicy(fixture.root)).policy.phase).toBe('restoring');
++          expect(await captureEdgeRecord(fixture.root, 'edge-owner.pending', 65536)).toEqual(
++            context.pending,
++          );
++          solverStarts++;
++          events.push('solver-start');
++          await new Promise<void>((resolve, reject) => {
++            server.once('error', reject);
++            server.listen(socketPath, () => {
++              server.removeListener('error', reject);
++              resolve();
++            });
++          });
++          return '';
++        }
++        return solverStarts === 1 && command.kind === 'show'
++          ? initialUnit
++          : runHost(command, signal);
++      },
++      observeCgroup: async (...args) => {
++        const observed = await observeCgroup(...args);
++        return solverStarts === 1 && observed !== null
++          ? { ...observed, populated: true }
++          : observed;
++      },
++      connectSocket: async (signal) => {
++        expect(solverStarts).toBe(1);
++        events.push('socket-connect');
++        await new Promise<void>((resolve, reject) => {
++          const connection = createConnection({ path: socketPath, signal });
++          connection.once('connect', () => {
++            socketConnections++;
++            if (
++              socketConnections === 1 &&
++              (scenario === 'authority-drift' || scenario === 'openers')
++            ) {
++              collectionsAtFault = fixture.collections();
++              fixture.setAuthorityFault(scenario === 'authority-drift' ? 'boot-drift' : 'opener');
++            }
++            if (scenario === 'late-source' && socketConnections === 3)
++              fixture.source.HostConfig.RestartPolicy.Name = 'always';
++            connection.destroy();
++            resolve();
++          });
++          connection.once('error', (cause) => {
++            connection.destroy();
++            reject(cause);
++          });
++        });
++      },
++    };
++    // The subtype traverses the original preparation. The missing case supplies
++    // its base type, so no fake ready observation or second transport enters.
++    const selectedPorts =
++      scenario !== 'absent'
++        ? ports
++        : {
++            ...fixture.ports.solver,
++            runHost: ports.runHost,
++            observeCgroup: ports.observeCgroup,
++          };
++    Object.assign(fixture.ports, { solver: selectedPorts });
++    Object.assign(fixture.ports.authorities, {
++      solver: {
++        ...selectedPorts,
++        runHost: async (
++          command: Parameters<SolverRestorePorts['runHost']>[0],
++          signal?: AbortSignal,
++        ) =>
++          (await selectedPorts.runHost(command, signal)).replace(
++            `WBS_EDGE_STATE=${fixture.root}`,
++            `WBS_EDGE_STATE=${SOLVER_EDGE_STATE}`,
++          ),
++      },
++    });
++    const restore = solverRestoration.restoreSolverUnderOwner;
++    const called = spyOn(solverRestoration, 'restoreSolverUnderOwner').mockImplementation(
++      async (...args) => {
++        if (context === undefined)
++          throw new Error('solver primitive preceded finalized consumption');
++        primitiveCalls++;
++        expect(args[0]).toBe(context.owner);
++        expect(args[1]).toBe(context.layouts);
++        expect(args[2]).toBe(context.request.solver);
++        expect(context.ports.solver).toBe(args[3]);
++        expect(args[4]).toBe(context.deadline);
++        expect(args[5]).toBe(context.originalPolicy);
++        expect(args[6].parked).toBe(context.parked);
++        expect(args[6].intent).toBe(context.solverIntent);
++        expect(args[6].installed).toBe(context.authorities.solver.tuple);
++        events.push('solver-primitive');
++        restored = await restore(...args);
++        events.push('solver-ready');
++        return restored;
++      },
++    );
++    try {
++      await withDependencyOwner(
++        fixture.request.owner,
++        async (owner) => {
++          const prepared = await prepareActivatedParticipantsUnderOwner(
++            owner,
++            fixture.request,
++            fixture.layouts,
++            deadline,
++            fixture.root,
++            fixture.ports,
++          );
++          try {
++            context = await consumePreparedDependencyActivation(owner, prepared);
++            expect(context.owner).toBe(owner);
++            expect(context.deadline).toBe(deadline);
++            expect(context.ports).toBe(fixture.ports);
++            expect(context.ports.solver).toBe(selectedPorts);
++            expect(context.authorities.solver.phase).toBe('stopped');
++            await assertParticipantRestorationContext(context);
++            await context.parked.inspect(new Set());
++            const prodBefore = readStore(fixture.prodPath);
++            const devBefore = readStore(fixture.devPath);
++            const policyBefore = await captureEdgePolicy(fixture.root);
++            const retainedFences = await Promise.all(
++              (
++                [
++                  {
++                    directory: context.layouts.dev.stateDir,
++                    name: 'dependency-source-dev-intent.json',
++                  },
++                  {
++                    directory: context.layouts.dev.stateDir,
++                    name: 'dependency-source-dev-complete.json',
++                  },
++                  {
++                    directory: context.layouts.prod.stateDir,
++                    name: 'dependency-backend-fence.json',
++                  },
++                  {
++                    directory: context.layouts.prod.stateDir,
++                    name: 'dependency-backend-intent.json',
++                  },
++                  {
++                    directory: context.layouts.prod.stateDir,
++                    name: 'dependency-backend-complete.json',
++                  },
++                  {
++                    directory: context.layouts.prod.stateDir,
++                    name: 'dependency-gateway-fence.json',
++                  },
++                  {
++                    directory: context.layouts.prod.stateDir,
++                    name: 'dependency-gateway-intent.json',
++                  },
++                  {
++                    directory: context.layouts.prod.stateDir,
++                    name: 'dependency-gateway-complete.json',
++                  },
++                ] as const
++              ).map(async (reference) => ({
++                ...reference,
++                snapshot: await captureParticipantFence(reference.directory, reference.name),
++              })),
++            );
++            if (scenario === 'released') {
++              releasedPolicy = policyBefore;
++              releasedStores = { prod: prodBefore, dev: devBefore };
++              return;
++            }
++            if (scenario === 'absent') {
++              await assertRestorationRefusal(context);
++              expect(primitiveCalls).toBe(0);
++              expect(solverStarts).toBe(0);
++              expect(await captureEdgePolicy(fixture.root)).toEqual(policyBefore);
++              // A failed attempt remains terminal even if its missing transport is later repaired.
++              Object.assign(selectedPorts, { connectSocket: ports.connectSocket });
++              await assertRestorationRefusal(context);
++              expect(primitiveCalls).toBe(0);
++              expect(solverStarts).toBe(0);
++              expect(await captureEdgePolicy(fixture.root)).toEqual(policyBefore);
++            } else if (scenario === 'authority-drift' || scenario === 'openers') {
++              await assertRestorationRefusal(context);
++              expect(primitiveCalls).toBe(1);
++              expect(solverStarts).toBe(1);
++              expect(socketConnections).toBe(2);
++              expect(fixture.collections()).toBeGreaterThan(collectionsAtFault);
++              fixture.setAuthorityFault('none');
++            } else if (scenario === 'late-source') {
++              await assertRestorationRefusal(context);
++              expect(primitiveCalls).toBe(1);
++              expect(solverStarts).toBe(1);
++              expect(socketConnections).toBe(3);
++              expect(fixture.source.HostConfig.RestartPolicy.Name).toBe('always');
++              // Restore only the injected fixture fault after observing refusal.
++              fixture.source.HostConfig.RestartPolicy.Name = 'no';
++            } else {
++              await assertRestorationRefusal({ ...context });
++              expect(primitiveCalls).toBe(0);
++              expect(solverStarts).toBe(0);
++              expect(await captureEdgePolicy(fixture.root)).toEqual(policyBefore);
++              const completion = await restoreSolverForPreparedParticipants(context);
++              expect(completion).toEqual({
++                state: 'solver-ready-participants-fenced',
++                exposure: 'closed',
++                controllers: 'fenced',
++              });
++              expect(primitiveCalls).toBe(1);
++              expect(solverStarts).toBe(1);
++              expect(socketConnections).toBeGreaterThan(0);
++              await assertRunningAuthority(context);
++              expect(events.slice(0, 4)).toEqual([
++                'solver-primitive',
++                'solver-start',
++                'socket-connect',
++                'solver-ready',
++              ]);
++              if (restored === undefined) throw new Error('actual retained solver result absent');
++              expect(restored.removed.size).toBe(0);
++              expect(await captureEdgePolicy(fixture.root)).toEqual(restored.policy);
++              await restored.inspectReady();
++              await assertRunningAuthority(context);
++              expect(socketConnections).toBeGreaterThan(1);
++              expect(context.originalPolicy).toEqual(policyBefore);
++              expect(context.authorities.solver.phase).toBe('stopped');
++              const names = (await readdir(fixture.root)).filter((name) =>
++                /^edge-owner-[0-9]{6,12}-solver-restore-complete\.json$/.test(name),
++              );
++              expect(names).toHaveLength(3);
++              const pendingContents = context.pending.contents;
++              const records = await Promise.all(
++                names.sort().map(async (name) => {
++                  const envelope: unknown = JSON.parse(
++                    await readFile(join(fixture.root, name), 'utf8'),
++                  );
++                  expect(readFields(envelope)['owner']).toBe(pendingContents);
++                  return readFields(readFields(envelope)['record']);
++                }),
++              );
++              expect(records.map((record) => record['phase'])).toEqual([
++                'policy-publication-intent',
++                'policy-published',
++                'solver-ready-participants-fenced',
++              ]);
++              expect(
++                records.filter((record) => record['phase'] === 'solver-ready-participants-fenced'),
++              ).toHaveLength(1);
++              const publicationIntent = records.at(0);
++              const policyPublished = records.at(1);
++              const solverReady = records.at(2);
++              if (
++                publicationIntent === undefined ||
++                policyPublished === undefined ||
++                solverReady === undefined
++              )
++                throw new Error('solver publication record sequence absent');
++              const reference = {
++                name: basename(context.solverIntent.path),
++                sha256: createHash('sha256').update(context.solverIntent.contents).digest('hex'),
++              };
++              const sibling = readString(publicationIntent['sibling']);
++              expect(sibling).toMatch(/^\.edge-policy\.json\.dependency-[a-f0-9-]{36}$/);
++              expect(publicationIntent).toEqual({
++                phase: 'policy-publication-intent',
++                reference,
++                sibling,
++                originalSha256: createHash('sha256').update(policyBefore.contents).digest('hex'),
++              });
++              expect(policyPublished).toEqual({ phase: 'policy-published', reference });
++              const cgroup =
++                '/user.slice/user-1000.slice/user@1000.service/app.slice/wbs-solver-supervisor.service';
++              expect(solverReady).toEqual({
++                phase: 'solver-ready-participants-fenced',
++                observed: {
++                  unit: { pid: 123, invocation: 'a'.repeat(32), cgroup },
++                  process: { pid: 123, startTime: '12345', cgroup },
++                  cgroup: { device: '1', inode: '2', populated: true },
++                },
++              });
++              await assertRestorationRefusal(context);
++              expect(primitiveCalls).toBe(1);
++              expect(solverStarts).toBe(1);
++              expect(await captureEdgePolicy(fixture.root)).toEqual(restored.policy);
++            }
++            expect(readStore(fixture.prodPath)).toEqual(prodBefore);
++            expect(readStore(fixture.devPath)).toEqual(devBefore);
++            await context.storage.evidence.inspect();
++            context.artifact.verify();
++            await context.storage.stores.inspect();
++            await context.source.inspectCold();
++            await assertParticipantRestorationContext(context);
++            await inspectDependencyIngress(
++              owner,
++              [fixture.layouts.prod, fixture.layouts.dev],
++              fixture.ports.docker,
++              deadline,
++            );
++            for (const reference of retainedFences)
++              expect(await captureParticipantFence(reference.directory, reference.name)).toEqual(
++                reference.snapshot,
++              );
++            expect(
++              fixture.commands.some((args) => ['start', 'restart', 'rm'].includes(args[0])),
++            ).toBe(false);
++            expect(fixture.backend.State.Running).toBe(false);
++            expect(fixture.gateway.State.Running).toBe(false);
++            expect(fixture.source.State.Running).toBe(false);
++            expect(
++              (await readdir(fixture.root)).some(
++                (name) =>
++                  name.endsWith('-activation-participants-restored.json') ||
++                  name.endsWith('-activation-participant-start-intent.json') ||
++                  name.endsWith('-activation-participant-policy-intent.json'),
++              ),
++            ).toBe(false);
++          } finally {
++            releasePreparedDependencyActivation(owner, prepared);
++          }
++        },
++        fixture.root,
++      );
++      if (scenario === 'released') {
++        if (context === undefined || releasedPolicy === undefined || releasedStores === undefined)
++          throw new Error('genuine released context was not retained');
++        await assertRestorationRefusal(context);
++        expect(primitiveCalls).toBe(0);
++        expect(solverStarts).toBe(0);
++        expect(await captureEdgePolicy(fixture.root)).toEqual(releasedPolicy);
++        expect(readStore(fixture.prodPath)).toEqual(releasedStores.prod);
++        expect(readStore(fixture.devPath)).toEqual(releasedStores.dev);
++        expect(fixture.commands.some((args) => ['start', 'restart', 'rm'].includes(args[0]))).toBe(
++          false,
++        );
++      }
++    } finally {
++      called.mockRestore();
++      if (server.listening)
++        await new Promise<void>((resolve, reject) =>
++          server.close((cause) => {
++            if (cause === undefined) resolve();
++            else reject(cause);
++          }),
++        );
++    }
++  }, 300000);
+diff --git a/tools/tool-remote-scripts/src/lib/dependency-participant-solver-restoration.ts b/tools/tool-remote-scripts/src/lib/dependency-participant-solver-restoration.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..42a4bfd468a7c7f9dda1da45807ab8edea6579f7
+--- /dev/null
++++ b/tools/tool-remote-scripts/src/lib/dependency-participant-solver-restoration.ts
+@@ -0,0 +1,131 @@
++import { assertParticipantRestorationContext } from './complete-dependency-exclusion';
++import type { FinalizedParticipantRestorationContext } from './dependency-participant-preparation';
++import { restoreSolverUnderOwner } from './dependency-solver-restoration';
++import type { InstalledAuthorityObservation } from './installed-authorities';
++import { assertSame } from './managed-cohort';
++import type { SolverPorts, SolverRestorePorts } from './solver-host';
++
++type RestoredSolver = Awaited<ReturnType<typeof restoreSolverUnderOwner>>;
++type SolverRestorationPhase =
++  { readonly state: 'attempted' } | { readonly state: 'ready'; readonly solver: RestoredSolver };
++
++/** Effect accounting belongs to the original consumed context; summaries cannot recreate this phase. */
++const restorations = new WeakMap<FinalizedParticipantRestorationContext, SolverRestorationPhase>();
++
++/** Internal transports keep their declared socket signature; the runtime boundary refuses its absence before effects. */
++function hasRestorationSocket(ports: SolverPorts): ports is SolverRestorePorts {
++  return 'connectSocket' in ports && typeof ports.connectSocket === 'function';
++}
++
++function projectAuthorityIdentity(authority: InstalledAuthorityObservation) {
++  return {
++    format: authority.format,
++    version: authority.version,
++    activation: authority.activation,
++    sourceSha: authority.sourceSha,
++    writerManifestSha256: authority.writerManifestSha256,
++    hostMachineIdSha256: authority.hostMachineIdSha256,
++    bootId: authority.bootId,
++    launchConfigurationSha256: authority.launchConfigurationSha256,
++    files: authority.files,
++    tuple: authority.solver.tuple,
++    scope: authority.scope,
++  };
++}
++
++/** Rechecks the same retained activation barriers; no observation recreates their original authority. */
++async function inspectPreparedBarriers(
++  context: FinalizedParticipantRestorationContext,
++  removed: ReadonlySet<string>,
++): Promise<void> {
++  // Proof: grouped omission here and at entry admitted the present case's spread
++  // copy; its expected refusal was undefined. Exact restoration passed.
++  await assertParticipantRestorationContext(context);
++  await context.storage.evidence.inspect();
++  context.artifact.verify();
++  await context.storage.stores.inspect();
++  await context.source.inspectCold();
++  await context.parked.inspect(removed);
++}
++
++/** Admits only the actual solver transition while retaining every original static identity and empty store opener set. */
++async function inspectPreparedParticipants(
++  context: FinalizedParticipantRestorationContext,
++  solver: RestoredSolver | null,
++): Promise<void> {
++  const removed = solver === null ? new Set<string>() : solver.removed;
++  await inspectPreparedBarriers(context, removed);
++  if (solver !== null) await solver.inspectReady();
++  const observed = await context.observeAuthorities();
++  // Proof: omitting this grouped equality accepted raw boot drift; authority-drift
++  // expected an Error and received undefined, then passed after exact restoration.
++  assertSame(
++    {
++      ...projectAuthorityIdentity(context.authorities),
++      solver: solver === null ? context.authorities.solver : { phase: 'running' },
++      databaseOpeners: [],
++    },
++    {
++      ...projectAuthorityIdentity(observed),
++      solver: solver === null ? observed.solver : { phase: observed.solver.phase },
++      databaseOpeners: observed.databaseOpeners,
++    },
++    'solver restoration original installed authority and phase',
++  );
++  // The actual observer binds the same effective unit/process/tuple. The
++  // retained primitive brackets that census without rebinding its first identity.
++  if (solver !== null) await solver.inspectReady();
++  // Proof: omitting this closing check accepted late source restart-policy drift;
++  // late-source received no refusal, then passed after exact restoration.
++  await inspectPreparedBarriers(context, removed);
++}
++
++/**
++ * Restores only the pinned solver after actual activation finalizers, under the
++ * same consumed context, owner and absolute deadline. Products, ingress and
++ * controllers remain fenced. The actual primitive return is retained privately;
++ * this closed summary grants no later effect. Failure is terminal and preserves
++ * current storage and durable recovery evidence without automatic rollback.
++ * @throws one sanitized refusal for absent transport, expired/reused context or
++ * changed activation/authority/readiness; private diagnostics are not disclosed.
++ */
++export async function restoreSolverForPreparedParticipants(
++  context: FinalizedParticipantRestorationContext,
++): Promise<{
++  readonly state: 'solver-ready-participants-fenced';
++  readonly exposure: 'closed';
++  readonly controllers: 'fenced';
++}> {
++  try {
++    // Proof: the grouped entry/barrier admission omission let the present case's
++    // copied context return readiness; exact restoration restored its refusal.
++    await assertParticipantRestorationContext(context);
++    // Proof: omitting terminal accounting let the absent case repair its socket
++    // and wrongly succeed; expected Error was undefined, then restoration passed.
++    if (restorations.has(context)) throw new Error('solver restoration already attempted');
++    restorations.set(context, { state: 'attempted' });
++    const ports = context.ports.solver;
++    // Proof: omitting this early check entered the actual primitive in absent:
++    // expected zero primitive calls, received one; exact restoration passed.
++    if (!hasRestorationSocket(ports)) throw new Error('solver restoration socket transport absent');
++    await inspectPreparedParticipants(context, null);
++    const solver = await restoreSolverUnderOwner(
++      context.owner,
++      context.layouts,
++      context.request.solver,
++      ports,
++      context.deadline,
++      context.originalPolicy,
++      {
++        parked: context.parked,
++        intent: context.solverIntent,
++        installed: context.authorities.solver.tuple,
++      },
++    );
++    await inspectPreparedParticipants(context, solver);
++    restorations.set(context, { state: 'ready', solver });
++    return { state: 'solver-ready-participants-fenced', exposure: 'closed', controllers: 'fenced' };
++  } catch {
++    throw new Error('solver participant restoration refused');
++  }
++}
+-- 
+2.43.0
+

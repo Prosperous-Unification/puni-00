@@ -1,0 +1,133 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+79 |         const attempt: unknown = await dependencies.context.incidents.run(testedOwner,testedActor,{kind:'fresh',fromWorkItemId:parent,toWorkItemId:'first-child'},{at:100,by:testedActor},()=>Promise.resolve({ok:false,detail:'unexpected structure reached'})).then((value)=>value,(error:unknown)=>error);
+80 |         expect(attempt).toBeInstanceOf(Error);
+81 |         expect(attempt instanceof Error?attempt.message:'').toBe('incident transition owner or actor mismatch');
+82 |       }
+83 |       const wrongStamp: unknown = await dependencies.context.incidents.run(owner,fixture.principal.id,{kind:'fresh',fromWorkItemId:parent,toWorkItemId:'first-child'},{at:100,by:'rival'},()=>Promise.resolve({ok:false,detail:'unexpected structure reached'})).then((value)=>value,(error:unknown)=>error);
+84 |       expect(wrongStamp).toBeInstanceOf(Error);
+                              ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: false,
+  reason: "structure_refused",
+  value: {
+    ok: false,
+    detail: "unexpected structure reached",
+  },
+  evidence: {
+    receipts: [
+      {
+        from: {
+          dependency: {
+            id: "incoming",
+            projectId: "5e5c8c13-6973-44e0-96ba-fd6d793dca9f",
+            predecessor: {
+              scope: "node",
+              workItemId: "4288a15e-c785-48d1-85d5-6f11e7350ca6",
+              stepId: "1959fb2b-54b8-449d-b292-96ceddf6e251",
+              projectId: "e578695f-a147-467d-8344-9657840fa77d",
+            },
+            successor: {
+              scope: "node",
+              workItemId: "d62fa6f2-032f-4c81-9caf-a8f7e0c9652e",
+              stepId: "2641b1c0-42b2-4c94-83f7-17ed7fee42b7",
+              projectId: "5e5c8c13-6973-44e0-96ba-fd6d793dca9f",
+            },
+            type: "SS",
+          },
+          createdAt: 100,
+          createdBy: "8cc1cd2e-3122-4bac-9fc3-b024a8c70781",
+        },
+        to: {
+          dependency: {
+            id: "incoming",
+            projectId: "5e5c8c13-6973-44e0-96ba-fd6d793dca9f",
+            predecessor: {
+              scope: "node",
+              workItemId: "4288a15e-c785-48d1-85d5-6f11e7350ca6",
+              stepId: "1959fb2b-54b8-449d-b292-96ceddf6e251",
+              projectId: "e578695f-a147-467d-8344-9657840fa77d",
+            },
+            successor: {
+              scope: "node",
+              workItemId: "first-child",
+              stepId: "2641b1c0-42b2-4c94-83f7-17ed7fee42b7",
+              projectId: "5e5c8c13-6973-44e0-96ba-fd6d793dca9f",
+            },
+            type: "SS",
+          },
+          createdAt: 100,
+          createdBy: "8cc1cd2e-3122-4bac-9fc3-b024a8c70781",
+        },
+      }, {
+        from: {
+          dependency: {
+            id: "outgoing",
+            projectId: "b202f4bd-cfc7-4a00-822a-998f73e963ef",
+            predecessor: {
+              scope: "node",
+              workItemId: "d62fa6f2-032f-4c81-9caf-a8f7e0c9652e",
+              stepId: "2641b1c0-42b2-4c94-83f7-17ed7fee42b7",
+              projectId: "5e5c8c13-6973-44e0-96ba-fd6d793dca9f",
+            },
+            successor: {
+              scope: "node",
+              workItemId: "f2bdd96c-1ca9-49e3-8041-266183e5247a",
+              stepId: "c551cb26-e53a-4f4f-8952-29591262c55d",
+              projectId: "b202f4bd-cfc7-4a00-822a-998f73e963ef",
+            },
+            type: "FF",
+          },
+          createdAt: 100,
+          createdBy: "8cc1cd2e-3122-4bac-9fc3-b024a8c70781",
+        },
+        to: {
+          dependency: {
+            id: "outgoing",
+            projectId: "b202f4bd-cfc7-4a00-822a-998f73e963ef",
+            predecessor: {
+              scope: "node",
+              workItemId: "first-child",
+              stepId: "2641b1c0-42b2-4c94-83f7-17ed7fee42b7",
+              projectId: "5e5c8c13-6973-44e0-96ba-fd6d793dca9f",
+            },
+            successor: {
+              scope: "node",
+              workItemId: "f2bdd96c-1ca9-49e3-8041-266183e5247a",
+              stepId: "c551cb26-e53a-4f4f-8952-29591262c55d",
+              projectId: "b202f4bd-cfc7-4a00-822a-998f73e963ef",
+            },
+            type: "FF",
+          },
+          createdAt: 100,
+          createdBy: "8cc1cd2e-3122-4bac-9fc3-b024a8c70781",
+        },
+      }
+    ],
+    externalBefore: [
+      {
+        projectId: "e578695f-a147-467d-8344-9657840fa77d",
+        workItemId: "4288a15e-c785-48d1-85d5-6f11e7350ca6",
+        revision: 1,
+      }, {
+        projectId: "b202f4bd-cfc7-4a00-822a-998f73e963ef",
+        workItemId: "f2bdd96c-1ca9-49e3-8041-266183e5247a",
+        revision: 1,
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:84:26)
+      at async <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) bound first-child incident transition derives both directions and retains exact creation evidence [626.35ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [4.96s]

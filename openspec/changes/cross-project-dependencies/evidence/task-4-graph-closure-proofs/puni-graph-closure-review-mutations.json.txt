@@ -1,0 +1,102 @@
+[
+  {
+    "name": "distinct-cycle",
+    "exitCode": 1,
+    "assertion": true,
+    "failure": [
+      "(fail) admitted distinct tasks interleave projects until a local edge closes the remote cycle [474.93ms]",
+      " 0 pass",
+      " 1 fail"
+    ]
+  },
+  {
+    "name": "batch-cycle",
+    "exitCode": 1,
+    "assertion": true,
+    "failure": [
+      "(fail) admitted batch rolls back an actual external write when a later command closes the remote cycle [450.49ms]",
+      " 0 pass",
+      " 1 fail"
+    ]
+  },
+  {
+    "name": "move-cycle",
+    "exitCode": 1,
+    "assertion": true,
+    "failure": [
+      "(fail) admitted subtree move closes a real remote descendant cycle and rolls back [556.35ms]",
+      " 0 pass",
+      " 1 fail"
+    ]
+  },
+  {
+    "name": "estimate-cycle",
+    "exitCode": 1,
+    "assertion": true,
+    "failure": [
+      "(fail) admitted clear-estimate moves a legacy anchor into a real remote cycle and rolls back [475.78ms]",
+      " 0 pass",
+      " 1 fail"
+    ]
+  },
+  {
+    "name": "reach-cycle",
+    "exitCode": 1,
+    "assertion": true,
+    "failure": [
+      "(fail) admitted project-reach moves a legacy anchor into a real remote cycle and rolls back [506.80ms]",
+      " 0 pass",
+      " 1 fail"
+    ]
+  },
+  {
+    "name": "step-remove-cycle",
+    "exitCode": 1,
+    "assertion": true,
+    "failure": [
+      "(fail) admitted step-remove moves a legacy anchor into a real remote cycle and rolls back [868.35ms]",
+      " 0 pass",
+      " 1 fail"
+    ]
+  },
+  {
+    "name": "omit-expanded-pair",
+    "exitCode": 1,
+    "assertion": true,
+    "failure": [
+      "(fail) admitted remote scopes expand all four pairs under their own trees and steps [582.99ms]",
+      " 0 pass",
+      " 1 fail"
+    ]
+  },
+  {
+    "name": "target-reach-globally",
+    "exitCode": 1,
+    "assertion": true,
+    "failure": [
+      "(fail) admitted remote legacy anchors retain their own reach when the owner uses whole-item reach [435.36ms]",
+      " 0 pass",
+      " 1 fail"
+    ]
+  },
+  {
+    "name": "project-dag-refusal",
+    "exitCode": 1,
+    "assertion": true,
+    "failure": [
+      "(fail) admitted distinct tasks interleave projects until a local edge closes the remote cycle [434.04ms]",
+      " 0 pass",
+      " 1 fail"
+    ]
+  },
+  {
+    "name": "rollback",
+    "exitCode": 1,
+    "assertion": true,
+    "failure": [
+      "(fail) admitted batch rolls back an actual external write when a later command closes the remote cycle [1111.70ms]",
+      " 0 pass",
+      " 1 fail"
+    ]
+  }
+]

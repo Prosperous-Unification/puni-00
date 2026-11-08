@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+1549 |         stepId: fixture.successor.steps[0],
+1550 |       },
+1551 |       type: 'SS',
+1552 |     };
+1553 |     const added = await submit(fixture, 'MCP', [command]);
+1554 |     expect(added.status).toBe(200);
+                                ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 0
+
+      at <anonymous> (/tmp/puni-active-authority/apps/wbs/mcp-01/src/connected-command-parity.test.ts:1554:26)
+(fail) generated MCP authors and updates a restricted readable node predecessor without edit authority [4533.15ms]
+
+ 0 pass
+ 74 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [7.53s]

@@ -1,0 +1,46 @@
+bun test tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000 -t actual CLI retains runtime after readiness
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:
+190 |   } catch (cause) {
+191 |     refused = true;
+192 |     if (excludes) expect(String(cause)).not.toContain(message);
+193 |     else expect(String(cause)).toContain(message);
+194 |   }
+195 |   expect(refused).toBe(true);
+                        ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at refuses (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:195:19)
+      at async <anonymous> (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:114:15)
+      at async acquireLock (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) actual CLI retains runtime after readiness until SIGTERM with edge-held installer interval [34.76ms]
+190 |   } catch (cause) {
+191 |     refused = true;
+192 |     if (excludes) expect(String(cause)).not.toContain(message);
+193 |     else expect(String(cause)).toContain(message);
+194 |   }
+195 |   expect(refused).toBe(true);
+                        ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at refuses (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:195:19)
+      at async <anonymous> (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:114:15)
+      at async acquireLock (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) actual CLI retains runtime after readiness until SIGKILL with edge-held installer interval [41.94ms]
+
+tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts:
+
+ 0 pass
+ 16 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 2 files. [118.00ms]
+
+exit 1

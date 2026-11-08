@@ -1,0 +1,344 @@
+import { chmod, lstat, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { Database } from 'bun:sqlite';
+import { expect, mock, spyOn, test } from 'bun:test';
+import {
+  SOURCE_RESTORATION_CASES,
+  type SourceRestorationCase,
+} from '../fixtures/participant-source-restoration-cases';
+
+import { readFields } from './managed-cohort';
+
+import { productBytes, sourceBytes } from '../fixtures/participant-process-bytes';
+
+await mock.module('./product-host-proc', () => ({
+  readProductHostProc: (path: string) => {
+    if (/^\/proc\/(4000[12]|5000[12])\//.test(path))
+      return productBytes.read(path, { fault: 'none', wrapper: false });
+    if (/^\/proc\/6000[1-6]\//.test(path))
+      return sourceBytes.read(path, { name: 'none', closing: false });
+    throw new Error('source restoration fixture host family unsupported');
+  },
+}));
+const { withParticipantSourceRestoration } =
+  await import('../fixtures/participant-source-restoration');
+const restoration = await import('./dependency-participant-restoration');
+const { restoreSolverForPreparedParticipants } =
+  await import('./dependency-participant-solver-restoration');
+
+function stores(path: string) {
+  const database = new Database(path, { readonly: true, create: false });
+  try {
+    return {
+      ledger: database.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all(),
+      activation: database
+        .query('SELECT * FROM cross_project_dependency_activation ORDER BY id')
+        .all(),
+      receipts: database
+        .query('SELECT * FROM cross_project_dependency_activation_receipt ORDER BY id')
+        .all(),
+    };
+  } finally {
+    database.close();
+  }
+}
+
+async function sourceStartIntents(root: string) {
+  const records = await Promise.all(
+    (await readdir(root))
+      .filter((name) => name.endsWith('-activation-participant-start-intent.json'))
+      .map(async (name) =>
+        readFields(readFields(JSON.parse(await readFile(join(root, name), 'utf8')))['record']),
+      ),
+  );
+  return records.filter((record) => record['role'] === 'source');
+}
+
+async function runSourceRestorationCase(scenario: SourceRestorationCase): Promise<void> {
+  await withParticipantSourceRestoration(async (context, fixture, runtime, audit) => {
+    let readyPublished = false;
+    let injected = false;
+    const sourceObserver = await import('./source-role-process');
+    const observeSource = sourceObserver.observeSelectedSourceRoles;
+    const sourceReturn = spyOn(sourceObserver, 'observeSelectedSourceRoles').mockImplementation(
+      async (...args) => {
+        const observed = await observeSource(...args);
+        audit.sourceObserved = true;
+        if (scenario === 'late-fence' && readyPublished && !injected) {
+          await writeFile(context.fencedComplete.path, context.fencedComplete.contents + ' ');
+          injected = true;
+        }
+        return observed;
+      },
+    );
+    try {
+      const before = { prod: stores(fixture.prodPath), dev: stores(fixture.devPath) };
+      if (scenario === 'admission') {
+        await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow(
+          'source participant restoration refused',
+        );
+        expect(audit.events).toEqual([]);
+      }
+      const solver = await restoreSolverForPreparedParticipants(context);
+      expect(solver.state).toBe('solver-ready-participants-fenced');
+      const backend = await restoration.restoreBackendAfterSolver(context);
+      expect(backend.state).toBe('backend-ready-participants-fenced');
+      const gateway = await restoration.restoreGatewayAfterBackend(context);
+      expect(gateway.state).toBe('gateway-ready-participants-fenced');
+      expect(gateway.readiness.observation.process.pid).toBe(50002);
+      expect(runtime.readSolverStarts()).toBe(1);
+      expect(fixture.source.State.Running).toBe(false);
+      expect(audit.events).toEqual(['backend-start', 'gateway-start']);
+      expect(
+        audit.openerDeliveries.every((openers) =>
+          openers.every((opener) => opener.environment === 'prod' && opener.pid === 40002),
+        ),
+      ).toBe(true);
+      expect(audit.requests).toEqual([
+        '127.0.0.1:3100 /health',
+        '127.0.0.1:3100 /api/runtime/dependency-capability',
+        '127.0.0.1:3200 /health',
+      ]);
+      console.error(
+        'SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded',
+      );
+      const originalGatewayReady = structuredClone(gateway.ready);
+      if (scenario === 'admission') {
+        await expect(restoration.restoreSourceAfterGateway({ ...context })).rejects.toThrow(
+          'source participant restoration refused',
+        );
+        expect(audit.events).toEqual(['backend-start', 'gateway-start']);
+        const originalFence = context.fencedComplete;
+        await writeFile(originalFence.path, originalFence.contents + ' ');
+        try {
+          await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow(
+            'source participant restoration refused',
+          );
+          expect(audit.events).toEqual(['backend-start', 'gateway-start']);
+          expect(await sourceStartIntents(fixture.root)).toEqual([]);
+        } finally {
+          await writeFile(originalFence.path, originalFence.contents);
+        }
+        expect(await readFile(originalFence.path, 'utf8')).toBe(originalFence.contents);
+        expect(String((await lstat(originalFence.path, { bigint: true })).ino)).toBe(
+          originalFence.inode,
+        );
+        console.error(
+          'SOURCE_RESTORATION_ADMISSION_REPAIRED: original physical fence restored before genuine continuation',
+        );
+      }
+      if (scenario === 'selected') {
+        const originalId = context.participants.selected.source.id;
+        Object.assign(context.participants.selected.source, { id: context.originals.backend.id });
+        try {
+          await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow(
+            'source participant restoration refused',
+          );
+          expect(audit.events).toEqual(['backend-start', 'gateway-start']);
+          expect(await sourceStartIntents(fixture.root)).toEqual([]);
+        } finally {
+          Object.assign(context.participants.selected.source, { id: originalId });
+        }
+        await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow(
+          'source participant restoration refused',
+        );
+        expect(audit.events).toEqual(['backend-start', 'gateway-start']);
+        expect(await sourceStartIntents(fixture.root)).toEqual([]);
+        console.error(
+          'SOURCE_RESTORATION_SELECTED_REFUSED: wrong selected ID before intent/start and terminal after exact repair',
+        );
+        return;
+      }
+      if (scenario === 'released') {
+        audit.release();
+        await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow(
+          'source participant restoration refused',
+        );
+        expect(audit.events).toEqual(['backend-start', 'gateway-start']);
+        return;
+      }
+      if (scenario.startsWith('record-')) {
+        const path = originalGatewayReady.path;
+        const held = join(fixture.root, 'held-original-gateway-ready');
+        let renamed = false;
+        let replacement = false;
+        try {
+          if (scenario === 'record-missing' || scenario === 'record-replacement') {
+            await rename(path, held);
+            renamed = true;
+          }
+          if (scenario === 'record-replacement') {
+            await writeFile(path, originalGatewayReady.contents, { mode: 0o600 });
+            replacement = true;
+            expect(String((await lstat(path, { bigint: true })).ino)).not.toBe(
+              originalGatewayReady.inode,
+            );
+          }
+          if (scenario === 'record-unreadable') await chmod(path, 0);
+          if (scenario === 'record-rebased') {
+            await writeFile(path, originalGatewayReady.contents + ' ');
+            Object.assign(gateway.ready, { contents: originalGatewayReady.contents + ' ' });
+          }
+          await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow(
+            'source participant restoration refused',
+          );
+          expect(audit.events).toEqual(['backend-start', 'gateway-start']);
+        } finally {
+          if (replacement) await unlink(path);
+          if (renamed) await rename(held, path);
+          if (scenario === 'record-unreadable') await chmod(path, 0o600);
+          if (scenario === 'record-rebased') await writeFile(path, originalGatewayReady.contents);
+        }
+        expect(await readFile(path, 'utf8')).toBe(originalGatewayReady.contents);
+        await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow(
+          'source participant restoration refused',
+        );
+        expect(audit.events).toEqual(['backend-start', 'gateway-start']);
+        console.error(
+          `SOURCE_RESTORATION_REFUSED: ${scenario} before start and after exact repair`,
+        );
+        return;
+      }
+      audit.fault = scenario;
+      if (scenario !== 'ready' && scenario !== 'admission') {
+        const ownership = await import('./edge-ownership');
+        const retain = ownership.retainActivationRecord;
+        const publication = spyOn(ownership, 'retainActivationRecord').mockImplementation(
+          async (...args) => {
+            const snapshot = await retain(...args);
+            if (args[2] === 'participant-ready' && readFields(args[3])['role'] === 'source') {
+              readyPublished = true;
+              if (scenario === 'listener-after-ready') {
+                audit.listenerReplaced = true;
+                injected = true;
+                console.error(
+                  'SOURCE_RESTORATION_LISTENER_PUBLISHED: actual original ready publication returned before replacement activation',
+                );
+              }
+              if (scenario === 'ready-missing') {
+                await unlink(snapshot.path);
+                injected = true;
+              }
+            }
+            return snapshot;
+          },
+        );
+        try {
+          await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow(
+            'source participant restoration refused',
+          );
+          expect(audit.events).toEqual(['backend-start', 'gateway-start', 'source-start']);
+          expect(audit.authoritySourceBindings.length).toBeGreaterThan(0);
+          expect(audit.authoritySourceBindings.every(Boolean)).toBe(true);
+          if (
+            scenario === 'ready-missing' ||
+            scenario === 'late-fence' ||
+            scenario === 'listener-after-ready'
+          ) {
+            expect(readyPublished).toBe(true);
+            expect(injected).toBe(true);
+            if (scenario === 'listener-after-ready') {
+              expect(audit.listenerReplaced).toBe(true);
+              expect(audit.faults).toContain('listener-after-ready');
+            }
+          } else {
+            expect(readyPublished).toBe(false);
+            expect(audit.faults).toContain(scenario);
+            if (['backend-drift', 'gateway-drift', 'solver-drift'].includes(scenario))
+              expect(audit.requests.slice(3)).toHaveLength(6);
+          }
+          expect({ prod: stores(fixture.prodPath), dev: stores(fixture.devPath) }).toEqual(before);
+          console.error(
+            `SOURCE_RESTORATION_REFUSED: ${scenario} reached actual new source-phase consumer`,
+          );
+        } finally {
+          publication.mockRestore();
+        }
+        return;
+      }
+      const entry: unknown = Reflect.get(restoration, 'restoreSourceAfterGateway');
+      expect(
+        typeof entry,
+        'missing context-only source restoration entry AFTER actual gateway completion',
+      ).toBe('function');
+      if (typeof entry !== 'function') throw new Error('source restoration entry absent');
+      const source = await restoration.restoreSourceAfterGateway(context);
+      expect(source.state).toBe('source-ready-participants-fenced');
+      expect(source.controllers).toBe('fenced');
+      expect(source.exposure).toBe('closed');
+      expect(source.readiness.responses.map(({ port, path }) => `${String(port)} ${path}`)).toEqual(
+        [
+          '3100 /health',
+          '3100 /api/runtime/dependency-capability',
+          '3200 /health',
+          '3300 /health/readiness',
+          '4200 /',
+          '4200 /src/main.tsx',
+        ],
+      );
+      expect(source.readiness.observation.roles.backend.process).toMatchObject({
+        pid: 60003,
+        startTime: '160003',
+        uid: 1000,
+        cgroup: '/docker/source',
+      });
+      expect(source.readiness.observation.localAddresses).toContain('127.0.0.2');
+      expect(audit.events).toEqual(['backend-start', 'gateway-start', 'source-start']);
+      expect(audit.authoritySourceBindings.length).toBeGreaterThan(0);
+      expect(audit.authoritySourceBindings.every(Boolean)).toBe(true);
+      expect(audit.requests.slice(3)).toEqual([
+        '127.0.0.2:3100 /health',
+        '127.0.0.2:3100 /api/runtime/dependency-capability',
+        '127.0.0.2:3200 /health',
+        '127.0.0.2:3300 /health/readiness',
+        '127.0.0.2:4200 /',
+        '127.0.0.2:4200 /src/main.tsx',
+      ]);
+      expect(
+        audit.openerDeliveries.some((openers) =>
+          openers.some((opener) => opener.environment === 'dev' && opener.pid === 60003),
+        ),
+      ).toBe(true);
+      expect(audit.raw.some((receipt) => receipt.role === 'source' && !receipt.cleanup)).toBe(true);
+      const record = readFields(readFields(JSON.parse(source.ready.contents))['record']);
+      const gatewayRecord = readFields(
+        readFields(JSON.parse(originalGatewayReady.contents))['record'],
+      );
+      expect(await sourceStartIntents(fixture.root)).toEqual([
+        {
+          format: 'dependency-participant-start-intent',
+          version: 1,
+          restoration: gatewayRecord['restoration'],
+          role: 'source',
+          id: context.originals.source.id,
+        },
+      ]);
+      expect(record).toEqual({
+        format: 'dependency-participant-ready',
+        version: 1,
+        restoration: gatewayRecord['restoration'],
+        role: 'source',
+        id: context.originals.source.id,
+        readinessSha256: source.readiness.sha256,
+      });
+      expect(await readFile(source.ready.path, 'utf8')).toBe(source.ready.contents);
+      expect(await readFile(context.pending.path, 'utf8')).toBe(context.pending.contents);
+      expect(await readFile(context.fencedComplete.path, 'utf8')).toBe(
+        context.fencedComplete.contents,
+      );
+      expect({ prod: stores(fixture.prodPath), dev: stores(fixture.devPath) }).toEqual(before);
+      expect(fixture.source.HostConfig.RestartPolicy.Name).toBe('no');
+      expect(fixture.backend.HostConfig.RestartPolicy.Name).toBe('no');
+      expect(fixture.gateway.HostConfig.RestartPolicy.Name).toBe('no');
+      console.error(
+        'SOURCE_RESTORATION_READY: one original source start, nonempty dev backend opener, six actual HTTP responses, original stores and fenced ready publication',
+      );
+    } finally {
+      sourceReturn.mockRestore();
+    }
+  });
+}
+
+for (const scenario of SOURCE_RESTORATION_CASES)
+  test(scenario.name, () => runSourceRestorationCase(scenario.kind), 300000);

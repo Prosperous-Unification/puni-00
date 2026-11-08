@@ -1,0 +1,169 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "bundler",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "types": ["bun-types"],
+    "paths": {
+      "@tools/fleet-operation-plan-schema": ["./infra/fleet/schemas/operation-plan.json"],
+      "@tools/fleet-plan": ["./tools/tool-fleet/src/plan-facade.ts"],
+      "@tools/fleet-ssh-transport": ["./tools/tool-fleet/src/ssh-transport-facade.ts"],
+      "@twilight-burokrat/contracts": [
+        "./apps/twilight-structure/twilight-burokrat/cli/src/contracts/index.ts"
+      ],
+      "@twilight-burokrat/judge": [
+        "./apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.ts"
+      ],
+      "@wbs/auth": ["./libs/wbs/adapters/auth/src/index.ts"],
+      "@wbs/config": ["./libs/wbs/adapters/config/src/index.ts"],
+      "@wbs/contracts/logger": ["./libs/wbs/domain/contracts/src/logger.ts"],
+      "@wbs/contracts/dependency-claim": ["./libs/wbs/domain/contracts/src/dependency-claim.ts"],
+      "@wbs/contracts/mcp-authorization-server": [
+        "./libs/wbs/domain/contracts/src/mcp-authorization-server.ts"
+      ],
+      "@wbs/contracts/mcp-internal-auth": ["./libs/wbs/domain/contracts/src/mcp-internal-auth.ts"],
+      "@wbs/contracts": ["./libs/wbs/domain/contracts/src/index.ts"],
+      "@wbs/contracts/dependency-runtime": [
+        "./libs/wbs/domain/contracts/src/dependency-runtime.ts"
+      ],
+      "@wbs/core": ["./libs/wbs/application/core/src/index.ts"],
+      "@wbs/core/*": ["./libs/wbs/application/core/src/*"],
+      "@wbs/conformance": ["./libs/wbs/application/conformance/src/index.ts"],
+      "@wbs/conformance/*": ["./libs/wbs/application/conformance/src/*"],
+      "@wbs/domain": ["./libs/wbs/domain/domain/src/index.ts"],
+      "@wbs/domain/connected-history-fixture": [
+        "./libs/wbs/domain/domain/src/saved-plan/connected-history.fixture.ts"
+      ],
+      "@wbs/domain/connected-benchmark-fixture": [
+        "./libs/wbs/domain/domain/src/connected-benchmark-fixture.ts"
+      ],
+      "@wbs/domain/step-node": ["./libs/wbs/domain/domain/src/step-node.ts"],
+      "@wbs/domain/step-reference": ["./libs/wbs/domain/domain/src/step-reference.ts"],
+      "@wbs/domain/stored-vocabularies": ["./libs/wbs/domain/domain/src/stored-vocabularies.ts"],
+      "@wbs/domain/workday": ["./libs/wbs/domain/domain/src/workday.ts"],
+      "@wbs/domain/tree-order": ["./libs/wbs/domain/domain/src/tree-order.ts"],
+      "@wbs/domain/arrange-siblings": ["./libs/wbs/domain/domain/src/arrange-siblings.ts"],
+      "@wbs/domain/deadline-offsets": ["./libs/wbs/domain/domain/src/deadline-offsets.ts"],
+      "@wbs/domain/progress": ["./libs/wbs/domain/domain/src/progress.ts"],
+      "@wbs/domain/assumed-duration": ["./libs/wbs/domain/domain/src/assumed-duration.ts"],
+      "@wbs/domain/effective-team": ["./libs/wbs/domain/domain/src/effective-team.ts"],
+      "@wbs/domain/effective-tag": ["./libs/wbs/domain/domain/src/effective-tag.ts"],
+      "@wbs/domain/effective-service": ["./libs/wbs/domain/domain/src/effective-service.ts"],
+      "@wbs/domain/label-mismatch": ["./libs/wbs/domain/domain/src/label-mismatch.ts"],
+      "@wbs/domain/marker-color": ["./libs/wbs/domain/domain/src/marker-color.ts"],
+      "@wbs/domain/is-within": ["./libs/wbs/domain/domain/src/is-within.ts"],
+      "@wbs/domain/priority-band": ["./libs/wbs/domain/domain/src/priority-band.ts"],
+      "@wbs/domain/dependency-reach": ["./libs/wbs/domain/domain/src/dependency-reach.ts"],
+      "@wbs/domain/external-system": ["./libs/wbs/domain/domain/src/external-system.ts"],
+      "@wbs/domain/node-reading": ["./libs/wbs/domain/domain/src/node-reading.ts"],
+      "@wbs/domain/saved-plan-default-name": [
+        "./libs/wbs/domain/domain/src/saved-plan-default-name.ts"
+      ],
+      "@wbs/domain/compute-provider": ["./libs/wbs/domain/domain/src/compute-provider.ts"],
+      "@wbs/domain/canonical-schedule-input": [
+        "./libs/wbs/domain/domain/src/canonical-schedule-input.ts"
+      ],
+      "@wbs/observability": ["./libs/wbs/adapters/observability/src/index.ts"],
+      "@wbs/runtime-portable/testing": ["./libs/wbs/adapters/runtime-portable/src/testing.ts"],
+      "@wbs/runtime-portable": ["./libs/wbs/adapters/runtime-portable/src/index.ts"],
+      "@wbs/store-sqlite": ["./libs/wbs/adapters/store-sqlite/src/index.ts"],
+      "@wbs/store-sqlite/db": ["./libs/wbs/adapters/store-sqlite/src/db.ts"],
+      "@wbs/store-sqlite/backup": ["./libs/wbs/adapters/store-sqlite/src/backup.ts"],
+      "@wbs/store-sqlite/migration-set": ["./libs/wbs/adapters/store-sqlite/src/migration-set.ts"],
+      "@wbs/store-sqlite/cross-project-dependency-activation": [
+        "./libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.ts"
+      ],
+      "@wbs/store-sqlite/migrate": ["./libs/wbs/adapters/store-sqlite/src/migrate.ts"],
+      "@wbs/store-sqlite/*": ["./libs/wbs/adapters/store-sqlite/src/*"],
+      "@wbs/store-memory": ["./libs/wbs/adapters/store-memory/src/index.ts"],
+      "@wbs/store-memory/*": ["./libs/wbs/adapters/store-memory/src/*"],
+      "@wbs/realtime": ["./libs/wbs/adapters/realtime/src/index.ts"],
+      "@wbs/contracts/ws-frames": ["./libs/wbs/domain/contracts/src/ws-frames.ts"],
+      "@wbs/contracts/solver/optimized-result": [
+        "./libs/wbs/domain/contracts/solver/src/optimized-result-dto.ts"
+      ],
+      "@wbs/contracts/solver/plan-infeasible": [
+        "./libs/wbs/domain/contracts/solver/src/plan-infeasible-dto.ts"
+      ],
+      "@wbs/contracts/solver/materialise-optimized": [
+        "./libs/wbs/domain/contracts/solver/src/materialise-optimized.ts"
+      ],
+      "@wbs/contracts/solver/parse-solver-response": [
+        "./libs/wbs/domain/contracts/solver/src/parse-solver-response.ts"
+      ],
+      "@wbs/contracts/solver/quantised-baseline": [
+        "./libs/wbs/domain/contracts/solver/src/quantised-baseline.ts"
+      ],
+      "@wbs/contracts/solver/build-request": [
+        "./libs/wbs/domain/contracts/solver/src/build-solver-request.ts"
+      ],
+      "@wbs/contracts/solver/solver-failure-disposition": [
+        "./libs/wbs/domain/contracts/solver/src/solver-failure-disposition.ts"
+      ],
+      "@wbs/contracts/solver/revalidate-solver-result": [
+        "./libs/wbs/domain/contracts/solver/src/revalidate-solver-result.ts"
+      ],
+      "@wbs/contracts/solver/build-connected-request": [
+        "./libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts"
+      ],
+      "@wbs/contracts/solver/connected-durable": [
+        "./libs/wbs/domain/contracts/solver/src/connected-durable.ts"
+      ],
+      "@wbs/contracts/solver/connected-solver-outcome": [
+        "./libs/wbs/domain/contracts/solver/src/connected-solver-outcome.ts"
+      ],
+      "@wbs/contracts/solver/solver-exit-outcome": [
+        "./libs/wbs/domain/contracts/solver/src/solver-exit-outcome.ts"
+      ],
+      "@wbs/contracts/solver/solver-request-pair": [
+        "./libs/wbs/domain/contracts/solver/src/solver-request-pair.ts"
+      ],
+      "@wbs/contracts/solver/supervisor-protocol": [
+        "./libs/wbs/adapters/solver-supervisor-protocol/src/index.ts"
+      ],
+      "@tools/step-blockage-inventory": [
+        "./tools/tool-remote-scripts/src/lib/step-blockage-inventory.ts"
+      ],
+      "@tools/docker": ["./tools/tool-remote-scripts/src/lib/docker.ts"],
+      "@tools/deploy-contract": ["./tools/tool-remote-scripts/src/lib/deploy-contract.ts"],
+      "@tools/compose": ["./tools/tool-compose/src/index.ts"],
+      "@tools/test-scratch": ["./tools/test/scratch/index.ts"],
+      "@tools/test-clock-reads": ["./tools/test/clock-reads/detector.ts"],
+      "@tools/env": ["./tools/tool-remote-scripts/src/lib/env.ts"],
+      "@tools/burokrat-consumer": ["./tools/tool-devsync/src/burokrat-consumer.ts"],
+      "@shared/test-levels": ["./libs/shared/domain/test-levels/src/index.ts"],
+      "@shared/test-evidence": ["./libs/shared/domain/test-evidence/src/index.ts"],
+      "@shared/failures": ["./libs/shared/domain/failures/src/index.ts"],
+      "@shared/portability-format": ["./libs/shared/domain/portability-format/index.ts"],
+      "@shared/delivery-github": ["./libs/shared/adapters/delivery-github/src/index.ts"],
+      "@shared/delivery": ["./libs/shared/domain/delivery/src/index.ts"],
+      "@shared/validation": ["./libs/shared/domain/validation/src/index.ts"],
+      "@ui/core-01": ["./libs/shared/adapters/ui-core-01/src/index.ts"],
+      "@ui/core-01/testing": ["./libs/shared/adapters/ui-core-01/src/testing.ts"],
+      "@ui/saas-01": ["./libs/shared/adapters/ui-saas-01/src/index.ts"],
+      "@wbs/validation": ["./libs/wbs/domain/validation/src/index.ts"],
+      "@wbs/validation/fixtures": ["./libs/wbs/domain/validation/src/fixtures/index.ts"],
+      "@website/contracts": ["./libs/website/domain/contracts/src/index.ts"],
+      "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"]
+    }
+  },
+  "exclude": ["node_modules", "tmp"]
+}

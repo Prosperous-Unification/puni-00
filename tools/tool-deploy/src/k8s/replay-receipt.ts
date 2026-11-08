@@ -143,7 +143,13 @@ export function assertReplayReceipt(
 }
 
 /** Journal phases prove admission happened, never imply missing evidence can be recreated. */
-export function assertReplayProgress(state: ReleaseState, request: ReleaseRequest): void {
+export function assertReplayProgress(
+  state: Pick<
+    ReleaseState,
+    'phase' | 'rollbackFrom' | 'replayForward' | 'replayRollback' | 'transactionId'
+  >,
+  request: ReleaseRequest,
+): void {
   const forward: readonly string[] = FORWARD_PHASES;
   const rollback: readonly string[] = ROLLBACK_PHASES;
   // Proof: omitting recovery-required admits null prior forward evidence at disk parse and

@@ -1,0 +1,269 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/plan-commands.db.test.ts:
+(pass) a command batch > drafts a plan in one request, and answers the id each ref became [156.43ms]
+(pass) a command batch > creates by ref then estimates the minted row [87.75ms]
+(pass) a command batch > leaves the first two unwritten when the third is refused [76.57ms]
+(pass) a command batch > leaves a step allowance unwritten when a later command is refused [71.28ms]
+(pass) a command batch > journals a batch that edits an allowance as one undo [88.41ms]
+(pass) a command batch > refuses a third command binding two types and rolls back the first two [80.10ms]
+(pass) a command batch > is one journal entry, one plan event, and one undo puts all of it back [101.68ms]
+(pass) a command batch > takes back the steps an undo already applied when a later step cannot [87.78ms]
+(pass) a command batch > records a batch of one as that command, not as a batch [83.65ms]
+(pass) a command batch > records nothing for a batch that changed nothing [97.78ms]
+(pass) a command batch > refuses a ref nobody minted, and a ref minted twice, before applying anything [70.77ms]
+(pass) a command batch > applies directory commands inside the batch, and undo leaves them in place [87.77ms]
+(pass) a command batch > answers a directory create with the entry, and a taken name with the survivor [78.03ms]
+(pass) a command batch > applies a directory-only batch with no project, and refuses a plan command in it [78.75ms]
+(pass) a command batch > records the creator of every directory entity a batch makes [74.82ms]
+(pass) a command batch > lets go of the write lock before the broadcast leaves [75.87ms]
+(pass) a command batch > holds a directory command’s announcement until the lock is let go [85.13ms]
+(pass) a command batch > refuses two hundred and one commands before applying any [69.37ms]
+(pass) a command batch > applies a rename queued behind a refused batch, after it [81.89ms]
+(pass) the priority a create writes > a new work item is ordinary by default [73.45ms]
+(pass) the priority a create writes > a re-cut ladder moves the default [73.48ms]
+(pass) the priority a create writes > a renamed middle band still supplies the default [74.42ms]
+(pass) the priority a create writes > an explicit priority is written as given [71.84ms]
+(pass) the priority a create writes > an explicit null creates an unprioritised item [77.33ms]
+(pass) the priority a create writes > the default priority comes from the project being written to [89.75ms]
+(pass) retains producer kinds and create-versus-patch entity requirements internally [83.27ms]
+(pass) throws on malformed trusted deadline detail before creating a modeled batch refusal [95.48ms]
+
+apps/wbs/be-01/src/service/announcement-ownership.db.test.ts:
+(pass) who owns an announcement > (l) still sends a committed route event when the next batch refuses [98.02ms]
+(pass) who owns an announcement > (f) holds a batch’s own events until it has committed [84.98ms]
+(pass) who owns an announcement > (g) sends nothing a refused batch announced [79.05ms]
+
+apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts:
+(pass) route writes that check the graph > runs a project reach change and a step removal as one unit of work each [265.46ms]
+(pass) graph-changing writes on a legacy-only project > refuses an undo of a move with a stale owner revision [373.57ms]
+(pass) graph-changing writes on a legacy-only project > refuses an undo of a move with a legacy cycle after refreshing revision evidence [366.45ms]
+(pass) graph-changing writes against typed dependencies > refuses a legacy link that closes a step-node cycle and writes nothing [219.82ms]
+(pass) graph-changing writes against typed dependencies > accepts a graph-changing write when the typed edges only look cyclic by work item [205.76ms]
+(pass) graph-changing writes against typed dependencies > refuses an estimate clearing that moves a legacy anchor into a cycle [271.39ms]
+(pass) graph-changing writes against typed dependencies > refuses a depReach change that closes a step-node cycle [271.50ms]
+(pass) graph-changing writes against typed dependencies > refuses a depReach change that closes a cycle through stored SS and a legacy link [240.71ms]
+(pass) graph-changing writes against typed dependencies > refuses a depReach change that closes a cycle through stored FF and a legacy link [256.77ms]
+(pass) graph-changing writes against typed dependencies > refuses a move that brings a successor under its own whole predecessor [212.91ms]
+(pass) graph-changing writes against typed dependencies > refuses an undo that would close a step-node cycle [260.53ms]
+(pass) graph-changing writes against typed dependencies > refuses removing a step a typed dependency names, whatever cascade says [225.46ms]
+(pass) graph-changing writes against typed dependencies > refuses removing a step that moves a legacy anchor into a cycle [282.05ms]
+
+apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts:
+(pass) copies only internal typed relationships and replays them with stable ids [325.96ms]
+(pass) undoes first-child hand-down before undoing a copied typed relationship [261.34ms]
+(pass) undoes an earlier typed write after undoing a first-child hand-down [241.63ms]
+
+apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts:
+(pass) adds a typed node dependency and exposes its minted identity on the tree [216.94ms]
+(pass) accepts node IDs, updates endpoints under one ID, and removes the relationship [231.80ms]
+(pass) keeps legacy addDependency semantics and stores no typed row [218.25ms]
+(pass) refuses malformed endpoints before applying any command [218.72ms]
+(pass) refuses a missing or malformed endpoint as 400 [214.57ms]
+(pass) refuses invalid typed endpoints, duplicate keys, unsupported types and absent relationships [242.40ms]
+(pass) retains FS and SS on the same endpoints but refuses a duplicate SS [209.62ms]
+(pass) refuses an unsupported typed update at the HTTP boundary without changing the row [213.70ms]
+(pass) undoes an FF to SS update to the exact FF relationship and redoes SS [226.26ms]
+(pass) refuses a later cycle command after an SS add and rolls back the batch [206.48ms]
+(pass) refuses a later legacy add that closes an SS cycle and rolls back the batch [212.81ms]
+(pass) refuses a self node and a step-node cycle before writing [220.00ms]
+(pass) resolves a batch-local node reference and rolls back a later refusal [190.02ms]
+(pass) undoes and redoes a typed update with its exact ID and endpoints [243.00ms]
+(pass) refuses stale undo after another account changes the relationship [292.84ms]
+(pass) refuses undo when the stored relationship changed outside the journal [229.68ms]
+(pass) refuses undo of an update when the stored relationship changed outside the journal [226.36ms]
+(pass) refuses undo when only a journalled relationship type changed outside history [231.31ms]
+(pass) rejects a cycle introduced by the second typed add [230.84ms]
+(pass) sees the first typed relationship when a later batch command closes a cycle [223.61ms]
+(pass) refuses redo when its relationship ID has been reused [220.42ms]
+(pass) publishes a tight solver answer for an SS/FF plan written through the commands [247.75ms]
+
+apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts:
+(pass) remaps a node endpoint on first child create and restores it on undo and redo [257.75ms]
+(pass) refuses moving a child onto a leaf with a pinned node endpoint [221.10ms]
+(pass) removes a promoted parent endpoint and restores it with the parent [237.64ms]
+(pass) removes node and whole endpoints on delete and restores their identities on undo [229.22ms]
+(pass) refuses deleting or moving the last child of a descendant-step parent [220.57ms]
+(pass) removes a relationship internal to a deleted subtree and restores it on undo [226.77ms]
+(pass) deletes a last child when its descendant-step relationship is removed with it [235.87ms]
+(pass) refuses restore with a stale surviving parent revision [320.23ms]
+(pass) refuses restore with a pinned peer relationship after refreshing revision evidence [320.83ms]
+(pass) refuses redo of a child create when a newer node relationship pins its parent [218.14ms]
+(pass) refuses undo of a move when a newer descendant-step endpoint would lose its children [226.82ms]
+(pass) refuses redo of a deletion when a newer descendant-step endpoint needs its last child [221.71ms]
+(pass) refuses undo of a move into a leaf with a newer pinned node endpoint [220.41ms]
+
+apps/wbs/be-01/src/controller/step.controller.db.test.ts:
+(pass) the steps routes are the only spelling > serves a project's steps [180.47ms]
+(pass) the steps routes are the only spelling > refuses the old roles route as unknown [163.97ms]
+(pass) a step mutation is not captured by an unrelated batch > delivers an add made while an unrelated batch is collecting [182.03ms]
+(pass) POST /api/projects/:id/steps > adds a step and answers with it [189.65ms]
+(pass) POST /api/projects/:id/steps > codes a new step from its name, against the codes the project holds [161.39ms]
+(pass) POST /api/projects/:id/steps > writes the code its creator chose [182.50ms]
+(pass) POST /api/projects/:id/steps > refuses a reserved code and writes no step [192.07ms]
+(pass) POST /api/projects/:id/steps > refuses a code outside the grammar, and one the project already holds [182.73ms]
+(pass) POST /api/projects/:id/steps > answers 409 taken for a name the project already holds [179.64ms]
+(pass) POST /api/projects/:id/steps > answers 422 for a name of spaces, 404 for a project that is not there, 401 unauthenticated [178.98ms]
+(pass) POST /api/projects/:id/steps > answers 422 for a body whose name is not a string, and for no body at all [183.49ms]
+(pass) POST /api/projects/:id/steps > answers 403 on a restricted project the caller does not own [258.64ms]
+(pass) PATCH /api/projects/:id/steps/:stepId > renames a step [182.83ms]
+(pass) PATCH /api/projects/:id/steps/:stepId > answers 409 taken, and 404 for a step of another project [164.71ms]
+(pass) DELETE /api/projects/:id/steps/:stepId > removes a step nothing points at, answering 204 [183.26ms]
+(pass) DELETE /api/projects/:id/steps/:stepId > refuses with 409 and the counts, then removes on the cascade [189.16ms]
+(pass) DELETE /api/projects/:id/steps/:stepId > answers 404 for a step that is not there and 403 on a project the caller may not write to [279.20ms]
+(pass) DELETE /api/projects/:id/steps/:stepId > appends nothing to the account’s undo stack [202.86ms]
+(pass) DELETE /api/projects/:id/steps/:stepId > leaves an undo whose step has gone refusing as stale, not writing [200.48ms]
+(pass) DELETE /api/projects/:id/steps/:stepId > refuses an estimate and an assignee for a step that has gone, rather than 500ing [197.65ms]
+(pass) DELETE /api/projects/:id/steps/:stepId > takes estimates for a step added after the project was made [205.48ms]
+(pass) DELETE /api/projects/:id/steps/:stepId > takes the cascade only when it is asked for by name [186.50ms]
+(pass) refuses undeclared name-body fields and query keys before changing steps [186.79ms]
+(pass) refuses unknown cascade query keys and undeclared DELETE bodies without deleting usage [182.81ms]
+(pass) uses the last repeated cascade value so a final false never confirms deletion [186.18ms]
+(pass) keeps name shape refusals distinct from blank names and malformed JSON on both writes [196.05ms]
+(pass) runs step origin and write-scope policies before parsing, authenticating admitted writes once [160.12ms]
+(pass) preserves URL-encoded and multipart name writes on both step endpoints [169.83ms]
+(pass) refuses repeated form names and strict extra form fields without changing steps [178.02ms]
+(pass) refuses a multipart file as a step name without changing steps [181.72ms]
+(pass) a project step allowance over HTTP > sets the allowance, charges the estimate and undoes in one step [203.92ms]
+(pass) a project step allowance over HTTP > adds a step with an allowance, and a plan read carries every step’s [176.50ms]
+(pass) a project step allowance over HTTP > refuses an allowance over 1000% and leaves the step as it was [189.28ms]
+(pass) a project step allowance over HTTP > charges a later command in the same batch at the edited allowance [173.68ms]
+(pass) a project step allowance over HTTP > refuses an allowance undo after the step was removed [207.14ms]
+(pass) estimate unit boundary > creates a minute step and absent unit reads workdays [180.86ms]
+(pass) estimate unit boundary > refuses an unknown unit and changing a unit over three estimates, then changes after clearing [241.37ms]
+(pass) estimate unit boundary > stores whole minutes and refuses fractional and above-max minute commands atomically [219.82ms]
+(pass) estimate unit boundary > refuses workday overflow after structural parsing with the command index [198.03ms]
+(pass) estimate unit boundary > refuses undo that would restore an estimate under a changed unit [211.16ms]
+(pass) estimate unit boundary > reads charged minutes beside the workday figure and places half a day [199.07ms]
+(pass) estimate unit boundary > accepts a whole-minute estimate above the workday maximum [197.16ms]
+(pass) estimate unit boundary > refuses a minute inverse after changing back to workdays [232.66ms]
+(pass) estimate unit boundary > refuses redo after changing the unit of its cleared estimate [209.66ms]
+(pass) estimate unit boundary > refuses restoring a deleted estimated subtree after its empty step changes unit [204.10ms]
+(pass) estimate unit boundary > refuses a mixed batch before its inverse rename and keeps an older independent entry reachable [223.33ms]
+(pass) estimate unit boundary > retains minute bindings through chained undo redo and rebase [222.11ms]
+{"level":"error","time":1792624077507,"service":"be-01","err":{"occurrence_id":"AE_ZFAX96J5GN9XKGCA591YJZ28E8","fingerprint":"fp1_0f6732c9b393f6879782136aabd18f4e","stack":["Error: journal estimate units are not a map","    at readEstimateUnits (/tmp/puni-cross-capture/libs/wbs/application/core/src/service/compensating.ts:433:15)","    at readPreconditions (/tmp/puni-cross-capture/libs/wbs/application/core/src/service/compensating.ts:425:53)","    at walkStack (/tmp/puni-cross-capture/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6780:27)","    at async collect (/tmp/puni-cross-capture/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8142:28)","    at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:603:45)","    at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/application/core/src/module/plan-commands/composition.ts:101:32)","    at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792624077511,"service":"be-01","err":{"occurrence_id":"AE_Z6KQYSD9THFVZX0VBHN5B7N6YC","fingerprint":"fp1_f307f80b80aaf4788986e3f2f9c349da","stack":["Error: journal estimate units have no binding for step e237a883-3fb1-4cc9-94c8-499762efa86f","    at boundEstimateUnits (/tmp/puni-cross-capture/libs/wbs/application/core/src/service/compensating.ts:483:17)","    at walkStack (/tmp/puni-cross-capture/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6781:22)","    at async collect (/tmp/puni-cross-capture/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8142:28)","    at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:603:45)","    at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/application/core/src/module/plan-commands/composition.ts:101:32)","    at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) estimate unit boundary > treats legacy absent bindings as workdays and refuses malformed present bindings [231.03ms]
+(pass) estimate unit boundary > allows same-unit unrelated-step and away-and-back edits before replay [214.40ms]
+(pass) estimate unit boundary > binds first-child hand-down and last-child hand-up estimate arrays [361.25ms]
+(pass) estimate unit boundary > refuses restoring an estimate whose bound step was removed [207.14ms]
+(pass) returns 409 for retained sparse step parallelism (cascade=false) [199.99ms]
+(pass) returns 409 for retained sparse step parallelism (cascade=true) [209.96ms]
+(pass) does not disclose sparse references to outsiders or a foreign project [316.34ms]
+
+libs/wbs/adapters/store-sqlite/src/write-coordinator.db.test.ts:
+(pass) the write coordinator > does not roll a route write back with a batch it never belonged to [73.36ms]
+(pass) the write coordinator > makes every public transactional store wait for the batch's turn [80.29ms]
+
+libs/wbs/adapters/store-sqlite/src/import-performance.db.test.ts:
+157 |     const drizzleStatements = commitAt - beginAt + 1;
+158 |     // One project, bands, capacity, marker, team patch, person insert and subtree
+159 |     // transaction, then one label patch per row: 7 + 500 nested transactions.
+160 |     // Proof: omitting the native transaction observer reported 0 instead of 507,
+161 |     // hiding its 1,014 SAVEPOINT/RELEASE controls from the admitted total.
+162 |     expect(nativeTransactions).toBe(507);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 507
+Received: 508
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/import-performance.db.test.ts:162:32)
+(fail) measures preparation and admitted SQLite work separately for exactly 500 rows [272.96ms]
+
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:
+(pass) sparse parallelism SQL contract > SQL rejects range/type 0 [81.35ms]
+(pass) sparse parallelism SQL contract > SQL rejects range/type 1001 [85.99ms]
+(pass) sparse parallelism SQL contract > SQL rejects range/type 1.5 [75.62ms]
+(pass) sparse parallelism SQL contract > SQL rejects range/type NULL [65.66ms]
+(pass) sparse parallelism SQL contract > SQL rejects duplicate pairs [65.59ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert owner reference [73.23ms]
+(pass) sparse parallelism SQL contract > SQL rejects update owner reference [79.97ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert step reference [67.13ms]
+(pass) sparse parallelism SQL contract > SQL rejects update step reference [65.24ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert project [66.17ms]
+(pass) sparse parallelism SQL contract > SQL rejects update project [76.23ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert leaf [74.85ms]
+(pass) sparse parallelism SQL contract > SQL rejects update leaf [88.25ms]
+(pass) sparse parallelism SQL contract > retains original creation audit and updates revisions atomically [70.43ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt owner without hiding the retained row [67.97ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt step without hiding the retained row [79.68ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt project without hiding the retained row [70.50ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt leaf without hiding the retained row [68.75ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt range without hiding the retained row [71.74ms]
+132 |     const before = connection.db
+133 |       .all<{ name: string }>('SELECT * FROM __drizzle_migrations')
+134 |       .filter(({ name }) => !newer.includes(name));
+135 |     expect(() => rollbackTo(path, folder, baseline)).toThrow(/step parallelism overrides exist/);
+136 |     expect(connection.db.all('SELECT * FROM step_parallel')).toHaveLength(1);
+137 |     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(before);
+                                                                          ^
+error: expect(received).toEqual(expected)
+
+@@ -522,13 +522,6 @@
+      "created_at": 1792062000000,
+      "hash": "60edd648330bc0505aa25c96e64daf1b12c938e96e04d78ce7c2f147af2a93b4",
+      "id": 75,
+      "name": "20261015110000_add_step_node_parallelism",
+    },
+-   {
+-     "applied_at": "2026-10-21T23:08:00.926Z",
+-     "created_at": 1792703400000,
+-     "hash": "318b66d6eb443b83a4c75c9297e6e67cb62c91ba691cbeb38fdf51b98757f07f",
+-     "id": 82,
+-     "name": "20261022211000_add_external_dependencies",
+-   },
+  ]
+
+- Expected  - 7
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:137:69)
+(fail) sparse parallelism SQL contract > down refuses retained facts and preserves table and applied ledger [89.52ms]
+135 |     expect(() => rollbackTo(path, folder, baseline)).toThrow(/step parallelism overrides exist/);
+136 |     expect(connection.db.all('SELECT * FROM step_parallel')).toHaveLength(1);
+137 |     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(before);
+138 |   });
+139 |   it('empty down and forward preserve existing work items', () => {
+140 |     expect(rollbackTo(path, folder, baseline)).toEqual([...newer, migration]);
+                                                     ^
+error: expect(received).toEqual(expected)
+
+  [
++   "20261022211000_add_external_dependencies",
+    "20261022210000_add_project_abbreviations",
+    "20261020130000_add_claim_occupancy",
+    "20261020120000_add_resources",
+    "20261019130100_add_external_identity_person",
+    "20261019130000_add_person_account",
+    "20261019120000_add_claim",
+    "20261015110000_add_step_node_parallelism",
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:140:48)
+(fail) sparse parallelism SQL contract > empty down and forward preserve existing work items [86.12ms]
+(pass) removal throws on corrupt retained SQLite owner [70.26ms]
+(pass) removal throws on corrupt retained SQLite project [70.88ms]
+(pass) removal throws on corrupt retained SQLite leaf [70.37ms]
+(pass) removal throws on corrupt retained SQLite range [72.49ms]
+(pass) retains all SQLite state on sparse refusal and mixed rollback (cascade=false) [71.83ms]
+(pass) retains all SQLite state on sparse refusal and mixed rollback (cascade=true) [71.36ms]
+(pass) preserves retained cascade families before refusing sparse parallelism [80.48ms]
+
+libs/wbs/adapters/store-sqlite/src/saved-plan-in-transaction.db.test.ts:
+(pass) the quota is read inside the transaction that would write > holds the write lock across the check, so no rival can commit between read and write [76.72ms]
+(pass) a saved plan is independent of the batch beside it > survives a batch that ends in commit [76.85ms]
+(pass) a saved plan is independent of the batch beside it > survives a batch that ends in rollback [68.89ms]
+
+3 tests failed:
+(fail) measures preparation and admitted SQLite work separately for exactly 500 rows [272.96ms]
+(fail) sparse parallelism SQL contract > down refuses retained facts and preserves table and applied ledger [89.52ms]
+(fail) sparse parallelism SQL contract > empty down and forward preserve existing work items [86.12ms]
+
+ 166 pass
+ 3 fail
+ 879 expect() calls
+Ran 169 tests across 11 files. [30.65s]

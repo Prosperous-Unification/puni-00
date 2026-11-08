@@ -1,0 +1,99 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+const root = '/tmp/puni-incident-completion-review-copy';
+const servicePath = `${root}/libs/wbs/application/core/src/module/work-item/work-item.resource.ts`;
+const evidencePath = `${root}/libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts`;
+const runnerPath = `${root}/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts`;
+const source = readFileSync(servicePath, 'utf8');
+const evidence = readFileSync(evidencePath, 'utf8');
+const runner = readFileSync(runnerPath, 'utf8');
+const typed =
+  'const cycle = await context.graph.findCycle(projectId, {\n          typed: [...existing.filter((row) => row.id !== proposed.id), proposed],\n        });';
+const final = 'const cycle = await this.findDependencyCycle(projectId, actorId);';
+function replaceOnce(contents: string, needle: string, replacement: string) {
+  if (contents.split(needle).length !== 2)
+    throw new Error(`expected exactly one mutation site: ${needle}`);
+  return contents.replace(needle, replacement);
+}
+const mutations = [
+  [
+    'typed-only',
+    servicePath,
+    replaceOnce(source, typed, 'const cycle = null;'),
+    'actual remote cycle',
+  ],
+  [
+    'final-only',
+    servicePath,
+    replaceOnce(source, final, 'const cycle = null;'),
+    'actual remote cycle',
+  ],
+  [
+    'both-cycles',
+    servicePath,
+    replaceOnce(replaceOnce(source, typed, 'const cycle = null;'), final, 'const cycle = null;'),
+    'actual remote cycle',
+  ],
+  [
+    'project-read',
+    evidencePath,
+    replaceOnce(
+      evidence,
+      'findProjectWithin(reads.projects, address.projectId, authority.access)',
+      'reads.projects.findById(address.projectId)',
+    ),
+    'external redo revalidates project-read',
+  ],
+  [
+    'row-owner',
+    evidencePath,
+    replaceOnce(
+      evidence,
+      "if (row.projectId !== address.projectId) return { ok: false, reason: 'not_found' } as const;",
+      '',
+    ),
+    'external redo revalidates foreign-project',
+  ],
+  [
+    'row-identity',
+    evidencePath,
+    replaceOnce(
+      evidence,
+      "if (row.id !== address.workItemId) throw new Error('endpoint row identity mismatch');",
+      '',
+    ),
+    'external redo revalidates wrong-identity',
+  ],
+  [
+    'writer-access',
+    runnerPath,
+    replaceOnce(
+      runner,
+      '// Proof: using request access instead admitted both queued revoked undo and redo (HTTP current-authority matrix).\n          const resolved = await scope.resolveAccess(caller);',
+      "const resolved = caller.kind === 'human' ? { ok: true as const, access: caller.expectedAccess } : await scope.resolveAccess(caller);",
+    ),
+    'revoked current membership',
+  ],
+] as const;
+for (const [name, path, mutated, pattern] of mutations) {
+  try {
+    writeFileSync(path, mutated);
+    const proc = Bun.spawnSync(
+      [
+        'bun',
+        'test',
+        'apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts',
+        '--test-name-pattern',
+        pattern,
+        '--timeout=10000',
+      ],
+      { cwd: root, stdout: 'pipe', stderr: 'pipe' },
+    );
+    const log = `${proc.stdout.toString()}${proc.stderr.toString()}`;
+    writeFileSync(`/tmp/puni-incident-completion-review-mutation-${name}.log`, log);
+    console.log(`${name}: exit=${proc.exitCode}\n${log.split('\n').slice(-7).join('\n')}`);
+  } finally {
+    writeFileSync(servicePath, source);
+    writeFileSync(evidencePath, evidence);
+    writeFileSync(runnerPath, runner);
+  }
+}

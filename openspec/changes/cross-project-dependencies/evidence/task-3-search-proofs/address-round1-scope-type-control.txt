@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+(pass) rejects array cursor scope before current revision checks [180.14ms]
+(pass) rejects array cursor scope before stale revision checks [91.87ms]
+
+ 2 pass
+ 18 filtered out
+ 0 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [2.33s]

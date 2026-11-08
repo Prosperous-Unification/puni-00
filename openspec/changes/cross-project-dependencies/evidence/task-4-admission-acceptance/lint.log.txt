@@ -1,0 +1,36 @@
+
+ NX   Nx was denied permission to create a plugin worker socket. Running plugins in the main process instead.
+
+Plugins that expect isolation may misbehave, and this is slower than a worker.
+Nx was denied permission to use its unix socket under /tmp/.nx or ~/.nx.
+To fix this, do one of the following:
+  - In `~/.codex/config.toml`, set `sandbox_workspace_write.network_access` to true and add /tmp/.nx or ~/.nx to `sandbox_workspace_write.writable_roots`. Codex has no setting that scopes sockets to a path, and `network_access` also grants general network access, so this is a broader grant than the other agents need.
+  - Get permission to create sockets under /tmp/.nx or ~/.nx, or set NX_SOCKET_DIR to a directory you do have permission for.
+See https://nx.dev/docs/kb/nx-sandbox-unix-sockets for details.
+
+
+ NX   Running target lint for 2 projects:
+
+- wbs-core
+- wbs-be-01
+
+
+✔  nx run wbs-core:lint
+✔  nx run wbs-be-01:lint
+
+
+
+ NX   Successfully ran target lint for 2 projects
+
+
+Output of 2 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      49.5s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     49.5s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-be-01:lint    49.5s

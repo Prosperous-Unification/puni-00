@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+58 |   const page = await candidates(selected);
+59 |   const answer = await h.call('ada','GET',`/api/projects/${selected}/address-references?reference=puni-2_a.010&revision=${page.addressRevision}`);
+60 |   expect(answer.status).toBe(200); expect(answer.body).toEqual({ projectId: selected, endpoint: { scope: 'whole', workItemId: 'leaf' }, reference: 'PUNI-2_A.010', addressRevision: page.addressRevision });
+61 |   expect((await h.call('ada','GET',`/api/projects/${selected}/address-references?reference=bad.&revision=old`)).status).toBe(422);
+62 |   h.sqlite.run("UPDATE project_abbreviation SET abbreviation='NEW' WHERE project_id=?",[selected]);
+63 |   expect((await h.call('ada','GET',`/api/projects/${selected}/address-references?reference=PUNI-2_A.010&revision=${page.addressRevision}`)).status).toBe(409);
+                                                                                                                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 404
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:63:149)
+(fail) manual punctuation and lowercase resolve and malformed syntax precedes stale [212.90ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [2.90s]

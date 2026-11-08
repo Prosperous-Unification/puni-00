@@ -21,8 +21,7 @@ const policies = [
   { kind: 'organization-control' },
 ] as const;
 
-/** The header carrying `MCP_BE_INTERNAL_SECRET`, mcp-01's own service secret (M14). */
-export const MCP_INTERNAL_SECRET_HEADER = 'x-mcp-internal-auth';
+export { MCP_INTERNAL_SECRET_HEADER } from '../mcp-internal-auth';
 
 /** mcp-01's service secret was missing or wrong: a deployment fault, never a user's refusal. */
 const internalUnauthorized = {

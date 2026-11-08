@@ -1,0 +1,125 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+877 |             id: successor.projectId,
+878 |           });
+879 |           expect(reading.isError).not.toBe(true);
+880 |           const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
+881 |           // Remote's selected second node is 1→4; successor is one day.
+882 |           expect(tree.workItems.find(({ id }) => id === staged.id)).toMatchObject({
+                                                                          ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "actuals": {},
++   "assignees": {},
++   "blockageCauses": {
++     "5ba2fef0-6e20-42e1-a085-cddec6700cb1": [],
++     "b52735c6-4f62-47d5-88ac-8d18e84dac66": [],
++   },
++   "blockages": {},
++   "charged": {
++     "b52735c6-4f62-47d5-88ac-8d18e84dac66": {
++       "days": 1,
++       "unit": "workdays",
++     },
++   },
++   "dates": {
++     "endsOn": "2026-10-23",
++     "startsOn": "2026-10-23",
++   },
++   "deadline": null,
++   "dependsOn": [],
++   "doesEveryStep": null,
++   "estimates": {
++     "b52735c6-4f62-47d5-88ac-8d18e84dac66": {
++       "optimistic": 1,
++       "pessimistic": 1,
++       "realistic": 1,
++     },
++   },
++   "externalRefs": [],
++   "factEnd": null,
++   "factStart": null,
++   "finalDays": {
++     "b52735c6-4f62-47d5-88ac-8d18e84dac66": 1,
++   },
++   "finalTotal": 1,
++   "frozenNumber": null,
++   "hold": null,
++   "id": "cd7cb453-e6ba-4f30-b0e0-21c67598a8cb",
++   "maxParallel": 1,
++   "measures": {},
++   "name": "Staged successor",
++   "nodeReadings": {
++     "5ba2fef0-6e20-42e1-a085-cddec6700cb1": "unknown",
++     "b52735c6-4f62-47d5-88ac-8d18e84dac66": "unknown",
++   },
++   "nodeResources": {
++     "5ba2fef0-6e20-42e1-a085-cddec6700cb1": {
++       "assignment": {
++         "kind": "unassigned",
++       },
++       "maxParallel": 1,
++       "nodeId": "sn1.cd7cb453-e6ba-4f30-b0e0-21c67598a8cb.5ba2fef0-6e20-42e1-a085-cddec6700cb1",
++       "teams": {
++         "kind": "unstated",
++       },
++       "width": 1,
++     },
++     "b52735c6-4f62-47d5-88ac-8d18e84dac66": {
++       "assignment": {
++         "kind": "unassigned",
++       },
++       "maxParallel": 1,
++       "nodeId": "sn1.cd7cb453-e6ba-4f30-b0e0-21c67598a8cb.b52735c6-4f62-47d5-88ac-8d18e84dac66",
++       "teams": {
++         "kind": "unstated",
++       },
++       "width": 1,
++     },
++   },
++   "notes": "",
++   "number": "010",
++   "parentId": null,
++   "position": 5,
++   "priority": 50,
++   "progress": {},
++   "projectId": "aa953e40-c2a6-49df-9815-014558575e0f",
++   "readiness": "ready",
+    "revision": 3,
++   "rolledUp": false,
+    "schedule": {
+-     "earliestFinish": 2,
+-     "earliestStart": 1,
++     "critical": true,
++     "duration": 1,
++     "earliestFinish": 5,
++     "earliestStart": 4,
++     "estimated": true,
++     "float": 0,
++     "latestFinish": 5,
++     "latestStart": 4,
+    },
++   "serviceId": null,
++   "serviceIds": [],
++   "serviceTeamId": null,
++   "startNoEarlierThan": null,
++   "startNoEarlierThanReason": null,
++   "status": "ready",
++   "tagIds": [],
++   "teamIds": [],
++   "typeIds": [],
+  }
+
+- Expected  - 2
++ Received  + 94
+
+      at <anonymous> (/tmp/puni-mcp-ss-ff/apps/wbs/mcp-01/src/connected-command-parity.test.ts:882:69)
+(fail) MCP node split SS preserves type and distinct connected placement [4086.88ms]
+
+ 0 pass
+ 47 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [7.32s]

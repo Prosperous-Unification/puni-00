@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:
+132 |     if (running.services.retention.isRunning()) starts.push('retention');
+133 |     if (running.services.optimizer?.isRunning() === true) starts.push('optimizer');
+134 |     await running.stop();
+135 |     running = undefined;
+136 |   }
+137 |   expect(snapshot(path)).toBe(before);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: "{"schema":[{"type":"index","name":"actual_by_step","tbl_name":"actual","sql":"CREATE INDEX `actual_... (78543 bytes truncated) ...tbl_name":"sqlite_sequence","sql":"CREATE TABLE sqlite_sequence(name,seq)"},{"type":"table","name":"step","tbl_name":"step","sql":"CREATE TABLE \"step\" (\n\t`id` text PRIMARY KEY,\n\t`project_id` tex... (79853 bytes truncated) ...0261022213000_add_optimization_boundary_certificates\",\"applied_at\":\"2026-10-22T21:48:33.917Z\"}"]},{"name":"actual","rows":[]},{"name":"assignment","rows":[]},{"name":"browser_auth_association","r... (4164 bytes truncated) ..."space","rows":[]},{"name":"space_project","rows":[]},{"name":"sqlite_sequence","rows":[]},{"name":"step","rows":[]},{"name":"step_blockage","rows":[]},{"name":"step_blockage_activation","rows":["{\"id\":1,\"state\":\"DISABLED\"}"]},{"name":"step_blockage_activation_receipt","rows":[]},{"name":"step_measure","rows":[]},{"name":"step_node_attempt","rows":[]},{"name":"step_node_attempt_issued","rows":[]},{"name":"step_parallel","rows":[]},{"name":"step_progress","rows":[]},{"name":"tag","rows":[]},{"name":"tag_organization","rows":[]},{"name":"team_service","rows":[]},{"name":"typed_dependency","rows":[]},{"name":"users","rows":[]},{"name":"work_item","rows":[]},{"name":"work_item_external_ref","rows":[]},{"name":"work_item_resource_demand","rows":[]},{"name":"work_item_service","rows":[]},{"name":"work_item_tag","rows":[]},{"name":"work_item_team","rows":[]},{"name":"work_item_type","rows":[]},{"name":"work_item_type_organization","rows":[]},{"name":"work_item_work_item_type","rows":[]}]}"
+Received: "{"schema":[{"type":"index","name":"actual_by_step","tbl_name":"actual","sql":"CREATE INDEX `actual_... (78543 bytes truncated) ...tbl_name":"sqlite_sequence","sql":"CREATE TABLE sqlite_sequence(name,seq)"},{"type":"table","name":"startup_probe","tbl_name":"startup_probe","sql":"CREATE TABLE startup_probe (id INTEGER)"},{"type":"table","name":"step","tbl_name":"step","sql":"CREATE TABLE \"step\" (\n\t`id` text PRIMARY KEY,\n\t`project_id` tex... (79853 bytes truncated) ...0261022213000_add_optimization_boundary_certificates\",\"applied_at\":\"2026-10-22T21:48:33.917Z\"}","{\"id\":91,\"hash\":\"ace3fca11d7562738361f87cdbd805a280ae7513adf1a40fd3211c644394da1d\",\"created_at\":1792713600000,\"name\":\"20261023000000_boot_admission_probe\",\"applied_at\":\"2026-10-22T21:48:33.996Z\"}"]},{"name":"actual","rows":[]},{"name":"assignment","rows":[]},{"name":"browser_auth_association","r... (4164 bytes truncated) ..."space","rows":[]},{"name":"space_project","rows":[]},{"name":"sqlite_sequence","rows":[]},{"name":"startup_probe","rows":[]},{"name":"step","rows":[]},{"name":"step_blockage","rows":[]},{"name":"step_blockage_activation","rows":["{\"id\":1,\"state\":\"DISABLED\"}"]},{"name":"step_blockage_activation_receipt","rows":[]},{"name":"step_measure","rows":[]},{"name":"step_node_attempt","rows":[]},{"name":"step_node_attempt_issued","rows":[]},{"name":"step_parallel","rows":[]},{"name":"step_progress","rows":[]},{"name":"tag","rows":[]},{"name":"tag_organization","rows":[]},{"name":"team_service","rows":[]},{"name":"typed_dependency","rows":[]},{"name":"users","rows":[]},{"name":"work_item","rows":[]},{"name":"work_item_external_ref","rows":[]},{"name":"work_item_resource_demand","rows":[]},{"name":"work_item_service","rows":[]},{"name":"work_item_tag","rows":[]},{"name":"work_item_team","rows":[]},{"name":"work_item_type","rows":[]},{"name":"work_item_type_organization","rows":[]},{"name":"work_item_work_item_type","rows":[]}]}"
+
+      at refuse (/tmp/puni-premigration-admission/apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:137:26)
+      at async <anonymous> (/tmp/puni-premigration-admission/apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:279:9)
+(fail) refuses enabled empty authority before a pending migration changes schema or ledger [349.31ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [10.05s]

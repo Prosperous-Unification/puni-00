@@ -1,0 +1,27 @@
+diff --git a/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts b/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts
+index d543d6cc3..3a66ef645 100644
+--- a/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts
++++ b/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts
+@@ -609,7 +609,7 @@ async function readConnectedLivePlanIn(
+   lifetime.assertOpen();
+   // Proof: omitting this binding failed both `private connected capture` modes (unavailable instead of scheduled).
+   const { scheduler, connected } = capturedSchedulerIn(db, options, lifetime, options.connected);
+-  const projection = deriveConnectedPlan(
++  const deriveProjection = () => deriveConnectedPlan(
+     capture,
+     scheduler,
+     (input) => {
+@@ -618,6 +618,13 @@ async function readConnectedLivePlanIn(
+     },
+     connected ?? null,
+   );
++  const authoredProjection = deriveProjection();
++  const projection = {
++    ...authoredProjection,
++    get placement() {
++      return deriveProjection().placement;
++    },
++  };
+   const metadataByProject = new Map<
+     string,
+     Awaited<ReturnType<typeof readLiveMetadataIn>> & { project: Project }

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/delivery.integration.test.ts:
+254 |     else now = 5000;
+255 |     gate.release();
+256 |     const response = await pushing;
+257 |     expect(await response.json()).toEqual({ delivered_to_sockets: 0 });
+258 |     await Bun.sleep(2);
+259 |     expect(writes).toBe(0);
+                         ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-egress-1031/apps/wbs/gw-01/src/delivery.integration.test.ts:259:20)
+(fail) mounted push cannot write after held admission cancellation or exact expiry with withheld timer [34.09ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [3.16s]

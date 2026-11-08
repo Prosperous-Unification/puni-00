@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1098 |   const before = effects();
+1099 |   for (const left of a.children) for (const right of b.children) {
+1100 |     expect(await semantic(remote, (service) => service.addTypedDependency(remote.owner.projectId, fixture.principal.id, {
+1101 |       predecessor: { projectId: fixture.owner.projectId, workItemId: right, scope: 'node', stepId: bStep },
+1102 |       successor: { projectId: remote.owner.projectId, workItemId: left, scope: 'node', stepId: aStep }, type: 'FS',
+1103 |     }))).toMatchObject({ ok: false, reason: 'cycle' });
+                ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "cycle",
++   "ok": true,
++   "value": "7f4c9c14-73de-4036-a21c-821cad018b7a",
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-cross-graph-closure/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1103:10)
+(fail) admitted remote scopes expand all four pairs under their own trees and steps [770.40ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 22 expect() calls
+Ran 1 test across 1 file. [4.03s]

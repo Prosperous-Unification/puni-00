@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+201 | });
+202 |
+203 | it('refuses expired borrowed capabilities before reads and if expiry happens during a read', async () => {
+204 |   const scope = observation();
+205 |   scope.expire();
+206 |   await expect(scope.reader.read(['a'])).rejects.toThrow(/expired/);
+                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:206:50)
+(fail) refuses expired borrowed capabilities before reads and if expiry happens during a read [1.35ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [135.00ms]

@@ -6,6 +6,7 @@ import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { AccessRefused } from '../../ports/shared-people-values';
 import type { WorkItem } from '../../ports/work-item-store';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
@@ -24,6 +25,7 @@ async function seeded() {
   const { source } = fixture;
   const graph = servicesOver(source.stores, {
     admission: CREATOR_ADMISSION,
+    dependencyContext: createLocalDependencyContext(source.stores),
     clock: clockOf({ now: () => READ_AT, newId: () => crypto.randomUUID() }),
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -33,6 +35,7 @@ async function seeded() {
     { at: 1, by: OWNER },
   );
   const created = await graph.projects.create('Template', OWNER);
+  if (typeof created === 'string') throw new Error(`seed project refused: ${created}`);
   const first = created.steps.at(0);
   const second = created.steps.at(1);
   if (first === undefined || second === undefined) throw new Error('the project has no two steps');
@@ -45,10 +48,14 @@ async function seeded() {
     { ...first, id: dev, projectId, position: 10 },
     { ...second, id: qa, projectId, position: 20 },
   ];
-  await source.stores.projects.create({ ...created.project, id: projectId }, steps, {
-    at: 1,
-    by: OWNER,
-  });
+  await source.stores.projects.create(
+    { ...created.project, id: projectId, abbreviation: 'CLAIMS' },
+    steps,
+    {
+      at: 1,
+      by: OWNER,
+    },
+  );
   // The memory source keeps a project's steps apart from the step table its progress reads.
   for (const step of steps) {
     await source.stores.steps.add(

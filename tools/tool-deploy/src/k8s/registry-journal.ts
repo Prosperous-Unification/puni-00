@@ -5,11 +5,15 @@ import { readRegistryOwnerFile } from '@tools/registry-publication';
 import { parseRegistryHistory, type RegistryHistory } from '@tools/registry-publication';
 import { type } from 'arktype';
 
-import { parseJournalState } from './journal-state';
-import { type ReleaseRegistryBinding, type ReleaseRequest, type ReleaseState } from './release';
+import { type JournalProgress, parseJournalState } from './journal-state';
+import { type ReleaseRegistryBinding, type ReleaseRequest } from './release';
+import { assertReplayProgress } from './replay-receipt';
 
 /** Bumped when a stored field changes meaning; an older coordinator refuses a newer journal. */
 const JOURNAL_SCHEMA = 4;
+
+/** Historical pre-controller progress only; a current controller record cannot become dormant registry authority. */
+export type RegistryJournalProgress = JournalProgress & { controllers?: never };
 
 /** One write of the journal: the request it binds and the state it reached. */
 export interface RegistryJournalRecord {
@@ -18,7 +22,7 @@ export interface RegistryJournalRecord {
   registry?: ReleaseRegistryBinding | null;
   registryHistory?: RegistryHistory | null;
   request: ReleaseRequest;
-  state: ReleaseState;
+  state: RegistryJournalProgress;
   /** Every phase this journal has recorded, oldest first, with the time it was written. */
   history: readonly { phase: string; at: string }[];
 }
@@ -67,6 +71,11 @@ export function parseRegistryJournal(path: string, text: string): RegistryJourna
   }
   const progress = parseJournalState(path, parsed);
   const state = progress.state;
+  // Proof: omitting only controller-family refusal admits the injected controller record through registryFileJournal in the dormant journal family negative.
+  if (Object.hasOwn(state, 'controllers'))
+    throw new Error(`release journal ${path} has controller progress in a dormant registry family`);
+  // Proof: skipping disk replay validation returns corrupted progress in the resume refusal fixtures.
+  assertReplayProgress(state, progress.request);
   if (parsed['schemaVersion'] === JOURNAL_SCHEMA) {
     const binding = type.or('null', {
       registryId: 'string > 0',
@@ -93,7 +102,7 @@ export function parseRegistryJournal(path: string, text: string): RegistryJourna
     }
   } else if (parsed['registry'] !== undefined || parsed['registryHistory'] !== undefined)
     throw new Error(`legacy release journal ${path} cannot carry a registry binding`);
-  // Boundary: schema, binding and history plus shared request/state/replay fields were validated.
+  // Boundary: schema, binding/history, controller absence and shared request/state/replay fields were validated; original progress is retained verbatim.
   return parsed as unknown as RegistryJournalRecord;
 }
 

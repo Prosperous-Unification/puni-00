@@ -1,0 +1,64 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+483 |         (stores) => {
+484 |           observedStores = stores;
+485 |           return stores;
+486 |         },
+487 |       );
+488 |       expect({ outcome, changed: JSON.stringify(readTables()) !== JSON.stringify(before) }).toMatchObject({
+                                                                                                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "changed": false,
++   "changed": true,
+    "outcome": {
+-     "ok": false,
+-     "reason": "cycle",
++     "ok": true,
++     "stepNodeMapping": [
++       {
++         "from": "sn1.20ed619a-5cca-4a19-8eb2-ec9391283513.8e276f0e-0e60-40fe-a259-99804d910479",
++         "to": "sn1.661f4c7b-662b-4455-9cac-0420b701eefd.8e276f0e-0e60-40fe-a259-99804d910479",
++       },
++       {
++         "from": "sn1.20ed619a-5cca-4a19-8eb2-ec9391283513.cbbd9bc6-fa0b-4404-be9a-87a7eadb425e",
++         "to": "sn1.661f4c7b-662b-4455-9cac-0420b701eefd.cbbd9bc6-fa0b-4404-be9a-87a7eadb425e",
++       },
++     ],
++     "value": {
++       "deadline": null,
++       "factEnd": null,
++       "factStart": null,
++       "frozenNumber": null,
++       "hold": null,
++       "id": "661f4c7b-662b-4455-9cac-0420b701eefd",
++       "maxParallel": 1,
++       "name": "Returned graph finding must refuse",
++       "notes": "",
++       "parentId": "20ed619a-5cca-4a19-8eb2-ec9391283513",
++       "position": 10,
++       "priority": 50,
++       "projectId": "8f387a1c-7828-4352-b228-3686c6282b2b",
++       "readiness": null,
++       "revision": 0,
++       "serviceId": null,
++       "serviceTeamId": null,
++       "startNoEarlierThan": null,
++       "startNoEarlierThanReason": null,
++     },
+    },
+  }
+
+- Expected  - 3
++ Received  + 33
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:488:93)
+(fail) incident final graph result refuses cycle atomically with held announcements [1380.69ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 13 expect() calls
+Ran 1 test across 1 file. [13.29s]

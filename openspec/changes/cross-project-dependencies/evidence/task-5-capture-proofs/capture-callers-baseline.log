@@ -1,0 +1,79 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/import-performance.db.test.ts:
+154 |     const drizzleStatements = commitAt - beginAt + 1;
+155 |     // One project, bands, capacity, marker, team patch, person insert and subtree
+156 |     // transaction, then one label patch per row: 7 + 500 nested transactions.
+157 |     // Proof: omitting the native transaction observer reported 0 instead of 507,
+158 |     // hiding its 1,014 SAVEPOINT/RELEASE controls from the admitted total.
+159 |     expect(nativeTransactions).toBe(507);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 507
+Received: 508
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/import-performance.db.test.ts:159:32)
+(fail) measures preparation and admitted SQLite work separately for exactly 500 rows [373.07ms]
+
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:
+132 |     const before = connection.db
+133 |       .all<{ name: string }>('SELECT * FROM __drizzle_migrations')
+134 |       .filter(({ name }) => !newer.includes(name));
+135 |     expect(() => rollbackTo(path, folder, baseline)).toThrow(/step parallelism overrides exist/);
+136 |     expect(connection.db.all('SELECT * FROM step_parallel')).toHaveLength(1);
+137 |     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(before);
+                                                                          ^
+error: expect(received).toEqual(expected)
+
+@@ -522,13 +522,6 @@
+      "created_at": 1792062000000,
+      "hash": "60edd648330bc0505aa25c96e64daf1b12c938e96e04d78ce7c2f147af2a93b4",
+      "id": 75,
+      "name": "20261015110000_add_step_node_parallelism",
+    },
+-   {
+-     "applied_at": "2026-10-21T23:08:27.448Z",
+-     "created_at": 1792703400000,
+-     "hash": "318b66d6eb443b83a4c75c9297e6e67cb62c91ba691cbeb38fdf51b98757f07f",
+-     "id": 82,
+-     "name": "20261022211000_add_external_dependencies",
+-   },
+  ]
+
+- Expected  - 7
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:137:69)
+(fail) sparse parallelism SQL contract > down refuses retained facts and preserves table and applied ledger [90.01ms]
+135 |     expect(() => rollbackTo(path, folder, baseline)).toThrow(/step parallelism overrides exist/);
+136 |     expect(connection.db.all('SELECT * FROM step_parallel')).toHaveLength(1);
+137 |     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(before);
+138 |   });
+139 |   it('empty down and forward preserve existing work items', () => {
+140 |     expect(rollbackTo(path, folder, baseline)).toEqual([...newer, migration]);
+                                                     ^
+error: expect(received).toEqual(expected)
+
+  [
++   "20261022211000_add_external_dependencies",
+    "20261022210000_add_project_abbreviations",
+    "20261020130000_add_claim_occupancy",
+    "20261020120000_add_resources",
+    "20261019130100_add_external_identity_person",
+    "20261019130000_add_person_account",
+    "20261019120000_add_claim",
+    "20261015110000_add_step_node_parallelism",
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:140:48)
+(fail) sparse parallelism SQL contract > empty down and forward preserve existing work items [86.98ms]
+
+ 0 pass
+ 26 filtered out
+ 3 fail
+ 17 expect() calls
+Ran 3 tests across 2 files. [2.51s]

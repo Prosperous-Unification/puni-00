@@ -30,3 +30,13 @@
 - [ ] 4.2 Commit normally, freeze security-parent-to-integration-head package/report and obtain scoped local source acceptance before parent push; complete required hosted gate/infra/pixels/CodeQL on the exact published head before parent external merge; keep all runtime/native/provider/storage/physicalbackup/interop acceptance open.
 
 - [x] 4.3 After the normal clean local candidate commit, run only the exact11 formerly masked pilot cases on its actual HEAD/tree; retain all original assertions and nested ownership faults, record clean before/after, then submit the complete integration delta for scoped local source review. Later verification-only documentation may record that exact candidate without claiming it was retested.
+
+## 5. Current-main controller/CI integration
+
+- [ ] 5.1 Record intent/spec/design/tasks before codec changes; refresh exact main and preserve normal D-to-main81b merge ancestry. Resolve all sixteen named overlaps and compare main-only/feature-only identities against the manifest.
+- [x] 5.2 Preserve active main4 controllers, progress/UID/sticky Lease and four-argument takeover; use precise common historical progress/capture without controller defaults. Preserve replay body with only its exact five-field parameter type.
+- [x] 5.3 Add actual-reader positive/hybrid groups; observe active reserved-envelope and dormant controller hybrid admission when each boundary is omitted, restore, and record accurate adjacent Proof comments. Retain every old assertion and validation order.
+- [x] 5.4 Recheck current ADR allocation, then relocate only the three incoming registry ADRs and live exact references; preserve accepted main ADRs and historical evidence IDs.
+- [x] 5.5 Union exact dependencies/patch/lock/aliases/policies; run Bun1.4.4 frozen install and verify unchanged union lock, S3 identity and actual patched resolved Ark0.56.2.
+- [x] 5.6 Run the finite CI/remote/K8s/classification and workspace inventory/Compose cohorts, owning checks and required source checks; restore exact typed-project routing for the known historical evidence script after the actual normal-hook refusal, retaining typed-rule and sibling negatives; preserve distinct historical receipts, main-only paths and D-only paths outside named repairs.
+- [ ] 5.7 Form normal clean combined candidate and frozen D-to-combined resolution/report package before exact11 pilot, five actual docs-target cases and index/link positives. Record actual HEAD/tree and clean before/after; parent scoped appendix and final published-head hosted gates remain required.

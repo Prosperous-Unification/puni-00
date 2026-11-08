@@ -1,0 +1,13 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts:
+(pass) combined coordinator retains solver tmpfs and source members throughout awaited protected work [3387.15ms]
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+(pass) source mount order may vary on successive complete inventory observations [139.03ms]
+
+ 2 pass
+ 94 filtered out
+ 0 fail
+ 1804 expect() calls
+Ran 2 tests across 2 files. [3.59s]

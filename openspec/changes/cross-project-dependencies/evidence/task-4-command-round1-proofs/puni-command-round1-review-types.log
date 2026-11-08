@@ -1,0 +1,15 @@
+[
+  {
+    name: "backend",
+    exitCode: 0,
+  }, {
+    name: "core",
+    exitCode: 0,
+  }, {
+    name: "work-item-module",
+    exitCode: 0,
+  }, {
+    name: "plan-commands-module",
+    exitCode: 0,
+  }
+]

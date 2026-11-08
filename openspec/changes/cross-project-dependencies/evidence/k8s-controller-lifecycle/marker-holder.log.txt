@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lease.test.ts:
+142 |       const effects = cluster.adapter();
+143 |       await effects.createLease(cluster.holder, cluster.journal.path);
+144 |       writeFileSync(cluster.faults, JSON.stringify(fault));
+145 |       await expect(effects.requireJournal(cluster.holder)).rejects.toThrow();
+146 |       if (fault !== 'ABA')
+147 |         expect(cluster.read().metadata.annotations['puni.dev/journal-required']).toBe('false');
+                                                                                       ^
+error: expect(received).toBe(expected)
+
+Expected: "false"
+Received: "true"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lease.test.ts:147:82)
+(fail) real Lease marker refuses holder race or uncertainty [100.12ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [153.00ms]

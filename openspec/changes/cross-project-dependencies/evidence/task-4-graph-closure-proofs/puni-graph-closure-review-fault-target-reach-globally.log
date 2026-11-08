@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1485 |         optimistic: 1,
+1486 |         realistic: 1,
+1487 |         pessimistic: 1,
+1488 |       }),
+1489 |     ),
+1490 |   ).toMatchObject({ ok: true });
+           ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "ok": false,
++   "reason": "cycle",
+  }
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-graph-closure-review-tree/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1490:5)
+(fail) admitted remote legacy anchors retain their own reach when the owner uses whole-item reach [435.36ms]
+
+ 0 pass
+ 87 filtered out
+ 1 fail
+ 24 expect() calls
+Ran 1 test across 1 file. [3.12s]

@@ -27,6 +27,8 @@ const MODULE_ROOTS = [
  */
 const UNSEALED: readonly string[] = [
   'module.frontend.calendar-markers',
+  // Proof (2026-10-22): omitting dependency-lookup failed sealing with its missing module.ts.
+  'module.frontend.dependency-lookup',
   'module.frontend.directory',
   'module.frontend.plan-commands',
   'module.frontend.plan-feed',
@@ -315,6 +317,7 @@ test('indexes every module under the identifier its location implies', async () 
     // Proof (2026-09-27): Plan feed's README naming `module.frontend.plan-feeds` failed it with
     // `…/modules/plan-feed: README names module.frontend.plan-feeds`, and deleting its index
     // line with `…/plan-feed/README.md holds 0 HTML comments, expected 1` (4 pass, 1 fail each).
+    // Proof (2026-10-22): the missing dependency-lookup README failed this read with ENOENT.
     if (indexed !== moduleId) mismatches.push(`${directory}: README names ${indexed}`);
   }
 
@@ -372,6 +375,7 @@ test('registers every module in the pilot under that identifier', async () => {
   // the same test here, the received list gaining `module.application.capacity` (4 pass, 1 fail).
   // Every module registers: one created after the pilot's frozen `sourceRevision` names a
   // `creationRevision` instead of a predecessor.
+  // Proof (2026-10-22): omitting dependency-lookup's row and boundary named that module here.
   expect(unregistered).toEqual([]);
 });
 

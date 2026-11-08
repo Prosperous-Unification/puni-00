@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+626 |       },
+627 |     );
+628 |     try {
+629 |       const captured = await graph.workItems.optimizationCaptureWithin('a1', access);
+630 |       expect(captured.kind).toBe('scheduled');
+631 |       if (captured.kind !== 'scheduled' || captured.input.kind !== 'connected')
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "scheduled"
+Received: "unavailable"
+
+      at <anonymous> (/tmp/puni-optimizer-capture/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:631:29)
+(fail) isolated private connected capture returns detached stage without admission [191.03ms]
+626 |       },
+627 |     );
+628 |     try {
+629 |       const captured = await graph.workItems.optimizationCaptureWithin('a1', access);
+630 |       expect(captured.kind).toBe('scheduled');
+631 |       if (captured.kind !== 'scheduled' || captured.input.kind !== 'connected')
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "scheduled"
+Received: "unavailable"
+
+      at <anonymous> (/tmp/puni-optimizer-capture/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:631:29)
+(fail) shared private connected capture returns detached stage without admission [128.57ms]
+
+ 0 pass
+ 22 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [2.71s]

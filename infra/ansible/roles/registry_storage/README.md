@@ -49,7 +49,7 @@ captured `contents/`. It shares the bounded filesystem and whole-volume capacity
 accounting, preserving canonical replacement/failure headroom. Provisioning
 convergence never resets established effect consumption if its state, lock or
 whole directory disappears. Runtime absence refuses; restoring captured contents
-does not repair this authority. See [ADR 0060](../../../../docs/adr/0060-registry-backup-consumption-survives-content-restore.md)
+does not repair this authority. See [ADR 0078](../../../../docs/adr/0078-registry-backup-consumption-survives-content-restore.md)
 and the [staged worker contract](../../../systemd/registry-backup/README.md#durable-effect-consumption-staged).
 Production physical admission and installed worker-access proofs remain incomplete.
 

@@ -1,0 +1,39 @@
+import { createHash } from 'node:crypto';
+const root = '/tmp/puni-cross-graph-closure';
+const testPath = './apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts';
+const work = 'libs/wbs/application/core/src/module/work-item/work-item.resource.ts';
+const typedBefore = `const cycle = await context.graph.findCycle(projectId, {
+          typed: [...existing.filter((row) => row.id !== proposed.id), proposed],
+        });`;
+const faults = [
+  {name:'distinct-cycle', path:work, before:typedBefore, after:'const cycle = null;', selected:'admitted distinct tasks', classification:'semantic acceptance: local closing link bypasses actual remote cycle'},
+  {name:'batch-cycle', path:work, before:typedBefore, after:'const cycle = null;', selected:'admitted batch rolls back', classification:'semantic acceptance: later graph-invalid command succeeds after staged external write'},
+  {name:'move-cycle', path:work, before:'const cycle = await context.graph.findCycle(projectId, change);', after:'const cycle = null;', selected:'admitted subtree move', classification:'semantic acceptance: move commits an actual remote cycle'},
+  {name:'estimate-cycle', path:work, before:'const cycle = await context.graph.findCycle(projectId, change);', after:'const cycle = null;', selected:'admitted clear-estimate', classification:'semantic acceptance: clear-estimate commits an actual remote cycle'},
+  {name:'reach-cycle', path:'libs/wbs/application/core/src/module/project/project.resource.ts', before:"if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };", after:"if (false) return { ok: false, reason: 'dependency_cycle' };", selected:'admitted project-reach', classification:'semantic acceptance: changed reach commits an actual remote cycle'},
+  {name:'step-remove-cycle', path:'libs/wbs/application/core/src/module/step/step.resource.ts', before:'(await dependencyContext.graph.findCycle(projectId, { withoutStepId: stepId })) !== null', after:'false', selected:'admitted step-remove', classification:'semantic acceptance: step removal commits an actual remote cycle'},
+  {name:'omit-expanded-pair', path:'libs/wbs/domain/domain/src/slice-edges.ts', before:'return before.flatMap((predecessor) =>', after:'return before.slice(0, 1).flatMap((predecessor) =>', selected:'admitted remote scopes', classification:'semantic acceptance: one of four real expanded pairs no longer closes cycle'},
+];
+const sha = (bytes: string) => createHash('sha256').update(bytes).digest('hex');
+const records = [];
+for (const fault of faults) {
+ const path = `${root}/${fault.path}`;
+ const original = await Bun.file(path).text();
+ if(original.split(fault.before).length !== 2) throw new Error(`ambiguous fault ${fault.name}`);
+ let status:number;
+ let output:string;
+ try {
+  await Bun.write(path, original.replace(fault.before, fault.after));
+  const child = Bun.spawn(['bun','test',testPath,'-t',fault.selected], {cwd:root,stdout:'pipe',stderr:'pipe'});
+  const chunks = await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(), child.exited]);
+  output = chunks[0]+'\n'+chunks[1]; status = chunks[2];
+  await Bun.write(`/tmp/puni-graph-closure-fault-${fault.name}.log`, output);
+ } finally { await Bun.write(path,original); }
+ const restored = await Bun.file(path).text();
+ if(sha(original)!==sha(restored)) throw new Error(`restore failed ${fault.name}`);
+ const selectedAssertionFailed = output.includes(`(fail) ${fault.selected}`) && output.includes('expect(received).toMatchObject(expected)');
+ records.push({...fault, status, selectedAssertionFailed, beforeSha256:sha(original),restoredSha256:sha(restored)});
+ await Bun.write('/tmp/puni-graph-closure-proofs.json', JSON.stringify(records,null,2)+'\n');
+ console.log(fault.name,status,selectedAssertionFailed);
+ if(status===0 || !selectedAssertionFailed) throw new Error(`selected assertion not proven ${fault.name}`);
+}

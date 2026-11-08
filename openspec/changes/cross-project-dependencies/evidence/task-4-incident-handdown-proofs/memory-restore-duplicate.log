@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts:
+135 | });
+136 |
+137 | it('incident restoration refuses a reused identity without duplicating its row',async()=>{
+138 |  const store=inMemoryTypedDependencies();const original=link('incident','parent','peer');
+139 |  await store.add(original,stamp);const receipt=await store.incidents.capture(original.id);
+140 |  expect(await refuses(()=>store.incidents.restore(receipt,original,stamp))).toBe(true);
+                                                                                  ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts:140:77)
+(fail) incident restoration refuses a reused identity without duplicating its row [0.54ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [114.00ms]

@@ -1,0 +1,28 @@
+bun test tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000 -t paused actual startup
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:
+167 |         expect(await Bun.file(`${directory}/protected`).text()).toBe('after exit');
+168 |         throw new Error('interrupted owner');
+169 |       },
+170 |       directory,
+171 |     ).catch((cause: unknown) => {
+172 |       expect(String(cause)).toContain('interrupted owner');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "interrupted owner"
+Received: "Error: expect(received).toBe(expected)\n\nExpected: true\nReceived: false\n"
+
+      at <anonymous> (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:172:29)
+(fail) paused actual startup excludes protected owner callback until prior process exits [55.11ms]
+
+tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts:
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 2 files. [112.00ms]
+
+exit 1

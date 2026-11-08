@@ -1,6 +1,7 @@
 import type {
   NewProject,
   Project,
+  ProjectCreationRefusal,
   ProjectCrossReference,
   ProjectPatch,
   ProjectStore,
@@ -23,6 +24,7 @@ import {
   ORGANIZATION_ROLES,
   type OrganizationRole,
   PertWeights,
+  suggestProjectAbbreviationCandidates,
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
 import { and, desc, eq, inArray, ne, or, type SQL, sql } from 'drizzle-orm';
@@ -34,8 +36,15 @@ import {
   auditOnUpdate,
   withoutAuditColumns,
 } from './audit';
+import { isUniqueViolation, messagesOf, UNIQUE_INDEXES } from './constraint';
 import type { Gate } from './gate';
 import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optimizer-rows';
+import { capStoredRole } from './organization-access';
+import {
+  decodeProjectAbbreviation,
+  readProjectAbbreviation,
+  writeProjectAbbreviation,
+} from './project-abbreviation';
 import { bumpedProject, bumpProject } from './revision';
 import {
   optimizationGeneration,
@@ -43,6 +52,7 @@ import {
   organizationMembership,
   planEvent,
   project,
+  projectAbbreviation,
   projectAccess,
   projectOrganization,
   projectSolution,
@@ -173,15 +183,28 @@ interface ProjectColumns {
 }
 
 /** A project read beside its `project_solution` link, if it has one. */
-const WITH_SOLUTION = { project, solution: projectSolution };
+const WITH_SOLUTION = {
+  project,
+  solution: projectSolution,
+  address: projectAbbreviation,
+  organization: projectOrganization,
+};
 
 /** A row read through {@link WITH_SOLUTION}, decoded. */
 function fromJoined(row: {
   project: typeof project.$inferSelect;
   solution: typeof projectSolution.$inferSelect | null;
+  address: typeof projectAbbreviation.$inferSelect | null;
+  organization: typeof projectOrganization.$inferSelect | null;
 }) {
+  const address = decodeProjectAbbreviation({
+    projectId: row.project.id,
+    abbreviation: row.address?.abbreviation ?? null,
+    namespace: row.address?.namespace ?? null,
+    organizationId: row.organization?.organizationId ?? null,
+  });
   return toProject(
-    row.project,
+    { ...row.project, abbreviation: address.abbreviation },
     row.solution === null ? null : { slug: row.solution.slug, url: row.solution.url },
   );
 }
@@ -378,7 +401,7 @@ export class ProjectRepository implements ProjectStore {
     toCreate: NewProject,
     startingSteps: readonly Step[],
     stamp: WriteStamp,
-  ): Promise<Project> {
+  ): Promise<Project | ProjectCreationRefusal> {
     return await this.insert(toCreate, startingSteps, stamp, null);
   }
 
@@ -399,7 +422,7 @@ export class ProjectRepository implements ProjectStore {
     startingSteps: readonly Step[],
     stamp: WriteStamp,
     organizationId: string,
-  ): Promise<Project> {
+  ): Promise<Project | ProjectCreationRefusal> {
     return await this.insert(toCreate, startingSteps, stamp, organizationId);
   }
 
@@ -408,7 +431,7 @@ export class ProjectRepository implements ProjectStore {
     startingSteps: readonly Step[],
     stamp: WriteStamp,
     organizationId: string | null,
-  ): Promise<Project> {
+  ): Promise<Project | ProjectCreationRefusal> {
     return await this.gate.enter(async () => {
       await Promise.resolve();
       // Stated here rather than left to the column defaults, because this method
@@ -423,33 +446,80 @@ export class ProjectRepository implements ProjectStore {
         // same reason as the three above.
         budgetFactor: toCreate.budgetFactor ?? 1,
       };
-      const written: Project = { ...toCreate, ...settings };
-      this.db.transaction((tx) => {
-        const { solutionRef, pertWeights, ...fields } = written;
-        tx.insert(project)
-          .values({
-            ...fields,
-            ...weightColumns(pertWeights),
-            // A scoped project's link lives in `project_solution`, unique
-            // within its organization. Only a legacy one uses these columns.
-            solutionSlug: organizationId === null ? (solutionRef?.slug ?? null) : null,
-            solutionUrl: organizationId === null ? (solutionRef?.url ?? null) : null,
-            ...auditOnCreateBesidesCreatedAt(stamp),
-          })
-          .run();
-        if (organizationId !== null) {
-          tx.insert(projectOrganization).values({ resourceId: written.id, organizationId }).run();
-          if (solutionRef !== null)
-            tx.insert(projectSolution)
-              .values({ projectId: written.id, organizationId, ...solutionRef })
+      const written = { ...toCreate, ...settings };
+      try {
+        return this.db.transaction(
+          (tx) => {
+            const { abbreviation, solutionRef, pertWeights, ...fields } = written;
+            tx.insert(project)
+              .values({
+                ...fields,
+                ...weightColumns(pertWeights),
+                // A scoped project's link lives in `project_solution`, unique
+                // within its organization. Only a legacy one uses these columns.
+                solutionSlug: organizationId === null ? (solutionRef?.slug ?? null) : null,
+                solutionUrl: organizationId === null ? (solutionRef?.url ?? null) : null,
+                ...auditOnCreateBesidesCreatedAt(stamp),
+              })
               .run();
-        }
-        if (startingSteps.length > 0)
-          tx.insert(step)
-            .values(startingSteps.map((starting) => ({ ...starting, ...auditOnCreate(stamp) })))
-            .run();
-      });
-      return written;
+            if (organizationId !== null) {
+              tx.insert(projectOrganization)
+                .values({ resourceId: written.id, organizationId })
+                .run();
+              if (solutionRef !== null)
+                tx.insert(projectSolution)
+                  .values({ projectId: written.id, organizationId, ...solutionRef })
+                  .run();
+            }
+            const address = readProjectAbbreviation(tx, written.id);
+            if (address === undefined) throw new Error(`created project ${written.id} vanished`);
+            const occupied = new Set(
+              tx
+                .select({ abbreviation: projectAbbreviation.abbreviation })
+                .from(projectAbbreviation)
+                .where(
+                  and(
+                    eq(projectAbbreviation.namespace, address.namespace),
+                    ne(projectAbbreviation.projectId, written.id),
+                  ),
+                )
+                .all()
+                .map((row) => row.abbreviation),
+            );
+            const selected =
+              abbreviation ??
+              suggestProjectAbbreviationCandidates(written.name).find(
+                (candidate) => !occupied.has(candidate),
+              );
+            if (selected === undefined) throw new AbbreviationExhausted();
+            writeProjectAbbreviation(tx, written.id, selected);
+            if (startingSteps.length > 0)
+              tx.insert(step)
+                .values(startingSteps.map((starting) => ({ ...starting, ...auditOnCreate(stamp) })))
+                .run();
+            const reread = tx
+              .select(WITH_SOLUTION)
+              .from(project)
+              .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
+              .leftJoin(projectOrganization, eq(projectOrganization.resourceId, project.id))
+              .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
+              .where(eq(project.id, written.id))
+              .get();
+            if (reread === undefined) throw new Error(`created project ${written.id} vanished`);
+            return fromJoined(reread);
+          },
+          { behavior: 'immediate' },
+        );
+      } catch (refused) {
+        if (
+          refused instanceof AbbreviationExhausted ||
+          messagesOf(refused).some((message) => message === 'project abbreviation exhausted')
+        )
+          return 'abbreviation_exhausted';
+        if (isUniqueViolation(refused, UNIQUE_INDEXES.projectAbbreviation))
+          return 'abbreviation_taken';
+        throw refused;
+      }
     });
   }
 
@@ -457,6 +527,8 @@ export class ProjectRepository implements ProjectStore {
     const rows = await this.db
       .select(WITH_SOLUTION)
       .from(project)
+      .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
+      .leftJoin(projectOrganization, eq(projectOrganization.resourceId, project.id))
       .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
       .where(eq(project.id, id))
       .limit(1);
@@ -473,10 +545,12 @@ export class ProjectRepository implements ProjectStore {
    * `project-organization.controller.db.test.ts` answer the foreign project with
    * 200; watched 2026-09-27.
    */
+  // Proof: removing the organization predicate made mounted `foreign organization cannot edit code` receive 403 instead of 404 (2026-10-22).
   async findInOrganization(id: string, organizationId: string): Promise<Project | null> {
     const rows = await this.db
       .select(WITH_SOLUTION)
       .from(project)
+      .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
       .innerJoin(
         projectOrganization,
         and(
@@ -698,6 +772,8 @@ export class ProjectRepository implements ProjectStore {
     const rows = await this.db
       .select(WITH_SOLUTION)
       .from(project)
+      .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
+      .leftJoin(projectOrganization, eq(projectOrganization.resourceId, project.id))
       .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
       .where(eq(project.solutionSlug, slug))
       .limit(1);
@@ -718,6 +794,7 @@ export class ProjectRepository implements ProjectStore {
     const rows = await this.db
       .select(WITH_SOLUTION)
       .from(project)
+      .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
       .innerJoin(
         projectOrganization,
         and(
@@ -746,6 +823,8 @@ export class ProjectRepository implements ProjectStore {
     const rows = await this.db
       .select(WITH_SOLUTION)
       .from(project)
+      .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
+      .leftJoin(projectOrganization, eq(projectOrganization.resourceId, project.id))
       .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
       .orderBy(desc(project.createdAt));
     return rows.map(fromJoined);
@@ -803,6 +882,9 @@ export class ProjectRepository implements ProjectStore {
     const rows = await this.db
       .select({
         id: project.id,
+        abbreviation: projectAbbreviation.abbreviation,
+        namespace: projectAbbreviation.namespace,
+        organizationId: projectOrganization.organizationId,
         name: project.name,
         ownerId: project.ownerId,
         restricted: project.restricted,
@@ -843,6 +925,8 @@ export class ProjectRepository implements ProjectStore {
             WHERE ${planEvent.projectId} = ${project.id}))`,
       })
       .from(project)
+      .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
+      .leftJoin(projectOrganization, eq(projectOrganization.resourceId, project.id))
       .leftJoin(
         projectAccess,
         and(eq(projectAccess.projectId, project.id), eq(projectAccess.userId, userId)),
@@ -861,10 +945,23 @@ export class ProjectRepository implements ProjectStore {
             ),
       )
       .orderBy(desc(projectAccess.lastOpenedAt), desc(project.createdAt));
-    return rows.map(({ scopedSlug, scopedUrl, updateInstant, ...row }) => ({
-      ...toProject(withOwnerName(row), scopedSolution(scopedSlug, scopedUrl)),
-      updatedAt: storedInstant(updateInstant, row.name),
-    }));
+    return rows.map(
+      ({ scopedSlug, scopedUrl, updateInstant, namespace, organizationId, ...row }) => ({
+        ...toProject(
+          withOwnerName({
+            ...row,
+            abbreviation: decodeProjectAbbreviation({
+              projectId: row.id,
+              abbreviation: row.abbreviation,
+              namespace,
+              organizationId,
+            }).abbreviation,
+          }),
+          scopedSolution(scopedSlug, scopedUrl),
+        ),
+        updatedAt: storedInstant(updateInstant, row.name),
+      }),
+    );
   }
 
   /**
@@ -932,8 +1029,18 @@ export class ProjectRepository implements ProjectStore {
     });
   }
 
-  async update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null> {
-    return await this.write(id, patch, stamp, null);
+  async update(
+    id: string,
+    patch: ProjectPatch,
+    stamp: WriteStamp,
+  ): Promise<Project | null | 'abbreviation_taken'> {
+    try {
+      return await this.write(id, patch, stamp, null);
+    } catch (refused) {
+      if (isUniqueViolation(refused, UNIQUE_INDEXES.projectAbbreviation))
+        return 'abbreviation_taken';
+      throw refused;
+    }
   }
 
   /**
@@ -961,14 +1068,17 @@ export class ProjectRepository implements ProjectStore {
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string,
-    editor: { readonly actorId: string; readonly auditId: string },
-  ): Promise<Project | null | 'forbidden' | 'solution_taken'> {
+    editor: { readonly actorId: string; readonly auditId: string; readonly role: OrganizationRole },
+  ): Promise<Project | null | 'forbidden' | 'solution_taken' | 'abbreviation_taken'> {
     try {
       return await this.write(id, patch, stamp, organizationId, editor);
     } catch (refused) {
       // The modeled refusals, raised inside the transaction so it rolls back.
       if (refused instanceof EditRefused) return 'forbidden';
       if (refused instanceof SolutionTaken) return 'solution_taken';
+      // Proof: bypassing this translation made mounted `duplicate manual edit is a typed conflict` return 500 instead of 409 (2026-10-22).
+      if (isUniqueViolation(refused, UNIQUE_INDEXES.projectAbbreviation))
+        return 'abbreviation_taken';
       throw refused;
     }
   }
@@ -992,6 +1102,7 @@ export class ProjectRepository implements ProjectStore {
     organizationId: string,
     actorId: string,
     detail: RecoveryAuditDetail,
+    role: OrganizationRole,
   ): Promise<'ordinary' | 'recovery' | 'forbidden' | null> {
     const addressed = and(
       eq(project.id, projectId),
@@ -1006,7 +1117,7 @@ export class ProjectRepository implements ProjectStore {
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction((tx) => {
-        const classified = classifyWithin(tx, addressed, organizationId, actorId);
+        const classified = classifyWithin(tx, addressed, organizationId, actorId, role);
         if (classified === null) return null;
         if (classified === 'refused') return 'forbidden';
         if (classified === 'recovery') {
@@ -1029,7 +1140,11 @@ export class ProjectRepository implements ProjectStore {
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string | null,
-    editor: { readonly auditId: string; readonly actorId: string } | null = null,
+    editor: {
+      readonly auditId: string;
+      readonly actorId: string;
+      readonly role: OrganizationRole;
+    } | null = null,
   ): Promise<Project | null> {
     const addressed =
       organizationId === null
@@ -1056,7 +1171,7 @@ export class ProjectRepository implements ProjectStore {
           ? this.findById(id)
           : this.findInOrganization(id, organizationId);
       }
-      const { solutionRef, pertWeights, ...fields } = patch;
+      const { abbreviation, solutionRef, pertWeights, ...fields } = patch;
       // The bump rides in the same `SET` as the change it describes, so a patch
       // that lands without moving the revision is not a state this can reach.
       const updates = {
@@ -1085,12 +1200,38 @@ export class ProjectRepository implements ProjectStore {
         (tx) => {
           let edit: 'ordinary' | 'recovery' = 'ordinary';
           if (editor !== null && organizationId !== null) {
-            const classified = classifyWithin(tx, addressed, organizationId, editor.actorId);
+            const classified = classifyWithin(
+              tx,
+              addressed,
+              organizationId,
+              editor.actorId,
+              editor.role,
+            );
             // Not the organization's (any more): null, as for an absent project,
             // before any permission is judged.
             if (classified === null) return null;
             if (classified === 'refused') throw new EditRefused();
             edit = classified;
+          }
+          if (abbreviation !== undefined) {
+            const current = readProjectAbbreviation(tx, id);
+            if (current === undefined) return null;
+            if (
+              abbreviation === current.abbreviation &&
+              Object.entries(patch).every(
+                ([key, value]) => key === 'abbreviation' || value === undefined,
+              )
+            ) {
+              const reread = tx
+                .select(WITH_SOLUTION)
+                .from(project)
+                .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
+                .leftJoin(projectOrganization, eq(projectOrganization.resourceId, project.id))
+                .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
+                .where(addressed)
+                .get();
+              return reread === undefined ? null : fromJoined(reread);
+            }
           }
           // After authorization, so only a writer learns that a slug is in use,
           // and only among its own organization's projects. The write lock is
@@ -1140,6 +1281,7 @@ export class ProjectRepository implements ProjectStore {
                   .at(0)
               : undefined;
           const turnedOff = updated !== undefined;
+          // Proof: removing auditOnUpdate here made mounted `abbreviation-only edits stamp the parent project audit and revision` retain updated_at=1 (2026-10-22).
           updated ??= tx
             .update(project)
             .set({ ...updates, ...auditOnUpdate(stamp) })
@@ -1148,6 +1290,7 @@ export class ProjectRepository implements ProjectStore {
             .all()
             .at(0);
           if (updated === undefined) return null;
+          if (abbreviation !== undefined) writeProjectAbbreviation(tx, id, abbreviation);
           if (organizationId !== null && solutionRef !== undefined) {
             tx.delete(projectSolution).where(eq(projectSolution.projectId, id)).run();
             if (solutionRef !== null)
@@ -1193,6 +1336,8 @@ export class ProjectRepository implements ProjectStore {
           const reread = tx
             .select(WITH_SOLUTION)
             .from(project)
+            .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
+            .leftJoin(projectOrganization, eq(projectOrganization.resourceId, project.id))
             .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
             .where(eq(project.id, id))
             .get();
@@ -1329,6 +1474,7 @@ export function classifyProjectWriteIn(
   projectId: string,
   organizationId: string,
   actorId: string,
+  role: OrganizationRole,
 ): 'ordinary' | 'recovery' | 'refused' | null {
   // Proof: dropping the organization predicate made the store-path foreign
   // Retry answer forbidden instead of not_found; watched 2026-09-28.
@@ -1346,12 +1492,14 @@ export function classifyProjectWriteIn(
     ),
     organizationId,
     actorId,
+    role,
   );
 }
 
 /**
  * `actorId`'s write to the project `addressed` selects, classified from the
- * membership and project as `tx` reads them (see `classifyProjectEdit`):
+ * membership and project as `tx` reads them, capped by the authenticated `role`
+ * (see `classifyProjectEdit`):
  * null when the organization does not own the project.
  */
 function classifyWithin(
@@ -1359,6 +1507,7 @@ function classifyWithin(
   addressed: SQL | undefined,
   organizationId: string,
   actorId: string,
+  role: OrganizationRole,
 ): 'ordinary' | 'recovery' | 'refused' | null {
   const current = tx
     .select({ restricted: project.restricted, ownerId: project.ownerId })
@@ -1380,7 +1529,7 @@ function classifyWithin(
   return classifyProjectEdit(current, {
     organizationId,
     userId: actorId,
-    role: storedRole(membership.role, organizationId),
+    role: capStoredRole(storedRole(membership.role, organizationId), role),
   });
 }
 
@@ -1440,3 +1589,6 @@ function storedRole(role: string, organizationId: string): OrganizationRole {
   // Narrowed by the membership test above, which is the boundary this is.
   return role as OrganizationRole;
 }
+
+/** Rolls back creation when its bounded name family has no available address. */
+class AbbreviationExhausted extends Error {}

@@ -11,6 +11,7 @@ export function projectRegistrations(open: OpenCase<'projects'>): readonly CaseR
       const project = {
         id: 'project-created',
         name: 'Created project',
+        abbreviation: 'CRE',
         ownerId: seed.ownerIds[0],
         restricted: true,
         estimateMethod: 'realistic',

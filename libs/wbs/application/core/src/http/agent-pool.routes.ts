@@ -279,7 +279,7 @@ export function agentPoolRoutes(
         // answered `removedPersons: 0`, the eight persons kept; watched
         // 2026-10-28.
         const removed = await runner.runDirectoryWithin(
-          principal.id,
+          principal,
           revoked.personIds.map((personId) => ({
             kind: 'deletePerson' as const,
             personId,

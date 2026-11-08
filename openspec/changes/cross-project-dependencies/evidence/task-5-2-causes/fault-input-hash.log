@@ -1,0 +1,104 @@
+Fault: libs/wbs/adapters/store-sqlite/src/fanout-capture.ts: scheduleInputHash(scheduleInputOfCaptured(captured)), -> 'injected constant schedule hash',
+Command: bun test ./apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts --timeout=10000 --test-name-pattern estimate|capacity
+Exit: 1
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts:
+121 |       };
+122 |
+123 |       expect(await mutate(cause)).toMatchObject({ status: 200 });
+124 |
+125 |       for (const project of [downstream, tail])
+126 |         expect(events(project.id)).toEqual([
+                                         ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "bce3fa66-295d-495f-ab92-9a63fa315cd2",
+-     "projectId": "28278212-d405-4244-9dbd-d8e97cf251d8",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-fanout-causes-52/apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts:126:36)
+(fail) estimate scheduling edit invalidates dependency readers with shared mode %s [440.40ms]
+121 |       };
+122 |
+123 |       expect(await mutate(cause)).toMatchObject({ status: 200 });
+124 |
+125 |       for (const project of [downstream, tail])
+126 |         expect(events(project.id)).toEqual([
+                                         ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "c710e219-a29a-4d97-b13a-721675aebcd4",
+-     "projectId": "80405033-a26e-4c56-b246-c53259e0bf35",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-fanout-causes-52/apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts:126:36)
+(fail) estimate scheduling edit invalidates dependency readers with shared mode %s [372.08ms]
+121 |       };
+122 |
+123 |       expect(await mutate(cause)).toMatchObject({ status: 200 });
+124 |
+125 |       for (const project of [downstream, tail])
+126 |         expect(events(project.id)).toEqual([
+                                         ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "8c7f4a6f-646b-4acd-8efa-c38b1ab4d36b",
+-     "projectId": "a1113221-7633-4741-af62-7783bc832d3d",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-fanout-causes-52/apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts:126:36)
+(fail) capacity scheduling edit invalidates dependency readers with shared mode %s [305.51ms]
+121 |       };
+122 |
+123 |       expect(await mutate(cause)).toMatchObject({ status: 200 });
+124 |
+125 |       for (const project of [downstream, tail])
+126 |         expect(events(project.id)).toEqual([
+                                         ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "23e2e9b5-4a6e-4009-8324-09db8923ac28",
+-     "projectId": "d96ea37b-5f8f-4967-9a2d-2c5b34313c20",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-fanout-causes-52/apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts:126:36)
+(fail) capacity scheduling edit invalidates dependency readers with shared mode %s [299.89ms]
+
+ 0 pass
+ 6 filtered out
+ 4 fail
+ 32 expect() calls
+Ran 4 tests across 1 file. [4.63s]

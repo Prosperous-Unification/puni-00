@@ -87,7 +87,7 @@ from typing import Any, Mapping, Sequence
 
 from ortools.sat.python import cp_model
 
-# The three term names, spelled exactly as `solver-wire.v4.json`'s
+# The three term names, spelled exactly as `solver-wire.v5.json`'s
 # `objectiveValues` spells them. Lowercase is derived rather than chosen: the
 # schema's own `$comment` records that `MAKESPAN`/`PRIORITY`/`MOVEMENT` in
 # design.md are mathematical names and these are the JSON keys.
@@ -98,7 +98,7 @@ MOVEMENT = "movement"
 TERMS: tuple[str, str, str] = (MAKESPAN, PRIORITY, MOVEMENT)
 
 # The lexicographic order each objective minimises, from the request's
-# `objective` enum. `solver-wire.v4.json`: "pri minimises (PRIORITY, MAKESPAN,
+# `objective` enum. `solver-wire.v5.json`: "pri minimises (PRIORITY, MAKESPAN,
 # MOVEMENT) lexicographically; time minimises (MAKESPAN, PRIORITY, MOVEMENT)".
 # MOVEMENT is last in both, which is why it is a tie-breaker and never a driver.
 STAGE_ORDER: Mapping[str, tuple[str, str, str]] = {
@@ -153,7 +153,11 @@ def build_model(request: Mapping[str, Any]) -> BuiltModel:
     slices: Sequence[Mapping[str, Any]] = request["slices"]
     horizon: int = request["horizonUnits"]
     pools: Mapping[str, int] = request["pools"]
-    baseline: Mapping[str, int] = request["baselineOffsets"]
+    baseline: Mapping[str, int] = (
+        request["movementReferenceOffsets"]
+        if request["scope"]["kind"] == "connected-stage"
+        else request["baselineOffsets"]
+    )
 
     keys = tuple(str(s["key"]) for s in slices)
     starts: dict[str, cp_model.IntVar] = {}
@@ -220,6 +224,20 @@ def build_model(request: Mapping[str, Any]) -> BuiltModel:
             model.add(starts[successor] >= starts[predecessor] + edge["startWeightUnits"])
         else:  # pragma: no cover - validate_request rejects unsupported types
             raise ValueError(f"unsupported dependency type {edge_type!r}")
+
+    # The fixed foreign endpoint is already normalised by Bun into a signed
+    # inclusive start bound. A negative maximum is a valid empty domain.
+    for boundary in request["scope"].get("boundaries", []):
+        local_start = starts[str(boundary["localKey"])]
+        if boundary["direction"] == "incoming":
+            # Proof: replacing this inequality with start >= 0 made all three
+            # type cases choose 0 below 10 and missed the empty window;
+            # configured Nx suite observed 8 failures among 269 tests.
+            model.add(local_start >= int(boundary["minimumStartUnits"]))
+        else:
+            # Proof: replacing this inequality with start <= horizon admitted
+            # every type's 10 > 9 placement; Nx observed 5/269 failures.
+            model.add(local_start <= int(boundary["maximumStartUnits"]))
 
     # Clause 4. One cumulative per pool, over the members that name it. A pool
     # nobody references is absent from this loop and constrains nothing, which

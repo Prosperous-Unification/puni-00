@@ -1,0 +1,3 @@
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts 818ms
+libs/wbs/application/core/src/service/incident-node-transition.ts 62ms (unchanged)
+openspec/changes/cross-project-dependencies/evidence/task-4-incident-handdown-proofs/mutation-summary-7.json 7ms (unchanged)

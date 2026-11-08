@@ -1,0 +1,40 @@
+Fault: independently inject live captureAndAttempt into saved compare after the persisted SS→FS relationship edit; mounted HTTP executes before direct service observations.
+
+bun test v1.4.2 (744846f84)
+
+src/http/elysia/saved-plan-connected-lifecycle.db.test.ts:
+20 | // Proof: routing saved read or saved/saved comparison through capture makes the
+21 | // post-save SS→FS edit cases fail through mounted HTTP before direct service reads
+22 | // at this injected live capability in both modes
+23 | // (read-live-after-relationship-edit.log and compare-live-after-relationship-edit.log).
+24 | const refuseLive = (): never => {
+25 |   throw new Error('historical inspection attempted a live capability');
+                 ^
+error: historical inspection attempted a live capability
+      at refuseLive (/tmp/puni-task83-external-edit/apps/wbs/be-01/src/http/elysia/saved-plan-connected-lifecycle.db.test.ts:25:13)
+      at captureAndAttempt (/tmp/puni-task83-external-edit/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:649:34)
+      at compare (/tmp/puni-task83-external-edit/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:351:16)
+      at callSavedPlan (/tmp/puni-task83-external-edit/libs/wbs/application/core/src/http/saved-plan.routes.ts:68:37)
+      at <anonymous> (/tmp/puni-task83-external-edit/libs/wbs/application/core/src/http/saved-plan.routes.ts:234:26)
+(fail) real isolated connected saves retain SS history after a persisted FS edit and foreign deletion [455.20ms]
+20 | // Proof: routing saved read or saved/saved comparison through capture makes the
+21 | // post-save SS→FS edit cases fail through mounted HTTP before direct service reads
+22 | // at this injected live capability in both modes
+23 | // (read-live-after-relationship-edit.log and compare-live-after-relationship-edit.log).
+24 | const refuseLive = (): never => {
+25 |   throw new Error('historical inspection attempted a live capability');
+                 ^
+error: historical inspection attempted a live capability
+      at refuseLive (/tmp/puni-task83-external-edit/apps/wbs/be-01/src/http/elysia/saved-plan-connected-lifecycle.db.test.ts:25:13)
+      at captureAndAttempt (/tmp/puni-task83-external-edit/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:649:34)
+      at compare (/tmp/puni-task83-external-edit/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts:351:16)
+      at callSavedPlan (/tmp/puni-task83-external-edit/libs/wbs/application/core/src/http/saved-plan.routes.ts:68:37)
+      at <anonymous> (/tmp/puni-task83-external-edit/libs/wbs/application/core/src/http/saved-plan.routes.ts:234:26)
+(fail) real shared connected saves retain SS history after a persisted FS edit and foreign deletion [378.94ms]
+
+ 0 pass
+ 2 fail
+ 14 expect() calls
+Ran 2 tests across 1 file. [3.90s]
+
+Observed exit: 1

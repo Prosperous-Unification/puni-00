@@ -1,0 +1,23 @@
+[
+  {
+    "fault": "captured scheduling hash omission",
+    "path": "libs/wbs/adapters/store-sqlite/src/fanout-capture.ts",
+    "before": "scheduleInputHash(scheduleInputOfCaptured(captured)),",
+    "after": "'injected-constant-hash',",
+    "exit": 1
+  },
+  {
+    "fault": "live socket invalidate suppression",
+    "path": "apps/wbs/fe-01/src/modules/plan-feed/plan-feed.resource.ts",
+    "before": "else void owner.invalidate({ resources: resourcesFor(changed), seq });",
+    "after": "else void Promise.resolve();",
+    "exit": 1
+  },
+  {
+    "fault": "retain initial delivered tree",
+    "path": "apps/wbs/fe-01/src/modules/plan-feed/plan-feed.resource.ts",
+    "before": "snapshot.tree.installed !== null && snapshot.tree.installed.generation > applied.tree",
+    "after": "snapshot.tree.installed !== null && applied.tree === 0",
+    "exit": 1
+  }
+]

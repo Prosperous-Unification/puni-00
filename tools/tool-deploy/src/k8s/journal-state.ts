@@ -1,11 +1,13 @@
 import { assertMigrationCapture, migrationIdentityOf } from './migration-capture';
 import { isReleasePhase, type ReleaseRequest, type ReleaseState } from './release';
-import { assertReplayProgress } from './replay-receipt';
 
-/** Validated request/state/history shared by independent legacy and managed journal versions. */
+/** Complete pre-controller progress carried verbatim by independent codecs; current controller authority is validated only by the active owner. */
+export type JournalProgress = Omit<ReleaseState, 'controllers'>;
+
+/** Validated common request/state/history, without asserting controller or replay authority. */
 export interface JournalState {
   request: ReleaseRequest;
-  state: ReleaseState;
+  state: JournalProgress;
   history: readonly { phase: string; at: string }[];
 }
 
@@ -13,7 +15,7 @@ export function isJournalObject(value: unknown): value is Record<string, unknown
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Validate migration identity and replay evidence after the owning parser checks its schema. */
+/** Validate common shape and migration-capture identity after schema selection. Owning codecs validate their own controller/family and replay evidence in order. */
 export function parseJournalState(path: string, parsed: Record<string, unknown>): JournalState {
   const state = parsed['state'];
   const request = parsed['request'];
@@ -58,7 +60,5 @@ export function parseJournalState(path: string, parsed: Record<string, unknown>)
   // Boundary: the record was produced by `JSON.stringify` of these same types in `write`, and
   // the discriminating fields above were checked; the rest is carried verbatim.
   const record = parsed as unknown as JournalState;
-  // Proof: skipping disk replay validation returns corrupted progress in the resume refusal fixtures.
-  assertReplayProgress(record.state, record.request);
   return record;
 }

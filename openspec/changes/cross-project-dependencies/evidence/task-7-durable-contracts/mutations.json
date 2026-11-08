@@ -1,0 +1,911 @@
+[
+  {
+    "fault": "stage schema bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) all nested stored stage request response and evidence required fields refuse omission [37.35ms]",
+      "(fail) nested stage request response and evidence refuse unknown fields and duplicate map entries [23.67ms]",
+      "(fail) standalone stage decode detaches caller-owned rows without an enclosing packet [2.78ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/0.log"
+  },
+  {
+    "fault": "duplicate map bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) nested stage request response and evidence refuse unknown fields and duplicate map entries [209.19ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/1.log"
+  },
+  {
+    "fault": "baseline replay bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) stored stage replay independently refuses a forged finish before an envelope exists [1.92ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/2.log"
+  },
+  {
+    "fault": "identity comparison bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) each question tuple member refuses forgery independently [23.88ms]",
+      "(fail) coherent forged hash echoes cannot substitute for recomputed full identity [5.68ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/3.log"
+  },
+  {
+    "fault": "scope comparison bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) scope project and stored comparison cannot be forged independently [3.20ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/4.log"
+  },
+  {
+    "fault": "request correspondence bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) forged request candidate publication contributors and truncated bytes refuse [22.33ms]",
+      "(fail) all nested stored stage request response and evidence required fields refuse omission [106.70ms]",
+      "(fail) nested stage request response and evidence refuse unknown fields and duplicate map entries [65.46ms]",
+      "(fail) nonfinite forged null request fields are rejected before JSON equality [7.22ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/5.log"
+  },
+  {
+    "fault": "publication comparison bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) forged request candidate publication contributors and truncated bytes refuse [11.61ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/6.log"
+  },
+  {
+    "fault": "comparison evidence bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) all nested stored stage request response and evidence required fields refuse omission [194.82ms]",
+      "(fail) nested stage request response and evidence refuse unknown fields and duplicate map entries [130.55ms]",
+      "(fail) scope project and stored comparison cannot be forged independently [4.94ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/7.log"
+  },
+  {
+    "fault": "direct contradiction comparison bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) forged request candidate publication contributors and truncated bytes refuse [10.04ms]",
+      "(fail) all nested stored stage request response and evidence required fields refuse omission [250.91ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/8.log"
+  },
+  {
+    "fault": "boundary solver status bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) ordinary infeasible unknown and feasible responses cannot certify a boundary [3.17ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/9.log"
+  },
+  {
+    "fault": "success schema bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every required envelope field refuses omission and unknown additions [13.73ms]",
+      "(fail) all nested stored stage request response and evidence required fields refuse omission [14.19ms]",
+      "(fail) nested stage request response and evidence refuse unknown fields and duplicate map entries [8.64ms]",
+      "(fail) decoded stage and identity detach caller-owned objects after validation [5.92ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/10.log"
+  },
+  {
+    "fault": "certificate schema bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every required envelope field refuses omission and unknown additions [16.04ms]",
+      "(fail) all nested stored stage request response and evidence required fields refuse omission [166.51ms]",
+      "(fail) decoded stage and identity detach caller-owned objects after validation [5.36ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/11.log"
+  },
+  {
+    "fault": "stage detachment bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) standalone stage decode detaches caller-owned rows without an enclosing packet [0.47ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/12.log"
+  },
+  {
+    "fault": "success detachment bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) decoded stage and identity detach caller-owned objects after validation [4.63ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/13.log"
+  },
+  {
+    "fault": "certificate detachment bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) decoded stage and identity detach caller-owned objects after validation [4.89ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/14.log"
+  },
+  {
+    "fault": "nonfinite JSON bypass",
+    "exit": 1,
+    "failedTests": [
+      "(fail) nonfinite forged null request fields are rejected before JSON equality [5.81ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/15.log"
+  },
+  {
+    "fault": "tuple omission stage.projectId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) identity separates every runtime tuple dimension and shares stage input across objectives [0.67ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/16.log"
+  },
+  {
+    "fault": "tuple omission inputHash",
+    "exit": 1,
+    "failedTests": [
+      "(fail) identity separates every runtime tuple dimension and shares stage input across objectives [0.64ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/17.log"
+  },
+  {
+    "fault": "tuple omission objective",
+    "exit": 1,
+    "failedTests": [
+      "(fail) identity separates every runtime tuple dimension and shares stage input across objectives [0.49ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/18.log"
+  },
+  {
+    "fault": "tuple omission contractVersion",
+    "exit": 1,
+    "failedTests": [
+      "(fail) identity separates every runtime tuple dimension and shares stage input across objectives [0.53ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/19.log"
+  },
+  {
+    "fault": "tuple omission installed.budgetMs",
+    "exit": 1,
+    "failedTests": [
+      "(fail) identity separates every runtime tuple dimension and shares stage input across objectives [0.58ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/20.log"
+  },
+  {
+    "fault": "tuple omission SOLVER_QUANTUM",
+    "exit": 1,
+    "failedTests": [
+      "(fail) identity separates every runtime tuple dimension and shares stage input across objectives [0.46ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/21.log"
+  },
+  {
+    "fault": "tuple omission SOLVER_WIRE_VERSION",
+    "exit": 1,
+    "failedTests": [
+      "(fail) identity separates every runtime tuple dimension and shares stage input across objectives [0.75ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/22.log"
+  },
+  {
+    "fault": "canonical omission projectId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [6.48ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.92ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.39ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/23.log"
+  },
+  {
+    "fault": "canonical omission mode",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [10.97ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.22ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.50ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/24.log"
+  },
+  {
+    "fault": "canonical omission origin",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [7.35ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.10ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.46ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/25.log"
+  },
+  {
+    "fault": "canonical omission anchor",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [10.65ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.06ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.45ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/26.log"
+  },
+  {
+    "fault": "canonical omission ownership",
+    "exit": 1,
+    "failedTests": [
+      "(fail) ownership of a retained parent contributes independently of relationship endpoints [0.60ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.69ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.30ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/27.log"
+  },
+  {
+    "fault": "canonical omission effort",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [7.90ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.09ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.50ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/28.log"
+  },
+  {
+    "fault": "canonical omission width",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [22.04ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [2.75ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [1.25ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/29.log"
+  },
+  {
+    "fault": "canonical omission person",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [12.49ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.38ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.68ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/30.log"
+  },
+  {
+    "fault": "canonical omission pools",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [5.19ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.63ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.26ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/31.log"
+  },
+  {
+    "fault": "canonical omission floor",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [5.88ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.78ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.30ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/32.log"
+  },
+  {
+    "fault": "canonical omission deadline",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [17.96ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.80ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.80ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/33.log"
+  },
+  {
+    "fault": "canonical omission pool capacity",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [5.59ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.08ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.62ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/34.log"
+  },
+  {
+    "fault": "canonical omission resource capacity",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [10.04ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.15ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.52ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/35.log"
+  },
+  {
+    "fault": "canonical omission starts",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [9.51ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.00ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.41ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/36.log"
+  },
+  {
+    "fault": "canonical omission finishes",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [8.66ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.79ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.34ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/37.log"
+  },
+  {
+    "fault": "canonical rank project field alone",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [1.06ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.41ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/38.log"
+  },
+  {
+    "fault": "canonical omission demand units",
+    "exit": 1,
+    "failedTests": [
+      "(fail) nested demand and booking facts contribute independently of collection presence [0.96ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/39.log"
+  },
+  {
+    "fault": "canonical property 0 kind",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.88ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.38ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/40.log"
+  },
+  {
+    "fault": "canonical property 1 projectId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [4.33ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.75ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.28ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/41.log"
+  },
+  {
+    "fault": "canonical property 2 mode",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [4.75ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.79ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.29ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/42.log"
+  },
+  {
+    "fault": "canonical property 3 originOrdinal",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [4.29ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.62ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.27ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/43.log"
+  },
+  {
+    "fault": "canonical property 4 projects",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [6.08ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.84ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.41ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/44.log"
+  },
+  {
+    "fault": "canonical property 5 projectId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [1.02ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.38ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/45.log"
+  },
+  {
+    "fault": "canonical property 6 rank",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [1.38ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.48ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/46.log"
+  },
+  {
+    "fault": "canonical property 7 anchorOrdinal",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [14.22ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.34ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.54ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/47.log"
+  },
+  {
+    "fault": "canonical property 8 rows",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [4.41ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.58ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.25ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/48.log"
+  },
+  {
+    "fault": "canonical property 9 id",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.76ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.29ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/49.log"
+  },
+  {
+    "fault": "canonical property 10 parentId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.82ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.35ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/50.log"
+  },
+  {
+    "fault": "canonical property 11 position",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [6.22ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.82ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.37ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/51.log"
+  },
+  {
+    "fault": "canonical property 12 priority",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [12.97ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.25ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.56ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/52.log"
+  },
+  {
+    "fault": "canonical property 13 ownership",
+    "exit": 1,
+    "failedTests": [
+      "(fail) ownership of a retained parent contributes independently of relationship endpoints [0.89ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.06ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.44ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/53.log"
+  },
+  {
+    "fault": "canonical property 14 ranks",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [1.90ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [7.00ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/54.log"
+  },
+  {
+    "fault": "canonical property 15 slices",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [7.07ms]",
+      "(fail) nested demand and booking facts contribute independently of collection presence [0.72ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.87ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.42ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/55.log"
+  },
+  {
+    "fault": "canonical property 16 steps",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [7.13ms]",
+      "(fail) nested demand and booking facts contribute independently of collection presence [1.00ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.15ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.59ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/56.log"
+  },
+  {
+    "fault": "canonical property 17 stepId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [1.88ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.82ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/57.log"
+  },
+  {
+    "fault": "canonical property 18 days",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [6.83ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.84ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.38ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/58.log"
+  },
+  {
+    "fault": "canonical property 19 width",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [6.74ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.02ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.41ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/59.log"
+  },
+  {
+    "fault": "canonical property 20 personId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [9.57ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.27ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.52ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/60.log"
+  },
+  {
+    "fault": "canonical property 21 poolIds",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [11.21ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.95ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.40ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/61.log"
+  },
+  {
+    "fault": "canonical property 22 demands",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [7.77ms]",
+      "(fail) nested demand and booking facts contribute independently of collection presence [0.99ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.85ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.37ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/62.log"
+  },
+  {
+    "fault": "canonical property 23 resourceId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) nested demand and booking facts contribute independently of collection presence [0.87ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/63.log"
+  },
+  {
+    "fault": "canonical property 24 units",
+    "exit": 1,
+    "failedTests": [
+      "(fail) nested demand and booking facts contribute independently of collection presence [0.71ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/64.log"
+  },
+  {
+    "fault": "canonical property 25 nodes",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.92ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [2.53ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/65.log"
+  },
+  {
+    "fault": "canonical property 26 kind",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.98ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/66.log"
+  },
+  {
+    "fault": "canonical property 27 workItemId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [4.45ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/67.log"
+  },
+  {
+    "fault": "canonical property 28 stepId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [1.17ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/68.log"
+  },
+  {
+    "fault": "canonical property 29 at",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [4.34ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/69.log"
+  },
+  {
+    "fault": "canonical property 30 kind",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [1.26ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/70.log"
+  },
+  {
+    "fault": "canonical property 31 workItemId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.45ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/71.log"
+  },
+  {
+    "fault": "canonical property 32 at",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.88ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/72.log"
+  },
+  {
+    "fault": "canonical property 33 edges",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.87ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.34ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/73.log"
+  },
+  {
+    "fault": "canonical property 34 predecessor",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.88ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.37ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/74.log"
+  },
+  {
+    "fault": "canonical property 35 leafId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [1.42ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.44ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/75.log"
+  },
+  {
+    "fault": "canonical property 37 successor",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.97ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.34ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/76.log"
+  },
+  {
+    "fault": "canonical property 38 leafId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [1.22ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.38ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/77.log"
+  },
+  {
+    "fault": "canonical property 40 type",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.82ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.32ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/78.log"
+  },
+  {
+    "fault": "canonical property 41 provenance",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.77ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.33ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/79.log"
+  },
+  {
+    "fault": "canonical property 43 relationships",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [6.85ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.46ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [2.69ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/80.log"
+  },
+  {
+    "fault": "canonical property 44 id",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [2.59ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.29ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/81.log"
+  },
+  {
+    "fault": "canonical property 45 type",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.95ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.36ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/82.log"
+  },
+  {
+    "fault": "canonical property 46 predecessor",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [7.65ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.91ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.32ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/83.log"
+  },
+  {
+    "fault": "canonical property 47 successor",
+    "exit": 1,
+    "failedTests": [
+      "(fail) resolved step identities and authored selector step identities both contribute [0.82ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.32ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/84.log"
+  },
+  {
+    "fault": "canonical property 48 notBefore",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [5.82ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.69ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.30ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/85.log"
+  },
+  {
+    "fault": "canonical property 49 deadlines",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [8.42ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.81ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.37ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/86.log"
+  },
+  {
+    "fault": "canonical property 50 poolSizes",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [8.49ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.72ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.32ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/87.log"
+  },
+  {
+    "fault": "canonical property 51 resourceCapacities",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [5.78ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [3.58ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.41ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/88.log"
+  },
+  {
+    "fault": "canonical property 52 elsewhere",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [7.90ms]",
+      "(fail) nested demand and booking facts contribute independently of collection presence [1.00ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.72ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.30ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/89.log"
+  },
+  {
+    "fault": "canonical property 53 bookings",
+    "exit": 1,
+    "failedTests": [
+      "(fail) nested demand and booking facts contribute independently of collection presence [0.96ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/90.log"
+  },
+  {
+    "fault": "canonical property 54 start",
+    "exit": 1,
+    "failedTests": [
+      "(fail) nested demand and booking facts contribute independently of collection presence [0.86ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/91.log"
+  },
+  {
+    "fault": "canonical property 55 end",
+    "exit": 1,
+    "failedTests": [
+      "(fail) nested demand and booking facts contribute independently of collection presence [1.12ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/92.log"
+  },
+  {
+    "fault": "canonical property 56 projectId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) nested demand and booking facts contribute independently of collection presence [1.23ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/93.log"
+  },
+  {
+    "fault": "canonical property 57 workItemId",
+    "exit": 1,
+    "failedTests": [
+      "(fail) nested demand and booking facts contribute independently of collection presence [4.17ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/94.log"
+  },
+  {
+    "fault": "canonical property 58 starts",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [9.27ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [0.71ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.32ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/95.log"
+  },
+  {
+    "fault": "canonical property 59 finishes",
+    "exit": 1,
+    "failedTests": [
+      "(fail) every retained placement constraint family changes the canonical stage identity [19.46ms]",
+      "(fail) resolved step identities and authored selector step identities both contribute [1.74ms]",
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.84ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/96.log"
+  },
+  {
+    "fault": "boundary node discriminator omission",
+    "exit": 1,
+    "failedTests": [
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [1.53ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/97.log"
+  },
+  {
+    "fault": "boundary node index omission",
+    "exit": 1,
+    "failedTests": [
+      "(fail) existing canonical stage hash stays byte compatible after helper extraction [0.89ms]"
+    ],
+    "log": "/tmp/puni-durable-mutation-logs/98.log"
+  }
+]

@@ -16,6 +16,7 @@ import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import { captureAppliedMigrationSet } from './migration-set';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const runtimeMigration = '20261022121000_add_runtime_commands';
@@ -27,7 +28,10 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'runtime-ledger-'));
   dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, migrations);
-  source = openSqliteSource({ dbPath });
+  source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+  });
 });
 afterEach(async () => {
   await source.close();
@@ -130,7 +134,11 @@ describe('runtime ledger lifecycle', () => {
       return { commit: true, value: undefined };
     });
     await source.close();
-    source = openSqliteSource({ dbPath, openConnection: openExistingConnection });
+    source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath,
+      openConnection: openExistingConnection,
+    });
     expect(await audit()).toEqual({
       ...initial,
       authorityCount: 1,
@@ -146,7 +154,10 @@ describe('runtime ledger lifecycle', () => {
     await source.close();
     expect(rollbackTo(dbPath, migrations, previousMigration)).toContain(runtimeMigration);
     runMigrations(dbPath, migrations);
-    source = openSqliteSource({ dbPath });
+    source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath,
+    });
     expect((await audit()).ledgerId).not.toBe(initial.ledgerId);
   });
   for (const history of ['authority', 'binding', 'receipt'] as const) {
@@ -173,7 +184,10 @@ describe('runtime ledger lifecycle', () => {
   });
   it('constructs the generic source before explicit migration but never heals runtime schema', async () => {
     const empty = join(directory, 'empty.db');
-    const generic = openSqliteSource({ dbPath: empty });
+    const generic = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: empty,
+    });
     try {
       await assertRuntimeRejection(generic.stores.runtimeCommands.inspectLedger());
       expect(generic.db.all("SELECT name FROM sqlite_master WHERE name='runtime_ledger'")).toEqual(

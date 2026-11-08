@@ -1,0 +1,14 @@
+[
+  {
+    "name": "final-endpoint-conflict-result",
+    "exit": 1,
+    "status": "CAUGHT",
+    "pattern": "incident final graph result refuses node_on_parent"
+  },
+  {
+    "name": "final-cycle-result",
+    "exit": 1,
+    "status": "CAUGHT",
+    "pattern": "incident final graph result refuses cycle"
+  }
+]

@@ -1,0 +1,29 @@
+Command: bunx openspec validate --all --json
+Exit: 0
+Summary extracted from command JSON; per-item details omitted.
+{
+  "summary": {
+    "totals": {
+      "items": 274,
+      "passed": 274,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 256,
+        "passed": 256,
+        "failed": 0
+      },
+      "spec": {
+        "items": 18,
+        "passed": 18,
+        "failed": 0
+      }
+    }
+  },
+  "version": "1.0",
+  "root": {
+    "path": "/tmp/puni-mounted-replay-endpoint",
+    "source": "nearest"
+  }
+}

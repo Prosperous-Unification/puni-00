@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+177 |       "UPDATE external_dependency SET successor_project_id='c',successor_work_item_id='c'",
+178 |       "UPDATE external_dependency SET predecessor_work_item_id='b2'",
+179 |       "UPDATE external_dependency SET successor_work_item_id='a'",
+180 |       "UPDATE external_dependency SET predecessor_scope='node',predecessor_step_id='b'",
+181 |       "UPDATE external_dependency SET successor_scope='node',successor_step_id='a'",
+182 |     ]) expect(() => sqlite.run(sql), sql).toThrow('FOREIGN KEY constraint failed');
+                                                ^
+error: UPDATE external_dependency SET successor_project_id='c',successor_work_item_id='c'
+
+Expected substring: "FOREIGN KEY constraint failed"
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 0,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:182:43)
+(fail) enforces endpoint and organization foreign keys and referenced ownership updates [115.60ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [2.12s]

@@ -26,7 +26,7 @@ import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+1.0.0';
@@ -174,7 +174,7 @@ describe('cross-coordinator cancellation', () => {
 
     const broadcast = recordingBroadcaster();
     const service = new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(green, new ProjectRepository(green, OPEN)),
+      dependencyContext: sqliteDependencyContext(green, new ProjectRepository(green, OPEN)),
       projects: new ProjectRepository(green, OPEN),
       broadcast,
       optimizerAvailable: () => true,
@@ -231,7 +231,7 @@ describe('cross-coordinator cancellation', () => {
       repository: createOptimizationRepository(blue, new DrizzleEventLogStore(blue, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,

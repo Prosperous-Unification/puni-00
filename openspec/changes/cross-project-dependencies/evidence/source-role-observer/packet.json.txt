@@ -1,0 +1,26 @@
+{
+  "root": "/home/df/.codex/worktrees/df14/puni-00",
+  "head": "a394bae81f22094f2e4581f5e2ca8fc4e0604333",
+  "branch": "integration/dependencies-source-observer-20261029",
+  "pins": {
+    "tools/tool-remote-scripts/src/lib/source-role-process.ts": "44aa06d2592be6352d8fc05205fd65b847d075c7e91fd464681ce0a9a80a4de3",
+    "tools/tool-remote-scripts/src/lib/source-role-profile.ts": "b679133420ab3cfdf98bbfdf0b8e6b8c8d90eb0ccaed0a3abc3e5480a055908b",
+    "tools/tool-remote-scripts/src/fixtures/source-role-process.ts": "e7e3fb490b7061c5fb5496f0648c94805c9ace1a28ca6d957a8ddafc10f5afac",
+    "tools/tool-remote-scripts/src/lib/source-role-process.model.ts": "3c9c351645b4c87afcd5c6d6585b5fe943537f7d7ac2956e8254ba8110d8d1a0",
+    "tools/tool-remote-scripts/src/lib/source-role-process.test.ts": "3de7795c91f4252fe707255900100ca01de8fe7a927a555b400986f1b0dc6bab",
+    "tools/tool-remote-scripts/test/source-role-process-model-child.test.ts": "4f42df4d189638af9fe1dfd75d9fd50e429a3c11c224586f19fa4051f6c7bdfd",
+    "tools/tool-remote-scripts/src/lib/dependency-product-process.ts": "8995000ffe4034eb279923021cd5665e370ebb0419ee44c94f2cb35509b9f6ad",
+    "tools/tool-remote-scripts/src/lib/dependency-product-validation.ts": "ab088a8adb86694db0f2b9a1d6d5ba1e54b1882dd91ca50d2eb99cda9b269391",
+    "tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts": "70111c2bca3685bd02594aaaad2b4f7261b29e6778f57acbadb5fc2bb258fa00",
+    "tools/tool-remote-scripts/src/lib/source-dev-inputs.ts": "70493d93c7f5fc936fd75134cf3f1094a989de6faa36988e2fec21ab70b52b13",
+    "tools/tool-remote-scripts/src/lib/source-startup-manifest.ts": "96f35890c1d849daaafce4059d5dfab60ffb6772a4a717a99e74ed552212eb0b",
+    "tools/tool-remote-scripts/src/fixtures/product-readiness-byte-transport.ts": "89bdca4cc5bd6ece7c12df9625c14b1c52d603fd77d2d0954fcd029585fdd747",
+    ".bun-version": "d03d8b268b4171328ac2458ce8ca82d69a1fde38469d4e4faae4f8fa8d8a5e35",
+    "package.json": "bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74",
+    "bun.lock": "bf54a6c6202a5d8f54f9bb8fe7e76935a8f4c667c660da720db3fd5f16391383"
+  },
+  "controls": {
+    "/tmp/puni-source-observer-proof-recipes.json": "3972b825d49d064acee248329a87c3d18975c6b1cfe0a460fdbcc27d0fded8ef",
+    "/tmp/puni-source-observer-run-case.ts": "62d60f4b88c2d7eac45c21df73116b86494e306c198ec45d1770f92299fd534f"
+  }
+}

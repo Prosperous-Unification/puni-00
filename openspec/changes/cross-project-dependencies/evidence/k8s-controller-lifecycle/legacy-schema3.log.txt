@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/journal.test.ts:
+136 |   for (const schemaVersion of [1, 2, 3]) {
+137 |     it(`refuses a legacy in-flight journal schema ${String(schemaVersion)} without replacing its bytes`, () => {
+138 |       const path = join(directory(), 'release.json');
+139 |       const legacy = JSON.stringify({ ...record(), schemaVersion });
+140 |       writeFileSync(path, legacy);
+141 |       expect(() => fileJournal(path).read()).toThrow('legacy migration capture');
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "legacy migration capture"
+Received message: "release journal /tmp/wbs-test-7397-rOBmJz/wbs-release-journal-cMgv5I/release.json has an unsupported schema version"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/journal.test.ts:141:46)
+(fail) fileJournal > refuses a legacy in-flight journal schema 3 without replacing its bytes [0.78ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [49.00ms]

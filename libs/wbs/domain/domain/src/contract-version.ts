@@ -128,7 +128,7 @@
 // 17: both engines level resource demands as pools and the canonical input
 // carries demands and resource capacities (`wbs-resources` R5); every golden
 // case without a demand keeps its schedule byte for byte.
-export const SCHEDULER_CONTRACT_VERSION = 17;
+export const SCHEDULER_CONTRACT_VERSION = 18;
 
 /**
  * The composite the **wire** carries and the **cache key** stores, from one

@@ -1,0 +1,28 @@
+bun test tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000 -t owner callback retains runtime lock
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:
+
+tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts:
+81 |         );
+82 |         await rename(`${directory}/solver-runtime.lock`, `${directory}/retained.lock`);
+83 |         await writeFile(`${directory}/solver-runtime.lock`, '');
+84 |         await refuses(assertDependencyOwner(owner, layout), 'does not name');
+85 |       }).catch((cause: unknown) => {
+86 |         expect(String(cause)).toContain('does not name');
+                                   ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "does not name"
+Received: "Error: expect(received).toBe(expected)\n\nExpected: true\nReceived: false\n"
+
+      at <anonymous> (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts:86:31)
+(fail) owner callback retains runtime lock and checks descriptor on every owner boundary [6.88ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 2 files. [62.00ms]
+
+exit 1

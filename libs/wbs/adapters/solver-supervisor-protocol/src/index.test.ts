@@ -104,7 +104,14 @@ describe('decodeSupervisorStartFrame', () => {
       objective: 'pri',
     });
     expect(decode(frame()).request).toEqual({ wireVersion: 2, objective: 'pri' });
-    expect(() => decode(frame({ request: { wireVersion: 5, objective: 'pri' } }))).toThrow(
+    expect(
+      decode(
+        frame({
+          request: { wireVersion: 5, objective: 'pri', scope: { kind: 'connected-stage' } },
+        }),
+      ).request,
+    ).toEqual({ wireVersion: 5, objective: 'pri', scope: { kind: 'connected-stage' } });
+    expect(() => decode(frame({ request: { wireVersion: 6, objective: 'pri' } }))).toThrow(
       /wireVersion/,
     );
   });

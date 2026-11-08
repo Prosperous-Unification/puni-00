@@ -1,6 +1,9 @@
 {
   "extends": "../tsconfig.module.json",
   "files": [
+    "../dependency-lookup/contract.ts",
+    "../dependency-lookup/dependency-lookup.feature.ts",
+    "../../testing/refusing-address-api.ts",
     // The project composition root builds each plan module, so it alone sees
     // their factories and stores, not only their contracts.
     "../calendar-markers/calendar-markers.feature.ts",

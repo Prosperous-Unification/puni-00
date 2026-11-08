@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+236 |     ),
+237 |   ).toHaveLength(1);
+238 | });
+239 |
+240 | it('refuses a local relationship whose predecessor belongs to another project', () => {
+241 |   expect(() => resolveConnectedGraph({ projects: [a, { ...b, relationships: [forward] }], external: [] })).toThrow(/local relationship forward/);
+                                                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /local relationship forward/
+Received message: "no work item A in project b"
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:241:108)
+(fail) refuses a local relationship whose predecessor belongs to another project [0.50ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [24.00ms]

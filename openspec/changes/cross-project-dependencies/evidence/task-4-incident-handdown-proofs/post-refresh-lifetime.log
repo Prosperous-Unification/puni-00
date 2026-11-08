@@ -1,0 +1,81 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+473 |   release();
+474 |   const failure: unknown = await pending.then(
+475 |     (value) => value,
+476 |     (error: unknown) => error,
+477 |   );
+478 |   expect(failure).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: true,
+  value: {
+    ok: true,
+  },
+  evidence: {
+    receipts: [
+      {
+        from: {
+          dependency: {
+            id: "outgoing",
+            projectId: "771e343b-c8cf-423f-bf6a-a29def04bf18",
+            predecessor: {
+              scope: "node",
+              workItemId: "cdfcd7b7-fff2-449c-b40b-9a2c8436624a",
+              stepId: "64910135-ff4e-49f5-8e3c-b296bd60846e",
+              projectId: "a3643f4a-4278-449a-ab23-5c245dd17db9",
+            },
+            successor: {
+              scope: "whole",
+              workItemId: "3b99e237-7796-424a-963c-c3ddcb7efd8e",
+              projectId: "771e343b-c8cf-423f-bf6a-a29def04bf18",
+            },
+            type: "FS",
+          },
+          createdAt: 10,
+          createdBy: "213db55b-5763-4882-b51a-a09a08a3425b",
+        },
+        to: {
+          dependency: {
+            id: "outgoing",
+            projectId: "771e343b-c8cf-423f-bf6a-a29def04bf18",
+            predecessor: {
+              scope: "node",
+              workItemId: "refresh-child",
+              stepId: "64910135-ff4e-49f5-8e3c-b296bd60846e",
+              projectId: "a3643f4a-4278-449a-ab23-5c245dd17db9",
+            },
+            successor: {
+              scope: "whole",
+              workItemId: "3b99e237-7796-424a-963c-c3ddcb7efd8e",
+              projectId: "771e343b-c8cf-423f-bf6a-a29def04bf18",
+            },
+            type: "FS",
+          },
+          createdAt: 10,
+          createdBy: "213db55b-5763-4882-b51a-a09a08a3425b",
+        },
+      }
+    ],
+    externalBefore: [
+      {
+        projectId: "771e343b-c8cf-423f-bf6a-a29def04bf18",
+        workItemId: "3b99e237-7796-424a-963c-c3ddcb7efd8e",
+        revision: 1,
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:478:19)
+(fail) incident transition refuses delivery after its genuine retained refresh resumes across graph closure [525.88ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 10 expect() calls
+Ran 1 test across 1 file. [3.21s]

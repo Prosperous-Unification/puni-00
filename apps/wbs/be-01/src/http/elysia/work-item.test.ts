@@ -1,5 +1,6 @@
 import { NO_COMPUTE_PROVIDERS } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
 import { workItemRoutes } from '../../controller/work-item.routes';
@@ -14,6 +15,7 @@ function fixture(readOnly = false) {
   const plan = inMemoryServices();
   const writes = testWrites(undefined, batchServices(plan));
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     batchServices: writes.batch,
     publicServices: batchServices(plan),
     uow: writes.uow,
@@ -237,7 +239,12 @@ test('mounted parsing preserves priority absence and null while defaulting assig
   // assertion with the first received create command gaining `"priority": null`.
   expect(run).toHaveBeenCalledWith(
     'p',
-    'owner',
+    {
+      id: 'owner',
+      username: 'owner',
+      scopes: ['read', 'write'],
+      organizationOperation: { kind: 'mutation', expected: { kind: 'absent' } },
+    },
     [
       { kind: 'createWorkItem', parentId: null, afterId: null },
       { kind: 'createWorkItem', parentId: null, afterId: null, priority: null },
@@ -245,10 +252,6 @@ test('mounted parsing preserves priority absence and null while defaulting assig
       { kind: 'setAssignee', stepId: 's', personId: null },
     ],
     { kind: 'legacy' },
-    // A password session carries no upstream pair, so nothing pins it, and it
-    // acts as its account on the undo journal.
-    null,
-    null,
   );
 });
 

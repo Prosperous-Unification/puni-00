@@ -1,0 +1,1 @@
+{"exitCode":0,"stdout":"{\"scope\":{\"inputHash\":\"input\",\"kind\":\"connected-stage\",\"projectId\":\"B\",\"questionHash\":\"question-pri\"},\"status\":\"boundary-infeasible\",\"wireVersion\":5}\n","stderr":""}

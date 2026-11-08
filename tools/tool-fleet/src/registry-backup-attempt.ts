@@ -30,7 +30,7 @@ export const RegistryBackupGuardian = type({
 });
 export type RegistryBackupGuardian = typeof RegistryBackupGuardian.infer;
 
-/** Durable pre-write ownership of one root guardian's single backup worker. The public nonce becomes its private UTS hostname, independently of stable snapshot grouping. See docs/adr/0059-registry-backup-locks-identify-their-owning-attempt.md. */
+/** Durable pre-write ownership of one root guardian's single backup worker. The public nonce becomes its private UTS hostname, independently of stable snapshot grouping. See docs/adr/0077-registry-backup-locks-identify-their-owning-attempt.md. */
 export const RegistryBackupAttempt = type({
   id: Uuid,
   operationId: Identity,

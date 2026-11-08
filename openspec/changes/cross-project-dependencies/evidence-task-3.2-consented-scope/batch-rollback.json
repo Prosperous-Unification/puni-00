@@ -1,0 +1,7 @@
+{
+  "fault": "batch-rollback",
+  "path": "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts",
+  "before": "decision.commit ? 'COMMIT' : 'ROLLBACK'",
+  "after": "'COMMIT'",
+  "exitCode": 1
+}

@@ -1,0 +1,59 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/machine-credential.controller.db.test.ts:
+351 |     const { key } = await claireKey();
+352 |     const batch = (commands: unknown[]) =>
+353 |       as(key, 'POST', `/api/projects/${projectA}/commands`, { commands });
+354 |     expect(await batch([claim('codex')])).toEqual(refused('credential_not_for_person'));
+355 |     expect(claimsOf('codex')).toBe(0);
+356 |     expect(await batch([claim('claire')])).toMatchObject({ status: 200 });
+                                                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "status": 200,
++   "body": {
++     "at": 0,
++     "blockers": [
++       {
++         "provenance": "workflow",
++         "relationshipId": null,
++         "stepId": "1a8ec81a-cd13-4edc-a214-83ea02691714",
++         "type": "FS",
++         "workItemId": "4df985ab-b596-472b-8596-999fd481ff07",
++       },
++     ],
++     "error": "prerequisites_unmet",
++     "kind": "claimWorkItem",
++     "stepIds": [
++       "4dd5f10f-12de-4824-94ec-5af64d1af94f",
++     ],
++   },
++   "status": 409,
+  }
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-machine-writer/apps/wbs/be-01/src/controller/machine-credential.controller.db.test.ts:356:44)
+(fail) a key pinned to one person > claims as its person and is refused as any other of its account’s persons [682.77ms]
+417 |       (
+418 |         await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+419 |           commands: [claim('codex')],
+420 |         })
+421 |       ).status,
+422 |     ).toBe(200);
+            ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-machine-writer/apps/wbs/be-01/src/controller/machine-credential.controller.db.test.ts:422:7)
+(fail) a key pinned to one person > leaves the bound account’s own session unpinned [569.44ms]
+
+ 0 pass
+ 22 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [4.42s]

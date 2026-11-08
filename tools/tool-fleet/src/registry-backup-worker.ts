@@ -17,7 +17,7 @@ import { awaitRegistryBackupChild } from './registry-maintenance-process';
 import type { RegistryMaintenanceJournal } from './registry-managed-journal';
 import { readRegistryBytes } from './registry-stream';
 
-/** Fixed reviewed utility creates UTS before Bun starts threads; no caller command/path/env crosses this launcher (ADR0059). Keeps the control pipe open until terminal-group and output collection settle, awaits each pipe effect, and preserves the original outcome through closure. Dual failure retains both errors and the original worker cause. */
+/** Fixed reviewed utility creates UTS before Bun starts threads; no caller command/path/env crosses this launcher (ADR0077). Keeps the control pipe open until terminal-group and output collection settle, awaits each pipe effect, and preserves the original outcome through closure. Dual failure retains both errors and the original worker cause. */
 export async function runRegistryBackupWorker(input: {
   installed: RegistryMaintenanceInstallation;
   journal: RegistryMaintenanceJournal;

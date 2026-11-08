@@ -1,0 +1,75 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-topology-events.controller.db.test.ts:
+91 |         if (recipient !== cause) {
+92 |           const event = { type: 'elsewhere_changed', projectId: recipient.projectId, causeProjectId: cause.projectId };
+93 |           expected.set(`${event.projectId}:${event.causeProjectId}`, event);
+94 |         }
+95 |   const sort = (left: { projectId: string; causeProjectId: string }, right: { projectId: string; causeProjectId: string }) => left.projectId.localeCompare(right.projectId) || left.causeProjectId.localeCompare(right.causeProjectId);
+96 |   expect(pairs.sort(sort)).toEqual([...expected.values()].sort(sort));
+                                ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "causeProjectId": "86363e39-647c-49b6-9c13-81e145b209cc",
+-     "projectId": "23fd6e20-8232-47fa-ae27-1d2f6faaac39",
+-     "type": "elsewhere_changed",
+-   },
+-   {
+-     "causeProjectId": "9166427f-4f59-4a3e-a34a-708610fb447f",
+-     "projectId": "23fd6e20-8232-47fa-ae27-1d2f6faaac39",
+-     "type": "elsewhere_changed",
+-   },
+-   {
+-     "causeProjectId": "23fd6e20-8232-47fa-ae27-1d2f6faaac39",
+-     "projectId": "86363e39-647c-49b6-9c13-81e145b209cc",
+-     "type": "elsewhere_changed",
+-   },
+-   {
+      "causeProjectId": "9166427f-4f59-4a3e-a34a-708610fb447f",
+      "projectId": "86363e39-647c-49b6-9c13-81e145b209cc",
+      "type": "elsewhere_changed",
+    },
+    {
+      "causeProjectId": "eaafaf5a-f011-47d0-9fcb-107695149fe6",
+      "projectId": "86363e39-647c-49b6-9c13-81e145b209cc",
+-     "type": "elsewhere_changed",
+-   },
+-   {
+-     "causeProjectId": "23fd6e20-8232-47fa-ae27-1d2f6faaac39",
+-     "projectId": "9166427f-4f59-4a3e-a34a-708610fb447f",
+      "type": "elsewhere_changed",
+    },
+    {
+      "causeProjectId": "86363e39-647c-49b6-9c13-81e145b209cc",
+      "projectId": "9166427f-4f59-4a3e-a34a-708610fb447f",
+      "type": "elsewhere_changed",
+    },
+    {
+      "causeProjectId": "eaafaf5a-f011-47d0-9fcb-107695149fe6",
+      "projectId": "9166427f-4f59-4a3e-a34a-708610fb447f",
+      "type": "elsewhere_changed",
+    },
+    {
+      "causeProjectId": "86363e39-647c-49b6-9c13-81e145b209cc",
+      "projectId": "eaafaf5a-f011-47d0-9fcb-107695149fe6",
+      "type": "elsewhere_changed",
+    },
+    {
+      "causeProjectId": "9166427f-4f59-4a3e-a34a-708610fb447f",
+      "projectId": "eaafaf5a-f011-47d0-9fcb-107695149fe6",
+      "type": "elsewhere_changed",
+    },
+  ]
+
+- Expected  - 20
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-topology-52/apps/wbs/be-01/src/controller/cross-project-topology-events.controller.db.test.ts:96:28)
+(fail) mounted topology replacement refreshes separate old and new components atomically [455.96ms]
+
+ 0 pass
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [3.48s]

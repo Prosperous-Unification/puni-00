@@ -31,7 +31,7 @@ async function bounded<T>(pending: Promise<T>, milliseconds: number): Promise<T>
  * Fixed sudo command and private inherited FD0 socket. The existing authority description crosses
  * via SCM_RIGHTS; the token follows only a current-kernel-credential root acknowledgement. Root
  * owns effect cancellation/reaping and holds its received descriptor through terminal cleanup.
- * See docs/adr/0058-registry-maintenance-transfers-the-held-authority-descriptor.md.
+ * See docs/adr/0076-registry-maintenance-transfers-the-held-authority-descriptor.md.
  */
 export async function connectRegistryMaintenanceHost(
   session: Pick<

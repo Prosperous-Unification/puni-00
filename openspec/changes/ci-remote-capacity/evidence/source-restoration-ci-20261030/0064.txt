@@ -1,0 +1,11 @@
+
+tools/tool-git-hooks/src/hooks/ci-plan.test.ts:
+(pass) production CI plan and execution > fixed remote leaves retain one logical owner and explicit static/dependency execution [4422.86ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=3
+
+ 1 pass
+ 19 filtered out
+ 0 fail
+ 50 expect() calls
+Ran 1 test across 1 file. [4.46s]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+835 |     ],
+836 |   });
+837 |   Object.assign(joinedBooking, { elsewhere: { ana: [[0, 15]] } });
+838 |   expect(() => {
+839 |     validateConnectedSolverRequest(joinedBooking);
+840 |   }).not.toThrow();
+               ^
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "connected elsewhere intervals differ from foreign occupancy"
+
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:840:10)
+(fail) connected request names the exact foreign person holder and booking [6.30ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [189.00ms]

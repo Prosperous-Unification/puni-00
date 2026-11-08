@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+30 |       parentId: fixture.owner.workItemId,
+31 |       afterId: null,
+32 |       name: 'First child',
+33 |     }),
+34 |   );
+35 |   expect(created.ok).toBe(true);
+                          ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:35:22)
+(fail) actual first child hands an outgoing node to its child and undo redo preserves the remote row [386.26ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [2.48s]

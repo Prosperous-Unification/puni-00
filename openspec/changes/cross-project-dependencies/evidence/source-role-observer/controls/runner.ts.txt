@@ -1,0 +1,53 @@
+import { strict as assert } from 'node:assert';
+import { createHash } from 'node:crypto';
+import { rm, writeFile } from 'node:fs/promises';
+import { createReadinessByteTransportFixture } from '/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/fixtures/product-readiness-byte-transport';
+const main = 'source observer consumes the original running source through raw process transport';
+const cleanup = 'source actual helper cleanup failure closes the original observer context';
+const choices = new Map([
+  ['context', { name: main, begin: 'source context-refusal consumer reached', observed: 'source original-context refusal observed before collection', rejection: 'count' }],
+  ['monitor', { name: main, begin: 'source opening-monitor consumer reached', observed: 'source opening-monitor refusal observed before collection', rejection: 'count' }],
+  ...['closing-output','uid','misassigned','extra','closing-listener','closing-host','closing-runtime','role-parent'].map((fault) => [fault, { name: main, begin: `source first-binding refusal: ${fault}`, observed: `source first-binding refusal observed: ${fault}`, rejection: 'missing' }] as const),
+  ['pid-reuse', { name: main, begin: 'source retained-binding refusal: pid-reuse', observed: 'source retained-binding refusal observed: pid-reuse', rejection: 'missing' }],
+  ['cleanup', { name: cleanup, begin: 'source terminal actual-peer refusal: cleanup', observed: 'source terminal actual-peer refusal observed: cleanup', rejection: 'missing' }],
+]);
+const selected = process.argv[2]; const phase = process.argv[3]; const receiptPath = process.argv[4];
+if (process.argv.length !== 5 || selected === undefined || phase === undefined || receiptPath === undefined || !choices.has(selected) || !['ordinary','omitted','restored'].includes(phase) || !/^\/tmp\/puni-source-observer-proofs-[A-Za-z0-9_-]+\/[a-z-]+\.(?:ordinary|omitted|restored)\.custody\.json$/.test(receiptPath)) throw new Error('exact closed source proof selector/phase/custody path required');
+const choice = choices.get(selected);
+if (choice === undefined) throw new Error('source proof choice absent');
+const peer = await createReadinessByteTransportFixture();
+let isSettled = false;
+try {
+  const child = Bun.spawn([process.execPath, 'test', 'test/source-role-process-model-child.test.ts', '-t', `^${choice.name}$`, '--timeout=300000'], {
+    cwd: '/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts',
+    env: { ...peer.environment, SOURCE_ROLE_PROOF: selected, FORCE_COLOR: '0' },
+    stdin: 'ignore', stdout: 'pipe', stderr: 'pipe',
+    signal: AbortSignal.timeout(310000), killSignal: 'SIGKILL',
+  });
+  const settled = await Promise.allSettled([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
+  const failures = settled.flatMap((receipt) => receipt.status === 'rejected' ? [receipt.reason] : []);
+  if (failures.length > 0) throw new AggregateError(failures, `original proof child settlement absent; peer retained at ${peer.directory}`);
+  const [stopped, stdout, stderr] = settled;
+  if (stopped.status !== 'fulfilled' || stdout.status !== 'fulfilled' || stderr.status !== 'fulfilled') throw new Error('original proof child settlement absent');
+  isSettled = true;
+  // Written only after the original native exit and both original stream readers fulfill at EOF.
+  await writeFile(receiptPath, JSON.stringify({ childPid: child.pid, childExit: stopped.value, childSignal: child.signalCode, stdoutBytes: Buffer.byteLength(stdout.value), stderrBytes: Buffer.byteLength(stderr.value), stdoutSha256: createHash('sha256').update(stdout.value).digest('hex'), stderrSha256: createHash('sha256').update(stderr.value).digest('hex') }) + '\n', { flag: 'wx', mode: 0o600 });
+  process.stdout.write(stdout.value); process.stderr.write(stderr.value);
+  assert.equal(child.signalCode, null);
+  assert.ok(stderr.value.includes(choice.begin), 'selected real consumer BEGIN marker absent');
+  assert.match(stderr.value, /\b1 filtered out\b/);
+  if (phase === 'omitted') {
+    assert.ok(!stderr.value.includes(choice.observed), 'selected consumer already passed before a later failure');
+    assert.equal(stopped.value, 1);
+    assert.match(stderr.value, /\b0 pass\b/); assert.match(stderr.value, /\b1 fail\b/);
+    assert.ok(stderr.value.includes(`(fail) ${choice.name} [`), 'selected failed test name absent');
+    if (choice.rejection === 'count') assert.match(stderr.value, /Expected: 0\s+Received: 2/);
+    else assert.match(stderr.value, /Missing expected rejection/);
+  } else {
+    assert.equal(stopped.value, 0);
+    assert.match(stderr.value, /\b1 pass\b/); assert.match(stderr.value, /\b0 fail\b/);
+    const passed = [...stderr.value.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map((match) => match[1]);
+    assert.deepEqual(passed, [choice.name]);
+    assert.ok(stderr.value.includes(choice.observed), 'selected real consumer observed marker absent');
+  }
+} finally { if (isSettled) await rm(peer.directory, { recursive: true }); }

@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/solver-drain-fixture.test.ts:
+121 |     let policyCause:unknown;
+122 |     try {await readOrdinaryEdgePolicy(edge);}catch(cause){policyCause=cause;}
+123 |     expect(policyCause).toBeInstanceOf(Error);
+124 |     const expected=summarizeFixtureFailure(policyCause);
+125 |     const receipt=await readFile(join(root,'refused.json'),'utf8');
+126 |     expect(receipt).toContain(expected.chain[0]?.fingerprint);
+                          ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "30477f5a7f0f8e24d2fc479605c5b6cc51afdbd08788c29ddd6beb68102ea14e"
+Received: "{\"pid\":13,\"reason\":\"startup-error\",\"error\":\"Error: ENOENT: no such file or directory, open '/tmp/solver-creator-policy-Bzk2wK/edge/edge-policy.json'\"}"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/solver-drain-fixture.test.ts:126:21)
+(fail) policy creator refuses missing policy before reading its missing manifest [27.57ms]
+157 |  const root=await mkdtemp(join(tmpdir(),'solver-creator-private-'));const edge=join(root,'edge');await mkdir(edge);
+158 |  try {
+159 |   await writeFile(join(root,'manifest.json'),'{"PRIVATE_JSON_CONFIG": MALFORMED_PRIVATE_SENTINEL}');
+160 |   const child=Bun.spawn([process.execPath,join(import.meta.dir,'solver-drain-fixture.ts'),`--config=${join(root,'config.json')}`],{env:{...process.env,WBS_EDGE_STATE:edge},stdout:'ignore',stderr:'ignore'});
+161 |   expect(await child.exited).toBe(1);const receipt=await readFile(join(root,'refused.json'),'utf8');
+162 |   expect(receipt).not.toContain('MALFORMED_PRIVATE_SENTINEL');expect(receipt).not.toContain('PRIVATE_JSON_CONFIG');expect(receipt).toContain('fingerprint');
+                            ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "MALFORMED_PRIVATE_SENTINEL"
+Received: "{\"pid\":24,\"reason\":\"startup-error\",\"error\":\"SyntaxError: JSON Parse error: Unexpected identifier \\\"MALFORMED_PRIVATE_SENTINEL\\\"\"}"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/solver-drain-fixture.test.ts:162:23)
+(fail) creator malformed manifest diagnostic never retains JSON payloads [26.40ms]
+
+ 0 pass
+ 4 filtered out
+ 2 fail
+ 5 expect() calls
+Ran 2 tests across 1 file. [87.00ms]

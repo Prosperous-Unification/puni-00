@@ -1,0 +1,56 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+358 |       );
+359 |       const failure: unknown = await operation.then(
+360 |         (value) => value,
+361 |         (error: unknown) => error,
+362 |       );
+363 |       expect(failure).toBeInstanceOf(Error);
+                            ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: true,
+  value: {
+    id: "2902ffb0-f164-4429-b438-764b0610c4d7",
+    projectId: "6165b8dd-4579-4dc1-84d7-381f7a35f686",
+    parentId: "ef6646c4-3b13-4fe2-962f-f6a0a223639a",
+    position: 10,
+    name: "Must roll back child",
+    notes: "",
+    frozenNumber: null,
+    startNoEarlierThan: null,
+    startNoEarlierThanReason: null,
+    deadline: null,
+    factStart: null,
+    factEnd: null,
+    readiness: null,
+    hold: null,
+    priority: 50,
+    serviceTeamId: null,
+    serviceId: null,
+    maxParallel: 1,
+    revision: 0,
+  },
+  stepNodeMapping: [
+    {
+      from: "sn1.ef6646c4-3b13-4fe2-962f-f6a0a223639a.f1fd97cc-547e-44d3-9f2d-0c9c359eb9e8",
+      to: "sn1.2902ffb0-f164-4429-b438-764b0610c4d7.f1fd97cc-547e-44d3-9f2d-0c9c359eb9e8",
+    },
+    {
+      from: "sn1.ef6646c4-3b13-4fe2-962f-f6a0a223639a.7c97888e-3fbf-46d6-9694-c05acf80e66a",
+      to: "sn1.2902ffb0-f164-4429-b438-764b0610c4d7.7c97888e-3fbf-46d6-9694-c05acf80e66a",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:363:23)
+(fail) incident transition rolls back every table and held announcement on final-graph-delivery [503.80ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [2.64s]

@@ -48,7 +48,7 @@ const Lock = type({
  * Task9 supplies complete raw visible AND historical lock versions and exact version deletion;
  * a restic list result is insufficient because it skips malformed filenames. Hash every object,
  * including noncurrent ones. Hidden objects/markers are history, not active locks. The fixed
- * read-only inspector may run only cat lock on this provider-observed full ID (ADR0059).
+ * read-only inspector may run only cat lock on this provider-observed full ID (ADR0077).
  * removeVersion must revalidate the observed exact version before targeting it; never key-delete.
  */
 export interface RegistryBackupLockPorts {

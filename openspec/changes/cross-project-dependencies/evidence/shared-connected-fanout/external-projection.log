@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:
+(pass) mounted completion refreshes successor-only readiness with shared mode %s [1364.40ms]
+166 |   const answer = await harness.call('ada', 'POST', `/api/projects/${upstream.id}/commands`, {
+167 |     commands: [{ kind: 'setProgress', workItemId: upstream.rowId, stepId: upstream.stepId, state: 'done' }],
+168 |   });
+169 |   expect(answer.status).toBe(200);
+170 |   expect(harness.sqlite.query('SELECT state FROM step_progress WHERE work_item_id = ? AND step_id = ?').get(upstream.rowId, upstream.stepId)).toEqual({ state: 'done' });
+171 |   for (const project of [downstream, tail]) expect(events(project.id)).toEqual([{ type: 'elsewhere_changed', projectId: project.id, causeProjectId: upstream.id }]);
+                                                                             ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "4469011f-fce3-4f29-934f-1b54ed50f207",
+-     "projectId": "ce0e29a0-1239-4b3a-9625-9accd5458331",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-connected-fanout/apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:171:72)
+(fail) mounted completion refreshes successor-only readiness with shared mode %s [701.92ms]
+
+ 1 pass
+ 3 filtered out
+ 1 fail
+ 24 expect() calls
+Ran 2 tests across 1 file. [16.55s]

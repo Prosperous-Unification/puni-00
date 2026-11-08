@@ -1,0 +1,137 @@
+bun test v1.4.2 (744846f84)
+
+src/connected-publication.test.ts:
+(pass) connected publication guard > replays incoming and outgoing FS through later-step endpoints [6.93ms]
+(pass) connected publication guard > replays incoming and outgoing SS through later-step endpoints [3.33ms]
+(pass) connected publication guard > replays incoming and outgoing FF through later-step endpoints [1.28ms]
+250 |     expect(stage.starts.get(b1)).toBe(2);
+251 |     const reference = new Map([
+252 |       [b1, 2],
+253 |       [b2, 2],
+254 |     ]);
+255 |     expect(guardConnectedPublication(stage, reference, 'makespan', reference).chosen).toBe(
+                                                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: "optimized"
+Received: "baseline"
+
+      at <anonymous> (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.test.ts:255:87)
+(fail) connected publication guard > enforces every supplied expanded parent relationship pair [1.27ms]
+(pass) connected publication guard > replays person contention and rejects a conflicting local pin [0.69ms]
+(pass) connected publication guard > replays team contention and rejects a conflicting local pin [0.90ms]
+(pass) connected publication guard > replays resource contention and rejects a conflicting local pin [0.52ms]
+(pass) connected publication guard > replays elsewhere contention and rejects a conflicting local pin [0.60ms]
+319 |       ...initial,
+320 |       mode: 'isolated',
+321 |       input: { ...initial.input, slices, graph: { ...initial.input.graph, edges: [] } },
+322 |     });
+323 |     expect(stage.starts.get(localKey)).toBe(0);
+324 |     expect(guardConnectedPublication(stage, reference(0), 'makespan', reference()).chosen).toBe(
+                                                                                                 ^
+error: expect(received).toBe(expected)
+
+Expected: "optimized"
+Received: "baseline"
+
+      at <anonymous> (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.test.ts:324:92)
+(fail) connected publication guard > keeps isolated encoded people independent [0.46ms]
+(pass) connected publication guard > enforces project-local team contention in a complete replay [0.66ms]
+(pass) connected publication guard > enforces project-local resource contention in a complete replay [0.40ms]
+390 |     expect(stage.starts.get(trailingKey)).toBe(1.2);
+391 |     const baseline = replayConnectedStage(stage);
+392 |     expect(baseline.slices.get(trailingKey)?.earliestStart).toBe(1.2);
+393 |     const decision = guardConnectedPublication(stage, reference(0.2), 'makespan', reference(0));
+394 |     expect(decision.scope).toEqual({ kind: 'connected-stage', projectId: 'B' });
+395 |     expect(decision.chosen).toBe('optimized');
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "optimized"
+Received: "baseline"
+
+      at <anonymous> (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.test.ts:395:29)
+(fail) connected publication guard > replays exact fractional A → B → C baseline and publishes complete local candidate [0.46ms]
+(pass) connected publication guard > uses an earlier accepted replacement as the later rank stage baseline [0.68ms]
+(pass) connected publication guard > refuses forged captured finish as trusted stage evidence [0.29ms]
+(pass) connected publication guard > refuses a captured start reconciled by the real scheduler [0.22ms]
+(pass) connected publication guard > keeps cumulative fractional finish for a width-three multi-step local tile [0.55ms]
+(pass) connected publication guard > refuses missing candidate keys or values [0.23ms]
+(pass) connected publication guard > refuses surplus candidate keys or values [0.15ms]
+(pass) connected publication guard > refuses foreign candidate keys or values [0.12ms]
+(pass) connected publication guard > refuses negative candidate keys or values [0.17ms]
+(pass) connected publication guard > refuses NaN candidate keys or values [0.14ms]
+(pass) connected publication guard > refuses Infinity candidate keys or values [0.13ms]
+(pass) connected publication guard > refuses missing reference as trusted question evidence [0.22ms]
+(pass) connected publication guard > refuses surplus reference as trusted question evidence [0.13ms]
+(pass) connected publication guard > refuses NaN reference as trusted question evidence [0.12ms]
+(pass) connected publication guard > refuses Infinity reference as trusted question evidence [0.12ms]
+(pass) connected publication guard > refuses negative reference as trusted question evidence [0.11ms]
+(pass) connected publication guard > refuses local movement that changes the pinned foreign successor [0.22ms]
+(pass) connected publication guard > refuses sub-drift foreign start reconciliation exactly [0.43ms]
+(pass) connected publication guard > applies a fractional local floor through replay [0.20ms]
+(pass) connected publication guard > folds a fractional project floor onto the local leaf [0.38ms]
+(pass) connected publication guard > scores a local regression despite a much longer fixed foreign task [0.32ms]
+676 |       new Map([
+677 |         [localKey, 0],
+678 |         [trailingKey, 0],
+679 |       ]),
+680 |     );
+681 |     expect(decision.chosen).toBe('optimized');
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "optimized"
+Received: "baseline"
+
+      at <anonymous> (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.test.ts:681:29)
+(fail) connected publication guard > derives PRI weights from local leaves and gives an unprioritized leaf zero weight [1.94ms]
+(pass) connected publication guard > uses an inherited local priority in the dense PRI score [0.62ms]
+(pass) connected publication guard > refuses a nonfinite scoped score from individually finite movement origins [0.53ms]
+(pass) connected publication guard > rejects malformed captured key set before candidate validation [0.16ms]
+(pass) connected publication guard > refuses an invalid trusted baseline pin and an empty local stage [0.26ms]
+(pass) connected publication guard > refuses a structurally invalid trusted stage before real replay [0.11ms]
+(pass) connected publication guard > preserves stage and candidate maps after success and failure [0.33ms]
+(pass) connected publication guard > rejects candidate after a local deadline but accepts the same late baseline capture [0.79ms]
+847 |     });
+848 |     const local = new Map([
+849 |       [first, 0],
+850 |       [second, 0],
+851 |     ]);
+852 |     expect(guardConnectedPublication(stage, local, 'makespan', local).chosen).toBe('optimized');
+                                                                                    ^
+error: expect(received).toBe(expected)
+
+Expected: "optimized"
+Received: "baseline"
+
+      at <anonymous> (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.test.ts:852:79)
+(fail) connected publication guard > checks separated zero milestones individually and ignores a fixed foreign late deadline [0.55ms]
+878 |           ...order,
+879 |           projectIdByWorkItem: new Map([...order.projectIdByWorkItem, ['parent-b', 'B']]),
+880 |         },
+881 |       },
+882 |     });
+883 |     expect(guardConnectedPublication(stage, reference(0), 'makespan', reference()).chosen).toBe(
+                                                                                                 ^
+error: expect(received).toBe(expected)
+
+Expected: "optimized"
+Received: "baseline"
+
+      at <anonymous> (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.test.ts:883:92)
+(fail) connected publication guard > folds an inherited fractional local deadline without rounding it [0.50ms]
+(pass) connected publication guard > does not treat a zero step inside positive work as a separate milestone [0.38ms]
+
+6 tests failed:
+(fail) connected publication guard > enforces every supplied expanded parent relationship pair [1.27ms]
+(fail) connected publication guard > keeps isolated encoded people independent [0.46ms]
+(fail) connected publication guard > replays exact fractional A → B → C baseline and publishes complete local candidate [0.46ms]
+(fail) connected publication guard > derives PRI weights from local leaves and gives an unprioritized leaf zero weight [1.94ms]
+(fail) connected publication guard > checks separated zero milestones individually and ignores a fixed foreign late deadline [0.55ms]
+(fail) connected publication guard > folds an inherited fractional local deadline without rounding it [0.50ms]
+
+ 37 pass
+ 6 fail
+ 101 expect() calls
+Ran 43 tests across 1 file. [40.00ms]

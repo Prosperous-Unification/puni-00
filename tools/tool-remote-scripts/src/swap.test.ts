@@ -45,6 +45,18 @@ import {
   type SwapRunDeps,
 } from './swap';
 
+let previousControllerState: string | undefined;
+beforeEach(() => {
+  previousControllerState = process.env['WBS_EDGE_STATE'];
+  const controllerState = scratchSync('direct-controller-edge-');
+  writeFileSync(`${controllerState}/edge.lock`, '');
+  process.env['WBS_EDGE_STATE'] = controllerState;
+});
+afterEach(() => {
+  if (previousControllerState === undefined) delete process.env['WBS_EDGE_STATE'];
+  else process.env['WBS_EDGE_STATE'] = previousControllerState;
+});
+
 function captureForStatusCommand(args: readonly string[]): string {
   const flag = (name: string): string =>
     args.find((argument) => argument.startsWith(`--${name}=`))?.slice(name.length + 3) ?? 'legacy';
@@ -688,6 +700,7 @@ describe('startGreen required-key preflight', () => {
 describe('runSwaps', () => {
   function fakeRunDeps(overrides: Partial<SwapRunDeps> = {}): SwapRunDeps {
     return {
+      barrierStateDir: scratchSync('swap-run-fence-'),
       withLock: (_path, fn) => fn(),
       observe: () =>
         Promise.resolve({
@@ -1000,6 +1013,7 @@ describe('execute, stored vocabulary rollback guard', () => {
     let outcomeReads = 0;
     let unitReads = 0;
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         ran.push(args);
         if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
@@ -1626,6 +1640,7 @@ describe('execute, pre-migration backup', () => {
     const ran: string[][] = [];
     const phases: string[] = [];
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
           return Promise.resolve('["workdays","minutes"]');
@@ -1724,6 +1739,7 @@ describe('execute, captured migration set', () => {
       const ran: string[][] = [];
       let persisted = '';
       const io: SwapExecutionIo = {
+        barrierStateDir: scratchSync('swap-fence-'),
         sh: (args) => {
           if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
             return Promise.resolve('["workdays","minutes"]');
@@ -1777,6 +1793,7 @@ describe('execute, captured migration set', () => {
   it('refuses migration when the attempt capture cannot be persisted', async () => {
     const ran: string[][] = [];
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
           return Promise.resolve('["workdays","minutes"]');
@@ -1814,6 +1831,7 @@ describe('execute, captured migration set', () => {
     const ran: string[][] = [];
     let captured = '';
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
           return Promise.resolve('["workdays","minutes"]');
@@ -1856,6 +1874,7 @@ describe('execute, captured migration set', () => {
     let captured = '';
     let failCommit = false;
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
           return Promise.resolve('["workdays","minutes"]');
@@ -1908,6 +1927,7 @@ describe('execute, after routing has moved', () => {
     const written: string[] = [];
     let holdReads = 0;
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
           return Promise.resolve('["workdays","minutes"]');
@@ -1986,6 +2006,7 @@ describe('execute, after routing has moved', () => {
     const written: string[] = [];
     let outcomeReads = 0;
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
           return Promise.resolve('["workdays","minutes"]');
@@ -2064,6 +2085,7 @@ describe('execute, after routing has moved', () => {
     const written: string[] = [];
     let unitReads = 0;
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         ran.push(args);
         if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
@@ -2143,6 +2165,7 @@ describe('execute, after routing has moved', () => {
     const written: string[] = [];
     let storedReads = 0;
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
           return Promise.resolve('["workdays","minutes"]');
@@ -2234,6 +2257,7 @@ describe('execute, after routing has moved', () => {
     const ran: string[][] = [];
     const written: string[] = [];
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
           return Promise.resolve('["workdays","minutes"]');
@@ -2296,6 +2320,7 @@ describe('execute, capacity mode guard', () => {
     const phases: string[] = [];
     let reads = 0;
     const io: SwapExecutionIo = {
+      barrierStateDir: scratchSync('swap-fence-'),
       sh: (args) => {
         if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
           return Promise.resolve('["workdays","minutes"]');

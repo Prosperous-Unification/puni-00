@@ -85,6 +85,16 @@ async function create(harness: OrganizationHarness, username: string, name: stri
   return (answer.body as { project: { id: string } }).project.id;
 }
 
+function firstStepOf(projectId: string): string {
+  const step = h.sqlite
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1',
+    )
+    .get(projectId);
+  if (step === null) throw new Error(`project ${projectId} has no first workflow step`);
+  return step.id;
+}
+
 async function declare(harness: OrganizationHarness, username: string, name: string) {
   const answer = await harness.call(username, 'POST', DIRECTORY, {
     commands: [{ kind: 'createResource', name, resourceKind: 'divisible', unitLabel: 'GB' }],
@@ -301,6 +311,7 @@ describe('previewing and lowering a directory capacity', () => {
             kind: 'claimWorkItem',
             workItemId,
             personId: index === 0 ? 'agent-a' : 'agent-b',
+            steps: [firstStepOf(projectId)],
           },
         ],
       });
@@ -380,6 +391,7 @@ describe('previewing and lowering a directory capacity', () => {
           kind: 'claimWorkItem',
           workItemId: 'w-held',
           personId: 'agent-a',
+          steps: [firstStepOf(projectC)],
           resources: [{ resourceId: ram, units: 6 }],
         },
       ],
@@ -420,7 +432,12 @@ describe('previewing and lowering a directory capacity', () => {
     const refused = await h.call('ada', 'POST', `/api/projects/${projectA}/commands`, {
       commands: [
         { kind: 'setDemand', workItemId: 'w-c', resourceId: ram, units: 1 },
-        { kind: 'claimWorkItem', workItemId: 'w-c', personId: 'agent-a' },
+        {
+          kind: 'claimWorkItem',
+          workItemId: 'w-c',
+          personId: 'agent-a',
+          steps: [firstStepOf(projectA)],
+        },
       ],
     });
     expect(refused).toMatchObject({

@@ -1,0 +1,88 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+902 |                 if (cleanup !== 'complete') {
+903 |                   expect(outcome.failure).toBeInstanceOf(AggregateError);
+904 |                   if (!(outcome.failure instanceof AggregateError))
+905 |                     throw new Error('joined failure aggregation absent');
+906 |                   expect(outcome.failure.errors).toHaveLength(2);
+907 |                   expect(outcome.failure.cause).toBe(outcome.failure.errors[0]);
+                                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 75 |   const remaining = deadline - performance.now();
+76 |   if (remaining <= 0) throw new Error('source observer Docker deadline exceeded');
+77 |   const controller = new AbortController();
+78 |   let expired: Error | undefined;
+79 |   const expire = () => {
+80 |     expired = new Error('source observer Docker deadline exceeded');
+                       ^
+error: source observer Docker deadline exceeded
+      at expire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:80:19)
+
+Received:  96 |       // Proof: join-privacy omission retained the private cleanup sentinel in the nested error graph.
+ 97 |       throw new AggregateError(
+ 98 |         [expired, describeJoinFailure(observation.cause, args)],
+ 99 |         'source observer Docker deadline exceeded; abort join failed',
+100 |         // Proof: join-primary fault replaced the timeout cause; both primary-retention negatives failed.
+101 |         { cause: describeJoinFailure(observation.cause, args) },
+                       ^
+error: source observer Docker abort join failed; command=ps; category=message; sha256:390092ac43ed41795bbbae7b5df574ada66abdcd22f0ea2df2aba1570490ad60
+      at readObserverDocker (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:101:18)
+      at inspectInventory (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:183:17)
+      at inspectScope (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:236:53)
+      at inspectSourceDevExclusion (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:411:9)
+
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:907:49)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:332:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:844:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection deadline joins failure child and owner cleanup before returning [226.76ms]
+902 |                 if (cleanup !== 'complete') {
+903 |                   expect(outcome.failure).toBeInstanceOf(AggregateError);
+904 |                   if (!(outcome.failure instanceof AggregateError))
+905 |                     throw new Error('joined failure aggregation absent');
+906 |                   expect(outcome.failure.errors).toHaveLength(2);
+907 |                   expect(outcome.failure.cause).toBe(outcome.failure.errors[0]);
+                                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 75 |   const remaining = deadline - performance.now();
+76 |   if (remaining <= 0) throw new Error('source observer Docker deadline exceeded');
+77 |   const controller = new AbortController();
+78 |   let expired: Error | undefined;
+79 |   const expire = () => {
+80 |     expired = new Error('source observer Docker deadline exceeded');
+                       ^
+error: source observer Docker deadline exceeded
+      at expire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:80:19)
+
+Received:  96 |       // Proof: join-privacy omission retained the private cleanup sentinel in the nested error graph.
+ 97 |       throw new AggregateError(
+ 98 |         [expired, describeJoinFailure(observation.cause, args)],
+ 99 |         'source observer Docker deadline exceeded; abort join failed',
+100 |         // Proof: join-primary fault replaced the timeout cause; both primary-retention negatives failed.
+101 |         { cause: describeJoinFailure(observation.cause, args) },
+                       ^
+error: source observer Docker abort join failed; command=ps; category=message; sha256:390092ac43ed41795bbbae7b5df574ada66abdcd22f0ea2df2aba1570490ad60
+      at readObserverDocker (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:101:18)
+      at inspectInventory (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:183:17)
+      at inspectExcludedSourceMember (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:376:25)
+
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:907:49)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:332:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:844:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source recognition deadline joins failure child and owner cleanup before returning [217.64ms]
+
+ 0 pass
+ 51 filtered out
+ 2 fail
+ 26 expect() calls
+Ran 2 tests across 1 file. [495.00ms]

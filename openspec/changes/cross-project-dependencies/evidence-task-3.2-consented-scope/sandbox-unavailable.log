@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:
+58 | }
+59 |
+60 | beforeAll(async () => {
+61 |   upstreamKeys = await generateKeyPair('RS256', { extractable: true });
+62 |   const publicJwk = await exportJWK(upstreamKeys.publicKey);
+63 |   jwks = Bun.serve({
+                  ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:63:14)
+(fail) (unnamed) [126.64ms]
+149 | });
+150 |
+151 | afterAll(async () => {
+152 |   backend?.kill('SIGTERM');
+153 |   await backend?.exited;
+154 |   await jwks.stop(true);
+              ^
+TypeError: undefined is not an object (evaluating 'jwks.stop')
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:154:9)
+(fail) (unnamed) [0.16ms]
+
+ 0 pass
+ 2 fail
+Ran 2 tests across 1 file. [3.64s]

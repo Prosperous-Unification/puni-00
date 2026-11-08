@@ -1,0 +1,72 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+420 |       : operation === 'bare step removal'
+421 |         ? await harness.removeBareStep(fixture.projectId, fixture.stepId, principal, true, access)
+422 |         : await runRecoveryWrite(boundary, access, fixture.projectId, principal, { step: 'remove' },
+423 |             (services, freshAccess) => services.steps.removeWithin(fixture.projectId, fixture.stepId, principal.id, true, freshAccess),
+424 |             (reason) => ({ ok: false, reason }));
+425 |     expect(outcome).toEqual({ ok: false, error: 'insufficient_scope' });
+                          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "error": "insufficient_scope",
+-   "ok": false,
++   "ok": true,
++   "value": {
++     "abbreviation": "PLA",
++     "createdAt": 1792628022046,
++     "depReach": "whole-item",
++     "estimateMethod": "pert",
++     "estimateRounding": "ceil",
++     "id": "444b9781-72fc-499c-a23d-a674d1660c40",
++     "name": "Must not write",
++     "optimizationEnabled": false,
++     "ownerId": "7d69c283-c256-4662-b0e5-1f04dbbc261c",
++     "pertWeights": {
++       "optimistic": 1,
++       "pessimistic": 1,
++       "realistic": 4,
++     },
++     "restricted": true,
++     "revision": 1,
++     "scheduleEngine": "fast",
++     "scheduleObjective": "pri",
++     "solutionRef": null,
++     "startDate": null,
++     "timezone": "UTC",
++   },
+  }
+
+- Expected  - 2
++ Received  + 24
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:425:21)
+(fail) direct project update refuses read-only scope before opening its SQLite UoW [451.53ms]
+420 |       : operation === 'bare step removal'
+421 |         ? await harness.removeBareStep(fixture.projectId, fixture.stepId, principal, true, access)
+422 |         : await runRecoveryWrite(boundary, access, fixture.projectId, principal, { step: 'remove' },
+423 |             (services, freshAccess) => services.steps.removeWithin(fixture.projectId, fixture.stepId, principal.id, true, freshAccess),
+424 |             (reason) => ({ ok: false, reason }));
+425 |     expect(outcome).toEqual({ ok: false, error: 'insufficient_scope' });
+                          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "error": "insufficient_scope",
+-   "ok": false,
++   "ok": true,
+  }
+
+- Expected  - 2
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:425:21)
+(fail) direct bare step removal refuses read-only scope before opening its SQLite UoW [230.94ms]
+
+ 0 pass
+ 62 filtered out
+ 2 fail
+ 8 expect() calls
+Ran 2 tests across 1 file. [2.75s]

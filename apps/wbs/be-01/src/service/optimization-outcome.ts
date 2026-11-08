@@ -27,6 +27,7 @@ export function createOptimizationOutcomeOwner(
       // Proof: detaching source.ts capture onto a read-only connection made the
       // installed selected-outcome test lose B's durable event after A stored.
       const before = organizationId === null ? null : await capture.capture(organizationId);
+      // Proof: COMMIT/BEGIN after outcome storage and before connected recipient insertion retained selected cache and event sequence rows after C's insert fault.
       const committed = recordOptimizationOutcomeIn(db, eventLog, write);
       // Proof: bypassing this no-op guard caused an already-recorded outcome
       // to take a fourth capture instead of the observed three.
@@ -36,7 +37,13 @@ export function createOptimizationOutcomeOwner(
       // throwing during this capture restored the complete prewrite snapshot.
       const after = await capture.capture(organizationId);
       const cause = write.claim.projectId;
-      const addressed = before.localFacts.has(cause) || after.localFacts.has(cause);
+      // Proof: omitting dependency membership lost C←B after scoped connected selected publication in connected-publication.test.ts.
+      // Connected members live in the dependency capture, outside ordinary shared/local facts.
+      const addressed =
+        before.localFacts.has(cause) ||
+        after.localFacts.has(cause) ||
+        before.dependency?.projects.has(cause) === true ||
+        after.dependency?.projects.has(cause) === true;
       // Proof: dropping the addressed cause or this recording lost B's event;
       // a second-recipient insert fault rolled back outcome, cache and seq.
       // Splitting COMMIT/BEGIN after outcome write instead left those rows

@@ -1,0 +1,42 @@
+bun test tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000 -t actual CLI edge-owner
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:
+72 |   test(`actual CLI ${marker} refuses before config or orphan sweep`, async () => {
+73 |     const { directory, spawn } = await fixture();
+74 |     await writeFile(`${directory}/${marker}`, 'retained');
+75 |     const child = spawn(false, [`--config=${directory}/absent.json`]);
+76 |     expect(await child.exited).toBe(1);
+77 |     expect(await new Response(child.stderr).text()).toContain('admission closed');
+                                                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "admission closed"
+Received: "[wbs-solver-supervisor] startup failed: ENOENT: no such file or directory, open '/tmp/wbs-test-66018-FT4KI2/solver-runtime-cli-wDhzZr/absent.json'\n"
+
+      at <anonymous> (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:77:53)
+(fail) actual CLI edge-owner.pending refuses before config or orphan sweep [24.38ms]
+72 |   test(`actual CLI ${marker} refuses before config or orphan sweep`, async () => {
+73 |     const { directory, spawn } = await fixture();
+74 |     await writeFile(`${directory}/${marker}`, 'retained');
+75 |     const child = spawn(false, [`--config=${directory}/absent.json`]);
+76 |     expect(await child.exited).toBe(1);
+77 |     expect(await new Response(child.stderr).text()).toContain('admission closed');
+                                                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "admission closed"
+Received: "[wbs-solver-supervisor] startup failed: ENOENT: no such file or directory, open '/tmp/wbs-test-66018-FT4KI2/solver-runtime-cli-wCioAF/absent.json'\n"
+
+      at <anonymous> (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:77:53)
+(fail) actual CLI edge-owner.json refuses before config or orphan sweep [43.73ms]
+
+tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts:
+
+ 0 pass
+ 16 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 2 files. [111.00ms]
+
+exit 1

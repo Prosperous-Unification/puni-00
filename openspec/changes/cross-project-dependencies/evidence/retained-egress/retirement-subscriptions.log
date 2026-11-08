@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/retirement.integration.test.ts:
+{"level":"error","time":1792737580927,"service":"gw-01","reason":"incompatible","err":{"occurrence_id":"AE_A0XSDWCBX2MGKWTF7HDJAJRG9Q","fingerprint":"fp1_b21151a2d9c5fd4cba58161e87aefe9e","instanceof_error":false,"typeof":"undefined","as_string":"undefined","as_json":null,"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"376df364-e498-4ea5-858b-5c739a55618d","msg":"socket delivery retired"}
+63 |     expect(presence?.list(PROJECT.slice('project:'.length))).toEqual(['ada']);
+64 |     expect([...app.decorator.subs.socketsFor(PROJECT)]).toHaveLength(1);
+65 |     enabled = true;
+66 |     await websocket.message(socket, { type: 'ping' });
+67 |     expect(closes).toBe(1);
+68 |     expect(beforeClose).toEqual({ canceled: true, subscriptions: [], presence: 0 });
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "canceled": true,
+    "presence": 0,
+-   "subscriptions": [],
++   "subscriptions": [
++     SocketDelivery {
++       "cancellation": AbortController {},
++       "deps": {
++         "admit": [Function: AsyncFunction],
++         "capacity": 64,
++         "deadlineMs": 5000,
++         "onRetired": [Function],
++         "signal": AbortSignal {},
++         "timers": {
++           "nowMs": [Function],
++           "schedule": [Function],
++         },
++         "write": [Function],
++       },
++       "pending": 0,
++       "tail": Promise {},
++     },
++   ],
+  }
+
+- Expected  - 1
++ Received  + 19
+
+      at <anonymous> (/tmp/puni-egress-1031/apps/wbs/gw-01/src/retirement.integration.test.ts:68:25)
+(fail) mounted retirement removes presence and subscriptions and aborts before physical close [21.07ms]
+
+ 0 pass
+ 1 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.89s]

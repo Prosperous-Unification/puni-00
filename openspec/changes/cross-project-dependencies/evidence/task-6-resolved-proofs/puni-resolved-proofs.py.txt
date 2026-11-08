@@ -1,0 +1,30 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-cross-resolved-schedule')
+base=root/'libs/wbs/domain/domain/src'
+checks=[
+('node-identity','resolved-schedule-input.ts',"slice?.stepId !== expectedStep ||",'', 'refuses step'),
+('node-extra','resolved-schedule-input.ts',"slice?.stepId !== expectedStep || !unseen.get(leafId)?.delete(node.at)","slice !== undefined && !unseen.get(leafId)?.delete(node.at)",'refuses extra'),
+('node-duplicate','resolved-schedule-input.ts',"!unseen.get(leafId)?.delete(node.at)","(unseen.get(leafId)?.delete(node.at), false)",'refuses duplicate'),
+('node-missing','resolved-schedule-input.ts',"if ([...unseen.values()].some((positions) => positions.size > 0))",'if (false)','refuses missing graph'),
+('edge-endpoint','resolved-schedule-input.ts',"!Number.isInteger(endpoint.at) ||\n        groups.get(endpoint.leafId)?.[endpoint.at] === undefined",'false','refuses endpoint'),
+('ownership','schedule.ts',"order.projectIdByWorkItem.get(node.slice.workItemId)","order.projectIdByWorkItem.get(node.slice.workItemId) ?? 'A'",'connected ownership'),
+('rank','schedule.ts',"if (rank === undefined || !Number.isFinite(rank))",'if (false)','connected rank'),
+('rank-nonfinite','schedule.ts',"if (rank === undefined || !Number.isFinite(rank))",'if (rank === undefined)','connected nonfinite'),
+('rank-comparator','schedule.ts',"if (firstProject.rank !== secondProject.rank) return firstProject.rank < secondProject.rank;",'','rank precedes'),
+('id-comparator','schedule.ts',"if (firstProject.id !== secondProject.id) return firstProject.id < secondProject.id;",'','bytewise'),
+('FS-real','real-boundaries.ts','if (observed < boundary)',"if (edge.type !== 'FS' && observed < boundary)",'rejects a violated resolved FS'),
+('SS-real','real-boundaries.ts','if (observed < boundary)',"if (edge.type !== 'SS' && observed < boundary)",'rejects a violated resolved SS'),
+('FF-real','real-boundaries.ts','if (observed < boundary)',"if (edge.type !== 'FF' && observed < boundary)",'rejects a violated resolved FF'),
+]
+for name, file, before, after, match in checks:
+ path=base/file
+ original=path.read_text()
+ if before not in original: raise RuntimeError('mutation text missing '+name)
+ try:
+  path.write_text(original.replace(before,after,1))
+  run=subprocess.run(['bun','test',str(base/'schedule-connected.test.ts'),'--test-name-pattern',match],cwd=root,capture_output=True,text=True)
+  Path('/tmp/puni-resolved-proof-'+name+'.log').write_text(run.stdout+run.stderr)
+  print(name,run.returncode,(run.stdout+run.stderr)[-220:].replace('\n',' '),flush=True)
+  if run.returncode==0: raise RuntimeError('proof stayed green '+name)
+ finally: path.write_text(original)

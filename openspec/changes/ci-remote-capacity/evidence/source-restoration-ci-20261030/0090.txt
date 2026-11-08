@@ -1,0 +1,61 @@
+{
+  "scope": "Parsed second explicitsourceNode identity; not targetsource native tooling",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+        "--test-name-pattern=both\\ source\\ matrix\\ members\\ provision\\ the\\ exact\\ CI\\ Node\\ runtime$"
+      ],
+      "pid": 3321076,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 0.034160512033849955,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "5763813ecc02d84cf855bd7ef7014dcfe34f76bfb90d73ac13fa16f94a02af7e"
+    },
+    "wrapper": {
+      "pid": 3321075,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "11bd1783505f281ab3a2df726a96ab61d3264f97106304fc90fda9febef5af9c",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+        "--test-name-pattern=both\\ source\\ matrix\\ members\\ provision\\ the\\ exact\\ CI\\ Node\\ runtime$"
+      ],
+      "pid": 3321085,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 0.03564031806308776,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "e909499024e9f194a1388c00e22e8e51a24608be41457231fde6bba31f78f294"
+    },
+    "wrapper": {
+      "pid": 3321083,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "281f8778f90e29799cdcc662d120534b9ae4dc0d29a6d5d8387d8add8bd27e17",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

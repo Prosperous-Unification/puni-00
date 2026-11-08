@@ -1,6 +1,7 @@
 import type { Row } from '@tanstack/react-table';
 import { useCallback, useRef } from 'react';
 
+import type { PlanRead } from '@/lib/wbs-api';
 import type { PersonView, PriorityBandView, ServiceView, TagView, TeamView } from '@/lib/wbs-api';
 import { type StepView } from '@/lib/wbs-api';
 
@@ -40,7 +41,7 @@ export function usePlanExportActions({
   projectName: string | undefined;
   estimateMethod: 'pert' | 'optimistic' | 'realistic' | 'pessimistic';
   startDate: string | null;
-  scheduleError: 'calendar_range' | 'cycle' | null;
+  scheduleError: PlanRead['scheduleError'];
   steps: StepView[];
   teams: TeamView[];
   tags: TagView[];

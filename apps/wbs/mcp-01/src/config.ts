@@ -1,5 +1,8 @@
 import { mcpAuthModeOf } from '@wbs/auth';
-import { canonicalMcpAuthorizationServer, mcpAuthorizationServerOf } from '@wbs/contracts';
+import {
+  canonicalMcpAuthorizationServer,
+  mcpAuthorizationServerOf,
+} from '@wbs/contracts/mcp-authorization-server';
 import { type } from '@wbs/validation';
 
 /**

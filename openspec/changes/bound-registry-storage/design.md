@@ -283,7 +283,7 @@ rotation cannot refresh slots, replace a source binding or refund liabilities.
 The current provider adapter remains closed until complete physical evidence exists.
 
 Store bounded effect state in a root-only `backup-effects/` sibling of `contents/`
-on the existing journal filesystem; see [ADR 0060](../../../docs/adr/0060-registry-backup-consumption-survives-content-restore.md).
+on the existing journal filesystem; see [ADR 0078](../../../docs/adr/0078-registry-backup-consumption-survives-content-restore.md).
 Only explicit enrollment of fresh backing creates the vacant state exclusively
 and durably. Runtime and provisioning convergence both refuse loss of established
 state, lock or the entire sidecar directory; absence never proves first enrollment. Enforce a 1 MiB serialized record and 1,024 effect-entry cap,
@@ -604,7 +604,7 @@ Shared sudo policy must parse with both installed classic and default sudo-rs to
 It contains no incompatible closefrom/logging settings; PTY or input-log interposition
 must fail authentication before receiving a token or causing effects. No pathname,
 listener, daemon, reopened lock or second authority is introduced. The rejected
-classic-only fragment and transport trade-off are recorded in [ADR0058](../../../docs/adr/0058-registry-maintenance-transfers-the-held-authority-descriptor.md).
+classic-only fragment and transport trade-off are recorded in [ADR0076](../../../docs/adr/0076-registry-maintenance-transfers-the-held-authority-descriptor.md).
 Native isolated and final installed privilege/descriptor/cleanup proofs are required
 before this contract is considered operationally verified.
 
@@ -654,7 +654,7 @@ physical budget. The budget port remains closed until that independent bound and
 retention/prune/restore proofs exist. Controlled SDK transport fixtures establish
 local behavior only; live provider compatibility remains unverified.
 The explicit owned-local native adapter proves mechanism only. See
-[ADR0059](../../../docs/adr/0059-registry-backup-locks-identify-their-owning-attempt.md)
+[ADR0077](../../../docs/adr/0077-registry-backup-locks-identify-their-owning-attempt.md)
 for alternatives and pinned restic behavior; final installed and independent-host
 proofs remain activation prerequisites.
 

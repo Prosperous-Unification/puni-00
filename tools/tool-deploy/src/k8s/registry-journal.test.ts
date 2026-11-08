@@ -11,7 +11,7 @@ import {
   registryFileJournal,
   type RegistryJournalRecord,
 } from './registry-journal';
-import { initialState, type ReleaseRequest } from './release';
+import { releaseIdOf, type ReleaseRequest } from './release';
 import { sealReplayReceipt } from './replay-receipt';
 
 const roots: string[] = [];
@@ -46,7 +46,20 @@ const request: ReleaseRequest = {
   recovers: null,
 };
 
-const seed = initialState(request);
+const seed = {
+  releaseId: releaseIdOf(request.release),
+  transactionId: 'historical-transaction',
+  phase: 'requested' as const,
+  rollbackFrom: null,
+  capture: null,
+  replayForward: null,
+  replayRollback: null,
+  previous: request.expectedCurrent,
+  snapshot: null,
+  fluxSuspendedByUs: false,
+  writesReopened: false,
+  failure: null,
+};
 const fixedState = {
   ...seed,
   phase: 'migrated' as const,
@@ -210,4 +223,21 @@ it('refuses oversized managed writes before replacing owner state', () => {
     });
   }).toThrow('capacity');
   expect(registryFileJournal(path).read()).toBeNull();
+});
+
+it('dormant journal family refuses controllers without changing historical registry state', () => {
+  const path = join(directory(), 'hybrid.json');
+  const historical = {
+    ...record(),
+    schemaVersion: 4 as const,
+    registry: null,
+    registryHistory: null,
+  };
+  const bytes = JSON.stringify({
+    ...historical,
+    state: { ...historical.state, controllers: { forward: null, rollback: null } },
+  });
+  writeFileSync(path, bytes);
+  expect(() => registryFileJournal(path).read()).toThrow('controller');
+  expect(readFileSync(path, 'utf8')).toBe(bytes);
 });

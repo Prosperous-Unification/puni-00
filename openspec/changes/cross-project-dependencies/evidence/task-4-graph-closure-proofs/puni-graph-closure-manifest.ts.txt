@@ -1,0 +1,8 @@
+import {createHash} from 'node:crypto';
+const root='/tmp/puni-cross-graph-closure';const sha=(bytes:Uint8Array|string)=>createHash('sha256').update(bytes).digest('hex');
+async function git(...args:string[]){const child=Bun.spawn(['git',...args],{cwd:root,stdout:'pipe',stderr:'pipe'});const [out,err,status]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]);if(status!==0)throw new Error(err);return out.trim();}
+const base=await git('rev-parse','HEAD');if(base!=='0894d25aec01701ab0c615bc34a40f57e3c72a4b')throw new Error('base changed');
+const paths=(await git('diff','--name-only','HEAD')).split('\n');if(paths.length!==1||paths[0]!=='apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts')throw new Error('unexpected paths');
+const proofs=JSON.parse(await Bun.file('/tmp/puni-graph-closure-proofs.json').text());for(const proof of proofs){const bytes=await Bun.file(root+'/'+proof.path).text();if(sha(bytes)!==proof.restoredSha256||proof.beforeSha256!==proof.restoredSha256||proof.status!==1||!proof.selectedAssertionFailed)throw new Error('bad restored proof '+proof.name);}
+const manifest={root,base,branch:await git('branch','--show-current'),paths:await Promise.all(paths.map(async path=>{const bytes=await Bun.file(root+'/'+path).bytes();return {path,sha256:sha(bytes),bytes:bytes.length};}))};
+const text=JSON.stringify(manifest,null,2)+'\n';await Bun.write('/tmp/puni-graph-closure-manifest.json',text);await Bun.write('/tmp/puni-graph-closure-manifest.sha256',sha(text)+'  puni-graph-closure-manifest.json\n');console.log(text,sha(text));

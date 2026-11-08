@@ -1,0 +1,40 @@
+# Task 7.1 proof closure — independent Astra High review
+
+**Verdict: approved. Both task 7.1 evidence gaps identified in the preceding compatibility review are closed.** No remaining obligation was identified within that bounded wire/projection/schema slice. Together with the previously reviewed implementation, corrected wire checkpoint and backend compatibility packet, this supports completing task 7.1. Task 7.2's prior source-slice conclusion is unchanged. Tasks 7.3/7.4 and activation remain separate.
+
+Reviewed clean frozen commit `38ca5cc37e83294ea4f9bfb781ea94e63bbc95ed`, atop `c45df127c5afe37af924a9d8a89d0c9beaedf105`, in `/tmp/puni-cross-solver-backend`. The only changed file is `libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts`, adding 165 lines. Its SHA-256 matched `bbadbb20a40c5c319b1f91efeceab19d8e1e6d6eaf404c32511e8938ee2279e3` before and after review. Production source, schemas and Python are unchanged. No source, Git or WBS mutation was made by this review; independent mutation work used `/tmp/puni-71-review-sandbox`.
+
+## Permanent scenario and member coverage
+
+The permanent `external FS targets the second selected-project step` test adds the second slice and its correctly typed graph node, then supplies the resolved external FS edge to that slice. It invokes actual pair preparation, proves a request is prepared, checks the single incoming lower-10 bound targets `b/second` rather than `b/first`, accepts the exact unknown response, and refuses omission of that boundary through production revalidation. It has six assertions and passes freshly. The recorded target-index mutation in `/tmp/puni-wire-closure-fs-mutation.log` reaches the intended assertion after preparation succeeds: actual `b\0` versus expected `b\0second`. It is not one of the invalid setup drafts from the previous review.
+
+The new request-member test prepares an intact shared request with both directional boundaries and foreign occupancy. It verifies the intact request through revalidation, then independently clones and removes **52** members: 17 request members, 9 scope members, 3 project fields, 4 fixed-placement fields, 14 entries across the incoming/outgoing boundary instances, and 5 occupancy fields. Both `minimumStartUnits` and `maximumStartUnits` are present in the omission inventory. Every omission reaches production `validateConnectedSolverRequest` and must produce the schema-level `wire 5` refusal. The intact fixture prepares a request, so an already malformed or terminal-only setup does not supply the negatives.
+
+The response test independently omits **seven** members: wireVersion, status, scope, and all four scope identity fields. The real decoder refuses each with `schema-violation`, while accepting the intact captured-identity response. The recorded decoder-version mutation in `/tmp/puni-wire-closure-decoder-mutation.log` actually admits the response missing wireVersion and fails the expected rejection assertion. The other identity omissions prove decoder behavior as a whole; they do not prove every comparison is independently necessary when the exact scope-key-count check also refuses the omission. The author states this masking limit honestly.
+
+## Independent reproduction of the 46 schema mutations
+
+The author's `/tmp/puni-wire-member-mutations.log` records one summary line for each mutation, but does not retain each raw assertion failure. I therefore repeated the entire sweep independently and preserved the full output.
+
+`/tmp/puni-71-review-mutations.ts` copies the production validator and normative schema into the isolated sandbox, along with an adapted copy of the permanent test. Preparation and revalidation remain imported from the frozen worktree; the tested validator is the exact copied production source whose schema dependency is mutated. The copied baseline passes **1 test / 54 assertions** before mutation. Each distinct schema-required or directional conditional member is then removed separately, the named test is run in a fresh Bun process, and the original schema is restored before the next case and in final cleanup. There are 46 distinct schema entries versus 52 request-instance omissions because both boundary instances share their six common schema members.
+
+All **46** runs exit 1 at an actual `expect` assertion in the intended test. No zero-test, import/setup failure or schema compilation failure is counted. Their precise meaning is:
+
+- **20 admission failures:** the weakened schema allows the missing-member fixture and the copied production validator returns without throwing. These include wire/contract/solver version, objective, budget/split, horizon, pools/resources, scope kind/input/question/origin, project rank/anchor, and boundary relationship/type/direction/both bounds.
+- **15 semantic-refusal diagnostic failures:** the schema no longer catches the omission, but a later semantic guard still rejects the fixture, with a different diagnostic. These include quantum, project membership/ownership, fixed/boundary endpoint correspondence and occupancy correspondence. They prove the field-required refusal boundary/order is exercised; they do not demonstrate unsafe acceptance.
+- **11 TypeError diagnostic failures:** absent slices, edges, elsewhere, scope, the three offset maps, or scope projects/fixed/boundaries/occupancy reach an unmodeled access/iteration error instead of the required schema refusal. These are executed assertion failures for validation order and failure shape, not unsafe acceptances or setup errors.
+
+Evidence: `/tmp/puni-71-review-mutation-summary.txt`, `/tmp/puni-71-review-mutation-classification.txt`, `/tmp/puni-71-review-mutation-run.log`, and one raw log per member in `/tmp/puni-71-review-mutants/`. The copy's intact baseline is `/tmp/puni-71-review-mutants/baseline.log`. These results substantiate the author's limited claim that each required-field policy is breakable at the actual validator dependency. They do not turn the earlier semantic predicate proofs, masked directional formula terms or decoder identity comparisons into stronger claims than they support.
+
+## Fresh verification
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-contracts:test --skip-nx-cache`: **520 pass / 0 fail / 1,697 assertions**, exit 0. `/tmp/puni-71-review-tests.log`.
+- Configured uncached contracts typecheck and lint: both successful, exit 0. `/tmp/puni-71-review-typeslint.log`.
+- Focused permanent parser/member/second-step tests: **3 pass / 0 fail / 70 assertions**, exit 0. `/tmp/puni-71-review-targeted.log`.
+- Independent copied-schema sweep: **46 actual assertion failures**, following the passing copied baseline, as classified above. Sweep driver exits 0 only after verifying each intended assertion failure.
+- Changed-file Prettier and `git diff --check c45df127c HEAD`: passed. `/tmp/puni-71-review-format.log`.
+- Final manifest check passed; `git status --short` remained empty. Normative and checked-in Python schemas both retain SHA-256 `c2574a0a703c25d59722508b7156932c9668b5f211e7992194901c9f40698469`; boundary production source and decoder retain the exact restored hashes stated in the author report.
+
+No Python rerun or installed-environment rebuild was needed for this test-only closure, and neither was performed. Installed 0.4 behavior, byte-copy checks and Python 276-test evidence remain those of the prior reviewed rounds. No full backend/store gate, build, Docker smoke, browser/e2e, deployment or activation was run here. Root still owns combined integration validation and overlapping command-lane composition.
+
+The P3 raw nested-occupancy union discrepancy remains retained with its canonical-stage reachability limit; this closure neither fixes it nor broadens accepted canonical input. Component selection, real materialization/publication, durable certificates, question hashing/cache/retry and activation obligations in 7.3/7.4 remain outstanding and are not implied by closing 7.1.

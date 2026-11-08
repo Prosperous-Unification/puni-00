@@ -1,0 +1,2 @@
+shared-admit-write-scope: watched (fail) direct project update refuses read-only scope before opening its SQLite UoW [451.53ms] | (fail) direct bare step removal refuses read-only scope before opening its SQLite UoW [230.94ms]; exit 1
+recovery-write-scope: watched (fail) direct recovery write refuses read-only scope before opening its SQLite UoW [447.58ms]; exit 1

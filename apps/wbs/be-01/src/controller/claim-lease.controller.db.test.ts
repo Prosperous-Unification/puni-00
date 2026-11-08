@@ -15,6 +15,7 @@ let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let projectId: string;
 let leaf: string;
+let stepId: string;
 let key: string;
 let credentialId: string;
 let pushed: { subscription: string; seq?: number; message: { type: string } }[];
@@ -51,7 +52,11 @@ beforeEach(async () => {
   h.activate();
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectId = (created.body as { project: { id: string } }).project.id;
+  const plan = created.body as { project: { id: string }; steps: { id: string }[] };
+  projectId = plan.project.id;
+  const firstStep = plan.steps.at(0);
+  if (firstStep === undefined) throw new Error('project omitted its first workflow step');
+  stepId = firstStep.id;
   const rows = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
@@ -77,7 +82,15 @@ function asAgent(method: string, path: string, body?: unknown): Promise<Answer> 
 
 async function claimAsAgent(): Promise<void> {
   const claimed = await asAgent('POST', `/api/projects/${projectId}/commands`, {
-    commands: [{ kind: 'claimWorkItem', workItemId: leaf, personId: 'codex', runId: 'run-1' }],
+    commands: [
+      {
+        kind: 'claimWorkItem',
+        workItemId: leaf,
+        personId: 'codex',
+        runId: 'run-1',
+        steps: [stepId],
+      },
+    ],
   });
   if (claimed.status !== 200) throw new Error(`claim refused: ${JSON.stringify(claimed)}`);
 }
@@ -104,15 +117,32 @@ function claimsChangedProjects(): string[] {
   return announced.map(({ subscription }) => subscription.slice('project:'.length));
 }
 
-async function createLeaf(name: string): Promise<{ project: string; leaf: string }> {
+async function createLeaf(name: string): Promise<{ project: string; leaf: string; step: string }> {
   const created = await h.call('dany', 'POST', '/api/projects', { name });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const project = (created.body as { project: { id: string } }).project.id;
+  const plan = created.body as { project: { id: string }; steps: { id: string }[] };
+  const project = plan.project.id;
+  const step = plan.steps.at(0)?.id;
+  if (step === undefined) throw new Error('project omitted its first workflow step');
   const rows = await h.call('dany', 'POST', `/api/projects/${project}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
-  return { project, leaf: (rows.body as { results: { id: string }[] }).results[0]?.id ?? '' };
+  return { project, leaf: (rows.body as { results: { id: string }[] }).results[0]?.id ?? '', step };
+}
+
+/** Adds an independent eligible leaf so renewal must deduplicate two moved leases per project. */
+async function claimAnother(project: string, step: string, runId: string): Promise<void> {
+  const created = await h.call('dany', 'POST', `/api/projects/${project}/commands`, {
+    commands: [{ kind: 'createWorkItem', parentId: null, name: runId }],
+  });
+  if (created.status !== 200) throw new Error(`second leaf refused: ${JSON.stringify(created)}`);
+  const workItemId = (created.body as { results: { id: string }[] }).results.at(0)?.id;
+  if (workItemId === undefined) throw new Error('second leaf absent');
+  const claimed = await asAgent('POST', `/api/projects/${project}/commands`, {
+    commands: [{ kind: 'claimWorkItem', workItemId, personId: 'codex', runId, steps: [step] }],
+  });
+  if (claimed.status !== 200) throw new Error(`second claim refused: ${JSON.stringify(claimed)}`);
 }
 
 describe('a claim lease over HTTP', () => {
@@ -121,17 +151,11 @@ describe('a claim lease over HTTP', () => {
     const work = await asAgent('GET', `/api/projects/${projectId}/people/codex/work`);
     expect(work.status).toBe(200);
     const held = (work.body as { claims: { leaseExpiresAt: number | null }[] }).claims;
-    expect(held.map(({ leaseExpiresAt }) => leaseExpiresAt)).toEqual([
-      T + CLAIM_LEASE_MS,
-      T + CLAIM_LEASE_MS,
-    ]);
+    expect(held.map(({ leaseExpiresAt }) => leaseExpiresAt)).toEqual([T + CLAIM_LEASE_MS]);
     const startable = await asAgent('GET', `/api/projects/${projectId}/startable`);
     expect(startable.status).toBe(200);
     const claimed = (startable.body as { claimed: { leaseExpiresAt: number | null }[] }).claimed;
-    expect(claimed.map(({ leaseExpiresAt }) => leaseExpiresAt)).toEqual([
-      T + CLAIM_LEASE_MS,
-      T + CLAIM_LEASE_MS,
-    ]);
+    expect(claimed.map(({ leaseExpiresAt }) => leaseExpiresAt)).toEqual([T + CLAIM_LEASE_MS]);
   });
 
   it('renews on an agent heartbeat and refuses a session heartbeat not_pinned', async () => {
@@ -139,7 +163,7 @@ describe('a claim lease over HTTP', () => {
     now = T + 2 * 60_000;
     expect(await asAgent('POST', '/api/claims/renew')).toMatchObject({
       status: 200,
-      body: { leases: 2, leaseExpiresAt: now + CLAIM_LEASE_MS },
+      body: { leases: 1, leaseExpiresAt: now + CLAIM_LEASE_MS },
     });
     expect(await h.call('dany', 'POST', '/api/claims/renew')).toMatchObject({
       status: 403,
@@ -149,6 +173,7 @@ describe('a claim lease over HTTP', () => {
 
   it('refuses a heartbeat carrying a body or a query as a typed 400, renewing nothing', async () => {
     await claimAsAgent();
+    await claimAnother(projectId, stepId, 'run-2');
     now = T + 2 * 60_000;
     expect(await asAgent('POST', '/api/claims/renew', {})).toMatchObject({
       status: 400,
@@ -182,7 +207,7 @@ describe('a claim lease over HTTP', () => {
     const sweep = h.claimLeaseSweep();
     sweep.start();
     await sweep.settled();
-    expect(claims()).toBe(2);
+    expect(claims()).toBe(1);
     now = T + 60_000;
     expect(
       await h.call('dany', 'DELETE', `/api/organization/machine-credentials/${credentialId}`),
@@ -205,21 +230,34 @@ describe('a heartbeat announcing claims_changed', () => {
     const other = await createLeaf('Plan of A, second');
     const claimed = await asAgent('POST', `/api/projects/${other.project}/commands`, {
       commands: [
-        { kind: 'claimWorkItem', workItemId: other.leaf, personId: 'codex', runId: 'run-2' },
+        {
+          kind: 'claimWorkItem',
+          workItemId: other.leaf,
+          personId: 'codex',
+          runId: 'run-2',
+          steps: [other.step],
+        },
       ],
     });
     expect(claimed.status).toBe(200);
+    await claimAnother(projectId, stepId, 'run-3');
+    await claimAnother(other.project, other.step, 'run-4');
+    expect(claims()).toBe(4);
     expect(claimsChangedProjects()).toEqual([]);
     now = T + 2 * 60_000;
     expect(await asAgent('POST', '/api/claims/renew')).toMatchObject({
       status: 200,
       body: { leases: 4, leaseExpiresAt: now + CLAIM_LEASE_MS },
     });
+    // Proof: omitting SQLite's moved-project Set made this actual composed
+    // heartbeat announce [A,A,B,B] instead of [A,B] (1 fail), then restored.
     expect(claimsChangedProjects().sort()).toEqual([projectId, other.project].sort());
   });
 
   it('announces nothing for a heartbeat within the minute, nor a refused one', async () => {
     await claimAsAgent();
+    await claimAnother(projectId, stepId, 'run-2');
+    expect(claims()).toBe(2);
     now = T + 2 * 60_000;
     expect((await asAgent('POST', '/api/claims/renew')).status).toBe(200);
     expect(claimsChangedProjects()).toEqual([projectId]);
@@ -259,17 +297,26 @@ describe('a heartbeat announcing claims_changed', () => {
  * the batch commits; the batch's own project hears its `tree_replaced` alone.
  */
 describe('a batch renewal announcing claims_changed elsewhere', () => {
-  let other: { project: string; leaf: string };
+  let other: { project: string; leaf: string; step: string };
 
   beforeEach(async () => {
     await claimAsAgent();
     other = await createLeaf('Plan of A, second');
     const claimed = await asAgent('POST', `/api/projects/${other.project}/commands`, {
       commands: [
-        { kind: 'claimWorkItem', workItemId: other.leaf, personId: 'codex', runId: 'run-2' },
+        {
+          kind: 'claimWorkItem',
+          workItemId: other.leaf,
+          personId: 'codex',
+          runId: 'run-2',
+          steps: [other.step],
+        },
       ],
     });
     if (claimed.status !== 200) throw new Error(`claim refused: ${JSON.stringify(claimed)}`);
+    await claimAnother(projectId, stepId, 'run-3');
+    await claimAnother(other.project, other.step, 'run-4');
+    expect(claims()).toBe(4);
   });
 
   function renameAsAgent(workItemId: string, name: string): Promise<Answer> {

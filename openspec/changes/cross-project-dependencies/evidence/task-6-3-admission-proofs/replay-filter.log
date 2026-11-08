@@ -1,0 +1,24 @@
+$ bun test apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts -t redo reevaluates
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+68 |   harness.sqlite.run("INSERT INTO step_progress (work_item_id,step_id,state,stated_at) VALUES ('predecessor-leaf',?,'done',1)", [targetStep]);
+69 |   expect((await claim()).status).toBe(200);
+70 |   expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+71 |   harness.sqlite.run("DELETE FROM step_progress WHERE work_item_id='predecessor-leaf'");
+72 |   const replayed = await harness.call('ada', 'POST', `/api/projects/${target}/redo`);
+73 |   expect(replayed.status).toBe(409);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 200
+
+      at <anonymous> (/tmp/puni-start-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:73:27)
+(fail) local claim redo reevaluates prerequisites after undo instead of replaying a new start [384.73ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [2.50s]

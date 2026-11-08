@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+    "--test-name-pattern=^isolated source restoration refuses missing gateway record and terminal repair$",
+    "--timeout=320000"
+  ],
+  "pid": 3245507,
+  "exit": 0,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 75.4146739859134,
+  "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+  "stderrSHA256": "944cf2051999dee5ecb969a258cb0502031b1212d97bb4d31fdf1ad8c1995110"
+}

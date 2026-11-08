@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-native.test.ts:
+427 | };
+428 | for (const [fault, mutate] of Object.entries(startupFaults))
+429 |   test(`started source refuses ${fault} before installing a baseline`, async () => {
+430 |     const f = await fixture();
+431 |     mutate(f.created, f.source);
+432 |     expect(() => bindStartedSource(f.created, f.source, f.expected)).toThrow();
+                                                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  receipt: {
+    transition: "false-to-null",
+    createdHostSha256: "31113c155ab0ab573917711a7094897efa79fe944a985508a8ecffdbe2dd4792",
+    startedHostSha256: "87387f0a49639ca4d68a31fdba9db3e09b4742c95b740112723e40c78d4c754b",
+    configSha256: "d3b0e6ee3afd075ccc9851452806950849a06fb12b58542d74a4e9499a419671",
+    mountsSha256: "302874dd39d7c7ca25422893b2a8b7bb0c48275e75cd5b65d73a4f58bcc74d42",
+  },
+  validate: [Function: validate],
+}
+
+      at <anonymous> (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:432:70)
+(fail) started source refuses duplicateTargets before installing a baseline [2.13ms]
+
+ 0 pass
+ 49 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [52.00ms]

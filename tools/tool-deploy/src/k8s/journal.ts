@@ -1,11 +1,13 @@
 import { closeSync, fsyncSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { assertControllerLifecycle, assertControllerProgress } from './controller-lifecycle';
 import { parseJournalState } from './journal-state';
 import { type ReleaseRequest, type ReleaseState, TERMINAL_PHASES } from './release';
+import { assertReplayProgress } from './replay-receipt';
 
 /** Bumped when a stored field changes meaning; an older coordinator refuses a newer journal. */
-const JOURNAL_SCHEMA = 3;
+const JOURNAL_SCHEMA = 4;
 
 /** One write of the journal: the request it binds and the state it reached. */
 export interface JournalRecord {
@@ -45,18 +47,42 @@ export function parseJournal(path: string, text: string): JournalRecord {
   }
   // Proof: bypassing this legacy-version route made `refuses a legacy in-flight journal`
   // report a generic unsupported schema instead of the required prior-executor procedure.
-  if (isRecord(parsed) && (parsed['schemaVersion'] === 1 || parsed['schemaVersion'] === 2)) {
+  // Proof: legacy-schema3 removal lost the prior-executor recovery procedure in the schema-3 refusal test.
+  if (
+    isRecord(parsed) &&
+    (parsed['schemaVersion'] === 1 ||
+      parsed['schemaVersion'] === 2 ||
+      parsed['schemaVersion'] === 3)
+  ) {
     throw new Error(
       `release journal ${path} has a legacy migration capture or replay progress; use the prior executor/manual recovery`,
     );
   }
-  // Proof: schema-guard removal accepted schema4 ownership through the baseline parser.
   if (!isRecord(parsed) || parsed['schemaVersion'] !== JOURNAL_SCHEMA) {
     throw new Error(`release journal ${path} has an unsupported schema version`);
   }
+  // Proof: omitting only this family check admits all four valid-controller registry envelopes through fileJournal in the active journal family negatives.
+  if (
+    Object.hasOwn(parsed, 'registry') ||
+    Object.hasOwn(parsed, 'registryHistory') ||
+    parsed['kind'] === 'registry-inheritance'
+  )
+    throw new Error(`release journal ${path} has an unsupported schema family`);
   const progress = parseJournalState(path, parsed);
-  // Boundary: schema3 was checked above; the shared parser validated request/state/history.
-  return progress as JournalRecord;
+  const controllers: unknown = Reflect.get(progress.state, 'controllers');
+  // Proof: journal-history-required bypass lost the missing/malformed controller lifecycle diagnostic.
+  if (!isRecord(controllers) || Object.keys(controllers).sort().join(',') !== 'forward,rollback')
+    throw new Error(`release journal ${path} is missing controller lifecycle`);
+  for (const interval of Object.values(controllers))
+    if (interval !== null) assertControllerLifecycle(interval);
+  // Boundary: the record was produced by `JSON.stringify` of these same types in `write`, and
+  // the discriminating fields above were checked; the rest is carried verbatim.
+  const record = parsed as unknown as JournalRecord;
+  // Proof: skipping disk replay validation returns corrupted progress in the resume refusal fixtures.
+  // Proof: journal-progress-validation omission admitted missing source drain/restore acknowledgments from disk.
+  assertControllerProgress(record.state, record.request);
+  assertReplayProgress(record.state, record.request);
+  return record;
 }
 
 /** Durable JSON file journal: whole-file replace via fsync'd temporary and rename. */

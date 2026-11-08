@@ -1,0 +1,12 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node launcher channel BEGIN stderr
+actual source launcher stderr boundary refusal observed
+(pass) actual source launcher refuses stderr from its owned collector boundary [54.53ms]
+
+ 1 pass
+ 48 filtered out
+ 0 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [77.00ms]

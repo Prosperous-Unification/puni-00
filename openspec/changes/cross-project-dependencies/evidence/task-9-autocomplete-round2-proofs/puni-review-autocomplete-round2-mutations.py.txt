@@ -1,0 +1,23 @@
+from pathlib import Path
+import subprocess, os
+root=Path('/tmp/puni-review-round2-isolated/apps/wbs/fe-01')
+faults=[
+ ('retired-save','src/components/wbs/typed-dependency-editor.tsx','if (retired.current) return;','if (false) return;',0,'src/components/wbs/dependency-autocomplete.test.tsx','round2 an old pending.*for other'),
+ ('retired-remove','src/components/wbs/typed-dependency-editor.tsx','if (retired.current) return;','if (false) return;',1,'src/components/wbs/scoped-dependency-editor.test.tsx','retired removal completion'),
+ ('desktop-gesture','src/components/wbs/plan-columns/depends.tsx','key={editorSession.current.generation}','key="same"',0,'src/components/wbs/dependency-autocomplete.test.tsx','round2 an old pending.*desktop for remote'),
+ ('phone-gesture','src/components/wbs/plan-cards.tsx','key={editorSession.current.generation}','key="same"',0,'src/components/wbs/dependency-autocomplete.test.tsx','round2 an old pending.*phone for remote'),
+ ('known-consumption','src/components/wbs/use-dependency-search.ts','    consumed !== null &&','    false && consumed !== null &&',0,'src/components/wbs/dependency-autocomplete.test.tsx','round2 known'),
+ ('stale-consumption','src/components/wbs/use-dependency-search.ts',"if (!matchesDraft(currentTyped)) return { kind: 'stale' };","if (false && !matchesDraft(currentTyped)) return { kind: 'stale' };",0,'src/components/wbs/dependency-autocomplete.test.tsx','older Customize success|older one-click completion'),
+]
+for fault,path,before,after,occurrence,suite,pattern in faults:
+ source=root/path;original=source.read_text();start=-1
+ for _ in range(occurrence+1):
+  start=original.find(before,start+1)
+  if start<0:raise RuntimeError('Missing fault anchor '+fault)
+ try:
+  source.write_text(original[:start]+original[start:].replace(before,after,1))
+  with open('/tmp/puni-review-autocomplete-round2-negative-'+fault+'.log','w') as log:
+   check=subprocess.run(['bunx','vitest','run',suite,'-t',pattern,'--no-file-parallelism','--maxWorkers=1'],cwd=root,env={**os.environ,'TZ':'UTC'},stdout=log,stderr=subprocess.STDOUT)
+  print(fault,check.returncode,flush=True)
+  if check.returncode==0:raise RuntimeError('Fault survived '+fault)
+ finally:source.write_text(original)

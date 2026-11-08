@@ -1,0 +1,27 @@
+apps/wbs/be-01/src/app.ts 132ms (unchanged)
+apps/wbs/be-01/src/controller/step.controller.db.test.ts 149ms
+apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts 53ms
+apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts 24ms
+apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts 26ms
+apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts 30ms
+apps/wbs/be-01/src/service/announcement-ownership.db.test.ts 13ms
+apps/wbs/be-01/src/service/plan-commands.db.test.ts 53ms
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts 54ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts 34ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts 29ms
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.ts 7ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts 12ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/fanout-capture.ts 14ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/import-performance.db.test.ts 9ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts 19ms
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.ts 2ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts 10ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/saved-plan-in-transaction.db.test.ts 10ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/source.ts 11ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts 4ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts 5ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts 13ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/write-coordinator.db.test.ts 11ms (unchanged)
+libs/wbs/application/core/src/index.ts 5ms (unchanged)
+libs/wbs/application/core/src/ports/chain-snapshot-store.ts 3ms (unchanged)
+libs/wbs/application/core/src/service/connected-plan-values.ts 1ms (unchanged)

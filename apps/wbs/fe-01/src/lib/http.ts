@@ -2,6 +2,7 @@ import {
   type Client,
   type ClientFailure,
   clientFromShapes,
+  DEPENDENCY_SEMANTICS,
   type EndpointShape,
   fetchTransport,
   type TransportInput,
@@ -25,10 +26,15 @@ export function browserClient<const Shapes extends readonly EndpointShape[]>(
     const headers = new Headers(input.headers);
     const resource = shape.policies.some((policy) => policy.kind === 'organization-resource');
     if (resource && expected !== null) headers.set('X-WBS-Expected-Organization', expected);
-    return fetchTransport(location.origin, (url, init) => {
-      const address = new URL(url);
-      return fetch(`${address.pathname}${address.search}`, init);
-    })(shape, { ...input, headers });
+    return fetchTransport(
+      location.origin,
+      (url, init) => {
+        const address = new URL(url);
+        return fetch(`${address.pathname}${address.search}`, init);
+      },
+      // Proof: omitting browser opt-in failed the protected/auth fetch header test in organization-context.model.test.ts.
+      DEPENDENCY_SEMANTICS,
+    )(shape, { ...input, headers });
   });
   if (scope === undefined) return client;
   // Each entry comes from clientFromShapes' exact shape binding and retains that
@@ -91,6 +97,8 @@ export function unreachable(value: never): never {
 /** Boundary failures remain distinct from validated application refusal messages. */
 export function failureMessage(failure: ClientFailure): string {
   switch (failure.code) {
+    case 'dependency_incompatible':
+      return 'This client cannot open plans with dependencies between projects. Reload with a compatible client.';
     case 'cancelled':
       return '';
     case 'transport':

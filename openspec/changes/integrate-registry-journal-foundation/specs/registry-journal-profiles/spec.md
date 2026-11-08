@@ -68,3 +68,37 @@ Integration SHALL preserve main's complete policy runtime, eight additive tests,
 
 - **WHEN** source builders select the installed authority artifact
 - **THEN** they select the explicit managed CLI while the foundation CLI retains no-installation behavior and no installer runs
+
+### Requirement: Kubernetes journal families preserve distinct authority
+
+The active Kubernetes journal SHALL retain main's schema4 controller lifecycle, full progress validation, legacy1/2/3 prior-executor refusal and UID-fenced sticky Lease ownership. The dormant registry journal SHALL retain schema3/4 historical progress and exact binding/history without controller defaults, fabrication, projection or active wiring.
+
+#### Scenario: Valid independent formats remain readable
+
+- **GIVEN** a complete active controller schema4 record and a valid dormant historical registry3/4 record
+- **WHEN** each actual owning reader reads its format
+- **THEN** it retains complete original progress and authority with no migration or manufactured fields
+
+#### Scenario: Reserved-family hybrids refuse
+
+- **GIVEN** an otherwise valid active4 record carrying registry, registryHistory or registry-inheritance kind, or a dormant registry4 record carrying controllers
+- **WHEN** the actual owning file/parser path reads it
+- **THEN** it refuses before granting effects, preserves original bytes, and active refusal identifies unsupported schema/family rather than relying on malformed controller evidence
+
+### Requirement: Shared Kubernetes parsing retains validation ownership
+
+Shared parsing SHALL validate precise common shape/capture. Active controller shape/lifecycle and controller progress MUST precede unchanged replay validation. Dormant replay SHALL follow common validation.
+
+#### Scenario: Corrupt controller and replay progress
+
+- **WHEN** an active record has invalid controller progress and replay evidence
+- **THEN** the owning parser retains main's controller-first diagnostic, and dormant parsing retains its existing replay validation without controller fabrication
+
+### Requirement: Current-main delivery and source qualification remain complete
+
+Integration SHALL preserve main's validated CI base/partitions/status/timeouts, remote discovery and eight leaves, controller planning/effects and observed Lease UID forwarding. Fleet source prerequisites MUST remain in the workspace phase that selects Fleet and unchanged infra-check. Exact dependency patch, S3 resolution, aliases, policy declarations and all old assertions SHALL survive additive resolution. Frozen install and provenance-dependent tests MUST use the actual combined source.
+
+#### Scenario: Combined clean source qualification
+
+- **WHEN** the normal combined candidate is committed after finite source checks
+- **THEN** the unchanged eleven pilot cases and five actual document-target cases plus index/link positives qualify that clean HEAD/tree without mutable archive substitution, earlier-error acceptance or new skips

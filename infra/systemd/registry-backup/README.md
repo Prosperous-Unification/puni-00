@@ -93,7 +93,7 @@ SCM_RIGHTS. The helper verifies the existing lock before acknowledging a nonsecr
 nonce. The operation token follows only a kernel-authenticated current-root reply.
 SO_PASSCRED checks each current sender; creation-time SO_PEERCRED is insufficient.
 PTY/input-logging relays must refuse before any token or effect. Both sudo parsers
-validate the basic shared policy before installation. See [the transport decision](../../../docs/adr/0058-registry-maintenance-transfers-the-held-authority-descriptor.md).
+validate the basic shared policy before installation. See [the transport decision](../../../docs/adr/0076-registry-maintenance-transfers-the-held-authority-descriptor.md).
 Installed sudo policy ordering, no-argument enforcement, credential denial, exact
 binary hashes and real controller acknowledgements must be verified in the final
 isolated installed drill. Local direct helper/component fixtures do not certify
@@ -155,7 +155,7 @@ its own identity before launching the fixed `backup-worker.js` through pinned
 worker paths, arguments or loader environment. The worker verifies private UTS,
 sets its nonce hostname and inherits the same held authority descriptor. Backup
 passes the stable registry identity explicitly as snapshot `--host`, independent
-of the temporary lock hostname. See [the backup lock decision](../../../docs/adr/0059-registry-backup-locks-identify-their-owning-attempt.md).
+of the temporary lock hostname. See [the backup lock decision](../../../docs/adr/0077-registry-backup-locks-identify-their-owning-attempt.md).
 
 The worker's restic children stay in its existing process group. Cancellation sends
 SIGINT with a fixed five-second grace, followed by SIGKILL when required; the
@@ -225,7 +225,7 @@ The backup worker uses a root-only `backup-effects/` sibling of captured journal
 independent of snapshot contents: restoration cannot recreate or refund consumed
 tickets. Fresh-backing storage enrollment initializes it; runtime and provisioning
 convergence refuse loss of established state, lock or the entire directory.
-[ADR 0060](../../../docs/adr/0060-registry-backup-consumption-survives-content-restore.md)
+[ADR 0078](../../../docs/adr/0078-registry-backup-consumption-survives-content-restore.md)
 records this recovery boundary.
 
 Every fixed restic command and exact-version recovery deletion consumes durable

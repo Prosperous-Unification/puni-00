@@ -50,7 +50,7 @@ function requireNoRights(packet: MaintenancePacket): void {
 /**
  * Send only a nonsecret nonce and the existing authority description until a CURRENT root sender
  * acknowledges that exact nonce over the direct socket. Sudo PTY/input relays cannot pass this
- * handshake and therefore cannot observe the later operation token. See docs/adr/0058-registry-maintenance-transfers-the-held-authority-descriptor.md.
+ * handshake and therefore cannot observe the later operation token. See docs/adr/0076-registry-maintenance-transfers-the-held-authority-descriptor.md.
  */
 export async function authenticateMaintenanceChannel(
   channel: MaintenanceSocket,

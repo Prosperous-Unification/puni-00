@@ -8292,7 +8292,7 @@ real effect port to every store command and the exact-version provider DELETE
 boundary. Only controlled tests supply the explicit modeled override; the
 unchanged production worker callsite supplies none. Persisting consumption does
 not mutate captured contents or canonical source revision. Restoring contents
-cannot recreate/refund spent authority; [ADR 0060](../../../docs/adr/0060-registry-backup-consumption-survives-content-restore.md)
+cannot recreate/refund spent authority; [ADR 0078](../../../docs/adr/0078-registry-backup-consumption-survives-content-restore.md)
 records that trade-off. Missing established state/lock/whole directory refuses
 runtime and provisioning convergence; only fresh backing receives initial state.
 Existing-volume enrollment/upgrade and installed worker accessibility remain unproved.

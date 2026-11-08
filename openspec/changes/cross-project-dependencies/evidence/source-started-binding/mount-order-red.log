@@ -1,0 +1,35 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts:
+93 |   return text;
+94 | }
+95 | // Proof: omitting comparisons let lying-update reach stop; the mounted negative observes the forbidden stop.
+96 | export function assertSame(expected: unknown, observed: unknown, description: string): void {
+97 |   if (JSON.stringify(expected) !== JSON.stringify(observed))
+98 |     throw new Error(`managed cohort ${description} changed or was not excluded`);
+                   ^
+error: managed cohort source dev pre-effect identity changed or was not excluded
+      at assertSame (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/managed-cohort.ts:98:15)
+      at withSourceDevExcluded (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:190:3)
+      at async <anonymous> (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/solver-exclusion.ts:259:20)
+      at async <anonymous> (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/edge-ownership.ts:226:27)
+      at async acquireLock (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) combined coordinator retains solver tmpfs and source members throughout awaited protected work [358.25ms]
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+93 |   return text;
+94 | }
+95 | // Proof: omitting comparisons let lying-update reach stop; the mounted negative observes the forbidden stop.
+96 | export function assertSame(expected: unknown, observed: unknown, description: string): void {
+97 |   if (JSON.stringify(expected) !== JSON.stringify(observed))
+98 |     throw new Error(`managed cohort ${description} changed or was not excluded`);
+                   ^
+error: managed cohort source dev pre-effect identity changed or was not excluded
+      at assertSame (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/managed-cohort.ts:98:15)
+      at withSourceDevExcluded (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:190:3)
+(fail) source mount order may vary on successive complete inventory observations [45.09ms]
+
+ 0 pass
+ 94 filtered out
+ 2 fail
+Ran 2 tests across 2 files. [512.00ms]
