@@ -433,8 +433,11 @@ describe(MIGRATION, () => {
         );
       expect(() => row('space', 'user', 'route')).toThrow('CHECK constraint failed');
       expect(() => row('work_package', 'team', 'route')).toThrow('CHECK constraint failed');
-      expect(() => row('work_package', 'user', 'operator')).toThrow('CHECK constraint failed');
+      expect(() => row('work_package', 'user', 'manual')).toThrow('CHECK constraint failed');
       row('work_package', 'user', 'route');
+      // `operator` is the origin of a grant written by P21's access-grant-cli (task 1.5);
+      // the vocabulary admits it, so the same row with that origin is only a duplicate.
+      expect(() => row('work_package', 'user', 'operator')).toThrow('UNIQUE constraint failed');
       expect(() => row('work_package', 'user', 'invitation')).toThrow('UNIQUE constraint failed');
     });
 

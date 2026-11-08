@@ -268,10 +268,10 @@ export type GrantSubjectKind = (typeof GRANT_SUBJECT_KINDS)[number];
 
 /**
  * What wrote a grant: the `add_access_grants` backfill, a grant route, an
- * invitation's initial grant, or a creation (P6). Only `backfill` rows let
- * that migration roll back.
+ * invitation's initial grant, a creation (P6), or the host operator's
+ * `access-grant-cli` (P21). Only `backfill` rows let that migration roll back.
  */
-export const GRANT_ORIGINS = ['backfill', 'route', 'invitation', 'creation'] as const;
+export const GRANT_ORIGINS = ['backfill', 'route', 'invitation', 'creation', 'operator'] as const;
 
 export type GrantOrigin = (typeof GRANT_ORIGINS)[number];
 
