@@ -97,7 +97,7 @@ beforeAll(async () => {
   mkdirSync(join(scratch, 'consumer'));
   writeFileSync(join(scratch, 'consumer/package.json'), '{"private":true}');
   const added = runCommand(
-    ['bun', 'add', '--ignore-scripts', join(scratch, 'tarballs/twilight-burokrat-0.2.0.tgz')],
+    ['bun', 'add', '--ignore-scripts', join(scratch, 'tarballs/twilight-burokrat-0.2.1.tgz')],
     join(scratch, 'consumer'),
   );
   expect(added.exitCode, added.stderr.toString()).toBe(0);

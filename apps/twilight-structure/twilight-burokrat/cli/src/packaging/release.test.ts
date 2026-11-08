@@ -47,7 +47,7 @@ function fixture(
   const root = scratch('twilight-burokrat-release-');
   const repository = join(root, 'repository');
   const packageRoot = join(root, 'package/package');
-  const version = options.version ?? '0.2.0';
+  const version = options.version ?? '0.2.1';
   const packedVersion = options.packedVersion ?? version;
   mkdirSync(join(repository, 'apps/twilight-structure/twilight-burokrat/cli'), { recursive: true });
   run(['git', 'init', '--initial-branch=main'], repository);
@@ -156,7 +156,7 @@ describe('package release planner', () => {
     );
     expect(workflow).toContain('github-release-absent --status "$status"');
     expect(workflow).toContain('verify-registry --record "$record"');
-    expect(workflow).toContain('bun add --exact --ignore-scripts twilight-burokrat@0.2.0');
+    expect(workflow).toContain('bun add --exact --ignore-scripts twilight-burokrat@0.2.1');
   });
 
   test('distinguishes an absent GitHub release from existing and unknown states', () => {
@@ -171,7 +171,7 @@ describe('package release planner', () => {
 
   test('distinguishes an absent version from unknown registry state', async () => {
     expect(
-      await lookupRegistryVersion('twilight-burokrat', '0.2.0', () => ({
+      await lookupRegistryVersion('twilight-burokrat', '0.2.1', () => ({
         exitCode: 1,
         stderr: new TextEncoder().encode('404 Not Found'),
         stdout: new Uint8Array(),
@@ -180,28 +180,28 @@ describe('package release planner', () => {
     // Bun answers a missing version of an existing package with this JSON on stdout (observed on
     // release run 42451249726 for twilight-burokrat-v0.2.0, after 0.1.0 had been published).
     expect(
-      await lookupRegistryVersion('twilight-burokrat', '0.2.0', () => ({
+      await lookupRegistryVersion('twilight-burokrat', '0.2.1', () => ({
         exitCode: 1,
         stderr: new Uint8Array(),
         stdout: new TextEncoder().encode(
-          '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
+          '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.1" }\n',
         ),
       })),
     ).toBe('absent');
     expect(
       await refusal(
-        lookupRegistryVersion('twilight-burokrat', '0.2.0', () => ({
+        lookupRegistryVersion('twilight-burokrat', '0.2.1', () => ({
           exitCode: 1,
           stderr: new Uint8Array(),
           stdout: new TextEncoder().encode(
-            '{ "error": "No matching version found", "version": "other-package@0.2.0" }\n',
+            '{ "error": "No matching version found", "version": "other-package@0.2.1" }\n',
           ),
         })),
       ),
     ).toContain('cannot determine registry version state');
     expect(
       await refusal(
-        lookupRegistryVersion('twilight-burokrat', '0.2.0', () => ({
+        lookupRegistryVersion('twilight-burokrat', '0.2.1', () => ({
           exitCode: 1,
           stderr: new TextEncoder().encode('registry timed out'),
           stdout: new Uint8Array(),
@@ -223,7 +223,7 @@ describe('package release planner', () => {
       absent,
     );
     expect(planned.sourceRevision).toBe(release.sourceRevision);
-    expect(planned.version).toBe('0.2.0');
+    expect(planned.version).toBe('0.2.1');
     expect(planned.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(planned.integrity).toMatch(/^sha512-/);
     expect(verifyPackageRelease(record, release.tarball)).toEqual(planned);
@@ -248,7 +248,7 @@ describe('package release planner', () => {
               exitCode: 1,
               stderr: new Uint8Array(),
               stdout: new TextEncoder().encode(
-                '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
+                '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.1" }\n',
               ),
             };
           }
@@ -262,7 +262,7 @@ describe('package release planner', () => {
         },
         () => Promise.resolve(),
       ),
-    ).toBe(`twilight-burokrat@0.2.0 ${planned.integrity}`);
+    ).toBe(`twilight-burokrat@0.2.1 ${planned.integrity}`);
     expect(registryAttempts).toBe(3);
 
     let notYetVisibleAttempts = 0;
@@ -276,7 +276,7 @@ describe('package release planner', () => {
               exitCode: 1,
               stderr: new Uint8Array(),
               stdout: new TextEncoder().encode(
-                '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.0" }\n',
+                '{ "error": "No matching version found", "version": "twilight-burokrat@0.2.1" }\n',
               ),
             };
           },
@@ -546,7 +546,7 @@ describe('package release planner', () => {
           () => Promise.resolve('present'),
         ),
       ),
-    ).toContain('registry version already exists: twilight-burokrat@0.2.0');
+    ).toContain('registry version already exists: twilight-burokrat@0.2.1');
     expect(existsSync(join(published.root, 'release.json'))).toBe(false);
   });
 
