@@ -307,3 +307,15 @@ Each fault injected alone, the named case watched failing, the source restored:
 | `unknown_organization` return removed from `operatorSubjectRefusal`    | refuse an unknown organization, writing nothing (revoke answered `not_granted`)                |
 | `machine_credential` return removed from `operatorSubjectRefusal`      | refuses a machine credential's id, writing nothing (`not_a_member`)                            |
 | store duplicate read answering null                                    | refuses a user who holds the role directly already (UNIQUE constraint thrown, 42 stderr lines) |
+
+| Command (2026-11-08, all `env -u CLAUDECODE`, `bun test` also `-u CLAUDE_CODE_ENTRYPOINT`)     | Result                            |
+| ---------------------------------------------------------------------------------------------- | --------------------------------- |
+| `bun test src/access-grant-cli.db.test.ts --timeout=30000` (be-01)                             | 12 pass, 0 fail                   |
+| `bun test src/audit.test.ts src/access-grant-store.db.test.ts --timeout=30000` (store-sqlite)  | 24 pass, 0 fail                   |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                   | exit 0, 3942 pass, 3 skip, 0 fail |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                | exit 0, 1027 pass, 0 fail         |
+| `bunx nx run-many -t test,typecheck -p tool-rename-work-package --skip-nx-cache`               | exit 0, no new collision          |
+| the 11-project `typecheck,typecheck:module` run-many, `--parallel=2`                           | exit 0                            |
+| `bunx nx run wbs-be-01:typecheck`                                                              | exit 0                            |
+| `bunx nx run-many -t lint -p wbs-be-01,wbs-store-sqlite --parallel=1 --skip-nx-cache`          | exit 0                            |
+| `check-indexes working . HEAD`, `openspec validate --all --json`, `bunx nx format:check --all` | exit 0; 328/328; exit 0           |
