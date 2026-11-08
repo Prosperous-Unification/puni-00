@@ -49,10 +49,15 @@ import { subtreeRegistrations } from './stores/subtrees';
 import { userRegistrations } from './stores/users';
 import { workItemRegistrations } from './stores/work-items';
 
+/** The organization a source's `accessDecisions` opener seeds (see its case). */
+export const ACCESS_CONFORMANCE_ORGANIZATION = 'access-conformance-org';
+
 export interface ExistingStoreOpeners {
   readonly livePlans?: OpenCase<'livePlans'>;
   readonly projects: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['projects']>>;
   readonly projectRanks?: OpenCase<'projectRanks'>;
+  /** Absent where a source installs no grant decisions (memory fixtures). */
+  readonly accessDecisions?: OpenCase<'accessDecisions'>;
   /** Absent where a source offers no organization limits gauge. */
   readonly organizationLimits?: OpenCase<'organizationLimits'>;
   readonly users: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['users']>>;
@@ -160,6 +165,56 @@ export function existingStoreRegistrations(
                 { projectId: seed.projectIds[1], rank: 1, ranked: true },
                 { projectId: seed.projectIds[0], rank: 2, ranked: true },
               ]);
+            },
+          ),
+        ]),
+    ...(openers.accessDecisions === undefined
+      ? [
+          {
+            family: 'accessDecisions' as const,
+            caseId: 'accessDecisions.effectiveRoleAt:grant-reaches-package' as const,
+          },
+        ]
+      : [
+          storeCase(
+            'accessDecisions',
+            'accessDecisions.effectiveRoleAt:grant-reaches-package',
+            openers.accessDecisions,
+            async ({ port, seed }) => {
+              if (port === undefined) throw new Error('declared access decisions are absent');
+              // The opener seeds ACCESS_CONFORMANCE_ORGANIZATION owning both projects,
+              // both owners as members, and one package-viewer grant: the first
+              // owner's on the first project.
+              const [granted, ungranted] = seed.projectIds;
+              const principal = { id: seed.ownerIds[0] };
+              const targetOf = (packageId: string) => ({
+                kind: 'work_package' as const,
+                chain: {
+                  level: 'work_package' as const,
+                  organizationId: ACCESS_CONFORMANCE_ORGANIZATION,
+                  workPackageId: packageId,
+                },
+                restricted: false,
+              });
+              expect(await port.effectiveRoleAt(principal, targetOf(granted))).toEqual({
+                permissions: new Set(['organization.navigate', 'package.read']),
+                via: [
+                  {
+                    scopeKind: 'work_package',
+                    scopeId: granted,
+                    subjectKind: 'user',
+                    subjectId: seed.ownerIds[0],
+                    roleId: 'package-viewer',
+                  },
+                ],
+              });
+              expect(await port.effectiveRoleAt(principal, targetOf(ungranted))).toBeNull();
+              expect(
+                await port.effectiveRoleAt({ id: seed.ownerIds[1] }, targetOf(granted)),
+              ).toBeNull();
+              expect(
+                await port.readablePackageIds(principal, ACCESS_CONFORMANCE_ORGANIZATION),
+              ).toEqual(new Set([granted]));
             },
           ),
         ]),

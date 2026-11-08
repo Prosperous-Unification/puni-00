@@ -249,7 +249,9 @@ function permissionsOfBuiltIn(id: BuiltInRoleId): readonly Permission[] {
  * principal never manages budgets, whatever its grant` in `access-role.test.ts`;
  * adding `package.claim_for_others` to `package-contributor`'s seed above failed
  * `a machine principal never claims for others, whatever its grant` and the
- * matrix cases; both watched 2026-10-25.
+ * matrix cases; both watched 2026-10-25. Adding `package.manage_settings`
+ * made `a person is uncapped; a credential holding org-admin reads as
+ * contributor` (`access-decisions.db.test.ts`) read it; watched 2026-11-08.
  */
 export const CONTRIBUTOR_CAP: ReadonlySet<Permission> = new Set([
   ...permissionsOfBuiltIn('project-contributor'),
@@ -335,7 +337,12 @@ export type GrantOnTarget =
  * restricted work package`, and reading the two built-in ids instead of the
  * flag failed `a custom organization role that opts in reads a restricted work
  * package and never writes it`; all three in `access-role.test.ts`, watched
- * 2026-11-03.
+ * 2026-11-03. On stored rows (`access-decisions.db.test.ts`, 2026-11-08):
+ * answering `unchanged` instead of `skipped` let an `org-viewer` read a
+ * restricted package (`org-viewer, project and package roles at organization
+ * scope and the members subject are skipped`), and the unchanged admin set
+ * made `org-admin and org-super-admin read a restricted package and never
+ * write it` receive every organization permission.
  */
 export function permissionsOnTarget(grant: ReachingGrant, target: GrantTarget): GrantOnTarget {
   if (target.kind !== 'work_package' || !target.restricted || grant.scopeKind !== 'organization')
@@ -433,4 +440,176 @@ export interface InterimPackageChain {
   readonly level: 'work_package';
   readonly organizationId: string;
   readonly workPackageId: string;
+}
+
+/**
+ * One raw row of an effective-set read, before validation
+ * (`wbs-custom-permissions` "Effective set"): one permission of one reaching
+ * grant, with `permission` null when the grant's role has no row (the `LEFT
+ * JOIN` keeps it so {@link reachingGrantsOf} can throw {@link EmptyRoleSet}).
+ * Kinds are the stored strings; the migration's CHECKs bound them and
+ * {@link reachingGrantsOf} still refuses one outside its vocabulary.
+ */
+export interface StoredGrantRow {
+  readonly grantId: string;
+  readonly scopeKind: string;
+  readonly scopeId: string;
+  readonly subjectKind: string;
+  readonly subjectId: string;
+  readonly roleId: string;
+  readonly objectKind: string;
+  readonly reachesRestricted: boolean;
+  readonly permission: string | null;
+}
+
+/** A stored permission row outside {@link PERMISSIONS} (CP9): corrupt state, never skipped. */
+export class UnknownPermissionRow extends Error {
+  override name = 'UnknownPermissionRow' as const;
+  constructor(roleId: string, permission: string) {
+    super(`access role ${roleId} holds ${permission}, which is not in the permission vocabulary`);
+  }
+}
+
+/** A stored permission row its role's kind may not hold ({@link roleMayHold}, CP7): corrupt state. */
+export class PermissionKindRow extends Error {
+  override name = 'PermissionKindRow' as const;
+  constructor(roleId: string, objectKind: AccessObjectKind, permission: Permission) {
+    super(
+      `access role ${roleId} of kind ${objectKind} holds ${permission}, which that kind may not hold`,
+    );
+  }
+}
+
+/** A reaching grant whose role has no permission row (CP9): a stored role is never empty. */
+export class EmptyRoleSet extends Error {
+  override name = 'EmptyRoleSet' as const;
+  constructor(grantId: string, roleId: string) {
+    super(`grant ${grantId} names access role ${roleId}, which holds no permission`);
+  }
+}
+
+function checkedMember<T extends string>(
+  vocabulary: readonly T[],
+  value: string,
+  column: string,
+): T {
+  const member = vocabulary.find((candidate) => candidate === value);
+  // Proof: returning the value unchecked made `throws on a grant scope kind
+  // outside its vocabulary, on both statements` (access-decisions.db.test.ts)
+  // resolve; watched 2026-11-08.
+  if (member === undefined) throw new Error(`stored ${column} ${value} is outside its vocabulary`);
+  return member;
+}
+
+/**
+ * Validates every raw row of every reaching grant before any transformation,
+ * kind rule or cap (`wbs-custom-permissions` CP9) and groups them per grant,
+ * in first-seen order. Never filters: one corrupt row fails the whole read.
+ *
+ * @throws {UnknownPermissionRow} for a permission outside {@link PERMISSIONS}.
+ * @throws {PermissionKindRow} for a permission the role's kind may not hold.
+ * @throws {EmptyRoleSet} for a grant whose role has no row.
+ * @throws Error for a scope, subject or object kind outside its vocabulary, or
+ * one grant read with two different identities.
+ *
+ * Proof, each alone in `access-decisions.db.test.ts`, watched 2026-11-08:
+ * skipping an unknown row instead of throwing made `throws
+ * UnknownPermissionRow on both statements` resolve; dropping the
+ * {@link roleMayHold} check made `throws PermissionKindRow on both
+ * statements` resolve; seeding `project.manage_settings` into
+ * `package-manager` made `a package role at organization scope satisfies no
+ * project permission` throw `PermissionKindRow` instead of answering.
+ */
+export function reachingGrantsOf(rows: readonly StoredGrantRow[]): ReachingGrant[] {
+  const grants = new Map<
+    string,
+    { readonly grant: Omit<ReachingGrant, 'permissions'>; readonly permissions: Set<Permission> }
+  >();
+  for (const row of rows) {
+    const objectKind = checkedMember(
+      ACCESS_OBJECT_KINDS,
+      row.objectKind,
+      'access_role.object_kind',
+    );
+    let entry = grants.get(row.grantId);
+    if (entry === undefined) {
+      entry = {
+        grant: {
+          scopeKind: checkedMember(ACCESS_OBJECT_KINDS, row.scopeKind, 'access_grant.scope_kind'),
+          scopeId: row.scopeId,
+          subjectKind: checkedMember(
+            GRANT_SUBJECT_KINDS,
+            row.subjectKind,
+            'access_grant.subject_kind',
+          ),
+          subjectId: row.subjectId,
+          roleId: row.roleId,
+          reachesRestricted: row.reachesRestricted,
+        },
+        permissions: new Set(),
+      };
+      grants.set(row.grantId, entry);
+    } else if (entry.grant.roleId !== row.roleId) {
+      throw new Error(`grant ${row.grantId} was read with two roles`);
+    }
+    if (row.permission === null) throw new EmptyRoleSet(row.grantId, row.roleId);
+    if (!isPermission(row.permission)) throw new UnknownPermissionRow(row.roleId, row.permission);
+    if (!roleMayHold(objectKind, row.permission))
+      throw new PermissionKindRow(row.roleId, objectKind, row.permission);
+    entry.permissions.add(row.permission);
+  }
+  return [...grants.values()].map(({ grant, permissions }) => ({ ...grant, permissions }));
+}
+
+const NAVIGATION: ReadonlySet<Permission> = new Set<Permission>(['organization.navigate']);
+
+/**
+ * The read permission that makes a target visible (`wbs-custom-permissions`
+ * CP17); the organization has none because it is always visible to its
+ * members (`wbs-permissions` P10).
+ */
+const READ_PERMISSION_OF: Readonly<Record<'project' | 'work_package', Permission>> = {
+  project: 'project.read',
+  work_package: 'package.read',
+};
+
+/**
+ * One principal's {@link EffectiveRole} on one target from its validated
+ * reaching grants ({@link reachingGrantsOf}): {@link combineGrants} with the
+ * cap, then the visibility rule. A project or work package target answers
+ * null when its read permission is not in the set (CP17), never merely when
+ * the set is empty or no grant reaches it. The organization target is never
+ * null (P10: membership is `resolve`'s question) and evaluates navigation in
+ * the `any` mode (CP16, CP20): every reaching grant implies
+ * `organization.navigate`; a grant at a project or work package contributes
+ * only that there, an organization-scope grant its whole set besides.
+ *
+ * Proof: answering the set whenever a grant reached the target made `an
+ * organization role without package.read lists nothing and every detail is
+ * invisible` in `access-decisions.db.test.ts` answer `[project.manage_budgets]`;
+ * watched 2026-11-08.
+ */
+export function effectiveRoleOn(
+  grants: readonly ReachingGrant[],
+  target: GrantTarget,
+  cap: ReadonlySet<Permission> | null,
+): EffectiveRole | null {
+  // Proof: passing an organization-scope grant's set through without the
+  // navigation union made `an organization role without package.read lists
+  // nothing and every detail is invisible` (access-decisions.db.test.ts) lose
+  // `organization.navigate` at the organization; watched 2026-11-08.
+  if (target.kind === 'organization')
+    return combineGrants(
+      grants.map((grant) => ({
+        ...grant,
+        permissions:
+          grant.scopeKind === 'organization'
+            ? new Set([...grant.permissions, ...NAVIGATION])
+            : NAVIGATION,
+      })),
+      target,
+      cap,
+    );
+  const effective = combineGrants(grants, target, cap);
+  return effective.permissions.has(READ_PERMISSION_OF[target.kind]) ? effective : null;
 }

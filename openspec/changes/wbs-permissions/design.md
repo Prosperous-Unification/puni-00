@@ -599,6 +599,13 @@ function authorize(
 >;
 ```
 
+_Shipped 2026-11-08 (task 1.3):_ the organization target evaluates in the `any` mode
+(CP16, CP20): every reaching grant in the organization implies `organization.navigate`
+there, a project or work package grant contributes only that, and an organization-scope
+grant contributes its whole set besides; it is never null. Until #698 slice 2
+`AccessTarget`'s work package member carries only `InterimPackageChain`, and no project
+grant reaches a package in detail or in the listing.
+
 `authorize` answers `not_found` when `effectiveRoleAt` is null and the target is not the
 organization, `forbidden` with the permission when it is not in the effective set, `ok`
 otherwise (P10). `effectiveRoleAt` is null when the target's read permission

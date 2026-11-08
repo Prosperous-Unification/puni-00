@@ -136,6 +136,18 @@ export const PROTECTED_LINES: readonly ProtectedLine[] = [
       'the grant store (wbs-permissions 1.4) reading the package id of a GrantScope, named ahead of the rename',
   },
   {
+    pattern: /\bwork_package: 'package\.read',/,
+    sense: 'new',
+    reason:
+      "the package level's read permission in @wbs/domain access-role's READ_PERMISSION_OF (wbs-permissions 1.3)",
+  },
+  {
+    pattern: /^\s*workPackageId: packageId,$/,
+    sense: 'new',
+    reason:
+      'an InterimPackageChain built from a package id in the access-decisions adapter and its conformance case (wbs-permissions 1.3)',
+  },
+  {
     pattern: /`wbs-work-packages`/,
     sense: 'new',
     reason: 'the OpenSpec change name as JSDoc cites it',

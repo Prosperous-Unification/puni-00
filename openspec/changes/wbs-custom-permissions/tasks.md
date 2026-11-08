@@ -38,7 +38,7 @@ CP10's precedence) and fails only there.
       refused `permission_kind_mismatch`; return a built-in admin's set unchanged on a
       restricted target and an `org-admin` writes one; keep a custom organization role
       equal to `org-admin` on a restricted target and its holder reads one; watched.
-- [ ] 1.3 `effectiveRoleAt` and `readablePackageIds` as design.md "Effective set" (one
+- [x] 1.3 `effectiveRoleAt` and `readablePackageIds` as design.md "Effective set" (one
       statement each, raw rows validated before the transformation and the cap, null
       without the target's read permission) — test: `access-decisions.db.test.ts`
       statement counter unchanged, `EXPLAIN QUERY PLAN` naming `access_grant_subject`,
