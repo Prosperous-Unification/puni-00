@@ -19,7 +19,16 @@ const OLDER_DEPENDENCIES = [
   '20261022212000_add_cross_project_dependency_activation',
   '20261022213000_add_optimization_boundary_certificates',
 ];
-const ADDED = OLDER_DEPENDENCIES;
+/** Tables created by the given forward migrations, read from their SQL. */
+function createdTables(folder: string, names: readonly string[]): Set<string> {
+  const tables = new Set<string>();
+  for (const name of names)
+    for (const match of readFileSync(join(folder, name, 'migration.sql'), 'utf8').matchAll(
+      /CREATE TABLE\s+(?:IF NOT EXISTS\s+)?[`"]?(\w+)/gi,
+    ))
+      tables.add(match[1]);
+  return tables;
+}
 
 function gitBytes(...arguments_: string[]): Buffer {
   const child = Bun.spawnSync(['git', ...arguments_], {
@@ -184,6 +193,14 @@ test('upgrades the exact fresh main pool database with four older dependency ide
     expect(baseline.map(({ name, hash }) => ({ name, hash }))).toEqual(
       readMigrationFolders(mainMigrations).map(({ name, hash }) => ({ name, hash })),
     );
+    const mainEnd = baseline.at(-1)?.name ?? '';
+    // Live forward migrations after main, so later additions need no edit to these expectations.
+    const forward = readMigrationFolders(candidateMigrations)
+      .map(({ name }) => name)
+      .filter((name) => !OLDER_DEPENDENCIES.includes(name) && name > mainEnd)
+      .sort();
+    const added = [...OLDER_DEPENDENCIES, ...forward];
+    const forwardTables = createdTables(candidateMigrations, forward);
     const values = mainValuesAt(dbPath);
     const schema = schemaAt(dbPath);
     expect(baseline.some(({ name }) => name === '20261022121000_add_runtime_commands')).toBe(true);
@@ -228,10 +245,10 @@ test('upgrades the exact fresh main pool database with four older dependency ide
     expect(capture.applied).toEqual(baseline.map(({ name, hash }) => ({ name, hash })));
     expect(capture.pending).toEqual(
       readMigrationFolders(candidateMigrations)
-        .filter(({ name }) => ADDED.includes(name))
+        .filter(({ name }) => added.includes(name))
         .map(({ name, hash, downHash }) => ({ name, hash, downHash })),
     );
-    expect(capture.pending.map(({ name }) => name)).toEqual(ADDED);
+    expect(capture.pending.map(({ name }) => name)).toEqual(added);
     const older = capture.pending.filter(({ name }) => name < '20261023100000_add_claim_lease');
     expect(older.map(({ name }) => name)).toEqual(OLDER_DEPENDENCIES);
     expect(older).toHaveLength(4);
@@ -240,16 +257,17 @@ test('upgrades the exact fresh main pool database with four older dependency ide
     const captureHash = createHash('sha256').update(readFileSync(capturePath)).digest('hex');
     expect(await runCli(candidateRoot, dbPath, 'migrate-cli.ts', [])).toBe('migrations applied\n');
     const upgraded = ledgerAt(dbPath);
-    expect(upgraded.filter(({ name }) => !ADDED.includes(name))).toEqual(baseline);
+    expect(upgraded.filter(({ name }) => !added.includes(name))).toEqual(baseline);
     expect(
-      upgraded.filter(({ name }) => ADDED.includes(name)).map(({ name, hash }) => ({ name, hash })),
+      upgraded.filter(({ name }) => added.includes(name)).map(({ name, hash }) => ({ name, hash })),
     ).toEqual(capture.pending.map(({ name, hash }) => ({ name, hash })));
-    expect(upgraded).toHaveLength(107);
+    expect(upgraded).toHaveLength(103 + OLDER_DEPENDENCIES.length + forward.length);
     expect(
       schemaAt(dbPath)
         .filter(
           ({ type, name }) =>
             type === 'table' &&
+            !forwardTables.has(name) &&
             !schema.some((entry) => entry.type === 'table' && entry.name === name),
         )
         .map(({ name }) => name),
@@ -268,7 +286,7 @@ test('upgrades the exact fresh main pool database with four older dependency ide
         `--capture-sha256=${captureHash}`,
         ...identityFlags,
       ]),
-    ).toBe(`restored captured migration set: ${[...ADDED].reverse().join(', ')}\n`);
+    ).toBe(`restored captured migration set: ${[...added].reverse().join(', ')}\n`);
     expect(ledgerAt(dbPath)).toEqual(baseline);
     expect(schemaAt(dbPath)).toEqual(schema);
     expect(mainValuesAt(dbPath)).toEqual(values);

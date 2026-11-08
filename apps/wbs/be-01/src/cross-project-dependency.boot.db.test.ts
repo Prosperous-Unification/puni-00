@@ -493,6 +493,10 @@ function readMigrationIdentities(folder: string): { name: string; hash: string }
 
 /** Last migration of main acfdc02c; later folders are forward migrations main never applied. */
 const MAIN_LEDGER_END = '20261101120000_add_host_job_projection';
+/** Live forward migrations after main, so later additions need no edit to these expectations. */
+const FORWARD_MIGRATIONS = readdirSync(FOLDER)
+  .filter((name) => !DELAYED_DEPENDENCY_MIGRATIONS.includes(name) && name > MAIN_LEDGER_END)
+  .sort();
 
 /** Replays the exact 103 migration.sql blobs from main acfdc02c, without Git at test runtime. */
 function currentMainDatabase(usesHistoricalDependency = false): string {
@@ -559,14 +563,22 @@ for (const usesHistoricalDependency of [false, true])
           'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
         )
         .all();
-      expect(after).toHaveLength(107);
+      expect(after).toHaveLength(
+        103 + DELAYED_DEPENDENCY_MIGRATIONS.length + FORWARD_MIGRATIONS.length,
+      );
       expect(
         migrated
           .query("SELECT sql FROM sqlite_master WHERE type='table' AND name='dependency'")
           .get(),
       ).toEqual(dependencySchema);
-      expect(after.filter(({ name }) => !DELAYED_DEPENDENCY_MIGRATIONS.includes(name))).toEqual(
-        before,
+      expect(
+        after.filter(
+          ({ name }) =>
+            !DELAYED_DEPENDENCY_MIGRATIONS.includes(name) && !FORWARD_MIGRATIONS.includes(name),
+        ),
+      ).toEqual(before);
+      expect(after.filter(({ name }) => FORWARD_MIGRATIONS.includes(name))).toEqual(
+        readMigrationIdentities(FOLDER).filter(({ name }) => FORWARD_MIGRATIONS.includes(name)),
       );
       expect(after.filter(({ name }) => DELAYED_DEPENDENCY_MIGRATIONS.includes(name))).toEqual(
         readMigrationIdentities(FOLDER)
@@ -674,7 +686,8 @@ it('refuses an unknown pending migration on the known main profile', async () =>
   await refuse(currentMainDatabase(), true, migrations('CREATE TABLE startup_probe (id INTEGER);'));
 }, 30_000);
 
-const TRAILING_MIGRATION = '20261102120000_probe_forward';
+/** Sorts after every real forward migration on disk; the test asserts that. */
+const TRAILING_MIGRATION = '20261231000000_probe_forward';
 
 /** Copies the live folder plus one pending forward migration named after every main entry. */
 function trailingMigrations(): string {
@@ -725,8 +738,10 @@ it('boots the exact current-main store with a trailing pending forward migration
       )
       .all();
     const added = after.filter(({ name }) => !before.some((row) => row.name === name));
+    expect(FORWARD_MIGRATIONS.every((name) => name < TRAILING_MIGRATION)).toBe(true);
     expect(added.map(({ name }) => name)).toEqual([
       ...DELAYED_DEPENDENCY_MIGRATIONS,
+      ...FORWARD_MIGRATIONS,
       TRAILING_MIGRATION,
     ]);
     expect(after.at(-1)?.name).toBe(TRAILING_MIGRATION);
