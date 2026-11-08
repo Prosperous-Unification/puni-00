@@ -116,7 +116,7 @@ export function validateRegistryPublicationEvidence(
   updatedAt: string,
 ): void {
   validateRegistryDeclaration(evidence.contents, references);
-  // Proof: bypassing this chronological bound admits future expanded-year evidence through canonical journal read.
+  // Proof: removing this bound admits expanded-year declaration-after-receipt evidence through validateRegistryPublicationEvidence in registry-publication-evidence.test.ts.
   if (
     Date.parse(evidence.declaredAt) > Date.parse(receipt.at) ||
     new Set(evidence.writes.map(key)).size !== evidence.writes.length
