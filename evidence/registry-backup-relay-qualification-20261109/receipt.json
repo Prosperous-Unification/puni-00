@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "scope": "ordinary-user feasibility only; raw pinned Restic CLI; no admission, funding, installed, credential isolation, native transport universal or provider proof",
+  "sourceReceiptSha256": "ae530a93040cde823558f16f7050122ad60e413de147f7bed354bf9ab538afa0",
+  "sourceSummarySha256": "f8b665c93c28b21e31bc5b09e8147a95558f03df9dc0496336ebb712368cbc0e",
+  "sourceManifestSha256": "e3dcb8c7ea58443d277747134015d8dff5552ca332c60a514ae3f4ca9e086943",
+  "sourceManifestEntriesVerifiedByController": 195,
+  "executedSourceSha256": {
+    "experiment.ts.txt": "c3190032dcc9e3b7d75099a3a320ec1626df6277dd8fcc0d5010cee498d15c6c",
+    "receiver.py.txt": "c75d4ee1e91a0e49aaafd4722afd2d509e60e9212f4cf729768a576fb81d5b1b"
+  },
+  "runtime": {
+    "executable": "/tmp/registry-relay-qualification-20261109-YuTumm/bun-linux-x64/bun",
+    "sha256": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235",
+    "version": "1.4.4",
+    "revision": "38afee6c84fcf48c0edb2466aa4b27d287a59c30"
+  },
+  "resticSha256": "20d4142678d0d95ec11a4759def1b73fd9190abc9ca19e4b62d067c0b387e639",
+  "sdkVersion": "3.1161.0",
+  "uid": 1000,
+  "commands": [
+    {
+      "label": "cert",
+      "exit": 0
+    },
+    {
+      "label": "wrong-cert",
+      "exit": 0
+    },
+    {
+      "label": "s3-init",
+      "exit": 0
+    },
+    {
+      "label": "s3-first-backup",
+      "exit": 0
+    },
+    {
+      "label": "rest-list-first",
+      "exit": 0
+    },
+    {
+      "label": "rest-check-first",
+      "exit": 0
+    },
+    {
+      "label": "rest-second-backup",
+      "exit": 0
+    },
+    {
+      "label": "s3-list-second",
+      "exit": 0
+    },
+    {
+      "label": "s3-check-second",
+      "exit": 0
+    },
+    {
+      "label": "rest-restore-second",
+      "exit": 0
+    },
+    {
+      "label": "rest-lost-post-backup",
+      "exit": 0
+    },
+    {
+      "label": "rest-check-after-fault",
+      "exit": 0
+    },
+    {
+      "label": "rest-restore-first-after-fault",
+      "exit": 0
+    },
+    {
+      "label": "rest-restore-third",
+      "exit": 0
+    },
+    {
+      "label": "s3-check-after-fault",
+      "exit": 0
+    }
+  ],
+  "checks": {
+    "transport": {
+      "lostFailure": {
+        "name": "Error",
+        "message": "socket hang up",
+        "attempts": 1
+      },
+      "oneCompleteLostPut": true,
+      "lostFactoryCount": 1,
+      "acknowledgedStatus": 200,
+      "acknowledgedAttempts": 1,
+      "wrongFailure": {
+        "name": "Error",
+        "message": "self signed certificate",
+        "attempts": 1
+      },
+      "wrongCAHttpRequests": 0
+    },
+    "compatibility": {
+      "first": "5d904460b78ff8f5a93547c5b308f71e20a02321816d81be9d9634666536c3b7",
+      "second": "a3e4d68f23b03a161bf725d656133edc6eda232762c711c39c8dc17ef17ca1fc",
+      "baselineObjects": 6,
+      "sameRepository": true,
+      "restReadExisting": true,
+      "s3ReadRestCreated": true,
+      "secondRestoredSha256": "ef7896e6bf32c6d1d31288736da9b12c1913bf993a7584bc80085acedf8a6623"
+    },
+    "listFailure": {
+      "status": 500,
+      "bodyBytes": 0
+    },
+    "failure": {
+      "third": "b846f57b420b86afac65eb852c8c86b0c3b4a97b7d354ff50d6457596e72a349",
+      "faultKey": "repository/data/ff/ff4dd05caedf462e3235cf0bde8fbd8f8911d2c265259fc102f58fde25e69824",
+      "history": [
+        {
+          "bytes": 298,
+          "sha256": "ff4dd05caedf462e3235cf0bde8fbd8f8911d2c265259fc102f58fde25e69824"
+        },
+        {
+          "bytes": null,
+          "sha256": null
+        },
+        {
+          "bytes": 298,
+          "sha256": "ff4dd05caedf462e3235cf0bde8fbd8f8911d2c265259fc102f58fde25e69824"
+        }
+      ],
+      "resticRetryCleanupObserved": true,
+      "protectedDeleteStatus": 403,
+      "protectedCiphertextReadable": true,
+      "baselineUnchanged": true,
+      "retainedRestoredSha256": "72c53eb069c0c677cc9983b806365bf85b68817478c83a7d8da96e323e4cce32",
+      "thirdRestoredSha256": "291846642186e988d3aefd063dae5c995b63a8863c898a035588803007a13a07",
+      "allVersionLiabilityRetained": true,
+      "retainedBytes": 202368,
+      "negativeStatuses": {
+        "unknown": 404,
+        "create": 400,
+        "configMutation": 403,
+        "keyMutation": 403
+      }
+    },
+    "cleanup": {
+      "receiverClosed": true,
+      "relayClosed": true,
+      "childrenReaped": true,
+      "repaired": false
+    }
+  },
+  "transportExchanges": 135,
+  "everyTransportHasOneFactory": true,
+  "relayRequests": 136,
+  "repairedCleanup": false
+}

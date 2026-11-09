@@ -281,3 +281,123 @@ redirect/lost response, stale source/phase, wrong scope/credentials, protected-k
 cleanup and full census omission. Actual restoration, bounded scratch/cgroup
 operation and installed non-bypass remain later independent evidence. This note
 does not authorize or reopen stopped work. All proposed tests remain unexecuted.
+
+## Proposed positive attribution of an uncertain single PUT
+
+**Conclusion (conditional inference):** a per-dispatch root-generated UUID can
+resolve some lost replies by positively identifying their stored version. It is
+not an S3 idempotency token or proof that every uncertain write is resolvable.
+Keep unmatched debt indefinitely; absence, timeout and local socket destruction
+do not prove upstream non-acceptance. This proposal changes neither the approved
+stored-object/version/part byte measure nor retention/restoration requirements.
+
+Observed protocol support: AWS [user metadata](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingMetadata.html)
+is supplied as `x-amz-meta-*`, returned by HEAD, lowercases keys and cannot be
+modified in place; replacement/copy creates another version with versioning
+enabled. AWS limits user metadata to 2 KiB of UTF-8 key/value bytes within the 8 KiB
+PUT headers. Use fixed lowercase names and bounded ASCII UUID/decimal/hex values;
+reject duplicate/case-colliding names, commas, whitespace and missing/truncated metadata.
+The pinned SDK 3.1161.0
+[`PutObjectCommand`](https://github.com/aws/aws-sdk-js-v3/blob/v3.1161.0/clients/client-s3/src/commands/PutObjectCommand.ts#L439)
+accepts `Metadata` without the prefix; its
+[`PutObjectRequest$`](https://github.com/aws/aws-sdk-js-v3/blob/v3.1161.0/clients/client-s3/src/schemas/schemas_0.ts#L2637)
+binds that map to `x-amz-meta-` prefix headers.
+[SigV4 canonicalization](https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sig-v4-header-based-auth.html)
+lowercases/sorts header names, trims values and requires the transmitted
+`x-amz-*` headers in the signature. Insert metadata before SDK signing and validate
+its presence in final `SignedHeaders`; never mutate it afterward. Bind the actual
+ciphertext hash to the signed payload/checksum path too: a hash merely asserted
+in metadata is not provider verification of the body.
+
+Hetzner documents [basic S3 action/type compatibility](https://docs.hetzner.com/storage/object-storage/supported-actions/),
+[versioning](https://docs.hetzner.com/storage/object-storage/howto-protect-objects/protect-versioning/)
+and an [8 kB object metadata limit](https://docs.hetzner.com/storage/object-storage/overview/#limits).
+These support investigating this compatible subset; they do not prove the exact
+endpoint preserves signed metadata on historical versions after a lost reply.
+Use the stricter AWS limits. Provider qualification of this behavior remains
+unexecuted; no credentials or provider access were used for this research.
+
+Proposed producer/consumer contract:
+
+- Before each single-PUT dispatch, atomically debit its complete ciphertext length
+  and persist UUID, ledger epoch/never-reused sequence, operation/ticket identity,
+  exact endpoint/bucket/key, length and SHA-256. Root generates/overwrites metadata;
+  the child supplies none. Persist before any upstream byte; restart never resends
+  that record. A fresh attempt gets a fresh UUID and debit. UUID collision/reuse
+  prevention must survive record compaction; do not rely on a retained UUID set
+  growing forever. The signed bounded envelope must identify the same record.
+- Require the audited one-dispatch transport prerequisite above: no SDK, agent,
+  proxy, redirect, connection-wrapper or crash-recovery replay below the debit.
+  AWS [PutObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)
+  creates a separate version for each received write request with versioning
+  enabled. Replaying one signed UUID can therefore create multiple versions.
+  Seeing one match never proves a hidden replay cannot commit later. Freeze
+  further sends for the ticket and establish terminal dispatch authority first;
+  a positive completed single PUT can then exhaust its one possible addition.
+- After complete bounded versions/parts census, HEAD each candidate **exact
+  version**, including noncurrent versions behind delete markers. AWS
+  [version metadata retrieval](https://docs.aws.amazon.com/AmazonS3/latest/userguide/RetMetaOfObjVersion.html)
+  defaults to current metadata unless `versionId` is supplied. Require exact
+  returned version ID, HTTP 200, full `Content-Length` without Range/partNumber,
+  matching UUID/envelope/hash and census size; exclude delete markers and null
+  version IDs. The pinned
+  [`HeadObjectRequest$`/output](https://github.com/aws/aws-sdk-js-v3/blob/v3.1161.0/clients/client-s3/src/schemas/schemas_0.ts#L2057)
+  supports VersionId and metadata. The current
+  [`createRegistryS3Store`](../../tools/tool-fleet/src/registry-s3-census.ts)
+  transport permits only GET/DELETE, so this needs an integrated, bounded,
+  authenticated exact-version HEAD method; current-version HEAD is insufficient.
+- Require exclusive upstream write authority and reject CopyObject/UploadPartCopy
+  or other writers able to preserve/spoof the envelope. AWS
+  [CopyObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html)
+  preserves metadata by default; a valid UUID is public attribution, not a secret
+  or proof against another authorized writer. Duplicate matches, conflicting
+  metadata/length/hash or broken authority retain debt and fence reconciliation.
+  Trusted TLS/provider responses remain a prerequisite. Multipart initiation,
+  parts and completion have different identities; this argument releases none of
+  their debt and does not infer completion from an object metadata match alone.
+- Atomically publish the complete measured baseline together with retiring only
+  positively matched uncertainty, counting each matched version once in baseline
+  and once at most for debt retirement. This removes double accounting, not the
+  version's bytes. Never subtract it from baseline or refill the operation's spent
+  ceiling. Missing, mismatched or deleted-before-observation UUIDs retain their
+  full liability; even an immediate complete absence earns zero credit. Existing
+  stable-census, protected deletion and restoration gates still apply.
+
+Bound records independently of byte ceilings: reserve a durable unresolved slot
+before every dispatch, including zero-byte PUTs; refuse when the fixed count/byte
+capacity is full. Acknowledged writes may compact into checked per-operation
+count/byte aggregates in the same atomic transition that removes their unresolved
+slot. Aggregates remain liability until independently valid reconciliation;
+successful HTTP status alone never refills the operation's byte ceiling. Retain
+bounded uncertain entries across crashes; stream census candidates against that
+table with existing page/record limits. Unresolvable entries can exhaust capacity
+permanently: report the refusal and require a separately justified resolution,
+never TTL eviction.
+
+The next source proof should commit a signed synthetic single PUT, drop its reply,
+overwrite the current key with another version, then recover only the historical
+exact-version match through the real ledger/census/HEAD consumer. Assert baseline
+still counts both versions and only that request's duplicate debt disappears.
+An absent/wrong UUID, altered length, copied/duplicate UUID, omitted VersionId,
+incomplete census, replay-capable dispatch or crash before atomic publication
+must retain debt. Removing identity matching or the one-use transition must make
+the production-path negative fail. No such tests or provider proofs ran here.
+
+## Ordinary relay compatibility observation — 2026-11-09
+
+The [owned experiment and immutable source capture](../../evidence/registry-backup-relay-qualification-20261109/README.md)
+qualified one raw-CLI case using exact verified Bun1.4.4/Restic0.19.1 artifacts and
+SDK3.1161.0. Real S3-created ciphertext was read through REST/Unix; REST-created
+backups were checked directly through S3; all three restored payloads matched.
+A genuinely lost REST POST reply produced EOF and POST→DELETE→POST, retaining
+two identical 298-byte versions and a marker. Protected baseline deletion was
+refused before upstream dispatch. The candidate single upstream call committed
+one PUT after a lost reply; the wrong CA sent no HTTP request. Failed harness
+attempts are preserved, including an ineffective response-destroy fault.
+
+The controller verified all195 original archive hashes and the exact captured
+source bytes. Independent evidence review supports these finite observations.
+No production store/admission/debit path, full provider/census/reclamation,
+resource enforcement or installed authority was qualified. Prototype baseline
+ownership is not permission to delete content promoted to protection later;
+the production state machine still needs exact current command/phase ownership.

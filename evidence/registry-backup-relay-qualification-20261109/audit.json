@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "payloadVersions": 29,
+  "deleteMarkers": 13,
+  "retainedPayloadBytes": 203078,
+  "protectedBaselineObjects": 6,
+  "payloads": [
+    {
+      "label": "first",
+      "bytes": 65565,
+      "sha256": "72c53eb069c0c677cc9983b806365bf85b68817478c83a7d8da96e323e4cce32"
+    },
+    {
+      "label": "second",
+      "bytes": 65570,
+      "sha256": "ef7896e6bf32c6d1d31288736da9b12c1913bf993a7584bc80085acedf8a6623"
+    },
+    {
+      "label": "third",
+      "bytes": 65571,
+      "sha256": "291846642186e988d3aefd063dae5c995b63a8863c898a035588803007a13a07"
+    }
+  ],
+  "selectedKey": "repository/data/ff/ff4dd05caedf462e3235cf0bde8fbd8f8911d2c265259fc102f58fde25e69824",
+  "selectedPayloadLiabilityBytes": 596,
+  "allCandidateTransportFactoriesOne": true,
+  "candidateTransportExchanges": 135,
+  "relayRequests": 136,
+  "upstreamRequests": 211,
+  "protectedDeleteReachedUpstream": false,
+  "privateKeyOrSocketRemains": false
+}

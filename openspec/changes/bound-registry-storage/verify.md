@@ -10427,3 +10427,34 @@ verdict are retained separately in
 `/tmp/registry-retry-codeql-original-20261109.json` and
 `/tmp/registry-retry-tls-codeql-accepted-20261109.json`. Current-head CI/infra and
 the separate canonical host gate remain distinct validation obligations.
+
+### Ordinary relay qualification captured
+
+The [immutable primary evidence](../../../evidence/registry-backup-relay-qualification-20261109/README.md)
+records raw pinned Restic0.19.1 over a hash-verified public Bun1.4.4 extraction and
+SDK3.1161.0, with a controlled owned HTTPS responder and private REST/Unix route.
+All15 final CLI/helper commands exited0; cross-backend reads/checks/writes passed
+and three exact restored payloads matched. The selected genuine lost REST reply
+produced EOF and POST→DELETE→POST, retaining596 payload bytes in two identical
+298-byte versions plus a marker. A protected baseline DELETE returned403 before
+upstream and all six baseline objects stayed readable/unchanged. The single-call
+upstream lost-reply control received one PUT; wrong CA received zero HTTP requests.
+
+The controller verified all195 original archive hashes and captured the final
+executed sources unchanged as text. Final receiver/relay cleanup and child reaping
+needed no repair; the retained host audit observed zero surviving owned groups.
+Attempts1–3 remain failed in the original archive: sandbox socket denial, a valid
+empty-list parsing mistake causing timeout, and an ineffective fault primitive.
+The corrected socket-close attempt, not those failures, supports the finite claim.
+Independent evidence review found the narrow observations supported with no
+blocking findings. This is raw-CLI feasibility only: production store/effects,
+durable debits/funding, source/resource enforcement, full provider accounting,
+retention/prune and installed non-bypass remain unqualified.
+
+The proposed exact-version metadata attribution section is source research only;
+no such metadata/debt-reconciliation producer ran in this experiment. Missing
+matches retain debt; billing overhead remains excluded rather than a prerequisite.
+ADR0079 and the contract amendment independently reviewed ready for ordinary
+qualification, not yet a complete admitting implementation. Concrete classes/phase
+funding, bounded debit states, cleanup ownership, transport/custody and independent
+resource/reconciliation producers remain explicit implementation decisions.

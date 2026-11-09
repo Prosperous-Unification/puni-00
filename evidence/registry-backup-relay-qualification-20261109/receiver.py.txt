@@ -1,0 +1,116 @@
+import base64, hashlib, html, http.server, json, os, pathlib, signal, socket, ssl, sys, threading, urllib.parse
+root=pathlib.Path(sys.argv[1]); cert=sys.argv[2]; key=sys.argv[3]
+if os.getuid()==0: raise RuntimeError('ordinary user required')
+versions={}; trace=[]; failures=[]; protected=set(); mutex=threading.RLock(); total=0; fail_next_list=False
+
+def current(name):
+    history=versions.get(name)
+    return history[-1] if history and history[-1]['body'] is not None else None
+
+def summary():
+    with mutex:
+        return {'requests':trace.copy(),'failures':failures.copy(),'versions':{name:[{'bytes':None if entry['body'] is None else len(entry['body']),'sha256':entry['sha256']} for entry in history] for name,history in versions.items()},'visible':{name:{'bytes':len(current(name)['body']),'sha256':current(name)['sha256']} for name in versions if current(name)},'retainedBytes':total,'protected':sorted(protected)}
+
+class Receiver(http.server.BaseHTTPRequestHandler):
+    protocol_version='HTTP/1.1'
+    def setup(self):
+        super().setup(); self.connection.settimeout(8)
+    def log_message(self,*arguments):
+        return # Signature/payload values are excluded; bounded structured trace records observations.
+    def respond(self,status,body=b'',headers=None,length=None):
+        self.observation['status']=status
+        self.send_response(status); self.send_header('Content-Length',str(len(body) if length is None else length));self.send_header('Content-Type','application/xml');self.send_header('Connection','close')
+        for name,value in (headers or {}).items():self.send_header(name,value)
+        self.end_headers();self.close_connection=True
+        if self.command!='HEAD' and body:self.wfile.write(body)
+    def error(self,status,code):self.respond(status,('<Error><Code>'+code+'</Code><Message>owned fixture</Message></Error>').encode())
+    def process_request(self):
+        global total, fail_next_list
+        parsed=urllib.parse.urlsplit(self.path);query=urllib.parse.parse_qs(parsed.query,keep_blank_values=True)
+        self.observation={'method':self.command,'path':parsed.path,'queryKeys':sorted(query)}
+        with mutex:
+            trace.append(self.observation)
+            if len(trace)>1500:raise RuntimeError('request count bound')
+        if not self.headers.get('Authorization','').startswith('AWS4-HMAC-SHA256 '):raise RuntimeError('modeled SigV4 prefix missing')
+        if parsed.path in ['/fixture','/fixture/']:
+            if self.command=='HEAD':self.respond(200);return
+            if self.command=='GET' and 'location' in query:self.respond(200,b'<LocationConstraint xmlns="http://s3.amazonaws.com/doc/2006-03-01/">us-east-1</LocationConstraint>');return
+            if self.command=='GET' and query.get('list-type')==['2']:
+                if fail_next_list:
+                    fail_next_list=False;self.respond(500,b'<Error><Code>InjectedListFailure</Code><Message>owned injected list failure</Message></Error>');return
+                prefix=query.get('prefix',[''])[0];delimiter=query.get('delimiter',[''])[0];contents=[];common=set()
+                with mutex:
+                    for name in sorted(versions):
+                        entry=current(name)
+                        if not name.startswith(prefix) or entry is None:continue
+                        suffix=name[len(prefix):]
+                        if delimiter and delimiter in suffix:common.add(prefix+suffix.split(delimiter,1)[0]+delimiter);continue
+                        contents.append('<Contents><Key>'+html.escape(name)+'</Key><LastModified>2026-11-09T00:00:00.000Z</LastModified><ETag>&quot;'+entry['md5']+'&quot;</ETag><Size>'+str(len(entry['body']))+'</Size><StorageClass>STANDARD</StorageClass></Contents>')
+                common_xml=''.join('<CommonPrefixes><Prefix>'+html.escape(name)+'</Prefix></CommonPrefixes>' for name in sorted(common))
+                self.respond(200,('<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>fixture</Name><Prefix>'+html.escape(prefix)+'</Prefix><KeyCount>'+str(len(contents))+'</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>'+''.join(contents)+common_xml+'</ListBucketResult>').encode());return
+            raise RuntimeError('unsupported bucket operation')
+        if not parsed.path.startswith('/fixture/repository/'):raise RuntimeError('foreign fixed repository path')
+        name=urllib.parse.unquote(parsed.path[len('/fixture/'):]);self.observation['key']=name
+        if self.command=='PUT':
+            length=int(self.headers.get('Content-Length','-1'))
+            if length<=0 or length>1048576 or self.headers.get('Transfer-Encoding'):raise RuntimeError('exact length boundary')
+            body=self.rfile.read(length)
+            if len(body)!=length:raise RuntimeError('short body')
+            md5=hashlib.md5(body).hexdigest();sha256=hashlib.sha256(body).hexdigest()
+            if self.headers.get('Content-MD5') and self.headers['Content-MD5']!=base64.b64encode(hashlib.md5(body).digest()).decode():raise RuntimeError('MD5 mismatch')
+            with mutex:
+                total+=length
+                if total>32*1024**2:raise RuntimeError('retained byte bound')
+                history=versions.setdefault(name,[]);history.append({'body':body,'md5':md5,'sha256':sha256});version=str(len(history));self.observation.update({'bytes':length,'sha256':sha256,'version':version})
+                path=root/'ciphertext'/name;path.parent.mkdir(mode=0o700,parents=True,exist_ok=True);path.with_name(path.name+'.v'+version).write_bytes(body)
+            if name=='repository/probe-lost':
+                self.observation['status']='lost-after-commit';self.close_connection=True;self.connection.shutdown(socket.SHUT_RDWR);self.connection.close();return
+            self.respond(200,headers={'ETag':'"'+md5+'"','x-amz-version-id':version});return
+        if self.command in ['HEAD','GET']:
+            with mutex:entry=current(name)
+            if entry is None:self.error(404,'NoSuchKey');return
+            body=entry['body'];headers={'ETag':'"'+entry['md5']+'"','x-amz-version-id':str(len(versions[name])),'Last-Modified':'Mon, 09 Nov 2026 00:00:00 GMT'}
+            requested=self.headers.get('Range')
+            if requested:
+                import re
+                matched=re.fullmatch(r'bytes=(\d+)-(\d*)',requested)
+                if not matched:raise RuntimeError('invalid range')
+                start=int(matched[1]);end=int(matched[2]) if matched[2] else len(body)-1
+                if start<0 or end<start or end>=len(body):raise RuntimeError('outside range')
+                headers['Content-Range']='bytes '+str(start)+'-'+str(end)+'/'+str(len(body));body=body[start:end+1];self.respond(206,body,headers);return
+            self.respond(200,body,headers);return
+        if self.command=='DELETE':
+            with mutex:
+                if name in protected:self.error(403,'AccessDenied');return
+                versions.setdefault(name,[]).append({'body':None,'sha256':None});self.observation['deleteMarker']=True
+            self.respond(204);return
+        raise RuntimeError('unknown method')
+    def dispatch(self):
+        try:self.process_request()
+        except BaseException as cause:
+            failures.append(type(cause).__name__+': '+str(cause));self.close_connection=True
+    do_HEAD=dispatch;do_GET=dispatch;do_PUT=dispatch;do_DELETE=dispatch
+
+receiver=http.server.ThreadingHTTPServer(('127.0.0.1',0),Receiver);receiver.daemon_threads=False
+context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.minimum_version=ssl.TLSVersion.TLSv1_2;context.set_alpn_protocols(['http/1.1']);context.load_cert_chain(cert,key);receiver.socket=context.wrap_socket(receiver.socket,server_side=True)
+worker=threading.Thread(target=receiver.serve_forever);worker.start()
+print(json.dumps({'port':receiver.server_port,'pid':os.getpid(),'uid':os.getuid()}),flush=True)
+try:
+    for line in sys.stdin:
+        if len(line)>4096:raise RuntimeError('control line bound')
+        command=json.loads(line)
+        if command['action']=='protect':
+            with mutex:protected.update(name for name in versions if current(name) and not name.startswith('repository/probe-'))
+            print(json.dumps({'protected':sorted(protected)}),flush=True)
+        elif command['action']=='fail-list':
+            fail_next_list=True;print(json.dumps({'armed':True}),flush=True)
+        elif command['action']=='summary':print(json.dumps(summary()),flush=True)
+        elif command['action']=='stop':break
+        else:raise RuntimeError('control operation invalid')
+finally:
+    receiver.shutdown();receiver.server_close();worker.join(5)
+    closed=not worker.is_alive() and receiver.socket.fileno()==-1
+    (root/'http-summary.json').write_text(json.dumps({**summary(),'receiverClosed':closed},indent=2)+'\n')
+    if not closed:raise RuntimeError('receiver not closed')
+    print(json.dumps({'receiverClosed':closed}),flush=True)
+if failures:raise RuntimeError('receiver failures: '+repr(failures))

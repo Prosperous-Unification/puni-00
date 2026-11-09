@@ -1,0 +1,12 @@
+{
+  "observedAt": "2026-11-09T10:21:25.200915+00:00",
+  "uid": 1000,
+  "checkedGroups": [
+    2196578, 2196616, 2196626, 2196632, 2196973, 2197048, 2197121, 2197180, 2197224, 2197275,
+    2197314, 2197397, 2203652, 2203664, 2203665, 2203670, 2203842, 2204030, 2204118, 2204161,
+    2204276, 2204386, 2204613, 2204895, 2205298, 2205418, 2205548, 2205635
+  ],
+  "checkedOrchestrators": [2196540, 2203591],
+  "survivors": [],
+  "scope": "fresh host process listing filtered to recorded owned groups and exact owned experiment/receiver command arguments"
+}

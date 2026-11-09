@@ -1,0 +1,185 @@
+import { createRequire } from 'node:module';
+import { createHash, randomBytes } from 'node:crypto';
+import { mkdir, readFile, writeFile, unlink, copyFile, stat } from 'node:fs/promises';
+import { createServer, request as unixRequest } from 'node:http';
+import { request } from 'node:https';
+import { connect } from 'node:tls';
+import { Readable } from 'node:stream';
+import { join, dirname } from 'node:path';
+
+const root=process.argv[2];
+if (!root || process.getuid?.()===0) throw new Error('Owned ordinary-user root required');
+const require=createRequire('/home/df/.codex/worktrees/66b0/puni-00/package.json');
+const { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand, ListObjectsV2Command }=require('@aws-sdk/client-s3');
+const sdkVersion=require('@aws-sdk/client-s3/package.json').version;
+if(sdkVersion!=='3.1161.0')throw new Error('SDK pin mismatch');
+const hash=(bytes)=>createHash('sha256').update(bytes).digest('hex');
+const restic='/tmp/registry-local-backup-tools-20261109/restic-0.19.1';
+if(hash(await readFile(restic))!=='20d4142678d0d95ec11a4759def1b73fd9190abc9ca19e4b62d067c0b387e639')throw new Error('Restic pin mismatch');
+const receipt={scope:'ordinary-user feasibility only; raw pinned Restic CLI; no admission, funding, installed, credential isolation, native transport universal or provider proof',sdkVersion,uid:process.getuid(),runtime:{executable:process.execPath,sha256:hash(await readFile(process.execPath)),version:Bun.version,revision:Bun.revision},resticSha256:hash(await readFile(restic)),commands:[],transport:[],relay:[],checks:{}};
+const children=new Set();let repaired=false;let helper;let receiver;let server;let stopped=false;let client;let wrongClient;let helperStderr;let helperDeadline;let anyTimeout=false;
+const deadline=setTimeout(()=>{anyTimeout=true;if(helper&&helper.exitCode===null)groupKill(helper);},150000);
+function groupKill(child){repaired=true;process.kill(-child.pid,'SIGKILL');}
+async function readBounded(stream,maximum,label){let bytes=0;const chunks=[];for await(const chunk of stream){bytes+=chunk.length;if(bytes>maximum)throw new Error(label+' output bound exceeded');chunks.push(chunk);}return Buffer.concat(chunks);}
+async function run(label,argv,env={PATH:'/usr/bin:/bin'},stdin){
+    const child=Bun.spawn(argv,{env,stdin:stdin===undefined?'ignore':'pipe',stdout:'pipe',stderr:'pipe',detached:true});children.add(child);
+    await writeFile(join(root,'running.json'),JSON.stringify({orchestratorPid:process.pid,helperPid:helper?.pid,helperPGID:helper?.pid,childPid:child.pid,childPGID:child.pid,label})+'\n');
+    let expired=false;const timer=setTimeout(()=>{expired=true;groupKill(child);},45000);
+    if(stdin!==undefined){child.stdin.write(stdin);child.stdin.end();}
+    const settled=await Promise.allSettled([child.exited,readBounded(child.stdout,65536,label),readBounded(child.stderr,65536,label)]);clearTimeout(timer);children.delete(child);
+    for(const outcome of settled)if(outcome.status==='rejected')throw outcome.reason;
+    const [exit,stdout,stderr]=settled.map(outcome=>outcome.value);
+    await writeFile(join(root,label+'.stdout.log'),stdout);await writeFile(join(root,label+'.stderr.log'),stderr);
+    receipt.commands.push({label,argv,pid:child.pid,pgid:child.pid,exit,stdoutBytes:stdout.length,stderrBytes:stderr.length});
+    if(expired)throw new Error(label+' timed out');if(exit!==0)throw new Error(label+' failed: '+exit+' '+stderr.toString().slice(0,1500));return stdout;
+}
+const privateRoot=join(root,'private');await mkdir(privateRoot,{mode:0o700});
+const key=join(privateRoot,'tls.key'),cert=join(root,'tls.crt'),wrongKey=join(privateRoot,'wrong.key'),wrongCert=join(root,'wrong.crt');
+async function nextLine(reader){let timer;try{return await Promise.race([reader.next(),new Promise((_,reject)=>timer=setTimeout(()=>reject(new Error('control reply timeout')),8000))]);}finally{clearTimeout(timer);}}
+async function* lines(stream){let pending='';for await(const chunk of stream){pending+=new TextDecoder().decode(chunk);if(pending.length>1000000)throw new Error('control bound exceeded');for(;;){const end=pending.indexOf('\n');if(end<0)break;yield JSON.parse(pending.slice(0,end));pending=pending.slice(end+1);}}if(pending)throw new Error('truncated control output');}
+let control;
+async function command(action){helper.stdin.write(JSON.stringify({action})+'\n');const reply=await nextLine(control);if(reply.done)throw new Error('helper control closed');return reply.value;}
+let factoryCount=0;
+function transport(ca,tag){return {metadata:{handlerProtocol:'http/1.1'},destroy(){},async handle(signed){
+    if(signed.protocol!=='https:'||signed.hostname!=='localhost'||Number(signed.port)!==receiver.port||!['GET','HEAD','PUT','DELETE'].includes(signed.method))throw new Error('fixed transport route differs');
+    const body=signed.body===undefined?Buffer.alloc(0):Buffer.from(signed.body);
+    if(body.length>1048576|| (signed.method==='PUT' && Number(signed.headers['content-length'])!==body.length))throw new Error('exact transport body length differs');
+    const query=new URLSearchParams();for(const [name,values]of Object.entries(signed.query??{}))for(const value of Array.isArray(values)?values:[values])query.append(name,String(value??''));
+    const path=signed.path+(query.size?'?'+query.toString():'');
+    const observation={tag,method:signed.method,path,bodyBytes:body.length,factories:0};receipt.transport.push(observation);
+    return await new Promise((resolve,reject)=>{
+        let settled=false;let timer;
+        const finish=(failure,value)=>{if(settled)return;settled=true;clearTimeout(timer);if(failure){observation.error=failure.message;reject(failure);}else resolve(value);};
+        const outgoing=request({protocol:'https:',hostname:'localhost',port:receiver.port,path,method:signed.method,headers:signed.headers,agent:undefined,createConnection(_options,callback){
+            factoryCount++;observation.factories++;
+            const socket=connect({host:'127.0.0.1',port:receiver.port,servername:'localhost',ca,rejectUnauthorized:true,minVersion:'TLSv1.2',ALPNProtocols:['http/1.1']});
+            let completed=false;const complete=(failure)=>{if(completed)return;completed=true;if(failure){socket.destroy();callback(failure);}else callback(null,socket);};
+            socket.once('secureConnect',()=>{if(!socket.authorized||socket.alpnProtocol!=='http/1.1'){complete(new Error('TLS identity or ALPN differs'));return;}complete(null);});socket.once('error',complete);
+            return undefined;
+        }},async incoming=>{
+            try{const bytes=await readBounded(incoming,1048576,'transport response');const headers={};for(const[name,value]of Object.entries(incoming.headers)){if(Array.isArray(value))headers[name]=value.join(',');else if(value!==undefined)headers[name]=String(value);}observation.status=incoming.statusCode;observation.responseBytes=bytes.length;finish(null,{response:{statusCode:incoming.statusCode,headers,body:Readable.from(bytes.length?[bytes]:[])}});}catch(cause){outgoing.destroy();finish(cause);}
+        });
+        timer=setTimeout(()=>{outgoing.destroy(new Error('transport deadline exceeded'));},8000);outgoing.once('error',failure=>finish(failure));outgoing.end(body);
+    });
+}};}
+const bucket='fixture';
+const staticCredentials={accessKeyId:'owned-fixture-access',secretAccessKey:'owned-fixture-secret'};
+function makeClient(ca,tag){return new S3Client({region:'us-east-1',endpoint:'https://localhost:'+receiver.port,credentials:staticCredentials,forcePathStyle:true,maxAttempts:1,followRegionRedirects:false,requestChecksumCalculation:'WHEN_REQUIRED',responseChecksumValidation:'WHEN_REQUIRED',requestHandler:transport(ca,tag)});}
+let baseline=new Set(),created=new Set(),faultArmed=false,faultKey;
+async function openRelay(){
+    const socket=join(privateRoot,'relay.sock');
+    server=createServer(async(incoming,outgoing)=>{
+        const observation={method:incoming.method,path:incoming.url};receipt.relay.push(observation);
+        const send=(status,body=Buffer.alloc(0),headers={})=>{observation.status=status;outgoing.writeHead(status,{'Content-Length':String(body.length),...headers});outgoing.end(body);};
+        try{
+            if(receipt.relay.length>1000)throw new Error('relay request count bound');
+            const raw=incoming.url;if(!raw||raw.includes('?')||raw.includes('%')||incoming.headers['transfer-encoding']){send(400);return;}
+            const matched=/^\/repository\/(config|(?:(keys|locks|index|snapshots|data)\/([0-9a-f]{64})?)?)$/.exec(raw);
+            if(!matched||!matched[1]){send(404);return;}
+            const category=matched[2]??'config';const id=matched[3];const isList=category!=='config'&&!id;
+            const objectKey=category==='config'?'repository/config':category==='data'?'repository/data/'+id?.slice(0,2)+'/'+id:'repository/'+category+'/'+id;
+            if(isList){
+                if(incoming.method!=='GET'){send(405);return;}
+                const listed=await client.send(new ListObjectsV2Command({Bucket:bucket,Prefix:'repository/'+category+'/'}));
+                if(listed.IsTruncated!==false||!Number.isSafeInteger(listed.KeyCount)||listed.KeyCount<0)throw new Error('incomplete list');
+                const contents=listed.Contents===undefined&&listed.KeyCount===0?[]:listed.Contents;
+                if(!Array.isArray(contents)||contents.length!==listed.KeyCount)throw new Error('absent or inconsistent list contents');
+                const entries=contents.map(entry=>{const match=category==='data'?/^repository\/data\/[0-9a-f]{2}\/([0-9a-f]{64})$/.exec(entry.Key):new RegExp('^repository/'+category+'/([0-9a-f]{64})$').exec(entry.Key);if(!match||!Number.isSafeInteger(entry.Size)||entry.Size<0)throw new Error('invalid listed key/size');if(category==='data'&&!entry.Key.endsWith('/'+match[1].slice(0,2)+'/'+match[1]))throw new Error('pack fanout mismatch');return {name:match[1],size:entry.Size};});
+                send(200,Buffer.from(JSON.stringify(entries)),{'Content-Type':'application/vnd.x.restic.rest.v2'});return;
+            }
+            if(incoming.method==='GET'||incoming.method==='HEAD'){
+                if(incoming.method==='HEAD'){const metadata=await client.send(new HeadObjectCommand({Bucket:bucket,Key:objectKey}));if(!Number.isSafeInteger(metadata.ContentLength))throw new Error('HEAD length absent');observation.status=200;outgoing.writeHead(200,{'Content-Length':String(metadata.ContentLength)});outgoing.end();return;}
+                const range=incoming.headers.range;if(range&&!/^bytes=\d+-\d*$/.test(range)){send(400);return;}
+                const object=await client.send(new GetObjectCommand({Bucket:bucket,Key:objectKey,...(range?{Range:range}:{})}));const bytes=await readBounded(object.Body,1048576,'relay response');
+                send(range?206:200,bytes,object.ContentRange?{'Content-Range':object.ContentRange}:{});return;
+            }
+            if(incoming.method==='POST'){
+                if(category==='config'||category==='keys'||baseline.has(objectKey)){send(403);return;}
+                const length=Number(incoming.headers['content-length']);if(!Number.isSafeInteger(length)||length<=0||length>1048576){send(413);return;}
+                const bytes=await readBounded(incoming,length,'relay POST');if(bytes.length!==length)throw new Error('relay body truncated');
+                await client.send(new PutObjectCommand({Bucket:bucket,Key:objectKey,Body:bytes,ContentLength:length}));created.add(objectKey);observation.key=objectKey;observation.bytes=length;
+                if(faultArmed&&category==='data'&&!faultKey){faultKey=objectKey;observation.status='lost-after-upstream-commit';outgoing.socket.destroy();return;}
+                send(200);return;
+            }
+            if(incoming.method==='DELETE'){
+                if(category==='config'||category==='keys'||baseline.has(objectKey)||!created.has(objectKey)){send(403);return;}
+                await client.send(new DeleteObjectCommand({Bucket:bucket,Key:objectKey}));observation.key=objectKey;send(200);return;
+            }
+            send(405);
+        }catch(cause){observation.error=cause.message;if(cause?.$metadata?.httpStatusCode===404){send(404);return;}send(500);}
+    });
+    server.requestTimeout=10000;server.headersTimeout=10000;server.timeout=10000;
+    await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(socket,resolve);});
+    return {socket,url:'rest:http+unix://'+socket+':/repository/'};
+}
+async function downstream(socket,method,path){return await new Promise((resolve,reject)=>{const outgoing=unixRequest({socketPath:socket,path,method,agent:false},async incoming=>{try{const bytes=await readBounded(incoming,1048576,'downstream manual');resolve({status:incoming.statusCode,bytes});}catch(cause){reject(cause);}});outgoing.setTimeout(8000,()=>outgoing.destroy(new Error('downstream deadline')));outgoing.once('error',reject);outgoing.end();});}
+function assert(condition,message){if(!condition)throw new Error(message);}
+try{
+    for(const[ownedKey,ownedCert,label]of [[key,cert,'cert'],[wrongKey,wrongCert,'wrong-cert']])await run(label,['/usr/bin/openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',ownedKey,'-out',ownedCert,'-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost,IP:127.0.0.1']);
+    helper=Bun.spawn(['/usr/bin/python3','-u',join(root,'receiver.py'),root,cert,key],{env:{PATH:'/usr/bin:/bin'},stdin:'pipe',stdout:'pipe',stderr:'pipe',detached:true});children.add(helper);helperStderr=readBounded(helper.stderr,65536,'receiver stderr');control=lines(helper.stdout)[Symbol.asyncIterator]();
+    const ready=await nextLine(control);assert(!ready.done,'receiver ready absent');receiver=ready.value;receipt.receiver=receiver;await writeFile(join(root,'running.json'),JSON.stringify({orchestratorPid:process.pid,helperPid:helper.pid,helperPGID:helper.pid,state:'receiver-ready'})+'\n');
+    client=makeClient(await readFile(cert),'candidate');wrongClient=makeClient(await readFile(wrongCert),'wrong-ca');
+    const probe=Buffer.from('owned exact upstream PUT witness');
+    const beforeLost=factoryCount;let lostFailure;
+    try{await client.send(new PutObjectCommand({Bucket:bucket,Key:'repository/probe-lost',Body:probe,ContentLength:probe.length}));}catch(cause){lostFailure={name:cause.name,message:cause.message,attempts:cause.$metadata?.attempts};}
+    assert(lostFailure&&factoryCount-beforeLost===1,'lost reply did not fail after one factory');
+    const ack=await client.send(new PutObjectCommand({Bucket:bucket,Key:'repository/probe-ack',Body:probe,ContentLength:probe.length}));
+    const beforeWrong=(await command('summary')).requests.length;let wrongFailure;
+    try{await wrongClient.send(new PutObjectCommand({Bucket:bucket,Key:'repository/probe-wrong',Body:probe,ContentLength:probe.length}));}catch(cause){wrongFailure={name:cause.name,message:cause.message,attempts:cause.$metadata?.attempts};}
+    const afterProbe=await command('summary');
+    assert(wrongFailure&&afterProbe.requests.length===beforeWrong,'wrong CA reached HTTP');
+    assert(afterProbe.versions['repository/probe-lost'].length===1&&afterProbe.versions['repository/probe-ack'].length===1,'probe PUT complete count differs');
+    receipt.checks.transport={lostFailure,oneCompleteLostPut:true,lostFactoryCount:receipt.transport.find(entry=>entry.path.startsWith('/fixture/repository/probe-lost')).factories,acknowledgedStatus:ack.$metadata.httpStatusCode,acknowledgedAttempts:ack.$metadata.attempts,wrongFailure,wrongCAHttpRequests:afterProbe.requests.length-beforeWrong};
+    const commonEnvironment={PATH:'/usr/bin:/bin',RESTIC_PASSWORD:'owned-disposable-relay-password',AWS_ACCESS_KEY_ID:staticCredentials.accessKeyId,AWS_SECRET_ACCESS_KEY:staticCredentials.secretAccessKey,AWS_DEFAULT_REGION:'us-east-1'};
+    const s3Environment={...commonEnvironment,RESTIC_REPOSITORY:'s3:https://localhost:'+receiver.port+'/fixture/repository'};
+    const s3Args=[restic,'--cacert',cert,'--no-cache','-o','s3.connections=1','-o','s3.retries=1'];
+    await run('s3-init',[...s3Args,'init'],s3Environment);
+    const firstPayload=Buffer.concat([Buffer.from('retained first known payload\n'),randomBytes(65536)]);await writeFile(join(root,'first-payload'),firstPayload);
+    const firstBackup=await run('s3-first-backup',[...s3Args,'backup','--stdin','--stdin-filename','owned-payload','--json'],s3Environment,firstPayload);
+    const first=JSON.parse(firstBackup.toString().trim().split('\n').at(-1)).snapshot_id;assert(/^[a-f0-9]{64}$/.test(first),'first snapshot absent');
+    const protectedReply=await command('protect');baseline=new Set(protectedReply.protected);const beforeBaseline=await command('summary');await writeFile(join(root,'baseline.json'),JSON.stringify(beforeBaseline,null,2)+'\n');
+    const relay=await openRelay();receipt.relayURL=relay.url;
+    const restEnvironment={PATH:'/usr/bin:/bin',RESTIC_PASSWORD:commonEnvironment.RESTIC_PASSWORD,RESTIC_REPOSITORY:relay.url};const restArgs=[restic,'--no-cache','-o','rest.connections=1'];
+    const listed=JSON.parse((await run('rest-list-first',[...restArgs,'snapshots','--json'],restEnvironment)).toString());assert(listed.some(snapshot=>snapshot.id===first),'REST did not see S3 snapshot');
+    await run('rest-check-first',[...restArgs,'check','--read-data'],restEnvironment);
+    const secondPayload=Buffer.concat([Buffer.from('second REST-created known payload\n'),randomBytes(65536)]);await writeFile(join(root,'second-payload'),secondPayload);
+    const secondBackup=await run('rest-second-backup',[...restArgs,'backup','--stdin','--stdin-filename','owned-payload','--json'],restEnvironment,secondPayload);const second=JSON.parse(secondBackup.toString().trim().split('\n').at(-1)).snapshot_id;assert(/^[a-f0-9]{64}$/.test(second),'second snapshot absent');
+    const directList=JSON.parse((await run('s3-list-second',[...s3Args,'snapshots','--json'],s3Environment)).toString());assert(directList.some(snapshot=>snapshot.id===second),'S3 did not see REST snapshot');await run('s3-check-second',[...s3Args,'check','--read-data'],s3Environment);
+    const restoreSecond=join(root,'restore-second');await run('rest-restore-second',[...restArgs,'restore',second,'--target',restoreSecond],restEnvironment);assert((await readFile(join(restoreSecond,'owned-payload'))).equals(secondPayload),'second restored bytes differ');
+    receipt.checks.compatibility={first,second,baselineObjects:baseline.size,sameRepository:true,restReadExisting:true,s3ReadRestCreated:true,secondRestoredSha256:hash(secondPayload)};
+    const protectedKey=[...baseline].find(name=>name.startsWith('repository/data/'));assert(protectedKey,'no protected pack');const protectedId=protectedKey.split('/').at(-1);
+    await command('fail-list');const failedList=await downstream(relay.socket,'GET','/repository/locks/');assert(failedList.status===500&&failedList.bytes.length===0,'upstream list failure became empty catalogue');receipt.checks.listFailure={status:failedList.status,bodyBytes:failedList.bytes.length};
+    const refused=await downstream(relay.socket,'DELETE','/repository/data/'+protectedId);assert(refused.status===403,'protected DELETE allowed');
+    const protectedObject=await client.send(new GetObjectCommand({Bucket:bucket,Key:protectedKey}));const protectedBytes=await readBounded(protectedObject.Body,1048576,'protected object');assert(hash(protectedBytes)===beforeBaseline.visible[protectedKey].sha256,'protected ciphertext changed');
+    const unknown=await downstream(relay.socket,'GET','/repository/unknown/');const create=await downstream(relay.socket,'POST','/repository/?create=true');const configMutation=await downstream(relay.socket,'POST','/repository/config');const keyMutation=await downstream(relay.socket,'DELETE','/repository/keys/'+[...baseline].find(name=>name.startsWith('repository/keys/')).split('/').at(-1));
+    assert(unknown.status===404&&create.status===400&&configMutation.status===403&&keyMutation.status===403,'route mutation refusal differs');
+    faultArmed=true;const thirdPayload=Buffer.concat([Buffer.from('lost REST POST reply retry payload\n'),randomBytes(65536)]);await writeFile(join(root,'third-payload'),thirdPayload);
+    const thirdBackup=await run('rest-lost-post-backup',[...restArgs,'backup','--stdin','--stdin-filename','owned-payload','--json'],restEnvironment,thirdPayload);const third=JSON.parse(thirdBackup.toString().trim().split('\n').at(-1)).snapshot_id;
+    assert(faultKey,'lost data POST not reached');const afterFault=await command('summary');const history=afterFault.versions[faultKey];
+    assert(history.filter(entry=>entry.bytes!==null).length===2&&history.some(entry=>entry.bytes===null),'Restic replay/DELETE not observed');assert(new Set(history.filter(entry=>entry.bytes!==null).map(entry=>entry.sha256)).size===1,'retried ciphertext differs');
+    assert(receipt.relay.some(event=>event.method==='DELETE'&&event.key===faultKey),'adapter cleanup DELETE absent');
+    for(const name of baseline)assert(afterFault.visible[name]?.sha256===beforeBaseline.visible[name].sha256,'baseline changed '+name);
+    await run('rest-check-after-fault',[...restArgs,'check','--read-data'],restEnvironment);
+    const restoreFirst=join(root,'restore-first-after-fault');await run('rest-restore-first-after-fault',[...restArgs,'restore',first,'--target',restoreFirst],restEnvironment);assert((await readFile(join(restoreFirst,'owned-payload'))).equals(firstPayload),'retained payload restore differs');
+    const restoreThird=join(root,'restore-third');await run('rest-restore-third',[...restArgs,'restore',third,'--target',restoreThird],restEnvironment);assert((await readFile(join(restoreThird,'owned-payload'))).equals(thirdPayload),'third payload restore differs');
+    await run('s3-check-after-fault',[...s3Args,'check','--read-data'],s3Environment);
+    receipt.checks.failure={third,faultKey,history,resticRetryCleanupObserved:true,protectedDeleteStatus:refused.status,protectedCiphertextReadable:true,baselineUnchanged:true,retainedRestoredSha256:hash(firstPayload),thirdRestoredSha256:hash(thirdPayload),allVersionLiabilityRetained:true,retainedBytes:afterFault.retainedBytes,negativeStatuses:{unknown:unknown.status,create:create.status,configMutation:configMutation.status,keyMutation:keyMutation.status}};
+    assert(afterFault.failures.length===0,'receiver failures');
+    const unexpected=receipt.relay.filter(event=>event.error && event.status!==404 && event.error!=='owned injected list failure');assert(unexpected.length===0,'unexpected relay errors '+JSON.stringify(unexpected));
+    server.closeAllConnections();await new Promise((resolve,reject)=>server.close(cause=>cause?reject(cause):resolve()));server=undefined;
+    const closure=await command('stop');assert(closure.receiverClosed,'receiver not closed');helper.stdin.end();const helperExit=await helper.exited;children.delete(helper);await writeFile(join(root,'receiver.stderr.log'),await helperStderr);assert(helperExit===0,'receiver exit '+helperExit);stopped=true;
+    receipt.checks.cleanup={receiverClosed:true,relayClosed:true,childrenReaped:true,repaired:false};await writeFile(join(root,'running.json'),JSON.stringify({orchestratorPid:process.pid,helperPid:helper.pid,helperPGID:helper.pid,state:'closed-and-reaped'})+'\n');
+}catch(cause){receipt.failure={name:cause.name,message:cause.message,stack:cause.stack};throw cause;
+}finally{
+    clearTimeout(deadline);
+    if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+    if(helper&&!stopped){try{const closure=await command('stop');helper.stdin.end();await helper.exited;children.delete(helper);receipt.failureCleanup=closure;}catch(cause){receipt.failureCleanup={error:cause.message};}}
+    for(const child of children){if(child.exitCode===null)groupKill(child);await child.exited;}
+    if(helperStderr)await writeFile(join(root,'receiver.stderr.log'),await helperStderr);
+    client?.destroy();wrongClient?.destroy();
+    for(const path of [key,wrongKey]){try{await unlink(path);}catch(cause){if(cause.code!=='ENOENT')throw cause;}}
+    receipt.repairedCleanup=repaired;
+    await writeFile(join(root,'receipt.json'),JSON.stringify(receipt,null,2)+'\n');
+}
+if(repaired||anyTimeout)throw new Error('timeout or repaired cleanup invalidates experiment');
+console.log(JSON.stringify({checks:receipt.checks,artifact:root}));
