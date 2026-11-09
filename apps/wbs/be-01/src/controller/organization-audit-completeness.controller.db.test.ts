@@ -35,6 +35,7 @@ beforeEach(async () => {
   await harness.register('sam');
   harness.organization('org-a');
   harness.member('org-a', 'ada', 'super_admin');
+  harness.grantPermissions('org-a', 'ada', ['organization.manage_security']);
   harness.member('org-a', 'sam', 'admin');
   harness.bind('ada', 'org-a');
   harness.bind('sam', 'org-a');

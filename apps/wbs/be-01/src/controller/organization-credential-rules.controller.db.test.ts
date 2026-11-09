@@ -273,6 +273,7 @@ describe('enforced SSO', () => {
       "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('mia')],
     );
+    h.grantPermissions('org-a', 'mia', ['organization.manage_security']);
     const request = async (subject: string) => {
       const token = await upstream(subject);
       const selected = await select(token, 'org-a');

@@ -584,3 +584,77 @@ Five referenced solution typechecks, four-file lint and format checks pass after
 | --------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------ |
 | raw-project-hidden-decision | libs/wbs/adapters/store-sqlite/src/project.ts | conceals an owned hidden project exactly like an absent target in the independent writer | 1/0/true           |
 | raw-project-current-denial  | libs/wbs/adapters/store-sqlite/src/project.ts | refuses a readable project without settings permission in the independent writer         | 1/0/true           |
+
+## Task 2.4a — current security grants and transaction ownership
+
+Local checkpoint on base08e1ff2b1, recorded before commit. Parent2.4 remains unchecked:
+2.4b follows auditfoundation4.1 and membership2.5. Exact commands, outcomes, source hashes,
+138 fault receipts and excluded attempts are in [verification-2.4a.json](verification-2.4a.json).
+This checkpoint does not close the entity rename or the PUNI CLI goal.
+
+Security policy, domains/DNS, enterprise SSO/proof, provisioning, trusted issuers and restore
+approval/execution now use the actual detached authenticated principal and current
+organization.manage_security through AccessDecisionRepository. Reads/effects share the same
+Gate and BEGIN IMMEDIATE connection. No legacy role fallback or credential-cap widening.
+DNS/discovery release the preflight owner for network work and recheck authority in the effects
+owner. Identity linking may proceed without security proof; collision rolls its proof/audit
+back. Borrowed identity/rank/event operations do not acquire nested owners. Restore's cold
+host awaits settlement before closing the connection/lock and checks the recorded personal
+approver's current grant before new effects; completed receipts retain their idempotent path.
+
+### Fresh local verification
+
+| Check                                                                           | Observed output                                                                 |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Coherent affected32-file suite                                                  | 800pass,2existing opt-in Docker skips,0fail;3895assertions;236.21s;exit0        |
+| Real SQLite source conformance and core/backend module boundaries               | 100pass,0fail;7727assertions;3files;108.11s;exit0                               |
+| Core, SQLite, backend and contracts complete TypeScript lib/spec solution roots | exit0, empty diagnostics after final fault restoration                          |
+| Owned62-path formatting and scoped TypeScript lint                              | exit0                                                                           |
+| OpenSpec validate all                                                           | 343valid,0invalid;exit0                                                         |
+| Parent independent controller/contract check                                    | 36pass,0fail;136assertions;2files;5.05s; before additive63 route/provider cases |
+| Git whitespace check                                                            | exit0                                                                           |
+
+The first coherent attempt failed731pass/6fail/2skip. Four OIDC trust fixtures lacked the
+explicit second-organization registrar grant; two DNS negatives demoted a legacy role while
+leaving the current grant effective. Precise subject/scope fixture repairs passed42/0 and
+the complete repeat above. No default grants or production authorization fallback were added.
+Earlier294-test discovery287/7 and its seven fixture repairs remain historical failed/partial
+attempts; they are not substitutes for the final32-file repeat. Failed launcher/lint attempts
+are also retained in the machine-readable record.
+
+### R5 proofs and review
+
+138 successful experiments comprise34 permission/schema,46 detached snapshots,44 owner/HTTP/
+lifetime/boundary checks and14 additive pre-resolver HTTP/pre-provider OIDC captures. Every
+counted experiment has a named RED1, restored GREEN0, equal before/after hashes and distinct
+mutant hash, with an adjacent production Proof comment. Repeating the final14 after test-helper
+cleanup does not add14 to the count. Astra independently checked logs, diagnostics, restoration,
+adjacency and the actual mounted request/provider mutation oracles. Parent separately reviewed
+owner/permission wiring and validated all retained receipts; reviewer source inspection is not
+claimed as independent execution of the full suite.
+
+The original domain.verifyClaim stamp experiment genuinely survived: actor/by mutation missed
+the timestamp-only update. Its original logs were overwritten by the successful strengthened
+rerun and were never archived. The failed metadata explicitly has null log references and
+originalLogRetained:false. The successful resumed proof mutates at=999 and observes persisted
+updated_at. Historical18 exploratory experiments are excluded. The valid policy-clone proof
+uses admissible7200/3600 and observes persisted7200 instead of28800; the older600/3600 CHECK
+failure is retained separately and is not represented as a persistence proof.
+
+The original124 restoration hashes precede adjacent comment edits; that history is preserved.
+The additional14 final receipts match current source including comments on all7 affected paths.
+The record also captures all62 current owned-file hashes, so neither hash set is relabeled as
+a clean committed gate result. No active mutation remains.
+
+### Explicit limits and next dependencies
+
+The two existing real-Docker host/container fencing cases require WBS_HOST_RESTORE_REAL_DOCKER=1
+and an explicit WBS_HOST_RESTORE_PROOF_IMAGE; neither was supplied. Canonical h2/h4 clean-SHA
+gate, build, browser E2E, live external DNS and deployment were not run for this local slice.
+No real activation/deployment certification is claimed.
+
+Fixture-only DomainClaimRepository.openClaim/promoteClaim remain for the existing
+organization-records tests and must move/remove in2.4b; no production DomainChallenges caller
+uses them. OrganizationScope.role and other live legacy helpers remain until the approved
+4.1→2.5→2.4b order permits deletion. Engagement-parent/restricted-budget positive proofs still
+belong to the later entity slice. Whole-scope implementation continues.

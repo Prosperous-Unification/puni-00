@@ -1,4 +1,5 @@
 import type { AuditedAct } from './organization-audit';
+import type { SecurityPrincipal } from './security-principal';
 
 /** At most this many live provisioning tokens per organization (Auth0's rotation model). */
 export const MOST_LIVE_PROVISIONING_TOKENS = 2;
@@ -6,7 +7,7 @@ export const MOST_LIVE_PROVISIONING_TOKENS = 2;
 /** How long a rotated token keeps authenticating beside its successor. */
 export const PROVISIONING_ROTATION_OVERLAP_MS = 24 * 60 * 60 * 1000;
 
-/** A provisioning token as a super-admin lists it: never its secret or digest. */
+/** A provisioning token as a security administrator lists it: never its secret or digest. */
 export interface ProvisioningTokenSummary {
   readonly id: string;
   readonly createdAt: number;
@@ -25,7 +26,7 @@ export interface AuthenticatedProvisioning {
  * Per-organization SCIM provisioning tokens (`organization-scim`). Only a
  * SHA-256 digest reaches the store. A token is live at `at` when it is not
  * revoked and has no expiry or one later than `at`. Every write rechecks
- * activation and the actor's super-admin role and writes its audit row in one
+ * activation and the retained actor's current organization.manage_security grant, with its audit row in one
  * immediate transaction.
  *
  * @throws when trusted state is missing, unreadable or malformed.
@@ -33,12 +34,12 @@ export interface AuthenticatedProvisioning {
 export interface ProvisioningTokens {
   list(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
   ): Promise<readonly ProvisioningTokenSummary[] | 'inactive' | 'forbidden'>;
   /** Refused without a proven connection, or when two tokens are live at `act.stamp.at`. */
   issue(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     id: string,
     digest: string,
     act: AuditedAct,
@@ -52,7 +53,7 @@ export interface ProvisioningTokens {
    */
   rotate(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     tokenId: string,
     successorId: string,
     successorDigest: string,
@@ -67,7 +68,7 @@ export interface ProvisioningTokens {
   /** Immediate; a token already revoked or expired is `not_found`. */
   revoke(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     tokenId: string,
     act: AuditedAct,
   ): Promise<'revoked' | 'inactive' | 'forbidden' | 'not_found'>;

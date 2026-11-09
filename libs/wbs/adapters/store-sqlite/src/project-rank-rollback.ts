@@ -139,43 +139,52 @@ export function removeSavedProjectRanks(db: Pick<Drizzle, 'transaction'>, saved:
  * too, but without saying which.
  */
 export function restoreProjectRanks(db: Pick<Drizzle, 'transaction'>, saved: unknown): number {
-  const { ranks } = readSavedProjectRanks(saved);
-  return db.transaction(
-    (tx) => {
-      for (const rank of ranks) {
-        const owned = tx
-          .select({ id: projectOrganization.resourceId })
-          .from(projectOrganization)
-          .where(
-            and(
-              eq(projectOrganization.resourceId, rank.projectId),
-              eq(projectOrganization.organizationId, rank.organizationId),
-            ),
-          )
-          .get();
-        // Proof, observed 2026-09-29: with this read skipped, `refuses the
-        // whole restore when a saved project is gone` in
-        // `project-rank.db.test.ts` threw drizzle's `Failed query: insert into
-        // "project_rank"` instead of naming the project.
-        if (owned === undefined) {
-          throw new Error(
-            `saved rank of project ${rank.projectId}: organization ${rank.organizationId} no longer owns it`,
-          );
-        }
-        const author = tx
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.id, rank.createdBy))
-          .get();
-        if (author === undefined) {
-          throw new Error(
-            `saved rank of project ${rank.projectId} was written by ${rank.createdBy}, who is no longer a user`,
-          );
-        }
-        tx.insert(projectRank).values(rank).run();
-      }
-      return ranks.length;
-    },
-    { behavior: 'immediate' },
-  );
+  const checked = readSavedProjectRanks(saved);
+  return db.transaction((tx) => restoreProjectRanksIn(tx, checked.ranks), {
+    behavior: 'immediate',
+  });
+}
+
+/**
+ * Restores already validated historical ranks on the caller-owned writer.
+ * References and authors are rechecked before insertion; no nested native owner is opened.
+ * @throws on missing ownership, missing authors or SQLite failure; the caller must roll back.
+ */
+export function restoreProjectRanksIn(
+  tx: Pick<Drizzle, 'select' | 'insert'>,
+  ranks: readonly SavedProjectRank[],
+): number {
+  for (const rank of ranks) {
+    const owned = tx
+      .select({ id: projectOrganization.resourceId })
+      .from(projectOrganization)
+      .where(
+        and(
+          eq(projectOrganization.resourceId, rank.projectId),
+          eq(projectOrganization.organizationId, rank.organizationId),
+        ),
+      )
+      .get();
+    // Proof, observed 2026-09-29: with this read skipped, `refuses the
+    // whole restore when a saved project is gone` in
+    // `project-rank.db.test.ts` threw drizzle's `Failed query: insert into
+    // "project_rank"` instead of naming the project.
+    if (owned === undefined) {
+      throw new Error(
+        `saved rank of project ${rank.projectId}: organization ${rank.organizationId} no longer owns it`,
+      );
+    }
+    const author = tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, rank.createdBy))
+      .get();
+    if (author === undefined) {
+      throw new Error(
+        `saved rank of project ${rank.projectId} was written by ${rank.createdBy}, who is no longer a user`,
+      );
+    }
+    tx.insert(projectRank).values(rank).run();
+  }
+  return ranks.length;
 }

@@ -57,6 +57,12 @@ describe('the enterprise SSO stores', () => {
       "INSERT INTO organization_domain_claim (id, organization_id, domain, status, challenge_digest, challenge_expires_at, created_at) VALUES ('claim-p', 'org-a', 'pending.test', 'pending', 'c', 9, 1)",
     );
     sql("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+    sql(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('security-bob','org-b','organization','org-b','user','bob','org-super-admin','route',1)",
+    );
+    sql(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('security-ada','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
+    );
   });
 
   afterEach(() => {
@@ -99,9 +105,9 @@ describe('the enterprise SSO stores', () => {
   } as const;
 
   async function provenConnection(): Promise<void> {
-    expect((await connections().create('org-a', 'ada', draft, 'conn-a', act('ada'))).kind).toBe(
-      'created',
-    );
+    expect(
+      (await connections().create('org-a', { id: 'ada' }, draft, 'conn-a', act('ada'))).kind,
+    ).toBe('created');
     sql(
       "UPDATE organization_sso_connection SET proven_at = 5, proven_by = 'ada' WHERE id = 'conn-a'",
     );
@@ -115,7 +121,13 @@ describe('the enterprise SSO stores', () => {
 
   describe('connections', () => {
     it('records one unproven, unenforced connection with one audit row', async () => {
-      const created = await connections().create('org-a', 'ada', draft, 'conn-a', act('ada'));
+      const created = await connections().create(
+        'org-a',
+        { id: 'ada' },
+        draft,
+        'conn-a',
+        act('ada'),
+      );
       expect(created).toEqual({
         kind: 'created',
         connection: {
@@ -144,7 +156,7 @@ describe('the enterprise SSO stores', () => {
         expect(
           await connections().create(
             'org-a',
-            'ada',
+            { id: 'ada' },
             { ...draft, domainClaimId, loginSlug: `x-${domainClaimId}` },
             `c-${domainClaimId}`,
             act('ada'),
@@ -160,7 +172,7 @@ describe('the enterprise SSO stores', () => {
       expect(
         await connections().create(
           'org-a',
-          'ada',
+          { id: 'ada' },
           { ...draft, domainClaimId: 'claim-b' },
           'c-x',
           act('ada'),
@@ -170,11 +182,11 @@ describe('the enterprise SSO stores', () => {
     });
 
     it('refuses a second connection on a claim, a taken slug, an admin and before activation', async () => {
-      await connections().create('org-a', 'ada', draft, 'conn-a', act('ada'));
+      await connections().create('org-a', { id: 'ada' }, draft, 'conn-a', act('ada'));
       expect(
         await connections().create(
           'org-a',
-          'ada',
+          { id: 'ada' },
           { ...draft, loginSlug: 'other' },
           'c-2',
           act('ada'),
@@ -183,7 +195,7 @@ describe('the enterprise SSO stores', () => {
       expect(
         await connections().create(
           'org-b',
-          'bob',
+          { id: 'bob' },
           { ...draft, domainClaimId: 'claim-b' },
           'c-3',
           act('bob'),
@@ -192,22 +204,22 @@ describe('the enterprise SSO stores', () => {
       expect(
         await connections().create(
           'org-b',
-          'sam',
+          { id: 'sam' },
           { ...draft, domainClaimId: 'claim-b', loginSlug: 'bee' },
           'c-4',
           act('sam'),
         ),
       ).toEqual({ kind: 'forbidden' });
-      expect(await connections().list('org-a', 'sam')).toBe('forbidden');
+      expect(await connections().list('org-a', { id: 'sam' })).toBe('forbidden');
       expect(audits()).toHaveLength(1);
     });
 
     it('refuses enforcement unproven or locking out its actor, and audits the change', async () => {
-      await connections().create('org-a', 'ada', draft, 'conn-a', act('ada'));
+      await connections().create('org-a', { id: 'ada' }, draft, 'conn-a', act('ada'));
       expect(
         await connections().setEnforced(
           'org-a',
-          'ada',
+          { id: 'ada' },
           'conn-a',
           true,
           'samlp|acme-saml|ada',
@@ -221,13 +233,20 @@ describe('the enterprise SSO stores', () => {
       // watched 2026-10-12.
       for (const subject of ['google-oauth2|1', null, 'samlp|acme-saml-2|ada'])
         expect(
-          await connections().setEnforced('org-a', 'ada', 'conn-a', true, subject, act('ada')),
+          await connections().setEnforced(
+            'org-a',
+            { id: 'ada' },
+            'conn-a',
+            true,
+            subject,
+            act('ada'),
+          ),
         ).toEqual({ kind: 'enforcement_would_lock_out_actor' });
       expect(
         (
           await connections().setEnforced(
             'org-a',
-            'ada',
+            { id: 'ada' },
             'conn-a',
             true,
             'samlp|acme-saml|ada',
@@ -250,7 +269,7 @@ describe('the enterprise SSO stores', () => {
       sql("UPDATE organization_sso_connection SET enforced = 1 WHERE id = 'conn-a'");
       const updated = await connections().update(
         'org-a',
-        'ada',
+        { id: 'ada' },
         'conn-a',
         { auth0Connection: 'acme-saml-v2' },
         act('ada'),
@@ -264,18 +283,22 @@ describe('the enterprise SSO stores', () => {
     it('refuses deletion while provisioning is live, then deletes', async () => {
       await provenConnection();
       expect(
-        (await tokens().issue('org-a', 'ada', 'tok-1', digest('d'), act('ada', 10))).kind,
+        (await tokens().issue('org-a', { id: 'ada' }, 'tok-1', digest('d'), act('ada', 10))).kind,
       ).toBe('issued');
-      expect(await connections().remove('org-a', 'ada', 'conn-a', act('ada', 11))).toBe(
+      expect(await connections().remove('org-a', { id: 'ada' }, 'conn-a', act('ada', 11))).toBe(
         'provisioning_active',
       );
-      expect(await tokens().revoke('org-a', 'ada', 'tok-1', act('ada', 12))).toBe('revoked');
-      expect(await connections().remove('org-a', 'ada', 'conn-a', act('ada', 13))).toBe('deleted');
+      expect(await tokens().revoke('org-a', { id: 'ada' }, 'tok-1', act('ada', 12))).toBe(
+        'revoked',
+      );
+      expect(await connections().remove('org-a', { id: 'ada' }, 'conn-a', act('ada', 13))).toBe(
+        'deleted',
+      );
       expect(rows('SELECT id FROM organization_sso_connection')).toEqual([]);
     });
 
     it('routes by slug whatever the claim status, and by domain only when verified', async () => {
-      await connections().create('org-a', 'ada', draft, 'conn-a', act('ada'));
+      await connections().create('org-a', { id: 'ada' }, draft, 'conn-a', act('ada'));
       expect(await connections().routeBySlug('acme')).toEqual({
         connectionId: 'conn-a',
         organizationId: 'org-a',
@@ -302,7 +325,7 @@ describe('the enterprise SSO stores', () => {
     });
 
     it('finds the proven connection only for its whole prefix', async () => {
-      await connections().create('org-a', 'ada', draft, 'conn-a', act('ada'));
+      await connections().create('org-a', { id: 'ada' }, draft, 'conn-a', act('ada'));
       expect(await connections().provenFor('samlp|acme-saml|alice@acme.test')).toBeNull();
       sql(
         "UPDATE organization_sso_connection SET proven_at = 5, proven_by = 'ada' WHERE id = 'conn-a'",
@@ -323,7 +346,7 @@ describe('the enterprise SSO stores', () => {
     });
 
     it('throws on a missing table and on a malformed record', async () => {
-      await connections().create('org-a', 'ada', draft, 'conn-a', act('ada'));
+      await connections().create('org-a', { id: 'ada' }, draft, 'conn-a', act('ada'));
       const db = openDatabase(path);
       try {
         db.run('PRAGMA ignore_check_constraints = ON');
@@ -331,9 +354,9 @@ describe('the enterprise SSO stores', () => {
       } finally {
         db.close();
       }
-      expect(connections().list('org-a', 'ada')).rejects.toThrow(/malformed/);
+      expect(connections().list('org-a', { id: 'ada' })).rejects.toThrow(/malformed/);
       sql('DROP TABLE organization_session_policy');
-      expect(policies().read('org-a', 'ada')).rejects.toThrow(
+      expect((await rejectionOf(policies().read('org-a', { id: 'ada' }))).message).toMatch(
         /Failed query: select .* from "organization_session_policy"/,
       );
     });
@@ -343,7 +366,9 @@ describe('the enterprise SSO stores', () => {
     it('refuses a token without a proven connection', async () => {
       // Proof: dropping the proven-connection check made this store a token;
       // watched 2026-10-12.
-      expect(await tokens().issue('org-a', 'ada', 'tok-1', digest('d'), act('ada'))).toEqual({
+      expect(
+        await tokens().issue('org-a', { id: 'ada' }, 'tok-1', digest('d'), act('ada')),
+      ).toEqual({
         kind: 'sso_connection_unproven',
       });
       expect(rows('SELECT id FROM organization_scim_token')).toEqual([]);
@@ -351,28 +376,39 @@ describe('the enterprise SSO stores', () => {
 
     it('stores only a digest, lists no secret, and refuses a third live token', async () => {
       await provenConnection();
-      expect(await tokens().issue('org-a', 'ada', 'tok-1', digest('d'), act('ada'))).toEqual({
+      expect(
+        await tokens().issue('org-a', { id: 'ada' }, 'tok-1', digest('d'), act('ada')),
+      ).toEqual({
         kind: 'issued',
         token: { id: 'tok-1', createdAt: 10, expiresAt: null, revokedAt: null },
       });
-      await tokens().issue('org-a', 'ada', 'tok-2', digest('e'), act('ada'));
+      await tokens().issue('org-a', { id: 'ada' }, 'tok-2', digest('e'), act('ada'));
       // Proof: dropping the live-count check made this store a third token;
       // watched 2026-10-12.
-      expect(await tokens().issue('org-a', 'ada', 'tok-3', digest('f'), act('ada'))).toEqual({
+      expect(
+        await tokens().issue('org-a', { id: 'ada' }, 'tok-3', digest('f'), act('ada')),
+      ).toEqual({
         kind: 'token_limit',
       });
-      expect(await tokens().list('org-a', 'ada')).toEqual([
+      expect(await tokens().list('org-a', { id: 'ada' })).toEqual([
         { id: 'tok-1', createdAt: 10, expiresAt: null, revokedAt: null },
         { id: 'tok-2', createdAt: 10, expiresAt: null, revokedAt: null },
       ]);
-      expect(await tokens().list('org-a', 'sam')).toBe('forbidden');
+      expect(await tokens().list('org-a', { id: 'sam' })).toBe('forbidden');
     });
 
     it('keeps a rotated token for exactly the overlap', async () => {
       await provenConnection();
-      await tokens().issue('org-a', 'ada', 'tok-1', digest('d'), act('ada', 100));
+      await tokens().issue('org-a', { id: 'ada' }, 'tok-1', digest('d'), act('ada', 100));
       expect(
-        await tokens().rotate('org-a', 'ada', 'tok-1', 'tok-2', digest('e'), act('ada', 200)),
+        await tokens().rotate(
+          'org-a',
+          { id: 'ada' },
+          'tok-1',
+          'tok-2',
+          digest('e'),
+          act('ada', 200),
+        ),
       ).toEqual({
         kind: 'rotated',
         token: { id: 'tok-2', createdAt: 200, expiresAt: null, revokedAt: null },
@@ -385,7 +421,14 @@ describe('the enterprise SSO stores', () => {
       expect(await tokens().authenticate(digest('d'), 200 + DAY)).toBeNull();
       expect(await tokens().authenticate(digest('e'), 200 + DAY)).not.toBeNull();
       expect(
-        await tokens().rotate('org-a', 'ada', 'tok-1', 'tok-3', digest('f'), act('ada', 300)),
+        await tokens().rotate(
+          'org-a',
+          { id: 'ada' },
+          'tok-1',
+          'tok-3',
+          digest('f'),
+          act('ada', 300),
+        ),
       ).toEqual({ kind: 'not_found' });
     });
 
@@ -393,12 +436,16 @@ describe('the enterprise SSO stores', () => {
     // the organization; watched 2026-10-12.
     it('answers null for a revoked, unknown or malformed token', async () => {
       await provenConnection();
-      await tokens().issue('org-a', 'ada', 'tok-1', digest('d'), act('ada', 100));
-      expect(await tokens().revoke('org-a', 'ada', 'tok-1', act('ada', 150))).toBe('revoked');
+      await tokens().issue('org-a', { id: 'ada' }, 'tok-1', digest('d'), act('ada', 100));
+      expect(await tokens().revoke('org-a', { id: 'ada' }, 'tok-1', act('ada', 150))).toBe(
+        'revoked',
+      );
       expect(await tokens().authenticate(digest('d'), 151)).toBeNull();
       expect(await tokens().authenticate(digest('9'), 151)).toBeNull();
       expect(await tokens().authenticate('wbs_scim_raw', 151)).toBeNull();
-      expect(await tokens().revoke('org-a', 'ada', 'tok-1', act('ada', 152))).toBe('not_found');
+      expect(await tokens().revoke('org-a', { id: 'ada' }, 'tok-1', act('ada', 152))).toBe(
+        'not_found',
+      );
       expect(audits().map((row) => (row as { action: string }).action)).toEqual([
         'sso_connection_created',
         'provisioning_token_issued',
@@ -515,7 +562,7 @@ describe('the enterprise SSO stores', () => {
         (
           await connections().create(
             'org-a',
-            'ada',
+            { id: 'ada' },
             {
               domainClaimId: 'claim-o',
               auth0Connection: 'other-saml',
@@ -665,19 +712,19 @@ describe('the enterprise SSO stores', () => {
   describe('session policies', () => {
     it('sets, keeps and clears a policy, auditing each change', async () => {
       const policy = { maxSessionSeconds: 28_800, reauthenticateAfterSeconds: 3_600 };
-      expect(await policies().set('org-a', 'ada', policy, act('ada'))).toBe('set');
-      expect(await policies().set('org-a', 'ada', policy, act('ada'))).toBe('unchanged');
-      expect(await policies().read('org-a', 'ada')).toEqual(policy);
+      expect(await policies().set('org-a', { id: 'ada' }, policy, act('ada'))).toBe('set');
+      expect(await policies().set('org-a', { id: 'ada' }, policy, act('ada'))).toBe('unchanged');
+      expect(await policies().read('org-a', { id: 'ada' })).toEqual(policy);
       expect(
         await policies().set(
           'org-a',
-          'ada',
+          { id: 'ada' },
           { maxSessionSeconds: null, reauthenticateAfterSeconds: null },
           act('ada'),
         ),
       ).toBe('cleared');
-      expect(await policies().read('org-a', 'ada')).toBeNull();
-      expect(await policies().set('org-a', 'sam', policy, act('sam'))).toBe('forbidden');
+      expect(await policies().read('org-a', { id: 'ada' })).toBeNull();
+      expect(await policies().set('org-a', { id: 'sam' }, policy, act('sam'))).toBe('forbidden');
       expect(audits()).toEqual([
         { action: 'session_policy_changed', actor_id: 'ada', subject_id: 'org-a' },
         { action: 'session_policy_changed', actor_id: 'ada', subject_id: 'org-a' },
@@ -716,11 +763,13 @@ describe('the enterprise SSO stores', () => {
       breakAudit();
       const before = tables();
       const policy = { maxSessionSeconds: 28_800, reauthenticateAfterSeconds: null };
-      expect(policies().set('org-a', 'ada', policy, act('ada'))).rejects.toThrow(AUDIT_FAILED);
+      expect(
+        (await rejectionOf(policies().set('org-a', { id: 'ada' }, policy, act('ada')))).message,
+      ).toMatch(AUDIT_FAILED);
       expect(
         connections().create(
           'org-a',
-          'ada',
+          { id: 'ada' },
           { ...draft, domainClaimId: 'claim-b', loginSlug: 'zz' },
           'c-x',
           act('ada'),
@@ -729,16 +778,16 @@ describe('the enterprise SSO stores', () => {
       expect(
         connections().setEnforced(
           'org-a',
-          'ada',
+          { id: 'ada' },
           'conn-a',
           true,
           'samlp|acme-saml|ada',
           act('ada'),
         ),
       ).rejects.toThrow(AUDIT_FAILED);
-      expect(tokens().issue('org-a', 'ada', 'tok-9', digest('9'), act('ada'))).rejects.toThrow(
-        AUDIT_FAILED,
-      );
+      expect(
+        tokens().issue('org-a', { id: 'ada' }, 'tok-9', digest('9'), act('ada')),
+      ).rejects.toThrow(AUDIT_FAILED);
       expect(scim().update('org-a', 'u-1', { active: false }, act('scim:tok-1'))).rejects.toThrow(
         AUDIT_FAILED,
       );
@@ -789,13 +838,13 @@ describe('the enterprise SSO stores before activation', () => {
       runMigrations(path, FOLDER);
       const db = openDrizzle(path);
       const act = { stamp: { at: 1, by: 'ada' }, actor: 'ada', auditId: 'a' };
-      expect(await new EnterpriseConnectionRepository(db, OPEN).list('org-a', 'ada')).toBe(
+      expect(await new EnterpriseConnectionRepository(db, OPEN).list('org-a', { id: 'ada' })).toBe(
         'inactive',
       );
       expect(
         await new EnterpriseConnectionRepository(db, OPEN).create(
           'org-a',
-          'ada',
+          { id: 'ada' },
           { domainClaimId: 'c', auth0Connection: 'x', strategy: 'samlp', loginSlug: 'xyz' },
           'c',
           act,
@@ -804,7 +853,7 @@ describe('the enterprise SSO stores before activation', () => {
       expect(
         await new ProvisioningTokenRepository(db, OPEN).issue(
           'org-a',
-          'ada',
+          { id: 'ada' },
           't',
           digest('d'),
           act,
@@ -813,7 +862,7 @@ describe('the enterprise SSO stores before activation', () => {
       expect(
         await new SessionPolicyRepository(db, OPEN).set(
           'org-a',
-          'ada',
+          { id: 'ada' },
           { maxSessionSeconds: 300, reauthenticateAfterSeconds: null },
           act,
         ),
@@ -826,3 +875,15 @@ describe('the enterprise SSO stores before activation', () => {
     }
   });
 });
+
+async function rejectionOf(pending: Promise<unknown>): Promise<Error> {
+  const failure: unknown = await pending.then(
+    () => null,
+    (failure: unknown) => failure,
+  );
+  if (!(failure instanceof Error))
+    throw new Error('expected the production operation to reject with an Error', {
+      cause: failure,
+    });
+  return failure;
+}

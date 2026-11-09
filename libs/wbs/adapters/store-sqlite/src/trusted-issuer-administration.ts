@@ -1,3 +1,4 @@
+import { retainSecurityPrincipal, type SecurityPrincipal } from '@wbs/core';
 import {
   type AuditedAct,
   type MachineCredentialActorRefusal,
@@ -13,9 +14,6 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate } from './audit';
 import type { Gate } from './gate';
-import { type ImmediateTransaction, writeImmediately } from './immediate-write';
-import { roleIn } from './organization';
-import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import {
   machineCredential,
@@ -23,29 +21,10 @@ import {
   organizationSsoConnection,
   organizationTrustedIssuer,
 } from './schema';
+import { readSecurityRefusal, runSecurityTransaction } from './security-transaction';
 
-type Transaction = ImmediateTransaction;
+type Transaction = SQLiteBunDatabase;
 type TrustedIssuerRow = typeof organizationTrustedIssuer.$inferSelect;
-
-/**
- * Whether the actor may administer trusted issuers of `organizationId` now:
- * `inactive` before activation, `forbidden` for a member, a viewer or a
- * non-member (A16: an issuer admits subjects for every person, so only an
- * admin or super-admin registers one).
- */
-function administering(
-  tx: Transaction,
-  organizationId: string,
-  actorId: string,
-): MachineCredentialActorRefusal | 'admin' {
-  if (readOrganizationActivation(tx) !== 'activated') return 'inactive';
-  const role = roleIn(tx, organizationId, actorId);
-  // Proof: with members admitted here, `refuses a member and a viewer every
-  // trusted issuer route` in `trusted-issuer.controller.db.test.ts` answered
-  // the member's list 200; watched 2026-10-22.
-  if (role !== 'admin' && role !== 'super_admin') return 'forbidden';
-  return 'admin';
-}
 
 /** Unrevoked credentials naming each of `ids`. */
 function liveCredentialCounts(tx: Transaction, ids: readonly string[]): Map<string, number> {
@@ -86,18 +65,19 @@ function summaryOf(row: TrustedIssuerRow, machineCredentials: number): TrustedIs
 }
 
 /** The registration refusal the deployment's records give this registration now, or null. */
-function registrationRefusal(
+async function registrationRefusal(
   tx: Transaction,
   organizationId: string,
-  actorId: string,
+  principal: SecurityPrincipal,
   {
     issuer,
     audience,
     ssoConnectionId,
   }: Parameters<TrustedIssuerAdministration['checkRegistration']>[2],
-): TrustedIssuerRegistrationRefusal | null {
-  const role = administering(tx, organizationId, actorId);
-  if (role !== 'admin') return role;
+): Promise<TrustedIssuerRegistrationRefusal | null> {
+  const refusal = await readSecurityRefusal(tx, organizationId, principal);
+  // Proof: bypassing this current permission check (permission-trusted-registration) failed `encodes manage_security for a role-only trusted-issuer register`; restored GREEN.
+  if (refusal !== null) return refusal;
   if (ssoConnectionId !== null) {
     const connection = tx
       .select({
@@ -182,12 +162,15 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
 
   async list(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
   ): Promise<readonly TrustedIssuerSummary[] | MachineCredentialActorRefusal> {
-    await Promise.resolve();
-    return this.db.transaction((tx) => {
-      const role = administering(tx, organizationId, actorId);
-      if (role !== 'admin') return role;
+    // Proof: dropping this detached snapshot (snapshot-principal-trusted-list) failed `retains the actual queued security principal and current grant at trusted-list`; restored GREEN.
+    principal = retainSecurityPrincipal(principal);
+
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-trusted-list) failed `encodes manage_security for a role-only trusted-issuer list`; restored GREEN.
+      if (refusal !== null) return refusal;
       const rows = tx
         .select()
         .from(organizationTrustedIssuer)
@@ -204,12 +187,20 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
 
   async checkRegistration(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     registration: Parameters<TrustedIssuerAdministration['checkRegistration']>[2],
   ): Promise<TrustedIssuerRegistrationRefusal | 'ready'> {
-    await Promise.resolve();
-    return this.db.transaction(
-      (tx) => registrationRefusal(tx, organizationId, actorId, registration) ?? 'ready',
+    // Proof: dropping this detached snapshot (snapshot-principal-trusted-preflight) failed `retains the actual queued security principal and current grant at trusted-preflight`; restored GREEN.
+    principal = retainSecurityPrincipal(principal);
+    // Proof: dropping this detached snapshot (snapshot-payload-checkRegistration-registration) failed `retains a trusted issuer registration preflight before its writer queue`; restored GREEN.
+    registration = structuredClone(registration);
+
+    return runSecurityTransaction(
+      this.db,
+      this.gate,
+      async (tx) =>
+        // Proof: bypassing this current permission check (permission-trusted-preflight) failed `encodes manage_security for a role-only trusted-issuer register`; restored GREEN.
+        (await registrationRefusal(tx, organizationId, principal, registration)) ?? 'ready',
     );
   }
 
@@ -221,12 +212,20 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
    */
   register(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     draft: TrustedIssuerDraft,
     act: AuditedAct,
   ): ReturnType<TrustedIssuerAdministration['register']> {
-    return writeImmediately(this.db, this.gate, (tx) => {
-      const refused = registrationRefusal(tx, organizationId, actorId, draft);
+    // Proof: dropping this detached snapshot (snapshot-principal-trusted-register) failed `retains the actual queued security principal and current grant at trusted-register`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-act-trusted-register) failed `retains detached queued security stamps and audit actors at trusted-register`; restored GREEN.
+    act = structuredClone(act);
+    // Proof: dropping this detached snapshot (snapshot-payload-register-draft) failed `retains a trusted issuer draft before its writer queue`; restored GREEN.
+    draft = structuredClone(draft);
+
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const refused = await registrationRefusal(tx, organizationId, principal, draft);
+      // Proof: bypassing this current permission check (permission-trusted-register-writer) failed `retains the actual queued security principal and current grant at trusted-register`; restored GREEN.
       if (refused !== null) return { kind: refused };
       tx.insert(organizationTrustedIssuer)
         .values({
@@ -262,13 +261,19 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
 
   remove(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     id: string,
     act: AuditedAct,
   ): ReturnType<TrustedIssuerAdministration['remove']> {
-    return writeImmediately(this.db, this.gate, (tx) => {
-      const role = administering(tx, organizationId, actorId);
-      if (role !== 'admin') return role;
+    // Proof: dropping this detached snapshot (snapshot-principal-trusted-remove) failed `retains the actual queued security principal and current grant at trusted-remove`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-act-trusted-remove) failed `retains detached queued security stamps and audit actors at trusted-remove`; restored GREEN.
+    act = structuredClone(act);
+
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-trusted-remove) failed `encodes manage_security for a role-only trusted-issuer remove`; restored GREEN.
+      if (refusal !== null) return refusal;
       const row = tx
         .select()
         .from(organizationTrustedIssuer)

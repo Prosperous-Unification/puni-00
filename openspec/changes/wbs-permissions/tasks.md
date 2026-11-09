@@ -134,7 +134,10 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       provisioning, trusted issuers, shared-people restore) to `organization.manage_security`
       in the same transaction, including SSO connection proof and shared-restore approval
       consumption/execution rechecks. Retain still-used compatibility helpers/fields.
-      **2.4b, after 2.5:** close the complete direct role-reader inventory (resource/runtime,
+      **2.4b, after 2.5:** remove/move fixture-only DomainClaimRepository.openClaim
+      and promoteClaim into test setup; their exact apps/libs caller inventory at2.4a
+      has only organization-records.db.test.ts, no production port/route/caller.
+      Close the complete direct role-reader inventory (resource/runtime,
       fanout, enterprise, agent-pool, compute-provider, limits and trusted-issuer families
       included), then delete `canWriteInOrganization`, `mayBindAccountInOrganization`,
       `canEditProjectInOrganization`, `mayDefineMeasuresInOrganization`,

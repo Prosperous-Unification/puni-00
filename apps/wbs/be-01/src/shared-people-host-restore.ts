@@ -210,7 +210,8 @@ export async function restoreSharedPeopleOnHost(
       // Proof: substituting legacy dispatch lost the durable receipt; rereading the replaced backup failed retained-read recovery.
       return request.operationId === undefined
         ? restoreSharedPeople(connection.db, saved, Date.now())
-        : restoreApprovedSharedPeople(
+        : // Proof: omitting await before host close and unlock (lifetime-host-await) failed `dispatches approved isolated rank recovery to the installed receipt owner and returns cold retry evidence`; restored GREEN.
+          await restoreApprovedSharedPeople(
             connection.db,
             saved,
             { operationId: request.operationId, approvalIds: request.approvalIds },

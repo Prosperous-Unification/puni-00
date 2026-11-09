@@ -6,6 +6,7 @@ import {
   WorkItemService,
   type WorkItemServiceOptions,
 } from '@wbs/core/module/work-item/work-item.resource';
+import type { Permission } from '@wbs/domain/access-role';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 
@@ -189,6 +190,28 @@ export class BootedBrowserProcess {
 
   member(organizationId: string, username: string, role: string): void {
     insertMembership(this.sqlite, organizationId, this.userId(username), role);
+  }
+
+  /** Explicit permissions for one fixture subject/scope; membership alone creates no grant. */
+  grantPermissions(
+    organizationId: string,
+    username: string,
+    permissions: readonly Permission[],
+  ): void {
+    const roleId = crypto.randomUUID();
+    this.sqlite.run(
+      "INSERT INTO access_role(id,name,object_kind,level,reaches_restricted,organization_id,created_at) VALUES (?,?,'organization',NULL,0,?,1)",
+      [roleId, 'Named boot fixture permissions ' + roleId, organizationId],
+    );
+    for (const permission of permissions)
+      this.sqlite.run('INSERT INTO access_role_permission(role_id,permission) VALUES (?,?)', [
+        roleId,
+        permission,
+      ]);
+    this.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES (?,?,'organization',?,'user',?,?,'route',1)",
+      [crypto.randomUUID(), organizationId, organizationId, this.userId(username), roleId],
+    );
   }
 
   activate(): void {

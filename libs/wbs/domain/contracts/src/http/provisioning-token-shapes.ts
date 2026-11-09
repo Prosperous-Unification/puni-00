@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -13,7 +14,16 @@ const unauthenticated = {
   status: 401,
   schema: responseSchema(type({ error: "'unauthenticated'" })),
 } as const;
-const forbidden = { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) } as const;
+const forbidden = {
+  status: 403,
+  schema: responseSchema(
+    type({
+      error: "'forbidden'",
+      // Proof: dropping this permission property (schema-provisioning-token-shapes) failed `keeps the catalog permission vocabulary at getApiOrganizationProvisioningTokens`; restored GREEN.
+      'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+    }),
+  ),
+} as const;
 const writeScope = {
   status: 403,
   schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),

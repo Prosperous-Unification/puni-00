@@ -128,6 +128,7 @@ export type {
 } from './ports/saved-plan-store';
 export * from './ports/scheduler';
 export * from './ports/scim-users';
+export * from './ports/security-principal';
 export * from './ports/session-policies';
 export * from './ports/source';
 export * from './ports/space-store';

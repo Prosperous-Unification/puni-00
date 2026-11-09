@@ -1,5 +1,6 @@
 import type { MachineCredentialActorRefusal } from './machine-credentials';
 import type { AuditedAct } from './organization-audit';
+import type { SecurityPrincipal } from './security-principal';
 
 /**
  * What a JWT says about itself before any verification: its `iss` and `sub`
@@ -115,7 +116,7 @@ export const MAX_TRUSTED_ISSUERS = 8;
 
 /**
  * Trusted issuer administration (`wbs-machine-credentials` A16, A17), for
- * `admin` and `super_admin` only: an issuer admits subjects for every person
+ * current organization.manage_security holders: an issuer admits subjects for every person
  * of the organization, so it is not a member's act (`forbidden` for a member
  * or a viewer, `inactive` before activation). Every write rechecks in one
  * immediate transaction with its `organization_audit` row.
@@ -126,7 +127,7 @@ export const MAX_TRUSTED_ISSUERS = 8;
 export interface TrustedIssuerAdministration {
   list(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
   ): Promise<readonly TrustedIssuerSummary[] | MachineCredentialActorRefusal>;
   /**
    * The refusal registering `issuer` would meet now, read without writing,
@@ -135,7 +136,7 @@ export interface TrustedIssuerAdministration {
    */
   checkRegistration(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     registration: {
       readonly issuer: string;
       readonly audience: string;
@@ -144,7 +145,7 @@ export interface TrustedIssuerAdministration {
   ): Promise<TrustedIssuerRegistrationRefusal | 'ready'>;
   register(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     draft: TrustedIssuerDraft,
     act: AuditedAct,
   ): Promise<
@@ -159,7 +160,7 @@ export interface TrustedIssuerAdministration {
    */
   remove(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     id: string,
     act: AuditedAct,
   ): Promise<
