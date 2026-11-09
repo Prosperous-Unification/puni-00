@@ -2141,8 +2141,8 @@ The approach to scaling model-assisted work by making responsibility boundaries
 explicit and their granularity adjustable, with quality, time and cost measured.
 _Avoid_: LLM wiki (for the whole approach), agent-scalable wiki (for the whole approach)
 
-**Twilight Burokrat**:
-See [Twilight Burokrat](docs/twilight-structure/CONTEXT.md#language).
+**PUNI Burokrat**:
+See [PUNI Burokrat](docs/twilight-structure/CONTEXT.md#language).
 
 **Scenario allocation journal**:
 The versioned record of imported, issued, renamed, split and retired OpenSpec scenario identities. It reserves every recorded identifier, including retired ones.

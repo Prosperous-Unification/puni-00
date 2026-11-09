@@ -1,7 +1,9 @@
 Every refusal and omission ships with a production-path negative watched red with the
 check removed, then an adjacent `Proof:` comment (R5). Runs after `wbs-work-packages`
 slices 1–3a (#723) and the set membership of #724, and replaces `wbs-work-packages` slice
-3b; nothing merges until Dany lifts the 2026-10-25 hold.
+3b. The 2026-11-09 instruction to implement the complete entity scope authorizes
+continuing the settled catalogue design; fingerprinted merge rules and activation receipts
+remain concrete operator inputs, never inferred from implementation authorization.
 
 ## 0. Decisions
 
