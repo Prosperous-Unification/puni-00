@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "base": "d87afb94a6362d345480f665b6e3b5d20d787686",
+  "branch": "evidence/wbs08039-bun-report-18d-20261109",
+  "runtime": "1.4.4",
+  "openspecVersion": "1.14.3",
+  "lockSha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+  "dependencySource": "/home/df/wd/puni/puni-00/node_modules",
+  "freshFrozenInstall": false,
+  "logs": [
+    {
+      "artifact": "browser-regression.log.gz",
+      "rawBytes": 2196,
+      "rawSha256": "15ddda694047a3ece01d4f09af788a8d03af0b73df1d02cef6a79ea9d021b2cd",
+      "gzipSha256": "007c28bec92d211a86187e7b7f1821e2da83f2d40e81335bb720a951995abb60"
+    },
+    {
+      "artifact": "fault-arity.log.gz",
+      "rawBytes": 1025,
+      "rawSha256": "edabf649b73a145459e1984ec8bf8d1b6a28994b45e5af29e54cb6f4fc1a12d9",
+      "gzipSha256": "90f425d10a08c2764f71edbc15d0b7c25417d2a920af416c2fbb2233fd7ff1f7"
+    },
+    {
+      "artifact": "fault-installed-registration.log.gz",
+      "rawBytes": 887,
+      "rawSha256": "ebb360c72b0915739e2fb0992662332123b69ed66709562f350bb2bc68762959",
+      "gzipSha256": "e56aa54e82871840daa6c38a2dc80d0fac1528261437dd822a2120f7089bc3a1"
+    },
+    {
+      "artifact": "lint-source.log.gz",
+      "rawBytes": 0,
+      "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "gzipSha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "artifact": "openspec-all.log.gz",
+      "rawBytes": 324300,
+      "rawSha256": "01ad20510715a131fb0a30f6c527c12f185141946e1e509deea9a98afc89ad32",
+      "gzipSha256": "e169c935295411ea8a90fb8f9a6aa22fd315252493af921427cdc440b919e509"
+    },
+    {
+      "artifact": "openspec-strict.log.gz",
+      "rawBytes": 12479,
+      "rawSha256": "44dd03071134b6cbe6c0b1c6d96f723e9178a52219172c1a540156bdc32cc87c",
+      "gzipSha256": "8a8816b6ff66c1119749b9de13d1137e874deb76696eea1e477d4847ee120da1"
+    },
+    {
+      "artifact": "owning-installed.log.gz",
+      "rawBytes": 321,
+      "rawSha256": "447ef02f23192fa639a40e0bc7ebdbe2b107d9866af9715a67e2f80e8d61f412",
+      "gzipSha256": "c289c346b864a07a6b58dd49138b41bfb78ec531e16bdd22eb1a0c1487bab56f"
+    },
+    {
+      "artifact": "owning-ordinary.log.gz",
+      "rawBytes": 1924,
+      "rawSha256": "b609fd90c57f141b71fce3dd759ed44c9a5c992141eda2b7ee4131f41d5c8962",
+      "gzipSha256": "d6ee072a9adcc5afedc934d05bb0a114d3b7669b4d8ffc6fb67c34968f072af7"
+    },
+    {
+      "artifact": "owning-reader.log.gz",
+      "rawBytes": 322,
+      "rawSha256": "024136b752b5478f4b72490767aecfa700080cfc0f22a3efe44f961095940b15",
+      "gzipSha256": "963c126b78722d82d85176788451ce27c984be4d0be5bec6e347805b7fade7e2"
+    },
+    {
+      "artifact": "owning-restored.log.gz",
+      "rawBytes": 1926,
+      "rawSha256": "13cd5df3efe1d83b2a7970429103ecf4c09bfc06d76a6c72667be76887c37aee",
+      "gzipSha256": "42b20441df80691d2ae6374f6bf35629fa311462f0278422f448740ffe9ad5dd"
+    },
+    {
+      "artifact": "parser-callers.log.gz",
+      "rawBytes": 11785,
+      "rawSha256": "df0ee6b74d00decd9c17a31c107649ede9e2deb6bb6e4e2e51db96501992e95b",
+      "gzipSha256": "a1ab27a8bf833e54721969fb0a0cffc02516a0e9f80e1f72f5b33b4d2866e297"
+    },
+    {
+      "artifact": "provenance.log.gz",
+      "rawBytes": 20,
+      "rawSha256": "a6b28bf5dd6b28376fac1fb61cc8f0ba0e743dbb477185d4923a270c2bf8ff28",
+      "gzipSha256": "e2590a25fb92a807081dbf3f6f4b6df3d828a164086e06090fb7e1307619c0d0"
+    }
+  ],
+  "artifactHashes": [
+    {
+      "artifact": "browser-regression.json",
+      "sha256": "cf8c9317b420c1880cc4482f0665e23d666c6dbb40f32e0656fbe1ea1c74d6ae"
+    },
+    {
+      "artifact": "browser-regression.log.gz",
+      "sha256": "007c28bec92d211a86187e7b7f1821e2da83f2d40e81335bb720a951995abb60"
+    },
+    {
+      "artifact": "current-faults.json",
+      "sha256": "111c0f4ab62d57d6eb190fdf5112125a833ce997648674597812b95d4841f2c1"
+    },
+    {
+      "artifact": "current-faults.py.gz",
+      "sha256": "0da068f6b0609a252e9970e6ad5a12e494340e35dcefc051295c89e1b20ca988"
+    },
+    {
+      "artifact": "fault-arity.json",
+      "sha256": "dcb22f67896584cd015573ab96fdf218cf0b1d027687f3e907d0c020fb16459c"
+    },
+    {
+      "artifact": "fault-arity.log.gz",
+      "sha256": "90f425d10a08c2764f71edbc15d0b7c25417d2a920af416c2fbb2233fd7ff1f7"
+    },
+    {
+      "artifact": "fault-installed-registration.json",
+      "sha256": "4949feeb0fec7d81eb062fd2daaea1627c5ed036597211009516a11e119a4eea"
+    },
+    {
+      "artifact": "fault-installed-registration.log.gz",
+      "sha256": "e56aa54e82871840daa6c38a2dc80d0fac1528261437dd822a2120f7089bc3a1"
+    },
+    {
+      "artifact": "historical-bindings.json",
+      "sha256": "795f5183f951c4c69234e9290c1c5e46e7367f4e7a8164f31e14583a45067222"
+    },
+    {
+      "artifact": "lint-source.json",
+      "sha256": "53e1a80daedfc120cef4228266a11266f3402958830b9d51766e2450a0111274"
+    },
+    {
+      "artifact": "lint-source.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "artifact": "monitor.py.gz",
+      "sha256": "17da0079d816171a8cf11fd3ea3b270fe96ae98e0b93ed130ce29befa494e655"
+    },
+    {
+      "artifact": "openspec-all.json",
+      "sha256": "ba5f0cfeb0bb181f7f95eb249525173ed4225378100241c21970e9b2b5d68953"
+    },
+    {
+      "artifact": "openspec-all.log.gz",
+      "sha256": "e169c935295411ea8a90fb8f9a6aa22fd315252493af921427cdc440b919e509"
+    },
+    {
+      "artifact": "openspec-strict.json",
+      "sha256": "0932b0695cf4ce2a70fe84f0c2fd5f7a0465c5fb0e9c2c2c8bad74ba892db826"
+    },
+    {
+      "artifact": "openspec-strict.log.gz",
+      "sha256": "8a8816b6ff66c1119749b9de13d1137e874deb76696eea1e477d4847ee120da1"
+    },
+    {
+      "artifact": "owning-installed.json",
+      "sha256": "28a1fb0e3fffe0f0dd067faff138d1c37a40cfd10c254de2e9209cd0bf5ac7fa"
+    },
+    {
+      "artifact": "owning-installed.log.gz",
+      "sha256": "c289c346b864a07a6b58dd49138b41bfb78ec531e16bdd22eb1a0c1487bab56f"
+    },
+    {
+      "artifact": "owning-ordinary.json",
+      "sha256": "ea3535a8dce68b4ece21e4aeef3f1d1c0bc9acd0a16d8289a0c0fdbcfb8ba3fe"
+    },
+    {
+      "artifact": "owning-ordinary.log.gz",
+      "sha256": "d6ee072a9adcc5afedc934d05bb0a114d3b7669b4d8ffc6fb67c34968f072af7"
+    },
+    {
+      "artifact": "owning-reader.json",
+      "sha256": "9f3f77b0ab22ad25a8d780a2fdb91b8459a7ff219c1fdcf939694c28994967e8"
+    },
+    {
+      "artifact": "owning-reader.log.gz",
+      "sha256": "963c126b78722d82d85176788451ce27c984be4d0be5bec6e347805b7fade7e2"
+    },
+    {
+      "artifact": "owning-restored.json",
+      "sha256": "a782950f1a0220f3d58e0bffbbaf75d837aa07d78d729816ac3413b833857c5e"
+    },
+    {
+      "artifact": "owning-restored.log.gz",
+      "sha256": "42b20441df80691d2ae6374f6bf35629fa311462f0278422f448740ffe9ad5dd"
+    },
+    {
+      "artifact": "parser-callers.json",
+      "sha256": "e42e3901a2fd2481ba6045464d87962025d787bb31d5930b50100d41b0639490"
+    },
+    {
+      "artifact": "parser-callers.log.gz",
+      "sha256": "a1ab27a8bf833e54721969fb0a0cffc02516a0e9f80e1f72f5b33b4d2866e297"
+    },
+    {
+      "artifact": "provenance.json",
+      "sha256": "c88a5e233cd0281d6cdd5f122d4666ac54243cda9ec4d4eb06d2de0cc0d63ca7"
+    },
+    {
+      "artifact": "provenance.log.gz",
+      "sha256": "e2590a25fb92a807081dbf3f6f4b6df3d828a164086e06090fb7e1307619c0d0"
+    },
+    {
+      "artifact": "strict-baseline.json",
+      "sha256": "6eed2e03b6356d4f4afa88f7a6f6d1cb0f750bbf155ef3d8aa279cea6c990d14"
+    }
+  ]
+}
