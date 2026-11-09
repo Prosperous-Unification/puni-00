@@ -1,0 +1,9 @@
+{
+  "command": ["node_modules/.bin/openspec", "validate", "--all", "--json"],
+  "cwd": "/home/df/.codex/worktrees/d6d4/puni-00",
+  "exit": 0,
+  "seconds": 1.32,
+  "sampledPeakKiB": 154080,
+  "capKiB": 921600,
+  "killedForMemory": false
+}

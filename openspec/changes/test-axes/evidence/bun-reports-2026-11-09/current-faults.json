@@ -1,0 +1,20 @@
+[
+  {
+    "fault": "arity",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/cli-parser.ts",
+    "before": "  typed('inspect-bun-test-reports', 'Inspect the Bun test reports.', {\n    repository: operand('REPOSITORY'),\n    revision: operand('FULL-SHA'),\n    reportAuthority: operand('REPORT-AUTHORITY'),\n  }),",
+    "after": "  typed('inspect-bun-test-reports', 'Inspect the Bun test reports.', {\n    repository: operand('REPOSITORY'),\n    revision: operand('FULL-SHA'),\n    reportAuthority: optional(operand('REPORT-AUTHORITY')),\n  }),",
+    "pattern": "malformed CLI operands",
+    "observedAssertionFailure": true,
+    "originalSha256": "d7e45f6b2bc433e6ffb08df8a43ee6e76577ec6e7e8187ba7fbf64e4aa537dae"
+  },
+  {
+    "fault": "installed-registration",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/cli-parser.ts",
+    "before": "  typed('inspect-bun-test-reports', 'Inspect the Bun test reports.', {\n    repository: operand('REPOSITORY'),\n    revision: operand('FULL-SHA'),\n    reportAuthority: operand('REPORT-AUTHORITY'),\n  }),",
+    "after": "",
+    "pattern": "installed executable",
+    "observedAssertionFailure": true,
+    "originalSha256": "d7e45f6b2bc433e6ffb08df8a43ee6e76577ec6e7e8187ba7fbf64e4aa537dae"
+  }
+]
