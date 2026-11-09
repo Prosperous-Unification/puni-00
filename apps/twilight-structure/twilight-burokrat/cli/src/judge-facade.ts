@@ -105,6 +105,16 @@ export {
   readCheckRuns,
 } from './policy/check-runs';
 export { extractRelationships } from './relationships';
+export type {
+  CompilerDerivative,
+  CompilerDerivativeLimits,
+  CompilerDerivativeMembers,
+  CompilerDerivativeProvenance,
+} from './relationships/compiler-derivative-artifact';
+export {
+  captureCompilerDerivative,
+  readCompilerDerivativeProvenance,
+} from './relationships/compiler-derivative-artifact';
 export {
   type DeclarationSource,
   type DeclaredRelationships,

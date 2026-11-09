@@ -1659,7 +1659,7 @@ strings, required origin or pinned helper shape SHALL refuse before host constru
 
 An explicitly built instrumented TypeScript 6.0.3 derivative SHALL synchronously emit a closed compiler-options paths substitution event containing kind, specifier, effective baseDirectory, matched pattern, original substitution and compiler-normalized candidate immediately after candidate formation and before candidate IO. A callback exception SHALL propagate and prevent fallback; a callback return SHALL NOT affect resolution. Events SHALL follow compiler attempt order and stop when the compiler succeeds. Ordinary ancestor probes and package typesVersions substitutions SHALL NOT produce compiler-options events.
 
-The build SHALL verify the pinned upstream executable SHA-256, require every transformation section exactly once and verify a pinned output SHA-256. Its separate artifact SHALL carry a checked input/output manifest, upstream license and modification notice. It SHALL NOT mutate the installed compiler or perform transformation during extraction. This prerequisite SHALL remain unused by retained extraction and SHALL NOT establish runtimeTrust or complete resolution evidence.
+The build SHALL verify the pinned upstream executable SHA-256, require every transformation section exactly once and verify a pinned output SHA-256. Its separate artifact SHALL carry a checked input/output manifest, upstream license and modification notice. It SHALL NOT mutate the installed compiler or perform transformation during extraction. At this historical prerequisite boundary retained extraction did not consume the derivative. The owned derivative successor below MAY consume it without establishing runtimeTrust or complete resolution evidence.
 
 #### Scenario: Escaping attempt precedes safe fallback
 
@@ -1701,4 +1701,67 @@ NOT fall back to an ambient executable compiler namespace.
 - **WHEN** filesystem compatibility selects the installed runtime or retained extraction uses it
 - **THEN** existing identity, relationships, bounded IO policy and budgets remain unchanged
 - **AND** filesystem extraction retains configuration-only captures and phase-local programs
-- **AND** retained runtimeTrust remains unverified and derivative artifacts remain unused
+- **AND** retained runtimeTrust remains unverified and this selected-runtime prerequisite does not itself load derivative artifacts
+
+### Requirement: Owned compiler derivative execution successor
+
+The additive derivative route SHALL authenticate privately owned raw artifact bytes before fresh,
+bounded execution. It SHALL bind immutable execution provenance and retained owners, admit actual
+paths attempts on both host routes, preserve legacy identities and unverified trust, and complete
+full closure, parser settlement, preparation/freeze and external-authority acceptance.
+
+#### Scenario: Exact raw capture and immutable provenance
+
+- **WHEN** the caller supplies raw derivative members and limits
+- **THEN** The additive derivative route SHALL capture exactly compiler.cjs, manifest.json, LICENSE.txt and
+  NOTICE as privately owned raw bytes, verifying independently compiled pins and the exact builder
+  manifest encoding before executing anything. It SHALL reject unknown, absent, malformed or altered
+  members, forged or foreign capability objects and nonfinite or exceeded member, total, owned-copy
+  and cumulative load-staging limits. Incoming limits and member references and lengths SHALL be
+  captured once. Metadata SHALL be immutable and SHALL bind the four byte-sorted member tuples,
+  upstream identity, compiler version and versioned loader policy through distinct canonical-LF
+  artifact and execution identities. The legacy installed/selected/serial identity SHALL stay unchanged.
+
+#### Scenario: Private fresh authenticated execution
+
+- **WHEN** an owned derivative is loaded for extraction
+- **THEN** Each derivative extraction SHALL execute only the captured authenticated CommonJS bytes in a fresh
+  VM context with its own intrinsics, absent Node/Bun/filesystem/network/timer globals, denied require,
+  and disabled dynamic code generation and dynamic import. Unsupported required VM policy SHALL
+  refuse loading. The original compiler namespace, including private non-enumerable exports, SHALL
+  remain internal to trusted composition. No filename, module-cache, installed-runtime or ambient
+  resolver fallback is permitted. Failed loading SHALL publish no namespace and release references.
+  The VM composes IO for authenticated code; it SHALL NOT execute candidate JavaScript or certify
+  arbitrary-code isolation, full parser CPU/heap bounds or aggregate runtime trust.
+
+#### Scenario: Required retained composition and full acceptance
+
+- **WHEN** the complete derivative successor is composed
+- **THEN** The complete successor SHALL join the artifact to the exact retained ReviewRuntime and source owner,
+  use a distinct typescript.compiler.paths-observer / v6.0.3.paths-observer.1 execution identity before
+  selector hashing, and install one synchronous actual-attempt admission callback on both Program
+  hosts and direct-system resolution. Every compiler-options substitution, including previously admitted
+  fixed targets and repeated work, SHALL charge existing shared admission limits before candidate IO
+  or fallback. Literal pre-admission, compiler order/normalization, typesVersions origin distinction,
+  unused wildcard absence and ordinary ancestor-probe behavior SHALL remain intact. Output ownership,
+  versioning, whole-envelope bounds and freeze SHALL include derivative provenance while runtimeTrust
+  remains unverified. Complete runtime/config/reference closure, read manifest, bounded parser process
+  settlement, eleven documents, protected preparation/freeze and external-authority acceptance SHALL
+  remain mandatory unchecked dependencies until separately demonstrated.
+
+#### Scenario: Captured bytes survive caller and physical changes
+
+- **WHEN** all four exact members are captured and caller buffers or original paths later change
+- **THEN** execution and immutable provenance describe the retained copies alone
+- **AND** forged, copied or proxied capabilities refuse before observable property access or evaluation
+
+#### Scenario: Required loader policies and budgets fail closed
+
+- **WHEN** a required VM policy, compatibility check, raw pin or cumulative allocation bound fails
+- **THEN** loading throws without publishing a compiler or falling back to another runtime
+
+#### Scenario: Actual attempts use both bounded admission routes
+
+- **WHEN** a compiler-options attempt escapes through either host route
+- **THEN** synchronous admission refuses before candidate IO or safe fallback
+- **AND** repeated inside attempts share the existing source/compiler/traversal limits

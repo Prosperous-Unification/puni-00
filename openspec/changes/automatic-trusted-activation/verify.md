@@ -6167,3 +6167,124 @@ Refused checks and remaining obligations:
 - No derivative loading/authentication, wildcard admission, complete read manifest, protected
   freeze, external authority, public wire change, StepParallel change, host action or publication
   occurred. Parent .3 and WBS030.6 remain incomplete.
+
+### Owned derivative successor — Stage 1 in progress
+
+Base 82fa8928664998c9a8b72f6af16018d2c142547e is reviewed but its parent gate/CI is unaccepted.
+Bun 1.4.4 VM checkpoint executed unchanged derivative SHA-256
+47bffa39459dbbb0797606506c790af1420a983ed6bc1d3ca4945a64ee782559 with absent sys,
+process/Bun/Buffer/fetch/timers/global and original resolvePath. Controlled noLib declaration emit
+and real alias resolution passed (expected missing-global diagnostics); explicit ES5+decorator
+libraries produced zero diagnostics and two declarations. Observed RSS 150372 KiB under 900 MiB.
+This scratch compatibility checkpoint is not the production-loader acceptance or full parser bound.
+Stage 1 implementation/proofs/checks and all successor acceptance remain pending.
+
+### Owned derivative Stage 1 source/proof checkpoint — 2026-11-10
+
+The isolated candidate starts at reviewed 82fa8928664998c9a8b72f6af16018d2c142547e;
+its parent gate/CI was not accepted by this implementation. Source task e6g1 is complete;
+independent Stage 1 review, all successor e6g2–g6 and parent .3 acceptance remain open.
+Only capture/provenance and their types are public through judge. Internal synchronous
+withCompilerDerivative scopes a fresh original VM namespace to trusted extraction composition.
+No Dash adapter, paths admission wiring, package activation or aggregate trust claim was added.
+
+Commands ran serially under the ignored bounded-monitor.py: 900 MiB for focused suites,
+1500 MiB for scoped lint/API/hooks, 120-second settlement and 25ms process-tree RSS samples.
+The monitor kills/waits its owned non-detached group; detached sessions are outside its fixture
+containment. Its success, memory97, wall98 and child-cleanup controls are observed receipts,
+not a general sandbox or product parser-process guarantee.
+
+- Artifact owning suite: 46 pass, 68 assertions; peak 232220 KiB.
+- Runtime owning suite: 19 pass, 60 assertions; peak 276512 KiB. Actual noLib, explicit/default
+  ES5 library declarations/resolution, deleted physical roots, malicious replacement/cache,
+  original/non-enumerable namespace, denied ambient machinery, failed evaluation/compatibility,
+  cumulative allocation and decode-inclusive timeout controls passed.
+- Existing builder suite: 36 pass, 61 assertions; peak 530444 KiB. All three copied-builder/writer
+  fixture sites now include their actual extracted pin dependency; missing dependencies were
+  observed failing intended guards first. Its four absent/altered/unreadable members still refuse.
+- Judge facade: 1 pass, 7 assertions; peak 230216 KiB. Exact capture/metadata exports and no
+  executable-loader/filesystem-builder reachability are independently fault-proven.
+- Scoped changed-file ESLint: pass, peak 824212 KiB after populating the isolated Nx graph
+  (323000 KiB). Earlier no-graph passes explicitly skipped module-boundary rules and were not
+  accepted; the final scoped result has no such skip. Full owning lint remains unrun.
+- Narrow API diagnostic rooted in both owning files: pass, peak 252640 KiB. Narrowing the real
+  production capture input to never failed real callers, and restored control passed. This is
+  not the full owning typecheck; the earlier known resource refusal remains unchanged.
+- 51 independently watched fault/dependency receipts and restored controls cover raw pins and
+  manifest encoding, closed keys, capture-once, private ownership/copies, pre-allocation and
+  cumulative staging limits, exact provenance preimages/freeze, original/fresh compiler, installed
+  substitution, VM policy/compatibility/timeout and facade/source-image/API boundaries. Final
+  lifetime-seam fresh-instance/substitution/timeout faults were reconfirmed after type refinements.
+  Only intended assertions, never monitor kills or unrelated errors, qualify as proof receipts.
+- All OpenSpec validation: 341/341 pass. Strict selected validation fails with exactly the same
+  25 issues as a fresh exact82fa spec-artifact fixture; no new warning remains. Initial overlong
+  successor detail was moved into testable scenarios without removing its requirements.
+
+Independent Python SHA-256 vectors match exact builder-manifest bytes (526 bytes):
+8b82b8fcaf4fe52d963152efacd98932cc41bb6cd3b701e4c5b47b71cea2d743.
+The four original member pins remain unchanged. Captured artifact identity is
+2eff9728f5e5fbd7c53fde8571254e7865df0664c7b0a9f55eecf698778b0c62;
+execution identity is 5c0c6d82bf82918032bdf831a69dddce02571fdacd03df5b8d1d77af076f9d8d;
+loader-policy recipe identity is d3a0a1bb071f7b6fb1b2892e45c06eaba82880a02aa108bf4c57a52be8b9a9df.
+Independent literal canonical-LF preimages assert these algorithms before selector integration.
+The recipe identity does not attest installed loader/host bytes. runtimeTrust stays unverified.
+
+Bun is 1.4.4. Root dependencies were reused only after byte-identical lock comparison;
+no frozen install ran. Lock SHA-256 is
+983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6.
+Evidence, exact command wrappers, mutation scripts/logs and final review handoff are durable in
+.superpowers/sdd/task10-architecture-plan/ in the coordinator workspace; nothing depends on
+unretained /tmp executable files. Normal commit/hook and final format receipts are reported in
+that Stage 1 report once committed. No host command, push or subagent was used here.
+
+The Stage 2 public derivative composition must deliberately refine the existing transitive judge
+clock/network-token scan for the bounded loader clock and deny-list strings, or place trusted
+composition coherently outside that facade. Never delete the blanket isolation boundary silently.
+Remaining checks: independent exact-candidate Astra review, full owning typecheck/lint/build,
+installed packaging and combined five-stage proofs, canonical exact-SHA host gate/CI and serial
+resource workloads. Complete runtime/config/reference closure, parser process settlement,
+CompilerReadManifestV1, eleven documents, protected preparation/freeze and independently installed
+external authority remain mandatory; no WBS leaf closes from this loader stage.
+
+### Stage 1 proof correction round 1 — 2026-11-10
+
+Independent review of cac77954e961f82129d931b55bf334038b376497 found two P2 evidence gaps,
+not a production behavior defect. The initial four artifact-member omission trials changed both
+the hash preimage and published provenance, failing metadata equality first. The initial import
+trial changed only denial wording and still refused imports. Those five original receipts are
+explicitly superseded as invalid for their claimed independent identity/deny-policy proofs;
+the original logs/scripts and before-fix1 ledger remain retained rather than erased.
+
+Four corrected trials match the complete unique compilerArtifactIdentity hashCanonical block,
+assert its mutation-site count is one, and omit one member solely from that preimage. Owned
+bytes, records and published provenance stay untouched. All four published tuples pass equality;
+the next independent artifact digest assertion fails with the expected full identity
+2eff9728f5e5fbd7c53fde8571254e7865df0664c7b0a9f55eecf698778b0c62 and these altered identities:
+
+| Omitted only from hash preimage | Altered artifact identity                                        |
+| ------------------------------- | ---------------------------------------------------------------- |
+| LICENSE.txt                     | cd60404ef87b213ad83e637344e70e5c6715024b7c343a9eebc99c938146c16c |
+| NOTICE                          | 4e261767592f32f6eb9b250be91b652d1254504fd826e7a572fdb799930aa9d2 |
+| compiler.cjs                    | 14daefee64403015a2076a5ba3b473f5a8fdd0191fe5cb5d2ce934244a674e7b |
+| manifest.json                   | add3c188feb1a53f49b8dc22f3a8b76ed56b8e1899f531dc5fbdb58894655bd3 |
+
+The amended import test captures the exact importer configured on the actual authenticated
+compiler Script via a test-only Script subclass. It passes the compiler source and options to
+super unchanged, evaluates those original bytes first, then probes node:path in that same context
+using the actual captured handler. No replacement callback is supplied by the probe. Under the
+one-site production-handler fault, only node:path is allowed and its actual host builtin namespace
+is returned. The context import fulfills with {status:'fulfilled',basename:'derivative.ts'};
+the explicit rejected-outcome equality fails on that fulfilled state. Restored production denial
+returns {status:'rejected',message:'compiler derivative dynamic import denied'} and the test passes.
+No network or candidate code is involved; other VM policies and authenticated bytes stay intact.
+
+Each of the five bounded trials exited 1 at its intended assertion and had its own restored
+exit-0 control. Exact commands, source-site assertions, expected/altered digests, state outputs,
+monitored RSS and settlement receipts are retained in
+.superpowers/sdd/task10-architecture-plan/evidence/fix1/{proofs.py,receipts.json,_.command.json,_.log}.
+The main 51-entry ledger now points these five entries to corrected receipts and explicitly embeds
+the superseded originals. Adjacent Proof comments describe only the corrected observed oracles.
+Only covering amended tests, changed-file checks and normal hooks are repeated in this correction;
+prior broad suite/full-acceptance results are historical, not newly rerun here. Exact successor
+review is required; Stages 2–5 and every full parent closure/settlement/read-manifest/eleven-document/
+preparation/freeze/independent-authority/installed acceptance obligation remain open.

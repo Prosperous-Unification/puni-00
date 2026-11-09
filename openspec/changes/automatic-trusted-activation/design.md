@@ -2509,7 +2509,7 @@ existing purpose and do not authenticate the executing namespace.
 The serial extractor retains its configuration-only captures, phase-local programs, ordering,
 reconstruction and collection boundaries. Bounded extraction retains its exact IO policy and
 budgets. Legacy extractor identity and output are unchanged for the installed selection.
-The four derivative members and their hashes remain unchanged and unused by extraction.
+At this selected-runtime prerequisite boundary the four derivative members and hashes remained unchanged and unused. The explicit owned successor below supersedes only that usage boundary.
 `runtimeTrust` remains `unverified`; loader authentication, complete runtime closure,
 CompilerReadManifestV1 and parent 2.1d.1.3 remain open.
 
@@ -2522,3 +2522,32 @@ The separate declared-relationship extractor (`relationships/declarations.ts`) i
 TypeScript compiler-extraction packet; its AST analysis remains a later full retained-producer
 runtime-closure obligation. The scoped no-ambient assertion covers the compiler extraction
 call graph listed above, not the complete all-eleven-document producer.
+
+### Owned derivative successor (2.1d.1.3e6g, 2026-11-09)
+
+Intent: execute authenticated captured derivative bytes through a fresh private compiler namespace,
+then bind its distinct identity and actual attempts to retained extraction. Preserve builder bytes,
+legacy serial/selected behavior and unverified trust; no candidate code, ambient resolver, public
+activation, full-closure or freeze claim is included in the loader stage.
+
+Stage 1 extracts IO-free pins and the exact pretty-JSON/LF manifest literal without changing the
+builder API/output. A private WeakMap owns four byte copies and captured finite budgets. Exact key
+membership, each byte view/reference/length and all limits are read once; all raw hashes and manifest
+bytes are checked before fatal UTF-8 decode. Accounting reserves retained byte copies plus twice the
+executable byte length for each decoded string and twice again for Script staging, cumulatively per
+artifact. This conservative allocation ledger does not measure VM-internal compiled code, ASTs,
+Program heap or GC; bounded parser process settlement remains mandatory.
+
+The loader uses node:vm with fresh intrinsics and in-context module/exports/denied require, no host
+functions or globals. Required code-generation restrictions, import denial and absence policy are
+checked before authenticated compiler evaluation; version, API/private-helper shape and absent sys
+are compatibility checks after it. A synchronous internal callback scopes the original namespace;
+finally drops loader references even if evaluation or callback fails. It is not exported through judge.
+Metadata uses canonical JSON with one LF, SHA-256 and the exact byte-sorted four member records.
+The loader-policy identity hashes its literal versioned recipe; it does not attest installed loader bytes.
+
+Stages 2–5 remain required: derivative identity/core branch; exact retained-runtime ownership join;
+both host/system paths admission; packaging and installed/combined proofs. Full executing producer
+closure, complete config/reference/resolution closure, parser settlement, complete actual read manifest,
+eleven retained documents, protected preparation/selection/freeze and independent external authority
+remain explicit acceptance dependencies. Historical e6e1/e6f1 receipts stay intact.
