@@ -111,3 +111,22 @@ The ordinary child SHALL use a trusted executable search path and supported Git 
 
 - **WHEN** Git is missing, malformed or below the supported minimum, or a missing promised object would invoke a configured remote helper
 - **THEN** the operation fails visibly before unsupported Git behavior or the helper executes, without converting failure into an empty or passing observation
+
+### Requirement: Preparation retains caller context and installed toolkit authority
+
+Preparation SHALL consume the typed request without another argv parse. Host inputs SHALL retain the captured caller context while repository selectors and opaque identities remain unchanged. Unselected parser options SHALL preserve provider defaults. Toolkit preparation SHALL use the verified installed toolkit by default and SHALL retain its expected identity when an explicit toolkit is selected. Package/toolkit verification SHALL precede operation input reads. Returned report lines SHALL use LF separation and a final LF; asynchronous preparation SHALL complete before its status is returned. Provider refusals and existing partial-destination behavior SHALL remain visible.
+
+#### Scenario: An explicit toolkit cannot replace installed authority
+
+- **WHEN** toolkit preparation selects a self-consistent toolkit whose descriptor identity differs from the verified installation
+- **THEN** preparation refuses with the package identity mismatch before candidate policy work, rather than accepting the selected toolkit as its own authority
+
+#### Scenario: Preparation uses captured caller paths
+
+- **WHEN** preparation runs with a captured caller directory different from the process directory and relative host inputs
+- **THEN** it resolves those inputs against the caller, preserves repository selectors and SHA/lane/cwd identities, and retains unselected defaults
+
+#### Scenario: Preparation output follows completed work
+
+- **WHEN** the typed preparation operation completes with report lines
+- **THEN** the caller receives those lines separated and terminated by LF, and asynchronous work completes before the returned status

@@ -1,9 +1,13 @@
 import { realpathSync } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
+import type { Request } from './grammar-facade';
 import { decodeCandidateRoot } from './inventory/read-candidate';
 import { readInstalledToolkit } from './packaging/installed';
+import { prepareToolkit, type Toolkit } from './policy/prepare-activation-cli';
+import { prepareRelocation } from './policy/prepare-relocation-activation-cli';
 import { toolkitRoles } from './policy/release';
+import { anchorPreparation } from './preparation-paths';
 import { anchorPath } from './validator-paths';
 import type { Request as ValidatorRequest } from './validator-request';
 
@@ -109,17 +113,49 @@ function assertInstallation(
   assertExternal(candidate, join(toolkitDirectory, 'trusted-node-modules'), 'runtime closure');
 }
 
+type ExecutableRequest = Exclude<Request, { command: 'lint' }>;
+
 /**
- * Verify the installed toolkit and execute one typed request through its validator role.
- * The child owns process state and receives JSON stdin; its output and verdict status pass
- * through unchanged. Discovery imports the separate grammar facade and never reaches here.
+ * Verify the installation before dispatching validation or typed preparation. Ordinary requests
+ * use the isolated validator child; preparation retains the provider's existing in-process
+ * subprocess and normalization contracts. Lint awaits the Bun launcher port. Discovery imports
+ * only the separate grammar facade and never reaches this dispatcher.
  */
-export function executeRequest(request: ValidatorRequest, context: Context): number {
+export function executeRequest(
+  request: ExecutableRequest,
+  context: Context,
+): number | Promise<number> {
   // Proof: directory-only selection executed a tampered installed validator; the tampered-role-before-launch test failed.
+  // Proof: replacing package verification with readToolkit failed both preparation manifest-before-input cases.
   const toolkit = readInstalledToolkit(
     context.installedDirectory,
     join(context.installedDirectory, 'toolkit'),
   );
+  // Proof: omitting this dispatch reached the ordinary launch instead of the real default-toolkit reader; the named preparation default case failed.
+  if (request.command === 'prepare-activation') {
+    // Proof: omitting the default path failed its real reader case; omitting the expected digest or discarding the explicit toolkit failed the self-consistent-override refusal.
+    const lines = prepareToolkit(
+      anchorPreparation(request, context.callerDirectory),
+      toolkit.directory,
+      toolkit.digest,
+    );
+    // Proof: literal escape delimiters failed the toolkit report LF-byte assertion.
+    context.stdout(lines.join('\n') + '\n');
+    return 0;
+  }
+  // Proof: omitting this dispatch or caller anchoring failed the real base-selection case; returning before completion failed the controlled async report case.
+  if (request.command === 'prepare-relocation-activation') {
+    return prepareRelocation(anchorPreparation(request, context.callerDirectory)).then((lines) => {
+      // Proof: literal escape delimiters failed the relocation report LF-byte assertion.
+      context.stdout(lines.join('\n') + '\n');
+      return 0;
+    });
+  }
+  return executeValidator(request, context, toolkit);
+}
+
+/** The verified ordinary child owns process state and receives only its typed stdin request. */
+function executeValidator(request: ValidatorRequest, context: Context, toolkit: Toolkit): number {
   // Proof: inheriting ambient state or altering each declared Git/closure setting failed the observed environment contract. Separate reachable-hook and lazy-fetch faults executed their sentinels.
   const environment: Record<string, string> = {
     PATH: context.path,
