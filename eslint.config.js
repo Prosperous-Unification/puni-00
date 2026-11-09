@@ -110,9 +110,11 @@ export default [
       // no tsconfig includes them; the project targets never lint them either, so
       // the pre-commit hook (which lints every staged file) must not stop on them.
       'tools/*/feasibility/**',
-      // OpenSpec evidence snapshots are the same kind of artefact: main carries
-      // `.ts` probes under openspec/changes/*/evidence that no tsconfig includes.
-      'openspec/**/evidence/**',
+      // Captured probes lack tsconfig membership; the durable contract probe has explicit typed admission below.
+      // Proof: removing these exceptions made the durable-contract evidence test and max-warnings=0 CLI reject the ignored canonical probe.
+      'openspec/**/evidence/**/*',
+      '!openspec/changes/cross-project-dependencies/evidence/task-7-durable-contracts/',
+      '!openspec/changes/cross-project-dependencies/evidence/task-7-durable-contracts/*.ts',
     ],
   },
 
