@@ -10099,3 +10099,284 @@ The failed main workflow was allowed to finish; it was not retried. New-head CI,
 normal hooks, independent review and the eventual exact-revision canonical h2puni
 gate remain required. No authenticated authority/Restic/provider probe, stopped
 privileged proof campaign, installed state or production deployment was performed.
+
+## Local encrypted backup qualification and installed-state refresh — 2026-11-09
+
+Previous-turn classification: progress. Source PR 843 is merged as
+`a5e9dbe9ff1122e624b9300e96f562bb867b085b`; its exact feature head
+`25ad3a44a2864b74d6fd22b2061426d9356c85ac` has successful gate, pixels,
+CodeQL and infrastructure verdicts. The actual merge CI 42515446666 also passed;
+its infra 42515446584 was cancelled. These do not establish live adoption.
+
+On clean current main `d49fdad843aeb3e0de8fd20662793690fc4ec42a`, frozen
+Bun 1.4.4 installation passed without tracked changes. The pinned public Restic
+archive and executable matched both lock hashes. The existing local encrypted
+backup tests passed 3/0 with 42 assertions in 22.48 s, with 45 cases explicitly filtered:
+`pinned backup verifies both contents`, `actual encrypted foreign lock`, and
+`snapshot refuses missing explicit source limits`. They exercise a real local
+snapshot, both-root restore, corrupt-pack refusal and foreign-lock preservation.
+Admission and durable effect persistence remain modeled; ordinary local storage
+is not installed bounded storage, provider accounting or a post-prune restore.
+HEAD and tracked tree were unchanged before/after these tests. Receipt:
+`/tmp/registry-local-backup-qualification-20261109.json`. Full local source tests,
+lint/typecheck/build and privileged/native qualification were not rerun.
+
+Fresh identity-checked h4 metadata at 07:56 UTC, UID 995, reports the five pressure,
+retirement and alert-sender units not found. The legacy backup timer is active,
+but its service failed: exit code 1, no restarts, start 02:37:00 UTC and
+exit 02:37:24 UTC on 2026-11-09. The bounded unprivileged journal read failed on
+permissions; a fixed sudo journal read also failed before any classification.
+No raw message was emitted. Today's failure cause is unverified; the earlier
+restic-cat timeout observation must not be relabeled as today's diagnosis.
+Protected configuration and authenticated repository access were not attempted.
+
+Current-main infra 42576834057 attempt 1 passed 9275 tests, skipped 55 and failed 0,
+with 30987 assertions across 319 files in 2165.85 s, then failed downloading the pinned
+ShellCheck archive with HTTP 504. One targeted failed-job retry was started and
+confirmed live as attempt 2/job 129042197518; its observer is session 21562.
+The canonical h2 gate independently holds PID 4091381 on revision d49fdad8 and its log
+prints that complete SHA. A bounded descendant census confirms live test
+processes, including a newly running child. Neither gate is terminal in this
+checkpoint; neither was duplicated, stopped or weakened. The earlier missing
+`wbs-t267` status-reader path was resolved by locating an existing checkout and
+calling the same canonical status script.
+
+Tasks 3.0, 4.2, 4.3, 5.1, 5.2 and source acceptance S4 remain open in current main.
+The prior privileged-proof stop and pending authenticated-repository approval are
+preserved. No host configuration, credential file, live backup/retention effect,
+notification, deployment or product migration changed in this continuation.
+
+### Funding integration dependency review
+
+A scoped background source review identified the next coherent Task 4.3 slice:
+fund actual normal-lock repository inspection through admission, durable effect
+consumption and the store. The complete S3 census is not exposed by the current
+raw-lock/snapshot projection, and the action discards the retention plan. An
+inspection grant also needs derived and enforced lock/retry/resource bounds;
+current binary/configuration hashes and raw source counts do not supply them.
+The [workspace findings](../../../docs/findings/registry-backup-workspace.md#next-production-funding-slice--2026-11-09)
+record the production integration, positive control and omission candidates.
+No new runtime adapter, fabricated allowance, test execution or admission claim
+was introduced by that review; the existing refusal and stopped-work boundary
+remain intact. Its original note is retained at
+`/tmp/registry-backup-funding-next-20261109.md`.
+
+The evidence PR's CodeQL 42584020617 failed initialization for JavaScript/TypeScript
+and Actions. The JavaScript job 129049367797 reports HTTP 504 downloading pinned
+CLI 2.27.4; neither failed job produced a source-analysis verdict. No managed
+workflow retry, empty commit or security-configuration change was requested.
+This is separate from the live current-main infrastructure retry and host gate.
+
+## Staged S3 retry profile prerequisite (2026-11-09)
+
+Implemented on `feat/registry-s3-retry-profile-20261109`, based on
+`c78466fd9bc50ff01f2eb49a63c5cf799e5e993e`. This completes only the staged
+retry-profile prerequisite. Task 4.3 and the full bounded-registry objective remain
+open. No installed state was migrated or reset. Physical admission still refuses
+`backup-budget-unavailable`; its source SHA256 remains
+`4091bcd331fb9d42a5afeffbc3c12f3600c6588dfcca67028a8c4443481612f4`.
+
+`createRegistryBackupProfile` supplies one frozen descriptor with a readonly fixed
+argument tuple to the real child launcher and existing binary/configuration-bound
+fingerprint. S3 uses `--no-cache -o s3.retries=1` and
+`restic/s3-single-attempt/locked-commands/v2`; local repositories retain
+`--no-cache` and `restic/no-cache/locked-commands/v1`. No other command, order,
+deadline, allowlist or backend-error-redesign setting changed. Two existing
+modeled caller fixtures now preserve the new actual factory export; their
+assertions are unchanged. Tagged retry-source findings were integrated into
+[the existing workspace findings](../../../docs/findings/registry-backup-workspace.md#single-put-retry-chain-and-staged-execution-2026-11-09).
+
+### Actual-store RED, GREEN and omission
+
+The optional `PUNI_TEST_RESTIC_BINARY` convention is retained, but every reported
+retry/compatibility run selected the actual binary:
+
+```sh
+sha256sum /tmp/registry-local-backup-tools-20261109/restic-0.19.1
+/tmp/registry-local-backup-tools-20261109/restic-0.19.1 version --json
+PUNI_TEST_RESTIC_BINARY=/tmp/registry-local-backup-tools-20261109/restic-0.19.1 bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/registry-backup-retry.test.ts --timeout=120000
+```
+
+Fresh SHA256:
+`20d4142678d0d95ec11a4759def1b73fd9190abc9ca19e4b62d067c0b387e639`;
+version `0.19.1`, `go1.26.4`, `linux/amd64`. Python/OpenSSL are ordinary protocol
+helpers; Bun remains the test runner. Missing selected tools throw.
+
+The receiver is adapted from the root's completed standalone source
+`/tmp/registry-restic-retry-wire-v3-20261109.py` (SHA256
+`a76a32d1562041fc57c28338b220836c6a41ac9f2794b66d40378ce6cd7f7dc7`).
+Its original receipt, both variants' logs, exact sources and earlier failed
+harness evidence are preserved under
+`/tmp/registry-retry-prerequisite-evidence-20261109/` with `sha256.json`.
+The original v2 missing-Last-Modified timeout recorded `lostReplyReached:false`;
+it is not an upload-fault witness. Its retained `10-http-summary.json` and
+`10-timeout.{stdout,stderr}.log` are kept separate from completed v3 evidence.
+
+The new fixture imports the actual store, calls `installMaintenanceReaper`, reuses
+`openBackupSourceFixture` and its real source limits, and writes a small known body.
+Snapshot creation and its check/metadata/journal verification execute against the
+owned TLS receiver. The test-owned relay verifies the real binary hash, preserves
+FD3 and all actual store arguments, adds only `--cacert <owned certificate>`,
+drains and relays bounded output, and retains bounded stderr. Production has no
+CA/endpoint override. Admission and effect persistence are explicitly modeled
+for this retry-only witness.
+
+One selected data key commits and drops its first two replies, then acknowledges
+the third. All other requests work. Known-length nonempty bodies have validated
+MD5; the receiver records opaque encrypted versions and standard Last-Modified.
+No sleep or elapsed threshold decides retry counts. `lifetime:'worker'` keeps
+all store descendants in the driver's exclusive process group; watchdogs kill
+and reap only that group, close the receiver and fail. Repaired cleanup cannot
+produce a passing receipt.
+
+| Run                        | Completed observation                                                                                                    | Outcome / raw evidence                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RED, unmodified store      | verified snapshot; three identical versions; zero outer retry notices; receiver closed; no descendants                   | Expected 2, received 0; failed assertion. `/tmp/registry-store-retry-red-20261109.log`, receiver archive `registry-store-retry-evidence-x19sxlr3`. |
+| Initial GREEN              | same three versions; two outer notices; successful after two retries; complete cleanup                                   | 1 pass, exit 0. `/tmp/registry-store-retry-green-20261109.log`, archive `registry-store-retry-evidence-6abz4b2f`.                                  |
+| S3-option omission         | only `-o s3.retries=1` omitted from the production factory tuple; same completed snapshot and three copies; zero notices | Expected 2, received 0; exit 1. `/tmp/registry-store-retry-omission-20261109.log`, archive `registry-store-retry-evidence-ja4izcqv`.               |
+| Exact restoration          | original production bytes restored before adding the adjacent Proof comment; same completed observation with two notices | 3 pass, exit 0. `/tmp/registry-store-retry-restored-20261109.log`, archive `registry-store-retry-evidence-2qiwuell`.                               |
+| Final selected integration | real retry witness plus both root-action bindings and existing callers                                                   | 76 pass, 0 fail, 361 expectations, 32.59 s. `/tmp/registry-retry-final-selected-20261109.log`, archive `registry-store-retry-evidence-wemi623f`.   |
+
+The initial RED launcher ended with `cat`, so its enclosing shell returned zero;
+the retained Bun output proves the failed assertion, and no separate initial Bun
+exit code was captured. The option-omission launcher explicitly retained and
+returned Bun exit 1. The omission command used the same selected test with
+`--test-name-pattern 'S3 store'`. Exact pre-mutation store bytes are retained at
+`/tmp/registry-retry-store-before-omission-20261109.ts`; restoration compared bytes.
+Only after the expected failure and restoration was the adjacent Proof comment
+added. Each newer receiver archive preserves its exact executed Python/TS/store
+sources, HTTP summary, complete bounded command logs, notice log and receipt.
+
+### Fingerprint and compatibility evidence
+
+Ordinary modeled root-action fixtures run actual profile selection with real
+owned effect-state persistence. Root UID, artifact verification, canonical lineage,
+capacity and store/provider work are explicit models. The expectations spell both
+descriptors independently of the factory and retain the binary/configuration
+binding. Both descriptor and tuple are frozen. Switching the selected profile
+refuses with `Backup operation binding differs from durable authority`; complete
+state bytes stay unchanged.
+
+Restoring only the old descriptive string in the existing fingerprint caused
+both tests to fail independent hash expectations (S3 expected
+`82e547a6e3754d1875fd9002c7e53583f32cbf20f37975e6fe75f79d30ad4179`,
+local expected `fc93400c92de84c4d9597f231038db56c376722c7819d214853c3a102e166d21`,
+both received old-string hash
+`7ea08a4628aa79e7b45a03fd842442e5f88f6f56e709158b26fbfde654a095bb`).
+Command: the same Bun test with `--test-name-pattern 'root action'`;
+`/tmp/registry-retry-binding-omission-20261109.log` records 2 fail, exit 1.
+Exact bytes were restored from
+`/tmp/registry-retry-binding-before-omission-20261109.ts`. Final selected tests
+passed after restoration.
+
+The first modeled caller-fixture authoring run recursively forwarded through
+Bun's live mocked export. Its failure/timeout and cleanup are retained in
+`/tmp/registry-store-retry-profile-20261109.log`; it is not successful evidence.
+Capturing the original reservation function before mocking fixed that fixture.
+Only its named owned child was stopped. The corrected run passed all three new
+tests in `/tmp/registry-store-retry-hardened-20261109.log`.
+
+### Owning checks and exclusions
+
+One broader explicit ordinary backup suite was justified by the real shared
+launcher change:
+
+```sh
+PUNI_TEST_RESTIC_BINARY=/tmp/registry-local-backup-tools-20261109/restic-0.19.1 bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/registry-backup-{retry,store,source,reservation,retention-action,retention,provider,local,encrypted-lock,locks,session,selector,outcomes,diagnostics}.test.ts tools/tool-fleet/src/registry-maintenance-backup.test.ts --timeout=120000
+```
+
+It ran 372 cases across 15 files in 303.30 s: 360 passed, 12 failed because two
+existing caller mocks omitted the newly imported factory export. The direct
+caller RED records `SyntaxError: Export named 'createRegistryBackupProfile' not
+found` in `/tmp/registry-retry-caller-red-20261109.log`. The two fixture repairs
+preserve the real factory and change no assertions. The affected 73 cases passed
+on scoped rerun (`/tmp/registry-retry-callers-corrected-20261109.log`). The final
+combined affected command below passed 76/76, including the three new tests.
+The broad suite was not repeated; all its failing cases are covered by that
+corrected affected run. No test was skipped in these selected runs. Existing local
+snapshot/receipt/restore, corrupted-pack and exact-command checks passed; the
+unchanged whole-retention deadline case passed in 60,002.27 ms.
+
+```sh
+PUNI_TEST_RESTIC_BINARY=/tmp/registry-local-backup-tools-20261109/restic-0.19.1 bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/registry-backup-{retry,retention-action,provider}.test.ts --timeout=120000
+NX_DAEMON=false bunx nx run tool-fleet:lint --skip-nx-cache
+NX_DAEMON=false bunx nx run tool-fleet:typecheck --skip-nx-cache
+NX_DAEMON=false bunx nx run tool-fleet:build --skip-nx-cache
+bunx openspec validate bound-registry-storage --strict
+```
+
+Final owning lint passed uncached (51.5 s), typecheck passed uncached (4.4 s),
+build passed uncached (530 modules, plus two owning build prerequisites), and
+strict OpenSpec validation reported `Change 'bound-registry-storage' is valid`.
+Raw outputs: `/tmp/registry-retry-{lint-final,typecheck-final,build,openspec}-20261109.log`.
+Initial lint's void-expression failure and subsequent import-order failure remain
+in the prior logs; both were corrected. Typecheck was repeated because the
+required caller fixtures are included by `tsconfig.lib.json`; the unaffected
+production build was not repeated. Exact formatting checks and normal commit
+hooks are recorded in the implementation report.
+
+No full `tool-fleet:test`/all-Nx gate was collected: the stopped privileged,
+chroot, namespace and queued-descriptor campaign stays excluded. No root
+installation, credential probe, provider-account operation, SSH, live validation,
+notification, installed state update or product migration ran. Signature-prefix
+validation and DELETE semantics are modeled; TLS and the pinned child are real.
+This proves one HTTPS/1 lost-reply case, not HTTP2/transport universality, whole
+Save/command/lock counts, full workspace/memory or funding/admission composition.
+The optional test skips if no Restic selector is supplied, but that skip was not
+used for any claim here. No additional Python formatting/lint target is configured;
+the actual helper executed successfully in the reported Bun tests.
+
+Root separately reported current-main infrastructure run 42576834057 attempt 2
+at `d49fdad843aeb3e0de8fd20662793690fc4ec42a` successful, and PR916 CodeQL
+42585584475 / CI42585589862 gate and pixels successful at `c78466f` (policy-selected
+checks skipped). These are root-owned receipts, not this branch's final validation.
+Canonical h2 PID4091381 was still live at the last root report with no final
+verdict. The implementer did not poll, duplicate, restart or stop those jobs.
+
+Source/test commit: `96b4e92a8a9c62eac7f697f819f09cdbdb7db3b3`.
+Exact named formatting check passed for six changed TypeScript files and six
+Markdown artifacts (`/tmp/registry-retry-format-final-20261109.log`). Normal
+source commit hooks passed staged lint, formatting, plaintext-secret and private
+nesting checks. Migration/doc-cap hooks had no applicable inputs. Tool Wiki
+reported `status:inactive`, `certified:false`, because its external activation
+root is not provisioned; this is no claim of active Tool Wiki certification.
+The complete hook output is `/tmp/registry-retry-source-commit-20261109.log`.
+
+### Explicit owned-receiver TLS minimum (2026-11-09)
+
+CodeQL check `129085872319` completed with failure on
+`f1f725cc83111844bbdf8ddfe2be7dbd4972131d`, reporting one new high alert at
+`tools/tool-fleet/src/registry-backup-retry.fixture.py:249`. The retained original
+receipt is `/tmp/registry-retry-codeql-original-20261109.json`. Annotation title:
+`Use of insecure SSL/TLS version`; exact message:
+
+```text
+Insecure SSL/TLS protocol version TLSv1 allowed by [call to ssl.SSLContext](1).
+Insecure SSL/TLS protocol version TLSv1_1 allowed by [call to ssl.SSLContext](1).
+```
+
+The owned receiver now sets `tls.minimum_version = ssl.TLSVersion.TLSv1_2`
+directly after constructing its server context. This makes the intended TLS
+contract explicit; all other receiver and real store behavior is preserved.
+A fresh ordinary local observation reports Python `3.14.7`, OpenSSL
+`3.5.8 25 Aug 2026`, and existing default minimum `TLSv1_2`
+(`/tmp/registry-retry-tls-default-20261109.log`). That default observation is not
+an exploit demonstration or proof about other environments. The correction is
+limited to the test-owned receiver, with no production environment/CA seam,
+protocol campaign or installed change.
+
+```sh
+PUNI_TEST_RESTIC_BINARY=/tmp/registry-local-backup-tools-20261109/restic-0.19.1 bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/registry-backup-retry.test.ts --timeout=120000
+```
+
+The selected actual-pinned run passed **3 tests, 0 failures, 19 expectations** in
+**14.69 s** (`/tmp/registry-retry-tls-selected-20261109.log`). Its real TLS/store
+receipt retains verified snapshot, three identical encrypted committed copies,
+two outer Save notices, success after two retries, closed receiver and no
+remaining descendants. Exact executed fixture source and observation are kept
+at `/tmp/registry-store-retry-evidence-lwbjmv_w/`.
+Python `compile` syntax validation and `git diff --check` passed. The owning
+verification document was formatted and checked with Prettier. No broad suite
+or setter-mirroring test was added. Fresh remote CodeQL analysis is required
+before claiming the alert resolved; the original failed check remains the last
+observed remote verdict for this correction.

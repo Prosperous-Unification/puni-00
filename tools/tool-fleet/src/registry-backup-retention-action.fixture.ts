@@ -5,6 +5,7 @@ import { mock, spyOn } from 'bun:test';
 import { findRegistryBackupStage } from './registry-backup-diagnostics';
 import { modelRegistryBackupEffects } from './registry-backup-reservation.fixture';
 import type { RegistryBackupRetentionInput } from './registry-backup-retention';
+import { createRegistryBackupProfile } from './registry-backup-store';
 import { invokeRegistryCallback } from './registry-callback';
 import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
 import type { RegistryMaintenanceJournal } from './registry-managed-journal';
@@ -77,6 +78,7 @@ await mock.module('./registry-maintenance-installation', () => ({
 }));
 const snapshotVersions = () => Promise.resolve([]);
 await mock.module('./registry-backup-store', () => ({
+  createRegistryBackupProfile,
   createRegistryBackupStore: () => ({
     inspectRepository: () =>
       invokeRegistryCallback(() => {

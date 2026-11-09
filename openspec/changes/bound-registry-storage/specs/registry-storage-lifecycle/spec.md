@@ -297,6 +297,12 @@ additions MUST fit the configured backup budget before storage-adding effects.
 - **WHEN** existing stored file sizes plus reserved additions and temporary coexistence exceed 107374182400 bytes
 - **THEN** admission refuses before creating new backup files, even if existing files alone fit
 
+#### Scenario: S3 execution uses the bound single-attempt profile
+
+- **WHEN** a staged S3 Restic command runs under its configured effect profile
+- **THEN** the child uses the fixed `s3.retries=1` option and the profile fingerprint commits those actual fixed CLI inputs
+- **AND** outer Restic retries remain enabled; the SDK setting alone does not establish a complete physical reservation or permit admission
+
 ### Requirement: Physical backup accounting
 
 Admission SHALL use complete object/part listings and bounded prune workspace.

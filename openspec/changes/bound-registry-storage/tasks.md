@@ -163,6 +163,13 @@ prior receipt`; negatives: missing object listing page, undercounted versions,
       Explicit fresh-backing enrollment never resets established missing state.
       Production physical admission stays closed; installed access/native proof,
       funding and physical liability release/retry/recycling remain incomplete.
+      Implemented staged retry-profile prerequisite: pin one MinIO request attempt in each actual S3
+      child, bind the same fixed descriptor into the effect fingerprint, and observe
+      two committed/lost replies through the real store and pinned child. Omission
+      moved retries back into the SDK and failed the completed outer-retry
+      observation; ordinary caller fixtures persist independent S3/local fingerprints
+      and refuse drift without replacing history. Preserve local-file commands, outer retries, all deadlines and
+      closed physical admission. This does not complete the remaining profile.
       Complete file accounting with new-content/prune envelopes, durable effect
       authorization, actual protected reclamation and retained post-prune restore
       remain incomplete; a current payload census alone never grants admission.

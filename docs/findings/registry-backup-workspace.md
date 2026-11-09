@@ -5,8 +5,8 @@ This extends [backup accounting](registry-backup-accounting.md). The user's
 2026-11-04 clarification defines the 100 GiB budget by stored file/object sizes;
 provider billing overhead is excluded and its contract is no longer a blocker.
 **Admission under the 100 GiB budget is not yet proved.** This note records source inspection and conditional arithmetic,
-not executed restic/resource/provider proofs. Proposed interfaces below are not
-implemented. The [backup spec](../../openspec/changes/bound-registry-storage/specs/registry-storage-lifecycle/spec.md#requirement-bounded-backup-lifecycle)
+with the narrowly scoped ordinary TLS retry witness below. Complete resource/provider
+proofs and the remaining proposed interfaces are not implemented. The [backup spec](../../openspec/changes/bound-registry-storage/specs/registry-storage-lifecycle/spec.md#requirement-bounded-backup-lifecycle)
 still requires worst-case reservation and preserved recovery coverage.
 
 ## Current integration and fixed defaults
@@ -14,7 +14,9 @@ still requires worst-case reservation and preserved recovery coverage.
 The pinned [tool manifest](../../tools/tool-fleet/src/backup-registry.lock.json)
 selects restic **0.19.1** and a binary SHA-256. The current
 [store](../../tools/tool-fleet/src/registry-backup-store.ts) passes only its validated
-environment plus a fixed PATH and always adds `--no-cache`. Admission now separates
+environment plus a fixed PATH, always adds `--no-cache`, and adds exactly
+`-o s3.retries=1` for S3 repositories. The same immutable descriptor is included in
+the existing binary/configuration-bound effect fingerprint. Admission now separates
 repository inspection from snapshot requests carrying bounded raw source
 observations; the misleading `maximumNewBytes` capacity sum is removed. Required
 per-root sourceLimits bound traversal and logical/metadata observations, not encoded
@@ -328,30 +330,12 @@ retry rather than the legacy ten-retry cap.
 [Beta default](https://github.com/restic/restic/blob/v0.19.1/internal/feature/features.go#L35-L42),
 [wrapper timeout](https://github.com/restic/restic/blob/v0.19.1/internal/global/global.go#L547-L570).
 
-Conditional source bound: pinned backoff 4.3.0 defaults to jitter factor 0.5;
-restic sets an initial interval of one second and multiplier two. Every scheduled
-ordinary retry therefore waits at least 0.5 seconds. The 900-second elapsed limit
-gives the deliberately loose ceiling `1 + floor(900 / 0.5) + 1 = 1802` backend
-invocations per Save: initial invocation, scheduled retries, and an extra slot
-for restic's mandatory-at-least-one-retry override after an already slow first
-invocation. Backoff resets once per operation, not after each failed attempt.
-[Jitter/elapsed calculation](https://github.com/cenkalti/backoff/blob/v4.3.0/exponential.go#L70-L87),
-[stop and interval logic](https://github.com/cenkalti/backoff/blob/v4.3.0/exponential.go#L149-L197),
-[retry loop](https://github.com/cenkalti/backoff/blob/v4.3.0/retry.go#L63-L109),
-[restic override](https://github.com/restic/restic/blob/v0.19.1/internal/backend/retry/backend_retry.go#L66-L118).
-This assumes ordinary system timer/monotonic-clock semantics and this exact
-feature/profile. Combining ten inner request attempts conservatively gives
-`18020` attempts for a single-PUT Save, not a measured count. Treat every ambiguous
-PUT as possibly committed; retrying the same key does not earn storage credit.
-
-Unresolved production proof: validate the complete single-PUT call chain and
-counter against response-loss faults, then compose it with every command/lock
-write/delete; alternatively enforce a smaller counted write boundary. This loose
-bound will refuse many useful backups, and is not itself authorization. Five
-connections is a simultaneous-worker ceiling, not a lifetime PUT ceiling.
-On versioned
-storage, repeated successful writes to the same ciphertext key can retain
-multiple versions; use the existing accounting note's physical semantics.
+The staged profile now fixes `-o s3.retries=1`: one MinIO request attempt,
+with Restic's outer retries and backend-error redesign preserved. The source audit
+below derives a conservative conditional ceiling of **1,802 possible committed
+versions per outer Save** for a nonempty known-length single PUT. The unmodified
+default inner loop would multiply that ceiling by ten to 18,020. Neither number
+is a measured worst case, a whole-command count, nor physical admission.
 
 Locks serialize time, exclusivity, host/user and process identity. Refresh writes
 a new encrypted lock before removing the old one. The repository refresher ticks
@@ -368,6 +352,170 @@ inspection does not prove an exact lock-write count for the production lifecycle
 Both ordinary snapshot `cat` and `dump` acquire read locks unless `--no-lock` is
 supplied. [Cat](https://github.com/restic/restic/blob/v0.19.1/cmd/restic/cmd_cat.go#L64-L75),
 [dump](https://github.com/restic/restic/blob/v0.19.1/cmd/restic/cmd_dump.go#L125-L148).
+
+### Single-PUT retry chain and staged execution (2026-11-09)
+
+Tagged-source research is integrated here from the task's supplied investigation;
+the following derivation remains conditional on this exact upload/transport profile.
+Count every transmitted attempt as potentially committed; identical ciphertext and
+repeated keys earn no version-liability credit. Five connections cap concurrency,
+not lifetime writes. The whole-command/lock and durable funding composition remains
+open in Task 4.3.
+
+#### Profile and version boundary
+
+This conclusion requires HTTPS, ordinary S3 object PUTs, known exact **nonempty**
+length `0 < L <= 209715200`, `SendContentMd5=true`, unchanged fixed credentials/
+transport, no caller headers introducing replayability, and the pinned retry
+defaults. It assumes normal monotonic-clock/timer behavior and a service where
+each PUT creates at most one version. The latter is the documented
+[S3 PutObject model](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html),
+not a new live-provider observation. Treat every transmitted attempt as committed,
+including failed/lost responses; reserve `L * count` without deduplication credit.
+
+[Restic's module manifest](https://github.com/restic/restic/blob/v0.19.1/go.mod)
+pins MinIO 7.1.0, backoff 4.3.0 and `golang.org/x/net` 0.55.0. It declares
+Go 1.25.8/toolchain 1.25.10; that declaration is not the executable's build version.
+The earlier [binary observation](#plaintext-metadata-encoding-prerequisites-2026-11-01)
+records Go 1.26.4 for the SHA-pinned public executable. The transport audit below
+uses that Go tag and x/net 0.55.0, whose
+[legacy implementation build tag](https://github.com/golang/net/blob/v0.55.0/http2/transport.go#L5)
+selects the inspected code for Go 1.26. Do not substitute MinIO's older x/net
+requirement or infer its module version from its stale User-Agent string.
+
+#### Exact upload and replay chain
+
+1. [`retry.Backend.Save`](https://github.com/restic/restic/blob/v0.19.1/internal/backend/retry/backend_retry.go#L154)
+   rewinds the same `RewindReader` before each underlying Save. The S3 backend has
+   atomic replacement, so its failed Save does not trigger the wrapper's fallback
+   Remove. Logger/semaphore wrappers delegate Save once; concurrency is not a
+   lifetime request count.
+   [Properties/Save](https://github.com/restic/restic/blob/v0.19.1/internal/backend/s3/s3.go#L244),
+   [logger](https://github.com/restic/restic/blob/v0.19.1/internal/backend/logger/log.go#L27),
+   [semaphore](https://github.com/restic/restic/blob/v0.19.1/internal/backend/sema/backend.go#L57).
+2. `s3.Backend.Save` calls `PutObject(io.NopCloser(rd), rd.Length(), opts)` with MD5
+   and a 200 MiB part size. `PutObject` dispatches known lengths at/below that size
+   to `putObject`, without multipart initiation/completion.
+   [S3 Save](https://github.com/restic/restic/blob/v0.19.1/internal/backend/s3/s3.go#L268),
+   [PutObject dispatch](https://github.com/minio/minio-go/blob/v7.1.0/api-put-object.go#L330).
+3. Go's [`io.NopCloser`](https://github.com/golang/go/blob/go1.26.4/src/io/io.go#L638)
+   exposes Reader, optionally WriterTo, but not Seek/ReaderAt. Thus
+   [`putObject`](https://github.com/minio/minio-go/blob/v7.1.0/api-put-object-streaming.go#L633)
+   cannot take its SectionReader shortcut: MD5 calculation allocates a length-sized
+   buffer, reads the source and substitutes `bytes.NewReader`. The wrapper does
+   **not** make the upload non-retryable. `newHook` returns a `hookReader` whose
+   [`Seek`](https://github.com/minio/minio-go/blob/v7.1.0/hook-reader.go#L33)
+   delegates to that buffer. `putObjectDo` invokes `executeMethod(PUT)` once.
+4. [`executeMethod`](https://github.com/minio/minio-go/blob/v7.1.0/api.go#L609)
+   recognizes that seeker and rewinds it before every attempt. Request-construction
+   errors, network errors, region correction, retryable S3 codes and HTTP statuses
+   all continue the **same** finite timer loop; none recursively resets it.
+   [`newRetryTimer`](https://github.com/minio/minio-go/blob/v7.1.0/retry.go#L48)
+   yields exactly at most `maxRetry` iterations, including the initial attempt:
+   default 10, not eleven. EOF/response loss and internal timeout can retry;
+   parent cancellation cannot increase this cap. Error-body read failure returns
+   to the outer wrapper. Ordinary successful PUT headers return without replay.
+
+#### Requests below the SDK loop
+
+[`newRequest`/`privateNew`](https://github.com/minio/minio-go/blob/v7.1.0/api.go)
+create an HTTP request with a nil constructor body, later set Body/ContentLength,
+and never install `GetBody`; CheckRedirect returns `ErrUseLastResponse`.
+HTTPS signature generation preserves that request and performs no network call.
+[signV4](https://github.com/minio/minio-go/blob/v7.1.0/pkg/signer/request-signature-v4.go#L286).
+Any required [bucket-region lookup](https://github.com/minio/minio-go/blob/v7.1.0/bucket-cache.go#L125)
+is a GET, not an additional object PUT; a fixed nonempty region skips it.
+
+Go 1.26.4 [`Transport.shouldRetryRequest` and `rewindBody`](https://github.com/golang/go/blob/go1.26.4/src/net/http/transport.go#L740)
+do not replay this nonempty PUT after a possible send: its length is positive and
+`GetBody` is nil. The idempotent-replay test also fails.
+[`Request.isReplayable`](https://github.com/golang/go/blob/go1.26.4/src/net/http/request.go#L1442).
+The uncounted cached-HTTP2-connection fallback occurs before an object request can
+be sent; it does not add committed versions.
+
+Restic explicitly configures
+[`x/net/http2`](https://github.com/restic/restic/blob/v0.19.1/internal/backend/http_transport.go#L83).
+Its [`roundTripViaPool`/`shouldRetryRequest`](https://github.com/golang/net/blob/v0.55.0/http2/transport_common.go#L243)
+can retry GOAWAY/refused streams only with nil/NoBody or `GetBody`; neither applies
+here. The remaining `errClientConnUnusable` retry occurs in
+[`awaitOpenSlotForStreamLocked`](https://github.com/golang/net/blob/v0.55.0/http2/transport.go#L1298)
+before stream registration/header writing. The Go 1.26 per-connection bridge
+`netHTTPClientConn.RoundTrip` delegates directly to `ClientConn.RoundTrip` in the
+same source. Consequently each SDK iteration makes at most one possibly committing
+nonempty PUT, even though connection selection itself may retry.
+
+The [watchdog](https://github.com/restic/restic/blob/v0.19.1/internal/backend/watchdog_roundtriper.go#L34)
+and [rate limiter](https://github.com/restic/restic/blob/v0.19.1/internal/backend/limiter/static_limiter.go#L63)
+each call their wrapped RoundTripper once; cancellation/byte throttling creates no
+independent upload loop. A zero-length object uses a nil Body and has different
+HTTP2 replay behavior: **the one-PUT-per-iteration conclusion is restricted to the
+nonempty profile**, not every arbitrary known-length backend call.
+
+#### Outer count and supported smaller profiles
+
+[Restic's global wrapper](https://github.com/restic/restic/blob/v0.19.1/internal/global/global.go#L548)
+sets 900 seconds. With backend-error-redesign enabled,
+[`Backend.retry`](https://github.com/restic/restic/blob/v0.19.1/internal/backend/retry/backend_retry.go#L90)
+uses an initial 1 second interval, multiplier 2 and one forced retry if the first
+backoff already stops. Backoff 4.3.0's
+[jitter/elapsed checks](https://github.com/cenkalti/backoff/blob/v4.3.0/exponential.go#L71)
+give every ordinary scheduled delay a minimum 0.5 seconds.
+[`doRetryNotify`](https://github.com/cenkalti/backoff/blob/v4.3.0/retry.go#L63)
+resets once, waits each delay, then calls again. Therefore the existing loose
+ceiling `1 + floor(900 / 0.5) + 1 = 1802` underlying Save invocations is conservative.
+This uses enforced delay plus elapsed accounting, not the assertion that a timeout
+alone limits wire requests. Combining the proven inner count gives 18020.
+
+`-o s3.retries=1` is registered by
+[`s3.Config.MaxRetries`](https://github.com/restic/restic/blob/v0.19.1/internal/backend/s3/config.go#L27)
+and [`s3.open`](https://github.com/restic/restic/blob/v0.19.1/internal/backend/s3/s3.go#L57)
+sets `minio.MaxRetry` before client creation. MinIO copies that into its client.
+Thus it selects one SDK attempt and the bound becomes 1802. **Zero retains the
+default** because Restic applies only positive values. The staged store now pins this option for every S3 command and includes the exact
+descriptor in the immutable profile hash, preserving backend-error-redesign's protections.
+
+Another supported profile, `RESTIC_FEATURES=backend-error-redesign=false`, restores
+ten outer retries, hence at most 11 underlying Save calls; with `s3.retries=1`, at
+most 11 possible versions. The
+[`WithMaxRetries`](https://github.com/cenkalti/backoff/blob/v4.3.0/tries.go#L20)
+counter proves that cap. But the
+[feature](https://github.com/restic/restic/blob/v0.19.1/internal/feature/registry.go#L16)
+also controls stuck-request/HTTP2 timeout behavior and permanent-error treatment;
+disabling it is a broader profile change. Selection is via
+[`RESTIC_FEATURES`](https://github.com/restic/restic/blob/v0.19.1/cmd/restic/main.go#L158),
+not an outer-retry-count CLI flag. Current store environment validation rejects
+that variable. No such change is proposed here.
+
+#### Completed ordinary TLS witness and remaining evidence
+
+The actual staged store and SHA-pinned Restic 0.19.1 now execute through an
+ordinary owned HTTPS/1 receiver with its generated CA verified by Restic. A
+test-owned relay preserves the actual arguments and FD3, adding only `--cacert`
+outside production. The receiver selects one data key, commits its first two PUTs
+and closes both connections before replies, then acknowledges the third. All
+three encrypted bodies match. The completed snapshot and verification return a
+receipt; the fixed profile emits two outer Save retry notices and success after
+two retries. The original and option-omitted store complete with zero notices
+and fail that expectation. No elapsed-time threshold decides those assertions.
+The receiver closes and the exclusive worker process group has no descendants;
+watchdog or repaired cleanup is failure. Exact commands, preserved source/log
+paths, fingerprint drift refusal and local compatibility checks are recorded in
+[the change verification](../../openspec/changes/bound-registry-storage/verify.md#staged-s3-retry-profile-prerequisite-2026-11-09).
+
+This witness models signature-prefix validation, DELETE cleanup, physical admission
+and effect persistence. It supplies no cryptographic S3-authentication or provider
+version-accounting proof. The separate ordinary caller fixture uses real owned
+effect persistence with modeled root/artifact/lineage/capacity ports; it proves
+fingerprint selection and drift refusal without installed root execution.
+
+Still unexecuted: transient S3/HTTP errors, truncated error bodies, bad region,
+lost successful headers, watchdog expiry after upload, cancellation at each
+boundary, HTTP2 post-body GOAWAY/refused streams, and harmless stale-connection
+selection. No source-controlled accelerated clock or patched binary establishes
+the installed binary's outer ceiling. A future counting consumer must reject
+unknown/zero/oversize lengths. Save counts per command, lock refresh/acquisition,
+whole-operation scratch/memory, durable funding, liability release and physical
+admission remain unresolved. Task 4.3 stays open.
 
 ## Prune peak and local resources
 
@@ -479,3 +627,153 @@ No implementation/proof checkboxes were changed. No dependency/build, native
 fixture, provider, root, remote-host, credential/helper or notification calls were
 performed. Only this new Markdown file is owned by the research task; its scoped
 format/check outcome is recorded in the handoff, not inferred from source reading.
+
+## Next production funding slice — 2026-11-09
+
+Read-only investigation, 2026-11-09, against the assigned source revision
+`1bf00382aa09258e55075560ab88c562fc3922f2`. This proposes a next slice; it records
+no executed test, native, installed, provider or activation proof.
+
+**No self-contained slice that opens admission is justified by the available
+ordinary-file/local-repository evidence.** The smallest coherent next production
+slice is **fund normal-lock repository inspection through the existing effect
+ledger**, conditional on a complete executable inspection profile. That missing
+producer is a dependency, not authorization to widen stopped work. An extra guard
+inside today's always-refusing callback would not advance an admitting
+implementation. The existing stop remains in force.
+
+### Observed production gaps
+
+- [`admitRegistryBackup`](../../tools/tool-fleet/src/registry-backup-admission.ts)
+  unconditionally refuses `backup-budget-unavailable`.
+- [`executeRegistryBackupAction`](../../tools/tool-fleet/src/registry-maintenance-backup.ts)
+  calls that port before `openVersions`. It later discards the value returned by
+  `store.inspectRetention`. Its admission arguments contain operation/source
+  capacities and, for snapshots, raw source metadata; they contain neither the
+  complete stored-byte census nor a funded command profile.
+- [`RegistryS3Census`](../../tools/tool-fleet/src/registry-s3-census.ts) already
+  carries all-version/upload/part identities and `payloadBytes`. Under the approved
+  [measure](../../openspec/changes/bound-registry-storage/specs/registry-storage-lifecycle/spec.md#requirement-backup-budget-measure),
+  that total is the required existing stored-size measure. Billing evidence adds
+  no prerequisite. But [`RegistryBackupVersionStore`](../../tools/tool-fleet/src/registry-backup-provider.ts)
+  exports only raw-lock census/removal and snapshot-version projection; its
+  `census()` is **not** the whole-repository byte census.
+- [`openRegistryBackupReservation`](../../tools/tool-fleet/src/registry-backup-reservation.ts)
+  persists `scope: 'effect-lineage-only'`. `consumeEffect` durably consumes the real
+  fixed slot before `store.run` launches Restic, and `settleEffect` acknowledges
+  terminal execution. Neither operation reserves physical additions or releases
+  measured liabilities. Renaming that scope would invent authority.
+- [`createRegistryBackupStore`](../../tools/tool-fleet/src/registry-backup-store.ts)
+  uses ordinary locked `snapshots`, `dump`, `check`, backup and restore commands.
+  Only config/raw-lock inspection uses `--no-lock`. Thus even the first useful
+  retention catalogue may add lock objects/versions before snapshot creation.
+
+### One proposed TDD slice: funded inspection effects
+
+Scope: make the first `retention-list`/`retention-journal` and subsequent inspection
+lock-writing slots consume **one durable stored-byte reservation**, through
+`executeRegistryBackupAction` → the production admission adapter → the existing
+`RegistryBackupEffectPort` → `store.run`. Snapshot, forget/prune and restore grants
+remain unavailable until their separate required envelopes exist. This is an
+ordered implementation slice of Task4.3, not a replacement endstate.
+
+Required production wiring:
+
+1. Expose a bounded complete repository file/part observation from the existing
+   provider adapter, retaining scope, versioning, canonical census hash and exact
+   listed sizes. Keep this distinct from its raw-lock `census()` and snapshot
+   projection. Open this read-only adapter before asking to fund any normal-lock
+   command. Keep config/raw-lock authentication read-only and under existing
+   lineage authority; do not bootstrap funding by running a locked command.
+2. Derive inspection additions from an authenticated, fixed executable profile:
+   the finite set of actual slots, complete per-command lock creation/refresh/
+   deletion/retry/version liability, command deadlines, and separately enforced
+   local resource requirements. No caller `maximumNewBytes`, source filesystem
+   capacity, elapsed success, or arbitrary supplied byte allowance may replace
+   that derivation. Preserve absent/unknown as refusal.
+3. Persist that census/profile/operation binding and outstanding liability beside
+   existing effect history before the first funded slot. Admission must reuse it
+   across repeated `prepare`/inspection calls. `consumeEffect` must check its exact
+   slot and funding before publishing the existing consumed ticket; settlement
+   must not refund it. Apply `current stored bytes + outstanding additions <=
+107374182400` with checked arithmetic, counting all versions and uploaded parts.
+   Do not subtract prospective deletion or credit the same commitment twice.
+   Physical liability release/retry needs a later complete observation and exact
+   reconciliation, rather than `settleEffect` or a successful delete response.
+
+These are proposals. The production facts above do not establish an implemented
+funding interface or a complete grant-producing profile.
+
+### First failing consumer test and local evidence limits
+
+Proposed RED: with a complete **test-derived** inspection profile and owned local
+repository, the actual store's first locked catalogue command receives a durable
+funded ticket before it runs. At an exact boundary, existing bytes plus that
+command's reserved lock/version additions fit; adding one noncurrent version or
+uploaded-part byte refuses before the same child runs, preserving the prior
+verified receipt. Current unconditional admission fails the positive control.
+
+Use the actual admission/ledger/store consumer, not a mock `admit: () =>
+Promise.resolve()` or an isolated arithmetic function. The existing
+[`registry-backup-retention-action.fixture.ts`](../../tools/tool-fleet/src/registry-backup-retention-action.fixture.ts)
+models the store and root prerequisites; it establishes call ordering, not this
+funding proof. The
+[`local repository adapter`](../../tools/tool-fleet/src/registry-backup-local.fixture.ts)
+has current files only; it cannot establish S3 history/multipart semantics.
+
+Candidate adjacent negatives: remove physical-ticket validation and observe the
+unfunded child run; remove the history/part contribution and observe the boundary
+case run; break persistence and observe no launch; repeat admission after a spent
+or uncertain effect and observe no refill. Terminal execution must retain the
+liability. A real local Restic repository can compare actual lock-file additions
+with the test envelope and exercise owned-file persistence/replay faults. Actual
+SDK controlled transport can supply versions/parts and response-loss cases without
+provider access. These would prove their declared local boundaries only.
+
+No such test was run here. Positive controls are essential: refusal-only tests
+would all pass against today's unconditional denial and would not prove funding.
+
+### Dependency stopping an honest grant now
+
+The existing [workspace research](registry-backup-workspace.md#upload-attempts-and-lock-objects)
+derives conditional retry/lock formulas but explicitly leaves the complete
+single-PUT retry chain and every command/lock refresh composition unproved. Its
+[local resource discussion](registry-backup-workspace.md#prune-peak-and-local-resources)
+also leaves whole-process memory and held scratch capacity unproved. The present
+profile hash in `executeRegistryBackupAction` identifies binary/configuration and
+`restic/no-cache/locked-commands/v1`; its adjacent comment explicitly excludes full
+resource/provider evidence. A finite command timeout is not by itself a complete
+write-attempt or successful-resource envelope.
+
+Consequently, the positive test above needs a **new derived and enforced profile
+producer**, not a fabricated fixture promoted to trusted production evidence.
+Ordinary owned files and a disposable repository can help develop/test its counting
+and persistence consumers. They cannot certify the current installed execution
+profile or supply missing enforcement. Developing schemas, exposing the whole
+census, and writing a ledger reducer are ordinary-source work; independently they
+would be incomplete plumbing. Do not promote those pieces to funding completion.
+The integrated slice needs that producer before it can establish a real positive
+grant. This investigation does not propose implementing or investigating stopped
+authority/profile work to obtain it. Retain the refusal and report the dependency.
+
+Full snapshot funding additionally needs complete resolver/ancestor/xattr context,
+historical content references, encoded pack/index/snapshot bounds and repository
+shape; current [`RegistryBackupSourceObservation`](../../tools/tool-fleet/src/registry-backup-source.ts)
+explicitly excludes them. Full Task4.3 still includes exact protected retention,
+bounded prune coexistence, measured reclamation and independent retained restore,
+as recorded in [tasks](../../openspec/changes/bound-registry-storage/tasks.md).
+No product migration or reduced recovery policy is proposed.
+
+Only this note was written. No runtime edits, tests/native execution, installation,
+host/provider requests, protected-file reads, deployment or notifications occurred.
+
+### Inspection lock lifecycle follow-up — 2026-11-09
+
+The [staged retry section](#single-put-retry-chain-and-staged-execution-2026-11-09)
+records the execution-profile change after the funding investigation above; its
+`restic/no-cache/locked-commands/v1` description is that investigation's baseline.
+The [inspection lock investigation](registry-restic-inspection-lock-bounds.md)
+derives conditional encrypted lock sizes and additions per Save, and identifies
+the still-missing enforced acquisition/refresh counts. Cancellation timers and
+`--retry-lock=0` do not supply those counts. This does not establish a complete
+reservation or enable physical admission.

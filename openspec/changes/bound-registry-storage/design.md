@@ -888,3 +888,25 @@ compiler/user-namespace preparation helper before fleet tests. The workspace's e
 fleet/full selector and unrelated Twilight profile remain unchanged. Both infra
 workflow event filters include helper-only changes. This provisions no target host
 and invokes no registry installer or stopped privileged proof.
+
+### Fixed S3 request retry profile
+
+Every staged S3 Restic command uses `--no-cache -o s3.retries=1` through one
+fixed profile descriptor shared by the actual child launcher and the existing
+effect fingerprint. Local-file fixtures preserve their prior `--no-cache`
+arguments. The setting limits the MinIO request loop to one attempt; it preserves
+Restic's enabled backend-error redesign, outer retries and existing deadlines.
+Changing the bound descriptor must refuse established mismatched effect history
+rather than resetting it. This supplies one execution-profile input, not complete
+object-length, lock-write, memory/scratch, reservation or admission evidence.
+The production physical-admission adapter remains closed until those compose.
+
+The retry prerequisite is exercised through the actual store and pinned child
+against an ordinary owned TLS receiver: two selected-key commits lose replies,
+then the third succeeds with identical encrypted bytes and two outer Save retries.
+Omitting only the option restores zero outer notices and fails the completed
+observation. Signature checking and DELETE are protocol models, so this does not
+certify provider accounting. Ordinary modeled root-action fixtures persist the
+independently expected S3/local fingerprints using real owned effect state and
+refuse descriptor drift without resetting history. Installed root execution and
+the stopped privilege/descriptor campaign are excluded.
