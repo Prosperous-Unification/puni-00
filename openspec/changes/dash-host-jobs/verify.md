@@ -3308,10 +3308,11 @@ assertion and a `try` move.
 ## 2026-11-08 h4claw enrolled in observe mode; first observe-mode gate throttled
 
 `gate_host` was applied to h4claw with `puni_gate_host_pool_enroll: true` from a controller
-worktree at `main` (launcher moved to `a5e9dbe9f` first, gate-hosts.md step 5), then
-`ops pool init` ran and the three Dash units started. Private `puni-plan` evidence:
-`evidence/2026-11-08-enrollment-h4claw.md`. h2puni is not enrolled. This is an interim
-record. **EV-A7** The controller SHA used for apply 1 and apply 2 is unknown; neither the
+worktree at a `main` commit that is not recorded (EV-A7; launcher moved to `a5e9dbe9f` first,
+gate-hosts.md step 5), then `ops pool init` ran and the three Dash units started. Private
+`puni-plan` evidence: `evidence/2026-11-08-enrollment-h4claw.md`; the EV-A ids in this section
+are local to it and do not map to ids in that private record. h2puni is not enrolled. This is an
+interim record. **EV-A7** The controller SHA used for apply 1 and apply 2 is unknown; neither the
 launcher SHA nor the later validate controller SHA identifies those lost applies.
 
 - **EV-A1** The enrolling worker died with a session restart before writing its record, so
@@ -3329,9 +3330,15 @@ launcher SHA nor the later validate controller SHA identifies those lost applies
   5 GiB, disk budget 48 units, units `gate_tree` ×2, `dagger_engine`, `docker_build`, no
   concurrency-eligible types. `ops pool inspect`: mode `observe`, guard `on`, `guardHolder`
   `null`, allocatable 7 cores, 10 GiB, 48 units, 4 slots. The 5 GiB headroom is not the role default
-  (`puni_gate_pool_headroom` `memoryGib: 2`), and where the override came from is unknown.
-  Before any reapply to h4claw, the operator must recover the vars that produced it. A reapply
-  at 2 GiB against the pinned 5 GiB is refused as a pinned-field change.
+  (`puni_gate_pool_headroom` `memoryGib: 2`); it matches the staged enrolling vars file
+  `$OPS/gate.json.enroll-h4claw.2026-11-08`. An independent reader compared only the staged
+  `puni_gate_pool_headroom` field with `jq -ce .headroom` from the live h4claw rendered
+  configuration `/home/puni1/.config/dash/host-pool.json` on 2026-11-09. Both selected
+  nonsecret fields read 1 core and 5 GiB. This comparison does not establish which vars were
+  passed to the lost applies. Other pinned fields in that file have not been checked against
+  the ledger, so the first successful reapply with it stays owed. Preserve the pinned
+  headroom on every reapply. Why 5 GiB was chosen is not recorded. A reapply at 2 GiB against
+  the pinned 5 GiB is refused as a pinned-field change.
 - **Restart observations; proof remains open (6.7).** `systemctl --user show dash-resources-watch.service`:
   `NRestarts=2`, `InactiveExitTimestamp` 20:39:54Z, `ActiveEnterTimestamp` 20:40:24Z. `NRestarts`
   counts only systemd's automatic restarts, and the 30 s gap is `RestartSec=30`. The watch
@@ -3348,13 +3355,29 @@ launcher SHA nor the later validate controller SHA identifies those lost applies
 - **EV-A4** On h4claw, `journalctl --user` as `puni1` over ssh prints "No journal files were opened due to
   insufficient permissions"; gate-hosts.md now reads restarts and refresh outcomes from
   `systemctl --user show`, and says the restart proof needs `kill -9`.
-- The refresh timer's runs at 21:01:55Z and 22:04:59Z exited 75: gates were working in the
-  launcher checkout, the modelled busy outcome.
+- The refresh timer's run at 21:01:55Z exited 75: gates were working in the launcher checkout,
+  the modelled busy outcome. The earlier revision's timer read reported the next run
+  scheduled for 22:04:56Z; its outcome is not recorded. An earlier revision said a run at 22:04:59Z also exited 75. That outcome was not
+  observed, and the claim is superseded.
 
 First observe-mode gate, `gate:a5e9dbe9`, launched from the launcher checkout and admitted
 onto the first gate tree at 19:44:52Z; the legacy shell lock reads `dash-job-<id> gate:a5e9dbe9`
 through its `legacy-holds/` file, and a peer's gate waited in the pool behind it (`waiting …
-overtakes 0`).
+overtakes 0`). That waiter, `gate:3aae0580`, left at 21:33:16Z after receiving SIGTERM
+(sender not recorded): the pool logged `interrupted by SIGTERM while waiting; its ticket is withdrawn`,
+the modelled cancellation. The queue read `waiting none` at the 22:50Z coordinator read.
+That is a ticket withdrawal, not an admission or a gate success, and admission of a second
+job was not observed.
+
+- **EV-A8** The upstream record in public commit `5e68f110d` reports that at 23:57Z
+  (4 h 12 min) the first job was still `held`, using 0.019 cores over a 60 s `cpu.stat` window
+  with `memory.pressure` `full avg300` 95.5 %, and its exit is still owed. These are upstream
+  reports, not new coordinator observations. The commit's committer timestamp, 23:56:03Z,
+  precedes that reported time, so 23:57Z is unverified; this record does not reconcile the two
+  clocks. That the throttle had effectively stalled the gate is an inference from those
+  figures, not new physical proof. The owner's SIGTERM should record exit 143 and settle the
+  row. That cancel, its settlement and the `gate` calibration runs are proposed and owed,
+  not observed, and this record directs no one to cancel another owner's job.
 
 - **EV-A5 The `gate` envelope throttles the gate in observe mode.** The scope runs under
   `MemoryHigh` at the catalogue's estimated 6 GiB (`memory.high 6442450944`, `MemoryMax`
@@ -3369,19 +3392,8 @@ overtakes 0`).
   samples carry `containers` with `labelled 0`: the four bounded containers run in the gate's
   last step, `wbs-be-01:solver-image-smoke`, which `set -e` skips once `run-many` fails.
 
-Pending as of 2026-11-08 22:50Z: the gate was still running (3 h 05 min), and its exit is not
-recorded. Task 6.4 owns the missing terminal gate record and calibration follow-up. This section does
+Last coordinator read: 2026-11-08 22:50Z, still running (3 h 05 min). Last upstream report:
+23:57Z, still held (4 h 12 min), unverified (EV-A8). The exit is not recorded. Task 6.4 owns the missing terminal gate record and calibration follow-up. This section does
 not complete 6.4. None of 6.4's deliverables is met: a week of
-observation, calibration, `propose`, or the container measurement. 6.4 stays open.
-
-**EV-A8** This is the upstream record, not a new coordinator measurement. Public commit `5e68f110d`
-reports that at 23:57Z (4 h 12 min) the gate had no exit yet. The scope used 0.019 cores over
-60 s, and `memory.pressure full avg300` read 95.5 %. The commit's committer timestamp is
-23:56:03Z, which is before that reported time, so 23:57Z is unverified. That the throttle had
-effectively stalled the gate is an inference from those figures. The owner's cancel (exit 143),
-its settlement and the `gate` calibration runs are proposed and owed, not observed. This record
-directs no one to cancel another owner's job. The record also reports a peer's waiting gate
-withdrawing on SIGTERM (`interrupted by SIGTERM while waiting; its ticket is withdrawn`). That
-is a ticket withdrawal, not an admission or a gate success, and no second admission was observed.
-Task 6.4 still owns the terminal gate record and calibration. This update completes neither 6.4
-nor 6.7 and does not establish host qualification.
+observation, calibration, `propose`, or the container measurement. 6.4 stays open. This
+section completes neither 6.4 nor 6.7 and does not establish host qualification.

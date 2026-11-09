@@ -218,9 +218,13 @@
       is a read-only probe, not a converging apply (EV-A1). Owed on each gate host: an observed
       kill with its before and after `systemctl --user show` and `ops pool inspect`; the guard
       holder surviving a restart, which needs concurrent mode (6.5); and the PLAY RECAP of a
-      second plain enrolled apply with `changed=0`. h2puni is not enrolled. The clean-cancellation
-      stop versus the requirement for every modelled stop to return also remains unresolved;
-      installed `Restart=on-failure` does not restart an exit 0.
+      second plain enrolled apply with `changed=0`. h2puni is not enrolled. One decision is also
+      owed: whether SIGTERM cancellation (exit 0, `resources/command.ts`) is a stop that must
+      come back (`Restart=always`, which still honours `systemctl stop`) or the one modelled stop
+      that stays down. Under today's `Restart=on-failure`, thrown refusals exit nonzero and are eligible
+      for restart, and a clean SIGTERM cancellation exits 0 and does not restart. That does not
+      mean a SIGKILL or a crash never restarts. `Restart=always` is a proposal only, and the
+      broader requirement that every modelled stop comes back stays unresolved.
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
       (`Restart=on-failure`, `RestartSec=30`, `KillMode=process`, skipped until the ledger
       exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
