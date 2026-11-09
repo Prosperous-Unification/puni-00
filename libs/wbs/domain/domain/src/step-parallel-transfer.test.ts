@@ -38,6 +38,27 @@ describe('internal sparse parallel transfer', () => {
     expect(transferStepParallels(supplied)).toEqual([]);
   });
 
+  for (const side of ['source', 'target'] as const) {
+    for (const collection of ['workItems', 'steps'] as const) {
+      it(`refuses empty-policy ${side} ${collection} holes without changing inputs`, () => {
+        const supplied = createRequest();
+        supplied.source.stepParallels = [];
+        supplied.workItemIds = [];
+        supplied.stepIds = [];
+        supplied[side][collection] = new Array<{ id: string }>(1);
+        const before = structuredClone(supplied);
+        expect(() => transferStepParallels(supplied)).toThrow(
+          collection === 'workItems'
+            ? 'step parallelism owner is malformed'
+            : 'step parallelism step is malformed',
+        );
+        expect(supplied).toEqual(before);
+        expect(supplied[side][collection]).toHaveLength(1);
+        expect(0 in supplied[side][collection]).toBe(false);
+      });
+    }
+  }
+
   it('orders owner then step by saved-plan UTF-16 comparison and preserves colon tuples', () => {
     const ids = ['\ue000', '\u{10000}', 'a:b', 'a', 'Z', 'b:c', 'c'];
     const facts = ids.flatMap((workItemId) =>

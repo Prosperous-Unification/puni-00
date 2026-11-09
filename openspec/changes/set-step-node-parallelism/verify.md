@@ -1533,3 +1533,38 @@ are not established here. No push, host action, migration or live consumer chang
   Selected `--strict` remains non-green: its 12 long-requirement warnings exactly
   match the fresh base validation (same issue objects, base exit 1). The added
   requirement adds no strict warning; details remain testable in its scenarios.
+
+## 2026-11-09 — review correction 1: reference inventory holes
+
+Astra reviewed exact `bd1200d0904aabcd86df7e9cf2aa93e037665475` and requested
+changes for one P2: `Array.map` skips sparse inventory slots, while empty sparse
+fact collections return before the shared reader validates those rows. No new
+behavior is allocated; this restores the stated requirement that empty policy
+still validates its inventories.
+
+- Added four empty-policy source/target × owner/step hole negatives. On the
+  reviewed candidate: 46 pass, 4 fail, 33,744 KiB peak RSS. These assert the
+  intended row refusal and unchanged input, including hole identity and length.
+- Replaced only the two reference captures with `Array.from` mapping so holes
+  reach the existing row guards. Valid empty policy and unused maps remain valid.
+- Owning transfer suite: 50 pass, 108 assertions, 32,792 KiB peak RSS.
+- Independently restored hole-skipping owner capture and step capture: each
+  exited 1 with exactly its two source/target hole regressions failing. Exact
+  substitutions, failed oracles and RSS (33,128/33,168 KiB) are recorded in
+  `evidence/transfer-holes-20261109.json`; controls were restored in `finally`.
+- Restored owning resolver/transfer/saved-plan command from above: 109 pass,
+  190 assertions, 39,604 KiB peak RSS. All tiny Bun runs remained below300MiB
+  while the compiler owned the heavy slot.
+
+The original 25 proof receipts and original candidate report remain historical
+evidence for that exact candidate; this correction adds two capture-specific
+faults. Public versions, writer admission, scheduler, ownership and rollout scope
+remain unchanged. Full host gate, CI and independent corrected-candidate review
+remain pending.
+
+After coordinator granted the heavy slot, focused uncached `wbs-domain:typecheck`
+and `wbs-domain:lint` passed with `NX_DAEMON=false` and
+`NODE_OPTIONS=--max-old-space-size=768`; peak RSS618,356/1,031,716 KiB.
+A live process sample during lint showed ESLint967,796 KiB plus Nx207,592 KiB
+and small wrappers, below the granted1,500 MiB bound. Focused Prettier and
+`git diff --check` passed. No cap escalation, full local gate or host action.

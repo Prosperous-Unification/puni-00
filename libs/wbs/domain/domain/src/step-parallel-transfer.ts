@@ -7,7 +7,10 @@ interface References {
   stepParallels: unknown;
 }
 
-/** Captures reference identities once, including parent links used to establish leaf ownership. */
+/**
+ * Captures every inventory slot once, including parent links used for leaf ownership.
+ * Array holes reach the row guard as undefined, even when no facts are authored.
+ */
 function readReferences(supplied: unknown): References {
   // Proof: references-object removed; missing source/target negatives failed (transfer-20261109).
   if (typeof supplied !== 'object' || supplied === null)
@@ -20,7 +23,9 @@ function readReferences(supplied: unknown): References {
   const ownerRows: readonly unknown[] = workItems;
   const stepRows: readonly unknown[] = steps;
   return {
-    workItems: ownerRows.map((owner) => {
+    // Proof: restoring ownerRows.map skipped holes; empty-policy source/target owner
+    // negatives failed (transfer-holes-20261109.json, owner-holes-skipped).
+    workItems: Array.from(ownerRows, (owner) => {
       // Proof: owner-object removed; null owner negative failed.
       if (typeof owner !== 'object' || owner === null)
         throw new Error('step parallelism owner is malformed');
@@ -33,7 +38,9 @@ function readReferences(supplied: unknown): References {
         throw new Error('step parallelism parent ID is malformed');
       return parentId === undefined ? { id } : { id, parentId };
     }),
-    steps: stepRows.map((step) => {
+    // Proof: restoring stepRows.map skipped holes; empty-policy source/target step
+    // negatives failed (transfer-holes-20261109.json, step-holes-skipped).
+    steps: Array.from(stepRows, (step) => {
       // Proof: step-object removed; null target step negative failed.
       if (typeof step !== 'object' || step === null)
         throw new Error('step parallelism step is malformed');
