@@ -11,6 +11,7 @@ import type {
   StepAllowanceWritten,
   WriteStamp,
 } from '@wbs/core';
+import { authorizePackageSettings, type ScopedPrincipal } from '@wbs/core';
 import {
   type AllowancePercent,
   classifyProjectEdit,
@@ -30,6 +31,7 @@ import { type } from '@wbs/validation';
 import { and, desc, eq, inArray, ne, or, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { AccessDecisionRepository } from './access-decisions';
 import {
   auditOnCreate,
   auditOnCreateBesidesCreatedAt,
@@ -37,7 +39,9 @@ import {
   withoutAuditColumns,
 } from './audit';
 import { isUniqueViolation, messagesOf, UNIQUE_INDEXES } from './constraint';
+import { drizzleOuterTransaction } from './db';
 import type { Gate } from './gate';
+import { OPEN } from './gate';
 import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optimizer-rows';
 import { capStoredRole } from './organization-access';
 import {
@@ -391,6 +395,8 @@ export class ProjectRepository implements ProjectStore {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
+    /** Borrowed catalogs already hold their source's immediate transaction; public edits own one. */
+    private readonly writeScope: 'owned' | 'borrowed' = 'owned',
   ) {}
 
   // `async` is load-bearing rather than decorative: `db.transaction` is
@@ -1044,16 +1050,20 @@ export class ProjectRepository implements ProjectStore {
   }
 
   /**
-   * {@link update} confined to one organization: the ownership predicate is in
-   * the UPDATE itself, so a project that is not, or is no longer, the
-   * organization's answers null and is left unchanged.
+   * Rechecks current principal grants and membership in the owning write
+   * transaction. Missing, foreign and invisible projects answer null; readable
+   * settings denials answer forbidden. Only an authorized exact flag-clear
+   * recovery writes an audit alongside the update. The detached editor
+   * principal is retained before a queued owner; editor.role grants nothing.
+   *
+   * The ownership predicate remains in the UPDATE itself, so a target outside
+   * the addressed organization is left unchanged.
    *
    * Proof: dropping the predicate made `records an open and a write only while
    * the organization owns the project` in `project.db.test.ts` answer the
    * renamed foreign project instead of null; watched 2026-09-27.
-   */
-  /**
-   * Proof, each watched 2026-09-27: skipping the audit insert made `recovers
+   *
+   * Historical proof, each watched 2026-09-27: skipping the audit insert made `recovers
    * a restricted project as an audited super-admin edit` in
    * `project-organization.controller.db.test.ts` find no record; classifying
    * from the caller's earlier read instead of in the transaction made
@@ -1068,10 +1078,49 @@ export class ProjectRepository implements ProjectStore {
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string,
-    editor: { readonly actorId: string; readonly auditId: string; readonly role: OrganizationRole },
+    editor: {
+      readonly actorId: string;
+      readonly auditId: string;
+      readonly role: OrganizationRole;
+      readonly principal: ScopedPrincipal;
+    },
   ): Promise<Project | null | 'forbidden' | 'solution_taken' | 'abbreviation_taken'> {
+    editor = {
+      ...editor,
+      principal: structuredClone({
+        id: editor.principal.id,
+        authentication: editor.principal.authentication,
+      }),
+    };
     try {
-      return await this.write(id, patch, stamp, organizationId, editor);
+      if (this.writeScope === 'borrowed')
+        return await this.write(id, patch, stamp, organizationId, editor);
+      return await this.gate.enter(async () => {
+        const transaction = drizzleOuterTransaction(this.db);
+        transaction.begin();
+        try {
+          const written = await new ProjectRepository(this.db, OPEN, 'borrowed').write(
+            id,
+            patch,
+            stamp,
+            organizationId,
+            editor,
+          );
+          transaction.commit();
+          return written;
+        } catch (failure) {
+          try {
+            transaction.rollback();
+          } catch (rollbackFailure) {
+            throw new AggregateError(
+              [failure, rollbackFailure],
+              'project edit and rollback failed',
+              { cause: rollbackFailure },
+            );
+          }
+          throw failure;
+        }
+      });
     } catch (refused) {
       // The modeled refusals, raised inside the transaction so it rolls back.
       if (refused instanceof EditRefused) return 'forbidden';
@@ -1144,6 +1193,7 @@ export class ProjectRepository implements ProjectStore {
       readonly auditId: string;
       readonly actorId: string;
       readonly role: OrganizationRole;
+      readonly principal: ScopedPrincipal;
     } | null = null,
   ): Promise<Project | null> {
     const addressed =
@@ -1160,6 +1210,27 @@ export class ProjectRepository implements ProjectStore {
             ),
           );
     return await this.gate.enter(async () => {
+      let authorization: { recovery: boolean } | null = null;
+      if (editor !== null && organizationId !== null) {
+        if (editor.principal.id !== editor.actorId)
+          throw new Error('project editor principal differs from its actor');
+        const current = await this.findInOrganization(id, organizationId);
+        if (current === null) return null;
+        const decision = await authorizePackageSettings(
+          new AccessDecisionRepository(this.db),
+          editor.principal,
+          organizationId,
+          current,
+          patch,
+        );
+        // Proof: raw-project-current-denial skipped this guard; 'refuses a readable project without settings permission in the independent writer' returned a written project instead of forbidden (project.db.test.ts); restored GREEN, 2026-11-09.
+        if (!decision.ok) {
+          // Proof: raw-project-hidden-decision removed this arm and 'conceals an owned hidden project exactly like an absent target in the independent writer' received forbidden instead of null (project.db.test.ts); restored GREEN, 2026-11-09.
+          if (decision.reason === 'not_found') return null;
+          throw new EditRefused();
+        }
+        authorization = decision;
+      }
       // An empty patch would make drizzle emit `SET` with no assignments, which
       // SQLite rejects — so a request that changes nothing reads instead.
       // Read off the patch rather than from a list of its fields: the list was
@@ -1198,21 +1269,7 @@ export class ProjectRepository implements ProjectStore {
       };
       return this.db.transaction(
         (tx) => {
-          let edit: 'ordinary' | 'recovery' = 'ordinary';
-          if (editor !== null && organizationId !== null) {
-            const classified = classifyWithin(
-              tx,
-              addressed,
-              organizationId,
-              editor.actorId,
-              editor.role,
-            );
-            // Not the organization's (any more): null, as for an absent project,
-            // before any permission is judged.
-            if (classified === null) return null;
-            if (classified === 'refused') throw new EditRefused();
-            edit = classified;
-          }
+          const edit = authorization?.recovery === true ? 'recovery' : 'ordinary';
           if (abbreviation !== undefined) {
             const current = readProjectAbbreviation(tx, id);
             if (current === undefined) return null;
@@ -1559,7 +1616,7 @@ export function recordRecovery(
     .run();
 }
 
-/** An organization edit its in-transaction classification refused; rolls the write back. */
+/** A readable organization edit refused by its current grant check; rolls back the write. */
 class EditRefused extends Error {
   constructor() {
     super('the edit is not permitted to this member now');

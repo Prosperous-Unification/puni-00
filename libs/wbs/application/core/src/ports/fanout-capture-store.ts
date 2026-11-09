@@ -1,12 +1,19 @@
 import type { CredentialAuthentication } from '@wbs/contracts';
+import type { Permission } from '@wbs/domain';
 import type { OrganizationScope } from '@wbs/domain';
 
 import type { DependencyFanout, FanoutObservation } from '../service/shared-people-fanout';
 import type { NamedCatalog } from './directory-store';
 import type { ResourceAccess } from './organization-access';
+import type { ProjectPatch } from './project-store';
 
 export type FanoutWriteAuthority =
-  { readonly ok: true } | { readonly ok: false; readonly reason: 'not_found' | 'forbidden' };
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly reason: 'not_found' | 'forbidden';
+      readonly permission?: Permission;
+    };
 
 /**
  * Fresh read-only admission applies detached verifier metadata to the current role
@@ -20,7 +27,11 @@ export type ResolveProjectWriteScope = (
   authentication: CredentialAuthentication | undefined,
 ) => Promise<
   | { readonly ok: true; readonly scope: OrganizationScope }
-  | { readonly ok: false; readonly reason: 'not_found' | 'forbidden' }
+  | {
+      readonly ok: false;
+      readonly reason: 'not_found' | 'forbidden';
+      readonly permission?: Permission;
+    }
 >;
 
 /** Read-only fresh project-write authority on the borrowed writer, before observation. */
@@ -28,6 +39,7 @@ export type BeforeProjectUpdate = (
   projectId: string,
   actorId: string,
   access: ResourceAccess,
+  patch: ProjectPatch,
 ) => Promise<FanoutWriteAuthority>;
 
 /** Existing scoped recovery admission stays live while step preflights ask for observation. */
@@ -48,19 +60,28 @@ export type BeforeStepWrite = (
 export type BeforeRankMove = (
   organizationId: string,
   actorId: string,
-) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: 'forbidden' }>;
+) => Promise<
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: 'forbidden'; readonly permission?: Permission }
+>;
 
 /** Current organization super-admin authority on the borrowed writer; no delegation, no audit. */
 export type BeforeModeSwitch = (
   organizationId: string,
   actorId: string,
-) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: 'forbidden' }>;
+) => Promise<
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: 'forbidden'; readonly permission?: Permission }
+>;
 
 /** Fresh import write-role admission on the borrowed writer, before observation. */
 export type BeforeImport = (
   actorId: string,
   access: ResourceAccess,
-) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: 'forbidden' }>;
+) => Promise<
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: 'forbidden'; readonly permission?: Permission }
+>;
 
 /**
  * The catalogs a standalone directory act may address. Resources are written

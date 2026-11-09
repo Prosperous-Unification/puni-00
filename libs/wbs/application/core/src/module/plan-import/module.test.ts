@@ -235,6 +235,7 @@ describe('the Plan import module', () => {
     const announcements = recordingBroadcaster();
     const { imports } = installPlanImport({ ...requirements(), uow: source.uow, announcements });
     const access: ResourceAccess = {
+      principal: { id: 'importer' },
       kind: 'scoped',
       scope: { cap: null, organizationId: 'org-a', userId: 'importer', role: 'member' },
     };

@@ -36,7 +36,7 @@ beforeEach(async () => {
   });
   await harness.register('ada');
   harness.organization('execution-org');
-  harness.member('execution-org', 'ada', 'admin');
+  harness.member('execution-org', 'ada', 'admin', ['org-admin']);
   harness.bind('ada', 'execution-org');
   harness.activate();
   seedDependencyAuthority(harness.databasePath());

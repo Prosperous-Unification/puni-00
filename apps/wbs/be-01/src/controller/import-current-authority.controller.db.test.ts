@@ -57,7 +57,7 @@ async function openHarness() {
   await harness.register('ada');
   for (const id of ['org-a', 'org-b']) {
     harness.organization(id);
-    harness.member(id, 'ada', 'super_admin');
+    harness.member(id, 'ada', 'super_admin', ['org-super-admin']);
   }
   harness.activate();
   const selected = await harness.request('/api/organization/active', {
@@ -153,6 +153,7 @@ describe('current import authority on the process writer', () => {
         );
         const principal = await harness.authenticatedCommandPrincipal('ada', cookieValue);
         const access = {
+          principal: { id: principal.id },
           kind: 'scoped' as const,
           scope: {
             cap: null,
@@ -225,7 +226,7 @@ describe('current import authority on the process writer', () => {
             error = 'not_a_member';
           } else if (fault === 'demotion') {
             harness.sqlite.run(
-              "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id=?",
+              "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
               [userId],
             );
             error = 'forbidden';
@@ -272,7 +273,9 @@ describe('current import authority on the process writer', () => {
                       login: '/api/auth/login?organization=acme',
                       link: true,
                     }
-                  : { error },
+                  : fault === 'demotion'
+                    ? { error, permission: 'organization.create_project' }
+                    : { error },
             );
           } else
             expect(response).toMatchObject(
@@ -417,6 +420,7 @@ for (const kind of ['machine', 'consent'] as const)
           kind: 'human',
           principal,
           expectedAccess: {
+            principal: { id: principal.id },
             kind: 'scoped',
             scope: {
               cap: CONTRIBUTOR_CAP,
@@ -435,7 +439,8 @@ for (const kind of ['machine', 'consent'] as const)
 
 for (const kind of ['machine', 'consent'] as const)
   for (const operation of ['import'] as const)
-    test(`${kind} retained ${operation} refuses revocation while waiting on the writer`, async () => {
+    // P12/CP8 cap forbids creation; queued credential revalidation still precedes that permission refusal.
+    test(`${kind} capped ${operation} revalidates revocation while waiting on the writer`, async () => {
       await openHarness();
       addAgentPerson(harness.sqlite, 'agent', 'org-a', harness.userId('ada'));
       const credential = await issueApiKey(harness.sqlite, {
@@ -464,6 +469,7 @@ for (const kind of ['machine', 'consent'] as const)
         };
       }
       const access = {
+        principal: { id: principal.id },
         kind: 'scoped' as const,
         scope: {
           cap: CONTRIBUTOR_CAP,
@@ -479,9 +485,7 @@ for (const kind of ['machine', 'consent'] as const)
           principal,
           expectedAccess: access,
         }),
-      ).toMatchObject({
-        ok: true,
-      });
+      ).toMatchObject({ ok: false, code: 'forbidden', permission: 'organization.create_project' });
       let release!: () => void;
       let entered!: () => void;
       const ready = new Promise<void>((resolve) => {
@@ -525,6 +529,63 @@ for (const kind of ['machine', 'consent'] as const)
       }
     });
 
+for (const kind of ['machine', 'consent'] as const)
+  test(`${kind} own grant cannot exceed the import contributor cap and performs no capture`, async () => {
+    await openHarness();
+    addAgentPerson(harness.sqlite, 'agent', 'org-a', harness.userId('ada'));
+    const credential = await issueApiKey(harness.sqlite, {
+      organizationId: 'org-a',
+      personId: 'agent',
+      issuedBy: harness.userId('ada'),
+    });
+    const principal = await harness.authenticatedMachinePrincipal(credential.key);
+    if (kind === 'consent') {
+      harness.sqlite.run(
+        "UPDATE machine_credential SET source='mcp_consent',mcp_family_id='family' WHERE id=?",
+        [credential.id],
+      );
+      principal.authentication = {
+        kind: 'consent',
+        credentialId: credential.id,
+        personId: 'agent',
+        issuer: 'https://issuer.test',
+        subject: 'ada',
+      };
+      principal.delegation = {
+        organizationId: 'org-a',
+        audience: 'wbs-be-01/via-mcp-01',
+        client: 'client',
+        grant: 'family',
+      };
+    }
+    harness.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('credential-import','org-a','organization','org-a','machine_credential',?,'org-admin','route',1)",
+      [credential.id],
+    );
+    const before = snapshotTables(),
+      captures = observedCaptures,
+      pushes = observedPushes;
+    expect(
+      await harness.publicImports().import(planDocumentFixture(), {
+        kind: 'human',
+        principal,
+        expectedAccess: {
+          kind: 'scoped',
+          principal: { id: principal.id },
+          scope: {
+            cap: CONTRIBUTOR_CAP,
+            organizationId: 'org-a',
+            userId: principal.id,
+            role: 'member',
+          },
+        },
+      }),
+    ).toMatchObject({ ok: false, code: 'forbidden', permission: 'organization.create_project' });
+    expect(snapshotTables()).toEqual(before);
+    expect(observedCaptures).toBe(captures);
+    expect(observedPushes).toBe(pushes);
+  });
+
 for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation'] as const)
   test(`machine direct import throws on trusted credential ${fault}`, async () => {
     await openHarness();
@@ -553,6 +614,7 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
         kind: 'human',
         principal,
         expectedAccess: {
+          principal: { id: principal.id },
           kind: 'scoped',
           scope: {
             cap: CONTRIBUTOR_CAP,
@@ -578,6 +640,7 @@ test('direct import compares current kind, organization and principal identity w
   for (const expected of [
     { kind: 'legacy' as const },
     {
+      principal: { id: principal.id },
       kind: 'scoped' as const,
       scope: {
         cap: null,
@@ -587,6 +650,7 @@ test('direct import compares current kind, organization and principal identity w
       },
     },
     {
+      principal: { id: 'another-user' },
       kind: 'scoped' as const,
       scope: {
         cap: null,
@@ -665,6 +729,7 @@ test('malformed trusted membership throws before direct import effects', async (
       kind: 'human',
       principal,
       expectedAccess: {
+        principal: { id: principal.id },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
       },
@@ -689,6 +754,7 @@ test('direct import refuses a scoped expectation while current authority is lega
       kind: 'human',
       principal,
       expectedAccess: {
+        principal: { id: principal.id },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
       },
@@ -776,6 +842,7 @@ test('direct read scope refuses before writer admission', async () => {
       kind: 'human',
       principal,
       expectedAccess: {
+        principal: { id: principal.id },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
       },
@@ -815,6 +882,7 @@ for (const table of [
           kind: 'human',
           principal,
           expectedAccess: {
+            principal: { id: principal.id },
             kind: 'scoped',
             scope: {
               cap: null,
@@ -838,7 +906,7 @@ for (const table of [
       expect(observedPushes).toBe(pushes);
     });
 
-test('machine import uses the persisted member ceiling despite expected super-admin', async () => {
+test('machine import keeps the credential cap despite expected uncapped super-admin', async () => {
   await openHarness();
   addAgentPerson(harness.sqlite, 'agent', 'org-a', harness.userId('ada'));
   const credential = await issueApiKey(harness.sqlite, {
@@ -861,23 +929,13 @@ test('machine import uses the persisted member ceiling despite expected super-ad
       kind: 'human',
       principal,
       expectedAccess: {
+        principal: { id: principal.id },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
       },
     }),
-  ).toMatchObject({ ok: true });
-  expect(observed).toEqual([
-    {
-      kind: 'scoped',
-      scope: {
-        cap: CONTRIBUTOR_CAP,
-        organizationId: 'org-a',
-        userId: principal.id,
-        role: 'member',
-        delegated: true,
-      },
-    },
-  ]);
+  ).toMatchObject({ ok: false, code: 'forbidden', permission: 'organization.create_project' });
+  expect(observed).toEqual([]);
 });
 
 test('mounted legacy request queued across activation cannot retain legacy authority', async () => {
@@ -888,7 +946,7 @@ test('mounted legacy request queued across activation cannot retain legacy autho
   });
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'super_admin');
+  harness.member('org-a', 'ada', 'super_admin', ['org-super-admin']);
   let release!: () => void;
   let entered!: () => void;
   const ready = new Promise<void>((resolve) => {
@@ -964,6 +1022,7 @@ for (const fault of [
         kind: 'human',
         principal,
         expectedAccess: {
+          principal: { id: principal.id },
           kind: 'scoped',
           scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
         },

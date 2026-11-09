@@ -98,9 +98,9 @@ async function populate(activate = true): Promise<void> {
   for (const username of ['dany', 'vic', 'bob']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'dany', 'super_admin');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'bob', 'admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'bob', 'admin', ['org-admin']);
   h.bind('dany', 'org-a');
   h.bind('bob', 'org-b');
   if (!activate) return;

@@ -1090,6 +1090,7 @@ const declaration: SourceDeclaration = {
       kind: 'absent',
       reason: 'Memory fixtures offer isolated stores without the SQLite shared snapshot reader.',
     },
+    spaces: { kind: 'absent', reason: 'the memory plan source installs no borrowed space store' },
     projectRanks: {
       kind: 'absent',
       reason: 'Memory fixtures do not install the SQLite organization rank writer.',
@@ -5950,6 +5951,7 @@ describe('memory existing source conformance', () => {
         .filter(
           (caseId) =>
             caseId !== 'livePlans.read:legacy-and-absence' &&
+            caseId !== 'spaces.create:scoped-round-trip' &&
             caseId !== 'projectRanks.orderIn:scoped-move' &&
             caseId !== 'accessDecisions.effectiveRoleAt:grant-reaches-package' &&
             !knownGaps.some((gap) => gap.caseId === caseId),

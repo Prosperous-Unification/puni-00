@@ -5,6 +5,7 @@ import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 
 import { BOOTED_ORIGIN, BootedBrowserProcess } from './booted-browser-process';
 import { FakeOidcProvider } from './fake-oidc-provider';
+import { grantCredential } from './machine-credential-fixture';
 import { TEST_MACHINE_GRANT_ENV } from './machine-grant-fixture';
 import { writeMcpStoreFixture } from './mcp-store-fixture';
 
@@ -211,7 +212,88 @@ const server = Bun.serve({
       backend.sqlite.run(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-b', 'u-grace', 'member', 1)",
       );
+      const primary = backend.sqlite
+        .query<{ organization_id: string }, []>(
+          "SELECT organization_id FROM organization_membership WHERE user_id='u-dany'",
+        )
+        .get();
+      if (primary === null) throw new Error('activated fixture account has no organization');
+      for (const [organizationId, userId, roleId] of [
+        [primary.organization_id, 'u-dany', 'org-super-admin'],
+        [primary.organization_id, 'u-ada', 'project-contributor'],
+        ['org-b', 'u-grace', 'org-admin'],
+      ])
+        backend.sqlite.run(
+          "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+          [crypto.randomUUID(), organizationId, organizationId, userId, roleId],
+        );
       return new Response(run.stdout.toString(), { status: 200 });
+    }
+    if (request.method === 'POST' && path === '/__fixture/create-project') {
+      const { username, name, token } = (await request.json()) as {
+        username: string;
+        name: string;
+        token: string;
+      };
+      const target = backend.sqlite
+        .query<{ organization_id: string }, [string]>(
+          'SELECT organization_id FROM organization_membership WHERE user_id=?',
+        )
+        .get(`u-${username}`);
+      if (target === null) throw new Error('fixture project account has no organization');
+      const authorization = `Bearer ${token}`;
+      const selected = await backend.app.handle(
+        new Request(`${BOOTED_ORIGIN}/api/organization/active`, {
+          method: 'POST',
+          headers: { authorization, origin: BOOTED_ORIGIN, 'content-type': 'application/json' },
+          body: JSON.stringify({ organizationId: target.organization_id }),
+        }),
+      );
+      if (selected.status !== 200)
+        throw new Error(
+          `fixture native selection refused: ${String(selected.status)} ${await selected.text()}`,
+        );
+      const cookie = selected.headers.get('set-cookie')?.split(';')[0];
+      if (cookie === undefined) throw new Error('fixture native selection set no cookie');
+      const created = await backend.app.handle(
+        new Request(`${BOOTED_ORIGIN}/api/projects`, {
+          method: 'POST',
+          headers: {
+            authorization,
+            origin: BOOTED_ORIGIN,
+            cookie,
+            'X-WBS-Expected-Organization': target.organization_id,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ name }),
+        }),
+      );
+      const body: unknown = await created.json();
+      return Response.json({ status: created.status, body });
+    }
+    if (request.method === 'POST' && path === '/__fixture/grant-consent') {
+      const { familyId, roleId, scope } = (await request.json()) as {
+        familyId: string;
+        roleId: string;
+        scope: { kind: 'organization' } | { kind: 'work_package'; id: string };
+      };
+      const credentials = backend.sqlite
+        .query<{ id: string; organization_id: string }, [string]>(
+          'SELECT id,organization_id FROM machine_credential WHERE mcp_family_id=? AND revoked_at IS NULL',
+        )
+        .all(familyId);
+      const credential = credentials.at(0);
+      if (credentials.length !== 1 || credential === undefined)
+        throw new Error('fixture consent family must name exactly one live credential');
+      grantCredential(
+        backend.sqlite,
+        credential.organization_id,
+        credential.id,
+        roleId,
+        scope.kind,
+        scope.kind === 'organization' ? credential.organization_id : scope.id,
+      );
+      return Response.json({ granted: true });
     }
     if (request.method === 'POST' && path === '/__fixture/restrict-project') {
       const { id, restricted } = (await request.json()) as { id: string; restricted: boolean };

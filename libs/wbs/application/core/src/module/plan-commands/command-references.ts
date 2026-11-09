@@ -1,6 +1,5 @@
-import type { OrganizationScope } from '@wbs/domain';
-
 import type { DirectoryCatalog } from '../../ports/directory-values';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { ProjectCrossReferenceKind } from '../../ports/project-values';
 import type { PlanCommand } from '../../service/plan-command';
 import type { DirectoryRefusal, MeasureRefusalReason } from '../directory/directory.resource';
@@ -39,7 +38,7 @@ export async function refuseForeignReferences(
   projectId: string,
   command: PlanCommand,
   context: CommandContext,
-  scope: OrganizationScope,
+  access: Extract<ResourceAccess, { kind: 'scoped' }>,
 ): Promise<void> {
   const named = (id: unknown, ref: unknown): string | null =>
     context.id(typeof id === 'string' ? id : undefined, typeof ref === 'string' ? ref : undefined);
@@ -87,18 +86,13 @@ export async function refuseForeignReferences(
   for (const [catalog, ids, reason] of directoryReferencesOf(command, context)) {
     if (ids.length === 0) continue;
     const owned = new Set(
-      (await graph.directory.listWithin(catalog, { kind: 'scoped', scope })).map(
-        (entry) => entry.id,
-      ),
+      (await graph.directory.listWithin(catalog, access)).map((entry) => entry.id),
     );
     if (ids.some((id) => !owned.has(id))) context.refuse({ reason });
   }
   if (command.kind === 'setCapacity') {
     const teamId = context.required(command.teamId, command.teamRef);
-    const owned = await graph.directory.listWithin('teams', {
-      kind: 'scoped',
-      scope,
-    });
+    const owned = await graph.directory.listWithin('teams', access);
     // `not_found`, the answer the capacity service gives a team nobody holds.
     if (!owned.some((team) => team.id === teamId)) context.refuse({ reason: 'not_found' });
   }
@@ -108,7 +102,7 @@ export async function refuseForeignReferences(
   // has nothing to see; watched 2026-10-20.
   if (command.kind === 'setResourceCapacity' || command.kind === 'setDemand') {
     const resourceId = context.required(command.resourceId, command.resourceRef);
-    const owned = await graph.directory.listWithin('resources', { kind: 'scoped', scope });
+    const owned = await graph.directory.listWithin('resources', access);
     if (!owned.some((resource) => resource.id === resourceId))
       context.refuse({ reason: 'unknown_resource' });
   }
@@ -117,9 +111,7 @@ export async function refuseForeignReferences(
   // tell B's resource from an absent one; watched 2026-10-20.
   if (command.kind === 'claimWorkItem' && command.resources !== undefined) {
     const owned = new Set(
-      (await graph.directory.listWithin('resources', { kind: 'scoped', scope })).map(
-        (resource) => resource.id,
-      ),
+      (await graph.directory.listWithin('resources', access)).map((resource) => resource.id),
     );
     if (command.resources.some(({ resourceId }) => !owned.has(resourceId)))
       context.refuse({ reason: 'unknown_resource' });

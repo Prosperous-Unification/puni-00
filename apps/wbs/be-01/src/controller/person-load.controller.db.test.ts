@@ -44,9 +44,19 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', [
+    'organization.create_project',
+    'package.manage_settings',
+    'organization.manage_spaces',
+  ]);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', [
+    'organization.create_project',
+    'package.manage_settings',
+    'organization.manage_spaces',
+  ]);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
@@ -523,7 +533,12 @@ describe('shared incoming calendars', () => {
     });
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    h.grantPermissions('org-a', 'ada', [
+      'organization.create_project',
+      'package.manage_settings',
+      'organization.manage_spaces',
+    ]);
     h.bind('ada', 'org-a');
     h.activate();
     seedPerson('a', 'Ana');
@@ -548,7 +563,12 @@ describe('shared incoming calendars', () => {
     });
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    h.grantPermissions('org-a', 'ada', [
+      'organization.create_project',
+      'package.manage_settings',
+      'organization.manage_spaces',
+    ]);
     h.bind('ada', 'org-a');
     h.activate();
     seedPerson('a', 'Ana');
@@ -587,7 +607,12 @@ describe('shared incoming calendars', () => {
     h = OrganizationHarness.openComposed(true);
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    h.grantPermissions('org-a', 'ada', [
+      'organization.create_project',
+      'package.manage_settings',
+      'organization.manage_spaces',
+    ]);
     h.bind('ada', 'org-a');
     h.activate();
     seedPerson('a', 'Ana');

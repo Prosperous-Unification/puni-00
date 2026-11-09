@@ -33,6 +33,7 @@ const MINUTE = 60_000;
 const SLOT = 'resource-slot';
 
 const admin: ResourceAccess = {
+  principal: { id: 'dany' },
   kind: 'scoped',
   scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
 };
@@ -88,6 +89,9 @@ async function seeded(cap = 40) {
   source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
   source.db.run(
     sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'admin', 1)`,
+  );
+  source.db.run(
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('lease-dany','org-a','organization','org-a','user','dany','org-admin','route',1),('lease-credential','org-a','organization','org-a','machine_credential','fixture-credential','project-contributor','route',1)`,
   );
   source.db.run(
     sql`INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES ('org-a', 50, ${cap}, 10000, 1)`,
@@ -440,14 +444,14 @@ describe('revocation', () => {
     const second = credential('codex');
     await run([claim(items.one, 'codex')], pinned('codex'));
     const credentials = new MachineCredentialAdministrationRepository(source.db, source.gate);
-    expect(await credentials.revoke('org-a', 'dany', first, { ...at, auditId: 'a1' })).toBe(
+    expect(await credentials.revoke('org-a', { id: 'dany' }, first, { ...at, auditId: 'a1' })).toBe(
       'revoked',
     );
     expect(leases()[0]?.lease).toBe(T + CLAIM_LEASE_MS);
     now = T + MINUTE;
-    expect(await credentials.revoke('org-a', 'dany', second, { ...at, auditId: 'a2' })).toBe(
-      'revoked',
-    );
+    expect(
+      await credentials.revoke('org-a', { id: 'dany' }, second, { ...at, auditId: 'a2' }),
+    ).toBe('revoked');
     expect(leases()[0]?.lease).toBe(T + MINUTE);
     // A revoked lease is never renewed, even by a write that still gets through.
     now = T + MINUTE + 1;

@@ -14,10 +14,10 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'sam', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-a', 'sam', 'super_admin');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-a', 'sam', 'super_admin', ['org-super-admin']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   for (const username of ['ada', 'vic', 'sam']) h.bind(username, 'org-a');
   h.bind('grace', 'org-b');
 });
@@ -45,7 +45,19 @@ const userId = (username: string) => h.userId(username);
 async function create(username: string, name: string): Promise<string> {
   const answer = await call(username, 'POST', '/api/projects', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const projectId = (answer.body as { project: { id: string } }).project.id;
+  if (
+    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
+      ?.state === 'activated'
+  )
+    h.grant(
+      username === 'grace' ? 'org-b' : 'org-a',
+      username,
+      'package-manager',
+      'work_package',
+      projectId,
+    );
+  return projectId;
 }
 
 /** A failed exact-key objective that the mounted Retry route can admit. */
@@ -55,11 +67,11 @@ async function retryFixture(): Promise<{ projectId: string; inputHash: string }>
   for (const username of ['ada', 'sam', 'nell', 'vic', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'sam', 'super_admin');
-  h.member('org-a', 'nell', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'sam', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'nell', 'member', ['project-contributor']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   for (const username of ['ada', 'sam', 'nell', 'vic']) h.bind(username, 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
@@ -122,44 +134,32 @@ describe('before activation', () => {
 });
 
 describe('after activation', () => {
-  it('audits a super-admin optimization retry only when it is accepted', async () => {
+  it('refuses a super-admin optimization retry recovery without a package grant', async () => {
     const { projectId, inputHash } = await retryFixture();
     expect(
-      await call('sam', 'POST', `/api/projects/${projectId}/optimization/retry`, {
-        objective: 'pri',
-        inputHash,
-      }),
-    ).toMatchObject({ status: 202 });
-    expect(
-      h.sqlite
-        .query('SELECT organization_id, actor_id, subject_id, detail FROM organization_audit')
-        .all(),
-    ).toEqual([
-      {
-        organization_id: 'org-a',
-        actor_id: h.userId('sam'),
-        subject_id: projectId,
-        detail: '{"optimizer":"retry"}',
-      },
-    ]);
-    expect(
-      h.sqlite
-        .query<{ owner_id: string }, [string]>('SELECT owner_id FROM project WHERE id = ?')
-        .get(projectId),
-    ).toEqual({ owner_id: h.userId('ada') });
+      (
+        await call('sam', 'POST', '/api/projects/' + projectId + '/optimization/retry', {
+          objective: 'pri',
+          inputHash,
+        })
+      ).status,
+    ).toBe(403);
+    expect(await h.retryAtStore(projectId, 'org-a', h.userId('sam'), inputHash)).toBe('forbidden');
+    expect(h.sqlite.query('SELECT * FROM organization_audit').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT * FROM solver_slot').all()).toEqual([]);
   });
   it('refuses other retry writers, a foreign project and a removed super-admin without audit', async () => {
     const { projectId, inputHash } = await retryFixture();
     const path = `/api/projects/${projectId}/optimization/retry`;
     for (const username of ['nell', 'vic']) {
       expect((await call(username, 'POST', path, { objective: 'pri', inputHash })).status).toBe(
-        403,
+        404,
       );
     }
     h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
       h.userId('nell'),
     ]);
-    expect((await call('nell', 'POST', path, { objective: 'pri', inputHash })).status).toBe(403);
+    expect((await call('nell', 'POST', path, { objective: 'pri', inputHash })).status).toBe(404);
     const foreign = await create('grace', 'Foreign retry');
     expect(
       (
@@ -172,6 +172,7 @@ describe('after activation', () => {
     expect(await h.retryAtStore(projectId, 'org-b', h.userId('grace'), inputHash)).toBe(
       'not_found',
     );
+    h.grant('org-a', 'sam', 'package-manager', 'work_package', projectId);
     expect((await call('sam', 'POST', path, { objective: 'pri', inputHash: 'stale' })).status).toBe(
       409,
     );
@@ -181,23 +182,26 @@ describe('after activation', () => {
     h.sqlite.run("UPDATE organization_membership SET role = 'viewer' WHERE user_id = ?", [
       h.userId('ada'),
     ]);
+    h.sqlite.run('DELETE FROM access_grant WHERE subject_id = ?', [h.userId('ada')]);
+    h.grant('org-a', 'ada', 'package-viewer', 'work_package', projectId);
     expect((await call('ada', 'POST', path, { objective: 'pri', inputHash })).status).toBe(403);
     expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
     expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([]);
   });
-  it('rolls a recovered Retry back if audit insertion fails and admits a creator without audit', async () => {
+  it('rolls a granted Retry back if reservation persistence fails and admits its manager', async () => {
     const { projectId, inputHash } = await retryFixture();
+    h.grant('org-a', 'sam', 'package-manager', 'work_package', projectId);
     const path = `/api/projects/${projectId}/optimization/retry`;
     const beforeEvents = h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all();
     h.sqlite.run(
-      "CREATE TRIGGER audit_refused BEFORE INSERT ON organization_audit BEGIN SELECT RAISE(ABORT, 'audit refused'); END",
+      "CREATE TRIGGER retry_refused BEFORE INSERT ON solver_slot BEGIN SELECT RAISE(ABORT, 'retry refused'); END",
     );
     expect((await call('sam', 'POST', path, { objective: 'pri', inputHash })).status).toBe(500);
     expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([]);
     expect(h.sqlite.query('SELECT project_id FROM solver_queue').all()).toEqual([]);
     expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
     expect(h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all()).toEqual(beforeEvents);
-    h.sqlite.run('DROP TRIGGER audit_refused');
+    h.sqlite.run('DROP TRIGGER retry_refused');
     expect((await call('ada', 'POST', path, { objective: 'pri', inputHash })).status).toBe(202);
     expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
   });
@@ -251,11 +255,11 @@ describe('after activation', () => {
   it('refuses a viewer every project write and lets the viewer read and open', async () => {
     activate();
     const id = await create('ada', 'A plan');
-    expect(await call('vic', 'POST', '/api/projects', { name: 'Viewer plan' })).toEqual({
+    expect(await call('vic', 'POST', '/api/projects', { name: 'Viewer plan' })).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });
-    expect(await call('vic', 'PATCH', `/api/projects/${id}`, { name: 'Viewer' })).toEqual({
+    expect(await call('vic', 'PATCH', `/api/projects/${id}`, { name: 'Viewer' })).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });
@@ -264,7 +268,7 @@ describe('after activation', () => {
         objective: 'pri',
         inputHash: 'h',
       }),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     expect((await call('vic', 'GET', `/api/projects/${id}`)).status).toBe(200);
     expect((await call('vic', 'GET', `/api/projects/${id}/export?format=markdown`)).status).toBe(
       200,
@@ -273,30 +277,30 @@ describe('after activation', () => {
     expect(await listedNames('ada')).toEqual(['A plan']);
   });
 
-  it('lets only the creator edit a restricted project, a super-admin only as recovery', async () => {
+  it('admits an explicit package manager on a restricted package and refuses an organization admin', async () => {
     activate();
     // vic as an admin here: only a super-admin recovers.
     h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
       userId('vic'),
     ]);
+    h.grant('org-a', 'vic', 'org-admin');
     const id = await create('ada', 'A plan');
     expect((await call('ada', 'PATCH', `/api/projects/${id}`, { restricted: true })).status).toBe(
       200,
     );
-    expect(await call('vic', 'PATCH', `/api/projects/${id}`, { name: 'Taken' })).toEqual({
+    expect(await call('vic', 'PATCH', `/api/projects/${id}`, { name: 'Taken' })).toMatchObject({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'package.manage_settings' },
     });
     expect((await call('ada', 'PATCH', `/api/projects/${id}`, { name: 'Mine' })).status).toBe(200);
     expect(audits()).toEqual([]);
   });
 
-  it('recovers a restricted project as an audited super-admin edit', async () => {
+  it('recovers a restricted package only by clearing its flag', async () => {
     activate();
     const id = await create('ada', 'A plan');
     await call('ada', 'PATCH', `/api/projects/${id}`, { restricted: true });
     const recovered = await call('sam', 'PATCH', `/api/projects/${id}`, {
-      name: 'Recovered',
       restricted: false,
     });
     expect(recovered.status).toBe(200);
@@ -310,7 +314,7 @@ describe('after activation', () => {
         action: 'restricted_project_recovery',
         subject_kind: 'project',
         subject_id: id,
-        detail: '{"fields":["name","restricted"]}',
+        detail: '{"fields":["restricted"]}',
       },
     ]);
   });
@@ -319,8 +323,8 @@ describe('after activation', () => {
     activate();
     const id = await create('ada', 'A plan');
     await call('ada', 'PATCH', `/api/projects/${id}`, { restricted: true });
-    expect((await call('sam', 'PATCH', `/api/projects/${id}`, {})).status).toBe(200);
-    expect((await call('vic', 'PATCH', `/api/projects/${id}`, { name: 'No' })).status).toBe(403);
+    expect((await call('sam', 'PATCH', `/api/projects/${id}`, {})).status).toBe(403);
+    expect((await call('vic', 'PATCH', `/api/projects/${id}`, { name: 'No' })).status).toBe(404);
     expect(audits()).toEqual([]);
   });
 
@@ -371,7 +375,7 @@ describe('after activation', () => {
     expect(linked.status).toBe(200);
     expect(linked.body).toMatchObject({ project: shared });
     // Only a writer of the organization learns that the slug is in use.
-    expect(await call('vic', 'PATCH', `/api/projects/${second}`, shared)).toEqual({
+    expect(await call('vic', 'PATCH', `/api/projects/${second}`, shared)).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });

@@ -16,6 +16,7 @@ import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { Reparented } from '../ports/work-item-store';
 import type { CommandSubject, CompensatingCommand, JournalPayload } from './compensating-command';
 import { formatIncidentKey, mapIncidentNode } from './incident-node-transition';
+import { readReplayAuthorization } from './replay-authorization';
 import { STEP_BLOCKAGE_REPLAY_KINDS } from './replay-capabilities';
 
 export type {
@@ -553,7 +554,11 @@ export function readPayload(value: unknown): JournalPayload {
   }
   const { label, forward }: { label: unknown; forward: unknown } = value;
   if (typeof label !== 'string') throw new Error('a journal entry has no label');
-  return { label, forward: readCommand(forward) };
+  return {
+    label,
+    forward: readCommand(forward),
+    authorization: 'authorization' in value ? readReplayAuthorization(value.authorization) : null,
+  };
 }
 
 /** Stored replay preconditions, validating revisions and optional unit/progress metadata. */

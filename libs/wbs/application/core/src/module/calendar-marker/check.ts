@@ -19,6 +19,9 @@ export function installCalendarMarker(
   const bag = DiBag.createBuilder()
     .withInstalledModules([calendarMarkerModule])
     .withServices({
+      accessDecisions: DiBag.createProvider(() => requirements.accessDecisions, {
+        factoryReturnKind: 'sync-value',
+      }),
       projectStore: DiBag.createProvider(() => requirements.projects, {
         factoryReturnKind: 'sync-value',
       }),

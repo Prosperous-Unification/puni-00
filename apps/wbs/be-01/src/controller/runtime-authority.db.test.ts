@@ -29,6 +29,7 @@ const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 
 const context: RuntimeContext = {
   actor,
   access: {
+    principal: { id: 'ada' },
     kind: 'scoped',
     scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
   },
@@ -60,6 +61,12 @@ async function seeded() {
   });
   sqlite.db.run(
     "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
+  );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
+  );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-key','org-a','organization','org-a','machine_credential','key-1','project-contributor','route',1)",
   );
   await source.stores.directory.addPerson({ id: 'agent', name: 'Agent', kind: 'agent' }, [], stamp);
   await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent');
@@ -252,19 +259,22 @@ describe('admitted runtime authority', () => {
     sqlite.db.run(
       "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id='ada'",
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-viewer' WHERE id='runtime-ada'");
     expect(await receiver.acquireRuntimeAuthority(context, acquisition)).toEqual({
       ok: false,
       reason: 'forbidden',
+      permission: 'package.write',
     });
     expect(
       await receiver.lookupRuntimeReceipt(context, {
         commandId: 'first',
         expectedLedgerId: ledger.ledgerId,
       }),
-    ).toEqual({ ok: false, reason: 'forbidden' });
+    ).toEqual({ ok: false, reason: 'forbidden', permission: 'package.write' });
     expect(await receiver.readRuntimeState(context, {})).toEqual({
       ok: false,
       reason: 'forbidden',
+      permission: 'package.write',
     });
   });
   it('requires write credential scope for acquisition while permitting authorized receipt reads', async () => {
@@ -353,17 +363,18 @@ describe('runtime authorization and request detachment', () => {
     const { receiver, source, sqlite, acquisition, ledger } = await seeded();
     receipt(await receiver.acquireRuntimeAuthority(context, acquisition));
     const check = async (current: RuntimeContext, reason: RuntimeReadRefusal['reason']) => {
-      expect(await receiver.acquireRuntimeAuthority(current, acquisition)).toEqual({
-        ok: false,
-        reason,
-      });
+      const refusal: RuntimeReadRefusal =
+        reason === 'person_not_bound'
+          ? { ok: false, reason: 'forbidden', permission: 'package.claim_for_others' }
+          : { ok: false, reason };
+      expect(await receiver.acquireRuntimeAuthority(current, acquisition)).toEqual(refusal);
       expect(
         await receiver.lookupRuntimeReceipt(current, {
           commandId: 'first',
           expectedLedgerId: ledger.ledgerId,
         }),
-      ).toEqual({ ok: false, reason });
-      expect(await receiver.readRuntimeState(current, {})).toEqual({ ok: false, reason });
+      ).toEqual(refusal);
+      expect(await receiver.readRuntimeState(current, {})).toEqual(refusal);
     };
     await check({ ...context, projectId: 'b1' }, 'not_found');
     await check({ ...context, personId: 'missing' }, 'unknown_person');
@@ -380,9 +391,11 @@ describe('runtime authorization and request detachment', () => {
     sqlite.db.run(
       "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     const admin: RuntimeContext = {
       ...context,
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
       },
@@ -425,6 +438,7 @@ describe('runtime authorization and request detachment', () => {
         },
       },
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
         scope: {
           cap: CONTRIBUTOR_CAP,
@@ -495,9 +509,11 @@ describe('runtime authorization and request detachment', () => {
     sqlite.db.run(
       "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     const admin: RuntimeContext = {
       ...context,
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
       },
@@ -509,6 +525,7 @@ describe('runtime authorization and request detachment', () => {
       sqlite.db.run(
         "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'",
       );
+      sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
       entered.resolve(undefined);
       await release.promise;
       return { commit: true, value: undefined };
@@ -517,7 +534,11 @@ describe('runtime authorization and request detachment', () => {
     const replay = receiver.acquireRuntimeAuthority(admin, acquisition);
     release.resolve(undefined);
     await writer;
-    expect(await replay).toEqual({ ok: false, reason: 'person_not_bound' });
+    expect(await replay).toEqual({
+      ok: false,
+      reason: 'forbidden',
+      permission: 'package.claim_for_others',
+    });
   });
   it('preserves original acceptance actor when a different currently authorized admin reconciles it', async () => {
     const { receiver, sqlite, acquisition } = await seeded();
@@ -528,10 +549,14 @@ describe('runtime authorization and request detachment', () => {
     sqlite.db.run(
       "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','grace','admin',1)",
     );
+    sqlite.db.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-grace','org-a','organization','org-a','user','grace','org-admin','route',1)",
+    );
     const admin: RuntimeContext = {
       ...context,
       actor: { id: 'grace', username: 'grace', scopes: ['read', 'write'] },
       access: {
+        principal: { id: 'grace' },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: 'grace', role: 'admin' },
       },
@@ -927,6 +952,7 @@ describe('accepted runtime lifecycle', () => {
       bindings: sqlite.db.all('SELECT * FROM runtime_claim_binding ORDER BY rowid'),
       receipts: sqlite.db.all('SELECT * FROM runtime_command_receipt ORDER BY rowid'),
     });
+    sqlite.db.run("DELETE FROM access_grant WHERE origin='route'");
     const installed = readInstallation();
     expect(installed.migrations.slice(-23)).toMatchObject([
       { name: '20261022130000_add_organization_limits' },
@@ -994,11 +1020,12 @@ describe('accepted runtime lifecycle', () => {
     ).toMatchObject({ ok: true });
   });
   it('refuses the old pin after unused down/up before uninitialized scope or absence', async () => {
-    const { receiver, acquisition, dbPath } = await seeded();
+    const { receiver, sqlite, acquisition, dbPath } = await seeded();
     expect(await receiver.readRuntimeState(context, {})).toMatchObject({
       ok: true,
       value: { authority: { kind: 'uninitialized' } },
     });
+    sqlite.db.run("DELETE FROM access_grant WHERE origin='route'");
     expect(rollbackTo(dbPath, migrations, '20261020130000_add_claim_occupancy')).toContain(
       '20261022121000_add_runtime_commands',
     );

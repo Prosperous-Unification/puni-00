@@ -571,6 +571,31 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       assertOpen();
       return scope.stores.projects;
     },
+    // Proof: omitting this admitted-port forwarding made both grant claim controller cases answer500 instead of403/200 (2026-11-09).
+    // Proof: bypassing this getter fence failed 'refuses to hand out its grant capability after plan close'; observed fault/restored pass, 2026-11-09.
+    get accessDecisions() {
+      assertOpen();
+      const decisions = scope.stores.accessDecisions;
+      if (decisions === undefined) return undefined;
+      return {
+        effectiveRoleAt: async (...args: Parameters<typeof decisions.effectiveRoleAt>) => {
+          // Proof: bypassing the pre-call fence touched the grant port in 'refuses a retained effectiveRoleAt call'; fault/restored pass, 2026-11-09.
+          assertOpen();
+          const effective = await decisions.effectiveRoleAt(...args);
+          // Proof: bypassing this post-await fence returned an answer in 'refuses a suspended effectiveRoleAt answer'; fault/restored pass, 2026-11-09.
+          assertOpen();
+          return effective;
+        },
+        readablePackageIds: async (...args: Parameters<typeof decisions.readablePackageIds>) => {
+          // Proof: bypassing the pre-call fence touched the grant port in 'refuses a retained readablePackageIds call'; fault/restored pass, 2026-11-09.
+          assertOpen();
+          const readable = await decisions.readablePackageIds(...args);
+          // Proof: bypassing this post-await fence returned an answer in 'refuses a suspended readablePackageIds answer'; fault/restored pass, 2026-11-09.
+          assertOpen();
+          return readable;
+        },
+      };
+    },
     get directory() {
       assertOpen();
       return retainedDirectory;

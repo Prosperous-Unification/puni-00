@@ -27,11 +27,26 @@ the engagement, tables `work_package` and `work_package_organization`, command k
 `freezeWorkPackage` and `unfreezeWorkPackage`, audit action `restricted_work_package_recovery`.
 
 **Order against #698.** Slices 1 and 2 land on whichever tables exist (today's `project`
-rows are the work package scope, P1) and may land before #698 slice 1. Slices 3 to 7 run
-after #698 slice 1, because their routes, tests and matrix use its names; slice 3's
+rows are the work package scope, P1) and may land before #698 slice 1. Task 4.1's audit
+foundation also lands before task 2.5, using the current vocabulary; the later #698 audit
+rebuild preserves every access action, subject and index while renaming project vocabulary.
+The remaining slices 3 to 7 run after #698 slice 1, because their routes, tests and matrix use its names; slice 3's
 project-scope rules (create, import and move at the named project, project grants,
 `project.read`) also wait for #698 slice 2's project entity, and so does slice 3's listing
 statement (task 3.2), which joins `work_package.project_id`.
+
+### Implementation order reconciliation (2026-11-09)
+
+Astra's source review found that deleting the role helpers in 2.4 requires membership
+rewiring in 2.5, whose initial grants require 4.1's audited writes. The old graph put 4.1
+after the rename that waits for 2.5. Proceed under the user's instruction to resolve
+implementation blockers autonomously: 2.4a rewires current transaction-local security
+authority while retaining used compatibility helpers; 4.1 widens the current audit
+vocabulary and completes deferred grant-store/operator audit writes; 2.5 rewires membership
+and atomic initial grants; 2.4b removes every remaining legacy role authority/field/helper;
+then #698 slice 1 proceeds. No unaudited-grant exception or role fallback is introduced.
+The closing inventory includes direct role readers in resource/fanout, enterprise proof,
+shared restore execution, agent pools, compute providers, limits and trusted issuers.
 
 ## Goals / Non-Goals
 
@@ -819,7 +834,18 @@ foreign one is.
 
 Actions `access_granted`, `access_revoked`, `access_group_created`,
 `access_group_renamed`, `access_group_deleted`, `access_group_member_added`,
-`access_group_member_removed`; subject kinds `access_grant`, `access_group`. Detail: role
+`access_group_member_removed`; subject kinds `access_grant`, `access_group`. Direct
+member removal has one aggregate `organization_member_removed` event, subject kind
+`organization_member`, subject id the removed account id within the row's organization.
+Its detail is `source`, `removedUserGrantCount` and `removedGroupMembershipCount`; source
+comes from the authenticated owning caller, never from comparing the target alone.
+This includes a member with no grants. SCIM deprovisioning retains its existing single lifecycle event
+and `scim:<token id>` actor, with existing detail plus `membershipRemoved`, nullable
+`boundUserId` and both removal counts; it emits no additional member/per-grant events.
+A no-op inactive PATCH still emits nothing; pending/inactive DELETE keeps its existing
+lifecycle event with false/zero removal evidence. The transaction-bound removal operation
+returns status/identity/counts without a nested owner or audit; the owning caller appends
+its event atomically. Other grant/group detail: role
 id, scope kind and id, subject kind and id, origin (`route`, `invitation`, `creation`,
 `cascade`, `operator` for `revoke-backfill`), group name where relevant; never an email. One compatible rebuild
 (`widen_organization_audit_access`, precedent `20261012090200`), `down.sql` refusing while
@@ -892,3 +918,11 @@ person's account with capped scopes") in `wbs-machine-credentials`; and
 `wbs-organization-limits`. Those changes must be synced or archived into `openspec/specs/`
 before this one archives, or the MODIFIED blocks have no target and the audit capability no
 base.
+
+### Admitted identity and replay compatibility (tasks 2.2–2.3 amendment)
+
+A scoped application ResourceAccess carries a required detached ScopedPrincipal projection with exactly id and optional copied authentication metadata. It never carries the raw organization cookie, credential digest, token or the complete verified account object. Complete verified evidence remains separately in CommandCaller for credential revalidation. Trusted construction requires actorId === scope.userId === principal.id; mismatch throws. Queued boundaries snapshot the complete caller before admission, and grant decisions use only fresh CommandAccess output, never expectedAccess. Domain OrganizationScope remains identity-descriptor free. This application boundary was reviewed by Astra on 2026-11-09.
+
+The old journal has no complete, joinable original-command provenance: compensation kinds and labels collapse distinct authority requirements. New rows therefore add an authorization envelope to the existing JSON payload with version 1 and immutable permission/semantic-anchor obligations. No SQL migration or rewrite of historical payload bytes is needed. Existing readers tolerate the extra field, and cursor flip/restamp leave it intact. Storage compatibility does not imply old-binary grant-policy compatibility; deployments must not claim old binaries enforce these obligations.
+
+Legacy scoped entries without this envelope refuse with modeled 409 replay_provenance_unavailable before stale discard; malformed present envelopes throw. New metadata is detached at recording, aggregated only from actual contributors, and retained unchanged through undo→redo→undo. Current budget ownership is resolved from the package anchor at replay time, rather than retaining its original parent. The actual engagement-parent move proof waits for #698 slice 2; interim tests can prove current organization ownership resolution only. Slice 2 retains an explicit parent-move regression obligation.

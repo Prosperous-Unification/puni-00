@@ -1,5 +1,7 @@
+import type { Permission } from '@wbs/domain';
 import type { IsoDate } from '@wbs/domain';
 
+import type { AccessDecisions } from '../../ports/access-decisions';
 import type {
   CalendarMarkerListOutcome,
   CalendarMarkerRefused,
@@ -15,8 +17,10 @@ import {
 } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Project, ProjectStore } from '../../ports/project-store';
+import { authorizePackage } from '../../service/authorize';
 
 export interface CalendarMarkerServiceOptions {
+  readonly accessDecisions?: AccessDecisions;
   /** A unit-of-work grant used only for scoped recovery. */
   recoveryAdmission?: EditAdmission;
   projects: ProjectStore;
@@ -248,18 +252,24 @@ export class CalendarMarkerService {
     // watched 2026-09-27.
     const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found', about: 'project' };
-    if (!this.mayWrite(project, actorId, access))
-      return { ok: false, reason: 'forbidden', about: 'project' };
+    const decision = await this.authorizeWrite(project, actorId, access);
+    if (!decision.ok) return { ...decision, about: 'project' };
     return { ok: true };
   }
 
-  /** A scoped recovery uses only the admission this graph's unit of work granted. */
-  private mayWrite(project: Project, actorId: string, access: ResourceAccess): boolean {
-    return (
-      mayEditProjectWithin(project, actorId, access) ||
-      // Proof: disabling this grant made the mounted marker recovery answer
-      // 403 instead of 201 (0 pass, 1 fail); watched 2026-09-28.
-      (access.kind === 'scoped' && this.opts.recoveryAdmission?.admits(project, actorId) === true)
-    );
+  /** Marker writes retain both the invisible target and missing-permission verdicts. */
+  private async authorizeWrite(
+    project: Project,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<
+    { ok: true } | { ok: false; reason: 'not_found' | 'forbidden'; permission?: Permission }
+  > {
+    // Proof: marker-resource-grant fault failed 'invisible package in the actual borrowed marker resource' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    if (access.kind === 'scoped')
+      return authorizePackage(this.opts.accessDecisions, access, project, actorId, 'package.write');
+    return mayEditProjectWithin(project, actorId, access)
+      ? { ok: true }
+      : { ok: false, reason: 'forbidden' };
   }
 }

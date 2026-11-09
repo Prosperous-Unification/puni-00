@@ -94,10 +94,11 @@ beforeEach(async () => {
   for (const username of ['ada', 'mel', 'vic', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-a', 'mel', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'admin');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-a', 'mel', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'mel', ['organization.create_project']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'grace', 'admin', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('mel', 'org-a');
   h.bind('vic', 'org-a');
@@ -259,7 +260,7 @@ describe('the project rank', () => {
       expect({ username, status: answer.status, body: answer.body }).toEqual({
         username,
         status: 403,
-        body: { error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.manage_spaces' },
       });
     }
     expect(names(await h.call('ada', 'GET', RANK))).toEqual(['Platform', 'Billing', 'Search']);
@@ -282,7 +283,7 @@ describe('the project rank', () => {
     captureActive = true;
     changeAfterResolution = () => {
       h.sqlite.run(
-        "UPDATE organization_membership SET role = 'viewer' WHERE organization_id = 'org-a' AND user_id = ?",
+        "UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
         [h.userId('ada')],
       );
       resolved.resolve(undefined);
@@ -293,7 +294,7 @@ describe('the project rank', () => {
     await turn;
     expect(await pending).toMatchObject({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_spaces' },
     });
     expect(captureCalls).toBe(0);
     expect(h.sqlite.query('SELECT * FROM project_rank ORDER BY project_id').all()).toEqual(
@@ -391,7 +392,7 @@ describe('the project rank', () => {
     };
     expect(await h.call('ada', 'POST', move(billing), { afterProjectId: billing })).toMatchObject({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_spaces' },
     });
     expect(captureCalls).toBe(0);
   });

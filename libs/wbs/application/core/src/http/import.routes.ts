@@ -11,7 +11,15 @@ type ImportReply = HttpReply<typeof importProject>;
 type ImportRefusalReply = Extract<ImportReply, { ok: false }>;
 
 function refusal(outcome: Extract<ImportOutcome, { code: string }>): ImportRefusalReply {
-  if (outcome.code === 'forbidden') return { ok: false, status: 403, body: { error: 'forbidden' } };
+  if (outcome.code === 'forbidden')
+    return {
+      ok: false,
+      status: 403,
+      body: {
+        error: 'forbidden',
+        ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+      },
+    };
   if (outcome.code === 'external_dependencies_inactive')
     return {
       ok: false,

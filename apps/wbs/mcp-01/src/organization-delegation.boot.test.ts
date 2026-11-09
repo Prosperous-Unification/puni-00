@@ -327,6 +327,29 @@ async function fixture(path: string, body: unknown): Promise<unknown> {
   return await response.json();
 }
 
+async function createProjectFixture(
+  username: 'dany' | 'grace',
+  body: { name: string },
+): Promise<{ project: { id: string }; steps: { id: string }[] }> {
+  const created = (await fixture('create-project', {
+    username,
+    ...body,
+    token: await upstreamToken(`auth0|${username}`, 900),
+  })) as { status: number; body: { project: { id: string }; steps: { id: string }[] } };
+  expect(created.status).toBe(200);
+  return created.body;
+}
+
+async function grantConsent(
+  access: string,
+  roleId: string,
+  scope: { kind: 'organization' } | { kind: 'work_package'; id: string },
+): Promise<void> {
+  const familyId = decodeJwt(access)['mcp_family_id'];
+  if (typeof familyId !== 'string') throw new Error('fixture access has no consent family');
+  await fixture('grant-consent', { familyId, roleId, scope });
+}
+
 async function refreshWith(refresh: string, clientId: string): Promise<Response> {
   return await oauthCall(
     new Request(`${OAUTH}/token`, {
@@ -742,6 +765,7 @@ describe('MCP organization delegation against a booted be-01', () => {
     await fixture('agent', { id: 'codex', account: 'dany', name: 'Atlas' });
     await fixture('agent', { id: 'loose', account: null, name: 'Loose' });
     const connected = await connect('auth0|dany', { agent: 'Claire' });
+    await grantConsent(connected.access, 'project-contributor', { kind: 'organization' });
     // The names people read, by name: never the person ids `codex` and `claire`.
     expect(offeredAgents).toEqual(['Atlas', 'Claire']);
     Object.assign(claire, connected);
@@ -769,7 +793,7 @@ describe('MCP organization delegation against a booted be-01', () => {
     // A person bound to nobody: dany is super-admin, but the agent acts as a member (A23).
     const asLoose = await claimLeaf(claire.access, 'loose');
     expect(asLoose.isError).toBe(true);
-    expect(asLoose.text).toContain('person_not_bound');
+    expect(asLoose.text).toContain('HTTP 404 unknown_person');
     const asClaire = await claimLeaf(claire.access, 'claire');
     expect(asClaire.isError).toBe(false);
     // The eligible first-step claim belongs to claire.
@@ -791,6 +815,7 @@ describe('MCP organization delegation against a booted be-01', () => {
     });
     expect(saved.isError).toBe(false);
     const savedId = (JSON.parse(saved.text) as { savedPlan: { id: string } }).savedPlan.id;
+    await grantConsent(claire.access, 'package-viewer', { kind: 'work_package', id: ids.launch });
     await fixture('restrict-project', { id: ids.launch, restricted: true });
     try {
       const before = await fixture('write-state', {});
@@ -911,6 +936,7 @@ describe('MCP organization delegation against a booted be-01', () => {
 
   test('a second consent for the same agent mints a second credential', async () => {
     const second = await connect('auth0|dany', { agent: 'Claire' });
+    await grantConsent(second.access, 'project-contributor', { kind: 'organization' });
     sessions['claireSecond'] = second.access;
     expect(await consents()).toEqual([
       { personId: 'claire', issuedBy: 'u-dany', revokedAt: null },
@@ -936,6 +962,7 @@ describe('MCP organization delegation against a booted be-01', () => {
 
   test('a family mcp-01 ends marks its credential revoked in WBS', async () => {
     const third = await connect('auth0|dany', { agent: 'Claire' });
+    await grantConsent(third.access, 'project-contributor', { kind: 'organization' });
     expect((await consents()).at(-1)).toEqual({
       personId: 'claire',
       issuedBy: 'u-dany',
@@ -1450,7 +1477,7 @@ describe('MCP organization delegation against a booted be-01', () => {
         refusal = await response.json();
       }
       if (indexedRefusal === undefined) indexedRefusal = refusal;
-      expect(refusal).toEqual({ error: 'not_found', at: 1, kind: 'addTypedDependency' });
+      expect(refusal).toEqual({ error: 'not_found' });
       expect(refusal).toEqual(indexedRefusal);
       expect(await fixture('write-state', {})).toEqual(snapshot);
     }
@@ -1668,10 +1695,13 @@ describe('MCP organization delegation against a booted be-01', () => {
             },
           };
         })();
+        await grantConsent(consent.access, 'project-contributor', { kind: 'organization' });
         const createProject = async (name: string): Promise<string> => {
-          const created = await tool(consent.access, 'postApiProjects', { name });
-          expect(created, created.text).toMatchObject({ isError: false });
-          return (JSON.parse(created.text) as { project: { id: string } }).project.id;
+          const denied = await tool(consent.access, 'postApiProjects', { name });
+          expect(denied.isError).toBe(true);
+          expect(denied.text).toContain('HTTP 403 forbidden');
+          const created = await createProjectFixture('dany', { name });
+          return created.project.id;
         };
         const predecessorProjectId = await createProject(`Queued ${fault} predecessor`);
         const successorProjectId = await createProject(`Queued ${fault} successor`);

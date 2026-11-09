@@ -11,7 +11,7 @@ for (const delivery of ['healthy', 'wrong-owner', 'wrong-identity'] as const)
     const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
     const route = `/api/projects/${fixture.owner.projectId}`;
     await harness.register('grace');
-    harness.member('org-a', 'grace', 'member');
+    harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
     harness.sqlite.run(
       "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
       [fixture.principal.id],
@@ -20,6 +20,13 @@ for (const delivery of ['healthy', 'wrong-owner', 'wrong-identity'] as const)
       harness.userId('grace'),
       fixture.predecessor.projectId,
     ]);
+    harness.grant(
+      'org-a',
+      'ada',
+      'package-contributor',
+      'work_package',
+      fixture.predecessor.projectId,
+    );
     expect(
       harness.sqlite
         .query('SELECT owner_id,restricted FROM project WHERE id=?')

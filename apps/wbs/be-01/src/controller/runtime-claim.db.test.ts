@@ -36,6 +36,7 @@ const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 
 const context: RuntimeContext = {
   actor,
   access: {
+    principal: { id: 'ada' },
     kind: 'scoped',
     scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
   },
@@ -77,6 +78,9 @@ async function seeded(shared = false) {
   });
   sqlite.db.run(
     "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
+  );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
   );
   await source.stores.directory.addPerson({ id: 'agent', name: 'Agent', kind: 'agent' }, [], stamp);
   await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent');
@@ -410,10 +414,12 @@ describe('conditional exact runtime claim', () => {
       }),
     ).toEqual({ ok: false, reason: 'runtime_command_conflict' });
     sqlite.db.run("UPDATE organization_membership SET role='viewer' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='org-viewer' WHERE id='runtime-ada'");
     const before = await snapshot();
     expect(await runner.claimRuntime(context, claimRequest)).toEqual({
       ok: false,
       reason: 'forbidden',
+      permission: 'package.write',
     });
     expect(await snapshot()).toEqual(before);
   });
@@ -489,6 +495,7 @@ describe('conditional exact runtime claim', () => {
     const { runner, request, sqlite, source } = await seeded();
     const claimRequest = await request();
     sqlite.db.run("UPDATE organization_membership SET role='admin' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     expect(
       await source.stores.directory.patchPerson('agent', { accountId: null }, stamp),
     ).toMatchObject({ ok: true });
@@ -580,7 +587,8 @@ describe('conditional exact runtime claim', () => {
     ).toMatchObject({ ok: true });
     expect(await runner.claimRuntime(context, claimRequest)).toEqual({
       ok: false,
-      reason: 'person_not_bound',
+      reason: 'forbidden',
+      permission: 'package.claim_for_others',
     });
   });
 
@@ -618,6 +626,10 @@ describe('conditional exact runtime claim', () => {
     const accepted = await runner.claimRuntime(context, claimRequest);
     value(accepted);
     sqlite.db.run("UPDATE organization_membership SET role='super_admin' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='org-super-admin' WHERE id='runtime-ada'");
+    sqlite.db.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-replay','org-a','work_package','a1','user','ada','package-contributor','route',1)",
+    );
     sqlite.db.run("UPDATE project SET restricted=1 WHERE id='a1'");
     sqlite.db.run(
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('someone','someone','x',1)",
@@ -713,7 +725,8 @@ describe('conditional exact runtime claim', () => {
   });
 
   it('retains resource exhaustion detail from existing default demand semantics', async () => {
-    const { runner, request, source } = await seeded();
+    const { runner, request, source, sqlite } = await seeded();
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     const created = await runner.runDirectoryWithin(
       actor,
       [{ kind: 'createResource', name: 'RAM', resourceKind: 'divisible', unitLabel: 'GB' }],
@@ -801,6 +814,7 @@ describe('conditional exact runtime claim', () => {
       personId: 'agent',
       actor: { ...actor },
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
         scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       },

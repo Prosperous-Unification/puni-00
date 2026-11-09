@@ -11,8 +11,10 @@ import {
   buildSolverRequestPair,
   type SolverRequestPair,
 } from '@wbs/contracts/solver/solver-request-pair';
+import type { ScopedPrincipal } from '@wbs/core/ports/access-decisions';
 import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
 import type { OptimizationCapture, OptimizationInput } from '@wbs/core/ports/optimization-input';
+import type { Permission } from '@wbs/domain';
 import type { ConnectedOptimizationStage } from '@wbs/domain';
 import type { OrganizationRole } from '@wbs/domain';
 import type { Schedule, SolverObjectiveName } from '@wbs/domain';
@@ -83,7 +85,8 @@ export interface OptimizationCoordinatorOptions {
 
 /** A manual Retry decision, including current scoped-authority refusals. */
 export type OptimizationRetryResult =
-  | { readonly kind: 'forbidden' | 'not_found' }
+  | { readonly kind: 'forbidden'; readonly permission?: Permission }
+  | { readonly kind: 'not_found' }
   | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
   | {
       readonly kind: 'not-retryable';
@@ -613,8 +616,10 @@ export class OptimizationCoordinator {
       readonly organizationId: string;
       readonly actorId: string;
       readonly role: OrganizationRole;
+      readonly principal: Readonly<ScopedPrincipal>;
     };
   }): Promise<OptimizationRetryResult> => {
+    ask = { ...ask, ...(ask.scoped === undefined ? {} : { scoped: structuredClone(ask.scoped) }) };
     if ('kind' in ask.input && ask.input.kind === 'connected')
       return this.retryConnected({ ...ask, stage: ask.input.stage });
     const input = this.localInput(ask.input);
@@ -834,6 +839,7 @@ export class OptimizationCoordinator {
       readonly organizationId: string;
       readonly actorId: string;
       readonly role: OrganizationRole;
+      readonly principal: Readonly<ScopedPrincipal>;
     };
   }): Promise<OptimizationRetryResult> {
     if (ask.projectId !== ask.stage.projectId) throw new Error('connected Retry target differs');

@@ -106,6 +106,8 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
   }
 
   async resolve(principal: OrganizationPrincipal): Promise<OrganizationAccessResolution> {
+    // Proof: removing this entry snapshot mixed identities across the active-organization await in 'snapshots verified organization identity'; fault/restored pass, 2026-11-09.
+    principal = structuredClone(principal);
     const userId = principal.id;
     // Proof: answering `legacy` without reading the marker made `scopes the same
     // running app once another connection activates isolation` in
@@ -173,6 +175,9 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
       ok: true,
       access: {
         kind: 'scoped',
+        // Proof: copying the full verified account exposed its private username in the grant descriptor; `returns only a detached grant principal projection`
+        // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
+        principal: structuredClone({ id: principal.id, authentication: principal.authentication }),
         scope: {
           organizationId,
           userId,

@@ -47,7 +47,7 @@ beforeEach(async () => {
   });
   await h.register('dany');
   h.organization('org-a');
-  h.member('org-a', 'dany', 'super_admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
@@ -70,6 +70,10 @@ beforeEach(async () => {
   });
   key = issued.key;
   credentialId = issued.id;
+  h.sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('lease-worker','org-a','organization','org-a','machine_credential',?,'project-contributor','route',1)",
+    [issued.id],
+  );
 });
 
 afterEach(async () => {
@@ -342,7 +346,7 @@ describe('a batch renewal announcing claims_changed elsewhere', () => {
     expect(claimsChangedProjects().sort()).toEqual([projectId, other.project].sort());
     now = T + 4 * 60_000;
     const tagged = await asAgent('POST', `/api/projects/${projectId}/commands`, {
-      commands: [{ kind: 'createTag', name: 'swarm' }],
+      commands: [],
     });
     expect(tagged.status).toBe(200);
     expect(claimsChangedProjects().filter((each) => each === projectId)).toHaveLength(2);

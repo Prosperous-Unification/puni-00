@@ -408,10 +408,10 @@ test('semantic retained batch refreshes local prerequisite revisions and copied 
   expect(Object.keys(preconditions.expected)).not.toContain(fixture.predecessor.workItemId);
 });
 
-test('semantic copy reads a restricted predecessor while predecessor editing remains forbidden', async () => {
+test('semantic copy requires write on a restricted predecessor before copying its relationship', async () => {
   const fixture = await seedIncidents();
   await harness.register('grace');
-  harness.member('org-a', 'grace', 'member');
+  harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
@@ -431,6 +431,20 @@ test('semantic copy reads a restricted predecessor while predecessor editing rem
       })
     ).status,
   ).toBe(403);
+  const before = readTables();
+  expect(
+    await runSemanticCopy(fixture, (service) =>
+      service.duplicate(fixture.owner.workItemId, fixture.principal.id),
+    ),
+  ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
+  expect(readTables()).toEqual(before);
+  harness.grant(
+    'org-a',
+    'ada',
+    'package-contributor',
+    'work_package',
+    fixture.predecessor.projectId,
+  );
   expect(
     await runSemanticCopy(fixture, (service) =>
       service.duplicate(fixture.owner.workItemId, fixture.principal.id),
@@ -700,7 +714,7 @@ test('copy undo refuses a local retained prerequisite edited by another actor th
     ).ok,
   ).toBe(true);
   await harness.register('grace');
-  harness.member('org-a', 'grace', 'super_admin');
+  harness.member('org-a', 'grace', 'super_admin', ['org-super-admin']);
   const bound = await harness.request('/api/organization/active', {
     method: 'POST',
     headers: {

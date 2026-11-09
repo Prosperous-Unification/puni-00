@@ -52,6 +52,7 @@ export function admitResourceUseProject(
     if (!member.ok) return 'forbidden';
     access = {
       ...member.access,
+      principal: access.principal,
       scope: {
         // Proof: replacing preservation with cap:null, and separately overriding
         // only cap while retaining delegation, failed both machine/consent

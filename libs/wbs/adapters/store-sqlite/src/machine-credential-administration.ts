@@ -1,3 +1,4 @@
+import { authorize, type OrganizationPrincipal } from '@wbs/core';
 import {
   type ApiKeyDraft,
   type AuditedAct,
@@ -8,15 +9,16 @@ import {
   type MachineSecretSummary,
   type OidcCredentialDraft,
 } from '@wbs/core';
-import type { MachineCredentialSource, OrganizationRole } from '@wbs/domain';
+import type { MachineCredentialSource } from '@wbs/domain';
 import { and, asc, eq, gt, inArray, isNull, or, type SQL } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { AccessDecisionRepository } from './access-decisions';
 import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { endLeasesOfUncredentialed } from './claim';
+import { drizzleOuterTransaction } from './db';
 import type { Gate } from './gate';
-import { type ImmediateTransaction, writeImmediately } from './immediate-write';
 import { roleIn } from './organization';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
@@ -30,7 +32,8 @@ import {
   personOrganization,
 } from './schema';
 
-type Transaction = ImmediateTransaction;
+type Transaction = SQLiteBunDatabase;
+type CredentialReach = 'own' | 'every';
 
 const DIGEST = /^[0-9a-f]{64}$/;
 
@@ -39,33 +42,41 @@ const unexpired = (at: number) =>
   or(isNull(machineCredentialSecret.expiresAt), gt(machineCredentialSecret.expiresAt, at));
 
 /**
- * The actor's role when it may administer credentials of `organizationId`
- * now, or why not: `inactive` before activation, `forbidden` for a viewer or
- * a non-member. Read inside the caller's transaction.
+ * Current credential reach inside the writer: membership admits own agents;
+ * organization.manage_directory reaches every agent. Machine, consent and
+ * delegated principals cannot administer credentials. Preactivation is inactive.
  */
-function administeringRole(
+async function credentialReach(
   tx: Transaction,
   organizationId: string,
-  actorId: string,
-): OrganizationRole | MachineCredentialActorRefusal {
+  principal: OrganizationPrincipal,
+): Promise<CredentialReach | MachineCredentialActorRefusal> {
   if (readOrganizationActivation(tx) !== 'activated') return 'inactive';
-  const role = roleIn(tx, organizationId, actorId);
-  // Proof: with viewers admitted here, `refuses a viewer every credential
-  // route` in `machine-credential-admin.controller.db.test.ts` answered the
-  // viewer's list 200 with the credential; watched 2026-10-22.
-  if (role === null || role === 'viewer') return 'forbidden';
-  return role;
+  if (
+    principal.delegation !== undefined ||
+    principal.authentication?.kind === 'machine' ||
+    principal.authentication?.kind === 'consent'
+  )
+    return 'forbidden';
+  if (roleIn(tx, organizationId, principal.id) === null) return 'forbidden';
+  const decision = await authorize(
+    new AccessDecisionRepository(tx),
+    { id: principal.id, authentication: principal.authentication },
+    { kind: 'organization', organizationId },
+    'organization.manage_directory',
+  );
+  // Proof: credential-reach-grant fault failed 'narrows credential administration by manage_directory' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+  return decision.ok ? 'every' : 'own';
 }
 
-/** Whether `role` reaches only agent persons bound to the actor's own account (A7). */
-const isOwnAgentsOnly = (role: OrganizationRole): boolean => role === 'member';
+/** Membership admits own agents; managing the directory reaches every agent. */
+const isOwnAgentsOnly = (reach: CredentialReach): boolean => reach === 'own';
 
 /**
- * The credentials of `organizationId` an actor with `role` may administer:
- * every one for an admin, for a member only those whose person is bound to
- * the actor's account now.
+ * The credentials of organizationId admitted by the current reach: every
+ * agent for directory managers, otherwise only agents bound to this account.
  */
-function reachable(organizationId: string, actorId: string, role: OrganizationRole): SQL {
+function reachable(organizationId: string, actorId: string, role: CredentialReach): SQL {
   const inOrganization = eq(machineCredential.organizationId, organizationId);
   // Proof: with the own-account predicate dropped, `refuses a member the
   // credentials of another account's agent` and `narrows a member to their
@@ -171,13 +182,15 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
 
   async list(
     organizationId: string,
-    actorId: string,
+    principal: OrganizationPrincipal,
     filter: { readonly personId?: string; readonly includeRevoked: boolean },
     at: number,
   ): Promise<readonly MachineCredentialSummary[] | MachineCredentialActorRefusal> {
+    principal = structuredClone(principal);
+    const actorId = principal.id;
     await Promise.resolve();
-    return this.db.transaction((tx) => {
-      const role = administeringRole(tx, organizationId, actorId);
+    return this.write(async (tx) => {
+      const role = await credentialReach(tx, organizationId, principal);
       if (role === 'inactive' || role === 'forbidden') return role;
       const conditions: SQL[] = [reachable(organizationId, actorId, role)];
       if (filter.personId !== undefined)
@@ -208,13 +221,15 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
    */
   createApiKey(
     organizationId: string,
-    actorId: string,
+    principal: OrganizationPrincipal,
     draft: ApiKeyDraft,
     act: AuditedAct,
   ): ReturnType<MachineCredentialAdministration['createApiKey']> {
+    principal = structuredClone(principal);
+    const actorId = principal.id;
     if (!DIGEST.test(draft.digest)) throw new Error('machine credential digest is malformed');
-    return this.write((tx) => {
-      const role = administeringRole(tx, organizationId, actorId);
+    return this.write(async (tx) => {
+      const role = await credentialReach(tx, organizationId, principal);
       if (role === 'inactive' || role === 'forbidden') return { kind: role };
       const refused = pinRefusal(tx, organizationId, actorId, role, draft);
       if (refused !== null) return { kind: refused };
@@ -268,12 +283,14 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
    */
   createOidc(
     organizationId: string,
-    actorId: string,
+    principal: OrganizationPrincipal,
     draft: OidcCredentialDraft,
     act: AuditedAct,
   ): ReturnType<MachineCredentialAdministration['createOidc']> {
-    return this.write((tx) => {
-      const role = administeringRole(tx, organizationId, actorId);
+    principal = structuredClone(principal);
+    const actorId = principal.id;
+    return this.write(async (tx) => {
+      const role = await credentialReach(tx, organizationId, principal);
       if (role === 'inactive' || role === 'forbidden') return { kind: role };
       const refused = pinRefusal(tx, organizationId, actorId, role, draft);
       if (refused !== null) return { kind: refused };
@@ -340,14 +357,16 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
 
   rotateApiKey(
     organizationId: string,
-    actorId: string,
+    principal: OrganizationPrincipal,
     credentialId: string,
     successor: { readonly secretId: string; readonly digest: string },
     act: AuditedAct,
   ): ReturnType<MachineCredentialAdministration['rotateApiKey']> {
+    principal = structuredClone(principal);
+    const actorId = principal.id;
     if (!DIGEST.test(successor.digest)) throw new Error('machine credential digest is malformed');
-    return this.write((tx) => {
-      const role = administeringRole(tx, organizationId, actorId);
+    return this.write(async (tx) => {
+      const role = await credentialReach(tx, organizationId, principal);
       if (role === 'inactive' || role === 'forbidden') return { kind: role };
       const row = liveReachable(tx, organizationId, actorId, role, credentialId);
       if (row === undefined) return { kind: 'not_found' };
@@ -403,12 +422,14 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
 
   revoke(
     organizationId: string,
-    actorId: string,
+    principal: OrganizationPrincipal,
     credentialId: string,
     act: AuditedAct,
   ): Promise<'revoked' | MachineCredentialActorRefusal | 'not_found'> {
-    return this.write((tx) => {
-      const role = administeringRole(tx, organizationId, actorId);
+    principal = structuredClone(principal);
+    const actorId = principal.id;
+    return this.write(async (tx) => {
+      const role = await credentialReach(tx, organizationId, principal);
       if (role === 'inactive' || role === 'forbidden') return role;
       const row = liveReachable(tx, organizationId, actorId, role, credentialId);
       if (row === undefined) return 'not_found';
@@ -449,8 +470,27 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
     });
   }
 
-  private write<T>(work: (tx: Transaction) => T): Promise<T> {
-    return writeImmediately(this.db, this.gate, work);
+  private write<T>(work: (tx: Transaction) => T | Promise<T>): Promise<T> {
+    return this.gate.enter(async () => {
+      const transaction = drizzleOuterTransaction(this.db);
+      transaction.begin();
+      try {
+        const outcome = await work(this.db);
+        transaction.commit();
+        return outcome;
+      } catch (failure) {
+        try {
+          transaction.rollback();
+        } catch (rollbackFailure) {
+          throw new AggregateError(
+            [failure, rollbackFailure],
+            'machine credential write and rollback failed',
+            { cause: rollbackFailure },
+          );
+        }
+        throw failure;
+      }
+    });
   }
 }
 
@@ -462,7 +502,7 @@ function pinRefusal(
   tx: Transaction,
   organizationId: string,
   actorId: string,
-  role: OrganizationRole,
+  role: CredentialReach,
   draft: { readonly personId: string; readonly name: string },
 ):
   'unknown_person' | 'forbidden' | 'person_not_bound' | 'account_not_member' | 'name_taken' | null {
@@ -509,7 +549,7 @@ function liveReachable(
   tx: Transaction,
   organizationId: string,
   actorId: string,
-  role: OrganizationRole,
+  role: CredentialReach,
   credentialId: string,
 ): MachineCredentialRow | undefined {
   return tx

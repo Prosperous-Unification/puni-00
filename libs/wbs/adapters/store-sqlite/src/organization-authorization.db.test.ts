@@ -99,6 +99,7 @@ describe('resolved organization authority with grants', () => {
     expect(await access.resolve(human)).toEqual({
       ok: true,
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped',
         scope: { organizationId: 'org-a', userId: 'ada', role: 'super_admin', cap: null },
       },
@@ -127,6 +128,10 @@ describe('resolved organization authority with grants', () => {
       expect(await access.resolve(principal)).toEqual({
         ok: true,
         access: {
+          principal: {
+            id: principal.id,
+            authentication: structuredClone(principal.authentication),
+          },
           kind: 'scoped',
           scope: {
             organizationId: 'org-a',
@@ -178,6 +183,7 @@ describe('resolved organization authority with grants', () => {
     expect(await access.resolve(delegated)).toEqual({
       ok: true,
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped',
         scope: {
           organizationId: 'org-a',
@@ -232,6 +238,10 @@ describe('resolved organization authority with grants', () => {
         ).toEqual({ name: 'A', organizationId: 'org-a' });
         expect(observed).toEqual([
           {
+            principal: {
+              id: principal.id,
+              authentication: structuredClone(principal.authentication),
+            },
             kind: 'scoped',
             scope: {
               organizationId: 'org-a',
@@ -249,6 +259,9 @@ describe('resolved organization authority with grants', () => {
   }
 
   it('preserves the credential cap when resolving a borrowed project write scope', async () => {
+    grant('user', 'ada', 'package-contributor');
+    grant('machine_credential', 'cred-a', 'package-contributor');
+    grant('machine_credential', 'cred-c', 'package-contributor');
     const resolve = resolveProjectWriteScopeIn(
       openDrizzle(join(dir, 'test.db')),
       createReadSnapshotLifetime(),

@@ -1,7 +1,9 @@
+import type { Permission } from '@wbs/domain';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { describe, expect, it } from 'bun:test';
 
+import type { AccessDecisions } from '../ports/access-decisions';
 import { clockOf } from '../ports/clock';
 import { LEGACY_ACCESS, type ResourceAccess } from '../ports/organization-access';
 import type { ProjectWithAccess } from '../ports/project-store';
@@ -13,11 +15,36 @@ import {
   type SpaceResourceOptions,
 } from './space.resource';
 
-const scoped = (role: 'member' | 'viewer', organizationId = 'org-a'): ResourceAccess => ({
+const scoped = (
+  userId: string,
+  role: 'member' | 'viewer',
+  organizationId = 'org-a',
+): ResourceAccess => ({
+  principal: { id: userId },
   kind: 'scoped',
-  scope: { cap: null, organizationId, userId: 'ada', role },
+  scope: { cap: null, organizationId, userId, role },
 });
-const MEMBER = scoped('member');
+const MEMBER = scoped('ada', 'member');
+
+/** Explicit grants of this fixture's two subjects in its two organizations; roles confer no authority. */
+const spacePermissions = new Map<string, ReadonlySet<Permission>>([
+  ['org-a:ada', new Set<Permission>(['organization.manage_spaces'])],
+  ['org-b:ada', new Set<Permission>(['organization.manage_spaces'])],
+  ['org-a:vic', new Set<Permission>()],
+  ['org-b:vic', new Set<Permission>()],
+]);
+const spaceAccessDecisions: AccessDecisions = {
+  effectiveRoleAt: (principal, target) => {
+    if (target.kind !== 'organization')
+      throw new Error('space fixture expects an organization target');
+    const permissions = spacePermissions.get(target.organizationId + ':' + principal.id);
+    if (permissions === undefined)
+      throw new Error('space fixture has no explicit subject/scope grant set');
+    return Promise.resolve({ permissions, via: [] });
+  },
+  readablePackageIds: () =>
+    Promise.reject(new Error('space writes do not list readable package ids')),
+};
 
 /** Roll-up collaborators for tests that read no roll-up: any tree read is a fault. */
 const noTrees = () => ({
@@ -28,7 +55,7 @@ const noTrees = () => ({
   sequences: { latestSeq: () => Promise.resolve(0) },
   rollUpCache: new RollUpCache(testClock),
 });
-const VIEWER = scoped('viewer');
+const VIEWER = scoped('vic', 'viewer');
 
 const readable = (id: string): ProjectWithAccess & { timezone: string } => ({
   ...projectRow({ id, name: id, ownerId: 'ada' }),
@@ -52,6 +79,7 @@ function open(visible: readonly string[], legacy: string | null = null) {
   ]);
   const spaces = inMemorySpaces(owners, legacy);
   const service = new SpaceResource({
+    accessDecisions: spaceAccessDecisions,
     spaces,
     clock: testClock,
     ...noTrees(),
@@ -86,6 +114,7 @@ describe('SpaceResource', () => {
     const everyone = open(['a1', 'a2', 'a3']);
     const id = await spaceWith(everyone.service, MEMBER, ['a1', 'a2', 'a3']);
     const hiding = new SpaceResource({
+      accessDecisions: spaceAccessDecisions,
       spaces: everyone.spaces,
       clock: testClock,
       ...noTrees(),
@@ -119,6 +148,7 @@ describe('SpaceResource', () => {
       const id = await spaceWith(everyone.service, MEMBER, ['a1', 'a2', 'a3']);
       const visible = ['a1', 'a3', 'a4'];
       const hiding = new SpaceResource({
+        accessDecisions: spaceAccessDecisions,
         spaces: everyone.spaces,
         clock: testClock,
         ...noTrees(),
@@ -179,7 +209,7 @@ describe('SpaceResource', () => {
   it("answers another organization's space as not_found to its members", async () => {
     const { service } = open(['a1', 'b1']);
     const id = await spaceWith(service, MEMBER, ['a1']);
-    const foreign = scoped('member', 'org-b');
+    const foreign = scoped('ada', 'member', 'org-b');
     expect(await service.read('ada', foreign, id)).toEqual({ ok: false, refusal: 'not_found' });
     expect(await service.rename('ada', foreign, id, 'Mine')).toEqual({
       ok: false,
@@ -192,7 +222,11 @@ describe('SpaceResource', () => {
   it('refuses a viewer every write and lets the viewer read', async () => {
     const { service } = open(['a1', 'a2']);
     const id = await spaceWith(service, MEMBER, ['a1']);
-    const forbidden = { ok: false, refusal: 'forbidden' } as const;
+    const forbidden = {
+      ok: false,
+      refusal: 'forbidden',
+      permission: 'organization.manage_spaces',
+    } as const;
     expect(await service.create('vic', VIEWER, 'Mine')).toEqual(forbidden);
     expect(await service.rename('vic', VIEWER, id, 'Mine')).toEqual(forbidden);
     expect(await service.addProject('vic', VIEWER, id, 'a2', null)).toEqual(forbidden);
@@ -360,6 +394,7 @@ describe('SpaceResource roll-ups', () => {
       },
     } as unknown as SpaceResourceOptions['trees'];
     const service = new SpaceResource({
+      accessDecisions: spaceAccessDecisions,
       spaces,
       clock,
       trees,
@@ -373,6 +408,7 @@ describe('SpaceResource roll-ups', () => {
     });
     const id = await spaceWith(
       new SpaceResource({
+        accessDecisions: spaceAccessDecisions,
         spaces,
         clock,
         ...noTrees(),
@@ -453,7 +489,7 @@ describe('SpaceResource roll-ups', () => {
       ok: false,
       refusal: 'not_found',
     });
-    expect(await service.rollUps('ada', scoped('member', 'org-b'), id, ['a1'])).toEqual({
+    expect(await service.rollUps('ada', scoped('ada', 'member', 'org-b'), id, ['a1'])).toEqual({
       ok: false,
       refusal: 'not_found',
     });

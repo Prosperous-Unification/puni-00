@@ -94,8 +94,16 @@ describe.each(HOSTS)('browser-access with a real forwarded organization cookie (
     for (const username of ['ada', 'grace']) await h.register(username);
     h.organization('org-a');
     h.organization('org-b');
-    h.member('org-a', 'ada', 'member');
-    h.member('org-b', 'grace', 'member');
+    h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+    for (const [org, user] of [
+      ['org-a', 'ada'],
+      ['org-b', 'grace'],
+    ])
+      h.sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,'org-admin','route',1)",
+        ['gateway-' + org, org, org, h.userId(user)],
+      );
     h.activate();
     selections.set('ada', await select('ada', 'org-a'));
     selections.set('grace', await select('grace', 'org-b'));

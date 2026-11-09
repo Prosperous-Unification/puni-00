@@ -185,6 +185,7 @@ function claimHistoryReadCode(refusal: RefusalOf<'getApiProjectsByIdClaim-histor
 }
 
 // Proof: omitting external_dependencies_inactive made the real writer dormant-admission test throw (2026-10-22).
+// Proof: omitting replay_provenance_unavailable threw for both older-history writer tests; observed RED/GREEN, 2026-11-09.
 function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
   switch (refusal.error) {
     case 'invalid_params':
@@ -198,6 +199,7 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'not_found':
     case 'external_dependencies_inactive':
     case 'nothing_to_undo':
+    case 'replay_provenance_unavailable':
     case 'stale_undo':
     case 'organization_context_changed':
     case 'no_active_organization':
@@ -947,6 +949,7 @@ export const PLAN_REFUSALS: RefusalWords = {
     step_blockage_inactive: 'Step blockage changes are not enabled on this server.',
     // Proof: absent sentence made the dormant writer test receive the generic fallback (2026-10-22).
     external_dependencies_inactive: 'Dependencies between projects are not enabled on this server.',
+    replay_provenance_unavailable: 'Undo and redo are unavailable for this older history entry.',
     project_deleting: 'This project is being deleted. Nothing was changed.',
     // Proof: deleting this sentence failed all three sparse writer refusal cases (2026-10-17).
     referenced_by_step_parallel:

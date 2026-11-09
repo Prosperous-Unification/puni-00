@@ -13,7 +13,11 @@ async function openHarness() {
   harness = OrganizationHarness.openComposedWith({});
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-a', 'ada', [
+    'organization.create_project',
+    'organization.manage_directory',
+  ]);
   harness.bind('ada', 'org-a');
   harness.activate();
 }

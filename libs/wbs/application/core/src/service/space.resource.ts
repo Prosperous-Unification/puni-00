@@ -1,5 +1,5 @@
+import type { Permission } from '@wbs/domain';
 import {
-  canWriteInOrganization,
   type InProgressLeaf,
   inProgressLeavesOf,
   POSITION_STEP,
@@ -10,6 +10,7 @@ import {
   sortInProgress,
 } from '@wbs/domain';
 
+import type { AccessDecisions } from '../ports/access-decisions';
 import type { Clock } from '../ports/clock';
 import type { ResourceAccess } from '../ports/organization-access';
 import type { Broadcaster } from '../ports/project-event';
@@ -18,6 +19,7 @@ import type { ProjectWithAccess } from '../ports/project-store';
 import type { AccessRefused } from '../ports/shared-people-values';
 import type { Space, SpaceStore } from '../ports/space-store';
 import type { TreeRead } from '../ports/tree-read';
+import { authorize } from './authorize';
 
 /** The address of the virtual All projects space (spec `space-read`). */
 export const ALL_PROJECTS = 'all';
@@ -39,7 +41,7 @@ export type SpaceRefusal =
 
 /** A decision, or the refusals that method can answer and no others. */
 export type SpaceAnswer<T, R extends SpaceRefusal> =
-  { ok: true; value: T } | { ok: false; refusal: R };
+  { ok: true; value: T } | { ok: false; refusal: R; readonly permission?: Permission };
 
 /** One space as the routes answer it; the virtual space has no author, instant or revision. */
 export interface SpaceSummary {
@@ -66,6 +68,7 @@ export interface SpaceRow {
 }
 
 export interface SpaceResourceOptions {
+  readonly accessDecisions?: AccessDecisions;
   spaces: SpaceStore;
   /**
    * The project routes' own predicate: `listWithin` is what `GET
@@ -191,6 +194,11 @@ type Owner = { ok: true; organizationId: string } | { ok: false; refusal: 'organ
  */
 export class SpaceResource {
   constructor(private readonly opts: SpaceResourceOptions) {}
+
+  /** Builds only the mapped space resource over this write turn's borrowed catalog. */
+  over(spaces: SpaceStore, accessDecisions: AccessDecisions | undefined): SpaceResource {
+    return new SpaceResource({ ...this.opts, spaces, accessDecisions });
+  }
 
   async list(
     actorId: string,
@@ -707,19 +715,28 @@ export class SpaceResource {
    */
   private async writableOwner(
     access: ResourceAccess,
-  ): Promise<Owner | { ok: false; refusal: 'forbidden' }> {
-    if (!this.mayWrite(access)) return { ok: false, refusal: 'forbidden' };
+  ): Promise<Owner | { ok: false; refusal: 'forbidden'; readonly permission?: Permission }> {
+    if (!(await this.mayWrite(access)))
+      return { ok: false, refusal: 'forbidden', permission: 'organization.manage_spaces' };
     return this.ownerOf(access);
   }
 
   /**
-   * Whether the caller may create, rename or delete spaces and edit their
-   * membership: every role but viewer, and legacy access as it may write
-   * projects. The routes answer it as `writable` so fe-01 shows no handle a
-   * write would refuse; the writes still check it themselves.
+   * Whether current grants permit organization.manage_spaces. Reads expose
+   * this as writable; every scoped write rechecks through its borrowed port.
+   * Legacy access retains deployment-wide behavior.
    */
-  mayWrite(access: ResourceAccess): boolean {
-    return access.kind === 'legacy' || canWriteInOrganization(access.scope.role);
+  async mayWrite(access: ResourceAccess): Promise<boolean> {
+    if (access.kind === 'legacy') return true;
+    // Proof: space-grant fault failed 'missing permission on the direct space creation route' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    return (
+      await authorize(
+        this.opts.accessDecisions,
+        access.principal,
+        { kind: 'organization', organizationId: access.scope.organizationId },
+        'organization.manage_spaces',
+      )
+    ).ok;
   }
 
   private async readableIds(actorId: string, access: ResourceAccess): Promise<Set<string>> {

@@ -48,7 +48,9 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
   opened.push(harness);
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-a', 'ada', ['organization.manage_directory']);
+  harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
   harness.bind('ada', 'org-a');
   harness.activate();
   const create = async (name: string) => {
@@ -243,6 +245,7 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
       { id: harness.userId('ada'), username: 'ada', scopes: ['write'] },
       true,
       {
+        principal: { id: harness.userId('ada') },
         kind: 'scoped',
         scope: {
           cap: null,
@@ -266,7 +269,9 @@ it('records distinct sorted causes from a directory-only batch across old shared
   opened.push(harness);
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-a', 'ada', ['organization.manage_directory']);
+  harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
   harness.bind('ada', 'org-a');
   harness.activate();
   const projects: { projectId: string; stepId: string }[] = [];
@@ -374,7 +379,9 @@ it('keeps both changed connection endpoints as durable causes on assignment remo
   opened.push(harness);
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-a', 'ada', ['organization.manage_directory']);
+  harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
   harness.bind('ada', 'org-a');
   harness.activate();
   const projects: { projectId: string; stepId: string }[] = [];

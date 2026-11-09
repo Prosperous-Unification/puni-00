@@ -24,6 +24,7 @@ import type { ResourceCapacityStore } from './resource-capacity-store';
 import type { RuntimeCommandStore } from './runtime-command-store';
 import type { SavedPlanCaptureStore } from './saved-plan-capture-store';
 import type { SavedPlanStore } from './saved-plan-store';
+import type { SpaceStore } from './space-store';
 import type { StepBlockageStore } from './step-blockage-store';
 import type { StepNodeAttemptStore } from './step-node-attempt-store';
 import type { StepParallelStore } from './step-parallel-store';
@@ -40,6 +41,8 @@ export interface PlanTransactionalStores {
   /** Optional only for legacy fixture adapters; production SQLite installs it explicitly. */
   livePlans?: LivePlanStore;
   projects: ProjectStore;
+  /** Borrowed space writer; scoped space routes require it in their admitted unit of work. */
+  spaces?: SpaceStore;
   /**
    * Borrowed SQLite rank and capacity-mode writer; legacy in-memory sources
    * need not install this capability.

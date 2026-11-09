@@ -143,6 +143,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
   const recoveryAdmission = shared.recoveryAdmission ?? NO_ADMISSION;
   return {
     projects: installProject({
+      accessDecisions: stores.accessDecisions,
       clock,
       projects: stores.projects,
       broadcast,
@@ -165,6 +166,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       admission,
     }).capacity,
     calendarMarkers: installCalendarMarker({
+      accessDecisions: stores.accessDecisions,
       clock,
       projects: stores.projects,
       markers: stores.calendarMarkers,
@@ -179,6 +181,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       admission,
     }).priorityBands,
     steps: installStep({
+      accessDecisions: stores.accessDecisions,
       clock,
       projects: stores.projects,
       steps: stores.steps,
@@ -189,6 +192,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       beforeWrite: shared.beforeStepWrite,
     }).steps,
     directory: installDirectory({
+      accessDecisions: stores.accessDecisions,
       clock,
       directory: stores.directory,
       broadcast,
@@ -197,6 +201,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
         : { organizationLimits: stores.organizationLimits }),
     }).directory,
     workItems: installWorkItem({
+      accessDecisions: stores.accessDecisions,
       ...(stores.livePlans === undefined ? {} : { livePlans: stores.livePlans }),
       clock,
       workItems: stores.workItems,
@@ -378,6 +383,7 @@ export function composeServices(
         ? rawPublicServices.directory
         : standaloneDirectoryService({
             directory: source.stores.directory,
+            accessDecisions: source.stores.accessDecisions,
             uow: source.uow,
             clock: runtime.clock,
             announcements,

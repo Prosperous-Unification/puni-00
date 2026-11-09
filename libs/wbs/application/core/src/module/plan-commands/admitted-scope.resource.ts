@@ -1,11 +1,15 @@
-import { canWriteInOrganization, type OrganizationScope } from '@wbs/domain';
+import type { Permission } from '@wbs/domain';
 
 import type { CommandAccess } from '../../ports/command-access';
 import type { CommandGraphAuthority, DependencyContext } from '../../ports/dependency-context';
 import type { EditAdmission } from '../../ports/edit-admission';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports/project-values';
 import type { Scope } from '../../ports/unit-of-work';
+import { type Authorization, authorize } from '../../service/authorize';
+import type { PlanCommand } from '../../service/plan-command';
+import { COMMAND_PERMISSIONS } from './command-permissions';
 import type { PlanCommandServices } from './plan-command-graph';
 import type { RuntimeAdmission, RuntimeAdmissionIdentity } from './runtime-authority';
 import type { RuntimeReadRefusal } from './runtime-state';
@@ -55,39 +59,127 @@ export class AdmittedScope {
   }
 
   /**
-   * Why a scoped caller may not run a batch, undo or redo at all, checked in the
-   * act's own unit of work: a project the organization does not own is
-   * `not_found`, exactly as an absent one; a viewer, or anyone but the creator
-   * of a restricted project other than a super-admin, is `forbidden`. A
-   * directory batch needs only a writing role. The role and the project are
-   * read inside the unit of work, and a super-admin's write to someone else's
-   * restricted project is admitted as a recovery whose audit record (`detail`)
-   * commits or rolls back with it.
+   * Checks the registry permission for every command against current borrowed
+   * grants before opening a write graph. Addressed packages retain visibility
+   * and P5 restrictions; budgets require the same permission at their current
+   * owner and package. Typed writes also require every affected package.
    *
-   * @throws when the project already references something outside the
-   * organization: corrupt trusted state that activation should have refused,
-   * never a base to write on.
+   * Legacy membership roles and incoming access snapshots supply no grant.
+   * A journal walk gets base package admission here and checks its immutable
+   * original-operation obligations before applying or discarding history.
+   *
+   * @throws for inconsistent actor identity or pre-existing cross-organization
+   * references. Missing or unreadable grant authority is never a refusal.
    */
   async refuseOutsideScope(
     projectId: string | null,
     actorId: string,
-    organization: OrganizationScope,
+    access: Extract<ResourceAccess, { kind: 'scoped' }>,
     detail: RecoveryAuditDetail,
-  ): Promise<'not_found' | 'forbidden' | null> {
-    if (projectId === null) return canWriteInOrganization(organization.role) ? null : 'forbidden';
-    const admitted = await this.#scope.stores.projects.admitEditInOrganization(
-      projectId,
-      organization.organizationId,
-      actorId,
-      detail,
-      organization.role,
-    );
-    if (admitted === null) return 'not_found';
-    // Proof: skipping this refusal made `refuses a viewer every batch, undo
-    // and redo` and `refuses a super-admin removed or demoted before the batch`
-    // in `command-organization.controller.db.test.ts` answer 200; watched
-    // 2026-09-28, and again here on 2026-09-29 (19 pass, 3 fail).
-    if (admitted === 'forbidden') return 'forbidden';
+    commands: readonly PlanCommand[] = [],
+  ): Promise<Extract<Authorization, { ok: false }> | null> {
+    const organization = access.scope;
+    if (actorId !== access.principal.id || organization.userId !== access.principal.id)
+      throw new Error('admitted permission principal differs from the acting account');
+    const project =
+      projectId === null
+        ? null
+        : await this.#scope.stores.projects.findInOrganization(
+            projectId,
+            organization.organizationId,
+          );
+    if (projectId !== null && project === null) return { ok: false, reason: 'not_found' };
+    const permissions: readonly Permission[] =
+      'journal' in detail || commands.length === 0
+        ? [projectId === null ? 'organization.manage_directory' : 'package.write']
+        : commands.map((command) => COMMAND_PERMISSIONS[command.kind]);
+    for (const permission of permissions) {
+      if (permission === 'project.manage_budgets' && project !== null) {
+        // Proof: moving this below the owner check disclosed hidden setBudget/clearBudget to a no-grant subject (two mounted RED cases); omitting the package evaluation admitted restricted admin/super-admin setBudget/clearBudget and a hidden budgets-only role; mounted tests observed nine RED cases across admission/replay, 2026-11-09.
+        const packageAuthority = await authorize(
+          this.#scope.stores.accessDecisions,
+          access.principal,
+          {
+            kind: 'work_package',
+            chain: {
+              level: 'work_package',
+              organizationId: organization.organizationId,
+              workPackageId: project.id,
+            },
+            restricted: project.restricted,
+          },
+          permission,
+        );
+        // Proof: budget-package-admission fault failed 'before missing budget-owner|restricted setBudget' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+        if (!packageAuthority.ok) return packageAuthority;
+      }
+      const scope =
+        permission.startsWith('organization.') ||
+        permission.startsWith('project.') ||
+        project === null
+          ? { kind: 'organization' as const, organizationId: organization.organizationId }
+          : {
+              kind: 'work_package' as const,
+              chain: {
+                level: 'work_package' as const,
+                organizationId: organization.organizationId,
+                workPackageId: project.id,
+              },
+              restricted: project.restricted,
+            };
+      const decision = await authorize(
+        this.#scope.stores.accessDecisions,
+        access.principal,
+        scope,
+        permission,
+      );
+      // Proof: registry-command-grant fault failed 'names package.write when a viewer runs createWorkItem|budget-owner authority independently.*write' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+      if (!decision.ok) return decision;
+    }
+    if (projectId === null) return null;
+    const related = new Set<string>();
+    const held = commands.some(
+      (command) =>
+        command.kind === 'updateTypedDependency' || command.kind === 'removeTypedDependency',
+    )
+      ? await this.#scope.stores.typedDependencies.listByProject(projectId)
+      : [];
+    for (const command of commands) {
+      if (command.kind === 'addTypedDependency' || command.kind === 'updateTypedDependency') {
+        if (command.predecessor.projectId !== undefined) related.add(command.predecessor.projectId);
+        if (command.successor.projectId !== undefined) related.add(command.successor.projectId);
+      }
+      if (command.kind === 'updateTypedDependency' || command.kind === 'removeTypedDependency') {
+        const dependency = held.find((relationship) => relationship.id === command.dependencyId);
+        if (dependency !== undefined) {
+          related.add(dependency.predecessor.projectId);
+          related.add(dependency.successor.projectId);
+        }
+      }
+    }
+    related.delete(projectId);
+    for (const relatedId of related) {
+      const affected = await this.#scope.stores.projects.findInOrganization(
+        relatedId,
+        organization.organizationId,
+      );
+      if (affected === null) return { ok: false, reason: 'not_found' };
+      const authority = await authorize(
+        this.#scope.stores.accessDecisions,
+        access.principal,
+        {
+          kind: 'work_package',
+          chain: {
+            level: 'work_package',
+            organizationId: organization.organizationId,
+            workPackageId: affected.id,
+          },
+          restricted: affected.restricted,
+        },
+        'package.write',
+      );
+      if (!authority.ok) return authority;
+    }
     const kinds = await this.listCrossReferenceKinds(projectId, organization.organizationId);
     // Proof: skipping this check made `fails closed on a project that already
     // crosses its organization` in `command-organization.controller.db.test.ts`

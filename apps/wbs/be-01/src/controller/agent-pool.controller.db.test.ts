@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'b
 
 import {
   addAgentPerson,
+  grantCredential,
   issueApiKey,
   MACHINE_BEARER_NOT_ACCEPTED,
 } from '../testing/machine-credential-fixture';
@@ -66,11 +67,12 @@ beforeEach(async () => {
   for (const username of ['dany', 'ada', 'mem', 'vic', 'bob']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'dany', 'super_admin');
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-a', 'mem', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'bob', 'admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'mem', ['organization.create_project']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'bob', 'admin', ['org-admin']);
   for (const username of ['dany', 'ada', 'mem', 'vic']) h.bind(username, 'org-a');
   h.bind('bob', 'org-b');
   h.activate();
@@ -247,6 +249,14 @@ describe('creating a pool', () => {
       status: 403,
       body: { error: 'insufficient_scope' },
     });
+    grantCredential(
+      h.sqlite,
+      'org-a',
+      first.credentialId,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     const leaf = await leafOf('Leaf');
     expect(
       await asAgent(first.key, 'POST', `/api/projects/${projectId}/commands`, {
@@ -443,6 +453,14 @@ describe('re-keying a pool', () => {
     const doc = await createPool('dany', { name: 'swarm-a', size: 1 });
     const agent = doc.agents.at(0);
     if (agent === undefined) throw new Error('the pool has no agent');
+    grantCredential(
+      h.sqlite,
+      'org-a',
+      agent.credentialId,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     await claimAs(agent, await leafOf('Leaf'));
     expect((await h.call('dany', 'POST', `${PATH}/${doc.poolId}/rekey`, {})).status).toBe(201);
     const sweep = h.claimLeaseSweep();
@@ -510,8 +528,17 @@ describe('revoking a pool', () => {
   // claim survived the sweep here; watched 2026-10-28.
   it('revokes every key of the pool, ending their leases; claims go as credential revoked', async () => {
     const doc = await createPool('dany', { name: 'swarm-a', size: 3 });
-    for (const [index, agent] of doc.agents.entries())
+    for (const [index, agent] of doc.agents.entries()) {
+      grantCredential(
+        h.sqlite,
+        'org-a',
+        agent.credentialId,
+        'project-contributor',
+        'organization',
+        'org-a',
+      );
       await claimAs(agent, await leafOf(`Leaf ${String(index)}`));
+    }
     const sweep = h.claimLeaseSweep();
     sweep.start();
     await sweep.settled();
@@ -582,6 +609,14 @@ describe('revoking a pool', () => {
     const doc = await createPool('dany', { name: 'swarm-a', size: 1 });
     const agent = doc.agents.at(0);
     if (agent === undefined) throw new Error('the pool has no agent');
+    grantCredential(
+      h.sqlite,
+      'org-a',
+      agent.credentialId,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     await claimAs(agent, await leafOf('Leaf'));
     expect(
       (await h.call('dany', 'DELETE', `${PATH}/${doc.poolId}?removePersons=true`)).body,
@@ -641,6 +676,14 @@ describe('an expired pool', () => {
     const agent = doc.agents.at(0);
     if (agent === undefined) throw new Error('the pool has no agent');
     expect(await requestGrant(agent.key)).toMatchObject({ status: 200 });
+    grantCredential(
+      h.sqlite,
+      'org-a',
+      agent.credentialId,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     await claimAs(agent, await leafOf('Leaf'));
     now = T + 60 * 60_000;
     for (const each of doc.agents) {

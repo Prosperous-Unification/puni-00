@@ -25,6 +25,7 @@ const DEFAULTS = {
   maxCapacityUnitsPerResource: 10_000,
 };
 const SCOPED: ResourceAccess = {
+  principal: { id: 'dany' },
   kind: 'scoped',
   scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
 };
@@ -45,6 +46,7 @@ beforeEach(() => {
     sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`,
     sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`,
     sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'admin', 1)`,
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('race-dany','org-a','organization','org-a','user','dany','org-admin','route',1)`,
     sql`INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES ('org-a', 8, 200, 10000, 1)`,
   ])
     source.db.run(statement);

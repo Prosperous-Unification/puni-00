@@ -50,11 +50,13 @@ beforeEach(async () => {
   for (const username of ['dany', 'mem', 'other', 'vic', 'bob']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'dany', 'super_admin');
-  h.member('org-a', 'mem', 'member');
-  h.member('org-a', 'other', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'bob', 'admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'mem', ['organization.create_project']);
+  h.member('org-a', 'other', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'other', ['organization.create_project']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'bob', 'admin', ['org-admin']);
   for (const username of ['dany', 'mem', 'other', 'vic']) h.bind(username, 'org-a');
   h.bind('bob', 'org-b');
   h.activate();
@@ -452,22 +454,19 @@ describe('revocation', () => {
 });
 
 describe('who may administer', () => {
-  // Proof: with viewers admitted by `administeringRole`, this answered the
-  // viewer's list 200; watched 2026-10-22.
-  it('refuses a viewer every credential route', async () => {
+  it('lets a viewer administer its own agent credentials and conceals others', async () => {
     const created = await create('dany', 'claire');
     addAgentPerson(h.sqlite, 'vics-agent', 'org-a', h.userId('vic'));
-    for (const [method, path, body] of [
-      ['GET', PATH, undefined],
-      ['POST', PATH, { source: 'api_key', name: 'v', personId: 'vics-agent' }],
-      ['POST', `${PATH}/${created.id}/rotate`, undefined],
-      ['DELETE', `${PATH}/${created.id}`, undefined],
-    ] as const)
-      expect(await h.call('vic', method, path, body)).toEqual({
-        status: 403,
-        body: { error: 'forbidden' },
-      });
-    expect(credentialCount()).toBe(1);
+    expect(listed(await h.call('vic', 'GET', PATH))).toEqual([]);
+    const own = await create('vic', 'vics-agent');
+    expect(listed(await h.call('vic', 'GET', PATH)).map((row) => row.id)).toEqual([own.id]);
+    expect((await h.call('vic', 'POST', `${PATH}/${own.id}/rotate`)).status).toBe(201);
+    for (const method of ['POST', 'DELETE'] as const)
+      expect(
+        await h.call('vic', method, `${PATH}/${created.id}${method === 'POST' ? '/rotate' : ''}`),
+      ).toMatchObject({ status: 404, body: { error: 'not_found' } });
+    expect((await h.call('vic', 'DELETE', `${PATH}/${own.id}`)).status).toBe(204);
+    expect(credentialCount()).toBe(2);
   });
 
   // Proof: with the delegation guard dropped from the routes'
@@ -501,7 +500,7 @@ describe('who may administer', () => {
     h = OrganizationHarness.open({ delegationKey: keys.publicKey });
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     h.activate();
     addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
@@ -531,7 +530,7 @@ describe('who may administer', () => {
     h = openHarness();
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
     for (const [method, path, body] of [
       ['GET', PATH, undefined],
@@ -656,7 +655,10 @@ describe("a credential's person", () => {
   const cascade = (personId: string) => ({
     commands: [{ kind: 'deletePerson', personId, cascade: true }],
   });
-  const FORBIDDEN = { status: 403, body: { error: 'forbidden', at: 0, kind: 'deletePerson' } };
+  const FORBIDDEN = {
+    status: 403,
+    body: { error: 'forbidden', permission: 'organization.manage_directory' },
+  };
 
   it("refuses a member's cascade over another account's agent's credential", async () => {
     const strangers = await create('dany', 'claire');
@@ -667,6 +669,10 @@ describe("a credential's person", () => {
     expect(auditRows().map((row) => row.action)).toEqual(['machine_credential_created']);
     expect((await asAgent(strangers.key, 'GET', '/api/projects')).status).toBe(200);
     await create('mem', 'mems-agent');
+    expect(await h.call('mem', 'POST', '/api/directory/commands', cascade('mems-agent'))).toEqual(
+      FORBIDDEN,
+    );
+    h.grantPermissions('org-a', 'mem', ['organization.manage_directory']);
     expect(
       (await h.call('mem', 'POST', '/api/directory/commands', cascade('mems-agent'))).status,
     ).toBe(200);

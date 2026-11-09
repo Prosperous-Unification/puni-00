@@ -24,6 +24,7 @@ test.each([
         dbPath: path,
       });
       const access = {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
         scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       };
@@ -65,7 +66,13 @@ test.each([
           createdBy: 'ada',
           createdById: 'ada',
           access,
-          scoped: { organizationId: 'org-a', actorId: 'ada', role: 'member', operation: 'save' },
+          scoped: {
+            principal: { id: 'ada' },
+            organizationId: 'org-a',
+            actorId: 'ada',
+            role: 'member',
+            operation: 'save',
+          },
         });
         expect(saved.outcome).toBe('saved');
         if (saved.outcome !== 'saved' || !current.schedule.present)
@@ -133,6 +140,7 @@ test('installed connected writer refuses missing required evidence without parti
             createdBy: 'ada',
             createdById: 'ada',
             access: {
+              principal: { id: 'ada' },
               kind: 'scoped',
               scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
             },

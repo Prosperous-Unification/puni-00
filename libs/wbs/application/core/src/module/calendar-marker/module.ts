@@ -32,12 +32,14 @@ export const calendarMarkerModule = DiBag.createBuilder()
     calendarMarkerOptions: DiBag.createProvider(
       ({
         projectStore,
+        accessDecisions,
         calendarMarkerStore,
         clock,
         broadcast,
         recoveryAdmission,
       }: {
         projectStore: ProjectStore;
+        accessDecisions: CalendarMarkerServiceOptions['accessDecisions'];
         calendarMarkerStore: CalendarMarkerStore;
         clock: Clock;
         broadcast: Broadcaster | undefined;
@@ -47,6 +49,7 @@ export const calendarMarkerModule = DiBag.createBuilder()
         // (4 pass, 1 fail): the recording broadcaster received `[]`.
       }): CalendarMarkerServiceOptions => ({
         projects: projectStore,
+        accessDecisions,
         markers: calendarMarkerStore,
         clock,
         broadcast,

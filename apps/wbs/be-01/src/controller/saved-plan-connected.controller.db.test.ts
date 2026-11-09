@@ -50,7 +50,8 @@ async function openFixture(mode: 'isolated' | 'shared' = 'isolated') {
   harness = mounted;
   await mounted.register('ada');
   mounted.organization('org');
-  mounted.member('org', 'ada', 'member');
+  mounted.member('org', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  mounted.grantPermissions('org', 'ada', ['organization.create_project']);
   mounted.bind('ada', 'org');
   mounted.activate();
   if (mode === 'shared')
@@ -153,7 +154,7 @@ test('connected save reauthorizes target after capture before writing either bod
   const { mounted, beta, probe } = await openFixture();
   probe.armed = true;
   probe.afterRelease = () => {
-    mounted.sqlite.run("UPDATE organization_membership SET role='viewer' WHERE user_id=?", [
+    mounted.sqlite.run("DELETE FROM access_grant WHERE subject_id=? AND role_id<>'org-viewer'", [
       mounted.userId('ada'),
     ]);
   };

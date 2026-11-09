@@ -1,3 +1,4 @@
+import type { Permission } from '@wbs/domain';
 import {
   addWorkdays,
   agentMinutesOf,
@@ -56,7 +57,6 @@ import {
   type LeaseReleaseReason,
   type LimitCrossed,
   MAX_ESTIMATE_DAYS,
-  mayStateDirectoryCapacityInOrganization,
   type MeasureDefinition,
   type MeasureMetric,
   type MeasureTrio,
@@ -73,7 +73,6 @@ import {
   type OccupancyRow,
   orderSteps,
   ORDINARY_BAND_RANK,
-  type OrganizationScope,
   parentIndexOf,
   placeAfter,
   POSITION_STEP,
@@ -125,6 +124,7 @@ import {
 } from '@wbs/domain/arrange-siblings';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
+import type { AccessDecisions } from '../../ports/access-decisions';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { BudgetKey, BudgetStore, StoredBudget } from '../../ports/budget-store';
 import type { CapacityStore } from '../../ports/capacity-store';
@@ -147,6 +147,7 @@ import type {
   UndoState,
 } from '../../ports/command-journal-store';
 import type { DemandStore } from '../../ports/demand-store';
+import type { TypedWriteRefusal } from '../../ports/dependency-context';
 import {
   type DependencyContext,
   type EndpointEvidence,
@@ -228,6 +229,7 @@ import type {
   WorkItemStore,
 } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
+import { authorize, authorizePackage } from '../../service/authorize';
 import {
   boundEstimateUnits,
   type CompensatingCommand,
@@ -260,6 +262,11 @@ import { type ConnectedTreeProjection, projectConnectedTree } from '../../servic
 import { type DependencyGraphChange, resolveDependencyGraph } from '../../service/dependency-graph';
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
+import {
+  createReplayAuthorization,
+  type ReplayAuthorization,
+  type ReplayPermission,
+} from '../../service/replay-authorization';
 import { prepareCapturedScheduleParts, prepareScheduleParts } from '../../service/schedule-parts';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 import { type BudgetHeadroom, findBudgetHeadroom } from './budget-headroom';
@@ -277,7 +284,6 @@ import {
   type ClaimRefusalOutcome,
   claimsAround,
   findReassignedClaimedSteps,
-  isClaimAdmin,
   lineageOf,
   type NamedClaimHolder,
   type ReassignedClaimedStep,
@@ -801,6 +807,7 @@ export type WorkItemOutcome<T> =
   | {
       ok: false;
       reason: WorkItemRefusal;
+      readonly permission?: Permission;
       /**
        * Which row was refused, on `deadline_before_project_start` alone.
        *
@@ -928,6 +935,7 @@ export interface MoveWorkItem {
 }
 
 export interface WorkItemServiceOptions {
+  readonly accessDecisions?: AccessDecisions;
   dependencyContext: ServiceDependencyContext;
   externalDependencyAuthoring: ExternalDependencyAuthoringSource;
   livePlans?: LivePlanStore;
@@ -1064,6 +1072,7 @@ export interface WorkItemServiceOptions {
 
 /** Why an undo or a redo did not happen. */
 export type UndoRefusal =
+  | 'replay_provenance_unavailable'
   | 'external_dependencies_inactive'
   | 'not_found'
   | 'forbidden'
@@ -1099,6 +1108,7 @@ export type UndoOutcome =
   | {
       ok: false;
       reason: UndoRefusal;
+      permission?: Permission;
       detail: string | null;
       /**
        * The journal entry a `stale_undo` discarded, so a caller that ran the
@@ -1110,7 +1120,9 @@ export type UndoOutcome =
     };
 
 /** Whether applying one compensating command worked, and what it could not do. */
-type ApplyOutcome = { ok: true; detail: string | null } | { ok: false; detail: string };
+type ApplyOutcome =
+  | { ok: true; detail: string | null }
+  | { ok: false; detail: string; readonly authorization?: TypedWriteRefusal };
 
 /**
  * The largest subtree one duplication will copy.
@@ -1479,6 +1491,7 @@ function revisionsIn(rows: readonly WorkItem[], ids: readonly string[]): Revisio
  * many. See {@link WorkItemService.collect}.
  */
 export interface CollectedRecording {
+  readonly authorization: ReplayAuthorization;
   kind: string;
   label: string;
   recording: Recording;
@@ -1641,6 +1654,23 @@ export class WorkItemService {
     );
   }
 
+  /** Requires the admitted capability for exact remote mutations; local operations retain their existing admission. */
+  private authorizeTypedWrites(
+    context: DependencyContext,
+    relationships: readonly StoredTypedDependency[],
+  ): Promise<TypedWriteRefusal | null> {
+    if (
+      !relationships.some(
+        (relationship) => relationship.predecessor.projectId !== relationship.successor.projectId,
+      )
+    )
+      return Promise.resolve(null);
+    // Proof: removing this guard reached incidental TypeError instead of the required diagnostic in 'throws on a missing admitted remote dependency authorization capability'; strengthened direct production call, fault/restored pass, 2026-11-09.
+    if (context.authorizeTypedWrites === undefined)
+      throw new Error('remote dependency mutation lacks admitted write authorization');
+    return context.authorizeTypedWrites(relationships);
+  }
+
   /** Checks every doomed incident under current endpoint read authority before a structural delete. */
   private deletionIncidents(
     projectId: string,
@@ -1649,6 +1679,7 @@ export class WorkItemService {
   ): Promise<
     | { ok: true; externalBefore: readonly ScopedRevision[]; ownedIncomingIds: readonly string[] }
     | { ok: false; reason: WorkItemRefusal; dependencyIds?: string[] }
+    | TypedWriteRefusal
   > {
     return withDependencyContext(
       this.opts.dependencyContext,
@@ -1687,6 +1718,14 @@ export class WorkItemService {
             reason: 'referenced_by_external_dependency',
             dependencyIds: outgoing,
           };
+        const removing = incident.filter(
+          (relationship) =>
+            relationship.projectId === projectId && inside.has(relationship.successor.workItemId),
+        );
+        // Proof: omitting selected-removal authorization deleted a remote relationship with only read access; `remote write for implicit delete`
+        // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
+        const writeRefusal = await this.authorizeTypedWrites(context, removing);
+        if (writeRefusal !== null) return writeRefusal;
         const ownedIncomingIds = incident
           .filter(
             (relationship) =>
@@ -2970,6 +3009,7 @@ export class WorkItemService {
               );
         if (!transition.ok) {
           if (transition.reason === 'structure_refused') return transition.value;
+          if ('authorization' in transition) return transition;
           return {
             ok: false as const,
             reason: transition.reason === 'stale_undo' ? ('not_found' as const) : transition.reason,
@@ -3275,6 +3315,17 @@ export class WorkItemService {
             }));
     // Proof: skipping the remap made mounted first-child create return 500 instead of
     // preserving its node relationship; watched 2026-09-27.
+    const remapRefusal = await withDependencyContext(
+      this.opts.dependencyContext,
+      projectId,
+      actorId,
+      (context) =>
+        this.authorizeTypedWrites(
+          context,
+          nodeRemaps.flatMap(({ original, remapped }) => [original, remapped]),
+        ),
+    );
+    if (remapRefusal !== null) return remapRefusal;
     for (const { remapped } of nodeRemaps) {
       await this.opts.typedDependencies.update(remapped, stamp);
     }
@@ -3955,7 +4006,7 @@ export class WorkItemService {
   async previewDirectoryCapacityWithin(
     resourceId: string,
     units: number | null,
-    scope: OrganizationScope,
+    access: Extract<ResourceAccess, { kind: 'scoped' }>,
   ): Promise<
     | {
         ok: true;
@@ -3969,10 +4020,17 @@ export class WorkItemService {
           refusal: null;
         };
       }
-    | { ok: false; reason: 'forbidden' | 'not_found' }
+    | { ok: false; reason: 'forbidden' | 'not_found'; readonly permission?: Permission }
   > {
-    if (!mayStateDirectoryCapacityInOrganization(scope.role))
-      return { ok: false, reason: 'forbidden' };
+    const scope = access.scope;
+    const decision = await authorize(
+      this.opts.accessDecisions,
+      access.principal,
+      { kind: 'organization', organizationId: scope.organizationId },
+      'organization.manage_directory',
+    );
+    // Proof: dropping permission failed the registered directory-capacity preview refusal, 2026-11-09.
+    if (!decision.ok) return decision;
     const { directory } = this.opts;
     const owned = (await directory.listInOrganization('resources', scope.organizationId)).some(
       ({ id }) => id === resourceId,
@@ -4033,6 +4091,29 @@ export class WorkItemService {
    * `unknown_step` and `unknown_person` answer before the decision; everything
    * else is the decision's one refusal, holders named.
    */
+  private async mayClaimForOthers(
+    projectId: string,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<boolean> {
+    if (access.kind === 'legacy') return false;
+    const project = await this.opts.projects.findInOrganization(
+      projectId,
+      access.scope.organizationId,
+    );
+    if (project === null) throw new Error('admitted claim project disappeared');
+    // Proof: claim-extra-grant fault failed 'claiming for another account without' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    return (
+      await authorizePackage(
+        this.opts.accessDecisions,
+        access,
+        project,
+        actorId,
+        'package.claim_for_others',
+      )
+    ).ok;
+  }
+
   async claim(
     id: string,
     actorId: string,
@@ -4126,10 +4207,17 @@ export class WorkItemService {
     const pinnedPersonId = await identity.pinnedPersonOf(credential);
     const caller: ClaimCaller = {
       accountId: actorId,
-      isAdmin: isClaimAdmin(access),
+      isAdmin: await this.mayClaimForOthers(projectId, actorId, access),
       pinnedPersonId,
       pinnedRunId: pinnedRunOf(credential),
     };
+    const boundAccountId = await identity.boundAccountOf(input.personId);
+    // Proof: recording only package.write allowed claim-for-others replay after revocation; `replay of a claim for another account`
+    // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
+    const replayPermissions: readonly ReplayPermission[] =
+      boundAccountId === actorId
+        ? ['package.write']
+        : ['package.write', 'package.claim_for_others'];
     const decided = decideClaim({
       admission,
       target: {
@@ -4145,7 +4233,7 @@ export class WorkItemService {
       caller,
       claimant: {
         personId: input.personId,
-        boundAccountId: await identity.boundAccountOf(input.personId),
+        boundAccountId,
       },
       stepIds: input.stepIds,
       runId: input.runId,
@@ -4258,29 +4346,36 @@ export class WorkItemService {
       stepId,
       personId: previous.get(stepId) ?? null,
     }));
-    await this.record(projectId, stamp, 'claim', `claim ${quoteName(workItem.name)}`, {
-      forward: oneCommandOf([
-        {
-          do: 'add_claims',
-          claims: written,
-          stated: statements,
-          occupancy: copies,
-          // Proof: with this field left out, `refuses the holder’s undo after a
-          // reap, and redoes a claim with a fresh lease` (claim-lease.db.test.ts)
-          // redid it leaseless (9 pass, 1 fail); watched 2026-10-23.
-          ...leasedOf(leases.map(({ claimId }) => claimId)),
-        },
-        ...assigning,
-      ]),
-      // Proof: with `unassigning` left out, `undo clears both the claim and the
-      // assignment` (claim-command.test.ts) kept the claimant assigned; watched 2026-10-20.
-      inverse: oneCommandOf([
-        ...unassigning,
-        { do: 'remove_claims', claims: written, cleared: statements },
-      ]),
-      touched: [id],
-      before: rows,
-    });
+    await this.record(
+      projectId,
+      stamp,
+      'claim',
+      `claim ${quoteName(workItem.name)}`,
+      {
+        forward: oneCommandOf([
+          {
+            do: 'add_claims',
+            claims: written,
+            stated: statements,
+            occupancy: copies,
+            // Proof: with this field left out, `refuses the holder’s undo after a
+            // reap, and redoes a claim with a fresh lease` (claim-lease.db.test.ts)
+            // redid it leaseless (9 pass, 1 fail); watched 2026-10-23.
+            ...leasedOf(leases.map(({ claimId }) => claimId)),
+          },
+          ...assigning,
+        ]),
+        // Proof: with `unassigning` left out, `undo clears both the claim and the
+        // assignment` (claim-command.test.ts) kept the claimant assigned; watched 2026-10-20.
+        inverse: oneCommandOf([
+          ...unassigning,
+          { do: 'remove_claims', claims: written, cleared: statements },
+        ]),
+        touched: [id],
+        before: rows,
+      },
+      replayPermissions,
+    );
     return {
       ok: true,
       value: {
@@ -4317,17 +4412,23 @@ export class WorkItemService {
     const near = claimsAround(await claims.listByProject(projectId), id, lineage);
     const nameOf = await this.claimantNamesWithin(access, input.personId, near);
     if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
+    const boundAccountId = await identity.boundAccountOf(input.personId);
+    // Proof: release-original-obligation fault failed 'replay of a release for another account' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    const replayPermissions: readonly ReplayPermission[] =
+      boundAccountId === actorId
+        ? ['package.write']
+        : ['package.write', 'package.claim_for_others'];
     const decided = decideRelease({
       target: { workItemId: id, isLeaf: lineage.isLeaf },
       caller: {
         accountId: actorId,
-        isAdmin: isClaimAdmin(access),
+        isAdmin: await this.mayClaimForOthers(projectId, actorId, access),
         pinnedPersonId: await identity.pinnedPersonOf(credential),
         pinnedRunId: pinnedRunOf(credential),
       },
       claimant: {
         personId: input.personId,
-        boundAccountId: await identity.boundAccountOf(input.personId),
+        boundAccountId,
       },
       stepIds: input.stepIds,
       claims: near,
@@ -4347,12 +4448,19 @@ export class WorkItemService {
     const leased = await this.leasedAmong(projectId, ids);
     await claims.remove(removed, [], stamp);
     await this.announceTree(projectId);
-    await this.record(projectId, stamp, 'release', `release ${quoteName(workItem.name)}`, {
-      forward: { do: 'remove_claims', claims: removed, cleared: [] },
-      inverse: { do: 'add_claims', claims: removed, stated: [], occupancy, ...leasedOf(leased) },
-      touched: [...new Set(removed.map((each) => each.workItemId))],
-      before: rows,
-    });
+    await this.record(
+      projectId,
+      stamp,
+      'release',
+      `release ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'remove_claims', claims: removed, cleared: [] },
+        inverse: { do: 'add_claims', claims: removed, stated: [], occupancy, ...leasedOf(leased) },
+        touched: [...new Set(removed.map((each) => each.workItemId))],
+        before: rows,
+      },
+      replayPermissions,
+    );
     return { ok: true, value: null };
   }
 
@@ -5462,6 +5570,10 @@ export class WorkItemService {
           !permitsExternalDependencies(this.opts.externalDependencyAuthoring)
         )
           return { ok: false as const, reason: 'external_dependencies_inactive' as const };
+        // Proof: omitting selected-copy authorization copied a remote relationship with only read access; `remote write for implicit duplicate`
+        // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
+        const writeRefusal = await this.authorizeTypedWrites(dependencyContext, selected);
+        if (writeRefusal !== null) return writeRefusal;
         return evidence;
       },
     );
@@ -6624,6 +6736,7 @@ export class WorkItemService {
           // Every allowance write moves the revision by exactly one.
           stepsBefore: { [stepRevisionKey(stepId)]: written.revision - 1 },
         },
+        ['package.manage_settings'],
       );
     }
     return { ok: true, value: null };
@@ -6653,15 +6766,22 @@ export class WorkItemService {
     // A freeze that pinned nothing — every number was already written down —
     // is not a change to reverse.
     if (updates.length > 0) {
-      await this.record(projectId, stamp, 'freeze', 'freeze the numbers', {
-        forward: { do: 'set_frozen', updates },
-        inverse: {
-          do: 'set_frozen',
-          updates: updates.map((each) => ({ id: each.id, frozenNumber: null })),
+      await this.record(
+        projectId,
+        stamp,
+        'freeze',
+        'freeze the numbers',
+        {
+          forward: { do: 'set_frozen', updates },
+          inverse: {
+            do: 'set_frozen',
+            updates: updates.map((each) => ({ id: each.id, frozenNumber: null })),
+          },
+          touched: updates.map((each) => each.id),
+          before: rows,
         },
-        touched: updates.map((each) => each.id),
-        before: rows,
-      });
+        ['package.manage_settings'],
+      );
     }
     return { ok: true, value: null };
   }
@@ -6711,18 +6831,25 @@ export class WorkItemService {
     );
     await this.announceTree(projectId);
     if (frozen.length > 0) {
-      await this.record(projectId, stamp, 'unfreeze', 'unfreeze the whole plan', {
-        forward: {
-          do: 'set_frozen',
-          updates: frozen.map((row) => ({ id: row.id, frozenNumber: null })),
+      await this.record(
+        projectId,
+        stamp,
+        'unfreeze',
+        'unfreeze the whole plan',
+        {
+          forward: {
+            do: 'set_frozen',
+            updates: frozen.map((row) => ({ id: row.id, frozenNumber: null })),
+          },
+          inverse: {
+            do: 'set_frozen',
+            updates: frozen.map((row) => ({ id: row.id, frozenNumber: row.frozenNumber })),
+          },
+          touched: frozen.map((row) => row.id),
+          before: rows,
         },
-        inverse: {
-          do: 'set_frozen',
-          updates: frozen.map((row) => ({ id: row.id, frozenNumber: row.frozenNumber })),
-        },
-        touched: frozen.map((row) => row.id),
-        before: rows,
-      });
+        ['package.manage_settings'],
+      );
     }
     return { ok: true, value: null };
   }
@@ -7298,7 +7425,10 @@ export class WorkItemService {
             : { do: 'set_budget', ...before },
         touched: [id],
         before: context.value.rows,
+        // Proof: recording package.write instead allowed budget replay after revocation; `budget undo after budget authority`
+        // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
       },
+      ['project.manage_budgets'],
     );
     return { ok: true, value: null };
   }
@@ -7339,7 +7469,9 @@ export class WorkItemService {
         inverse: { do: 'set_budget', ...before },
         touched: [id],
         before: context.value.rows,
+        // Proof: clear-budget-original-obligation fault failed 'clear-budget undo after its original budget permission' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
       },
+      ['project.manage_budgets'],
     );
     return { ok: true, value: null };
   }
@@ -8254,6 +8386,8 @@ export class WorkItemService {
         const existing = await this.opts.typedDependencies.listByProject(projectId);
         const refusal = await this.typedRefusal(projectId, actorId, existing, dependency);
         if (refusal !== null) return { ok: false, reason: refusal };
+        const writeRefusal = await this.authorizeTypedWrites(context, [dependency]);
+        if (writeRefusal !== null) return writeRefusal;
         const stamp = this.clock.stampFor(actorId);
         context.assertUsable(projectId, actorId);
         await this.opts.typedDependencies.add(dependency, stamp);
@@ -8318,6 +8452,8 @@ export class WorkItemService {
         const rows = await this.opts.workItems.listByProject(projectId);
         const refusal = await this.typedRefusal(projectId, actorId, existing, to);
         if (refusal !== null) return { ok: false, reason: refusal };
+        const writeRefusal = await this.authorizeTypedWrites(context, [from, to]);
+        if (writeRefusal !== null) return writeRefusal;
         const stamp = this.clock.stampFor(actorId);
         context.assertUsable(projectId, actorId);
         await this.opts.typedDependencies.update(to, stamp);
@@ -8373,6 +8509,8 @@ export class WorkItemService {
         if (cycle !== null)
           return { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
         const rows = await this.opts.workItems.listByProject(projectId);
+        const writeRefusal = await this.authorizeTypedWrites(context, [dependency]);
+        if (writeRefusal !== null) return writeRefusal;
         const stamp = this.clock.stampFor(actorId);
         context.assertUsable(projectId, actorId);
         await this.opts.typedDependencies.remove(dependencyId, stamp);
@@ -8612,6 +8750,48 @@ export class WorkItemService {
         if (entry === undefined) return { ok: false, reason: 'nothing_to_undo', detail: null };
 
         const payload = readPayload(entry.payload);
+        if (access.kind === 'scoped') {
+          // Proof: legacy-replay-modeled-refusal fault failed 'refuses legacy undo|refuses legacy redo|absent replay provenance before stale' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+          if (payload.authorization === null)
+            return { ok: false, reason: 'replay_provenance_unavailable', detail: null };
+          for (const requirement of payload.authorization.requirements) {
+            const addressed = await findProjectWithin(
+              this.opts.projects,
+              requirement.target.workPackageId,
+              access,
+            );
+            if (addressed === null) return { ok: false, reason: 'not_found', detail: null };
+            if (requirement.target.kind === 'budget_owner') {
+              // Proof: omitting this P5 evaluation admitted both restricted budget undo and redo despite no effective budget permission on the package, 2026-11-09.
+              const packageAuthority = await authorizePackage(
+                this.opts.accessDecisions,
+                access,
+                addressed,
+                actorId,
+                requirement.permission,
+              );
+              // Proof: budget-package-replay fault failed 'restricted budget undo' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+              if (!packageAuthority.ok) return { ...packageAuthority, detail: null };
+            }
+            const authority =
+              requirement.target.kind === 'budget_owner'
+                ? await authorize(
+                    this.opts.accessDecisions,
+                    access.principal,
+                    { kind: 'organization', organizationId: access.scope.organizationId },
+                    requirement.permission,
+                  )
+                : await authorizePackage(
+                    this.opts.accessDecisions,
+                    access,
+                    addressed,
+                    actorId,
+                    requirement.permission,
+                  );
+            // Proof: budget-owner-replay fault failed 'budget-owner authority independently.*replay' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+            if (!authority.ok) return { ...authority, detail: null };
+          }
+        }
         const command = direction === 'undo' ? readCommand(entry.inverse) : payload.forward;
         const preconditions = readPreconditions(entry.preconditions);
         const bothDirections = [payload.forward, readCommand(entry.inverse)];
@@ -8783,6 +8963,8 @@ export class WorkItemService {
         const stamp = this.clock.stampFor(actorId);
         const applied = await this.apply(projectId, command, stamp, access);
         if (!applied.ok) {
+          if (applied.authorization !== undefined)
+            return { ...applied.authorization, detail: null };
           await this.opts.journal.discard(entry.id);
           return { ok: false, reason: 'stale_undo', detail: applied.detail, entryId: entry.id };
         }
@@ -9119,6 +9301,12 @@ export class WorkItemService {
               stamp,
               () => this.apply(projectId, command.structural, stamp),
             );
+            if (!transition.ok && 'authorization' in transition)
+              return {
+                ok: false,
+                detail: 'incident write authority was revoked.',
+                authorization: transition,
+              };
             return transition.ok || transition.reason === 'structure_refused'
               ? transition.value
               : { ok: false, detail: `incident transition refused: ${transition.reason}.` };
@@ -9906,6 +10094,12 @@ export class WorkItemService {
     // stale_undo; watched against the admitted SQLite UoW, 2026-10-22.
     const incidents = await this.deletionIncidents(projectId, stamp.by, command.remove);
     if (!incidents.ok) {
+      if ('authorization' in incidents)
+        return {
+          ok: false,
+          detail: 'dependency write authority was revoked.',
+          authorization: incidents,
+        };
       if (incidents.reason === 'referenced_by_external_dependency') {
         const dependencyIds = incidents.dependencyIds;
         // Proof: removing this guard made `undo-create reports missing trusted
@@ -10518,7 +10712,15 @@ export class WorkItemService {
     const stamp = this.clock.stampFor(stack.userId);
     const [only] = recordings;
     if (recordings.length === 1) {
-      await this.appendRecording(projectId, stamp, personId, only.kind, only.label, only.recording);
+      await this.appendRecording(
+        projectId,
+        stamp,
+        personId,
+        only.kind,
+        only.label,
+        only.recording,
+        only.authorization,
+      );
       return;
     }
     await this.appendRecording(
@@ -10560,6 +10762,7 @@ export class WorkItemService {
           {},
         ),
       },
+      { version: 1, requirements: recordings.flatMap((each) => each.authorization.requirements) },
     );
   }
 
@@ -10588,14 +10791,22 @@ export class WorkItemService {
     kind: string,
     label: string,
     recording: Recording,
+    permissions: readonly ReplayPermission[] = ['package.write'],
   ): Promise<void> {
+    const authorization = createReplayAuthorization(
+      projectId,
+      permissions,
+      externalAddressesOf([recording.forward, recording.inverse], projectId).map(
+        (address) => address.projectId,
+      ),
+    );
     if (this.collector !== null) {
-      this.collector.recordings.push({ kind, label, recording });
+      this.collector.recordings.push({ kind, label, recording, authorization });
       return;
     }
     // Outside a batch no credential reaches this service, so the act is the
     // account's own: the legacy `run`'s `credential: null`.
-    await this.appendRecording(projectId, stamp, null, kind, label, recording);
+    await this.appendRecording(projectId, stamp, null, kind, label, recording, authorization);
   }
 
   /**
@@ -10610,7 +10821,9 @@ export class WorkItemService {
     kind: string,
     label: string,
     recording: Recording,
+    authorization: ReplayAuthorization,
   ): Promise<void> {
+    authorization = structuredClone(authorization);
     const externalAddresses = externalAddressesOf(
       [recording.forward, recording.inverse],
       projectId,
@@ -10650,7 +10863,7 @@ export class WorkItemService {
         userId: stamp.by,
         personId,
         kind,
-        payload: { label, forward: recording.forward },
+        payload: { label, forward: recording.forward, authorization },
         inverse: recording.inverse,
         preconditions: {
           ...(externalRevisions === null ? {} : { externalRevisions }),

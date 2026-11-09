@@ -41,7 +41,7 @@ it('uses a selected ready upstream booking for a mounted rank move without optim
   const h = harness;
   await h.register('ada');
   h.organization('org-a');
-  h.member('org-a', 'ada', 'admin');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
   h.bind('ada', 'org-a');
   h.activate();
   const projects: { id: string; stepId: string }[] = [];

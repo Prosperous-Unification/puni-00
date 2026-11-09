@@ -41,6 +41,7 @@ const AGENTS = ['codex', 'claire'] as const;
 const PEOPLE = [...AGENTS, 'ann'] as const;
 const SLOT = 'resource-slot';
 const admin: ResourceAccess = {
+  principal: { id: 'dany' },
   kind: 'scoped',
   scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
 };
@@ -100,6 +101,9 @@ async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
   source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
   source.db.run(
     sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'admin', 1)`,
+  );
+  source.db.run(
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('race-dany','org-a','organization','org-a','user','dany','org-admin','route',1),('race-credential','org-a','organization','org-a','machine_credential','fixture-credential','project-contributor','route',1)`,
   );
   for (const id of PEOPLE) {
     const kind = id === 'ann' ? 'person' : 'agent';
@@ -195,7 +199,7 @@ async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
   const revoke = async (agent: string) => {
     const id = keys.get(agent);
     if (id === undefined) throw new Error(`no key for ${agent}`);
-    const outcome = await credentials.revoke('org-a', 'dany', id, {
+    const outcome = await credentials.revoke('org-a', { id: 'dany' }, id, {
       stamp: { at: now, by: 'dany' },
       actor: 'dany',
       auditId: crypto.randomUUID(),

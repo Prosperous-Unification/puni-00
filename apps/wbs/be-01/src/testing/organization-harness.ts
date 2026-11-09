@@ -43,7 +43,7 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import type { DeliveryGateLimits } from '@wbs/core/service/delivery-gate';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
-import type { CapacityMode } from '@wbs/domain';
+import type { AccessObjectKind, CapacityMode, Permission } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import { SqliteResourceRuntime } from '@wbs/store-sqlite';
 import { SqliteResourceUses } from '@wbs/store-sqlite';
@@ -82,6 +82,7 @@ import {
   TrustedIssuerAdministrationRepository,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
+import { AccessDecisionRepository } from '@wbs/store-sqlite/access-decisions';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import type { CaptureReadSeam } from '@wbs/store-sqlite/capture-read-seam';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
@@ -498,6 +499,7 @@ export class OrganizationHarness {
     const writing = {
       stepParallels: new StepParallelRepository(db, OPEN),
       directory: new DirectoryService({
+        accessDecisions: new AccessDecisionRepository(db),
         clock: testClock,
         directory: directoryStore,
         broadcast: recordingBroadcaster(),
@@ -509,17 +511,20 @@ export class OrganizationHarness {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       calendarMarkers: new CalendarMarkerService({
+        accessDecisions: new AccessDecisionRepository(db),
         projects,
         markers: new CalendarMarkerRepository(db, OPEN),
         clock: testClock,
       }),
       projects: new ProjectService({
+        accessDecisions: new AccessDecisionRepository(db),
         dependencyContext: sqliteDependencyContext(db, projects),
         clock: testClock,
         projects,
         broadcast: recordingBroadcaster(),
       }),
       steps: new StepService({
+        accessDecisions: new AccessDecisionRepository(db),
         dependencyContext: sqliteDependencyContext(db, projects),
         clock: testClock,
         projects,
@@ -527,6 +532,7 @@ export class OrganizationHarness {
         broadcast: recordingBroadcaster(),
       }),
       workItems: new WorkItemService({
+        accessDecisions: new AccessDecisionRepository(db),
         dependencyContext: createLocalDependencyContext({
           projects: projects,
           workItems: new WorkItemRepository(db, OPEN),
@@ -637,6 +643,7 @@ export class OrganizationHarness {
       joinRequests: new JoinRequestRepository(db, OPEN),
       spaces: new SpaceRepository(db, OPEN),
       projectRanks: uncomposedRanks(new ProjectRankRepository(db, OPEN)),
+      accessDecisions: new AccessDecisionRepository(db),
       emailDelivery: {
         deliver: async (message) => {
           await mail.beforeDelivery?.();
@@ -951,6 +958,7 @@ export class OrganizationHarness {
         joinRequests: new JoinRequestRepository(source.db, services.gate),
         spaces: new SpaceRepository(source.db, services.gate),
         projectRanks: services.projectRanks,
+        accessDecisions: services.accessDecisions,
         ...(supportedCapacityModes === undefined ? {} : { supportedCapacityModes }),
         emailDelivery: {
           deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
@@ -1084,7 +1092,7 @@ export class OrganizationHarness {
             objective: 'pri',
             inputHash,
             input,
-            scoped: { organizationId, actorId, role: 'super_admin' },
+            scoped: { organizationId, actorId, role: 'super_admin', principal: { id: actorId } },
           })
         ).kind;
       },
@@ -1293,10 +1301,49 @@ export class OrganizationHarness {
     this.sqlite.run('INSERT INTO organization (id, name, created_at) VALUES (?, ?, 1)', [id, id]);
   }
 
-  member(organizationId: string, username: string, role: string): void {
+  member(
+    organizationId: string,
+    username: string,
+    role: string,
+    grants: readonly string[] = [],
+  ): void {
     this.sqlite.run(
       'INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, ?, 1)',
       [organizationId, this.userId(username), role],
+    );
+    for (const roleId of grants) this.grant(organizationId, username, roleId);
+  }
+
+  /** Grants only the listed permissions to the named fixture account and organization. */
+  grantPermissions(
+    organizationId: string,
+    username: string,
+    permissions: readonly Permission[],
+  ): void {
+    const roleId = crypto.randomUUID();
+    this.sqlite.run(
+      "INSERT INTO access_role(id,name,object_kind,level,reaches_restricted,organization_id,created_at) VALUES(?,?,'organization',NULL,0,?,1)",
+      [roleId, 'Named fixture permissions ' + roleId, organizationId],
+    );
+    for (const permission of permissions)
+      this.sqlite.run('INSERT INTO access_role_permission(role_id,permission) VALUES(?,?)', [
+        roleId,
+        permission,
+      ]);
+    this.grant(organizationId, username, roleId);
+  }
+
+  /** Explicit account grants; membership itself never invents a role grant. */
+  grant(
+    organizationId: string,
+    username: string,
+    roleId: string,
+    scopeKind: AccessObjectKind = 'organization',
+    scopeId: string = organizationId,
+  ): void {
+    this.sqlite.run(
+      "INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at) VALUES (?, ?, ?, ?, 'user', ?, ?, 'route', 1)",
+      [crypto.randomUUID(), organizationId, scopeKind, scopeId, this.userId(username), roleId],
     );
   }
 
@@ -1471,7 +1518,8 @@ export interface HarnessTrustedIssuers {
 function uncomposedRanks(ranks: ProjectRankRepository): ProjectRankStore & CapacityModeSwitch {
   return {
     orderIn: (organizationId) => ranks.orderIn(organizationId),
-    moveAfter: (...args) => ranks.moveAfter(...args),
+    moveAfter: (organizationId, projectId, afterProjectId, stamp) =>
+      ranks.moveAfter(organizationId, projectId, afterProjectId, stamp),
     capacityModeIn: (organizationId) => ranks.capacityModeIn(organizationId),
     switchCapacityMode: () =>
       Promise.reject(

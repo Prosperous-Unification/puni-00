@@ -8,6 +8,7 @@ import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import { DirectoryService } from './directory.resource';
 
 const scoped: ResourceAccess = {
+  principal: { id: 'u' },
   kind: 'scoped',
   scope: { cap: null, organizationId: 'org-a', userId: 'u', role: 'member' },
 };
@@ -61,8 +62,8 @@ describe('an opaque root name', () => {
   test('retries an opaque root name another root holds, then gives up', async () => {
     const once = await fixture(1);
     expect(await once.service.addWithin('tags', 'u', 'urgent', scoped)).toEqual({
-      id: 'id-2',
-      name: 'urgent',
+      ok: true,
+      value: { id: 'id-2', name: 'urgent' },
     });
     expect(once.mapped).toEqual(['id-2']);
 

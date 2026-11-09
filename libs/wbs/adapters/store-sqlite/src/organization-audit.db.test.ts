@@ -163,24 +163,41 @@ describe('the organization audit', () => {
       { name },
       { at: 2, by: actorId },
       'org-a',
-      { actorId, auditId: crypto.randomUUID(), role: 'super_admin' },
+      { principal: { id: actorId }, actorId, auditId: crypto.randomUUID(), role: 'super_admin' },
+    );
+  const grant = (userId: string, roleId: string, scopeKind: string, scopeId: string) =>
+    raw((db) =>
+      db.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,'org-a',?,?,'user',?,?,'route',1)",
+        [crypto.randomUUID(), scopeKind, scopeId, userId, roleId],
+      ),
+    );
+  const clearRestriction = (actorId: string) =>
+    new ProjectRepository(openDrizzle(path), OPEN).editInOrganization(
+      'p1',
+      { restricted: false },
+      { at: 2, by: actorId },
+      'org-a',
+      { principal: { id: actorId }, actorId, auditId: crypto.randomUUID(), role: 'super_admin' },
     );
   const state = () =>
     raw((db) => ({
-      project: db.query('SELECT name, revision FROM project').get(),
+      project: db.query('SELECT name, revision, restricted FROM project').get(),
       audits: db.query('SELECT actor_id, detail FROM organization_audit').all(),
     }));
 
   it('refuses an actor who is no longer a writing member', async () => {
     member('sam', 'viewer');
+    grant('sam', 'package-viewer', 'work_package', 'p1');
     const before = state();
     expect(await edit('sam', 'Taken')).toBe('forbidden');
-    expect(await edit('nobody', 'Taken')).toBe('forbidden');
+    expect(await edit('nobody', 'Taken')).toBeNull();
     expect(state()).toEqual(before);
   });
 
   it('refuses a non-creator admin of a restricted project', async () => {
     member('sam', 'admin');
+    grant('sam', 'org-admin', 'organization', 'org-a');
     const before = state();
     expect(await edit('sam', 'Taken')).toBe('forbidden');
     expect(state()).toEqual(before);
@@ -188,14 +205,16 @@ describe('the organization audit', () => {
 
   it('audits a recovery the project became after the request read it', async () => {
     member('sam', 'super_admin');
-    // The caller read the project while unrestricted; it is restricted now.
-    expect(await edit('sam', 'Recovered')).toMatchObject({ name: 'Recovered', ownerId: 'ada' });
-    expect(state().audits).toEqual([{ actor_id: 'sam', detail: '{"fields":["name"]}' }]);
+    grant('sam', 'org-super-admin', 'organization', 'org-a');
+    expect(await clearRestriction('sam')).toMatchObject({ restricted: false, ownerId: 'ada' });
+    expect(state().audits).toEqual([{ actor_id: 'sam', detail: '{"fields":["restricted"]}' }]);
   });
 
   it("writes the creator's own edit and an unrestricted project's edit without a record", async () => {
     member('ada', 'member');
     member('sam', 'super_admin');
+    grant('ada', 'package-manager', 'work_package', 'p1');
+    grant('sam', 'org-super-admin', 'organization', 'org-a');
     expect(await edit('ada', 'Mine')).toMatchObject({ name: 'Mine' });
     raw((db) => db.run('UPDATE project SET restricted = 0'));
     expect(await edit('sam', 'Open')).toMatchObject({ name: 'Open' });
@@ -204,6 +223,7 @@ describe('the organization audit', () => {
 
   it('rolls the edit back when its audit record cannot be written', async () => {
     member('sam', 'super_admin');
+    grant('sam', 'org-super-admin', 'organization', 'org-a');
     raw((db) =>
       db.run(
         "CREATE TRIGGER audit_refused BEFORE INSERT ON organization_audit BEGIN SELECT RAISE(ABORT, 'audit refused'); END",
@@ -212,7 +232,7 @@ describe('the organization audit', () => {
     const before = state();
     let failure: unknown;
     try {
-      await edit('sam', 'Recovered');
+      await clearRestriction('sam');
     } catch (error) {
       failure = error;
     }
@@ -230,7 +250,7 @@ describe('the organization audit', () => {
       { name: 'Taken' },
       { at: 2, by: 'sam' },
       'org-b',
-      { actorId: 'sam', auditId: 'a1', role: 'super_admin' },
+      { principal: { id: 'sam' }, actorId: 'sam', auditId: 'a1', role: 'super_admin' },
     );
     expect(answer).toBeNull();
   });
@@ -249,7 +269,7 @@ describe('the organization audit', () => {
       member('sam', 'super_admin');
       expect(await admit('sam')).toBe('recovery');
       expect(state()).toEqual({
-        project: { name: 'Plan', revision: 0 },
+        project: { name: 'Plan', revision: 0, restricted: 1 },
         audits: [{ actor_id: 'sam', detail: '{"commands":["patchWorkItem"]}' }],
       });
     });

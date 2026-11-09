@@ -26,6 +26,7 @@ export const stepModule = DiBag.createBuilder()
     stepOptions: DiBag.createProvider(
       ({
         projectStore,
+        accessDecisions,
         stepStore,
         broadcast,
         clock,
@@ -35,6 +36,7 @@ export const stepModule = DiBag.createBuilder()
         beforeWrite,
       }: {
         projectStore: ProjectStore;
+        accessDecisions: StepServiceOptions['accessDecisions'];
         stepStore: StepStore;
         broadcast: Broadcaster;
         clock: Clock;
@@ -44,6 +46,7 @@ export const stepModule = DiBag.createBuilder()
         beforeWrite: StepServiceOptions['beforeWrite'];
       }): StepServiceOptions => ({
         projects: projectStore,
+        accessDecisions,
         steps: stepStore,
         // Proof (2026-09-24): handing the resource
         // `{ ...broadcast, publish: () => Promise.resolve() }` instead of the supplied

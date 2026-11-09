@@ -141,7 +141,10 @@ function openSqliteSourceWithSeams(
   );
   const claimObservation = { openConnection: () => reads.acquire() };
   const stores = buildStores(process.db, coordinator, lateWrite, undefined, claimObservation);
-  const admitted = { ...buildStores(process.db, OPEN, lateWrite), ...limits };
+  const admitted = {
+    ...buildStores(process.db, OPEN, lateWrite, undefined, undefined, 'borrowed'),
+    ...limits,
+  };
   /** Intersects immutable binary support with fresh durable authority on the exact admitted writer. */
   const createWriterAuthority = (lifetime: ReadSnapshotLifetime) => () => {
     // Proof: removing expiry admitted retained authority after settlement in writer-authority-binding.db.test.ts.
@@ -187,7 +190,7 @@ function openSqliteSourceWithSeams(
               });
               return {
                 stores: {
-                  ...buildStores(process.db, OPEN, lateWrite, commandPlans),
+                  ...buildStores(process.db, OPEN, lateWrite, commandPlans, undefined, 'borrowed'),
                   ...limits,
                   externalDependencyAuthoring: createWriterAuthority(lifetime),
                 },

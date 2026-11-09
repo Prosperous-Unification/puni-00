@@ -28,10 +28,12 @@ const OWNER = 'owner';
  */
 async function seeded() {
   const source = openMemorySource();
-  await source.stores.projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], {
-    at: 1,
-    by: OWNER,
-  });
+  await source.stores.projects.createInOrganization(
+    projectRow({ id: PROJECT, ownerId: OWNER }),
+    [],
+    { at: 1, by: OWNER },
+    'org-a',
+  );
   let next = 0;
   const clock = clockOf({ now: () => 2, newId: () => `item-${String(++next)}` });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
@@ -137,6 +139,22 @@ describe('the Plan commands module', () => {
               ...scope,
               stores: {
                 ...scope.stores,
+                accessDecisions: {
+                  effectiveRoleAt: (principal, target) => {
+                    if (
+                      principal.id !== OWNER ||
+                      target.kind !== 'work_package' ||
+                      target.chain.organizationId !== 'org-a' ||
+                      target.chain.workPackageId !== PROJECT
+                    )
+                      throw new Error('unexpected fanout fixture subject/scope');
+                    return Promise.resolve({
+                      permissions: new Set(['package.read', 'package.write'] as const),
+                      via: [],
+                    });
+                  },
+                  readablePackageIds: () => Promise.reject(new Error('unexpected grant listing')),
+                },
                 projects: new Proxy(scope.stores.projects, {
                   get: (projects, key, receiver): unknown => {
                     if (key === 'admitEditInOrganization') return () => Promise.resolve('ordinary');
@@ -153,6 +171,7 @@ describe('the Plan commands module', () => {
       expect(
         (
           await commands.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
+            principal: { id: OWNER },
             kind: 'scoped',
             scope: { cap: null, organizationId: 'org-a', userId: OWNER, role: 'member' },
           })
@@ -165,6 +184,7 @@ describe('the Plan commands module', () => {
       });
       expect(
         missingDelivery.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
+          principal: { id: OWNER },
           kind: 'scoped',
           scope: { cap: null, organizationId: 'org-a', userId: OWNER, role: 'member' },
         }),

@@ -1,3 +1,4 @@
+import type { Permission } from '@wbs/domain';
 import {
   type AllowancePercent,
   type AssumedAssigneeFlip,
@@ -12,6 +13,7 @@ import {
   type StepNodeRef,
 } from '@wbs/domain';
 
+import type { AccessDecisions } from '../../ports/access-decisions';
 import type { Clock } from '../../ports/clock';
 import {
   type ServiceDependencyContext,
@@ -28,9 +30,11 @@ import {
 import type { Broadcaster } from '../../ports/project-event';
 import type { Project, ProjectStore } from '../../ports/project-store';
 import type { Step, StepStore, StepUsageRows } from '../../ports/step-store';
+import { authorizePackage } from '../../service/authorize';
 
 export interface StepServiceOptions {
-  /** A unit-of-work grant used only for scoped recovery. */
+  readonly accessDecisions?: AccessDecisions;
+  /** Legacy composition option retained until recovery adapters are removed; scoped writes use accessDecisions. */
   recoveryAdmission?: EditAdmission;
   projects: ProjectStore;
   steps: StepStore;
@@ -54,7 +58,7 @@ export interface StepServiceOptions {
    * still refuses corrupt/current cycles and unavailable incident evidence.
    */
   dependencyContext: ServiceDependencyContext;
-  /** Trusted scoped recovery observation seam, after removal preflights. */
+  /** Admitted scoped observation seam after removal preflights. */
   beforeRemove?: BeforeStepRemoval;
   /** Scoped add/rename observation after their service preflights and before storage. */
   beforeWrite?: BeforeStepWrite;
@@ -72,7 +76,8 @@ export type StepRefusal =
   | 'invalid_estimate_unit'
   | 'dependency_cycle';
 
-export type StepOutcome = { ok: true; value: Step } | { ok: false; reason: StepRefusal };
+export type StepOutcome =
+  { ok: true; value: Step } | { ok: false; reason: StepRefusal; readonly permission?: Permission };
 export type StepUnitOutcome =
   StepOutcome | { ok: false; reason: 'estimates_present'; count: number };
 
@@ -135,7 +140,7 @@ export interface StepInUse {
 
 export type RemoveStepOutcome =
   | { ok: true }
-  | { ok: false; reason: 'not_found' | 'forbidden' }
+  | { ok: false; reason: 'not_found' | 'forbidden'; readonly permission?: Permission }
   | { ok: false; reason: 'in_use'; inUse: StepInUse }
   /** An authored sparse policy must be explicitly cleared before either cascade value. */
   | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
@@ -245,7 +250,8 @@ export class StepService {
     }
     const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!this.mayWrite(project, actorId, access)) return { ok: false, reason: 'forbidden' };
+    const decision = await this.authorizeWrite(project, actorId, access);
+    if (!decision.ok) return decision;
 
     return withDependencyContext(
       this.opts.dependencyContext,
@@ -397,8 +403,7 @@ export class StepService {
   ): Promise<RemoveStepOutcome> {
     const gate = await this.gate(projectId, stepId, actorId, access);
     // Proof: skipping this gate disclosed the sparse policy to a forbidden actor, 2026-10-17.
-    if (!gate.ok)
-      return { ok: false, reason: gate.reason === 'forbidden' ? 'forbidden' : 'not_found' };
+    if (!gate.ok) return gate;
     return withDependencyContext(
       this.opts.dependencyContext,
       projectId,
@@ -465,9 +470,9 @@ export class StepService {
   /**
    * {@link find} through the caller's access: a foreign project, or a step of
    * another project, is `not_found`. The allowance route uses this read before
-   * its command. A scoped super-admin may pass this lookup for a restricted
-   * project; the command still reclassifies and audits its write inside its
-   * own transaction.
+   * its command. Scoped lookup requires current package.write in the same
+   * admitted transaction; allowance commands additionally require
+   * package.manage_settings through their registered command permission.
    */
   async findWithin(
     projectId: string,
@@ -475,7 +480,7 @@ export class StepService {
     actorId: string,
     access: ResourceAccess,
   ): Promise<StepOutcome> {
-    const gate = await this.gate(projectId, stepId, actorId, access, true);
+    const gate = await this.gate(projectId, stepId, actorId, access);
     if (!gate.ok) return gate;
     const found = await this.opts.steps.findById(stepId);
     if (found === null) return { ok: false, reason: 'not_found' };
@@ -484,7 +489,6 @@ export class StepService {
 
   /**
    * The project this step belongs to, and whether the caller may write to it.
-   * `recoveryLookup` admits only the precommand read; it grants no write.
    *
    * A step of another project is `not_found` rather than `forbidden`: it is not
    * this project's step, and saying "you may not" would tell the caller it is.
@@ -498,7 +502,6 @@ export class StepService {
     stepId: string,
     actorId: string,
     access: ResourceAccess,
-    recoveryLookup = false,
   ): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }> {
     // Proof: finding the project unscoped here, and separately in `addWithin`,
     // failed `answers 404 alike for a foreign and an absent project on every
@@ -506,30 +509,26 @@ export class StepService {
     // watched 2026-09-27.
     const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (
-      !this.mayWrite(project, actorId, access) &&
-      // Proof: disabling this read-only lookup exception made the mounted
-      // allowance recovery answer 403 instead of 200; watched 2026-09-28.
-      !(
-        recoveryLookup &&
-        access.kind === 'scoped' &&
-        access.scope.userId === actorId &&
-        access.scope.role === 'super_admin'
-      )
-    )
-      return { ok: false, reason: 'forbidden' };
+    const decision = await this.authorizeWrite(project, actorId, access);
+    if (!decision.ok) return decision;
     const step = await this.opts.steps.findById(stepId);
     if (step?.projectId !== projectId) return { ok: false, reason: 'not_found' };
     return { ok: true };
   }
 
-  /** A scoped recovery uses only the admission this graph's unit of work granted. */
-  private mayWrite(project: Project, actorId: string, access: ResourceAccess): boolean {
-    return (
-      mayEditProjectWithin(project, actorId, access) ||
-      // Proof: disabling this grant made the mounted step recovery answer 403
-      // instead of 200 (0 pass, 1 fail); watched 2026-09-28.
-      (access.kind === 'scoped' && this.opts.recoveryAdmission?.admits(project, actorId) === true)
-    );
+  /** Preserves concealed-package and named permission decisions; step recovery has no role exception. */
+  private async authorizeWrite(
+    project: Project,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<
+    { ok: true } | { ok: false; reason: 'not_found' | 'forbidden'; permission?: Permission }
+  > {
+    // Proof: step-resource-grant fault failed 'named write refusal in the actual borrowed step resource' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    if (access.kind === 'scoped')
+      return authorizePackage(this.opts.accessDecisions, access, project, actorId, 'package.write');
+    return mayEditProjectWithin(project, actorId, access)
+      ? { ok: true }
+      : { ok: false, reason: 'forbidden' };
   }
 }

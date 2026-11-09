@@ -81,6 +81,7 @@ describe('scoped solution links', () => {
   const store = () => new ProjectRepository(openDrizzle(path), OPEN);
   const edit = (id: string, organizationId: string, patch: ProjectPatch) =>
     store().editInOrganization(id, patch, { at: 2, by: 'ada' }, organizationId, {
+      principal: { id: 'ada' },
       actorId: 'ada',
       auditId: crypto.randomUUID(),
       role: 'super_admin',
@@ -247,6 +248,13 @@ describe('scoped solution links', () => {
   });
 
   describe('an organization edit', () => {
+    beforeEach(() => {
+      raw((sqlite) =>
+        sqlite.run(
+          "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('solution-a','org-a','organization','org-a','user','ada','org-admin','route',1),('solution-b','org-b','organization','org-b','user','ada','org-admin','route',1)",
+        ),
+      );
+    });
     it('links a slug only another organization holds', async () => {
       expect(await edit('b1', 'org-b', { solutionRef: link('shared') })).toMatchObject({
         solutionRef: link('shared'),

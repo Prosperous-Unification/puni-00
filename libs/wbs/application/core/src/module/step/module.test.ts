@@ -38,6 +38,7 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
+    accessDecisions: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     projectStore: DiBag.createProvider(() => source.stores.projects, {
       factoryReturnKind: 'sync-value',
     }),
@@ -145,6 +146,7 @@ describe('the Step module', () => {
     const partial = DiBag.createBuilder()
       .withInstalledModules([stepModule])
       .withServices({
+        accessDecisions: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
         projectStore: DiBag.createProvider(() => source.stores.projects, {
           factoryReturnKind: 'sync-value',
         }),

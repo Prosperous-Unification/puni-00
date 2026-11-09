@@ -98,7 +98,12 @@ async function fixture(held = true, optimized = true, withLocal = false) {
     seedDependencyAuthority(path);
     await harness.register('ada');
     harness.organization('org-a');
-    harness.member('org-a', 'ada', 'member');
+    harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    harness.grantPermissions('org-a', 'ada', [
+      'organization.create_project',
+      'package.manage_settings',
+      'organization.manage_spaces',
+    ]);
     harness.bind('ada', 'org-a');
     harness.activate();
     harness.sqlite.run("INSERT INTO person(id,name) VALUES('ana','Root Ana')");

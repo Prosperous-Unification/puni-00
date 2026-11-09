@@ -1,5 +1,7 @@
+import type { CommandAccess } from '../ports/command-access';
 import type { ProjectRankStore, RankMoved } from '../ports/project-rank-store';
 import type { UnitOfWork } from '../ports/unit-of-work';
+import { authorize } from './authorize';
 import type { CommittedFanoutDelivery, CommittedProjectEvent } from './committed-fanout';
 import { recordCommittedFanout } from './committed-fanout';
 
@@ -12,10 +14,13 @@ export function standaloneRankStore(
   publicRanks: ProjectRankStore,
   uow: UnitOfWork,
   delivery: CommittedFanoutDelivery,
+  commandAccess: CommandAccess,
 ): ProjectRankStore {
   return {
     orderIn: (organizationId) => publicRanks.orderIn(organizationId),
-    async moveAfter(organizationId, projectId, afterProjectId, stamp): Promise<RankMoved> {
+    async moveAfter(organizationId, projectId, afterProjectId, stamp, caller): Promise<RankMoved> {
+      if (caller === undefined) throw new Error('rank writer lacks authenticated caller evidence');
+      caller = structuredClone(caller);
       const settled = await uow.run<{
         moved: RankMoved;
         events: readonly CommittedProjectEvent[];
@@ -26,11 +31,34 @@ export function standaloneRankStore(
           throw new Error('standalone rank owner lacks borrowed capture, authority or rank store');
         // Proof: bypassing this current-membership check lets a queued demotion
         // write ranks; moving capture above it invokes the throwing capture spy.
-        const authority = await capture.authorizeRankMove(organizationId, stamp.by);
+        const resolved = await commandAccess.resolve(caller);
+        if (!resolved.ok)
+          return {
+            commit: false,
+            value: { moved: { ok: false, authority: resolved }, events: [] },
+          };
+        const access = resolved.access;
+        if (
+          access.kind !== 'scoped' ||
+          access.scope.organizationId !== organizationId ||
+          access.principal.id !== stamp.by ||
+          access.scope.userId !== stamp.by
+        )
+          throw new Error('rank writer authority differs from its addressed organization or actor');
+        const authority = await authorize(
+          scope.stores.accessDecisions,
+          access.principal,
+          { kind: 'organization', organizationId },
+          'organization.manage_spaces',
+        );
+        // Proof: rank-grant fault failed 'rechecks queued rank grants' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
         if (!authority.ok)
           return {
-            commit: false as const,
-            value: { moved: { ok: false as const, reason: authority.reason }, events: [] },
+            commit: false,
+            value: {
+              moved: { ok: false, reason: 'forbidden', permission: 'organization.manage_spaces' },
+              events: [],
+            },
           };
         const order = await ranks.orderIn(organizationId);
         if (

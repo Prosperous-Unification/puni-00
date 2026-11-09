@@ -21,9 +21,9 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
@@ -47,7 +47,19 @@ function entry(root: string, side: string, id: string, org: 'a' | 'b', name: str
 async function create(username: string, name: string): Promise<string> {
   const answer = await h.call(username, 'POST', '/api/projects', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const projectId = (answer.body as { project: { id: string } }).project.id;
+  if (
+    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
+      ?.state === 'activated'
+  )
+    h.grant(
+      username === 'grace' ? 'org-b' : 'org-a',
+      username,
+      'package-manager',
+      'work_package',
+      projectId,
+    );
+  return projectId;
 }
 
 async function firstStep(username: string, projectId: string): Promise<string> {
@@ -551,7 +563,7 @@ describe('the import', () => {
     });
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
     const originalNow = Date.now.bind(Date);
@@ -609,7 +621,7 @@ describe('the import', () => {
     );
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
@@ -643,7 +655,7 @@ describe('the import', () => {
     );
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
@@ -676,7 +688,7 @@ describe('the import', () => {
     );
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
     h.sqlite.run(`CREATE TRIGGER lose_import_tag AFTER INSERT ON work_item
@@ -715,7 +727,7 @@ describe('the import', () => {
     );
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
     entry('person', 'person_organization', 'ana', 'a', 'Ana');
@@ -767,7 +779,7 @@ describe('the import', () => {
     );
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
     const overdue = Promise.withResolvers<never>();
@@ -828,7 +840,7 @@ describe('the import', () => {
       );
       await h.register('ada');
       h.organization('org-a');
-      h.member('org-a', 'ada', 'member');
+      h.member('org-a', 'ada', 'member', ['org-admin']);
       h.bind('ada', 'org-a');
       h.activate();
       const release = Promise.withResolvers<undefined>();
@@ -845,6 +857,10 @@ describe('the import', () => {
           [h.userId('ada')],
         );
       else {
+        if (refusal === 'viewer')
+          h.sqlite.run("UPDATE access_grant SET role_id = 'project-viewer' WHERE subject_id = ?", [
+            h.userId('ada'),
+          ]);
         if (refusal === 'corrupt') h.sqlite.run('PRAGMA ignore_check_constraints = ON');
         h.sqlite.run(
           "UPDATE organization_membership SET role = ? WHERE organization_id = 'org-a' AND user_id = ?",
@@ -857,7 +873,13 @@ describe('the import', () => {
       expect(await pending).toEqual(
         refusal === 'corrupt'
           ? { status: 500, body: 'Internal Server Error' }
-          : { status: 403, body: { error: refusal === 'removed' ? 'not_a_member' : 'forbidden' } },
+          : {
+              status: 403,
+              body:
+                refusal === 'removed'
+                  ? { error: 'not_a_member' }
+                  : { error: 'forbidden', permission: 'organization.create_project' },
+            },
       );
       expect(captures).toBe(0);
       expect(h.sqlite.query('SELECT id FROM project').all()).toEqual([]);
@@ -867,7 +889,7 @@ describe('the import', () => {
   it("refuses a viewer's import", async () => {
     expect(await h.call('vic', 'POST', '/api/projects/import', planDocumentFixture())).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.create_project' },
     });
     expect(
       (await h.call('ada', 'GET', '/api/projects')).body as {

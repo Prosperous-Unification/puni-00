@@ -10,7 +10,11 @@ import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { decodeJwt } from 'jose';
 
 import { openDatabase } from '../repository/db';
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
 import { forwardingMachineGrants, requestGrant } from '../testing/mcp-forwarded-call';
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -56,7 +60,7 @@ async function open() {
   await harness.register('ada');
   for (const id of ['org-a', 'org-b']) {
     harness.organization(id);
-    harness.member(id, 'ada', 'super_admin');
+    harness.member(id, 'ada', 'super_admin', ['org-super-admin']);
   }
   harness.activate();
   const selected = await harness.request('/api/organization/active', {
@@ -141,6 +145,7 @@ describe('current command authority on the process writer', () => {
         );
         const principal = await harness.authenticatedCommandPrincipal('ada', cookieValue);
         const access = {
+          principal: { id: principal.id },
           kind: 'scoped' as const,
           scope: {
             cap: null,
@@ -243,7 +248,7 @@ describe('current command authority on the process writer', () => {
             error = 'not_a_member';
           } else if (fault === 'demotion') {
             harness.sqlite.run(
-              "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id=?",
+              "UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
               [userId],
             );
             error = 'forbidden';
@@ -306,6 +311,7 @@ test('direct runner compares current kind, organization and principal identity w
   for (const expected of [
     { kind: 'legacy' as const },
     {
+      principal: { id: principal.id },
       kind: 'scoped' as const,
       scope: {
         cap: null,
@@ -315,6 +321,7 @@ test('direct runner compares current kind, organization and principal identity w
       },
     },
     {
+      principal: { id: 'another-user' },
       kind: 'scoped' as const,
       scope: {
         cap: null,
@@ -370,6 +377,7 @@ test('malformed trusted membership throws before direct command effects', async 
   const failure = await harness
     .publicCommands()
     .runWithin(fixture.projectId, principal, [], {
+      principal: { id: principal.id },
       kind: 'scoped',
       scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
     })
@@ -388,6 +396,7 @@ test('direct runner refuses a scoped expectation while current authority is lega
   const principal = await harness.authenticatedCommandPrincipal('ada', '');
   expect(
     await harness.publicCommands().runDirectoryWithin(principal, [], {
+      principal: { id: principal.id },
       kind: 'scoped',
       scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
     }),
@@ -402,6 +411,7 @@ test('direct authenticated runner entries refuse read-only principals before ope
     scopes: ['read'] as const,
   };
   const access = {
+    principal: { id: principal.id },
     kind: 'scoped' as const,
     scope: {
       cap: null,
@@ -440,6 +450,7 @@ for (const operation of ['project update', 'bare step removal', 'recovery write'
       scopes: ['read'] as const,
     };
     const access = {
+      principal: { id: principal.id },
       kind: 'scoped' as const,
       scope: {
         cap: null,
@@ -450,7 +461,8 @@ for (const operation of ['project update', 'bare step removal', 'recovery write'
     };
     if (operation !== 'bare step removal') {
       await harness.register('owner');
-      harness.member('org-a', 'owner', 'member');
+      harness.member('org-a', 'owner', 'member', ['project-contributor', 'org-viewer']);
+      harness.grantPermissions('org-a', 'owner', ['organization.create_project']);
       harness.sqlite.run('UPDATE project SET owner_id=?, restricted=1 WHERE id=?', [
         harness.userId('owner'),
         fixture.projectId,
@@ -523,6 +535,14 @@ for (const kind of ['machine', 'consent'] as const)
         personId: 'agent',
         issuedBy: harness.userId('ada'),
       });
+      grantCredential(
+        harness.sqlite,
+        'org-a',
+        credential.id,
+        'project-contributor',
+        'organization',
+        'org-a',
+      );
       const authenticated = await harness.authenticatedMachinePrincipal(credential.key);
       const principal =
         kind === 'machine'
@@ -602,6 +622,7 @@ for (const kind of ['machine', 'consent'] as const)
       refusingObservations = true;
       expect(
         await harness.publicCommands().runWithin(fixture.projectId, principal, [], {
+          principal: { id: principal.id },
           kind: 'scoped',
           scope: {
             cap: CONTRIBUTOR_CAP,
@@ -632,6 +653,14 @@ for (const operation of [
       personId: 'agent',
       issuedBy: harness.userId('ada'),
     });
+    grantCredential(
+      harness.sqlite,
+      'org-a',
+      credential.id,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     const issued = await requestGrant(
       harness,
       { kind: 'api_key', key: credential.key },
@@ -713,6 +742,14 @@ for (const kind of ['machine', 'consent'] as const)
         personId: 'agent',
         issuedBy: harness.userId('ada'),
       });
+      grantCredential(
+        harness.sqlite,
+        'org-a',
+        credential.id,
+        'project-contributor',
+        'organization',
+        'org-a',
+      );
       const principal = await harness.authenticatedMachinePrincipal(credential.key);
       if (kind === 'consent') {
         harness.sqlite.run(
@@ -734,6 +771,7 @@ for (const kind of ['machine', 'consent'] as const)
         };
       }
       const access = {
+        principal: { id: principal.id },
         kind: 'scoped' as const,
         scope: {
           cap: CONTRIBUTOR_CAP,
@@ -802,6 +840,14 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
       personId: 'agent',
       issuedBy: harness.userId('ada'),
     });
+    grantCredential(
+      harness.sqlite,
+      'org-a',
+      credential.id,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     const principal = await harness.authenticatedMachinePrincipal(credential.key);
     harness.sqlite.run('PRAGMA ignore_check_constraints=ON');
     if (fault === 'absent-table')
@@ -816,6 +862,7 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
     const failure = await harness
       .publicCommands()
       .runWithin(fixture.projectId, principal, [], {
+        principal: { id: principal.id },
         kind: 'scoped',
         scope: {
           cap: CONTRIBUTOR_CAP,
@@ -987,14 +1034,31 @@ for (const operation of ['batch', 'prelude', 'undo', 'redo'] as const)
         personId: 'original-agent',
         issuedBy: accountId,
       });
+      grantCredential(
+        harness.sqlite,
+        'org-a',
+        original.id,
+        'project-contributor',
+        'organization',
+        'org-a',
+      );
       const replacement = await issueApiKey(harness.sqlite, {
         organizationId: 'org-a',
         personId: 'replacement-agent',
         issuedBy: accountId,
       });
+      grantCredential(
+        harness.sqlite,
+        'org-a',
+        replacement.id,
+        'project-contributor',
+        'organization',
+        'org-a',
+      );
       const principal = await harness.authenticatedMachinePrincipal(original.key);
       const replacementPrincipal = await harness.authenticatedMachinePrincipal(replacement.key);
       const access = {
+        principal: { id: accountId },
         kind: 'scoped' as const,
         scope: {
           cap: CONTRIBUTOR_CAP,

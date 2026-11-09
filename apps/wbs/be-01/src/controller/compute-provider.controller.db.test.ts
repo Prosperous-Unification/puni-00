@@ -7,6 +7,7 @@ import { openDrizzle } from '../repository/db';
 import { WriteCoordinator } from '../repository/gate';
 import {
   addAgentPerson,
+  grantCredential,
   issueApiKey,
   MACHINE_BEARER_NOT_ACCEPTED,
 } from '../testing/machine-credential-fixture';
@@ -58,9 +59,10 @@ async function setUp(): Promise<void> {
   for (const username of ['dany', 'mem', 'bob']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'dany', 'super_admin');
-  h.member('org-a', 'mem', 'member');
-  h.member('org-b', 'bob', 'admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'mem', ['organization.create_project']);
+  h.member('org-b', 'bob', 'admin', ['org-admin']);
   h.bind('dany', 'org-a');
   h.bind('mem', 'org-a');
   h.bind('bob', 'org-b');
@@ -210,6 +212,7 @@ async function keys() {
     personId: 'dash-b',
     issuedBy: h.userId('bob'),
   });
+  grantCredential(h.sqlite, 'org-a', agent.id, 'project-contributor', 'organization', 'org-a');
   return { agent: agent.key, human: human.key, stranger: stranger.key };
 }
 
@@ -303,7 +306,7 @@ describe('provider instance administration', () => {
     h = OrganizationHarness.open({ delegationKey: signing.publicKey });
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     h.activate();
     const own = await registered('dany', 'h4claw');
@@ -327,7 +330,7 @@ describe('provider instance administration', () => {
     h = OrganizationHarness.openComposedWith({ machineGrants });
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     for (const [method, path, body] of [
       ['GET', PATH, undefined],
@@ -461,6 +464,7 @@ describe("a resource's provider reference", () => {
   it('sets, reads and clears the reference, and the schedule input does not move', async () => {
     const h4claw = await registered('dany', 'h4claw');
     const before = await h.optimizationHash(projectA);
+    h.grantPermissions('org-a', 'mem', ['organization.manage_directory']);
     expect((await reference('mem', ram, { providerId: h4claw })).status).toBe(200);
     expect(providerOf(ram)).toBe(h4claw);
     const read = await readResources('dany');
@@ -496,7 +500,7 @@ describe("a resource's provider reference", () => {
 
   it('names the instance to a viewer too, never its locator', async () => {
     await h.register('vic');
-    h.member('org-a', 'vic', 'viewer');
+    h.member('org-a', 'vic', 'viewer', ['org-viewer']);
     h.bind('vic', 'org-a');
     const h4claw = await registered('dany', 'h4claw');
     expect((await reference('dany', ram, { providerId: h4claw })).status).toBe(200);
@@ -594,12 +598,18 @@ describe("a resource's provider reference", () => {
     const command = { kind: 'deleteResource', resourceId: staging, cascade: true };
     expect(
       await callForwarded(h, agent, 'POST', '/api/directory/commands', { commands: [command] }),
-    ).toEqual({ status: 403, body: { at: 0, kind: 'deleteResource', error: 'forbidden' } });
+    ).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(
       await callForwarded(h, agent, 'POST', '/api/directory/commands', {
         commands: [{ kind: 'patchResource', resourceId: staging, patch: { unitLabel: 'env' } }],
       }),
-    ).toMatchObject({ status: 200 });
+    ).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(
       await h.call('dany', 'POST', '/api/directory/commands', { commands: [command] }),
     ).toMatchObject({ status: 200 });
@@ -813,7 +823,7 @@ describe('a capacity report', () => {
     h = OrganizationHarness.open({ delegationKey: signing.publicKey });
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     h.activate();
     mapUpstream(h, 'dany', 'sub-dany');

@@ -171,6 +171,29 @@ async function activateTwoOrganizations(process: BootedBrowserProcess): Promise<
     "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'u-ada', 'member', 1), ('org-b', 'u-grace', 'member', 1)",
   );
   process.activate();
+  // Named contributor grants model these members; setup creation has its own temporary permission.
+  for (const [organizationId, accountId] of [
+    ['org-a', 'u-ada'],
+    ['org-b', 'u-grace'],
+  ]) {
+    const roleId = 'seed-create-' + organizationId;
+    process.sqlite.run(
+      "INSERT INTO access_role(id,name,object_kind,level,reaches_restricted,organization_id,created_at) VALUES(?,?,'organization',NULL,0,?,1)",
+      [roleId, 'Seed creator', organizationId],
+    );
+    process.sqlite.run(
+      "INSERT INTO access_role_permission(role_id,permission) VALUES(?,'organization.create_project')",
+      [roleId],
+    );
+    for (const [grantId, grantedRole] of [
+      ['contributor-' + organizationId, 'project-contributor'],
+      ['setup-create-' + organizationId, roleId],
+    ])
+      process.sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+        [grantId, organizationId, organizationId, accountId, grantedRole],
+      );
+  }
   const created = await call(
     process,
     'POST',
@@ -197,6 +220,9 @@ async function activateTwoOrganizations(process: BootedBrowserProcess): Promise<
     { name: 'B plan' },
   );
   expect(foreign.status).toBe(200);
+  process.sqlite.run(
+    "DELETE FROM access_grant WHERE id IN ('setup-create-org-a','setup-create-org-b')",
+  );
   return (foreign.body as { project: { id: string } }).project.id;
 }
 
@@ -1018,6 +1044,10 @@ describe('undo through an MCP consent session', () => {
       ({ name }) => name === 'A plan',
     )?.id;
     if (projectId === undefined) throw new Error(`no A plan: ${JSON.stringify(listed)}`);
+    booted.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('consent-undo','org-a','work_package',?,'machine_credential',?,'package-contributor','route',1)",
+      [projectId, CREDENTIAL],
+    );
     const created = await call(
       booted,
       'POST',

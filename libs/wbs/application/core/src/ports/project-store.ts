@@ -1,5 +1,6 @@
 import type { AllowancePercent, OrganizationRole } from '@wbs/domain';
 
+import type { ScopedPrincipal } from './access-decisions';
 import type {
   NewProject,
   Project,
@@ -123,15 +124,18 @@ export interface ProjectStore {
     stamp: WriteStamp,
   ): Promise<Project | null | 'abbreviation_taken'>;
   /**
-   * {@link update} by `editor.actorId` in `organizationId`, authorized in the
-   * write's own transaction against the project and the actor's membership as
-   * they stand then, capped by `editor.role` (see `classifyProjectEdit`): an
-   * ordinary edit is written;
-   * a super-admin's recovery of someone else's restricted project is written
-   * with one `organization_audit` record ({@link RecoveryAuditDetail}) in the
-   * same transaction; anything else is `forbidden` and writes nothing. Null,
-   * before any permission check, when the organization does not own the
-   * project. A patch that changes nothing writes and records nothing.
+   * {@link update} by `editor.actorId` in `organizationId`, authorized against
+   * the current authenticated principal's grants and membership in the write's
+   * own transaction. `editor.role` remains a compatibility field and supplies
+   * no grant. A missing, foreign or invisible project is null; a readable
+   * project without settings authority is `forbidden`. Neither writes.
+   *
+   * The only restricted recovery is an authorized exact flag-clear
+   * {@link ProjectPatch}; it writes one `organization_audit` record
+   * ({@link RecoveryAuditDetail}) in the same transaction. Other settings need
+   * their ordinary grant. Even an empty patch requires current authority,
+   * then writes and records nothing. Missing or unreadable trusted grant state
+   * throws rather than becoming a refusal.
    *
    * A `solutionRef` is the organization's own (see `project_solution`): a slug
    * another of the organization's projects holds, by either representation, is
@@ -143,7 +147,12 @@ export interface ProjectStore {
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string,
-    editor: { readonly actorId: string; readonly auditId: string; readonly role: OrganizationRole },
+    editor: {
+      readonly actorId: string;
+      readonly auditId: string;
+      readonly role: OrganizationRole;
+      readonly principal: ScopedPrincipal;
+    },
   ): Promise<Project | null | 'forbidden' | 'solution_taken' | 'abbreviation_taken'>;
   /**
    * Authorizes `actorId`'s write to `projectId` in `organizationId` from the

@@ -34,8 +34,8 @@ beforeEach(async () => {
   const { h } = world;
   token = await issueToken(h, 'ada');
   await h.register('carol');
-  h.member('org-a', 'carol', 'admin');
-  h.member('org-b', 'carol', 'member');
+  h.member('org-a', 'carol', 'admin', ['org-admin']);
+  h.member('org-b', 'carol', 'member', ['project-contributor', 'org-viewer']);
   h.bind('carol', 'org-a');
   mapUpstream(h, 'carol', 'sub-carol');
   aProject = await project('carol', 'A plan');
@@ -293,7 +293,8 @@ it('ends a real selected-organization cookie’s browser and gateway access at o
       ['t-cookie', 'org-a', await sha256Hex(secret), h.userId('ada')],
     );
     await h.register('carol');
-    h.member('org-a', 'carol', 'member');
+    h.member('org-a', 'carol', 'member', ['project-contributor', 'org-viewer']);
+    h.grantPermissions('org-a', 'carol', ['organization.create_project']);
     const selected = await h.app.handle(
       new Request('http://localhost/api/organization/active', {
         method: 'POST',
