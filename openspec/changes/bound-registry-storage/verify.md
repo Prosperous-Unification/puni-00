@@ -10458,3 +10458,16 @@ ADR0079 and the contract amendment independently reviewed ready for ordinary
 qualification, not yet a complete admitting implementation. Concrete classes/phase
 funding, bounded debit states, cleanup ownership, transport/custody and independent
 resource/reconciliation producers remain explicit implementation decisions.
+
+### Findings routing checked on the proposal branch
+
+The source PR's inspection-lock finding is now present in both the findings
+module-index membership and human routes (`67edb0cb256d688f95dd49291b99a3864999ab90`).
+The enforcement branch merges that correction and likewise registers its new
+write-enforcement finding. Exact uncached
+`NX_DAEMON=false bunx nx run tool-devsync:check:docs --skip-nx-cache` passed in
+16.4s, including current document/index checks, 4 ADR/retired-root tests and
+root-knowledge.v1 provenance (3 sources, 58 blocks). Raw output:
+`/tmp/registry-write-enforcement-docs-20261109.log`. No checker or exemption was
+changed. Markdown/JSON formatting and immutable executed-source hash checks passed;
+no runtime suite was repeated for this routing-only correction.
