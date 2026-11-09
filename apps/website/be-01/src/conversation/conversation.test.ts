@@ -3646,7 +3646,8 @@ test('mounted cleared browser cookie cannot renew a source across UTC midnight',
 });
 
 test('refused draft caps cannot create orphan browser registrations', async () => {
-  let time = Date.now();
+  // All twenty spaced intakes must stay in one UTC daily allowance window.
+  let time = Date.UTC(2026, 10, 9, 12);
   const config = paidConfig(fakeOpenRouter(() => ({ reply: 'Ready' })).providerFetch, {
     clock: () => time,
   });
