@@ -10099,3 +10099,49 @@ The failed main workflow was allowed to finish; it was not retried. New-head CI,
 normal hooks, independent review and the eventual exact-revision canonical h2puni
 gate remain required. No authenticated authority/Restic/provider probe, stopped
 privileged proof campaign, installed state or production deployment was performed.
+
+## Local encrypted backup qualification and installed-state refresh — 2026-11-09
+
+Previous-turn classification: progress. Source PR 843 is merged as
+`a5e9dbe9ff1122e624b9300e96f562bb867b085b`; its exact feature head
+`25ad3a44a2864b74d6fd22b2061426d9356c85ac` has successful gate, pixels,
+CodeQL and infrastructure verdicts. The actual merge CI 42515446666 also passed;
+its infra 42515446584 was cancelled. These do not establish live adoption.
+
+On clean current main `d49fdad843aeb3e0de8fd20662793690fc4ec42a`, frozen
+Bun 1.4.4 installation passed without tracked changes. The pinned public Restic
+archive and executable matched both lock hashes. The existing local encrypted
+backup tests passed 3/0 with 42 assertions in 22.48 s, with 45 cases explicitly filtered:
+`pinned backup verifies both contents`, `actual encrypted foreign lock`, and
+`snapshot refuses missing explicit source limits`. They exercise a real local
+snapshot, both-root restore, corrupt-pack refusal and foreign-lock preservation.
+Admission and durable effect persistence remain modeled; ordinary local storage
+is not installed bounded storage, provider accounting or a post-prune restore.
+HEAD and tracked tree were unchanged before/after these tests. Receipt:
+`/tmp/registry-local-backup-qualification-20261109.json`. Full local source tests,
+lint/typecheck/build and privileged/native qualification were not rerun.
+
+Fresh identity-checked h4 metadata at 07:56 UTC, UID 995, reports the five pressure,
+retirement and alert-sender units not found. The legacy backup timer is active,
+but its service failed: exit code 1, no restarts, start 02:37:00 UTC and
+exit 02:37:24 UTC on 2026-11-09. The bounded unprivileged journal read failed on
+permissions; a fixed sudo journal read also failed before any classification.
+No raw message was emitted. Today's failure cause is unverified; the earlier
+restic-cat timeout observation must not be relabeled as today's diagnosis.
+Protected configuration and authenticated repository access were not attempted.
+
+Current-main infra 42576834057 attempt 1 passed 9275 tests, skipped 55 and failed 0,
+with 30987 assertions across 319 files in 2165.85 s, then failed downloading the pinned
+ShellCheck archive with HTTP 504. One targeted failed-job retry was started and
+confirmed live as attempt 2/job 129042197518; its observer is session 21562.
+The canonical h2 gate independently holds PID 4091381 on revision d49fdad8 and its log
+prints that complete SHA. A bounded descendant census confirms live test
+processes, including a newly running child. Neither gate is terminal in this
+checkpoint; neither was duplicated, stopped or weakened. The earlier missing
+`wbs-t267` status-reader path was resolved by locating an existing checkout and
+calling the same canonical status script.
+
+Tasks 3.0, 4.2, 4.3, 5.1, 5.2 and source acceptance S4 remain open in current main.
+The prior privileged-proof stop and pending authenticated-repository approval are
+preserved. No host configuration, credential file, live backup/retention effect,
+notification, deployment or product migration changed in this continuation.
