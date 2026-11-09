@@ -1813,3 +1813,21 @@ requirement-length warnings (no new StageB warning); strict acceptance is not gr
 live peak184192KiB. `git diff --check` and byte comparison of bun.lock against the
 shared dependency tree exited0; node_modules resolves to that tree. No reinstall
 or exact-head CI is claimed. Normal hooks remain required in the commit command.
+
+### StageB historical store coverage extension
+
+After local source commit ffb8bcebeb311440f1b2bde892cfd505c98a40a0, the
+actual memory-store positive matrix was extended from7–10 to1–10. Versions1–7
+each exercise both omitted and explicit-empty stepParallels;8/9/10 retain required
+empty collections. The17 stored cases use real SHA256, actual savedPlans.read and
+self-comparison, assert original schema/header/bytes/hash/retired schedule, and
+compare the complete stored snapshot after both consumers. Historical fields are
+omitted before their introduction rather than using a current-shaped version1
+fixture. This is test-only; production code remains unchanged from ffb8.
+
+Fresh command (900MiB/120s live monitor, /usr/bin/time -v):
+`bun test libs/wbs/application/core/src/module/saved-plans/module.test.ts`.
+12 tests pass,0 fail,93 assertions; child RSS533440KiB, live peak536940KiB,
+elapsed2.380s,exit0/no refusal. Raw receipt:stageB-legacy-store-extension.log.
+The external report's initial1–6 store-positive limitation is superseded by this
+receipt; codec1–7 smuggling and mounted7 negative receipts remain unchanged.

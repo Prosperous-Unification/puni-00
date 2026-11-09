@@ -280,7 +280,7 @@ describe('a saved plan and step allowances', () => {
   });
 });
 
-describe('historical7–10 memory reads do not rewrite stored evidence', () => {
+describe('historical1–10 memory reads do not rewrite stored evidence', () => {
   it('reads and compares immutable original headers, hashes and retired schedules', async () => {
     const { projectId, requirements } = await seeded();
     const digest: Digest = {
@@ -303,7 +303,14 @@ describe('historical7–10 memory reads do not rewrite stored evidence', () => {
       waitingForCapacity: 0,
     });
     const scheduleHash = await digest.sha256(new TextEncoder().encode(scheduleBytes));
-    for (const version of [7, 8, 9, 10]) {
+    const cases = [
+      ...[1, 2, 3, 4, 5, 6, 7].flatMap((version) => [
+        { version, emptyPolicy: false },
+        { version, emptyPolicy: true },
+      ]),
+      ...[8, 9, 10].map((version) => ({ version, emptyPolicy: true })),
+    ];
+    for (const { version, emptyPolicy } of cases) {
       const body = JSON.parse(saved.record.input.bytes) as Record<string, unknown>;
       body['schemaVersion'] = version;
       if (version < 9) {
@@ -311,11 +318,25 @@ describe('historical7–10 memory reads do not rewrite stored evidence', () => {
         Reflect.deleteProperty(body, 'measureEstimates');
         Reflect.deleteProperty(body, 'budgets');
       }
-      if (version === 7) Reflect.deleteProperty(body, 'stepParallels');
+      if (version < 8 && !emptyPolicy) Reflect.deleteProperty(body, 'stepParallels');
+      if (version < 7) Reflect.deleteProperty(body, 'stepBlockages');
+      if (version < 5) Reflect.deleteProperty(body['project'] as object, 'timezone');
+      if (version < 3) Reflect.deleteProperty(body, 'typedDependencies');
+      for (const step of body['steps'] as Record<string, unknown>[]) {
+        if (version < 6) Reflect.deleteProperty(step, 'estimateUnit');
+        if (version < 3) Reflect.deleteProperty(step, 'code');
+        if (version < 2) Reflect.deleteProperty(step, 'allowancePercent');
+      }
+      for (const row of body['workItems'] as Record<string, unknown>[]) {
+        if (version < 4) {
+          Reflect.deleteProperty(row, 'readiness');
+          Reflect.deleteProperty(row, 'hold');
+        }
+      }
       if (version === 10) body['dependencyHistory'] = { kind: 'local' };
       const bytes = JSON.stringify(body);
       const sha256 = await digest.sha256(new TextEncoder().encode(bytes));
-      const id = `historical-${String(version)}`;
+      const id = `historical-${String(version)}-${emptyPolicy ? 'empty' : 'missing'}`;
       expect(
         await requirements.plans.write(
           {
