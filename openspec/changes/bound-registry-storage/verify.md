@@ -10145,3 +10145,24 @@ Tasks 3.0, 4.2, 4.3, 5.1, 5.2 and source acceptance S4 remain open in current ma
 The prior privileged-proof stop and pending authenticated-repository approval are
 preserved. No host configuration, credential file, live backup/retention effect,
 notification, deployment or product migration changed in this continuation.
+
+### Funding integration dependency review
+
+A scoped background source review identified the next coherent Task 4.3 slice:
+fund actual normal-lock repository inspection through admission, durable effect
+consumption and the store. The complete S3 census is not exposed by the current
+raw-lock/snapshot projection, and the action discards the retention plan. An
+inspection grant also needs derived and enforced lock/retry/resource bounds;
+current binary/configuration hashes and raw source counts do not supply them.
+The [workspace findings](../../../docs/findings/registry-backup-workspace.md#next-production-funding-slice--2026-11-09)
+record the production integration, positive control and omission candidates.
+No new runtime adapter, fabricated allowance, test execution or admission claim
+was introduced by that review; the existing refusal and stopped-work boundary
+remain intact. Its original note is retained at
+`/tmp/registry-backup-funding-next-20261109.md`.
+
+The evidence PR's CodeQL 42584020617 failed initialization for JavaScript/TypeScript
+and Actions. The JavaScript job 129049367797 reports HTTP 504 downloading pinned
+CLI 2.27.4; neither failed job produced a source-analysis verdict. No managed
+workflow retry, empty commit or security-configuration change was requested.
+This is separate from the live current-main infrastructure retry and host gate.

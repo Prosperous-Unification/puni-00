@@ -479,3 +479,142 @@ No implementation/proof checkboxes were changed. No dependency/build, native
 fixture, provider, root, remote-host, credential/helper or notification calls were
 performed. Only this new Markdown file is owned by the research task; its scoped
 format/check outcome is recorded in the handoff, not inferred from source reading.
+
+## Next production funding slice — 2026-11-09
+
+Read-only investigation, 2026-11-09, against the assigned source revision
+`1bf00382aa09258e55075560ab88c562fc3922f2`. This proposes a next slice; it records
+no executed test, native, installed, provider or activation proof.
+
+**No self-contained slice that opens admission is justified by the available
+ordinary-file/local-repository evidence.** The smallest coherent next production
+slice is **fund normal-lock repository inspection through the existing effect
+ledger**, conditional on a complete executable inspection profile. That missing
+producer is a dependency, not authorization to widen stopped work. An extra guard
+inside today's always-refusing callback would not advance an admitting
+implementation. The existing stop remains in force.
+
+### Observed production gaps
+
+- [`admitRegistryBackup`](../../tools/tool-fleet/src/registry-backup-admission.ts)
+  unconditionally refuses `backup-budget-unavailable`.
+- [`executeRegistryBackupAction`](../../tools/tool-fleet/src/registry-maintenance-backup.ts)
+  calls that port before `openVersions`. It later discards the value returned by
+  `store.inspectRetention`. Its admission arguments contain operation/source
+  capacities and, for snapshots, raw source metadata; they contain neither the
+  complete stored-byte census nor a funded command profile.
+- [`RegistryS3Census`](../../tools/tool-fleet/src/registry-s3-census.ts) already
+  carries all-version/upload/part identities and `payloadBytes`. Under the approved
+  [measure](../../openspec/changes/bound-registry-storage/specs/registry-storage-lifecycle/spec.md#requirement-backup-budget-measure),
+  that total is the required existing stored-size measure. Billing evidence adds
+  no prerequisite. But [`RegistryBackupVersionStore`](../../tools/tool-fleet/src/registry-backup-provider.ts)
+  exports only raw-lock census/removal and snapshot-version projection; its
+  `census()` is **not** the whole-repository byte census.
+- [`openRegistryBackupReservation`](../../tools/tool-fleet/src/registry-backup-reservation.ts)
+  persists `scope: 'effect-lineage-only'`. `consumeEffect` durably consumes the real
+  fixed slot before `store.run` launches Restic, and `settleEffect` acknowledges
+  terminal execution. Neither operation reserves physical additions or releases
+  measured liabilities. Renaming that scope would invent authority.
+- [`createRegistryBackupStore`](../../tools/tool-fleet/src/registry-backup-store.ts)
+  uses ordinary locked `snapshots`, `dump`, `check`, backup and restore commands.
+  Only config/raw-lock inspection uses `--no-lock`. Thus even the first useful
+  retention catalogue may add lock objects/versions before snapshot creation.
+
+### One proposed TDD slice: funded inspection effects
+
+Scope: make the first `retention-list`/`retention-journal` and subsequent inspection
+lock-writing slots consume **one durable stored-byte reservation**, through
+`executeRegistryBackupAction` → the production admission adapter → the existing
+`RegistryBackupEffectPort` → `store.run`. Snapshot, forget/prune and restore grants
+remain unavailable until their separate required envelopes exist. This is an
+ordered implementation slice of Task4.3, not a replacement endstate.
+
+Required production wiring:
+
+1. Expose a bounded complete repository file/part observation from the existing
+   provider adapter, retaining scope, versioning, canonical census hash and exact
+   listed sizes. Keep this distinct from its raw-lock `census()` and snapshot
+   projection. Open this read-only adapter before asking to fund any normal-lock
+   command. Keep config/raw-lock authentication read-only and under existing
+   lineage authority; do not bootstrap funding by running a locked command.
+2. Derive inspection additions from an authenticated, fixed executable profile:
+   the finite set of actual slots, complete per-command lock creation/refresh/
+   deletion/retry/version liability, command deadlines, and separately enforced
+   local resource requirements. No caller `maximumNewBytes`, source filesystem
+   capacity, elapsed success, or arbitrary supplied byte allowance may replace
+   that derivation. Preserve absent/unknown as refusal.
+3. Persist that census/profile/operation binding and outstanding liability beside
+   existing effect history before the first funded slot. Admission must reuse it
+   across repeated `prepare`/inspection calls. `consumeEffect` must check its exact
+   slot and funding before publishing the existing consumed ticket; settlement
+   must not refund it. Apply `current stored bytes + outstanding additions <=
+107374182400` with checked arithmetic, counting all versions and uploaded parts.
+   Do not subtract prospective deletion or credit the same commitment twice.
+   Physical liability release/retry needs a later complete observation and exact
+   reconciliation, rather than `settleEffect` or a successful delete response.
+
+These are proposals. The production facts above do not establish an implemented
+funding interface or a complete grant-producing profile.
+
+### First failing consumer test and local evidence limits
+
+Proposed RED: with a complete **test-derived** inspection profile and owned local
+repository, the actual store's first locked catalogue command receives a durable
+funded ticket before it runs. At an exact boundary, existing bytes plus that
+command's reserved lock/version additions fit; adding one noncurrent version or
+uploaded-part byte refuses before the same child runs, preserving the prior
+verified receipt. Current unconditional admission fails the positive control.
+
+Use the actual admission/ledger/store consumer, not a mock `admit: () =>
+Promise.resolve()` or an isolated arithmetic function. The existing
+[`registry-backup-retention-action.fixture.ts`](../../tools/tool-fleet/src/registry-backup-retention-action.fixture.ts)
+models the store and root prerequisites; it establishes call ordering, not this
+funding proof. The
+[`local repository adapter`](../../tools/tool-fleet/src/registry-backup-local.fixture.ts)
+has current files only; it cannot establish S3 history/multipart semantics.
+
+Candidate adjacent negatives: remove physical-ticket validation and observe the
+unfunded child run; remove the history/part contribution and observe the boundary
+case run; break persistence and observe no launch; repeat admission after a spent
+or uncertain effect and observe no refill. Terminal execution must retain the
+liability. A real local Restic repository can compare actual lock-file additions
+with the test envelope and exercise owned-file persistence/replay faults. Actual
+SDK controlled transport can supply versions/parts and response-loss cases without
+provider access. These would prove their declared local boundaries only.
+
+No such test was run here. Positive controls are essential: refusal-only tests
+would all pass against today's unconditional denial and would not prove funding.
+
+### Dependency stopping an honest grant now
+
+The existing [workspace research](registry-backup-workspace.md#upload-attempts-and-lock-objects)
+derives conditional retry/lock formulas but explicitly leaves the complete
+single-PUT retry chain and every command/lock refresh composition unproved. Its
+[local resource discussion](registry-backup-workspace.md#prune-peak-and-local-resources)
+also leaves whole-process memory and held scratch capacity unproved. The present
+profile hash in `executeRegistryBackupAction` identifies binary/configuration and
+`restic/no-cache/locked-commands/v1`; its adjacent comment explicitly excludes full
+resource/provider evidence. A finite command timeout is not by itself a complete
+write-attempt or successful-resource envelope.
+
+Consequently, the positive test above needs a **new derived and enforced profile
+producer**, not a fabricated fixture promoted to trusted production evidence.
+Ordinary owned files and a disposable repository can help develop/test its counting
+and persistence consumers. They cannot certify the current installed execution
+profile or supply missing enforcement. Developing schemas, exposing the whole
+census, and writing a ledger reducer are ordinary-source work; independently they
+would be incomplete plumbing. Do not promote those pieces to funding completion.
+The integrated slice needs that producer before it can establish a real positive
+grant. This investigation does not propose implementing or investigating stopped
+authority/profile work to obtain it. Retain the refusal and report the dependency.
+
+Full snapshot funding additionally needs complete resolver/ancestor/xattr context,
+historical content references, encoded pack/index/snapshot bounds and repository
+shape; current [`RegistryBackupSourceObservation`](../../tools/tool-fleet/src/registry-backup-source.ts)
+explicitly excludes them. Full Task4.3 still includes exact protected retention,
+bounded prune coexistence, measured reclamation and independent retained restore,
+as recorded in [tasks](../../openspec/changes/bound-registry-storage/tasks.md).
+No product migration or reduced recovery policy is proposed.
+
+Only this note was written. No runtime edits, tests/native execution, installation,
+host/provider requests, protected-file reads, deployment or notifications occurred.
