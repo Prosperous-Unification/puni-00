@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+
+import { StepParallelInputError } from '@wbs/domain';
 import { openMemorySource } from '@wbs/store-memory';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
@@ -274,5 +277,122 @@ describe('a saved plan and step allowances', () => {
     expect(body.steps.find((step) => step.id === qa.id)?.allowancePercent).toBe(30);
     expect(body.steps.find((step) => step.id === qa.id)?.code).toBe(qa.code);
     expect(body.steps.find((step) => step.id === qa.id)?.name).toBe(qa.name);
+  });
+});
+
+describe('historical7–10 memory reads do not rewrite stored evidence', () => {
+  it('reads and compares immutable original headers, hashes and retired schedules', async () => {
+    const { projectId, requirements } = await seeded();
+    const digest: Digest = {
+      sha256: (bytes) => Promise.resolve(createHash('sha256').update(bytes).digest('hex')),
+    };
+    const { savedPlans } = installSavedPlans({ ...requirements, digest });
+    const saved = await savedPlans.save({
+      projectId,
+      name: 'Source',
+      createdBy: owner.username,
+      createdById: owner.id,
+    });
+    if (saved.outcome !== 'saved') throw new Error('memory fixture save refused');
+    const scheduleBytes = JSON.stringify({
+      version: 1,
+      algorithmId: 'retired-memory-v1',
+      workItems: {},
+      slices: {},
+      waitingForPerson: 0,
+      waitingForCapacity: 0,
+    });
+    const scheduleHash = await digest.sha256(new TextEncoder().encode(scheduleBytes));
+    for (const version of [7, 8, 9, 10]) {
+      const body = JSON.parse(saved.record.input.bytes) as Record<string, unknown>;
+      body['schemaVersion'] = version;
+      if (version < 9) {
+        Reflect.deleteProperty(body['project'] as object, 'budgetFactor');
+        Reflect.deleteProperty(body, 'measureEstimates');
+        Reflect.deleteProperty(body, 'budgets');
+      }
+      if (version === 7) Reflect.deleteProperty(body, 'stepParallels');
+      if (version === 10) body['dependencyHistory'] = { kind: 'local' };
+      const bytes = JSON.stringify(body);
+      const sha256 = await digest.sha256(new TextEncoder().encode(bytes));
+      const id = `historical-${String(version)}`;
+      expect(
+        await requirements.plans.write(
+          {
+            id,
+            projectId,
+            name: id,
+            createdBy: owner.username,
+            createdById: owner.id,
+            createdAt: 1,
+            input: { schemaVersion: version, bytes, sha256 },
+            schedule: {
+              present: true,
+              algorithmId: 'retired-memory-v1',
+              inputSha256: sha256,
+              body: { schemaVersion: 1, bytes: scheduleBytes, sha256: scheduleHash },
+            },
+          },
+          () => Promise.resolve(null),
+        ),
+      ).toEqual({ outcome: 'written' });
+      const original = structuredClone(await requirements.plans.readOf(id));
+      expect(await savedPlans.read(id)).toMatchObject({
+        outcome: 'read',
+        plan: {
+          input: { schemaVersion: version, bytes, sha256 },
+          schedule: {
+            present: true,
+            algorithmId: 'retired-memory-v1',
+            body: { bytes: scheduleBytes },
+          },
+        },
+      });
+      expect(
+        await savedPlans.compare(
+          projectId,
+          { kind: 'saved', savedPlanId: id },
+          { kind: 'saved', savedPlanId: id },
+        ),
+      ).toMatchObject({ outcome: 'compared', diff: { input: [], schedule: [] } });
+      expect(await requirements.plans.readOf(id)).toEqual(original);
+    }
+  });
+});
+
+describe('trusted captures are never modeled as stored corruption', () => {
+  it('throws for malformed current sparse capture before any saved write', async () => {
+    const { projectId, requirements } = await seeded();
+    const { savedPlans } = installSavedPlans({
+      ...requirements,
+      capture: {
+        readPlanInput: async (id) => {
+          const captured = await requirements.capture.readPlanInput(id);
+          if (captured === null) throw new Error('fixture capture missing');
+          return {
+            ...captured,
+            stepParallels: [{ workItemId: 'missing', stepId: 'missing', maxParallel: 1001 }],
+          };
+        },
+      },
+    });
+    const thrown: unknown = await savedPlans
+      .save({ projectId, name: 'Invalid', createdBy: owner.username, createdById: owner.id })
+      .catch((cause: unknown) => cause);
+    expect(thrown).toBeInstanceOf(StepParallelInputError);
+    expect(await requirements.plans.listOf(projectId)).toEqual([]);
+  });
+  it('propagates unexpected capture reader failure identity', async () => {
+    const { projectId, requirements } = await seeded();
+    const failure = new Error('unreadable current capture');
+    const { savedPlans } = installSavedPlans({
+      ...requirements,
+      capture: { readPlanInput: () => Promise.reject(failure) },
+    });
+    const thrown: unknown = await savedPlans
+      .save({ projectId, name: 'Unreadable', createdBy: owner.username, createdById: owner.id })
+      .catch((cause: unknown) => cause);
+    expect(thrown).toBe(failure);
+    expect(await requirements.plans.listOf(projectId)).toEqual([]);
   });
 });

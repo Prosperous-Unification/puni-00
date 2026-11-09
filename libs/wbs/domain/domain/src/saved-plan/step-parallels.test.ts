@@ -6,6 +6,7 @@ import { canonicalisePlanInput, serialiseCanonicalPlanInput } from './canonical-
 import { diffPlans } from './diff-plans';
 import { normalisePlanInputForward } from './normalise-plan-input';
 import { planFixtureRows } from './plan-fixture';
+import { readSavedPlanInput, upgradeLocalPlanInputV9 } from './versioned-plan-input';
 
 const fact = { workItemId: 'w2', stepId: 's1', maxParallel: 1 };
 const rows = (stepParallels: readonly (typeof fact)[]) => ({ ...planFixtureRows, stepParallels });
@@ -166,4 +167,61 @@ describe('saved sparse step parallelism', () => {
       ).toThrow('step parallelism');
     });
   }
+});
+
+describe('explicit immutable sparse upgrade family', () => {
+  it('advances7→8→9→10 only in memory and refuses legacy smuggling', () => {
+    const current = capture();
+    const body = JSON.parse(JSON.stringify(current)) as Record<string, unknown>;
+    body['schemaVersion'] = 7;
+    Reflect.deleteProperty(body, 'stepParallels');
+    Reflect.deleteProperty(body, 'measureEstimates');
+    Reflect.deleteProperty(body, 'budgets');
+    Reflect.deleteProperty(body['project'] as object, 'budgetFactor');
+    body['measures'] = (body['measures'] as Record<string, unknown>[]).map(
+      ({ currency: _currency, rateCardDigest: _rateCardDigest, ...measure }) => measure,
+    );
+    const bytes = JSON.stringify(body);
+    const eight = normalisePlanInputForward(body, 7, 8);
+    expect(eight.schemaVersion).toBe(8);
+    expect(eight.stepParallels).toEqual([]);
+    const nine = normalisePlanInputForward(eight, 8);
+    expect(nine.schemaVersion).toBe(9);
+    expect(nine.stepParallels).toEqual([]);
+    const ten = readSavedPlanInput(
+      upgradeLocalPlanInputV9(nine as unknown as Record<string, unknown>),
+      10,
+    );
+    expect(ten.schemaVersion).toBe(10);
+    expect(ten.stepParallels).toEqual([]);
+    expect(JSON.stringify(body)).toBe(bytes);
+    for (const version of [1, 2, 3, 4, 5, 6, 7])
+      expect(() =>
+        normalisePlanInputForward(
+          { ...body, schemaVersion: version, stepParallels: [fact] },
+          version,
+        ),
+      ).toThrow('legacy plan input cannot carry step parallelism');
+  });
+  it('propagates unexpected sparse getter failures through the frozen reader', () => {
+    const failure = new Error('unexpected sparse getter');
+    const body = {
+      ...capture(),
+      stepParallels: [
+        {
+          ...fact,
+          get maxParallel() {
+            throw failure;
+          },
+        },
+      ],
+    };
+    let thrown: unknown;
+    try {
+      readSavedPlanInput(body, 9);
+    } catch (cause) {
+      thrown = cause;
+    }
+    expect(thrown).toBe(failure);
+  });
 });

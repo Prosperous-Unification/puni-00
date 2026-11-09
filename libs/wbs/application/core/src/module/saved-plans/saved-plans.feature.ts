@@ -255,7 +255,8 @@ export class SavedPlanService {
   /**
    * Hands back one saved plan's stored bytes, or says why it will not.
    *
-   * **Nothing is recomputed and nothing is parsed** (task 5.1). The bodies go
+   * **Nothing is recomputed or rewritten** (task 5.1). Semantic validation parses
+   * supported captured input, while the bodies go
    * out as the bytes on disk, and this method holds no scheduler, no clock and
    * no plan input: the whole value of a saved plan is that it answers with what
    * was true when it was saved, and a reader that re-derived anything would
@@ -743,6 +744,8 @@ function planSideOfRead(plan: SavedPlanRead): PlanSide {
     // connected self-comparison (use-legacy-comparison-reader.log.txt).
     input:
       // Proof: dispatching input10 through the legacy normalizer failed mounted connected save/read (2026-10-24).
+      // Proof: input10-through-legacy projected away context; mounted comparison succeeded with legacy-unknown instead of connected provenance (StageB, 2026-11-10).
+      // Proof: decoded-comparison-policy emptied decoded input10 facts; mounted connected capacity differences disappeared (StageB, 2026-11-10).
       plan.input.schemaVersion === 10
         ? readSavedPlanInput(JSON.parse(plan.input.bytes), 10)
         : normalisePlanInputForward(JSON.parse(plan.input.bytes), plan.input.schemaVersion),

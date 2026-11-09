@@ -292,6 +292,7 @@ function assertConnectedTargetInput(
   const steps = new Set(input.steps.map((step) => step.id));
   // Proof: omitting this guard returned 200 for mounted identity, parent, missing,
   // extra and duplicate target rows (omit-work-membership.log.txt).
+  // Proof: foreign-target-owner bypassed only this guard; a valid captured history with extra foreign b/design returned200 on actual read (StageB, 2026-11-10).
   requireHistory(
     input.workItems.length === targetWorkItems.length &&
       targetWorkItems.every((row) => workItems.get(row.id)?.parentId === row.parentId),

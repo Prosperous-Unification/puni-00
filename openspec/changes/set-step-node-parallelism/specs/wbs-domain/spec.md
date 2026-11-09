@@ -482,3 +482,28 @@ SHALL refuse. Historical1–12 SHALL upgrade only missing/empty sparse declarati
 - **WHEN**13/14 reaches the current public import route
 - **THEN** it refuses unsupported_version at document.version before allocation/writes
 - **AND** exports remain11/12 and sparse preservation refusals remain active
+
+### Requirement: Saved sparse readers validate original retained facts
+
+Saved input8/9/10 SHALL reject hash-consistent malformed sparse facts on single read
+and comparison, with or without a schedule. Legacy7 SHALL upgrade only absent/empty
+sparse declarations. Reads SHALL preserve original body bytes, hashes, versions and
+historical schedule identities, including connected canonical evidence.
+
+#### Scenario: Connected peer cannot supply a local sparse owner
+
+- **WHEN** input10 names a foreign owner/step or mismatches its captured target inventory
+- **THEN** both saved read and comparison refuse typed input corruption
+- **AND** valid explicit equality and absent siblings survive without rewriting storage
+
+### Requirement: Navigator reads strict ordinary13 before output activation
+
+Navigator SHALL accept strict ordinary13 with required valid sparse local facts and
+retain its original wire version/digest. It SHALL retain7–11 readers and explicitly
+refuse connected12/14; this grants no sparse writer or scheduling authority.
+
+#### Scenario: CLI validates sparse facts before writing references
+
+- **WHEN** ordinary13 has absent, malformed, duplicate, parent or unknown sparse references
+- **THEN** the CLI refuses before creating reference/tasks files
+- **AND** a valid13 control produces reference provenance13 from the original bytes

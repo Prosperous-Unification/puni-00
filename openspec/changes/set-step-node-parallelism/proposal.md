@@ -1,59 +1,48 @@
 ## Why
 
-WBS 010.4.13.3 needs a leaf's individual step to state maximum parallelism while the row
-continues to supply its default. Stage 7a exposes resolved node resources but has no sparse
-node policy. A row-wide edit cannot express Dev at four and QA at one.
+A leaf needs to state Dev at four and QA at one while the row supplies its default.
+Explicit equality with that default is authored policy; absence means inheritance.
+Current archival output cannot carry that distinction, and some saved single reads
+check hashes while bypassing sparse semantics.
 
 ## What Changes
 
-- Store an optional integer maximum parallelism, 1 through 1000, per concrete leaf/step pair.
-  Absence inherits; an explicit value equal to the row default remains an authored fact.
-- Eventually expose authorized set/clear commands, history and step-cell editing, resolve the
-  override before person/team clamps, and preserve it across lifecycle, transfer and snapshots.
-- Add a bounded saved-plan prerequisite: schema8 captures sparse facts, schema7 upgrades empty, and comparisons report capacity differences.
-- Present existing sparse-preservation refusals in the browser plan writer for step removal
-  and commands, preserving completed-prefix refresh and busy-state settlement.
-- Ship additive persistence first. This bounded foundation introduces only the type, internal
-  port, source inventory, memory/SQLite stores and guarded migration with parity and proofs.
+The full change stores structured `(workItemId, stepId)` maxima from 1 through 1000,
+preserves them through lifecycle/history/transport, resolves them before resource
+clamps, and eventually exposes authorized commands and editing. The complete Task11
+A–I plan remains required; reader preparation does not close public authoring or rollout.
+
+StageA freezes dormant ordinary13/connected14 shapes and explicit historical families.
+StageB validates hash-consistent saved input8/9/10 on actual read and comparison paths,
+refuses legacy sparse smuggling, preserves original bytes/hash/version/schedules, and
+adds strict ordinary13 Navigator read/provenance compatibility. Connected12/14 remain
+unsupported by Navigator. Historical version9/schema8 proof receipts stay historical.
 
 ## Non-Goals
 
-Node team overrides, new workflows, executor kinds, participation, StepBlockage activation,
-portfolio capacity, dispatch, changes to Stage 7a's resolver, and deployment in this foundation.
+This reader packet does not activate new output/import, widen the active normalized
+import contract, admit sparse writes, or change scheduling, boot/grants or lifecycle
+preservation fences. Node team overrides, new executor kinds and portfolio capacity
+remain outside the full feature.
 
 ## Constraints
 
-Identity follows ADR 0031: `(workItemId, stepId)`, never a parent or synthetic boundary.
-Validate range, uniqueness, leaf ownership and shared project membership. Corrupt trusted
-facts throw on reads. Writes are atomic with the surrounding source unit of work. Old
-writers cannot be assumed compatible after authored overrides exist; rollout requires guards
-and draining incompatible writers before enabling a public writer. Rollback refuses retained
-facts. This packet describes the full feature; unchecked work is required before release.
+Identity follows ADR0031 and names a local concrete leaf/step, never labels or peers.
+Validate range, uniqueness and ownership; required malformed trusted capture throws.
+Only modeled stored corruption becomes the existing typed integrity refusal; unexpected
+internal/getter failures propagate. Current output remains11/12 and public import1–12.
+Canonical saved input9 and connected input10 do not change merely for archival transport.
+Reader/lifecycle/scheduler compatibility, durable admission, drain, recovery and exact
+installed acceptance must precede enabling any public writer. Rollback refuses retained
+facts/history rather than erasing them.
 
 ## Capabilities
 
-### New Capabilities
-
-None.
-
 ### Modified Capabilities
 
-- `wbs-domain`: sparse authored node parallelism, future resolution, lifecycle and transports.
+- `wbs-domain`: sparse authored policy, retained readers and eventual complete delivery.
 
 ## Impact
 
-`@wbs/domain`, `@wbs/core`, source conformance, memory/SQLite adapters and additive migration
-in this foundation. Later slices reach commands, history, HTTP/MCP, UI, scheduling, import,
-copy, saved plans and deployment compatibility guards.
-
-## Current transport intent (2026-11-09)
-
-Problem: current archival versions 11/12 cannot carry sparse authored policy. Outcome:
-freeze ordinary13 and connected14 as reader prerequisites, with required structured
-`stepParallels`, explicit historical-family decoding and lossless measures and connected
-evidence. Historical1–12 upgrade only absent/empty policy; other declarations refuse.
-Non-goals: activating output, import persistence, duplication/replay, scheduling or public
-authoring in this prerequisite. Constraints: current exports remain11/12; mounted import
-rejects13/14; normalized `PlanDocumentImport` and existing preservation fences remain.
-Complete importer ownership, durable admission, compatible lifecycle/scheduling consumers
-and installed rollout/recovery remain required before enabling any sparse writer.
+Domain codecs, saved-plan core/memory/SQLite readers, Navigator and its actual plan-reference
+record consumer. Later packets reach persistence owners, commands, scheduling, UI and deployment.

@@ -71,3 +71,10 @@
 - [x] A2 Implement unmounted raw-input transfer decoding with explicit historical families.
 - [x] A3 Prove independent connected/measures/list/legacy/mounted faults and restored controls.
 - [ ] A4 Verify scoped suites and document handoff; leave3.3/3.4 and complete feature open.
+
+## StageB saved/external read compatibility (2026-11-10)
+
+- [x] B1 RED: actual read/compare corruption and immutable7–10 upgrade matrix.
+- [x] B2 Validate required8/9/10 sparse semantics and legacy anti-smuggling with typed outcomes.
+- [x] B3 RED/implement strict ordinary13 Navigator schema/membership and CLI provenance.
+- [x] B4 Prove independent production faults and restored controls; record bounded checks/skips.
