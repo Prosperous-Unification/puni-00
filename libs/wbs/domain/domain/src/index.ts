@@ -199,6 +199,7 @@ export type * from './schedule-error';
 export * from './compute-provider';
 export * from './resource-use';
 export * from './step-parallel';
+export * from './step-parallel-transfer';
 export * from './stored-vocabularies';
 export * from './tree-order';
 export * from './typed-dependency';

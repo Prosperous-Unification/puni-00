@@ -1493,3 +1493,43 @@ typecheck attempt was killed before diagnostics and is disqualified; authorized
 1400MiB RED and GREEN runs reached the compiler. Local full backend and host exact
 gate completion remain unclaimed. Normal commit hooks and final containing-commit
 identity are external receipts delivered after review.
+
+## 2026-11-09 — internal transfer prerequisite only
+
+Base `d87afb94a6362d345480f665b6e3b5d20d787686`; managed isolated worktree.
+Tasks 3.3.4 and 3.4.2 implement only the pure structured transfer primitive.
+Parents 3.3/3.4, public lifecycle ownership and release remain open. Current
+ordinary/connected/saved writer versions remain 11/12/10; exporter refusal,
+command/history admission, scheduler and UI are unchanged.
+
+- Existing resolver and saved-plan baseline: 59 pass, 82 assertions, 39,164 KiB peak RSS.
+- Initial empty-return stub: 1 pass, 37 fail; exact output and refusal assertions failed.
+  The earlier missing-module run was a setup error, not the behavior RED.
+- Unused map endpoint RED: 40 pass, 4 fail before endpoint checks were added.
+- Restored three-suite run: 105 pass, 174 assertions, 39,176 KiB peak RSS.
+  Command: `bun test libs/wbs/domain/domain/src/step-parallel-transfer.test.ts libs/wbs/domain/domain/src/step-parallel.test.ts libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts`.
+- 25 independent production faults: each exited 1 with owning test failures;
+  restored controls after the batch. Exact fault names, first failed oracle,
+  failed counts and per-run RSS are in `evidence/transfer-20261109.json`.
+  Maximum fault RSS 33,716 KiB. Faults remove request/reference/map shape,
+  map uniqueness/endpoints, source validation, each missing-map guard and target
+  validation, drop explicit equality, rewrite maxima, replace each ordering key
+  independently with locale/UTF-8 order and inject a source mutation. Existing
+  shared range/pair/leaf validation is reused unchanged, with its own prior proofs.
+- `NX_DAEMON=false NODE_OPTIONS=--max-old-space-size=768 bunx nx run wbs-domain:lint`:
+  passed uncached, 1,050,460 KiB peak RSS. Initial lint:fast found a union typed
+  template interpolation in a test name; `String(maxParallel)` fixed it before rerun.
+- Same environment, `bunx nx run wbs-domain:typecheck`: passed uncached,
+  624,088 KiB peak RSS.
+
+Bun 1.4.4. Compared bun.lock byte-for-byte before reusing matching-lock root
+node_modules through a worktree-local symlink; no fresh installation or dependency
+certification is claimed. Focused tests stayed below the initial 300 MiB budget;
+Nx checks ran serially only after coordinator granted the 1,500 MiB heavy slot.
+Canonical h2/h4 gate, full workspace tests/build, hosted CI and independent review
+are not established here. No push, host action, migration or live consumer change.
+
+- Normal selected OpenSpec validation passed (66,504 KiB peak RSS).
+  Selected `--strict` remains non-green: its 12 long-requirement warnings exactly
+  match the fresh base validation (same issue objects, base exit 1). The added
+  requirement adds no strict warning; details remain testable in its scenarios.

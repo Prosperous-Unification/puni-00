@@ -432,3 +432,31 @@ continue to reach the exhaustive failure boundary.
 
 - **WHEN** an earlier request completes before the command request is refused for sparse policy
 - **THEN** only the completed request's resources are reread and the writer remains refused
+
+### Requirement: Internal sparse transfer preserves exact authored facts
+
+The internal pure transfer boundary SHALL validate structured sparse facts,
+explicit ID tuple maps and source/target inventories. It SHALL refuse malformed
+values, missing references/mappings, duplicate mapping sources and colliding pairs.
+It SHALL return detached complete facts in saved-plan owner/step UTF-16 order
+without mutating inputs, losing explicit equality or synthesizing absent facts.
+
+#### Scenario: Exact sparse remapping
+
+- **GIVEN** explicit equal-default facts, absent siblings and complete ID maps
+- **WHEN** internal transfer succeeds
+- **THEN** precisely those facts appear under mapped pairs with unchanged maxima
+- **AND** input and mapping mutations cannot change the returned collection
+- **AND** Unicode IDs follow saved-plan UTF-16 comparison order
+- **AND** IDs use the existing saved-plan string identity convention
+- **AND** valid unused mappings, including parent mappings, create no facts
+- **AND** fact owners exist as leaves in both supplied inventories
+
+#### Scenario: Invalid transfer refuses atomically
+
+- **GIVEN** malformed facts, reference inventories or mappings, missing references or collisions
+- **WHEN** internal transfer is requested
+- **THEN** it throws without returning partial output or mutating any input
+- **AND** malformed IDs/maxima and duplicate source/output pairs are refused
+- **AND** even unused mapping entries require existing source and target IDs
+- **AND** public writer admission and existing document versions remain unchanged
