@@ -301,3 +301,7 @@ Historical scope was checked against source history with Astra: a727e73fc's firs
 After the historical-profile documentation refinement, the toolkit suite passed67/0 /81 assertions (/tmp/puni-historical-profile-tests.log), including the two explicit unsupported-profile cases. The earlier210-test consumer regression predates only these extra tests and documentation/Proof comments; no production reader behavior changed afterward. C7 now distinguishes new byte identities from format-version changes, consistent with C13 and ADR0080.
 
 Final historical-profile owned lint and both TypeScript/spec solutions passed0 (/tmp/puni-historical-profile-lint.log, /tmp/puni-historical-profile-types.log); OpenSpec remained343/0 (/tmp/puni-historical-profile-openspec.json). All eleven final checkpoint files passed Prettier and git diff --check (/tmp/puni-versioned-readers-final-format.log). Normal repository hooks are required on the component commit; their optional inactive Tool Wiki result does not certify an activation.
+
+## Import-safe selected snapshotter, 2026-11-09
+
+The [Bun snapshotter checkpoint](../bun-scripts/verify.md#import-safe-selected-snapshotter-2026-11-09) records the typed import-safe selected-role API, unchanged four-path process protocol, exact-arity/import and captured-byte fault proofs, and existing during-build/post-snapshot adversarial controls. It remains a prerequisite to the Bun launcher and coherent toolkit2/activation4 writer switch; no current packaging/launcher task closes here.

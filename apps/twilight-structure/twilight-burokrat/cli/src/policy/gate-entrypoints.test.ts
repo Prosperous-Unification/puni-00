@@ -1148,7 +1148,9 @@ Bun.build = async (configuration) => {
     writeFileSync(${JSON.stringify(dependency)}, reviewedBytes);
   }
 };
-await import(${JSON.stringify(productionSnapshotter)});
+const { snapshotValidator } = await import(${JSON.stringify(productionSnapshotter)});
+const [bindingPath, validatorPath, candidateDirectory, destination] = process.argv.slice(2);
+await snapshotValidator({ bindingPath, validatorPath, candidateDirectory, destination });
 `,
     );
     write(join(paths.activationRoot, 'snapshotter-path'), `${raceSnapshotter}\n`);

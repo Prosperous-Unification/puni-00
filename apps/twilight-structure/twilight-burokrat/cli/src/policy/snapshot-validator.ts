@@ -185,22 +185,45 @@ async function buildValidator(
   });
 }
 
-const [bindingInput, cliInput, candidateInput, outputPath] = process.argv.slice(2);
-if (process.argv.length !== 6) fail('usage: snapshot <binding> <cli> <candidate> <output>');
-const bindingPath = realpathSync(bindingInput);
-const cliPath = realpathSync(cliInput);
-const candidateRoot = realpathSync(candidateInput);
-const artifacts = captureArtifacts(artifactReferences(bindingPath), candidateRoot);
-if (!artifacts.some(({ path }) => path === cliPath))
-  fail('validator CLI is absent from binding artifacts');
-const closure = resolveClosure(cliPath, artifacts);
-const reviewedPaths = artifacts.map(({ path }) => path).sort();
-if (JSON.stringify(closure.paths) !== JSON.stringify(reviewedPaths)) {
-  // Proof: gate-entrypoints.test.ts omits an imported validator dependency from the binding and
-  // observes this production snapshot command refuse before the dependency can execute.
-  fail('binding artifacts do not match the complete validator closure');
+export interface SnapshotRequest {
+  readonly bindingPath: string;
+  readonly validatorPath: string;
+  readonly candidateDirectory: string;
+  readonly destination: string;
 }
 
-const built = await buildValidator(cliPath, artifacts, closure.imports);
-if (!built.success || built.outputs.length !== 1) fail('validator bundle failed');
-await Bun.write(outputPath, built.outputs[0]);
+/**
+ * Capture the binding's complete external reviewed closure and build only from those bytes.
+ * Later changes to the original paths cannot change the produced bundle. The selected caller
+ * owns the destination and must run this authenticated role through protected Bun startup.
+ * @throws when an artifact/dependency is absent, changed, non-regular, candidate-owned or unlisted,
+ * or when the complete captured closure cannot produce exactly one standalone validator bundle.
+ */
+export async function snapshotValidator(request: SnapshotRequest): Promise<void> {
+  const bindingPath = realpathSync(request.bindingPath);
+  const cliPath = realpathSync(request.validatorPath);
+  const candidateRoot = realpathSync(request.candidateDirectory);
+  const artifacts = captureArtifacts(artifactReferences(bindingPath), candidateRoot);
+  if (!artifacts.some(({ path }) => path === cliPath))
+    fail('validator CLI is absent from binding artifacts');
+  const closure = resolveClosure(cliPath, artifacts);
+  const reviewedPaths = artifacts.map(({ path }) => path).sort();
+  if (JSON.stringify(closure.paths) !== JSON.stringify(reviewedPaths)) {
+    // Proof: gate-entrypoints.test.ts omits an imported validator dependency from the binding and
+    // observes this production snapshot command refuse before the dependency can execute.
+    fail('binding artifacts do not match the complete validator closure');
+  }
+
+  const built = await buildValidator(cliPath, artifacts, closure.imports);
+  if (!built.success || built.outputs.length !== 1) fail('validator bundle failed');
+  await Bun.write(request.destination, built.outputs[0]);
+}
+
+// Proof: forcing main on during import fails the real child import-only observation.
+if (import.meta.main) {
+  const args = process.argv.slice(2);
+  // Proof: removing this guard loses the short-argv usage refusal; weakening it admits five valid paths and writes the destination.
+  if (args.length !== 4) fail('usage: snapshot <binding> <cli> <candidate> <output>');
+  const [bindingPath, validatorPath, candidateDirectory, destination] = args;
+  await snapshotValidator({ bindingPath, validatorPath, candidateDirectory, destination });
+}
