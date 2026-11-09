@@ -1,0 +1,293 @@
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { Readable } from 'node:stream';
+
+/** Invocation-private resource custody. It grants no owner or effect authority. */
+export interface DependencyOperationCustody {
+  readonly kind: 'dependency-operation-custody';
+}
+
+/** Internal reservation used only by the fixed authority adapter. */
+export interface AuthorityOperationCustody {
+  readonly kind: 'authority-operation-custody';
+}
+
+interface Scope {
+  closing: boolean;
+  attempts: Set<Attempt>;
+  changed: Set<() => void>;
+}
+interface Attempt {
+  scope: Scope;
+  child: ChildProcessWithoutNullStreams | undefined;
+  noChild: boolean;
+  exit:
+    | { state: 'pending' }
+    | { state: 'observed'; code: number | null; signal: NodeJS.Signals | null }
+    | { state: 'unavailable' };
+  closed: boolean;
+  output: 'pending' | 'eof' | 'read-failed';
+  errors: 'pending' | 'eof' | 'read-failed';
+  tasks: Set<Promise<void>>;
+  request: unknown;
+  nonce: string;
+  inputFinished: boolean;
+  inputClosed: boolean;
+  pendingWrites: number;
+  remoteClosed: boolean;
+  unknown: boolean;
+}
+const scopes = new WeakMap<DependencyOperationCustody, Scope>();
+const attempts = new WeakMap<AuthorityOperationCustody, Attempt>();
+
+function readScope(scope: DependencyOperationCustody): Scope {
+  const retained = scopes.get(scope);
+  if (retained === undefined) throw new Error('original operation custody is not registered');
+  return retained;
+}
+function readAttempt(reservation: AuthorityOperationCustody): Attempt {
+  const attempt = attempts.get(reservation);
+  if (attempt === undefined) throw new Error('original authority custody is not registered');
+  return attempt;
+}
+function notifyScope(attempt: Attempt): void {
+  for (const notify of attempt.scope.changed) notify();
+}
+function markUnknown(attempt: Attempt): void {
+  attempt.unknown = true;
+  notifyScope(attempt);
+}
+
+/** Allocates resource accounting only; final production construction belongs to the full entry. */
+export function createDependencyOperationCustody(): DependencyOperationCustody {
+  const scope: DependencyOperationCustody = Object.freeze({ kind: 'dependency-operation-custody' });
+  scopes.set(scope, { closing: false, attempts: new Set(), changed: new Set() });
+  return scope;
+}
+
+/** Reserves before dispatch. Closing seals the scope against further original work. */
+export function reserveAuthorityOperation(
+  scope: DependencyOperationCustody,
+  request: unknown,
+  nonce: string,
+): AuthorityOperationCustody {
+  const retained = readScope(scope);
+  if (retained.closing) throw new Error('original operation custody is closing');
+  const reservation: AuthorityOperationCustody = Object.freeze({
+    kind: 'authority-operation-custody',
+  });
+  const attempt: Attempt = {
+    scope: retained,
+    child: undefined,
+    noChild: false,
+    exit: { state: 'pending' },
+    closed: false,
+    output: 'pending',
+    errors: 'pending',
+    tasks: new Set(),
+    request,
+    nonce,
+    inputFinished: false,
+    inputClosed: false,
+    pendingWrites: 0,
+    remoteClosed: false,
+    unknown: false,
+  };
+  retained.attempts.add(attempt);
+  attempts.set(reservation, attempt);
+  return reservation;
+}
+
+/** Only the synchronous spawn-throw boundary may establish that no child was returned. */
+export function settleAuthoritySpawnThrow(reservation: AuthorityOperationCustody): void {
+  const attempt = readAttempt(reservation);
+  if (attempt.child !== undefined || attempt.noChild)
+    throw new Error('original authority spawn already dispatched or settled');
+  attempt.noChild = true;
+  notifyScope(attempt);
+}
+
+/** Actual child operations retained by the fixed parser, never a caller completion certificate. */
+export interface AuthorityChildCustody {
+  drainOutput(consume: (chunk: Buffer) => void): Promise<void>;
+  drainErrors(consume: (chunk: Buffer) => void): Promise<void>;
+  writeInput(bytes: Buffer | string): Promise<void>;
+  endInput(): void;
+  observeTerminal(phase: Record<string, unknown>): void;
+  invalidateProtocol(): void;
+  isUnknown(): boolean;
+}
+
+/** Attaches original event/pipe/input observations synchronously before transport observation. */
+export function retainAuthorityChild(
+  reservation: AuthorityOperationCustody,
+  child: ChildProcessWithoutNullStreams,
+): AuthorityChildCustody {
+  const attempt = readAttempt(reservation);
+  if (attempt.child !== undefined || attempt.noChild)
+    throw new Error('original authority spawn already dispatched or settled');
+  attempt.child = child;
+  child.on('error', () => {
+    if (attempt.exit.state !== 'observed') attempt.exit = { state: 'unavailable' };
+    markUnknown(attempt);
+  });
+  child.once('exit', (code, signal) => {
+    if (code === null && signal === null) {
+      attempt.exit = { state: 'unavailable' };
+      markUnknown(attempt);
+    } else attempt.exit = { state: 'observed', code, signal };
+    notifyScope(attempt);
+  });
+  child.once('close', () => {
+    attempt.closed = true;
+    notifyScope(attempt);
+  });
+  child.stdin.on('error', () => {
+    markUnknown(attempt);
+  });
+  for (const [stream, pipe] of [
+    [child.stdout, 'output'],
+    [child.stderr, 'errors'],
+  ] as const)
+    stream.on('error', () => {
+      attempt[pipe] = 'read-failed';
+      markUnknown(attempt);
+    });
+  child.stdin.once('finish', () => {
+    attempt.inputFinished = true;
+    notifyScope(attempt);
+  });
+  child.stdin.once('close', () => {
+    attempt.inputClosed = true;
+    notifyScope(attempt);
+  });
+  const started = new Set<Readable>();
+  async function drain(
+    stream: Readable,
+    pipe: 'output' | 'errors',
+    consume: (chunk: Buffer) => void,
+  ): Promise<void> {
+    if (started.has(stream)) throw new Error('original authority pipe drain already started');
+    started.add(stream);
+    try {
+      for await (const chunk of stream) {
+        if (!Buffer.isBuffer(chunk)) throw new Error('original authority pipe emitted nonbytes');
+        consume(chunk);
+      }
+      if (!stream.readableEnded) throw new Error('original authority pipe ended without EOF');
+      if (attempt[pipe] !== 'read-failed') attempt[pipe] = 'eof';
+      notifyScope(attempt);
+    } catch (cause) {
+      attempt[pipe] = 'read-failed';
+      markUnknown(attempt);
+      throw cause;
+    }
+  }
+  const retainTask = (task: Promise<void>) => {
+    attempt.tasks.add(task);
+    return task;
+  };
+  return {
+    drainOutput: (consume) => retainTask(drain(child.stdout, 'output', consume)),
+    drainErrors: (consume) => retainTask(drain(child.stderr, 'errors', consume)),
+    writeInput(bytes) {
+      attempt.pendingWrites++;
+      return retainTask(
+        new Promise<void>((resolve, reject) => {
+          let callbackComplete = false;
+          let drained = false;
+          let settled = false;
+          const settleWrite = () => {
+            if (callbackComplete && drained && !settled) {
+              settled = true;
+              attempt.pendingWrites--;
+              notifyScope(attempt);
+              resolve();
+            }
+          };
+          try {
+            const accepted = child.stdin.write(bytes, (cause) => {
+              if (cause !== null && cause !== undefined) {
+                markUnknown(attempt);
+                reject(cause);
+              }
+              callbackComplete = true;
+              settleWrite();
+            });
+            if (accepted) {
+              drained = true;
+              settleWrite();
+            } else
+              child.stdin.once('drain', () => {
+                drained = true;
+                settleWrite();
+              });
+          } catch (cause) {
+            markUnknown(attempt);
+            reject(
+              cause instanceof Error
+                ? cause
+                : new Error('original authority write failed', { cause }),
+            );
+          }
+        }),
+      );
+    },
+    endInput() {
+      child.stdin.end();
+    },
+    observeTerminal(phase) {
+      if (
+        phase['nonce'] !== attempt.nonce ||
+        !['complete', 'refused'].includes(String(phase['phase'])) ||
+        phase['cleanup'] !== 'complete'
+      )
+        markUnknown(attempt);
+      else attempt.remoteClosed = true;
+      notifyScope(attempt);
+    },
+    invalidateProtocol: () => {
+      markUnknown(attempt);
+    },
+    isUnknown: () => !isAttemptClosed(attempt),
+  };
+}
+
+function isAttemptClosed(attempt: Attempt): boolean {
+  return (
+    attempt.noChild ||
+    (!attempt.unknown &&
+      attempt.exit.state === 'observed' &&
+      attempt.closed &&
+      attempt.output === 'eof' &&
+      attempt.errors === 'eof' &&
+      attempt.inputFinished &&
+      attempt.inputClosed &&
+      attempt.pendingWrites === 0 &&
+      attempt.remoteClosed)
+  );
+}
+
+/** Seals dispatch and holds the original invocation until every actual resource is known.
+ * Unknown is sticky. A referenced passive keeper retains an otherwise idle HOLD; there is
+ * deliberately no reset, discharge, timeout or resume API. This does not extend work deadlines.
+ */
+export async function closeOriginal(scope: DependencyOperationCustody): Promise<void> {
+  const retained = readScope(scope);
+  retained.closing = true;
+  const isClosed = () => [...retained.attempts].every(isAttemptClosed);
+  if (isClosed()) return;
+  const keeper = setInterval(() => undefined, 60000);
+  try {
+    await new Promise<void>((resolve) => {
+      const inspect = () => {
+        if (!isClosed()) return;
+        retained.changed.delete(inspect);
+        resolve();
+      };
+      retained.changed.add(inspect);
+      inspect();
+    });
+  } finally {
+    clearInterval(keeper);
+  }
+}
