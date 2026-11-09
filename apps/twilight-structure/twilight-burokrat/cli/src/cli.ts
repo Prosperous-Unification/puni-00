@@ -40,6 +40,8 @@ import {
   readInvocationJournal,
   validateReviewProvenance,
 } from './review/invocation-journal';
+import { anchorRequest } from './validator-paths';
+import { decodeRequest } from './validator-request';
 import { validateWorkflowBinding } from './workflow-binding';
 
 interface JsonDocument {
@@ -293,9 +295,15 @@ async function readInstant(value: string): Promise<Date> {
   return readEvaluationInstant(value);
 }
 
+/** Invocation-owned paths remain explicit when the validator runs outside the caller's tree. */
+export interface ExecutionContext {
+  readonly callerDirectory: string;
+}
+
 type Handlers = {
   readonly [Name in ValidatorCommand['command']]: (
     command: ValidatorRequest<Name>,
+    context: ExecutionContext,
   ) => Promise<void> | void;
 };
 
@@ -322,8 +330,8 @@ export const validatorHandlers: Handlers = {
   },
   'validate-record': validateRecord,
   validate: validateRecord,
-  'validate workflow-binding': (request) => {
-    process.stdout.write(validateWorkflowBinding(request, process.cwd()) + '\n');
+  'validate workflow-binding': (request, context) => {
+    process.stdout.write(validateWorkflowBinding(request, context.callerDirectory) + '\n');
   },
   'read-candidate': readSelectedCandidate,
   'candidate-identity': async (request) => {
@@ -653,7 +661,10 @@ export const validatorHandlers: Handlers = {
  * @throws Error `Unsupported Burokrat command: <name>` for a command no handler takes, which only
  * a JavaScript caller bypassing the parser can pass.
  */
-export function runCli(command: ValidatorCommand): Promise<void> | void {
+export function runCli(
+  command: ValidatorCommand,
+  context: ExecutionContext = { callerDirectory: process.cwd() },
+): Promise<void> | void {
   const name: string = command.command;
   // Proof: deleting this guard made `runCli refuses a command no handler takes` call `undefined`
   // and throw a TypeError instead of the Burokrat refusal (2026-11-02).
@@ -663,8 +674,9 @@ export function runCli(command: ValidatorCommand): Promise<void> | void {
   // TypeScript cannot follow through an indexed access; the mapped type above checks each entry.
   const handler = validatorHandlers[command.command] as (
     command: ValidatorCommand,
+    context: ExecutionContext,
   ) => Promise<void> | void;
-  return handler(command);
+  return handler(command, context);
 }
 
 function fail(cause: unknown): void {
@@ -700,4 +712,24 @@ export async function executeCli(argv: readonly string[]): Promise<void> {
   }
 }
 
-if (import.meta.main) void executeCli(process.argv.slice(2));
+/** Execute one installed-only JSON request without entering either argv parser. */
+export async function executeRequest(source: string | Uint8Array): Promise<void> {
+  try {
+    const invocation = decodeRequest(source);
+    // Proof: broken argv adapters still dispatch here; re-entering executeCli fails that child test.
+    // Bypassing anchoring or changing the caller root fails the actual host/binding IO cases.
+    await runCli(anchorRequest(invocation.request, invocation.callerDirectory), {
+      callerDirectory: invocation.callerDirectory,
+    });
+  } catch (cause) {
+    fail(cause);
+  }
+}
+
+if (import.meta.main) {
+  const argv = process.argv.slice(2);
+  if (argv.length === 1 && argv[0] === '--puni-request-v1')
+    // Proof: reading stdin.text instead dispatches replaced invalid UTF-8 in the actual byte test.
+    await executeRequest(await Bun.stdin.bytes());
+  else await executeCli(argv);
+}
