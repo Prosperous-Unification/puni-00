@@ -1,5 +1,8 @@
 import {
   accessSubjectOf,
+  authorize,
+  authorizePackage,
+  authorizePackageSettings,
   capOf,
   type DirectoryStore,
   organizationRoleOf,
@@ -21,18 +24,14 @@ import type {
 import { roleMaySwitchCapacityMode } from '@wbs/core/service/capacity-mode.resource';
 import { scheduleInputOfCaptured } from '@wbs/core/service/saved-plan-schedule';
 import type { DependencyFanout } from '@wbs/core/service/shared-people-fanout';
-import {
-  canEditProjectInOrganization,
-  canWriteInOrganization,
-  classifyProjectEdit,
-} from '@wbs/domain';
 import { and, eq, sql } from 'drizzle-orm';
 
+import { AccessDecisionRepository } from './access-decisions';
 import { type ChainSnapshotOptions, readChainSnapshotIn } from './chain-snapshot';
 import { discoverConnectedTopologyIn } from './connected-plan-capture';
 import type { Drizzle } from './db';
 import { OPEN } from './gate';
-import { capStoredRole, validateStoredRole } from './organization-access';
+import { validateStoredRole } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
@@ -79,34 +78,20 @@ export function resolveLifecycleOwnerIn(db: Drizzle, projectId: string): Lifecyc
 
 /** Current import write authority on the same borrowed connection as capture. */
 export function authorizeImportIn(db: Drizzle): BeforeImport {
-  return (actorId, access) => {
-    if (access.kind === 'legacy') return Promise.resolve({ ok: true });
-    const { organizationId } = access.scope;
-    const membership = db
-      .select({ role: organizationMembership.role })
-      .from(organizationMembership)
-      .where(
-        and(
-          eq(organizationMembership.organizationId, organizationId),
-          eq(organizationMembership.userId, actorId),
-        ),
-      )
-      .get();
-    // Proof: admitting a missing membership let a queued removed member's
-    // mounted import return 201 instead of the typed 403.
-    if (membership === undefined) return Promise.resolve({ ok: false, reason: 'forbidden' });
-    // Proof: replacing validation with admin let a queued malformed role
-    // import return 201 instead of surfacing trusted corruption as 500.
-    // Proof: dropping this ceiling made borrowed viewer-import authority admit (2026-10-22).
-    const role = capStoredRole(
-      validateStoredRole(membership.role, organizationId),
-      access.scope.role,
+  return async (actorId, access) => {
+    if (access.kind === 'legacy') return { ok: true };
+    if (access.scope.userId !== actorId || access.principal.id !== actorId)
+      throw new Error('import permission principal differs from its actor');
+    // Proof: import-create-grant fault failed 'encodes organization.create_project on a refused import' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    const decision = await authorize(
+      new AccessDecisionRepository(db),
+      access.principal,
+      { kind: 'organization', organizationId: access.scope.organizationId },
+      'organization.create_project',
     );
-    // Proof: admitting unconditionally let a queued viewer import return 201
-    // instead of the typed 403, with writes and capture after demotion.
-    return Promise.resolve(
-      canWriteInOrganization(role) ? { ok: true } : { ok: false, reason: 'forbidden' },
-    );
+    return decision.ok
+      ? { ok: true }
+      : { ok: false, reason: 'forbidden', permission: 'organization.create_project' };
   };
 }
 
@@ -115,7 +100,7 @@ export function authorizeProjectFanoutIn(
   db: Drizzle,
   lifetime: ReadSnapshotLifetime,
 ): BeforeProjectUpdate {
-  return async (projectId, actorId, access) => {
+  return async (projectId, actorId, access, patch) => {
     if (access.kind === 'legacy') return { ok: true };
     const organizationId = access.scope.organizationId;
     const project = await new ProjectRepository(db, OPEN).findInOrganization(
@@ -125,24 +110,16 @@ export function authorizeProjectFanoutIn(
     // Proof: removing this check made `fanout authorizeProjectUpdate` issue 1 expired membership query.
     lifetime.assertOpen();
     if (project === null) return { ok: false, reason: 'not_found' };
-    const membership = db
-      .select({ role: organizationMembership.role })
-      .from(organizationMembership)
-      .where(
-        and(
-          eq(organizationMembership.organizationId, organizationId),
-          eq(organizationMembership.userId, actorId),
-        ),
-      )
-      .get();
-    if (membership === undefined) return { ok: false, reason: 'forbidden' };
-    const edit = classifyProjectEdit(project, {
+    if (access.scope.userId !== actorId || access.principal.id !== actorId)
+      throw new Error('project fanout principal differs from its actor');
+    // Proof: checking package.read here admitted the revoked settings grant in `rechecks manage_settings before project fanout observation after its grant is revoked` (fanout-capture.db.test.ts); watched 2026-11-09.
+    return authorizePackageSettings(
+      new AccessDecisionRepository(db),
+      access.principal,
       organizationId,
-      userId: actorId,
-      // Proof: dropping this ceiling made borrowed restricted-project and viewer-project authority admit (2026-10-22).
-      role: capStoredRole(validateStoredRole(membership.role, organizationId), access.scope.role),
-    });
-    return edit === 'refused' ? { ok: false, reason: 'forbidden' } : { ok: true };
+      project,
+      patch,
+    );
   };
 }
 
@@ -192,9 +169,18 @@ export function resolveProjectWriteScopeIn(
       role: organizationRoleOf(validateStoredRole(membership.role, organizationId), authentication),
     };
     // Proof: F13 bypassed this decision; a current viewer received runtime facts.
-    return classifyProjectEdit(project, scope) === 'refused'
-      ? { ok: false, reason: 'forbidden' }
-      : { ok: true, scope };
+    const decision = await authorize(
+      new AccessDecisionRepository(db),
+      { id: actorId, authentication },
+      {
+        kind: 'work_package',
+        chain: { level: 'work_package', organizationId, workPackageId: projectId },
+        restricted: project.restricted,
+      },
+      'package.write',
+    );
+    lifetime.assertOpen();
+    return decision.ok ? { ok: true, scope } : decision;
   };
 }
 
@@ -213,24 +199,13 @@ export function authorizeStepFanoutIn(
     // Proof: removing this check made `fanout authorizeStepRemoval` issue 1 expired membership query.
     lifetime.assertOpen();
     if (project === null) return { ok: false, reason: 'not_found' };
-    const membership = db
-      .select({ role: organizationMembership.role })
-      .from(organizationMembership)
-      .where(
-        and(
-          eq(organizationMembership.organizationId, organizationId),
-          eq(organizationMembership.userId, actorId),
-        ),
-      )
-      .get();
-    if (membership === undefined) return { ok: false, reason: 'forbidden' };
-    const admitted = canEditProjectInOrganization(project, {
-      organizationId,
-      userId: actorId,
-      // Proof: dropping this ceiling made borrowed viewer-step authority admit (2026-10-22).
-      role: capStoredRole(validateStoredRole(membership.role, organizationId), access.scope.role),
-    });
-    return admitted ? { ok: true } : { ok: false, reason: 'forbidden' };
+    return authorizePackage(
+      new AccessDecisionRepository(db),
+      access,
+      project,
+      actorId,
+      'package.write',
+    );
   };
 }
 

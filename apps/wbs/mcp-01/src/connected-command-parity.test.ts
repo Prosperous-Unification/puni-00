@@ -191,6 +191,7 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
       authority: async (
         action:
           | 'restricted-predecessor'
+          | 'write-predecessor'
           | 'hold'
           | 'queued'
           | 'revoke-credential'
@@ -203,6 +204,19 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
         });
         if (reply.status !== 200)
           throw new Error(`authority preparation failed: ${String(reply.status)}`);
+      },
+      configureProject: async (
+        projectId: string,
+        patch: unknown,
+      ): Promise<{ status: number; body: unknown }> => {
+        const response = await fetch(`${apiUrl}/_parity/project-settings`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${ready.controlToken}` },
+          body: JSON.stringify({ projectId, patch }),
+        });
+        if (response.status !== 200)
+          throw new Error(`settings fixture refused: ${String(response.status)}`);
+        return (await response.json()) as { status: number; body: unknown };
       },
       prepareOptimization: async () => {
         const reply = await fetch(`${apiUrl}/_parity/optimization`, {
@@ -1367,7 +1381,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           { id: successor.workItemId, schedule: { earliestStart: 2, earliestFinish: 4 } },
         ],
       });
-      const patch = await fixture.http('PATCH', `/api/projects/${predecessor.projectId}`, {
+      const patch = await fixture.configureProject(predecessor.projectId, {
         startDate: null,
       });
       expect(patch.status).toBe(200);
@@ -1413,14 +1427,21 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       const before = await fixture.inspect();
       const patch = { optimizationEnabled: true, scheduleEngine: 'optimized' };
       const path = `/api/projects/${fixture.predecessor.projectId}`;
+      expect(await fixture.configureProject(fixture.predecessor.projectId, patch)).toEqual({
+        status: 409,
+        body: { error: 'optimizer_unavailable' },
+      });
       const direct = await fixture.http('PATCH', path, patch);
-      expect(direct).toEqual({ status: 409, body: { error: 'optimizer_unavailable' } });
+      expect(direct).toEqual({
+        status: 403,
+        body: { error: 'forbidden', permission: 'package.manage_settings' },
+      });
       const refused = await fixture.call('patchApiProjectsById', {
         id: fixture.predecessor.projectId,
         ...patch,
       });
       expect(refused.isError).toBe(true);
-      expect(refused.text).toContain('HTTP 409 optimizer_unavailable');
+      expect(refused.text).toContain('HTTP 403 forbidden');
       const after = await fixture.inspect();
       expect(after.effects).toEqual(before.effects);
       expect(after.pushes).toEqual(before.pushes);
@@ -1556,8 +1577,7 @@ for (const kind of ['addTypedDependency', 'updateTypedDependency'] as const) {
   }
 }
 
-// Proof: rejecting restricted remote evidence failed this accepted add (tool error instead of 200), watched 2026-10-23.
-test('generated MCP authors and updates a restricted readable node predecessor without edit authority', async () => {
+test('generated MCP requires explicit write authority before copying a restricted readable node relationship', async () => {
   const fixture = await openFixture();
   try {
     await fixture.authority('restricted-predecessor');
@@ -1590,6 +1610,11 @@ test('generated MCP authors and updates a restricted readable node predecessor w
       },
       type: 'SS',
     };
+    const missingWrite = await submit(fixture, 'MCP', [command]);
+    expect(missingWrite.text).toContain('HTTP 403 forbidden');
+    expect((await fixture.inspect()).effects).toEqual(before.effects);
+    expect((await fixture.inspect()).pushes).toEqual(before.pushes);
+    await fixture.authority('write-predecessor');
     const added = await submit(fixture, 'MCP', [command]);
     expect(added.status).toBe(200);
     const committed = await fixture.inspect();
@@ -1669,6 +1694,7 @@ for (const fault of ['revoke-credential', 'restrict-successor'] as const) {
     let held = false;
     try {
       await fixture.authority('restricted-predecessor');
+      await fixture.authority('write-predecessor');
       expect((await submit(fixture, 'MCP', [fixture.command])).status).toBe(200);
       const initial = await fixture.inspect();
       if (initial.relationship === null) throw new Error('queued update relationship missing');

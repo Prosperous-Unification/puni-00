@@ -20,10 +20,10 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell', 'sue']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-a', 'sue', 'admin');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-a', 'sue', 'admin', ['org-admin']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('sue', 'org-a');
@@ -44,7 +44,19 @@ afterEach(() => {
 async function create(username: string, name: string): Promise<string> {
   const answer = await h.call(username, 'POST', '/api/projects', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const projectId = (answer.body as { project: { id: string } }).project.id;
+  if (
+    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
+      ?.state === 'activated'
+  )
+    h.grant(
+      username === 'grace' ? 'org-b' : 'org-a',
+      username,
+      'package-manager',
+      'work_package',
+      projectId,
+    );
+  return projectId;
 }
 
 /** Declares one divisible resource through the caller's directory, answering its id. */
@@ -234,6 +246,10 @@ describe('resources in an organization', () => {
     await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
       commands: [{ kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 }],
     });
+    h.sqlite.run(
+      "UPDATE access_grant SET role_id = 'project-contributor' WHERE subject_id = ? AND role_id = 'org-admin'",
+      [h.userId('ada')],
+    );
     const demands = () =>
       h.sqlite.query('SELECT count(*) AS n FROM work_item_resource_demand').get();
     for (const path of ['/api/directory/commands', `/api/projects/${own}/commands`])
@@ -241,13 +257,13 @@ describe('resources in an organization', () => {
         { kind: 'deleteResource', resourceId: ram, cascade: true },
         { kind: 'deleteResource', resourceId: ram },
       ]) {
-        expect(await h.call('ada', 'POST', path, { commands: [command] }), path).toEqual({
+        expect(await h.call('ada', 'POST', path, { commands: [command] }), path).toMatchObject({
           status: 403,
-          body: { at: 0, kind: 'deleteResource', error: 'forbidden' },
+          body: { error: 'forbidden', permission: 'organization.manage_directory' },
         });
-        expect(await h.call('vic', 'POST', path, { commands: [command] }), path).toEqual({
+        expect(await h.call('vic', 'POST', path, { commands: [command] }), path).toMatchObject({
           status: 403,
-          body: { error: 'forbidden' },
+          body: { error: 'forbidden', permission: 'organization.manage_directory' },
         });
       }
     expect(demands()).toEqual({ n: 1 });
@@ -262,13 +278,19 @@ describe('resources in an organization', () => {
         await h.call('ada', 'POST', '/api/directory/commands', {
           commands: [{ kind: 'deleteResource', resourceId }],
         }),
-      ).toEqual({ status: 403, body: { at: 0, kind: 'deleteResource', error: 'forbidden' } });
-    // Creating and editing stay open to a member.
+      ).toMatchObject({
+        status: 403,
+        body: { error: 'forbidden', permission: 'organization.manage_directory' },
+      });
+    // P7 narrows directory creation and editing to manage_directory.
     expect(
       await h.call('ada', 'POST', '/api/directory/commands', {
         commands: [{ kind: 'patchResource', resourceId: ram, patch: { unitLabel: 'TB' } }],
       }),
-    ).toMatchObject({ status: 200 });
+    ).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(
       await h.call('sue', 'POST', '/api/directory/commands', {
         commands: [{ kind: 'deleteResource', resourceId: ram, cascade: true }],
@@ -382,7 +404,7 @@ describe('resources in an organization', () => {
   );
 
   it('names the organization’s resource in a refused undo’s detail', async () => {
-    h.member('org-a', 'nell', 'member');
+    h.member('org-a', 'nell', 'member', ['project-contributor']);
     h.bind('nell', 'org-a');
     const ram = await declare('ada', 'h2puni ram');
     const firstStep = h.sqlite

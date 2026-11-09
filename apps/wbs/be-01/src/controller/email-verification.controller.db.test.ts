@@ -208,6 +208,8 @@ describe('password email verification', () => {
     const spawnConfirmation = () =>
       LaneProcess.spawn([
         process.execPath,
+        '--tsconfig-override',
+        new URL('../../tsconfig.json', import.meta.url).pathname,
         '-e',
         `
           import { openDrizzle } from '@wbs/store-sqlite/db';

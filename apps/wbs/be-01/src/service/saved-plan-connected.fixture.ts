@@ -51,6 +51,9 @@ export async function captureSavedConnectedFixture(
       client.run(
         "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
       );
+      client.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('saved-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
+      );
       client.run('UPDATE organization SET shared_people=? WHERE id=?', [
         mode === 'shared' ? 1 : 0,
         'org-a',
@@ -84,6 +87,7 @@ export async function captureSavedConnectedFixture(
         schedulerOf: () => options.scheduler ?? fastScheduler,
         ...(options.connected === undefined ? {} : { connected: options.connected }),
       }).read('a1', {
+        principal: { id: 'ada' },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
       });

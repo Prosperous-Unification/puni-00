@@ -1,3 +1,5 @@
+import type { Permission } from '@wbs/domain/access-role';
+
 import type { PlanCommandKind } from '../commands/definitions';
 import type { mixedBases } from './work-item-response';
 
@@ -792,7 +794,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     [C in Exclude<CommandRefusalCode, SharedCommandCode>]: CommandRefusalDetail[C];
   } & {
     not_found: { savedPlanId?: string } | { field?: 'markerId' } | CommandContext;
-    forbidden: undefined | CommandContext;
+    forbidden:
+      undefined | { permission?: Permission } | (CommandContext & { permission?: Permission });
     name_required: undefined | CommandContext;
     /** Bare from a step PATCH's allowance; with its command context from a batch. */
     calendar_range: undefined | CommandContext;
@@ -857,6 +860,7 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     external_dependencies_inactive:
       { detail: string | null } | CommandRefusalDetail['external_dependencies_inactive'];
     nothing_to_undo: { detail: string | null };
+    replay_provenance_unavailable: { detail: string | null };
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };
     /**

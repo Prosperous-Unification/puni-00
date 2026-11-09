@@ -30,8 +30,8 @@ beforeEach(async () => {
   h = OrganizationHarness.openComposedWith({ machineGrants });
   for (const username of ['owner', 'viewer']) await h.register(username);
   h.organization('org-a');
-  h.member('org-a', 'owner', 'super_admin');
-  h.member('org-a', 'viewer', 'viewer');
+  h.member('org-a', 'owner', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'viewer', 'viewer', ['org-viewer']);
   h.bind('owner', 'org-a');
   h.bind('viewer', 'org-a');
   h.activate();

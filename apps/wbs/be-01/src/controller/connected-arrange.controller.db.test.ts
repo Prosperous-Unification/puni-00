@@ -12,7 +12,7 @@ beforeEach(async () => {
   harness = OrganizationHarness.openComposedWith({ withOptimizer: true, solverVersion: '0.4.0' });
   await harness.register('ada');
   harness.organization('arrange-org');
-  harness.member('arrange-org', 'ada', 'admin');
+  harness.member('arrange-org', 'ada', 'admin', ['org-admin']);
   harness.bind('ada', 'arrange-org');
   harness.activate();
   seedDependencyAuthority(harness.databasePath());

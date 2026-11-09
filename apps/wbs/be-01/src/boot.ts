@@ -809,6 +809,7 @@ export async function bootBe01(
               // left the cold boot rank move without its second durable a2 event
               // in boot.db.test.ts (R5 boot-rank-binding).
               projectRanks: services.projectRanks,
+              accessDecisions: services.accessDecisions,
               // Proof: retaining the refusing sink made boot's real-TLS challenge test answer503 instead of201.
               emailDelivery,
               steps: services.steps,

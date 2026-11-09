@@ -14,6 +14,7 @@ import { captureMixedFixture } from '../../service/saved-plan-connected.fixture'
 import { mountEndpoints } from './mount';
 
 const access = {
+  principal: { id: 'ada' },
   kind: 'scoped' as const,
   scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
 };
@@ -50,7 +51,13 @@ test.each(['isolated', 'shared'] as const)(
           createdBy: 'Ada',
           createdById: 'ada',
           access,
-          scoped: { organizationId: 'org-a', actorId: 'ada', role: 'member', operation: 'save' },
+          scoped: {
+            principal: { id: 'ada' },
+            organizationId: 'org-a',
+            actorId: 'ada',
+            role: 'member',
+            operation: 'save',
+          },
         });
       const first = await save();
       const second = await save();

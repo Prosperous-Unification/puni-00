@@ -6,6 +6,7 @@ import {
   type ProjectOwnership,
 } from '@wbs/domain';
 
+import type { ScopedPrincipal } from './access-decisions';
 import type { CredentialRuleRefusal } from './credential-rules';
 import type { Project, ProjectStore } from './project-store';
 
@@ -19,7 +20,12 @@ import type { Project, ProjectStore } from './project-store';
  * legacy: a caller that forgot to resolve access cannot compile.
  */
 export type ResourceAccess =
-  { readonly kind: 'legacy' } | { readonly kind: 'scoped'; readonly scope: OrganizationScope };
+  | { readonly kind: 'legacy' }
+  | {
+      readonly kind: 'scoped';
+      readonly scope: OrganizationScope;
+      readonly principal: Readonly<ScopedPrincipal>;
+    };
 
 /**
  * Why an authenticated request may not act in any organization, before any

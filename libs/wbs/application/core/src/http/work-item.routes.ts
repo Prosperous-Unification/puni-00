@@ -143,10 +143,18 @@ function answerUndo(outcome: ScopedUndoOutcome): HttpReply<typeof undoProject> {
     };
   switch (outcome.reason) {
     case 'forbidden':
-      return { ok: false, status: 403, body: { error: outcome.reason } };
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          error: outcome.reason,
+          ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+        },
+      };
     case 'not_found':
       return { ok: false, status: 404, body: { error: outcome.reason } };
     case 'external_dependencies_inactive':
+    case 'replay_provenance_unavailable':
     case 'nothing_to_undo':
     case 'stale_undo':
       return { ok: false, status: 409, body: { error: outcome.reason, detail: outcome.detail } };
@@ -269,7 +277,14 @@ function answerWholeBatch(
     return organizationRefusal(outcome);
   return outcome.refusal === 'not_found'
     ? { ok: false, status: 404, body: { error: 'not_found' } }
-    : { ok: false, status: 403, body: { error: 'forbidden' } };
+    : {
+        ok: false,
+        status: 403,
+        body: {
+          error: 'forbidden',
+          ...('permission' in outcome ? { permission: outcome.permission } : {}),
+        },
+      };
 }
 
 /** A finite status switch retains command detail; an unmodeled producer reason cannot acquire a default. */
@@ -318,7 +333,15 @@ function answerBatch(
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
     case 'forbidden':
-      return { ok: false, status: 403, body: { ...context, error: outcome.reason } };
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          ...context,
+          error: outcome.reason,
+          ...('permission' in outcome ? { permission: outcome.permission } : {}),
+        },
+      };
     case 'not_found':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_step':
@@ -974,11 +997,18 @@ export function workItemRoutes(
         const preview = await workItems.previewDirectoryCapacityWithin(
           params.resourceId,
           units,
-          resolved.access.scope,
+          resolved.access,
         );
         if (!preview.ok)
           return preview.reason === 'forbidden'
-            ? { ok: false, status: 403, body: { error: 'forbidden' } }
+            ? {
+                ok: false,
+                status: 403,
+                body: {
+                  error: 'forbidden',
+                  ...(preview.permission === undefined ? {} : { permission: preview.permission }),
+                },
+              }
             : { ok: false, status: 404, body: { error: 'not_found' } };
         return { ok: true, status: 200, body: preview.value };
       },

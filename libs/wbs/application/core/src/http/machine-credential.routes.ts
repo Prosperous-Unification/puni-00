@@ -94,7 +94,7 @@ export function machineCredentialRoutes(
         if (typeof organizationId !== 'string') return organizationId;
         const listed = await credentials.list(
           organizationId,
-          principal.id,
+          principal,
           {
             ...(query.personId === undefined ? {} : { personId: query.personId }),
             includeRevoked: query.include === 'revoked',
@@ -138,7 +138,7 @@ export function machineCredentialRoutes(
             return { ok: false, status: 400, body: { error: 'audience_not_wbs' } };
           const created = await credentials.createOidc(
             organizationId,
-            principal.id,
+            principal,
             {
               id,
               name: body.name,
@@ -173,7 +173,7 @@ export function machineCredentialRoutes(
         const { key, secret } = newMachineKey(id);
         const created = await credentials.createApiKey(
           organizationId,
-          principal.id,
+          principal,
           {
             id,
             name: body.name,
@@ -208,7 +208,7 @@ export function machineCredentialRoutes(
         const secretId = crypto.randomUUID();
         const rotated = await credentials.rotateApiKey(
           organizationId,
-          principal.id,
+          principal,
           params.id,
           { secretId, digest: await digestMachineSecret(secret) },
           act(principal.id),
@@ -239,7 +239,7 @@ export function machineCredentialRoutes(
         if (typeof organizationId !== 'string') return organizationId;
         const revoked = await credentials.revoke(
           organizationId,
-          principal.id,
+          principal,
           params.id,
           act(principal.id),
         );

@@ -48,7 +48,7 @@ async function addLink(fixture: Fixture) {
 async function createForeignEndpoint() {
   await harness.register('grace');
   harness.organization('org-b');
-  harness.member('org-b', 'grace', 'super_admin');
+  harness.member('org-b', 'grace', 'super_admin', ['org-super-admin']);
   const selected = await harness.request('/api/organization/active', {
     method: 'POST',
     headers: {
@@ -93,11 +93,12 @@ async function createForeignEndpoint() {
 }
 
 // Proof: requiring remote edit authority changed this mounted add from 200 to 403 (2026-10-23).
-test('active mounted restricted readable predecessor needs no edit permission', async () => {
+test('active mounted restricted readable predecessor requires its explicit write grant', async () => {
   const pushes: string[] = [];
   const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
   await harness.register('owner');
-  harness.member('org-a', 'owner', 'member');
+  harness.member('org-a', 'owner', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-a', 'owner', ['organization.create_project']);
   harness.sqlite.run('UPDATE project SET owner_id=?, restricted=1 WHERE id=?', [
     harness.userId('owner'),
     fixture.predecessor.projectId,
@@ -126,6 +127,20 @@ test('active mounted restricted readable predecessor needs no edit permission', 
     .get(fixture.predecessor.workItemId);
   if (predecessorBefore === null) throw new Error('fixture predecessor missing');
   const sent = pushes.length;
+  const deniedLink = await sendBatch(fixture, [{ kind: 'addTypedDependency', ...fixture.input }]);
+  expect(deniedLink.status).toBe(403);
+  expect(await deniedLink.json()).toMatchObject({
+    error: 'forbidden',
+    permission: 'package.write',
+  });
+  expect(readTables()).toEqual(before);
+  harness.grant(
+    'org-a',
+    'ada',
+    'package-contributor',
+    'work_package',
+    fixture.predecessor.projectId,
+  );
   await addLink(fixture);
   expect(
     harness.sqlite
@@ -180,8 +195,9 @@ for (const fault of [
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({
       error: 'not_found',
-      at: 1,
-      kind: 'addTypedDependency',
+      ...(['foreign-project', 'absent-project'].includes(fault)
+        ? {}
+        : { at: 1, kind: 'addTypedDependency' }),
     });
     expect(readTables()).toEqual(before);
     expect(pushes).toEqual(sent);

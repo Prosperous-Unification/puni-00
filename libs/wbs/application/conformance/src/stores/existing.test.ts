@@ -68,6 +68,7 @@ describe('the migrated existing store kits', () => {
       'projects.create:steps',
       'projects.update:scope',
       'projects.recordOpen:reader-order',
+      'spaces.create:scoped-round-trip',
       'projectRanks.orderIn:scoped-move',
       'accessDecisions.effectiveRoleAt:grant-reaches-package',
       'organizationLimits.readAgentPersonCap:organization-scope',
@@ -203,6 +204,7 @@ describe('the migrated existing store kits', () => {
     // Proof: before the independent implemented inventory was repaired, this
     // complete equality failed with the five work-item and two directory IDs absent.
     // Proof: removing the independent sparse ID failed this equality (2026-10-17).
+    // Proof: omitting spaces.create from SOURCE_CONFORMANCE_CASES failed this exact independent equality (2026-11-09).
     const implementedCaseIds: CaseId[] = [...SOURCE_CONFORMANCE_CASES];
     expect(implementedCaseIds).toEqual([
       ...sqliteRegistrations.map(({ caseId }) => caseId),

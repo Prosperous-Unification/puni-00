@@ -439,3 +439,102 @@ URL answered 404 SHALL render the existing not-found state without an access hin
 
 - **WHEN** a member with no grant opens the work package page of W by its URL
 - **THEN** the page renders the not-found state and no request reveals W's name
+
+### Requirement: Replay preserves original permission obligations
+
+New undoable recordings SHALL persist detached, versioned replay authorization metadata at the original operation, before contributing recordings are collapsed into one batch journal entry. Version 1 SHALL contain stable permission ids with addressed work-package anchors, or a budget-owner anchor that resolves the work package's current owning project (the current organization during the interim hierarchy). Both the previous and proposed endpoints of compound dependency writes SHALL contribute package.write obligations. Only recordings that actually contributed to the journal entry SHALL contribute obligations; submitted no-op and unjournalled commands SHALL contribute none.
+
+Scoped undo and redo SHALL require package.write plus every recorded obligation using the freshly admitted authenticated principal and current ownership, restriction, membership, credential cap and grants. A missing grant port or malformed present metadata, including an unknown policy version or malformed anchor, SHALL throw. An entry with absent authorization metadata SHALL answer 409 replay_provenance_unavailable before stale-entry discard, preserving journal bytes, cursor, history, audit and plan state. No permission SHALL be inferred from a compensation kind, label, entry count or legacy membership role.
+
+Undo, redo, cursor flips and revision restamping SHALL preserve the immutable authorization metadata. A future permission-policy version SHALL define explicit compatibility behavior before it is accepted; version 1 is not permission-policy forward compatibility.
+
+#### Scenario: Legacy replay is unavailable without changing history
+
+- **GIVEN** a scoped journal entry with absent authorization metadata, including an already stale entry
+- **WHEN** its actor requests undo or redo
+- **THEN** the server answers 409 replay_provenance_unavailable and preserves the entry, cursor and every side effect
+
+#### Scenario: Revoked budget permission refuses a mixed replay
+
+- **GIVEN** one contributing batch entry containing a budget write and an ordinary package write
+- **WHEN** the actor retains package.write but loses project.manage_budgets before undo
+- **THEN** undo is refused naming project.manage_budgets without journal, plan, audit or publication effects
+
+#### Scenario: No-op commands add no replay obligation
+
+- **GIVEN** a submitted settings operation that contributes no recording alongside an ordinary package write
+- **WHEN** a contributor undoes the resulting ordinary recording
+- **THEN** no manage_settings obligation is invented for the no-op command
+
+#### Scenario: Older history refusal remains a rendered frontend outcome
+
+- **WHEN** undo or redo returns replay_provenance_unavailable
+- **THEN** the plan writer reports that undo and redo are unavailable for the older history entry
+- **AND** it neither retries nor rereads or discards that entry
+
+### Requirement: Standalone directory creation retains one admitted owner
+
+A scoped standalone directory creation, including an add-person invocation, SHALL validate its external name and kind before opening an owner, retain a detached principal snapshot, and check organization.manage_directory on the current transaction's accessDecisions before capture or mutation. A name-idempotent creation SHALL require the same permission. Opaque root insertion, organization ownership mapping and initial person/team links SHALL settle in one owner, so a refused or failed creation leaves no root, ownership, link, event, audit or history rows. Permission refusal SHALL remain modeled and name organization.manage_directory; missing or unreadable trusted grant capability SHALL throw.
+
+The standalone named-add contract SHALL return a typed success or refusal, including name_required and forbidden. An invocation-local refusal carrier MAY cross a raw-store callback only after its owner rolls back and SHALL retain the whole typed refusal. Only that exact invocation's carrier SHALL be caught. Existing compound rename-plus-membership patches SHALL retain their deliberately separate raw commits: a refusal of a later owner does not roll back a prior committed rename.
+
+#### Scenario: Queued creation loses its grant
+
+- **GIVEN** an admitted account whose directory creation queues behind another writer
+- **WHEN** its manage_directory grant is revoked before its owner begins
+- **THEN** creation answers forbidden naming organization.manage_directory without capture, root, ownership, event, audit or history effects
+
+#### Scenario: Ownership insertion fails after opaque root insertion
+
+- **WHEN** ownership mapping fails in a scoped standalone creation
+- **THEN** its opaque root and every creation side effect roll back with the mapping
+
+### Requirement: Implicit typed relationship mutations retain both-endpoint authority
+
+The both-endpoint package.write requirement SHALL apply to the exact typed relationships an operation mutates, independently of command spelling. Incoming relationships selected for successor deletion, incoming relationships selected for duplication, and old/new node incident receipts selected for first-child transfer SHALL require current write at every affected package in the same writer before detach or mutation. A copied endpoint not yet persisted SHALL be authorized through its validated package anchor. Unchanged outgoing relationships SHALL not add a write obligation to duplication, and existing predecessor-deletion conflicts SHALL keep their precedence.
+
+The admitted dependency context SHALL expose an operation-specific write-authorization capability that closes over detached verified identity and current borrowed stores without exposing principal metadata. Generated legacy contexts SHALL install explicit no-scoped-obligation behavior; missing capability on a remote mutation SHALL throw, never imply permission. Checks SHALL inspect current selected rows in command order, including changes made by earlier commands in the batch. A permission refusal during replay SHALL preserve history and cursor rather than become stale_undo or discard the entry.
+
+#### Scenario: A copied incoming relationship requires the remote package write
+
+- **GIVEN** a successor has an incoming typed relationship from a readable remote package without package.write
+- **WHEN** the successor is duplicated or deleted
+- **THEN** the write refuses before any relation, row, journal or announcement changes
+- **AND** an unchanged outgoing relationship does not restrict duplication
+
+#### Scenario: A first-child transfer checks current incident endpoints before detaching
+
+- **GIVEN** a node has an outgoing remote incident and the caller lacks write at its remote package
+- **WHEN** creating the first child would transfer that incident
+- **THEN** the operation refuses before the first detach
+- **AND** a later command in the same batch checks the exact relationships selected after earlier commands have changed them
+
+### Requirement: Budget writes retain the addressed package boundary
+
+Budget writes and budget-owner replay requirements SHALL evaluate project.manage_budgets at both the work package's current budget owner and the addressed work package. The package evaluation SHALL enforce visibility and restricted inheritance without adding package.write to the budget command matrix. A visible minimal custom role containing package.read and project.manage_budgets SHALL suffice on an unrestricted work package. A budgets-only subject unable to read the addressed work package SHALL receive the same404 as an absent package.
+
+#### Scenario: Organization administration cannot silently mutate restricted budgets
+
+- **GIVEN** a restricted work package and an org-admin or org-super-admin grant with no effective project.manage_budgets permission at that package
+- **WHEN** the subject sets, clears, undoes or redoes a budget
+- **THEN** the write is refused without plan, journal, audit or publication effects
+
+The current InterimPackageChain has no engagement-project parent. Restricted budget positives requiring an explicit owning-project grant, and replay after a parent move, remain unavailable until #698 slice2 supplies that branch. This interim restriction SHALL NOT be bypassed by treating an organization grant as an explicit parent grant.
+
+### Requirement: Standalone removal authorizes before usage disclosure
+
+A scoped standalone directory removal SHALL include its permission check, ownership and usage preflights, capture and raw removal in one admitted owner. A subject lacking organization.manage_directory SHALL receive its named forbidden outcome before usage is read, including non-cascade removal of used entries. Service announcements SHALL be buffered until successful owner settlement; a late owner failure SHALL preserve directory, ownership, relationship, audit and history rows and publish nothing. Existing compound rename/membership operations retain their separately committed raw mutations.
+
+#### Scenario: A used directory entry is refused before usage is disclosed
+
+- **GIVEN** a visible owned tag, team or person is used by a project and the caller lacks organization.manage_directory
+- **WHEN** the caller requests standalone non-cascade removal
+- **THEN** the service answers forbidden naming organization.manage_directory before reading usage
+- **AND** no directory, ownership, event, audit or history state changes
+
+#### Scenario: A late removal failure publishes nothing
+
+- **GIVEN** an authorized standalone removal has staged its directory changes and affected-project announcements
+- **WHEN** a later capture or event write fails inside the owner
+- **THEN** every staged row rolls back and no announcement is delivered
+- **AND** a successful removal delivers its existing affected-project fanout only after the committed deletion is visible

@@ -26,7 +26,6 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import { type Connection, type Drizzle, observeCommitted } from './db';
 import { DirectoryRepository } from './directory';
 import type { Gate } from './gate';
-import type { ImmediateTransaction } from './immediate-write';
 import { currentMembershipAccess } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { signalClaimResourceUses } from './resource-use';
@@ -702,7 +701,7 @@ function stampedOf({ claimedAt, ...each }: StoredClaim): StampedClaim {
  * same snapshot. Answers how many leases it ended.
  */
 export function endLeasesOfUncredentialed(
-  tx: ImmediateTransaction,
+  tx: Pick<Drizzle, 'select' | 'update'>,
   personId: string,
   at: number,
 ): number {

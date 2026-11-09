@@ -1,4 +1,4 @@
-import type { LimitCrossed } from '@wbs/domain';
+import type { LimitCrossed, Permission } from '@wbs/domain';
 
 /**
  * Why a directory write was refused. Every one is a state of the directory or
@@ -14,8 +14,8 @@ import type { LimitCrossed } from '@wbs/domain';
  */
 export type DirectoryRefusal =
   /**
-   * `patchPerson` with `accountId` from a caller who is not an organization
-   * admin or super-admin, or under legacy access, which has no organization.
+   * A scoped write lacks organization.manage_directory, or a legacy binding
+   * request has no organization. Named permission denials retain permission.
    */
   | 'forbidden'
   | 'invalid_kind'
@@ -42,7 +42,7 @@ export type DirectoryRefusal =
  */
 export type DirectoryOutcome<T> =
   | { ok: true; value: T }
-  | { ok: false; reason: DirectoryRefusal }
+  | { ok: false; reason: DirectoryRefusal; readonly permission?: Permission }
   | { ok: false; reason: 'taken'; name: string }
   /**
    * One more agent person than the organization's cap allows

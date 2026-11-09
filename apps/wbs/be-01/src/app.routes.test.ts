@@ -61,6 +61,28 @@ import { testWorkItemService } from './testing/work-item-fixture';
 import { testWrites } from './testing/writes-fixture';
 
 function options(): AppOptions {
+  const spaces = inMemorySpaces(new Map());
+  const writes = testWrites();
+  const scoped: AppOptions['writes'] = {
+    ...writes,
+    uow: {
+      ...writes.uow,
+      run: (act) =>
+        writes.uow.run((scope) =>
+          act({
+            ...scope,
+            stores: new Proxy(scope.stores, {
+              get(target, port, receiver) {
+                if (port === 'spaces') return spaces;
+                if (port === 'accessDecisions') return undefined;
+                const exposed: unknown = Reflect.get(target, port, receiver);
+                return exposed;
+              },
+            }),
+          }),
+        ),
+    },
+  };
   return {
     projectAddressSearch: refusingProjectAddressSearch,
     resourceRuntime: {
@@ -84,7 +106,7 @@ function options(): AppOptions {
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
-    spaces: inMemorySpaces(new Map()),
+    spaces,
     projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: {
@@ -111,7 +133,7 @@ function options(): AppOptions {
     admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
-    writes: testWrites(),
+    writes: scoped,
     migrationsApplied: true,
   };
 }

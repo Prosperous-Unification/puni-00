@@ -27,22 +27,25 @@ beforeEach(async () => {
   for (const username of ['owner', 'viewer', 'other']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'owner', 'super_admin');
-  h.member('org-a', 'viewer', 'viewer');
-  h.member('org-b', 'other', 'admin');
+  h.member('org-a', 'owner', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'viewer', 'viewer', ['org-viewer']);
+  h.member('org-b', 'other', 'admin', ['org-admin']);
   h.bind('owner', 'org-a');
   h.bind('viewer', 'org-a');
   h.bind('other', 'org-b');
   h.activate();
   addAgentPerson(h.sqlite, 'agent-a', 'org-a', h.userId('owner'));
   addAgentPerson(h.sqlite, 'agent-b', 'org-b', h.userId('other'));
-  key = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'agent-a',
-      issuedBy: h.userId('owner'),
-    })
-  ).key;
+  const worker = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'agent-a',
+    issuedBy: h.userId('owner'),
+  });
+  key = worker.key;
+  h.sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('worker-write','org-a','organization','org-a','machine_credential',?,'project-contributor','route',1)",
+    [worker.id],
+  );
   const project = await h.call('owner', 'POST', '/api/projects', { name: 'Tracked plan' });
   projectId = (project.body as { project: { id: string } }).project.id;
   const created = await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
@@ -962,6 +965,7 @@ it('rechecks a runtime grant after upstream credential admission', async () => {
     credentialId: r.issued.id,
     fingerprint: 'verified-before-revocation',
     access: {
+      principal: { id: h.userId('owner') },
       kind: 'scoped' as const,
       scope: {
         cap: null,
@@ -1100,6 +1104,7 @@ it.each(['unbound', 'rebound'] as const)(
       credentialId: r.issued.id,
       fingerprint: 'previously-admitted',
       access: {
+        principal: { id: h.userId('owner') },
         kind: 'scoped' as const,
         scope: {
           cap: null,

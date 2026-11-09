@@ -45,7 +45,7 @@ export async function openFixture(options?: {
   seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'super_admin');
+  harness.member('org-a', 'ada', 'super_admin', ['org-super-admin']);
   harness.activate();
   const selected = await harness.request('/api/organization/active', {
     method: 'POST',
@@ -103,6 +103,7 @@ export async function openFixture(options?: {
     decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1)),
   );
   const expectedAccess = {
+    principal: { id: principal.id },
     kind: 'scoped' as const,
     scope: {
       cap: null,

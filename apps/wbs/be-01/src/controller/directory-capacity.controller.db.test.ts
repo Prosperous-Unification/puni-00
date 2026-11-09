@@ -58,14 +58,20 @@ async function setUp(harness: OrganizationHarness): Promise<void> {
     ['sue', 'admin'],
     ['tom', 'super_admin'],
   ] as const) {
-    harness.member('org-a', username, role);
+    const grants = {
+      member: ['project-contributor'],
+      viewer: ['project-viewer'],
+      admin: ['org-admin'],
+      super_admin: ['org-super-admin'],
+    } as const;
+    harness.member('org-a', username, role, grants[role]);
     harness.bind(username, 'org-a');
   }
-  harness.member('org-b', 'grace', 'admin');
+  harness.member('org-b', 'grace', 'admin', ['org-admin']);
   harness.bind('grace', 'org-b');
   harness.activate();
-  projectA = await create(harness, 'ada', 'A');
-  projectB = await create(harness, 'ada', 'B');
+  projectA = await create(harness, 'sue', 'A');
+  projectB = await create(harness, 'sue', 'B');
   for (const [id, projectId] of [
     ['w-a', projectA],
     ['w-b', projectB],
@@ -76,13 +82,25 @@ async function setUp(harness: OrganizationHarness): Promise<void> {
     );
   for (const id of ['agent-a', 'agent-b'])
     addAgentPerson(harness.sqlite, id, 'org-a', harness.userId('ada'));
-  ram = await declare(harness, 'ada', 'host ram');
+  ram = await declare(harness, 'sue', 'host ram');
 }
 
 async function create(harness: OrganizationHarness, username: string, name: string) {
   const answer = await harness.call(username, 'POST', '/api/projects', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const projectId = (answer.body as { project: { id: string } }).project.id;
+  if (
+    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
+      ?.state === 'activated'
+  )
+    h.grant(
+      username === 'grace' ? 'org-b' : 'org-a',
+      username,
+      'package-manager',
+      'work_package',
+      projectId,
+    );
+  return projectId;
 }
 
 function firstStepOf(projectId: string): string {
@@ -163,14 +181,18 @@ describe('setDirectoryCapacity', () => {
 
   it('refuses a member and a viewer on either route, writing nothing', async () => {
     for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
-      expect(await h.call('ada', 'POST', path, { commands: [state(ram, 16)] }), path).toEqual({
-        status: 403,
-        body: { at: 0, kind: 'setDirectoryCapacity', error: 'forbidden' },
-      });
-      expect(await h.call('vic', 'POST', path, { commands: [state(ram, 16)] }), path).toEqual({
-        status: 403,
-        body: { error: 'forbidden' },
-      });
+      expect(await h.call('ada', 'POST', path, { commands: [state(ram, 16)] }), path).toMatchObject(
+        {
+          status: 403,
+          body: { error: 'forbidden' },
+        },
+      );
+      expect(await h.call('vic', 'POST', path, { commands: [state(ram, 16)] }), path).toMatchObject(
+        {
+          status: 403,
+          body: { error: 'forbidden' },
+        },
+      );
     }
     expect(stated(h, ram)).toBeNull();
     expect(auditRows(h)).toEqual([]);
@@ -188,9 +210,9 @@ describe('setDirectoryCapacity', () => {
     });
     for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
       const commands = { commands: [state(ram, 16)] };
-      expect(await callForwarded(h, key, 'POST', path, commands), path).toEqual({
+      expect(await callForwarded(h, key, 'POST', path, commands), path).toMatchObject({
         status: 403,
-        body: { at: 0, kind: 'setDirectoryCapacity', error: 'forbidden' },
+        body: { error: 'forbidden' },
       });
       // Straight at `/api`, the key is no bearer at all (#785).
       expect(await h.callWith(key, 'POST', path, commands), path).toMatchObject({
@@ -291,9 +313,10 @@ describe('a directory capacity over MCP', () => {
         credentialId,
         personId: 'sue-agent',
       });
-      expect(await h.callWith(consent, 'POST', path, { commands: [state(ram, 16)] }), path).toEqual(
-        { status: 403, body: { at: 0, kind: 'setDirectoryCapacity', error: 'forbidden' } },
-      );
+      expect(
+        await h.callWith(consent, 'POST', path, { commands: [state(ram, 16)] }),
+        path,
+      ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     }
     expect(stated(h, ram)).toBeNull();
   });
@@ -348,7 +371,7 @@ describe('previewing and lowering a directory capacity', () => {
   });
 
   it("refuses a member and an admin's agent the preview", async () => {
-    expect(await h.call('ada', 'POST', previewPath(ram), { units: 10 })).toEqual({
+    expect(await h.call('ada', 'POST', previewPath(ram), { units: 10 })).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });
@@ -358,7 +381,7 @@ describe('previewing and lowering a directory capacity', () => {
       personId: 'sue-agent',
       issuedBy: h.userId('sue'),
     });
-    expect(await callForwarded(h, key, 'POST', previewPath(ram), { units: 10 })).toEqual({
+    expect(await callForwarded(h, key, 'POST', previewPath(ram), { units: 10 })).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });
@@ -380,7 +403,7 @@ describe('previewing and lowering a directory capacity', () => {
   // announce set, C's event log gained no `directory_changed` here; watched 2026-11-01.
   it('announces directory_changed to a project that holds the resource only through a claim', async () => {
     await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] });
-    const projectC = await create(h, 'ada', 'C');
+    const projectC = await create(h, 'sue', 'C');
     h.sqlite.run(
       "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-held', ?, NULL, 0, 'w-held')",
       [projectC],

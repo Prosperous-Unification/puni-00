@@ -1,6 +1,8 @@
 import { type EffectiveRole, may, type Permission } from '@wbs/domain';
 
 import type { AccessDecisions, AccessTarget, ScopedPrincipal } from '../ports/access-decisions';
+import type { ResourceAccess } from '../ports/organization-access';
+import type { Project, ProjectPatch } from '../ports/project-store';
 
 /** The permission decision; an invisible object reveals no permission or provenance. */
 export type Authorization =
@@ -40,7 +42,7 @@ export async function authorize(
     // Proof: returning forbidden disclosed an invisible object to
     // `answers not_found for an invisible work package` and the real-grant
     // `authorizes an authenticated machine grant through its own persisted grant`;
-    // watched 2026-11-09. Controller wiring and its HTTP proof belong to tasks 2.2/3.1.
+    // watched 2026-11-09. Returning forbidden also made the mounted `answers the same HTTP404 for an invisible and an absent work package` answer403; restored green 2026-11-09.
     return { ok: false, reason: 'not_found' };
   }
   // Proof: bypassing this check admitted a viewer and credential managers in
@@ -48,4 +50,71 @@ export async function authorize(
   // `resolves a ... principal ... using only its credential grants`; watched 2026-11-09.
   if (!may(effective, permission)) return { ok: false, reason: 'forbidden', permission };
   return { ok: true, effective };
+}
+
+/** Evaluates a current package grant with the admitted authenticated identity and interim hierarchy. */
+export function authorizePackage(
+  decisions: AccessDecisions | undefined,
+  access: Extract<ResourceAccess, { kind: 'scoped' }>,
+  project: Pick<Project, 'id' | 'restricted'>,
+  actorId: string,
+  permission: Permission,
+): Promise<Authorization> {
+  // Proof: package-actor-coherence fault failed 'scoped step service preserves exact grant scope' (step.routes.test.ts); restored GREEN, 2026-11-09.
+  if (access.principal.id !== actorId || access.scope.userId !== actorId)
+    throw new Error('package permission principal differs from the acting account');
+  return authorize(
+    decisions,
+    access.principal,
+    {
+      kind: 'work_package',
+      chain: {
+        level: 'work_package',
+        organizationId: access.scope.organizationId,
+        workPackageId: project.id,
+      },
+      restricted: project.restricted,
+    },
+    permission,
+  );
+}
+
+/** A restricted-package recovery clears only its flag; all other settings require the package permission. */
+export async function authorizePackageSettings(
+  decisions: AccessDecisions | undefined,
+  principal: ScopedPrincipal,
+  organizationId: string,
+  project: Pick<Project, 'id' | 'restricted'>,
+  patch: ProjectPatch,
+): Promise<
+  | (Extract<Authorization, { ok: true }> & { readonly recovery: boolean })
+  | Extract<Authorization, { ok: false }>
+> {
+  const decision = await authorize(
+    decisions,
+    principal,
+    {
+      kind: 'work_package',
+      chain: { level: 'work_package', organizationId, workPackageId: project.id },
+      restricted: project.restricted,
+    },
+    'package.manage_settings',
+  );
+  if (decision.ok) return { ...decision, recovery: false };
+  // Proof: accepting extra settings fields admitted a compound recovery patch; `allows recovery only to clear the restricted flag`
+  // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
+  if (
+    decision.reason === 'not_found' ||
+    !project.restricted ||
+    patch.restricted !== false ||
+    Object.keys(patch).length !== 1
+  )
+    return decision;
+  const recovery = await authorize(
+    decisions,
+    principal,
+    { kind: 'organization', organizationId },
+    'organization.recover_restricted',
+  );
+  return recovery.ok ? { ...recovery, recovery: true } : recovery;
 }

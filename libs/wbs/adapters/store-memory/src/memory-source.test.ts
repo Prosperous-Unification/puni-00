@@ -48,6 +48,7 @@ const STORE_BINDINGS = [
 it('refuses scoped saved-plan writes without a transactional membership source', async () => {
   const source = openMemorySource();
   const scoped = {
+    principal: { id: 'writer' },
     organizationId: 'org-a',
     actorId: 'writer',
     role: 'admin' as const,

@@ -35,6 +35,7 @@ import type {
  * second copy is how one of them ends up answering `snapshot_busy` as a 404.
  */
 function touchResultOf(outcome: SavedPlanTouchOutcome, projectId: string): SavedPlanTouchResult {
+  if (typeof outcome === 'object') return outcome;
   if (outcome === 'no_such_plan') return { outcome: 'not_found' };
   return outcome === 'touched' ? { outcome, projectId } : { outcome };
 }

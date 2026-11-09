@@ -1,7 +1,13 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
+import type { Permission } from '@wbs/domain';
+
+import type { AccessDecisions } from '../ports/access-decisions';
 import type { Clock } from '../ports/clock';
+import type { RefusedOrganizationAccess } from '../ports/organization-access';
 import type { ResourceAccess } from '../ports/organization-access';
 import type { ProjectList } from '../ports/project-list';
 import type { ProjectRankStore, RankedProject } from '../ports/project-rank-store';
+import { authorize } from './authorize';
 
 /** One project in rank order, named as the caller's project list names it. */
 export interface RankedProjectView extends RankedProject {
@@ -11,9 +17,12 @@ export interface RankedProjectView extends RankedProject {
 export type ProjectRankRefusal = 'organization_required' | 'forbidden' | 'not_found';
 
 export type ProjectRankOutcome<R extends ProjectRankRefusal = ProjectRankRefusal> =
-  { ok: true; projects: RankedProjectView[] } | { ok: false; refusal: R };
+  | { ok: true; projects: RankedProjectView[] }
+  | { ok: false; refusal: R; readonly permission?: Permission }
+  | { ok: false; authority: RefusedOrganizationAccess };
 
 export interface ProjectRankResourceOptions {
+  accessDecisions?: AccessDecisions;
   ranks: ProjectRankStore;
   projects: ProjectList;
   clock: Pick<Clock, 'stampFor'>;
@@ -23,8 +32,8 @@ export interface ProjectRankResourceOptions {
  * The organization's project rank (`share-people-across-projects`, spec
  * `project-rank`, ADR 0034).
  *
- * A rank is an organization act, not a plan edit: admins and super-admins move
- * it through a route, with no journal and no undo. Under legacy access there is
+ * Rank moves require current organization.manage_spaces and create no
+ * journal or undo entry. Under legacy access there is
  * no organization to order, so both reads answer `organization_required`.
  * Names come from the caller's own project list, so the answer names nothing
  * the project routes would not.
@@ -51,21 +60,37 @@ export class ProjectRankResource {
    * 200 instead of 403; watched 2026-09-29.
    */
   async move(
-    actorId: string,
+    actor: AuthenticatedUser,
     access: ResourceAccess,
     projectId: string,
     afterProjectId: string | null,
   ): Promise<ProjectRankOutcome> {
     if (access.kind === 'legacy') return { ok: false, refusal: 'organization_required' };
-    const { role } = access.scope;
-    if (role !== 'admin' && role !== 'super_admin') return { ok: false, refusal: 'forbidden' };
+    actor = structuredClone(actor);
+    const actorId = actor.id;
+    const decision = await authorize(
+      this.opts.accessDecisions,
+      access.principal,
+      { kind: 'organization', organizationId: access.scope.organizationId },
+      'organization.manage_spaces',
+    );
+    // Proof: rank-public-grant fault failed 'refuses public rank authority before a broken' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    if (!decision.ok)
+      return { ok: false, refusal: 'forbidden', permission: 'organization.manage_spaces' };
     const moved = await this.opts.ranks.moveAfter(
       access.scope.organizationId,
       projectId,
       afterProjectId,
       this.opts.clock.stampFor(actorId),
+      { kind: 'human', principal: actor, expectedAccess: access },
     );
-    if (!moved.ok) return { ok: false, refusal: moved.reason };
+    if (!moved.ok && 'authority' in moved) return moved;
+    if (!moved.ok)
+      return {
+        ok: false,
+        refusal: moved.reason,
+        ...(moved.permission === undefined ? {} : { permission: moved.permission }),
+      };
     return { ok: true, projects: await this.named(moved.order, actorId, access) };
   }
 

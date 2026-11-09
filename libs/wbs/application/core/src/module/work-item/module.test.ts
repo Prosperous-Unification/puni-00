@@ -64,6 +64,7 @@ async function seeded() {
 const hostRequirements = () => {
   const { stores } = openMemorySource();
   return {
+    accessDecisions: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     workItemStore: DiBag.createProvider(() => stores.workItems, {
       factoryReturnKind: 'sync-value',
     }),

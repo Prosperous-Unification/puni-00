@@ -37,9 +37,9 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
@@ -69,7 +69,19 @@ afterEach(() => {
 async function create(username: string, name: string): Promise<string> {
   const answer = await h.call(username, 'POST', '/api/projects', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const projectId = (answer.body as { project: { id: string } }).project.id;
+  if (
+    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
+      ?.state === 'activated'
+  )
+    h.grant(
+      username === 'grace' ? 'org-b' : 'org-a',
+      username,
+      'package-manager',
+      'work_package',
+      projectId,
+    );
+  return projectId;
 }
 
 async function firstStep(username: string, projectId: string): Promise<string> {
@@ -157,11 +169,12 @@ describe('before activation', () => {
 
 describe('after activation', () => {
   it('rolls back admitted project and scoped step capture failures before either write', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
       (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
     ).toBe(200);
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     h.sqlite.run('DROP TABLE project_rank');
     const tables = ['project', 'step', 'organization_audit', 'event_log', 'event_sequencer'];
@@ -187,6 +200,10 @@ describe('after activation', () => {
     h.sqlite.run('DROP TABLE project_rank');
     changeAfterResolution = () => {
       h.sqlite.run(
+        "UPDATE access_grant SET role_id = CASE scope_kind WHEN 'work_package' THEN 'package-viewer' ELSE 'project-viewer' END WHERE subject_id = ?",
+        [h.userId('ada')],
+      );
+      h.sqlite.run(
         "UPDATE organization_membership SET role = 'viewer' WHERE organization_id = 'org-a' AND user_id = ?",
         [h.userId('ada')],
       );
@@ -196,7 +213,7 @@ describe('after activation', () => {
     );
     expect(
       await h.call('ada', 'PATCH', `/api/projects/${own}`, { startDate: '2026-10-06' }),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     expect(
       ['project', 'organization_audit', 'event_log', 'event_sequencer'].map((table) =>
         h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
@@ -205,7 +222,7 @@ describe('after activation', () => {
   });
 
   it('refuses a queued scoped recovery demotion before shared observation', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
       (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
@@ -223,7 +240,7 @@ describe('after activation', () => {
     );
     expect(
       await h.call('nell', 'DELETE', `/api/projects/${own}/steps/${ownStep}?cascade=true`),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     expect(
       ['step', 'organization_audit', 'event_log', 'event_sequencer'].map((table) =>
         h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
@@ -231,9 +248,10 @@ describe('after activation', () => {
     ).toEqual(before);
   });
 
-  it('keeps one scoped step recovery audit and its downstream fan-out in the same turn', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+  it('keeps a granted scoped step and downstream fan-out in the same turn without recovery audit', async () => {
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     const downstream = [
       await create('ada', 'Recovery downstream B'),
       await create('ada', 'Recovery downstream C'),
@@ -287,7 +305,7 @@ describe('after activation', () => {
     expect(
       (await h.call('nell', 'PATCH', `/api/projects/${own}`, { startDate: '2026-10-06' })).status,
     ).toBe(200);
-    expect(audits()).toEqual([{ detail: '{"fields":["startDate"]}' }]);
+    expect(audits()).toEqual([]);
     expect(downstreamEvents()).toHaveLength(2);
     const before = [
       'step',
@@ -297,6 +315,10 @@ describe('after activation', () => {
       'event_log',
       'event_sequencer',
     ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    h.sqlite.run(
+      "UPDATE access_grant SET role_id = CASE scope_kind WHEN 'work_package' THEN 'package-viewer' ELSE 'project-viewer' END WHERE subject_id = ?",
+      [h.userId('ada')],
+    );
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'viewer' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
@@ -308,15 +330,19 @@ describe('after activation', () => {
         { id: h.userId('ada'), username: 'ada', scopes: ['write'] },
         true,
         {
+          principal: { id: h.userId('ada') },
           kind: 'scoped',
           scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
         },
       ),
-    ).toEqual({ ok: false, reason: 'forbidden' });
+    ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'member' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
     );
+    h.sqlite.run("DELETE FROM access_grant WHERE subject_id = ? AND scope_kind = 'work_package'", [
+      h.userId('nell'),
+    ]);
     expect(
       await h.removeBareStep(
         own,
@@ -324,6 +350,7 @@ describe('after activation', () => {
         { id: h.userId('nell'), username: 'nell', scopes: ['write'] },
         true,
         {
+          principal: { id: h.userId('nell') },
           kind: 'scoped',
           scope: {
             cap: null,
@@ -333,12 +360,14 @@ describe('after activation', () => {
           },
         },
       ),
-    ).toEqual({ ok: false, reason: 'forbidden' });
+    ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
     expect(
       ['step', 'estimate', 'assignment', 'organization_audit', 'event_log', 'event_sequencer'].map(
         (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
       ),
     ).toEqual(before);
+    h.grant('org-a', 'ada', 'package-manager', 'work_package', own);
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     const second = [...downstream].sort().at(1);
     if (second === undefined) throw new Error('second recovery recipient is absent');
     h.sqlite.run(
@@ -352,6 +381,7 @@ describe('after activation', () => {
         { id: h.userId('ada'), username: 'ada', scopes: ['write'] },
         true,
         {
+          principal: { id: h.userId('ada') },
           kind: 'scoped',
           scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
         },
@@ -398,10 +428,7 @@ describe('after activation', () => {
       releasePush();
     }
     expect((await removal).status).toBe(204);
-    expect(audits()).toEqual([
-      { detail: '{"fields":["startDate"]}' },
-      { detail: '{"step":"remove"}' },
-    ]);
+    expect(audits()).toEqual([]);
     const [bridgeRecipient, lastRecipient] = downstream;
     const changed = (projectId: string, causeProjectId: string) => ({
       type: 'elsewhere_changed',
@@ -422,8 +449,9 @@ describe('after activation', () => {
   });
 
   it('captures a scoped recovery step before removal on the mounted route', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     const downstream = await create('ada', 'Scoped recovery recipient');
     const downstreamStep = await firstStep('ada', downstream);
     const upstreamRow = rowOf(own).id;
@@ -465,7 +493,7 @@ describe('after activation', () => {
       h.sqlite
         .query<{ detail: string }, []>('SELECT detail FROM organization_audit ORDER BY rowid')
         .all(),
-    ).toEqual([{ detail: '{"step":"remove"}' }]);
+    ).toEqual([]);
     const events = h.sqlite
       .query<{ message: string }, [string]>(
         'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
@@ -641,18 +669,10 @@ describe('after activation', () => {
           'SELECT organization_id, actor_id, action, subject_kind, subject_id, detail FROM organization_audit ORDER BY rowid',
         )
         .all();
-    const recovery = (username: string, detail: string) => ({
-      organization_id: 'org-a',
-      actor_id: h.userId(username),
-      action: 'restricted_project_recovery',
-      subject_kind: 'project',
-      subject_id: own,
-      detail,
-    });
 
     beforeEach(async () => {
       // nell as the super-admin, vic promoted to admin: only a super-admin recovers.
-      h.member('org-a', 'nell', 'super_admin');
+      h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
       h.bind('nell', 'org-a');
       h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
         h.userId('vic'),
@@ -662,31 +682,25 @@ describe('after activation', () => {
       ).toBe(200);
     });
 
-    it('recovers a restricted project through a batch, undo and redo, one record each', async () => {
+    it('refuses super-admin batch undo and redo recovery without a package write grant', async () => {
+      const before = snapshot();
       const row = rowOf(own);
       expect(
         (
           await batch('nell', own, [
-            { kind: 'patchWorkItem', workItemId: row.id, patch: { name: 'Kept' } },
+            { kind: 'patchWorkItem', workItemId: row.id, patch: { name: 'No' } },
           ])
         ).status,
-      ).toBe(200);
-      expect(rowOf(own).name).toBe('Kept');
-      expect((await h.call('nell', 'POST', `/api/projects/${own}/undo`)).status).toBe(200);
-      expect((await h.call('nell', 'POST', `/api/projects/${own}/redo`)).status).toBe(200);
-      expect(rowOf(own).name).toBe('Kept');
-      expect(audits()).toEqual([
-        recovery('nell', '{"commands":["patchWorkItem"]}'),
-        recovery('nell', '{"journal":"undo"}'),
-        recovery('nell', '{"journal":"redo"}'),
-      ]);
-      const creator = h.sqlite
-        .query<{ owner_id: string }, [string]>('SELECT owner_id FROM project WHERE id = ?')
-        .get(own);
-      expect(creator).toEqual({ owner_id: h.userId('ada') });
+      ).toBe(403);
+      expect((await h.call('nell', 'POST', '/api/projects/' + own + '/undo')).status).toBe(403);
+      expect((await h.call('nell', 'POST', '/api/projects/' + own + '/redo')).status).toBe(403);
+      expect(snapshot()).toEqual(before);
+      expect(audits()).toEqual([]);
     });
 
     it('keeps no record of a refused batch, and none of an ordinary one', async () => {
+      h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
+      h.grant('org-a', 'vic', 'org-admin');
       const before = snapshot();
       expect(
         await batch('nell', own, [
@@ -694,7 +708,10 @@ describe('after activation', () => {
           { kind: 'patchWorkItem', workItemId: 'no-such-row', patch: { name: 'x' } },
         ]),
       ).toMatchObject({ status: 404 });
-      expect(await batch('vic', own, [])).toEqual({ status: 403, body: { error: 'forbidden' } });
+      expect(await batch('vic', own, [])).toMatchObject({
+        status: 403,
+        body: { error: 'forbidden' },
+      });
       // nell has nothing to undo: the walk fails and takes its record back.
       expect((await h.call('nell', 'POST', `/api/projects/${own}/undo`)).status).toBe(409);
       expect(snapshot()).toEqual(before);
@@ -713,8 +730,11 @@ describe('after activation', () => {
       h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
         h.userId('nell'),
       ]);
-      expect(await batch('nell', own, [])).toEqual({ status: 403, body: { error: 'forbidden' } });
-      expect(await h.call('nell', 'POST', `/api/projects/${own}/undo`)).toEqual({
+      expect(await batch('nell', own, [])).toMatchObject({
+        status: 403,
+        body: { error: 'forbidden' },
+      });
+      expect(await h.call('nell', 'POST', `/api/projects/${own}/undo`)).toMatchObject({
         status: 403,
         body: { error: 'forbidden' },
       });
@@ -762,9 +782,9 @@ describe('after activation', () => {
       await batch('vic', own, [
         { kind: 'patchWorkItem', workItemId: rowOf(own).id, patch: { name: 'Viewer' } },
       ]),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     for (const walk of ['undo', 'redo']) {
-      expect(await h.call('vic', 'POST', `/api/projects/${own}/${walk}`)).toEqual({
+      expect(await h.call('vic', 'POST', `/api/projects/${own}/${walk}`)).toMatchObject({
         status: 403,
         body: { error: 'forbidden' },
       });
@@ -773,7 +793,7 @@ describe('after activation', () => {
       await h.call('vic', 'POST', '/api/directory/commands', {
         commands: [{ kind: 'createTag', name: 'x' }],
       }),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     expect(snapshot()).toEqual(before);
   });
 

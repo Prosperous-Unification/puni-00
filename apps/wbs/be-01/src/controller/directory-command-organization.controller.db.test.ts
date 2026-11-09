@@ -88,9 +88,9 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
@@ -108,7 +108,19 @@ afterEach(() => {
 async function create(username: string, name: string): Promise<string> {
   const answer = await h.call(username, 'POST', '/api/projects', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const projectId = (answer.body as { project: { id: string } }).project.id;
+  if (
+    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
+      ?.state === 'activated'
+  )
+    h.grant(
+      username === 'grace' ? 'org-b' : 'org-a',
+      username,
+      'package-manager',
+      'work_package',
+      projectId,
+    );
+  return projectId;
 }
 
 function directory(username: string, commands: unknown[]): Promise<Answer> {
@@ -220,6 +232,7 @@ describe('after activation', () => {
   it('returns invalid standalone service input before any owner or capture', async () => {
     const actorId = h.userId('ada');
     const access = {
+      principal: { id: actorId },
       kind: 'scoped' as const,
       scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
@@ -247,7 +260,10 @@ describe('after activation', () => {
         ok: false,
         reason: 'name_required',
       });
-      expect(await service.addWithin('teams', actorId, '', access)).toBeNull();
+      expect(await service.addWithin('teams', actorId, '', access)).toEqual({
+        ok: false,
+        reason: 'name_required',
+      });
     } finally {
       captureActive = false;
       countOwners = false;
@@ -259,6 +275,7 @@ describe('after activation', () => {
   it('refuses absent and validly foreign standalone directory addresses before capture', async () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const access = {
+      principal: { id: h.userId('ada') },
       kind: 'scoped' as const,
       scope: {
         cap: null,
@@ -297,6 +314,7 @@ describe('after activation', () => {
       (
         await rejectedError(
           h.removeStandaloneDirectoryWithin('people', 'orphan-person', h.userId('ada'), true, {
+            principal: { id: h.userId('ada') },
             kind: 'scoped',
             scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
           }),
@@ -326,6 +344,7 @@ describe('after activation', () => {
       (
         await rejectedError(
           h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
+            principal: { id: h.userId('ada') },
             kind: 'scoped',
             scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
           }),
@@ -340,6 +359,7 @@ describe('after activation', () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const actorId = h.userId('ada');
     const access = {
+      principal: { id: actorId },
       kind: 'scoped' as const,
       scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
@@ -424,6 +444,7 @@ describe('after activation', () => {
           (
             await rejectedError(
               h.removeStandaloneDirectoryWithin(scenario.catalog, scenario.id, actorId, true, {
+                principal: { id: actorId },
                 kind: 'scoped',
                 scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
               }),
@@ -468,6 +489,7 @@ describe('after activation', () => {
         (
           await rejectedError(
             h.removeStandaloneDirectoryWithin('people', 'pe-a', actorId, true, {
+              principal: { id: actorId },
               kind: 'scoped',
               scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
             }),
@@ -486,6 +508,7 @@ describe('after activation', () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const actorId = h.userId('ada');
     const access = {
+      principal: { id: actorId },
       kind: 'scoped' as const,
       scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
@@ -526,6 +549,7 @@ describe('after activation', () => {
   it('retains a standalone person rename when the later membership store write fails', async () => {
     const actorId = h.userId('ada');
     const access = {
+      principal: { id: actorId },
       kind: 'scoped' as const,
       scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
@@ -569,6 +593,7 @@ describe('after activation', () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const actorId = h.userId('ada');
     const access = {
+      principal: { id: actorId },
       kind: 'scoped' as const,
       scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
@@ -628,6 +653,7 @@ describe('after activation', () => {
     try {
       expect(
         await h.publicDirectoryService().addPersonWithin(actorId, 'pe-a', ['tm-extra'], {
+          principal: { id: actorId },
           kind: 'scoped',
           scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
         }),
@@ -680,6 +706,7 @@ describe('after activation', () => {
       aActor,
       { name: 'Ada concurrent' },
       {
+        principal: { id: aActor },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: aActor, role: 'member' },
       },
@@ -693,6 +720,7 @@ describe('after activation', () => {
       bActor,
       { name: 'Grace concurrent' },
       {
+        principal: { id: bActor },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-b', userId: bActor, role: 'member' },
       },
@@ -736,6 +764,7 @@ describe('after activation', () => {
         aActor,
         { name: 'Ada parallel' },
         {
+          principal: { id: aActor },
           kind: 'scoped',
           scope: { cap: null, organizationId: 'org-a', userId: aActor, role: 'member' },
         },
@@ -745,6 +774,7 @@ describe('after activation', () => {
         bActor,
         { name: 'Grace parallel' },
         {
+          principal: { id: bActor },
           kind: 'scoped',
           scope: { cap: null, organizationId: 'org-b', userId: bActor, role: 'member' },
         },
@@ -775,6 +805,7 @@ describe('after activation', () => {
   it('retains a standalone team rename when the later service-link store write fails', async () => {
     const actorId = h.userId('ada');
     const access = {
+      principal: { id: actorId },
       kind: 'scoped' as const,
       scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
@@ -836,6 +867,7 @@ describe('after activation', () => {
               actorId,
               { name: 'Ada after capture', teamIds: ['tm-a'] },
               {
+                principal: { id: actorId },
                 kind: 'scoped',
                 scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
               },
@@ -891,6 +923,7 @@ describe('after activation', () => {
               actorId,
               { name: 'Retained team', serviceIds: ['sv-a'] },
               {
+                principal: { id: actorId },
                 kind: 'scoped',
                 scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
               },
@@ -931,6 +964,7 @@ describe('after activation', () => {
       return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
     };
     const access = {
+      principal: { id: actorId },
       kind: 'scoped' as const,
       scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
@@ -1013,6 +1047,7 @@ describe('after activation', () => {
       return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
     };
     const access = {
+      principal: { id: actorId },
       kind: 'scoped' as const,
       scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
@@ -1039,7 +1074,7 @@ describe('after activation', () => {
     expect(h.sqlite.query("SELECT * FROM person_team WHERE person_id = 'pe-a'").all()).toEqual([]);
   });
 
-  it('returns typed late new-person link refusal after its earlier raw creates', async () => {
+  it('returns typed late new-person link refusal without partial root or ownership creation', async () => {
     let afterRace: unknown;
     const actorId = h.userId('ada');
     let pushes = 0;
@@ -1048,13 +1083,14 @@ describe('after activation', () => {
       return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
     };
     const access = {
+      principal: { id: actorId },
       kind: 'scoped' as const,
       scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     countOwners = true;
     countCaptures = true;
     onOwnerAttempt = () => {
-      if (ownerCalls !== 3) return;
+      if (ownerCalls !== 1) return;
       h.sqlite.run("DELETE FROM service_team WHERE id = 'tm-a'");
       afterRace = durableSnapshot();
       onOwnerAttempt = null;
@@ -1068,8 +1104,8 @@ describe('after activation', () => {
       countOwners = false;
       countCaptures = false;
     }
-    expect(ownerCalls).toBe(3);
-    expect(observedCaptures).toBe(4);
+    expect(ownerCalls).toBe(1);
+    expect(observedCaptures).toBe(0);
     expect(durableSnapshot()).toEqual(afterRace);
     expect(pushes).toBe(0);
     const created = h.sqlite
@@ -1077,15 +1113,13 @@ describe('after activation', () => {
         "SELECT resource_id FROM person_organization WHERE name = 'New Ada'",
       )
       .get()?.resource_id;
-    if (created === undefined) throw new Error('new person mapping was not retained');
-    expect(h.sqlite.query('SELECT * FROM person_team WHERE person_id = ?').all(created)).toEqual(
-      [],
-    );
+    expect(created).toBeUndefined();
   });
 
   it('returns typed late not_found for addressed person and team owner refusals', async () => {
     const actorId = h.userId('ada');
     const access = {
+      principal: { id: actorId },
       kind: 'scoped' as const,
       scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
@@ -1143,6 +1177,7 @@ describe('after activation', () => {
           actorId,
           { name: 'Announced Ada', teamIds: ['tm-a'] },
           {
+            principal: { id: actorId },
             kind: 'scoped',
             scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
           },
@@ -1181,6 +1216,7 @@ describe('after activation', () => {
     const count = recorded().length;
     expect(
       await h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
+        principal: { id: h.userId('ada') },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
       }),
@@ -1226,6 +1262,7 @@ describe('after activation', () => {
     const actorId = h.userId('ada');
     expect(
       await h.removeStandaloneDirectoryWithin('people', 'pe-a', actorId, true, {
+        principal: { id: actorId },
         kind: 'scoped',
         scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
       }),
@@ -1265,6 +1302,7 @@ describe('after activation', () => {
     try {
       await rejectedError(
         h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
+          principal: { id: h.userId('ada') },
           kind: 'scoped',
           scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
         }),
@@ -1297,6 +1335,7 @@ describe('after activation', () => {
       return Response.json({ delivered_to_sockets: 0 });
     };
     const pending = h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
+      principal: { id: h.userId('ada') },
       kind: 'scoped',
       scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
     });
@@ -1828,9 +1867,9 @@ describe('after activation', () => {
 
   it('refuses a viewer every directory command', async () => {
     const before = snapshot();
-    expect(await directory('vic', [{ kind: 'createTag', name: 'x' }])).toEqual({
+    expect(await directory('vic', [{ kind: 'createTag', name: 'x' }])).toMatchObject({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
     });
     expect(snapshot()).toEqual(before);
   });

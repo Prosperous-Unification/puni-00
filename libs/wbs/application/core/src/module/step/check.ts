@@ -17,6 +17,9 @@ export function installStep(requirements: StepRequirements): StepExports {
   const bag = DiBag.createBuilder()
     .withInstalledModules([stepModule])
     .withServices({
+      accessDecisions: DiBag.createProvider(() => requirements.accessDecisions, {
+        factoryReturnKind: 'sync-value',
+      }),
       projectStore: DiBag.createProvider(() => requirements.projects, {
         factoryReturnKind: 'sync-value',
       }),

@@ -9,7 +9,7 @@ import { solverSlot } from '@wbs/store-sqlite/schema';
 import type { SqliteSource } from '@wbs/store-sqlite/source';
 
 import type { OptimizationRepository } from '../module/optimization/contract';
-import { retryMutationIn, retryPreflightIn } from '../repository/optimization';
+import { authorizeRetryIn, retryMutationIn, retryPreflightIn } from '../repository/optimization';
 
 /** Owns eligible Retry, global reclaim, accepted audit and fan-out in one source writer turn. */
 export function createRetryReservationOwner(
@@ -17,11 +17,17 @@ export function createRetryReservationOwner(
   uow: UnitOfWork,
   delivery: CommittedFanoutDelivery,
 ): OptimizationRepository['admitRetry'] {
-  return (ask) =>
-    uow.run(async (scope) => {
+  return (incoming) => {
+    const ask = {
+      ...incoming,
+      key: structuredClone(incoming.key),
+      ...(incoming.scoped === undefined ? {} : { scoped: structuredClone(incoming.scoped) }),
+    };
+    return uow.run(async (scope) => {
       // Proof: moving capture ahead of this preflight made a foreign mounted
       // Retry invoke capture once despite its typed not_found refusal.
-      const preflight = db.transaction((tx) => retryPreflightIn(tx, ask));
+      const authority = await authorizeRetryIn(db, ask);
+      const preflight = db.transaction((tx) => retryPreflightIn(tx, ask, authority));
       if (preflight.kind === 'refused')
         return { commit: true, value: { decision: preflight.decision, envelopes: [] } };
 
@@ -76,4 +82,5 @@ export function createRetryReservationOwner(
       // but lost its installed gateway delivery after A was reclaimed.
       return { commit: true, value: { decision, envelopes } };
     });
+  };
 }

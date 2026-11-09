@@ -89,7 +89,7 @@ beforeAll(async () => {
   h = stack.h;
   await h.register('dany');
   h.organization(ORGANIZATION);
-  h.member(ORGANIZATION, 'dany', 'super_admin');
+  h.member(ORGANIZATION, 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', ORGANIZATION);
   h.activate();
 });
@@ -458,6 +458,10 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       const { id, key } = created.body as { id: string; key: string };
       expect(key.startsWith(`wbs_mk_${id}.`)).toBe(true);
       keys.push(key);
+      h.sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'machine_credential',?,'project-contributor','route',1)",
+        ['fleet-' + id, ORGANIZATION, ORGANIZATION, id],
+      );
       ids.credentials.set(agent, { id, key, session: await sessionOf(key) });
       expect(isOk(await asAgent(agent, 'getApiProjects'))).toBe(true);
     }

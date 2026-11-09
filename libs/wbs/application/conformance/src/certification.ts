@@ -16,6 +16,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'projects.create:steps',
   'projects.update:scope',
   'projects.recordOpen:reader-order',
+  'spaces.create:scoped-round-trip',
   'projectRanks.orderIn:scoped-move',
   'accessDecisions.effectiveRoleAt:grant-reaches-package',
   'organizationLimits.readAgentPersonCap:organization-scope',

@@ -17,6 +17,9 @@ export function installDirectory(requirements: DirectoryRequirements): Directory
   const bag = DiBag.createBuilder()
     .withInstalledModules([directoryModule])
     .withServices({
+      accessDecisions: DiBag.createProvider(() => requirements.accessDecisions, {
+        factoryReturnKind: 'sync-value',
+      }),
       directoryStore: DiBag.createProvider(() => requirements.directory, {
         factoryReturnKind: 'sync-value',
       }),

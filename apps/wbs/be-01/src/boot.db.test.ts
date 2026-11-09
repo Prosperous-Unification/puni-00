@@ -81,6 +81,10 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
     seed.run(
       "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
     );
+    seed.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+      ['cold-fanout-ada', 'org-a', 'org-a', 'ada', 'org-admin'],
+    );
     seed.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
     seed.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
@@ -811,6 +815,7 @@ describe('bootBe01', () => {
     if (writes === undefined) throw new Error('boot composed no batch writes');
     const promoted = await writes.uow.run(async (scope) => {
       const access = {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
         scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' as const },
       };
@@ -911,10 +916,10 @@ describe('bootBe01', () => {
     });
     if (administration === undefined) throw new Error('boot did not wire machine credentials');
     expect(
-      await administration.list('org-a', 'ada', { includeRevoked: false }, Date.now()),
+      await administration.list('org-a', { id: 'ada' }, { includeRevoked: false }, Date.now()),
     ).toEqual([]);
     expect(
-      await administration.list('org-a', 'nobody', { includeRevoked: false }, Date.now()),
+      await administration.list('org-a', { id: 'nobody' }, { includeRevoked: false }, Date.now()),
     ).toBe('forbidden');
   });
 

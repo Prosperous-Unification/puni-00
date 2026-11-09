@@ -135,6 +135,8 @@
 
 ## 3. The project entity (slice 2, `feat/wbs-work-packages-2`)
 
+- [ ] Permissions budget/replay follow-up: prove an explicit owning-project budget grant permits a restricted work-package budget write without requiring package.write; record a budget operation, move its work package to another engagement project, then prove undo/redo resolve project.manage_budgets at the current parent and preserve immutable authorization requirements through undo→redo→undo and restamp. InterimPackageChain cannot express this parent move before this slice; see wbs-permissions tasks 2.2–2.3 amendment.
+
 Precondition (design "Dependency graph"): `wbs-permissions` 1.4, 3.3 and 4.1 merged and 2.3
 executed on dev.
 

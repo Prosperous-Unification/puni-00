@@ -4,7 +4,11 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { importMachineGrantKeys, type MachineGrantKeys } from '../runtime/machine-grant';
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
 
 /** mcp-01's dedicated secret in these tests. */
@@ -56,7 +60,7 @@ async function openMachineFixture(connected = false) {
   });
   await h.register('dany');
   h.organization('org-a');
-  h.member('org-a', 'dany', 'super_admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
@@ -74,15 +78,23 @@ async function openMachineFixture(connected = false) {
     personId: 'claire',
     issuedBy: h.userId('dany'),
   });
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    claireCredential.id,
+    'project-contributor',
+    'organization',
+    'org-a',
+  );
   claireKey = claireCredential.key;
   claireCredentialId = claireCredential.id;
-  workerKey = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'claire-worker',
-      issuedBy: h.userId('dany'),
-    })
-  ).key;
+  const worker = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'claire-worker',
+    issuedBy: h.userId('dany'),
+  });
+  grantCredential(h.sqlite, 'org-a', worker.id, 'project-contributor', 'organization', 'org-a');
+  workerKey = worker.key;
 }
 
 beforeEach(() => openMachineFixture());
@@ -508,7 +520,8 @@ async function connectedBatch() {
   await openMachineFixture(true);
   seedDependencyAuthority(h.databasePath());
   await h.register('owner');
-  h.member('org-a', 'owner', 'member');
+  h.member('org-a', 'owner', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'owner', ['organization.create_project']);
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Restricted predecessor' });
   expectApplied(created);
   const predecessorProjectId = (created.body as { project: { id: string } }).project.id;
@@ -538,6 +551,14 @@ async function connectedBatch() {
   h.sqlite.run(
     "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
     [h.userId('dany')],
+  );
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    claireCredentialId,
+    'package-contributor',
+    'work_package',
+    predecessorProjectId,
   );
   now = T + 5 * MINUTE;
   const predecessor = {
@@ -630,6 +651,10 @@ function expectConnectedTouch(expected: ReturnType<typeof captureConnectedTouch>
 describe('run admission through mounted connected dependency batches', () => {
   it('adds a successor-owned link and renews due A and pre-opt-in leases, leaving B unchanged', async () => {
     const { processA, predecessor, successorEndpoint } = await connectedBatch();
+    h.sqlite.run(
+      "UPDATE access_grant SET role_id='package-viewer' WHERE subject_id=? AND scope_kind='work_package' AND scope_id=?",
+      [claireCredentialId, predecessor.projectId],
+    );
     const touch = captureConnectedTouch();
     const predecessorBefore = h.sqlite
       .query<Record<string, unknown> & { revision: number; updated_at: number }, [string]>(
@@ -655,6 +680,10 @@ describe('run admission through mounted connected dependency batches', () => {
     ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     expectConnectedTouch(touch);
     expect(pushes).toEqual(sent);
+    h.sqlite.run(
+      "UPDATE access_grant SET role_id='package-contributor' WHERE subject_id=? AND scope_kind='work_package' AND scope_id=?",
+      [claireCredentialId, predecessor.projectId],
+    );
     expectApplied(
       await commands(asGrant(processA), [
         {
@@ -701,7 +730,13 @@ describe('run admission through mounted connected dependency batches', () => {
             type: 'FS',
           },
         ]),
-      ).toEqual({ status: 404, body: { error: 'not_found', at: 1, kind: 'addTypedDependency' } });
+      ).toEqual({
+        status: 404,
+        body: {
+          error: 'not_found',
+          ...(fault === 'absent-project' ? {} : { at: 1, kind: 'addTypedDependency' }),
+        },
+      });
       expectConnectedTouch(touch);
       expect(pushes).toEqual(sent);
     });

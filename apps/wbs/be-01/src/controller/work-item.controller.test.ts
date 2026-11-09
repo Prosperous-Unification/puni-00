@@ -1355,6 +1355,7 @@ describe('work item routes', () => {
 
   it('refuses a batch at the failing command, naming its index and kind, with nothing applied', async () => {
     const { token, send, projectId, writes } = await setup();
+    const initialOwners = writes.uow.calls.length;
     const res = await send(`/api/projects/${projectId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({
@@ -1375,7 +1376,7 @@ describe('work item routes', () => {
     // what this layer can prove is that the route opened one unit of work and
     // refused it. That the rollback takes the create with it is
     // `plan-commands.test.ts`'s and the kit's, on real SQLite.
-    expect(writes.uow.calls).toEqual(['begin', 'rollback']);
+    expect(writes.uow.calls.slice(initialOwners)).toEqual(['begin', 'rollback']);
   });
 
   it('applies a directory batch at its own route, no project in the path', async () => {

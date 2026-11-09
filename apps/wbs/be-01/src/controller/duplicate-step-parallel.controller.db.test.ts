@@ -15,9 +15,11 @@ for (const endpoint of ['single', 'batch']) {
         await h.register('outsider');
         h.organization('org');
         h.organization('foreign');
-        h.member('org', 'owner', 'member');
-        h.member('org', 'viewer', 'viewer');
-        h.member('foreign', 'outsider', 'member');
+        h.member('org', 'owner', 'member', ['project-contributor', 'org-viewer']);
+        h.grantPermissions('org', 'owner', ['organization.create_project']);
+        h.member('org', 'viewer', 'viewer', ['org-viewer']);
+        h.member('foreign', 'outsider', 'member', ['project-contributor', 'org-viewer']);
+        h.grantPermissions('foreign', 'outsider', ['organization.create_project']);
         h.bind('owner', 'org');
         h.bind('viewer', 'org');
         h.bind('outsider', 'foreign');

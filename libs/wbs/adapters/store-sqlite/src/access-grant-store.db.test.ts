@@ -478,7 +478,7 @@ describe('a revoked credential’s grants', () => {
     await grantTo(LIVE_KEY);
     await grantTo(CONSENT);
     const credentials = new MachineCredentialAdministrationRepository(connection.db, OPEN);
-    expect(await credentials.revoke('org-a', 'ada', LIVE_KEY, act)).toBe('revoked');
+    expect(await credentials.revoke('org-a', { id: 'ada' }, LIVE_KEY, act)).toBe('revoked');
     expect((await grants.list('org-a', {})).map((grant) => grant.subject)).toEqual([
       { kind: 'machine_credential', credentialId: CONSENT },
     ]);

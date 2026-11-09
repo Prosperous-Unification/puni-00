@@ -26,7 +26,14 @@ async function open(options: ComposedHarnessOptions = {}) {
   seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-a', 'ada', [
+    'organization.create_project',
+    'organization.manage_directory',
+    'organization.manage_spaces',
+    'project.manage_budgets',
+    'package.manage_settings',
+  ]);
   harness.bind('ada', 'org-a');
   harness.activate();
   const endpoints: { projectId: string; workItemId: string; stepId: string }[] = [];

@@ -9,7 +9,7 @@ beforeEach(async () => {
   harness = OrganizationHarness.openComposedWith({ withOptimizer: true, solverVersion: '0.4.0' });
   await harness.register('ada');
   harness.organization('capacity-org');
-  harness.member('capacity-org', 'ada', 'admin');
+  harness.member('capacity-org', 'ada', 'admin', ['org-admin']);
   harness.bind('ada', 'capacity-org');
   harness.activate();
   // Synthetic authority exercises installed readers; it does not prove authoring activation.

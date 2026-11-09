@@ -6,7 +6,7 @@ import {
   renameSavedPlan,
   savePlan as savePlanShape,
 } from '@wbs/contracts';
-import { canWriteInOrganization } from '@wbs/domain';
+import type { Permission } from '@wbs/domain';
 
 import type { ProjectService } from '../module/project/project.resource';
 import { SavedPlanWriteError, savePlan } from '../module/saved-plans/save-plan';
@@ -94,10 +94,17 @@ function classifyNameFailure(failure: RequestFailure) {
  * Proof: changing503 to400 returned500 instead of503 in the mounted contention
  * case (saved-plan.controller.db.test.ts).
  */
-function touchRefusal(outcome: Exclude<SavedPlanTouchResult['outcome'], 'touched'>) {
+function touchRefusal(
+  outcome: Exclude<SavedPlanTouchResult['outcome'], 'touched'>,
+  permission?: Permission,
+) {
   switch (outcome) {
     case 'forbidden':
-      return { ok: false, status: 403, body: { error: outcome } } as const;
+      return {
+        ok: false,
+        status: 403,
+        body: { error: outcome, ...(permission === undefined ? {} : { permission }) },
+      } as const;
     case 'not_found':
       return { ok: false, status: 404, body: { error: outcome } } as const;
     case 'snapshot_busy':
@@ -161,8 +168,20 @@ export function savedPlanRoutes(
     if (!resolved.ok) return organizationRefusal(resolved);
     if (!(await reachesPlan(savedPlanId, resolved.access)))
       return { ok: false, status: 404, body: { error: 'not_found' } } as const;
-    if (resolved.access.kind === 'scoped' && !canWriteInOrganization(resolved.access.scope.role))
-      return { ok: false, status: 403, body: { error: 'forbidden' } } as const;
+    if (resolved.access.kind === 'scoped') {
+      const projectId = await plans.projectOf(savedPlanId);
+      if (projectId === null)
+        return { ok: false, status: 404, body: { error: 'not_found' } } as const;
+      const decision = await projects.authorizeWrite(projectId, principal.id, resolved.access);
+      if (!decision.ok)
+        return decision.reason === 'not_found'
+          ? ({ ok: false, status: 404, body: { error: 'not_found' } } as const)
+          : ({
+              ok: false,
+              status: 403,
+              body: { error: 'forbidden', permission: decision.permission },
+            } as const);
+    }
     return null;
   };
   return [
@@ -188,7 +207,16 @@ export function savedPlanRoutes(
           case 'not_found':
             return { ok: false, status: 404, body: { error: 'not_found' } };
           case 'forbidden':
-            return { ok: false, status: 403, body: { error: 'forbidden' } };
+            return {
+              ok: false,
+              status: 403,
+              body: {
+                error: 'forbidden',
+                ...('permission' in outcome && outcome.permission !== undefined
+                  ? { permission: outcome.permission }
+                  : {}),
+              },
+            };
           case 'access_refused':
             return organizationRefusal(outcome.refusal);
           case 'insufficient_scope':
@@ -330,6 +358,7 @@ export function savedPlanRoutes(
                 organizationId: resolved.access.scope.organizationId,
                 actorId: principal.id,
                 role: resolved.access.scope.role,
+                principal: resolved.access.principal,
                 operation: 'rename' as const,
               }
             : undefined;
@@ -338,7 +367,11 @@ export function savedPlanRoutes(
         );
         if (!called.ok) return called;
         const outcome = called.value;
-        if (outcome.outcome !== 'touched') return touchRefusal(outcome.outcome);
+        if (outcome.outcome !== 'touched')
+          return touchRefusal(
+            outcome.outcome,
+            outcome.outcome === 'forbidden' ? outcome.permission : undefined,
+          );
         await announcements.publish(outcome.projectId, { type: 'saved_plans_changed' });
         return { ok: true, status: 200, body: { savedPlanId: params.id, name: body.name } };
       },
@@ -359,13 +392,18 @@ export function savedPlanRoutes(
                 organizationId: resolved.access.scope.organizationId,
                 actorId: principal.id,
                 role: resolved.access.scope.role,
+                principal: resolved.access.principal,
                 operation: 'delete' as const,
               }
             : undefined;
         const called = await callSavedPlan(() => plans.delete(params.id, principal.id, scoped));
         if (!called.ok) return called;
         const outcome = called.value;
-        if (outcome.outcome !== 'touched') return touchRefusal(outcome.outcome);
+        if (outcome.outcome !== 'touched')
+          return touchRefusal(
+            outcome.outcome,
+            outcome.outcome === 'forbidden' ? outcome.permission : undefined,
+          );
         await announcements.publish(outcome.projectId, { type: 'saved_plans_changed' });
         return { ok: true, status: 204, body: EMPTY };
       },

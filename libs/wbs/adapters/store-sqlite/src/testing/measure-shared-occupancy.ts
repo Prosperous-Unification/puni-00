@@ -169,6 +169,7 @@ async function measure(): Promise<void> {
       sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
     );
     const admin = {
+      principal: { id: F },
       kind: 'scoped',
       scope: { cap: null, organizationId: ORG, userId: F, role: 'admin' },
     } as const;

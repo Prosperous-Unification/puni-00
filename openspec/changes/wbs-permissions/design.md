@@ -892,3 +892,11 @@ person's account with capped scopes") in `wbs-machine-credentials`; and
 `wbs-organization-limits`. Those changes must be synced or archived into `openspec/specs/`
 before this one archives, or the MODIFIED blocks have no target and the audit capability no
 base.
+
+### Admitted identity and replay compatibility (tasks 2.2–2.3 amendment)
+
+A scoped application ResourceAccess carries a required detached ScopedPrincipal projection with exactly id and optional copied authentication metadata. It never carries the raw organization cookie, credential digest, token or the complete verified account object. Complete verified evidence remains separately in CommandCaller for credential revalidation. Trusted construction requires actorId === scope.userId === principal.id; mismatch throws. Queued boundaries snapshot the complete caller before admission, and grant decisions use only fresh CommandAccess output, never expectedAccess. Domain OrganizationScope remains identity-descriptor free. This application boundary was reviewed by Astra on 2026-11-09.
+
+The old journal has no complete, joinable original-command provenance: compensation kinds and labels collapse distinct authority requirements. New rows therefore add an authorization envelope to the existing JSON payload with version 1 and immutable permission/semantic-anchor obligations. No SQL migration or rewrite of historical payload bytes is needed. Existing readers tolerate the extra field, and cursor flip/restamp leave it intact. Storage compatibility does not imply old-binary grant-policy compatibility; deployments must not claim old binaries enforce these obligations.
+
+Legacy scoped entries without this envelope refuse with modeled 409 replay_provenance_unavailable before stale discard; malformed present envelopes throw. New metadata is detached at recording, aggregated only from actual contributors, and retained unchanged through undo→redo→undo. Current budget ownership is resolved from the package anchor at replay time, rather than retaining its original parent. The actual engagement-parent move proof waits for #698 slice 2; interim tests can prove current organization ownership resolution only. Slice 2 retains an explicit parent-move regression obligation.

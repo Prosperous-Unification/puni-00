@@ -2,6 +2,7 @@ import type { DeliveryReader } from '@shared/delivery';
 import { createGitHubDeliveryReader } from '@shared/delivery-github';
 import type { DependencyClientRefusal } from '@wbs/contracts';
 import type { SessionFeatures } from '@wbs/contracts';
+import type { AccessDecisions } from '@wbs/core';
 import type { DependencyContext } from '@wbs/core';
 import type { CommandAccess } from '@wbs/core';
 import type { ResourceRuntime } from '@wbs/core';
@@ -375,6 +376,7 @@ export interface AppOptions {
    * Organization spaces (`add-spaces`). Required, like `organizations`: a
    * process built without it would answer 404 on every space route.
    */
+  accessDecisions?: AccessDecisions;
   spaces: SpaceStore;
   /**
    * The organizations' project rank and capacity mode
@@ -735,6 +737,7 @@ export function mountedEndpoints(
     ...sharedPeopleRestoreRoutes(opts.sharedPeopleRestoreApprovals, opts.organizations, spaceClock),
     ...capacityModeRoutes(
       new CapacityModeResource({
+        accessDecisions: opts.accessDecisions,
         modes: opts.projectRanks,
         clock: spaceClock,
         supported: opts.supportedCapacityModes ?? SUPPORTED_CAPACITY_MODES,
@@ -743,6 +746,7 @@ export function mountedEndpoints(
     ),
     ...projectRankRoutes(
       new ProjectRankResource({
+        accessDecisions: opts.accessDecisions,
         ranks: opts.projectRanks,
         projects: opts.projects,
         clock: spaceClock,
@@ -756,7 +760,7 @@ export function mountedEndpoints(
     ...projectRoutes(
       {
         authorizeRetry: (...args) => opts.projects.authorizeRetry(...args),
-        createWithin: (...args) => opts.projects.createWithin(...args),
+        createWithin: admitted.createProjectWithin,
         listWithin: (...args) => opts.projects.listWithin(...args),
         openWithin: (...args) => opts.projects.openWithin(...args),
         readWithin: (...args) => opts.projects.readWithin(...args),
@@ -793,6 +797,7 @@ export function mountedEndpoints(
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...spaceRoutes(
       new SpaceResource({
+        accessDecisions: opts.accessDecisions,
         spaces: opts.spaces,
         projects: opts.projects,
         clock: spaceClock,
@@ -801,6 +806,7 @@ export function mountedEndpoints(
         rollUpCache,
       }),
       opts.organizations,
+      opts.writes,
     ),
     ...savedPlanRoutes(
       opts.savedPlans,

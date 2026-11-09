@@ -20,9 +20,12 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-b', 'ada', 'member');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project']);
+  h.member('org-b', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'ada', ['organization.create_project']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
   for (const username of ['ada', 'grace']) {
@@ -256,7 +259,8 @@ describe('after activation', () => {
       "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
     );
-    h.member('org-a', 'grace', 'member');
+    h.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
+    h.grantPermissions('org-a', 'grace', ['organization.create_project']);
     const memberships = () =>
       h.sqlite
         .query(
@@ -281,6 +285,7 @@ describe('after activation', () => {
   });
 
   it('refuses a delegated switch of the capacity mode, even a super-admin’s', async () => {
+    h.grant('org-a', 'ada', 'org-super-admin');
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],

@@ -52,6 +52,7 @@ let path: string;
 let closed: number;
 const principal = { id: 'ada' };
 const admitted = {
+  principal: { id: 'ada' },
   kind: 'scoped',
   scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
@@ -863,6 +864,7 @@ describe('detached live snapshot guards', () => {
     });
   }
   const access = {
+    principal: { id: 'ada' },
     kind: 'scoped',
     scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
   } as const;

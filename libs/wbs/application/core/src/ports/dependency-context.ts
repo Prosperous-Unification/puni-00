@@ -5,6 +5,7 @@ import type { EditAdmission } from './edit-admission';
 import type { IncidentNodeTransition } from './incident-node-transition';
 import type { ResourceAccess } from './organization-access';
 import type { Step } from './step-store';
+import type { StoredTypedDependency } from './typed-dependency-store';
 
 /** An exact work-item identity; row IDs alone never establish project authority. */
 export interface WorkItemAddress {
@@ -52,8 +53,25 @@ export interface CommandGraphAuthority {
   readonly admission: EditAdmission;
 }
 
+/** A current grant refusal, distinct from stale replay state. The marker never reaches the wire. */
+export type TypedWriteRefusal =
+  | { readonly ok: false; readonly reason: 'not_found'; readonly authorization: true }
+  | {
+      readonly ok: false;
+      readonly reason: 'forbidden';
+      readonly permission: 'package.write';
+      readonly authorization: true;
+    };
+
+/** Exact old/new relationships planned for mutation; new rows need package anchors, not persisted endpoint lookups. */
+export type AuthorizeTypedWrites = (
+  relationships: readonly StoredTypedDependency[],
+) => Promise<TypedWriteRefusal | null>;
+
 /** Exact capabilities installed into one command graph. */
 export interface DependencyContext {
+  /** Installed by every generated context, including explicit legacy policy. Older hand-built adapters may omit it only while they perform no remote mutation; that path throws. */
+  readonly authorizeTypedWrites?: AuthorizeTypedWrites;
   readonly graph: DependencyGraphGuard;
   readonly incidents: IncidentNodeTransition;
   readonly endpoints: DependencyEndpointEvidence;

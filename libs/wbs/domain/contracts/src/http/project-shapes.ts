@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -42,7 +43,15 @@ const bodyRefusals = [
   { status: 422, schema: responseSchema(type({ error: "'invalid_body'" })) },
 ] as const;
 const notFound = { status: 404, schema: responseSchema(type({ error: "'not_found'" })) } as const;
-const forbidden = { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) } as const;
+const forbidden = {
+  status: 403,
+  schema: responseSchema(
+    type({
+      error: "'forbidden'",
+      'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+    }),
+  ),
+} as const;
 
 /** Creates a project with its ordered starting steps; empty names remain legal. */
 export const createProject = defineEndpointShape({

@@ -14,6 +14,7 @@ import { and, count, eq, ne } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
+import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
 import { organization, organizationMembership, users } from './schema';
@@ -281,7 +282,7 @@ export class OrganizationRepository implements MembershipAdministration {
  * unknown role reaching the policy must never be read as a privileged one.
  */
 export function roleIn(
-  tx: Transaction,
+  tx: Pick<Drizzle, 'select'>,
   organizationId: string,
   userId: string,
 ): OrganizationRole | null {

@@ -65,11 +65,13 @@ it('mounted completion delivers durable successor envelopes through the producti
     seedDependencyAuthority(harness.databasePath());
     for (const username of ['ada', 'grace']) await harness.register(username);
     for (const organizationId of ['org-a', 'org-b']) harness.organization(organizationId);
-    harness.member('org-a', 'ada', 'member');
-    harness.member('org-b', 'grace', 'member');
+    harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    harness.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
     harness.bind('ada', 'org-a');
     harness.bind('grace', 'org-b');
     harness.activate();
+    harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
+    harness.grantPermissions('org-b', 'grace', ['organization.create_project']);
     expect(
       harness.sqlite.query("SELECT shared_people FROM organization WHERE id = 'org-a'").get(),
     ).toEqual({ shared_people: 0 });

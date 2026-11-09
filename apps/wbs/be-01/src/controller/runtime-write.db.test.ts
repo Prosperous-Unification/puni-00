@@ -48,6 +48,7 @@ const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 
 const context: RuntimeContext = {
   actor,
   access: {
+    principal: { id: 'ada' },
     kind: 'scoped',
     scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
   },
@@ -90,6 +91,21 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
   sqlite.db.run(
     "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
   );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
+  );
+  for (const credentialId of [
+    'verified-machine',
+    'verified-consent',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  ])
+    sqlite.db.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-" +
+        credentialId +
+        "','org-a','organization','org-a','machine_credential','" +
+        credentialId +
+        "','project-contributor','route',1)",
+    );
   await source.stores.directory.addPerson({ id: 'agent', name: 'Agent', kind: 'agent' }, [], stamp);
   await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent');
   await source.stores.directory.addPerson(
@@ -331,6 +347,7 @@ const T = 1_900_000_000_000;
 const machineContext: RuntimeContext = {
   ...context,
   access: {
+    principal: { id: 'ada' },
     kind: 'scoped',
     scope: { organizationId: 'org-a', userId: 'ada', role: 'member', cap: CONTRIBUTOR_CAP },
   },
@@ -916,10 +933,16 @@ describe('runtime write transaction boundaries', () => {
       reason: 'runtime_scope_unavailable',
     });
     sqlite.db.run("UPDATE organization_membership SET role='viewer' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='org-viewer' WHERE id='runtime-ada'");
     const before = await snapshot();
-    expect(await runner.writeRuntime(context, request)).toEqual({ ok: false, reason: 'forbidden' });
+    expect(await runner.writeRuntime(context, request)).toEqual({
+      ok: false,
+      reason: 'forbidden',
+      permission: 'package.write',
+    });
     expect(await snapshot()).toEqual(before);
     sqlite.db.run("UPDATE organization_membership SET role='admin' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     expect(
       await source.stores.directory.patchPerson('agent', { accountId: null }, stamp),
     ).toMatchObject({ ok: true });
@@ -927,18 +950,20 @@ describe('runtime write transaction boundaries', () => {
       ok: true,
     });
     sqlite.db.run("UPDATE organization_membership SET role='member' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
     expect(
       await runner.writeRuntime(
         {
           ...context,
           access: {
+            principal: { id: 'ada' },
             kind: 'scoped',
             scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
           },
         },
         request,
       ),
-    ).toEqual({ ok: false, reason: 'person_not_bound' });
+    ).toEqual({ ok: false, reason: 'forbidden', permission: 'package.claim_for_others' });
   });
 
   it('rejects malformed and unsupported shapes before queued admission', async () => {
@@ -981,6 +1006,7 @@ describe('runtime write transaction boundaries', () => {
       personId: 'agent',
       actor: { ...actor, scopes: [...actor.scopes] },
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
         scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       },
@@ -1113,6 +1139,7 @@ describe('runtime write transaction boundaries', () => {
     sqlite.db.run(
       "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'",
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
     expect(
       await runtime.ingest(
         'release-runtime',

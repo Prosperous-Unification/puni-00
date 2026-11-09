@@ -1,6 +1,7 @@
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { describe, expect, it } from 'bun:test';
 
+import type { AccessDecisions } from '../../ports/access-decisions';
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
@@ -16,27 +17,51 @@ const PROJECT = 'project-1';
 const ACTOR = 'super-admin';
 const PRINCIPAL = { id: ACTOR, username: ACTOR, scopes: ['read', 'write'] as const };
 const SCOPED: ResourceAccess = {
+  principal: { id: ACTOR },
   kind: 'scoped',
   scope: { cap: null, organizationId: 'org-a', userId: ACTOR, role: 'super_admin' },
 };
 
-/** The project as stored: someone else's, restricted, which only a recovery may write. */
+/** Another creator's restricted project; the fixture grants this actor package.write explicitly. */
 const restricted = (id = PROJECT) => ({ id, ownerId: 'creator', restricted: true }) as Project;
 
 const silent: Broadcaster = recordingBroadcaster();
 
 /**
- * A runner over stand-in stores whose unit of work classifies every scoped
- * write as a recovery, recording the admission each graph was built with.
+ * A runner over named package/directory grants, recording the admission each
+ * graph retains only for its owning unit of work.
  */
 function runnerOver(entryToDiscard?: string) {
   const admissions: EditAdmission[] = [];
   // A stand-in for the stores the runner reads itself; the graph is stubbed.
+  const accessDecisions: AccessDecisions = {
+    effectiveRoleAt: (principal, target) => {
+      if (principal.id !== ACTOR) throw new Error('unexpected admission fixture subject');
+      if (target.kind === 'organization' && target.organizationId === 'org-a')
+        return Promise.resolve({
+          permissions: new Set(['organization.manage_directory']),
+          via: [],
+        });
+      if (
+        target.kind === 'work_package' &&
+        target.chain.organizationId === 'org-a' &&
+        target.chain.workPackageId === PROJECT
+      )
+        return Promise.resolve({
+          permissions: new Set(['package.read', 'package.write']),
+          via: [],
+        });
+      throw new Error('unexpected admission fixture scope');
+    },
+    readablePackageIds: () => Promise.reject(new Error('unexpected fixture grant listing')),
+  };
   const stores = {
+    accessDecisions,
     typedDependencies: inMemoryTypedDependencies(),
     journal: { discard: () => Promise.resolve() },
     projects: {
-      admitEditInOrganization: () => Promise.resolve('recovery'),
+      findInOrganization: (id: string, organizationId: string) =>
+        Promise.resolve(id === PROJECT && organizationId === 'org-a' ? restricted() : null),
       findCrossReferences: () => Promise.resolve([]),
     },
   } as unknown as PlanTransactionalStores;

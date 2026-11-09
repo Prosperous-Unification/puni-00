@@ -950,6 +950,75 @@ describe('what a project read publishes', () => {
 });
 
 describe('organization-scoped writes', () => {
+  async function scopedWriter(grantRoleId: 'package-viewer' | null) {
+    const raw = openDatabase(join(dir, 'test.db'));
+    raw.run("INSERT INTO organization (id,name,created_at) VALUES ('org-a','A',1)");
+    raw.run(
+      "UPDATE organization_activation SET state='activated',activated_at=5 WHERE singleton=1",
+    );
+    raw.run(
+      "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a',?,'member',1)",
+      [ownerId],
+    );
+    const target = project('Scoped target', 1);
+    await repo.createInOrganization(target, steps(target.id, 'Dev'), wrote(), 'org-a');
+    if (grantRoleId !== null)
+      raw.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,'org-a','work_package',?,'user',?,?,'route',1)",
+        [crypto.randomUUID(), target.id, ownerId, grantRoleId],
+      );
+    const editor = {
+      principal: { id: ownerId },
+      actorId: ownerId,
+      auditId: crypto.randomUUID(),
+      role: 'super_admin' as const,
+    };
+    const capture = () =>
+      [
+        'project',
+        'project_organization',
+        'step',
+        'organization_audit',
+        'command_journal',
+        'event_log',
+        'event_sequencer',
+      ].map((table) => raw.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
+    return { raw, target, editor, capture };
+  }
+
+  it('conceals an owned hidden project exactly like an absent target in the independent writer', async () => {
+    const fixture = await scopedWriter(null);
+    try {
+      const before = fixture.capture();
+      for (const patch of [{ name: 'Must stay hidden' }, {}]) {
+        expect(
+          await repo.editInOrganization(fixture.target.id, patch, wrote(), 'org-a', fixture.editor),
+        ).toBeNull();
+        expect(
+          await repo.editInOrganization('missing', patch, wrote(), 'org-a', fixture.editor),
+        ).toBeNull();
+        expect(fixture.capture()).toEqual(before);
+      }
+    } finally {
+      fixture.raw.close();
+    }
+  });
+
+  it('refuses a readable project without settings permission in the independent writer', async () => {
+    const fixture = await scopedWriter('package-viewer');
+    try {
+      const before = fixture.capture();
+      for (const patch of [{ name: 'Must stay unchanged' }, {}]) {
+        expect(
+          await repo.editInOrganization(fixture.target.id, patch, wrote(), 'org-a', fixture.editor),
+        ).toBe('forbidden');
+        expect(fixture.capture()).toEqual(before);
+      }
+    } finally {
+      fixture.raw.close();
+    }
+  });
+
   it('records an open and a write only while the organization owns the project', async () => {
     const raw = openDatabase(join(dir, 'test.db'));
     try {
@@ -967,7 +1036,16 @@ describe('organization-scoped writes', () => {
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ?, 'member', 1)",
         [ownerId],
       );
-      const editor = { actorId: ownerId, auditId: 'audit-1', role: 'super_admin' as const };
+      raw.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('scoped-owned','org-a','work_package',?,'user',?,'package-manager','route',1)",
+        [owned.id, ownerId],
+      );
+      const editor = {
+        principal: { id: ownerId },
+        actorId: ownerId,
+        auditId: 'audit-1',
+        role: 'super_admin' as const,
+      };
 
       expect(
         await repo.editInOrganization(foreign.id, { name: 'Taken' }, wrote(), 'org-a', editor),

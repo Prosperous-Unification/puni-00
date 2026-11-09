@@ -26,7 +26,11 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
@@ -50,8 +54,8 @@ async function mountRuntime() {
   cleanups.push(() => harness.closeComposed());
   for (const username of ['creator', 'super']) await harness.register(username);
   harness.organization('org-a');
-  harness.member('org-a', 'creator', 'admin');
-  harness.member('org-a', 'super', 'super_admin');
+  harness.member('org-a', 'creator', 'admin', ['org-admin']);
+  harness.member('org-a', 'super', 'super_admin', ['org-super-admin']);
   harness.bind('creator', 'org-a');
   harness.bind('super', 'org-a');
   harness.activate();
@@ -92,6 +96,7 @@ async function restrictProject() {
       })
     ).status,
   ).toBe(200);
+  fixture.harness.grant('org-a', 'super', 'package-manager', 'work_package', fixture.projectId);
   return fixture;
 }
 
@@ -129,6 +134,61 @@ function stubConsent(harness: OrganizationHarness) {
 }
 
 describe('runtime principal role cap', () => {
+  for (const kind of ['machine', 'consent'] as const)
+    test(
+      kind + ' explicit package manager grant writes restricted runtime within its contributor cap',
+      async () => {
+        const { harness, projectId, acquisition } = await restrictProject();
+        const credential =
+          kind === 'machine'
+            ? await issueApiKey(harness.sqlite, {
+                organizationId: 'org-a',
+                personId: 'agent',
+                issuedBy: harness.userId('super'),
+              })
+            : null;
+        const token = credential === null ? stubConsent(harness) : credential.key;
+        grantCredential(
+          harness.sqlite,
+          'org-a',
+          credential === null ? 'verified-consent' : credential.id,
+          'package-manager',
+          'work_package',
+          projectId,
+        );
+        const call = (method: string, path: string, body?: unknown) =>
+          kind === 'machine'
+            ? callForwarded(harness, token, method, path, body)
+            : harness.callWith(token, method, path, body);
+        expect(
+          (await call('GET', `/api/projects/${projectId}/runtime-state?personId=agent`)).status,
+        ).toBe(200);
+        expect(
+          (await call('POST', `/api/projects/${projectId}/runtime-authority`, acquisition)).status,
+        ).toBe(200);
+        if (kind === 'machine')
+          expect(
+            await call('PATCH', `/api/projects/${projectId}`, { name: 'Denied settings' }),
+          ).toMatchObject({
+            status: 403,
+            body: { error: 'forbidden', permission: 'package.manage_settings' },
+          });
+        expect(
+          await call('GET', `/api/projects/${projectId}/runtime-state?personId=other-account`),
+        ).toMatchObject({
+          status: 403,
+          body: { error: 'forbidden', permission: 'package.claim_for_others' },
+        });
+        expect(harness.sqlite.query('SELECT name FROM project WHERE id=?').get(projectId)).toEqual({
+          name: 'Principal cap',
+        });
+        expect(
+          harness.sqlite
+            .query("SELECT * FROM organization_audit WHERE action='restricted_project_recovery'")
+            .all(),
+        ).toEqual([]);
+      },
+    );
   for (const operation of ['read', 'acquire'] as const) {
     test(`refuses real machine key restricted-project ${operation} for the correctly pinned noncreator super-admin`, async () => {
       const { harness, projectId, acquisition, history } = await restrictProject();
@@ -153,7 +213,7 @@ describe('runtime principal role cap', () => {
               `/api/projects/${projectId}/runtime-authority`,
               acquisition,
             );
-      expect(answer).toEqual({ status: 403, body: { error: 'forbidden' } });
+      expect(answer).toEqual({ status: 404, body: { error: 'not_found' } });
       expect(history()).toEqual(before);
     });
     test(`refuses verified consent restricted-project ${operation} for its correctly pinned noncreator super-admin`, async () => {
@@ -173,25 +233,32 @@ describe('runtime principal role cap', () => {
               `/api/projects/${projectId}/runtime-authority`,
               acquisition,
             );
-      expect(answer).toEqual({ status: 403, body: { error: 'forbidden' } });
+      expect(answer).toEqual({ status: 404, body: { error: 'not_found' } });
       expect(history()).toEqual(before);
     });
   }
 
   for (const kind of ['machine', 'consent'] as const) {
     for (const personId of ['unbound', 'other-account']) {
-      test(`keeps person_not_bound precedence for ${kind} runtime read and acquisition as ${personId}`, async () => {
+      test(`keeps capped claim_for_others refusal for ${kind} runtime read and acquisition as ${personId}`, async () => {
         const { harness, projectId, acquisition, history } = await mountRuntime();
-        const token =
+        const credential =
           kind === 'machine'
-            ? (
-                await issueApiKey(harness.sqlite, {
-                  organizationId: 'org-a',
-                  personId: 'agent',
-                  issuedBy: harness.userId('super'),
-                })
-              ).key
-            : stubConsent(harness);
+            ? await issueApiKey(harness.sqlite, {
+                organizationId: 'org-a',
+                personId: 'agent',
+                issuedBy: harness.userId('super'),
+              })
+            : null;
+        const token = credential === null ? stubConsent(harness) : credential.key;
+        grantCredential(
+          harness.sqlite,
+          'org-a',
+          credential === null ? 'verified-consent' : credential.id,
+          'project-contributor',
+          'organization',
+          'org-a',
+        );
         const before = history();
         // A machine key's call is forwarded as mcp-01 sends it; consent is a Bearer.
         const call = (method: string, path: string, body?: unknown) =>
@@ -200,19 +267,25 @@ describe('runtime principal role cap', () => {
             : harness.callWith(token, method, path, body);
         expect(
           await call('GET', `/api/projects/${projectId}/runtime-state?personId=${personId}`),
-        ).toEqual({ status: 403, body: { error: 'person_not_bound' } });
+        ).toEqual({
+          status: 403,
+          body: { error: 'forbidden', permission: 'package.claim_for_others' },
+        });
         expect(
           await call('POST', `/api/projects/${projectId}/runtime-authority`, {
             ...acquisition,
             personId,
           }),
-        ).toEqual({ status: 403, body: { error: 'person_not_bound' } });
+        ).toEqual({
+          status: 403,
+          body: { error: 'forbidden', permission: 'package.claim_for_others' },
+        });
         expect(history()).toEqual(before);
       });
     }
   }
 
-  test('preserves human super-admin recovery and binding bypass for unbound and other-account runtime persons', async () => {
+  test('preserves explicitly granted human binding bypass for unbound and other-account runtime persons', async () => {
     const { harness, projectId, acquisition } = await restrictProject();
     for (const personId of ['unbound', 'other-account']) {
       expect(
@@ -258,6 +331,9 @@ async function createQueuedFixture() {
   });
   sqlite.db.run(
     "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','super_admin',1)",
+  );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('queued-ada','org-a','organization','org-a','user','ada','org-admin','route',1),('queued-ada-package','org-a','work_package','a1','user','ada','package-manager','route',1),('queued-credential','org-a','work_package','a1','machine_credential','verified','package-manager','route',1)",
   );
   sqlite.db.run(
     "INSERT INTO users (id,username,password_hash,created_at) VALUES ('creator','creator','x',1)",
@@ -339,6 +415,7 @@ async function createQueuedFixture() {
     projectId: 'a1',
     personId: 'agent',
     access: {
+      principal: { id: 'ada' },
       kind: 'scoped',
       scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'super_admin' },
     },
@@ -384,6 +461,7 @@ async function createQueuedFixture() {
   };
   acceptReply(await runner.writeRuntime(human, writeRequest));
   sqlite.db.run("UPDATE project SET restricted=1, owner_id='creator' WHERE id='a1'");
+  await source.stores.directory.patchPerson('agent', { accountId: null }, { at: 3, by: 'ada' });
   const freshBasis = acceptReply(await receiver.readRuntimeState(human, {})).basis;
   const history = () => ({
     authorities: sqlite.db.all('SELECT * FROM runtime_authority'),
@@ -490,7 +568,11 @@ describe('queued runtime authentication detachment', () => {
             release.resolve(undefined);
           }
           await writing;
-          expect(await pending).toEqual({ ok: false, reason: 'forbidden' });
+          expect(await pending).toEqual({
+            ok: false,
+            reason: 'forbidden',
+            permission: 'package.claim_for_others',
+          });
           expect(history()).toEqual(before);
         },
       );

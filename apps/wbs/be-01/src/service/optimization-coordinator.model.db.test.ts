@@ -1451,6 +1451,9 @@ function seedSharedOrganization(path: string): void {
     seed.run(
       "INSERT INTO organization_membership (organization_id, user_id, role, created_at, updated_at, created_by) VALUES ('org-a', 'sam', 'super_admin', 1, 1, 'ada')",
     );
+    seed.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('model-ada','org-a','organization','org-a','user','ada','org-admin','route',1),('model-sam','org-a','organization','org-a','user','sam','org-super-admin','route',1)",
+    );
     seed.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
     seed.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
@@ -1874,6 +1877,15 @@ class SwitchMode implements SharedCommand {
       this.mode,
       stamp,
       auditId,
+      {
+        kind: 'human',
+        principal: { id: 'sam', username: 'sam', scopes: ['read', 'write'] },
+        expectedAccess: {
+          kind: 'scoped',
+          principal: { id: 'sam' },
+          scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin', cap: null },
+        },
+      },
     );
     let settled = false;
     // Attach immediately so a failed held switch remains observable without an unhandled rejection.
@@ -1937,9 +1949,7 @@ class DemoteBeforeSwitch implements SharedCommand {
       schedulerOf: () => optimizerWiring(undefined).scheduler,
     });
     const demoting = bound.uow.run(async () => {
-      clientOf(world).run(
-        "UPDATE organization_membership SET role = 'admin' WHERE user_id = 'sam'",
-      );
+      clientOf(world).run("DELETE FROM access_grant WHERE id='model-sam'");
       staged.resolve(undefined);
       await release.promise;
       return { commit: true, value: undefined };
@@ -1953,6 +1963,15 @@ class DemoteBeforeSwitch implements SharedCommand {
         model.mode === 'shared' ? 'isolated' : 'shared',
         { by: 'sam', at: 1000 },
         'demoted',
+        {
+          kind: 'human',
+          principal: { id: 'sam', username: 'sam', scopes: ['read', 'write'] },
+          expectedAccess: {
+            kind: 'scoped',
+            principal: { id: 'sam' },
+            scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin', cap: null },
+          },
+        },
       );
       void switching.then(
         () => {
@@ -1971,10 +1990,11 @@ class DemoteBeforeSwitch implements SharedCommand {
     expect(await within(switching, 'queued switch did not settle')).toEqual({
       ok: false,
       reason: 'forbidden',
+      permission: 'organization.manage_capacity_mode',
     });
     await assertShared(model, world, before, false, this.toString());
     clientOf(world).run(
-      "UPDATE organization_membership SET role = 'super_admin' WHERE user_id = 'sam'",
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('model-sam','org-a','organization','org-a','user','sam','org-super-admin','route',1)",
     );
     note('switchDemotion');
   }
@@ -2001,6 +2021,15 @@ class FailSwitchEvent implements SharedCommand {
         model.mode === 'shared' ? 'isolated' : 'shared',
         { by: 'sam', at: 1000 },
         'failed',
+        {
+          kind: 'human',
+          principal: { id: 'sam', username: 'sam', scopes: ['read', 'write'] },
+          expectedAccess: {
+            kind: 'scoped',
+            principal: { id: 'sam' },
+            scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin', cap: null },
+          },
+        },
       );
     } catch (caught) {
       refusal = caught;
@@ -2173,7 +2202,12 @@ class SharedRetry implements SharedCommand {
         objective: 'pri',
         inputHash: committed.input_hash,
         input: inputFor(world, committed.input_hash),
-        scoped: { organizationId: 'org-a', actorId: 'ada', role: 'super_admin' as const },
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-a',
+          actorId: 'ada',
+          role: 'super_admin' as const,
+        },
       }),
       'Retry decision waited for recipient transport',
     );

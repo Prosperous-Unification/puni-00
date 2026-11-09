@@ -1,10 +1,13 @@
 import type { RecordedEvent } from '@wbs/core';
+import { authorize } from '@wbs/core';
 import { subscriptionFor } from '@wbs/core';
+import { AccessDecisionRepository } from '@wbs/store-sqlite/access-decisions';
 import {
   readConnectedOptimizationPair,
   storeConnectedOptimizationOutcomeIn,
 } from '@wbs/store-sqlite/connected-optimization-cache';
 import type { Gate } from '@wbs/store-sqlite/gate';
+import { OPEN } from '@wbs/store-sqlite/gate';
 import {
   bindSolverSlot,
   heartbeatSolverSlot,
@@ -33,6 +36,9 @@ import {
   readOptimizedPair,
   readOptimizedPairAndSpawn,
 } from '@wbs/store-sqlite/optimized-schedule-cache';
+import { currentMembershipAccess } from '@wbs/store-sqlite/organization-access';
+import { readOrganizationActivation } from '@wbs/store-sqlite/organization-activation';
+import { ProjectRepository } from '@wbs/store-sqlite/project';
 import { project } from '@wbs/store-sqlite/schema';
 import { eq } from 'drizzle-orm';
 
@@ -47,8 +53,9 @@ import type {
   SolverSlotAdmission,
 } from '../module/optimization/contract';
 import type { Drizzle } from './db';
+import { drizzleOuterTransaction } from './db';
 import type { EventLogTransactionalWrite } from './event-log';
-import { classifyProjectWriteIn, recordRecovery } from './project';
+import { recordRecovery } from './project';
 
 type Transaction = Parameters<Parameters<Drizzle['transaction']>[0]>[0];
 type RetryAsk = Parameters<OptimizationRepository['admitRetry']>[0];
@@ -67,23 +74,51 @@ export type RetryPreflight =
       readonly admittedAt: number;
     };
 
+/** Current grant authority on the owning writer before Retry eligibility, capture, reservation, or audit. */
+export async function authorizeRetryIn(
+  db: Drizzle,
+  ask: RetryAsk,
+): Promise<'ordinary' | Extract<OptimizationRetryDecision, { kind: 'forbidden' }> | null> {
+  if (ask.scoped === undefined)
+    return readOrganizationActivation(db) === 'pre_activation' ? 'ordinary' : { kind: 'forbidden' };
+  const { organizationId, actorId, principal } = ask.scoped;
+  if (principal.id !== actorId) throw new Error('Retry principal differs from its actor');
+  if (!currentMembershipAccess(db, organizationId, actorId).ok) return { kind: 'forbidden' };
+  const addressed = await new ProjectRepository(db, OPEN).findInOrganization(
+    ask.key.projectId,
+    organizationId,
+  );
+  if (addressed === null) return null;
+  const authority = await authorize(
+    new AccessDecisionRepository(db),
+    principal,
+    {
+      kind: 'work_package',
+      chain: { level: 'work_package', organizationId, workPackageId: addressed.id },
+      restricted: addressed.restricted,
+    },
+    'package.manage_settings',
+  );
+  // Proof: discarding the missing permission failed the mounted connected Retry writer-grant-revocation route test; watched RED/GREEN, 2026-11-09.
+  // Proof: retry-writer-permission fault failed 'writer grant revocation' (connected-retry.controller.db.test.ts); restored GREEN, 2026-11-09.
+  return authority.ok
+    ? 'ordinary'
+    : authority.reason === 'not_found'
+      ? null
+      : { kind: 'forbidden', permission: authority.permission };
+}
+
 /** Read-only Retry authority and eligibility inside the caller's owned writer. */
-export function retryPreflightIn(tx: Transaction, ask: RetryAsk): RetryPreflight {
-  const classified =
-    ask.scoped === undefined
-      ? 'ordinary'
-      : classifyProjectWriteIn(
-          tx,
-          ask.key.projectId,
-          ask.scoped.organizationId,
-          ask.scoped.actorId,
-          ask.scoped.role,
-        );
+export function retryPreflightIn(
+  tx: Transaction,
+  ask: RetryAsk,
+  classified: Awaited<ReturnType<typeof authorizeRetryIn>>,
+): RetryPreflight {
   // Proof: forcing ordinary here let a removed super-admin Retry succeed.
   // Proof: removing either refusal changed foreign/removed mounted outcomes.
   if (classified === null) return { kind: 'refused', decision: { kind: 'not_found' } };
   // Proof: bypassing this refusal made mounted membership removal after read-close return 409 instead of 403.
-  if (classified === 'refused') return { kind: 'refused', decision: { kind: 'forbidden' } };
+  if (classified !== 'ordinary') return { kind: 'refused', decision: classified };
   // Proof: omitting this pre-generation lookup made Q1→Q2→Q1 Retry return idle instead of the retained boundary terminal.
   const retained =
     ask.key.questions === undefined
@@ -506,22 +541,38 @@ export function createOptimizationRepository(
     // made `waits for an overlapping rolled-back unit of work before accepting
     // Retry` observe an early decision before the outer rollback (1 fail).
     // Restored and reran green; the test then found the audit and slot committed.
-    admitRetry: (ask) =>
-      gate.enter(() =>
-        Promise.resolve().then(() => {
-          const decision = db.transaction(
-            (tx) => {
-              const preflight = retryPreflightIn(tx, ask);
-              return preflight.kind === 'refused'
-                ? preflight.decision
-                : retryMutationIn(tx, ask, preflight);
-            },
-            // Proof: deleting immediate mode made the two-connection writer
-            // ownership test fail at a deferred slot-reclaim delete.
-            { behavior: 'immediate' },
-          );
+    admitRetry: (incoming) => {
+      const ask = {
+        ...incoming,
+        key: structuredClone(incoming.key),
+        ...(incoming.scoped === undefined ? {} : { scoped: structuredClone(incoming.scoped) }),
+      };
+      return gate.enter(async () => {
+        const transaction = drizzleOuterTransaction(db);
+        transaction.begin();
+        try {
+          const authority = await authorizeRetryIn(db, ask);
+          const decision = db.transaction((tx) => {
+            const preflight = retryPreflightIn(tx, ask, authority);
+            return preflight.kind === 'refused'
+              ? preflight.decision
+              : retryMutationIn(tx, ask, preflight);
+          });
+          transaction.commit();
           return { decision, envelopes: [] };
-        }),
-      ),
+        } catch (failure) {
+          try {
+            transaction.rollback();
+          } catch (rollbackFailure) {
+            throw new AggregateError(
+              [failure, rollbackFailure],
+              'Retry admission and rollback failed',
+              { cause: rollbackFailure },
+            );
+          }
+          throw failure;
+        }
+      });
+    },
   };
 }

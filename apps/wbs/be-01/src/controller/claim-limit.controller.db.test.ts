@@ -21,7 +21,7 @@ beforeEach(async () => {
   }
   h.organization('org-a');
   for (const username of ['ada', 'bea']) {
-    h.member('org-a', username, 'admin');
+    h.member('org-a', username, 'admin', ['org-admin']);
     h.bind(username, 'org-a');
   }
 });
