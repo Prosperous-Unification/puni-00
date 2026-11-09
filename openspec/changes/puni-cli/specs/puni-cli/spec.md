@@ -43,7 +43,7 @@ Every first-party operation exposed by current client instructions, generated he
 
 ### Requirement: MCP helpers preserve installed invocation and startup obligations
 
-The MCP token command SHALL load only its required execution modules and retain the existing 10-second helper budget. Pool import SHALL generate an installed `puni dash mcp token` invocation, using canonical `dash` even when import used `d`, preserving argument boundaries and existing secret handling.
+The MCP token command SHALL use the same protected startup as the installed entrypoint, load only its required execution modules and retain the existing 10-second helper budget. Pool import SHALL generate an installed `puni dash mcp token` invocation, using canonical `dash` even when import used `d`, preserving argument boundaries and existing secret handling.
 
 #### Scenario: A generated helper executes from an installed path
 
@@ -81,3 +81,12 @@ Ordinary installed Burokrat operations SHALL verify the package and toolkit befo
 
 - **WHEN** the candidate supplies hostile Bun configuration, env files, preload options or dependency overrides and the caller uses relative paths
 - **THEN** no candidate startup code runs, the verified closure remains selected, caller-relative inputs retain their meaning, and repository-relative selectors remain anchored to the selected candidate
+
+### Requirement: Initial startup excludes candidate-controlled Bun hooks
+
+The installed entrypoint and every generated helper SHALL remove the declared Bun startup controls before the Bun runtime interprets application code and SHALL disable candidate config and dotenv autoload. Helpers SHALL use the selected Bun executable with the shared sanitizer and canonical namespace; they SHALL NOT bypass executable shebang protection through a bare Bun-plus-entrypoint invocation. The OS env utility, an absolute selected Bun path without an equals sign, and supported invocation behavior SHALL be explicit installation prerequisites, with visible refusal when unavailable. Compilation alone SHALL NOT be treated as startup isolation.
+
+#### Scenario: Startup hooks cannot precede PUNI code
+
+- **WHEN** an installed invocation or generated helper starts inside a candidate with preload config, dotenv and hostile startup controls, including BUN_INSPECT_PRELOAD
+- **THEN** no candidate preload runs and no candidate dotenv contaminates the application, while installed paths, selected Bun paths and operand paths containing spaces retain their boundaries

@@ -33,7 +33,7 @@ PUNI Navigator, PUNI Burokrat, PUNI Dash.
 
 ## Decisions Recorded
 
-None new; CLI parser choice is ADR 0064.
+CLI parser choice is ADR 0064. Protected Bun startup is [ADR 0079](../../../docs/adr/0079-sanitize-puni-startup-before-bun-runs.md).
 
 ## Impact
 
