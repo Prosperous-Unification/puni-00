@@ -181,6 +181,20 @@ function spawnOwnedWaitingChild(
 
 type WaitingOwner = ReturnType<typeof spawnOwnedWaitingChild>;
 
+/** Waits for real configure startup; failure stays inside the original owner's release and join. */
+async function waitForConfigureReady(child: WaitingChild, ready: string): Promise<void> {
+  // Proof: the delayed configure fixtures fail both READY prerequisites under old startup
+  // handling; restoring this coordination passes their original failure and contention oracles.
+  const deadline = performance.now() + 2000;
+  for (;;) {
+    if (child.exitCode !== null)
+      throw new Error(`configure exited before readiness: ${String(child.exitCode)}`);
+    if (performance.now() >= deadline) throw new Error('configure readiness exceeded 2000ms');
+    if (await Bun.file(ready).exists()) return;
+    await Bun.sleep(5);
+  }
+}
+
 test('original waiting child remains owned after its release acknowledgment', async () => {
   const state = await mkdtemp(join(tmpdir(), 'edge-release-join-'));
   roots.push(state);
@@ -574,7 +588,8 @@ for (const flavor of ['flock', 'configure', 'manual'] as const)
       await mkdir(commands);
       await writeFile(
         join(commands, 'id'),
-        '#!/bin/sh\ntouch "$WBS_EDGE_STATE/ready"\nwhile [ ! -e "$WBS_EDGE_STATE/release" ]; do sleep 0.01; done\nprintf "1000\\n"\n',
+        // Valid startup outlasts the separate deliberate 500ms absent-marker observation.
+        '#!/bin/sh\n/bin/sleep 1\ntouch "$WBS_EDGE_STATE/ready"\nwhile [ ! -e "$WBS_EDGE_STATE/release" ]; do sleep 0.01; done\nprintf "1000\\n"\n',
         { mode: 0o755 },
       );
       const executablePath = process.env['PATH'];
@@ -615,6 +630,8 @@ for (const flavor of ['flock', 'configure', 'manual'] as const)
     try {
       const failure = await owned
         .run(async () => {
+          if (flavor === 'configure')
+            await waitForConfigureReady(owned.child, join(state, 'ready'));
           for (let attempt = 0; attempt < 100 && !(await Bun.file(absentReady).exists()); attempt++)
             await Bun.sleep(5);
           expect(await Bun.file(join(state, 'ready')).exists()).toBe(true);
@@ -848,7 +865,8 @@ test('configure writer excludes concurrent prod and dev swaps and bootstrap', as
   await mkdir(commands);
   await writeFile(
     join(commands, 'id'),
-    '#!/bin/sh\ntouch "$WBS_EDGE_STATE/ready"\nwhile [ ! -e "$WBS_EDGE_STATE/release" ]; do sleep 0.01; done\nprintf "1000\\n"\n',
+    // Valid startup outlasts the separate deliberate 500ms absent-marker observation.
+    '#!/bin/sh\n/bin/sleep 1\ntouch "$WBS_EDGE_STATE/ready"\nwhile [ ! -e "$WBS_EDGE_STATE/release" ]; do sleep 0.01; done\nprintf "1000\\n"\n',
     { mode: 0o755 },
   );
   const executablePath = process.env['PATH'];
@@ -868,8 +886,7 @@ test('configure writer excludes concurrent prod and dev swaps and bootstrap', as
     { ...process.env, WBS_EDGE_STATE: state, PATH: `${commands}:${executablePath}` },
   );
   await owned.run(async () => {
-    for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
-      await Bun.sleep(5);
+    await waitForConfigureReady(owned.child, ready);
     expect(await Bun.file(ready).exists()).toBe(true);
     for (const environment of ['prod', 'dev']) {
       const swap = Bun.spawn(await command('tools/tool-remote-scripts/src/swap.ts', state), {
