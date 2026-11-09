@@ -26,6 +26,7 @@ import {
   publicDeclaration,
   selectDeclarationOwner,
 } from './typescript-declarations';
+import type { TypeScriptExecution } from './typescript-execution';
 import { importSites, resolveDependency } from './typescript-imports';
 
 export interface ExtractorIdentity {
@@ -105,25 +106,55 @@ function readCompilerIdentity(workspace: string, system: TypeScriptSystem): Extr
   };
 }
 
+/** Detached core observations shared by selected compatibility and internal derivative execution. */
+export interface TypeScriptExtraction {
+  extractor: ExtractorIdentity;
+  relationships: TypeScriptRelationships;
+}
+
+function selectExtractor(
+  workspace: string,
+  system: TypeScriptSystem,
+  execution: TypeScriptExecution,
+): ExtractorIdentity {
+  switch (execution.kind) {
+    case 'selected':
+      return readCompilerIdentity(workspace, system);
+    // Proof: legacy identity substitution lost the independently pinned import selector digest
+    // and reached the forbidden wrapper-package read in actual derivative core execution.
+    case 'derivative':
+      return Object.freeze({
+        extractorId: 'typescript.compiler.paths-observer',
+        version: 'v6.0.3.paths-observer.1',
+        blob: execution.provenance.compilerExecutionIdentity,
+      });
+    // Proof: selecting legacy identity here reached forbidden source IO for the unknown branch.
+    default:
+      throw new Error('TypeScript execution selection invalid');
+  }
+}
+
 /**
- * Shared runner. The selected executable compiler grants no runtime authentication.
- * Only the filesystem compatibility wrapper selects the legacy policy.
+ * Internal shared runner; derivative selections are privately built by owned composition.
+ * Selects execution identity before any import, reverse-edge or declaration selector hash.
+ * It does not establish retained source ownership or install strict paths admission.
  * @internal
  */
-export function extractTypeScriptRelationshipsWithPolicy(
+export function runTypeScriptExtraction(
   workspace: string,
   request: RelationshipRequest['typescript'],
   source: TypeScriptSource,
   policy: TypeScriptPolicy,
-  compiler: TypeScriptRuntime,
-  mode: TypeScriptConfigurationMode = 'compatible',
-): { extractor: ExtractorIdentity; relationships: TypeScriptRelationships } {
+  execution: TypeScriptExecution,
+  mode: TypeScriptConfigurationMode,
+): TypeScriptExtraction {
   // Proof: validation omission reached the source getter in
   // `compiler configuration mode rejects unknown before source callbacks`.
   if (!['compatible', 'retained-type-roots', 'retained-config-roots'].includes(mode))
     throw new Error('TypeScript configuration mode invalid');
-  const system = boundSource(workspace, source, policy, compiler);
-  const extractor = readCompilerIdentity(workspace, system);
+  // Proof: installed namespace substitution lost the authenticated createProgram sentinel.
+  const system = boundSource(workspace, source, policy, execution.compiler);
+  const extractor = selectExtractor(workspace, system, execution);
   const projects = request.configPaths.map((configPath) =>
     parseProject(workspace, configPath, system, mode),
   );
@@ -155,6 +186,7 @@ export function extractTypeScriptRelationshipsWithPolicy(
         // Proof: omitting this charge admitted the one-byte-short observation budget
         // in `observation budget charges every emitted declaration and selector before accumulation`.
         system.chargeOutput(JSON.stringify(selector));
+        // Proof: post-hash extractor replacement lost the independent actual import preimage digest.
         const identity = hashCanonical(selector);
         importsByIdentity.set(identity, { ...selector, identity });
       }
@@ -198,6 +230,7 @@ export function extractTypeScriptRelationshipsWithPolicy(
       const selector = { provider, importers, extractor };
       // Proof: omitting reverse-selector charging admitted the same one-byte-short observation budget.
       system.chargeOutput(JSON.stringify(selector));
+      // Proof: post-hash extractor replacement lost the independent reverse-edge preimage digest.
       return { ...selector, identity: hashCanonical(selector) };
     });
 
@@ -219,6 +252,29 @@ export function extractTypeScriptRelationshipsWithPolicy(
 }
 
 /**
+ * Shared selected-runtime compatibility entry. Only the filesystem wrapper chooses legacy policy.
+ * The explicitly selected compiler grants no executable-byte authentication.
+ * @internal
+ */
+export function extractTypeScriptRelationshipsWithPolicy(
+  workspace: string,
+  request: RelationshipRequest['typescript'],
+  source: TypeScriptSource,
+  policy: TypeScriptPolicy,
+  compiler: TypeScriptRuntime,
+  mode: TypeScriptConfigurationMode = 'compatible',
+): TypeScriptExtraction {
+  return runTypeScriptExtraction(
+    workspace,
+    request,
+    source,
+    policy,
+    { kind: 'selected', compiler },
+    mode,
+  );
+}
+
+/**
  * Extracts through explicit compiler IO. Limits count every probe, returned read byte,
  * enumerated path and declaration/selector observation, including repeated work. Namespace
  * misses never reach the source except effective explicit typeRoots admission in retained mode.
@@ -234,6 +290,19 @@ export function extractTypeScriptRelationshipsFromSource(
   compiler: TypeScriptRuntime,
   mode: TypeScriptConfigurationMode = 'compatible',
 ): ReturnType<typeof extractTypeScriptRelationshipsWithPolicy> {
+  const snapshot = captureTypeScriptLimits(limits);
+  return extractTypeScriptRelationshipsWithPolicy(
+    workspace,
+    request,
+    source,
+    { kind: 'bounded', limits: snapshot },
+    compiler,
+    mode,
+  );
+}
+
+/** Captures each finite compiler allowance once before source callbacks or owned execution. */
+export function captureTypeScriptLimits(limits: TypeScriptLimits): TypeScriptLimits {
   const names: readonly (keyof TypeScriptLimits)[] = [
     'maximumProbes',
     'maximumReadBytes',
@@ -257,12 +326,5 @@ export function extractTypeScriptRelationshipsFromSource(
     if (!Number.isSafeInteger(ceiling) || ceiling < 0)
       throw new Error(`TypeScript ${name} must be a nonnegative safe integer`);
   }
-  return extractTypeScriptRelationshipsWithPolicy(
-    workspace,
-    request,
-    source,
-    { kind: 'bounded', limits: snapshot },
-    compiler,
-    mode,
-  );
+  return snapshot;
 }

@@ -689,8 +689,11 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       and manifest encoding, immutable provenance, finite copy/load limits and fresh private VM loading.
       TDD actual unchanged Bun 1.4.4 no-Node initialization, noLib/explicit-library declaration and real
       resolution controls, then independent raw-member/ownership/budget/loader policy/settlement faults.
-- [ ] 2.1d.1.3e6g2 Bind distinct derivative artifact/execution identity before selector hashing in an
-      additive core route, preserving complete selected/legacy serial identity and lifetime parity.
+- [x] 2.1d.1.3e6g2 Bind distinct derivative artifact/execution identity before selector hashing in an
+      internal non-activating core prerequisite, preserving complete selected/legacy serial identity
+      and lifetime parity. Complete detached envelope bounds/freeze/private ownership are source-proven;
+      exact review and owning/installed/canonical acceptance remain in g5. No strict public route
+      before g3 exact retained ownership and both g4 admission paths.
 - [ ] 2.1d.1.3e6g3 Join four runtime closure tuples to the exact owned ReviewRuntime and derivative
       envelope; prove foreign owner/role/path/getter/budget failures before compiler/source callbacks.
 - [ ] 2.1d.1.3e6g4 Admit actual compiler-options attempts synchronously on both Program host and
@@ -701,3 +704,8 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
 - [ ] 2.1d.1.3e6g6 Complete executing producer/config/reference closure, bounded parser settlement,
       actual CompilerReadManifestV1, eleven documents and preparation/freeze in parent order; obtain
       independently installed authority and unattended acceptance. No loader-stage trust promotion.
+
+Stage 2 sequencing: e6g2 is internal and non-activating. Its required discriminated selection is
+privately constructed from Stage 1 execution provenance; no caller supplies trusted identity or
+an alternative compiler. The strict public route remains dependent on e6g3 and both e6g4 routes.
+The existing metadata-only judge reachability invariant remains until that first public composition.

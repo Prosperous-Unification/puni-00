@@ -2551,3 +2551,31 @@ both host/system paths admission; packaging and installed/combined proofs. Full 
 closure, complete config/reference/resolution closure, parser settlement, complete actual read manifest,
 eleven retained documents, protected preparation/selection/freeze and independent external authority
 remain explicit acceptance dependencies. Historical e6e1/e6f1 receipts stay intact.
+
+### Internal derivative identity/core prerequisite (Stage 2)
+
+Intent: carry the owned derivative execution identity through the actual shared core before every
+import, reverse edge and public declaration selector hash. Preserve the complete installed/selected
+and serial recipe/output/lifetime behavior. This stage adds no public retained derivative route,
+observer placeholder, activation or trust claim; exact retained ownership and both actual-attempt
+admission paths remain prerequisites for the strict public composition.
+
+An IO-free internal execution type distinguishes selected compilation from a nominal derivative
+selection. The core runner requires that union. Its selected wrapper constructs only the selected
+branch and reads the same package/version identity as before. The private derivative composition
+constructs its selection only inside the authenticated Stage 1 namespace callback, using owned
+artifact provenance; callers supply no identity or alternate compiler. Only this branch bypasses
+the wrapper identity recipe. The separate serial extractor is unchanged.
+
+The internal prerequisite returns an explicit schema/kind with unverified compiler provenance,
+captured request, extractor and all relationships. It snapshots finite compiler limits and request
+arrays/entries before source callbacks or compiler loading, bounds snapshot growth by the necessary
+whole-output allowance, checks the complete final envelope byte cap, deeply freezes detached values
+and only then registers an exact-object/owned-artifact binding. Failures publish no owned envelope.
+This ownership is the internal extraction/artifact join; Stage 3 must still establish the exact
+ReviewRuntime/source ownership and acquisition evidence before any strict retained entry exists.
+
+The pure core and IO-free types remain reachable from judge; the VM composition does not. Keep the
+Stage 1 type-inclusive no-loader/no-builder facade invariant and all clock/store/network scans.
+At the first actual public executable reachability in Stages 3/4, refine only the bounded loader clock
+and explicit deny-list token interaction with independent isolation negatives. No blanket exemption.

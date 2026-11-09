@@ -6288,3 +6288,77 @@ Only covering amended tests, changed-file checks and normal hooks are repeated i
 prior broad suite/full-acceptance results are historical, not newly rerun here. Exact successor
 review is required; Stages 2–5 and every full parent closure/settlement/read-manifest/eleven-document/
 preparation/freeze/independent-authority/installed acceptance obligation remain open.
+
+### Stage 2 internal identity/core checkpoint — in progress
+
+Base 5cd4c144000616755adabe5a9070b5c1d968554a/tree8dabfe1306e685021bd4bb104f180cd117cddcd3
+is independently approved for Stage 1 only. Stage 2 is internal and non-activating. Full owning,
+installed, canonical gate/CI and all later strict composition/closure/authority acceptance remain
+unverified. Focused commands, independent selector vectors and watched fault receipts follow;
+no success is inferred from source composition alone.
+
+### Stage 2 internal source/proof checkpoint — 2026-11-10
+
+The internal prerequisite now executes the owned derivative through the actual shared core and
+selects typescript.compiler.paths-observer / v6.0.3.paths-observer.1 with the owned execution
+identity before any import, reverse-edge or public-declaration selector hash. The selected entry
+retains its required explicit compiler and original wrapper identity recipe. The filesystem
+wrapper and serial implementation are byte-identical to Stage 1. No judge/Dash export, no-op
+observer, retained owner join, strict admission route or package activation was added.
+
+The execution union is IO-free and nominally separates private derivative construction from
+selected compatibility. Only the private authenticated namespace callback constructs the derivative
+record. The internal prerequisite envelope has schemaVersion1/kind typescript-derivative-prerequisite,
+unverified trust, captured request, Stage 1 compiler provenance and detached core relationships.
+Request references/lengths/indexed strings and finite limits are captured once; malformed/sparse
+state refuses, snapshot growth is bounded, and complete output bytes include all envelope fields.
+Only cap-checked, deeply frozen output receives an exact object/artifact binding. Failed loading,
+compilation, caps or freeze cannot register an owned envelope. No compiler/Program/AST enters it.
+This is the internal artifact/output join, not the still-required exact ReviewRuntime/source join.
+
+Literal independent configuration, artifact, execution and all three selector records live in
+relationships/typescript-derivative.expected.json. A separate Python hashlib calculation with
+hand-specified fields/strings, no repository producer/helper or baseline-log input, reconstructs
+all vectors; an independently implemented test serializer/hash checks them through actual core.
+The pre-change complete selected output is also retained as a historical parity observation.
+New extractor blob is 5c0c6d82bf82918032bdf831a69dddce02571fdacd03df5b8d1d77af076f9d8d;
+matching wrapper/version remains distinguishable and cannot authenticate this executable.
+
+Fresh scoped runs, serial compiler children under 900 MiB/120 seconds and 25ms RSS sampling:
+
+- New owning suite: actual noLib and ES5 core extraction, every selector family, complete golden
+  selected/serial parity, wrapper-read poisoning, owned namespace createProgram sentinel,
+  request/limit snapshots, finite growth, exact envelope cap, deep freeze and failure publication.
+- Existing core/compiler/runtime suites: 89 pass, 178 assertions, peak310288 KiB.
+- Existing serial suite: 18 pass, 58 assertions, peak172556 KiB. Large serial resource acceptance
+  is not established by these small fixtures and remains canonical-host work.
+- Judge facade: 1 pass, 7 assertions, peak227192 KiB. Its exact public surface and type-inclusive
+  no-executable-loader reachability remain unchanged, as do clock/store/network isolation scans.
+- Existing retained selected extraction/owner suites: 49 pass, 3050 assertions, peak780436 KiB.
+- Scoped changed-file lint and a narrow API diagnostic rooted in the real owning test pass under
+  the granted1500 MiB cap; narrowing the required artifact input to never fails actual callers,
+  then restored control passes. This is not full owning-project type acceptance.
+
+There are 33 independent watched fault receipts with intended assertion failure1/restored0:
+legacy/wrapper identity substitution, isolated execution-preimage field omissions, each selector
+family's post-hash tag replacement, installed-core substitution losing the authenticated namespace
+sentinel, snapshots/getter rereads/finite/request guards, whole-envelope cap, deep freeze/children,
+exact output/artifact owners, omitted registration and independent before-cap versus after-cap/
+before-freeze publication. NaN request length initially erased the requested config silently;
+its focused red then finite-length refusal passed. Final separately typed owner guards were
+reconfirmed after lint refinements. No resource kill/unrelated exception is counted as a proof;
+error-shape guards are distinguished from actual accepted-owner/cap/publication bypasses.
+
+Exact commands, independent vectors, source faults/restored logs and sampled metrics are durable in
+.superpowers/sdd/task10-architecture-plan/stage2-evidence/. Adjacent Proof comments name observed
+oracles. Stage 1 proofs were not broadly replayed. Bun remains1.4.4; dependency reuse still requires
+locked identity comparison and does not establish a fresh frozen install.
+
+Full owning typechecks/lint/build/package, installed execution, large serial resource workloads,
+exact-candidate independent review, canonical gate/CI and aggregate trust acceptance remain open.
+At first public executable reachability in Stages3/4, narrowly resolve the loader clock/deny-list
+scanner interaction with independent isolation negatives; do not weaken the current metadata-only
+boundary preemptively. Mandatory exact runtime/source ownership, both actual-admission paths,
+complete producer/config/reference closure, bounded parser process, actual read manifest, eleven
+documents, protected preparation/freeze and external-authority/installed acceptance remain required.
+No parent .3 or WBS leaf closes from this internal source checkpoint.

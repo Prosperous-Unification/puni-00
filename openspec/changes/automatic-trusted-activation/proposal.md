@@ -9,7 +9,8 @@ The user requires this work to proceed automatically without per-PR operator ste
 - A bounded successor captures the pinned four-member compiler derivative and executes its
   owned bytes privately, then binds distinct execution identity and actual paths admission
   to retained extraction. Full runtime closure, preparation/freeze and external acceptance
-  remain required; the loader stage keeps aggregate runtime trust unverified.
+  remain required; internal identity/core staging stays non-activating until exact retained
+  ownership and both actual-attempt admission routes exist. Aggregate runtime trust stays unverified.
 
 - A ready PR or changed candidate automatically receives independent review, checks, an
   immutable toolkit activation and an exact-candidate admission decision.
