@@ -766,3 +766,14 @@ No product migration or reduced recovery policy is proposed.
 
 Only this note was written. No runtime edits, tests/native execution, installation,
 host/provider requests, protected-file reads, deployment or notifications occurred.
+
+### Inspection lock lifecycle follow-up — 2026-11-09
+
+The [staged retry section](#single-put-retry-chain-and-staged-execution-2026-11-09)
+records the execution-profile change after the funding investigation above; its
+`restic/no-cache/locked-commands/v1` description is that investigation's baseline.
+The [inspection lock investigation](registry-restic-inspection-lock-bounds.md)
+derives conditional encrypted lock sizes and additions per Save, and identifies
+the still-missing enforced acquisition/refresh counts. Cancellation timers and
+`--retry-lock=0` do not supply those counts. This does not establish a complete
+reservation or enable physical admission.
