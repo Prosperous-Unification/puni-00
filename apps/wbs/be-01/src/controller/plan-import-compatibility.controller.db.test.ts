@@ -1,5 +1,5 @@
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { connectedTransferFixture, transferSnapshot } from '../testing/connected-transfer-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -76,9 +76,14 @@ test('outgoing-only downloaded v12 imports with a distinct destination abbreviat
 });
 
 /** Proof: bypassing the version fence admitted the unsupported next version and misclassified its malformed variant. */
-test.each([false, true])(
-  'unsupported v13 (malformed content: %s) refuses exactly without writes',
-  async (malformed) => {
+test.each([
+  [13, false],
+  [13, true],
+  [14, false],
+  [14, true],
+] as const)(
+  'unsupported v%i (malformed content: %s) refuses exactly without writes',
+  async (version, malformed) => {
     await openHarness();
     const seeded = await harness.call('ada', 'POST', '/api/projects/import', planDocumentFixture());
     expect(seeded.status).toBe(201);
@@ -87,10 +92,18 @@ test.each([false, true])(
       document: { version: number };
       workItems: Record<string, unknown>[];
     };
-    downloaded.document.version = 13;
+    downloaded.document.version = version;
+    Reflect.set(downloaded, 'stepParallels', []);
     if (malformed) Reflect.set(downloaded.workItems[0] ?? {}, 'priority', 'invalid-future-value');
     const before = transferSnapshot(harness);
-    const refused = await harness.call('ada', 'POST', '/api/projects/import', downloaded);
+    const allocations = spyOn(crypto, 'randomUUID');
+    let refused;
+    try {
+      refused = await harness.call('ada', 'POST', '/api/projects/import', downloaded);
+      expect(allocations).not.toHaveBeenCalled();
+    } finally {
+      allocations.mockRestore();
+    }
     expect(refused).toEqual({
       status: 400,
       body: { error: 'unsupported_version', path: 'document.version', detail: null },

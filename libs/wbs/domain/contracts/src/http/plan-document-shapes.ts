@@ -352,6 +352,33 @@ export const planDocumentV12 = planDocumentV11.omit('document', 'typedDependenci
 });
 export type PlanDocumentV12 = (typeof planDocumentV12)['infer'];
 
+/** Required authored local leaf/step policy, including explicit equality. */
+export const documentStepParallel = type({
+  workItemId: 'string',
+  stepId: 'string',
+  // Proof: primitive-range loosened to number; malformed maxima controls succeeded (2026-11-09).
+  maxParallel: '1 <= number.integer <= 1000',
+});
+export type DocumentStepParallel = (typeof documentStepParallel)['infer'];
+
+/** Reserved ordinary reader shape; output stays on11 until coordinated admission. */
+export function createPlanDocumentV13() {
+  return planDocumentV11.omit('document').and({
+    document: planHeader.omit('version').and({ version: '13' }),
+    stepParallels: documentStepParallel.array(),
+  });
+}
+export type PlanDocumentV13 = ReturnType<typeof createPlanDocumentV13>['infer'];
+
+/** Reserved connected reader shape; retains12 evidence without activating output. */
+export function createPlanDocumentV14() {
+  return planDocumentV12.omit('document').and({
+    document: planHeader.omit('version').and({ version: '14' }),
+    stepParallels: documentStepParallel.array(),
+  });
+}
+export type PlanDocumentV14 = ReturnType<typeof createPlanDocumentV14>['infer'];
+
 /** Version discrimination keeps ordinary local endpoints separate from connected v12 endpoints. */
 export const planDocument = planDocumentV11.or(planDocumentV12);
 export type PlanDocument = PlanDocumentV11 | PlanDocumentV12;
@@ -368,6 +395,16 @@ export const planDocumentResponse = responseSchema(planDocument);
 export const planDocumentHeaderRequest = requestSchema(
   type({
     document: type({ format: "'wbs-plan'", version: 'number.integer', exportedAt: 'string' }),
+  }),
+  { undeclaredKeys: 'delete' },
+);
+
+/** Opaque transfer-only fields survive header reading before historical projection. */
+export const planDocumentTransferHeaderRequest = requestSchema(
+  type({
+    document: type({ format: "'wbs-plan'", version: 'number.integer', exportedAt: 'string' }),
+    'stepParallels?': 'unknown',
+    'connected?': 'unknown',
   }),
   { undeclaredKeys: 'delete' },
 );

@@ -1568,3 +1568,134 @@ and `wbs-domain:lint` passed with `NX_DAEMON=false` and
 A live process sample during lint showed ESLint967,796 KiB plus Nx207,592 KiB
 and small wrappers, below the granted1,500 MiB bound. Focused Prettier and
 `git diff --check` passed. No cap escalation, full local gate or host action.
+
+## StageA archival reader prerequisite — 2026-11-09
+
+Base `82fa8928664998c9a8b72f6af16018d2c142547e`, isolated native tree
+`/home/df/.codex/worktrees/6335/puni-00`, branch `feat/task11-stageA-formats`.
+This is reader preparation only. Parent3.3/3.4 and StageB–I remain open. Current
+output11/12, mounted1–12 import, normalized `PlanDocumentImport` and sparse writer
+preservation fences remain active. No source admission, boot/grant or imported-plan
+owner was changed. Existing version9/schema8 receipts above remain historical.
+
+API: lazy `createPlanDocumentV13()` / `createPlanDocumentV14()` require
+`documentStepParallel[]`. `decodePlanDocumentTransfer(unknown)` returns the existing
+typed refusal or `{plan, stepParallels, family}`; `family: connected` additionally
+requires detached `DocumentConnected`. Original header versions remain on `plan`.
+Transfer-only opaque header fields survive projection; the active import request
+and normalized type remain unchanged. External mappings never supply sparse owner
+or step membership. No non-test caller mounts this reader.
+
+Fresh serial commands (all from this tree, `/usr/bin/time -v`):
+
+| Command                                                                                      | Observed                                                                                     | Maximum RSS KiB |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------: |
+| `bun test libs/wbs/application/core/src/module/plan-document/plan-document-transfer.test.ts` | 51 pass,0 fail;1–14, future/invalid headers, exact policy, local refs, historical evidence   |          434060 |
+| `bun test libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts` | 98 pass,0 fail; existing behavior and lazy13/14 shapes                                       |          563608 |
+| `bun test apps/wbs/be-01/src/controller/plan-import-compatibility.controller.db.test.ts`     | 8 pass,0 fail;13/14 valid/malformed header refusals, full DB snapshots, zero allocator calls |          576440 |
+| `bun test libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts`                  | 2 pass,0 fail;379MB shape-load delta below500MB bound                                        |          432472 |
+| `bunx openspec validate set-step-node-parallelism --strict --json`                           | exit1:12 pre-existing long-requirement warnings; no new reader warning                       |           95188 |
+| `bunx openspec validate --all --json`                                                        | exit 0:341 passed (321 changes,20 specs)                                                     |          169264 |
+
+Initial behavior RED used a delegation stub and observed32 assertion failures with8
+passing existing header/fence controls. Its430096KiB peak exceeded the initial300MiB
+runtime allowance; this was reported immediately and further runtime checks paused
+until the coordinator explicitly granted900MiB serial checks. The missing-export
+loader error preceding the stub was not counted as behavior evidence. Locked
+`bun.lock` matches the dependency checkout; `node_modules` is an explicitly reused
+symlink to `/home/df/wd/puni/puni-00/node_modules`, not a fresh install.
+
+R5 mutants were applied individually to production code and restored before each
+positive control. Every accepted mutant exited1 on an intended assertion; every
+restored targeted control exited0. The external StageA evidence directory retains
+fault/control logs and exact mutation anchors, mutant SHA-256 and exit receipts.
+
+| Fault                                                   | Production oracle that failed                                                                  |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Connected-family membership forced false                | connected12 exact external-mapping success                                                     |
+| Measures threshold changed11→13                         | frozen11/12 nonempty measures/resources retained                                               |
+| Required collection absent→empty fallback               | current missing/null collection typed refusals                                                 |
+| Legacy nonempty/malformed refusal removed               | raw legacy smuggling typed refusal                                                             |
+| Mounted classifier enabled transfer versions            | valid13/14 triggered6 production UUID allocations each; malformed body precedence also changed |
+| Primitive maxima loosened to number                     | current invalid range/fraction cases succeeded                                                 |
+| Owner identity uniqueness removed                       | duplicate local owner inventory succeeded                                                      |
+| Step identity uniqueness removed                        | duplicate steps with empty policy succeeded                                                    |
+| Leaf check removed                                      | parent-owned fact succeeded                                                                    |
+| Local owner membership removed                          | foreign/missing owner succeeded                                                                |
+| Local step membership removed                           | foreign step succeeded                                                                         |
+| Pair uniqueness removed                                 | duplicate exact pair succeeded                                                                 |
+| Connected parser supplied invented evidence for absence | required connected evidence refusal became success                                             |
+| Transfer future-version fence removed                   | future header misclassified as sparse invalid_body                                             |
+
+A trial removing only the connected error guard reached `structuredClone` with a
+schema error and failed via DataCloneError. It was rejected as proof, restored, then
+replaced by the accepted absent-evidence parser dependency fault. This trial is not
+one of the14 accepted mutants. No safety check is claimed proven by a syntax error,
+unsupported-family positive, OOM or generic internal exception.
+
+The first uncached `NX_DAEMON=false NX_PARALLEL=1 NODE_OPTIONS=--max-old-space-size=1024 bunx nx run wbs-contracts:typecheck --skip-nx-cache` passed, but `/usr/bin/time -v` measured 3114848 KiB maximum RSS, exceeding the 1500MiB graph grant. This is a resource-policy breach, not an in-budget receipt. Further heavy checks stopped immediately and the coordinator was notified. Inspection then confirmed `tsc` invokes the native TypeScript 7 executable; the Node heap flag does not cap that child. No cap increase was requested. The coordinator cleared one retry changing only `GOMAXPROCS=1`, through `bounded-monitor.py 1500 120 /usr/bin/time -v bunx nx run wbs-contracts:typecheck --skip-nx-cache` with the same prior environment. The live monitor refused at 1537228 KiB against 1536000 KiB (1500MiB), elapsed 8.527s, child SIGKILL, exit 97. All broad owning compiler/lint targets stopped on that first refusal. Bounded compiler acceptance is unavailable and deferred to canonical host validation; no cap increase was requested. Monitored staged-file ESLint initially found three unnecessary test guards and one unsafe matcher assignment; these were repaired. Its final uncached staged-file run passed (child max RSS 1333084 KiB; live process-tree peak 1349984 KiB, exit 0, no refusal). Normal commit-hook receipt follows in the external report. Full local Nx gate, host gate/CI, independent exact review,
+installed reader acceptance and all writer/rollout checks remain unverified here.
+No migration changed, so migration lint/rollback were not run for this packet.
+
+## StageA review fix1 — 2026-11-10
+
+Correction base: `afe2193fc21918fe0fc91b9507522933836d1cce`. Independent architecture
+review requested P2 capture-before-validation and P3 correction of the malformed-row
+table. This fixes the existing precise reader contract; no schema, active importer,
+writer/output ceiling or admission changed. A4 and the full A–I goal stay open.
+
+The old table's `[null]` and `[fact]` entries were spread by Bun into scalar callback
+arguments. They did **not** establish null-row or zero-row coverage. Earlier receipts
+remain historical; this correction does not retroactively validate those claims.
+The corrected named-object table has three collection cases and eight actual row
+cases, with exact `stepParallels` versus `stepParallels[0]` assertions. Missing and
+numeric owner/step fields, null/array rows and an array with named fact properties
+are included. The collection-fallback mutant now fails exactly the three collection
+cases; all eight actual row cases still pass, proving their different layer.
+
+Sparse owner/step/maximum getters are each evaluated once into fresh ordinary fields
+before the primitive schema validates them; the emitted fields are those captured
+values. The other new connected check/copy boundary reproduced the same issue for
+project identity and nested revision. Its local iterative identity-aware snapshot
+captures enumerable JSON fields before validation without a recursive traversal.
+Shared references, holes and undeclared JSON fields survive; `__proto__` and
+`constructor` remain ordinary own data. Invalid primitive values stay invalid so
+known malformed input retains its typed refusal; unexpected getter failures propagate.
+
+Fresh focused command, from native6335, through the required process-tree monitor:
+
+```sh
+python /home/df/wd/puni/puni-00/.superpowers/sdd/task10-architecture-plan/evidence/bounded-monitor.py 900 120 /usr/bin/time -v bun test libs/wbs/application/core/src/module/plan-document/plan-document-transfer.test.ts
+```
+
+RED:58 pass/5 fail on actual changing maximum, owner, step, connected identity and
+nested revision assertions. Final GREEN:65 pass/0 fail,107 assertions; child maximum
+RSS437816 KiB; live process-tree peak442068 KiB under900 MiB; exit0/no refusal.
+Malformed function-valued connected identity refuses at `connected`; sparse and
+connected getter errors retain their exact thrown Error object.
+
+Fifteen independent production mutations each failed an intended assertion and were
+restored before an exit0 control: omitted sparse snapshot; omitted connected snapshot;
+required collection; row-array shape; primitive owner type; primitive step type;
+integer/range constraint; owner identity uniqueness; step identity uniqueness; leaf
+ownership; local owner membership; local step membership; pair uniqueness; shared
+connected snapshot reuse; and replacing own-data definition with `Reflect.set`.
+The two snapshot omission faults reproduce the actual changed-value regressions.
+New adjacent Proof comments identify the added boundary proofs. Exact mutation
+anchors/hashes, logs and monitor outputs are in the external fix1 evidence folder.
+The first mutation script stopped at an ambiguous row-shape anchor before editing
+that case; the remaining cases resumed with a unique transfer-loop anchor. This
+setup stop is not a fault proof. Prior disqualified DataCloneError receipts remain
+unchanged and are not reused as evidence for this correction.
+
+No compiler retry, broad owning target, full gate, host/provider action or push was
+run. The prior bounded owning compiler refusal remains unresolved. Monitored staged
+lint/normal-hook and exact commit receipts follow in the external fix1 report;
+independent scoped Astra re-review remains required.
+
+Scoped staged-file ESLint initially found unsafe `any` leakage from Array.isArray's
+slot inference and Bun rejection-matcher await typings. A readonly unknown-slot alias
+and explicit awaited rejection capture in the tests resolved those findings without
+casts or suppressions. The final two-file ESLint run exited0, child maximum RSS884152
+KiB, monitored process-tree peak900284 KiB under1500 MiB, no refusal. The final65-test
+run above includes those type/assertion adjustments. No native compiler retry ran.

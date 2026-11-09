@@ -1,5 +1,7 @@
 import {
   createPlanDocumentV10,
+  createPlanDocumentV13,
+  createPlanDocumentV14,
   type PlanDocument,
   planDocumentResponse,
   planDocumentV12,
@@ -2230,4 +2232,45 @@ test('frozen v10 strict consumers refuse the newer embedded project factor', asy
   if (typeof project !== 'object' || project === null) throw new Error('fixture project missing');
   Reflect.set(project, 'budgetFactor', 2);
   expect((await validateSchema(strict, document)).issues).toBeDefined();
+});
+
+test('reserved13/14 shapes require sparse facts while frozen11/12 output stays current', async () => {
+  const ordinary = await exportDocument();
+  expect(ordinary.document.version).toBe(11);
+  const sparse = [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }];
+  const v13 = responseSchema(createPlanDocumentV13());
+  expect(
+    (
+      await validateSchema(v13, {
+        ...ordinary,
+        document: { ...ordinary.document, version: 13 },
+        stepParallels: sparse,
+      })
+    ).issues,
+  ).toBeUndefined();
+  expect(
+    (await validateSchema(v13, { ...ordinary, document: { ...ordinary.document, version: 13 } }))
+      .issues,
+  ).toBeDefined();
+  const v14 = responseSchema(createPlanDocumentV14());
+  const connected = projectConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected;
+  expect(
+    (
+      await validateSchema(v14, {
+        ...ordinary,
+        connected,
+        document: { ...ordinary.document, version: 14 },
+        stepParallels: sparse,
+      })
+    ).issues,
+  ).toBeUndefined();
+  expect(
+    (
+      await validateSchema(v14, {
+        ...ordinary,
+        connected,
+        document: { ...ordinary.document, version: 14 },
+      })
+    ).issues,
+  ).toBeDefined();
 });
