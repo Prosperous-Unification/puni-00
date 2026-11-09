@@ -7515,3 +7515,51 @@ under `/tmp/puni-pr-delivery-actual-main-20261108`. This restores the existing
 fixture contract. No full suite/host gate, native harness, retained state, process
 reader behavior, deployment or CI rerun was performed by this worker. Final
 formatting/docs checks and independent review are recorded by the publisher.
+
+### Real-wall fixture follow-up — arm after child ownership (2026-11-09)
+
+At public head `f8c97b0992811dab56d6a9c0cbd7db1196001fdc`, infra run
+`42559003180`, job `128971037723`, failed only the operator `real-wall` unit
+case. Its compound assertion did not distinguish no child from an unreaped child.
+The registry overflow witnesses passed in the same hosted run with actual
+`SIGKILL`, reaping and absent-PID observations.
+
+RW-A1: a preparation race explains the observed assertion, but hosted child count
+and exact alarm location were not captured. Locally, an in-memory 75 ms delay in
+`read_prepared` reproduced the assertion with zero children and
+`operator-wall-timeout`; the unchanged selected test passed separately. Retaining
+200 ms preparation latency in the shipping fixture also made the original test
+fail before the correction.
+
+The unit fixture now arms the unmodified production work alarm at the first real
+selector wait, after one live child is owned inside the protected capture. The
+work window remains 50 ms, the terminal reserve three seconds and Bun's outer
+limit ten seconds. The fixture deadline gives preparation a test-only five-second cooperative
+budget; the unchanged outer Bun timeout bounds the entire case. Assertions
+require the real work-timeout reason, successful cleanup, closed pipes, reaping
+and a published `-SIGKILL` capture. Child count is reported separately on failure.
+
+Fresh ordinary local verification with Bun 1.4.4:
+
+- `bun test tools/tool-fleet/src/lab-staging-native-prepare.test.ts`: 41 pass,
+  zero fail, 82 assertions, 15.40 seconds, including retained startup latency.
+- Removing only the first-wait `arm_work_watchdog()` call in memory, retaining
+  the preceding deadline shift: exit 1 at the independent reason assertion, with
+  `operator-wall-timeout` despite completed cleanup and capture. This isolates
+  the alarm call from the cooperative deadline guard; it does not prove an exact
+  50 ms timing bound or omission of the complete two-line rearm block.
+- Removing only the loaded builder's child-kill call through an in-memory AST
+  mutation: exit 1 at the unreaped-child assertion. The fixture's finalizer then
+  terminates and reaps its owned local sleeper. Production files are unchanged.
+
+Exact mutated fixture texts and their outputs are retained in the session receipts
+under `.superpowers/reviews/dash-followup-20261109/parallel/real-wall-negative-*`.
+Fresh owning `bunx nx run-many -t lint typecheck -p tool-fleet --parallel=2
+--skip-nx-cache` passed both targets; formatting and all 341 OpenSpec validations
+also passed before review corrections. Final publication checks are recorded by
+the publisher.
+
+RW-A2: this restores the existing ordinary unit-test boundary; it authorizes no
+production watchdog repair or privileged/native qualification campaign. Those
+remain stopped. Hosted acceptance of the corrected head and canonical h2 main
+qualification remain pending; local unit results do not establish either.
