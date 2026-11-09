@@ -10167,7 +10167,7 @@ CLI 2.27.4; neither failed job produced a source-analysis verdict. No managed
 workflow retry, empty commit or security-configuration change was requested.
 This is separate from the live current-main infrastructure retry and host gate.
 
-## Staged S3 retry profile prerequisite — 2026-11-09
+## Staged S3 retry profile prerequisite (2026-11-09)
 
 Implemented on `feat/registry-s3-retry-profile-20261109`, based on
 `c78466fd9bc50ff01f2eb49a63c5cf799e5e993e`. This completes only the staged
