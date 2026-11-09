@@ -3308,10 +3308,11 @@ assertion and a `try` move.
 ## 2026-11-08 h4claw enrolled in observe mode; first observe-mode gate throttled
 
 `gate_host` was applied to h4claw with `puni_gate_host_pool_enroll: true` from a controller
-worktree at `main` (launcher moved to `a5e9dbe9f` first, gate-hosts.md step 5), then
-`ops pool init` ran and the three Dash units started. Private `puni-plan` evidence:
-`evidence/2026-11-08-enrollment-h4claw.md`. h2puni is not enrolled. This is an interim
-record. **EV-A7** The controller SHA used for apply 1 and apply 2 is unknown; neither the
+worktree at a `main` commit that is not recorded (EV-A7; launcher moved to `a5e9dbe9f` first,
+gate-hosts.md step 5), then `ops pool init` ran and the three Dash units started. Private
+`puni-plan` evidence: `evidence/2026-11-08-enrollment-h4claw.md`; the EV-A ids below are this
+section's own and do not match that record's EV-A1–EV-A10. h2puni is not enrolled. This is an
+interim record. **EV-A7** The controller SHA used for apply 1 and apply 2 is unknown; neither the
 launcher SHA nor the later validate controller SHA identifies those lost applies.
 
 - **EV-A1** The enrolling worker died with a session restart before writing its record, so
@@ -3329,9 +3330,10 @@ launcher SHA nor the later validate controller SHA identifies those lost applies
   5 GiB, disk budget 48 units, units `gate_tree` ×2, `dagger_engine`, `docker_build`, no
   concurrency-eligible types. `ops pool inspect`: mode `observe`, guard `on`, `guardHolder`
   `null`, allocatable 7 cores, 10 GiB, 48 units, 4 slots. The 5 GiB headroom is not the role default
-  (`puni_gate_pool_headroom` `memoryGib: 2`), and where the override came from is unknown.
-  Before any reapply to h4claw, the operator must recover the vars that produced it. A reapply
-  at 2 GiB against the pinned 5 GiB is refused as a pinned-field change.
+  (`puni_gate_pool_headroom` `memoryGib: 2`); it comes from the staged enrolling vars file
+  `$OPS/gate.json.enroll-h4claw.2026-11-08`, which every reapply to h4claw must use. Why 5 GiB
+  was chosen is not recorded. A reapply at 2 GiB against the pinned 5 GiB is refused as a
+  pinned-field change.
 - **Restart observations; proof remains open (6.7).** `systemctl --user show dash-resources-watch.service`:
   `NRestarts=2`, `InactiveExitTimestamp` 20:39:54Z, `ActiveEnterTimestamp` 20:40:24Z. `NRestarts`
   counts only systemd's automatic restarts, and the 30 s gap is `RestartSec=30`. The watch
@@ -3348,13 +3350,19 @@ launcher SHA nor the later validate controller SHA identifies those lost applies
 - **EV-A4** On h4claw, `journalctl --user` as `puni1` over ssh prints "No journal files were opened due to
   insufficient permissions"; gate-hosts.md now reads restarts and refresh outcomes from
   `systemctl --user show`, and says the restart proof needs `kill -9`.
-- The refresh timer's runs at 21:01:55Z and 22:04:59Z exited 75: gates were working in the
-  launcher checkout, the modelled busy outcome.
+- The refresh timer's run at 21:01:55Z exited 75: gates were working in the launcher checkout,
+  the modelled busy outcome. The next run was scheduled for 22:04:56Z; its outcome is not
+  recorded.
 
 First observe-mode gate, `gate:a5e9dbe9`, launched from the launcher checkout and admitted
 onto the first gate tree at 19:44:52Z; the legacy shell lock reads `dash-job-<id> gate:a5e9dbe9`
 through its `legacy-holds/` file, and a peer's gate waited in the pool behind it (`waiting …
-overtakes 0`).
+overtakes 0`). That waiter, `gate:3aae0580`, left at 21:33:16Z: its owner sent SIGTERM and the
+pool logged `interrupted by SIGTERM while waiting; its ticket is withdrawn`, the modelled
+cancellation, and the queue has read `waiting none` since. Admission of a second job was not
+observed. At 23:57Z (4 h 12 min) the first job was still `held`, using 0.019 cores over a 60 s
+`cpu.stat` window with `memory.pressure` `full avg300` 95.5 %, and its exit is still owed; the
+owner's SIGTERM should record exit 143 and settle the row.
 
 - **EV-A5 The `gate` envelope throttles the gate in observe mode.** The scope runs under
   `MemoryHigh` at the catalogue's estimated 6 GiB (`memory.high 6442450944`, `MemoryMax`

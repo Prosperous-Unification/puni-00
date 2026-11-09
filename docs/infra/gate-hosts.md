@@ -7,9 +7,8 @@ second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and l
 [the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md). Since 2026-11-08
 h4claw is enrolled in its Dash host pool in observe mode, so gate on it as `puni1` from
 `~/puni-00-gate-launcher` ([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of
-about 100 minutes for a full gate is from before enrollment. The first observe-mode gate there
-was throttled at the `gate` type's 6 GiB memory estimate and had not finished after 3 h 05 min
-(the known issue in that section).
+about 100 minutes for a full gate is from before enrollment; the first observe-mode gate was
+throttled by the estimated `gate` envelope (the known issue in that section).
 
 ## What the role sets up
 
@@ -233,9 +232,8 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    `"puni_gate_host_pool_enroll": true, "puni_gate_host_pool": {"authorityId": …, "epoch": …,
 "providerId": …, "mcpResource": "https://…/mcp", "credential": "wbs_mk_…", "diskBudgetUnits": …}`.
    Units are GiB. The budget must leave `headroomBytes` (10 GiB) free beyond it whenever a
-   calibration runs. Headroom is a separate role input, `puni_gate_pool_headroom`. For h4claw,
-   preserve its pinned `{ cpuCores: 1, memoryGib: 5 }` on every enrolled reapply; recover the
-   original vars before applying (step 7). The role default is 2 GiB.
+   calibration runs. Headroom is a separate role input, `puni_gate_pool_headroom`; once the pool
+   is initialized it is pinned, so reapplies must carry the enrolling vars (step 7).
 3. **Drain.** Stop intake, including unattended intake: on h2puni the dev poller's
    `solver-image-publish` launches heavy jobs by itself, so stop the poller first. Then let the
    host's heavy queue drain (`bin/with-heavy-lock.sh status` reads `holder none`). Enrolling while
@@ -297,9 +295,10 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    disk input stops the role before it rewrites the configuration ("pinned field differs from
    the ledger"). Choose headroom before init; changing it later needs re-enrollment, which with
    the fixed root means retiring the ledger first. h4claw's ledger pins headroom 1 core and 5 GiB,
-   not the role default of 1 core and 2 GiB, and where the 5 GiB came from is not recorded.
-   Before any reapply to h4claw, recover the vars that produced the pin. Do not reapply with the
-   default 2 GiB: it stops at "pinned field differs from the ledger".
+   not the role default of 1 core and 2 GiB. The pin comes from the staged enrolling vars file
+   `$OPS/gate.json.enroll-h4claw.2026-11-08` (`puni_gate_pool_headroom {cpuCores 1, memoryGib 5}`);
+   why 5 GiB was chosen is not recorded. Every reapply to h4claw must use that file. A reapply
+   with the default 2 GiB stops at "pinned field differs from the ledger".
 8. **Switch (6.5).** Run `ops pool switch-mode concurrent` after the five-launcher checklist, with
    the types allowed to overlap listed in `puni_gate_pool_concurrency_eligible`. Reapply the role
    to write them.
@@ -319,7 +318,8 @@ under `MemoryHigh` at the `gate` type's estimated 6 GiB and was throttled: `memo
 runs hit heap OOMs. At 3 h 05 min it was still in its first `nx run-many`, and its exit is not
 recorded ([dash-host-jobs verification](../../openspec/changes/dash-host-jobs/verify.md), EV-A5).
 A gate that fails under this throttling is an observed gate failure: its cause needs resolving,
-and it is not a pass. The `gate` type must be calibrated (step 7 of
+and it is not a pass. It is not a verdict on the sha either: rerun it on h2puni, or on h4claw
+once `gate` is calibrated. The `gate` type must be calibrated (step 7 of
 [Enroll a host in the host pool](#enroll-a-host-in-the-host-pool)) before this path's run time
 or failures can be judged. The canonical gate is unchanged: a gate passes only by exiting 0, as
 on h2puni.
