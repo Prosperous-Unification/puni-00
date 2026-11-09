@@ -221,8 +221,10 @@
       second plain enrolled apply with `changed=0`. h2puni is not enrolled. One decision is also
       owed: whether SIGTERM cancellation (exit 0, `resources/command.ts`) is a stop that must
       come back (`Restart=always`, which still honours `systemctl stop`) or the one modelled stop
-      that stays down. Today only thrown refusals, which exit 1, restart; `Restart=on-failure`
-      does not restart an exit 0.
+      that stays down. Under today's `Restart=on-failure`, thrown refusals exit nonzero and are eligible
+      for restart, and a clean SIGTERM cancellation exits 0 and does not restart. That does not
+      mean a SIGKILL or a crash never restarts. `Restart=always` is a proposal only, and the
+      broader requirement that every modelled stop comes back stays unresolved.
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
       (`Restart=on-failure`, `RestartSec=30`, `KillMode=process`, skipped until the ledger
       exists) and the audit pair `ops job render-audit-units` renders. It enables them on an

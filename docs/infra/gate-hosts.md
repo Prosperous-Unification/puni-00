@@ -295,10 +295,14 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    disk input stops the role before it rewrites the configuration ("pinned field differs from
    the ledger"). Choose headroom before init; changing it later needs re-enrollment, which with
    the fixed root means retiring the ledger first. h4claw's ledger pins headroom 1 core and 5 GiB,
-   not the role default of 1 core and 2 GiB. The pin comes from the staged enrolling vars file
-   `$OPS/gate.json.enroll-h4claw.2026-11-08` (`puni_gate_pool_headroom {cpuCores 1, memoryGib 5}`);
-   why 5 GiB was chosen is not recorded. Every reapply to h4claw must use that file. A reapply
-   with the default 2 GiB stops at "pinned field differs from the ledger".
+   not the role default of 1 core and 2 GiB. The staged enrolling vars file
+   `$OPS/gate.json.enroll-h4claw.2026-11-08` sets
+   `puni_gate_pool_headroom {cpuCores 1, memoryGib 5}`, matching the rendered host configuration
+   in a comparison on 2026-11-09 (verify.md). The vars actually passed to the lost applies and
+   why 5 GiB was chosen are not recorded. Preserve the pinned headroom on every reapply;
+   the other pinned fields in the staged file have not been checked against the ledger, so a
+   successful reapply with that file stays owed. A reapply with the default 2 GiB stops at
+   "pinned field differs from the ledger".
 8. **Switch (6.5).** Run `ops pool switch-mode concurrent` after the five-launcher checklist, with
    the types allowed to overlap listed in `puni_gate_pool_concurrency_eligible`. Reapply the role
    to write them.
@@ -317,9 +321,13 @@ under `MemoryHigh` at the `gate` type's estimated 6 GiB and was throttled: `memo
 6.93 GiB, `memory.pressure` stayed above 90 %, two `bun test` runs timed out and three `eslint`
 runs hit heap OOMs. At 3 h 05 min it was still in its first `nx run-many`, and its exit is not
 recorded ([dash-host-jobs verification](../../openspec/changes/dash-host-jobs/verify.md), EV-A5).
+The latest upstream report says it was still held at 23:57Z (4 h 12 min); that time is unverified
+(EV-A8). The 22:50Z read remains the last coordinator observation.
 A gate that fails under this throttling is an observed gate failure: its cause needs resolving,
-and it is not a pass. It is not a verdict on the sha either: rerun it on h2puni, or on h4claw
-once `gate` is calibrated. The `gate` type must be calibrated (step 7 of
+and it is not a pass. Rerun that sha's canonical gate on h2puni for final qualification. An
+h4claw rerun becomes a verdict only once `gate` is calibrated and this path has a recorded
+passing terminal gate (6.4). Memory pressure alone cannot diagnose the payload, and a red run
+never becomes a qualification pass. The `gate` type must be calibrated (step 7 of
 [Enroll a host in the host pool](#enroll-a-host-in-the-host-pool)) before this path's run time
 or failures can be judged. The canonical gate is unchanged: a gate passes only by exiting 0, as
 on h2puni.
