@@ -6,6 +6,6 @@ Generated helpers use the same sanitizer with the selected Bun executable and ca
 
 The concrete probes, killed controls and limits belong in [PUNI verification](../../openspec/changes/puni-cli/verify.md#startup-boundary-probes-2026-11-09). Package builders and helper composers must share the launch contract so a helper cannot silently reintroduce an unprotected startup path.
 
-The [startup composer](../../apps/puni/cli/src/startup.ts) owns the shared script header and programmatic prefix.
+The [shared startup composer](../../libs/shared/adapters/bun-startup/src/index.ts) owns the shared script header and programmatic prefix.
 
 The selected Bun executable must have an absolute path without an equals sign: env parses a command containing equals as an environment assignment even after its option separator. Installed script and operand paths may contain equals signs; the composer refuses only the unsupported runtime path before constructing an invocation.

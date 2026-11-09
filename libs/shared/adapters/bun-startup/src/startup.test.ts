@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { createLaunch, createShebang } from './startup';
+import { createLaunch, createShebang } from './index';
 
 const roots: string[] = [];
 const removed = ['BUN_OPTIONS', 'BUN_INSPECT_PRELOAD', 'NODE_OPTIONS', 'BUN_BE_BUN'] as const;

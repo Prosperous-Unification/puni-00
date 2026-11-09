@@ -23,6 +23,7 @@
     "resolveJsonModule": true,
     "types": ["bun-types"],
     "paths": {
+      "@shared/bun-startup": ["./libs/shared/adapters/bun-startup/src/index.ts"],
       "@tools/controller-account-fixture": [
         "./tools/tool-remote-scripts/src/fixtures/controller-account.ts"
       ],

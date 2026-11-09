@@ -1,11 +1,46 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'bun:test';
+import { beforeAll, describe, expect, it } from 'bun:test';
 import { ESLint } from 'eslint';
 
 const workspace = fileURLToPath(new URL('../../..', import.meta.url));
 const lint = new ESLint({ cwd: workspace });
+beforeAll(() => {
+  const child = Bun.spawnSync(
+    [
+      process.execPath,
+      '--no-env-file',
+      '--config=/dev/null',
+      '--eval',
+      "const { createProjectGraphAsync } = await import('@nx/devkit'); const graph = await createProjectGraphAsync({ exitOnError: true }); process.stdout.write(JSON.stringify({ startup: graph.nodes['shared-bun-startup'], imports: graph.dependencies['puni-cli'] }));",
+    ],
+    {
+      cwd: workspace,
+      env: { ...process.env, NX_DAEMON: 'false', NX_FORCE_REUSE_CACHED_GRAPH: 'false' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 20_000,
+    },
+  );
+  expect(child.exitCode, child.stderr.toString()).toBe(0);
+  const graph: unknown = JSON.parse(child.stdout.toString());
+  if (!isRecord(graph)) throw new Error('Nx graph observation is malformed');
+  expect(graph['imports']).toContainEqual({
+    source: 'puni-cli',
+    target: 'shared-bun-startup',
+    type: 'static',
+  });
+  expect(graph).toMatchObject({
+    startup: {
+      data: {
+        root: 'libs/shared/adapters/bun-startup',
+        tags: ['scope:shared', 'type:adapter', 'runtime:bun', 'ring:adapter', 'product:shared'],
+      },
+    },
+  });
+}, 30_000);
+
 const grammar = 'apps/puni/cli/src/cli-parser.ts';
 const neighbor = 'apps/puni/cli/src/cli-parser.test.ts';
 
@@ -69,5 +104,38 @@ describe('PUNI composition boundary', () => {
     it(`rejects ${alias} from grammar composition`, async () => {
       expect(await findBoundaryFailures(grammar, `await import('${alias}');`)).toHaveLength(1);
     }, 30_000);
+  }
+});
+
+describe('shared Bun startup boundary', () => {
+  for (const path of [
+    'apps/puni/cli/src/startup.ts',
+    'apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts',
+    'apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts',
+  ]) {
+    it(
+      'admits shared startup from ' + path,
+      async () => {
+        expect(await findBoundaryFailures(path, "await import('@shared/bun-startup');")).toEqual(
+          [],
+        );
+      },
+      30_000,
+    );
+  }
+
+  for (const alias of ['@puni/burokrat/runtime', '@tools/fleet-plan', '@wbs/core']) {
+    it(
+      'keeps product and infrastructure imports out of shared startup: ' + alias,
+      async () => {
+        expect(
+          await findBoundaryFailures(
+            'libs/shared/adapters/bun-startup/src/index.ts',
+            "await import('" + alias + "');",
+          ),
+        ).toHaveLength(1);
+      },
+      30_000,
+    );
   }
 });
