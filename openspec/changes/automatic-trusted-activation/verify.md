@@ -6167,3 +6167,81 @@ Refused checks and remaining obligations:
 - No derivative loading/authentication, wildcard admission, complete read manifest, protected
   freeze, external authority, public wire change, StepParallel change, host action or publication
   occurred. Parent .3 and WBS030.6 remain incomplete.
+
+### Owned derivative successor — Stage 1 in progress
+
+Base 82fa8928664998c9a8b72f6af16018d2c142547e is reviewed but its parent gate/CI is unaccepted.
+Bun 1.4.4 VM checkpoint executed unchanged derivative SHA-256
+47bffa39459dbbb0797606506c790af1420a983ed6bc1d3ca4945a64ee782559 with absent sys,
+process/Bun/Buffer/fetch/timers/global and original resolvePath. Controlled noLib declaration emit
+and real alias resolution passed (expected missing-global diagnostics); explicit ES5+decorator
+libraries produced zero diagnostics and two declarations. Observed RSS 150372 KiB under 900 MiB.
+This scratch compatibility checkpoint is not the production-loader acceptance or full parser bound.
+Stage 1 implementation/proofs/checks and all successor acceptance remain pending.
+
+### Owned derivative Stage 1 source/proof checkpoint — 2026-11-10
+
+The isolated candidate starts at reviewed 82fa8928664998c9a8b72f6af16018d2c142547e;
+its parent gate/CI was not accepted by this implementation. Source task e6g1 is complete;
+independent Stage 1 review, all successor e6g2–g6 and parent .3 acceptance remain open.
+Only capture/provenance and their types are public through judge. Internal synchronous
+withCompilerDerivative scopes a fresh original VM namespace to trusted extraction composition.
+No Dash adapter, paths admission wiring, package activation or aggregate trust claim was added.
+
+Commands ran serially under the ignored bounded-monitor.py: 900 MiB for focused suites,
+1500 MiB for scoped lint/API/hooks, 120-second settlement and 25ms process-tree RSS samples.
+The monitor kills/waits its owned non-detached group; detached sessions are outside its fixture
+containment. Its success, memory97, wall98 and child-cleanup controls are observed receipts,
+not a general sandbox or product parser-process guarantee.
+
+- Artifact owning suite: 46 pass, 68 assertions; peak 232220 KiB.
+- Runtime owning suite: 19 pass, 60 assertions; peak 276512 KiB. Actual noLib, explicit/default
+  ES5 library declarations/resolution, deleted physical roots, malicious replacement/cache,
+  original/non-enumerable namespace, denied ambient machinery, failed evaluation/compatibility,
+  cumulative allocation and decode-inclusive timeout controls passed.
+- Existing builder suite: 36 pass, 61 assertions; peak 530444 KiB. All three copied-builder/writer
+  fixture sites now include their actual extracted pin dependency; missing dependencies were
+  observed failing intended guards first. Its four absent/altered/unreadable members still refuse.
+- Judge facade: 1 pass, 7 assertions; peak 230216 KiB. Exact capture/metadata exports and no
+  executable-loader/filesystem-builder reachability are independently fault-proven.
+- Scoped changed-file ESLint: pass, peak 824212 KiB after populating the isolated Nx graph
+  (323000 KiB). Earlier no-graph passes explicitly skipped module-boundary rules and were not
+  accepted; the final scoped result has no such skip. Full owning lint remains unrun.
+- Narrow API diagnostic rooted in both owning files: pass, peak 252640 KiB. Narrowing the real
+  production capture input to never failed real callers, and restored control passed. This is
+  not the full owning typecheck; the earlier known resource refusal remains unchanged.
+- 51 independently watched fault/dependency receipts and restored controls cover raw pins and
+  manifest encoding, closed keys, capture-once, private ownership/copies, pre-allocation and
+  cumulative staging limits, exact provenance preimages/freeze, original/fresh compiler, installed
+  substitution, VM policy/compatibility/timeout and facade/source-image/API boundaries. Final
+  lifetime-seam fresh-instance/substitution/timeout faults were reconfirmed after type refinements.
+  Only intended assertions, never monitor kills or unrelated errors, qualify as proof receipts.
+- All OpenSpec validation: 341/341 pass. Strict selected validation fails with exactly the same
+  25 issues as a fresh exact82fa spec-artifact fixture; no new warning remains. Initial overlong
+  successor detail was moved into testable scenarios without removing its requirements.
+
+Independent Python SHA-256 vectors match exact builder-manifest bytes (526 bytes):
+8b82b8fcaf4fe52d963152efacd98932cc41bb6cd3b701e4c5b47b71cea2d743.
+The four original member pins remain unchanged. Captured artifact identity is
+2eff9728f5e5fbd7c53fde8571254e7865df0664c7b0a9f55eecf698778b0c62;
+execution identity is 5c0c6d82bf82918032bdf831a69dddce02571fdacd03df5b8d1d77af076f9d8d;
+loader-policy recipe identity is d3a0a1bb071f7b6fb1b2892e45c06eaba82880a02aa108bf4c57a52be8b9a9df.
+Independent literal canonical-LF preimages assert these algorithms before selector integration.
+The recipe identity does not attest installed loader/host bytes. runtimeTrust stays unverified.
+
+Bun is 1.4.4. Root dependencies were reused only after byte-identical lock comparison;
+no frozen install ran. Lock SHA-256 is
+983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6.
+Evidence, exact command wrappers, mutation scripts/logs and final review handoff are durable in
+.superpowers/sdd/task10-architecture-plan/ in the coordinator workspace; nothing depends on
+unretained /tmp executable files. Normal commit/hook and final format receipts are reported in
+that Stage 1 report once committed. No host command, push or subagent was used here.
+
+The Stage 2 public derivative composition must deliberately refine the existing transitive judge
+clock/network-token scan for the bounded loader clock and deny-list strings, or place trusted
+composition coherently outside that facade. Never delete the blanket isolation boundary silently.
+Remaining checks: independent exact-candidate Astra review, full owning typecheck/lint/build,
+installed packaging and combined five-stage proofs, canonical exact-SHA host gate/CI and serial
+resource workloads. Complete runtime/config/reference closure, parser process settlement,
+CompilerReadManifestV1, eleven documents, protected preparation/freeze and independently installed
+external authority remain mandatory; no WBS leaf closes from this loader stage.

@@ -347,6 +347,11 @@ test.each([
   const builder = await readFile(new URL('./compiler-derivative.ts', import.meta.url), 'utf8');
   const seam = '  let instrumented = upstream;';
   expect(builder.split(seam)).toHaveLength(2);
+  // Proof: omitting the imported pins source lost the intended exactly-once builder refusal.
+  await writeFile(
+    join(root, 'compiler-derivative-pins.ts'),
+    await readFile(new URL('./compiler-derivative-pins.ts', import.meta.url), 'utf8'),
+  );
   await writeFile(modulePath, builder.replace(seam, `  let instrumented = ${insertion};`));
   const child = Bun.spawnSync(
     [
@@ -410,6 +415,11 @@ test.each(['absent', 'altered'])(
     const root = await mkdtemp(join(tmpdir(), 'compiler-license-fault-'));
     roots.push(root);
     const modulePath = join(root, 'compiler-derivative.ts');
+    // The copied writer executes its actual IO-free pin dependency before upstream refusal.
+    await writeFile(
+      join(root, 'compiler-derivative-pins.ts'),
+      await readFile(new URL('./compiler-derivative-pins.ts', import.meta.url), 'utf8'),
+    );
     await writeFile(
       modulePath,
       await readFile(new URL('./compiler-derivative.ts', import.meta.url), 'utf8'),
@@ -441,6 +451,11 @@ test.each(['absent', 'altered'])(
     const root = await mkdtemp(join(tmpdir(), 'compiler-notice-fault-'));
     roots.push(root);
     const modulePath = join(root, 'compiler-derivative.ts');
+    // The copied writer executes its actual IO-free pin dependency before upstream refusal.
+    await writeFile(
+      join(root, 'compiler-derivative-pins.ts'),
+      await readFile(new URL('./compiler-derivative-pins.ts', import.meta.url), 'utf8'),
+    );
     await writeFile(
       modulePath,
       await readFile(new URL('./compiler-derivative.ts', import.meta.url), 'utf8'),

@@ -19,6 +19,8 @@ const RUNTIME_SURFACE = [
   'assertCheckedIntegrationCandidate',
   'assertNarrative',
   'assertUnambiguousPath',
+  'captureCompilerDerivative',
+  'readCompilerDerivativeProvenance',
   'canonicalPaths',
   'canonicalRepository',
   'certifyIntegrationCandidate',
@@ -158,6 +160,10 @@ test('exports exactly the judge surface and nothing that takes a store', async (
   // derivation from `./relocation-activation` again failed here with `Expected to not contain:
   // "policy/trust.ts"`; restoring `./check-plan` passed.
   const reached = modules.map((path) => relative(SOURCE_ROOT, path));
+  // Proof: importing the loader through artifact metadata failed this exact reachability assertion.
+  expect(reached).not.toContain('relationships/compiler-derivative-runtime.ts');
+  // Proof: importing the filesystem builder through artifact metadata failed this exact reachability assertion.
+  expect(reached).not.toContain('packaging/compiler-derivative.ts');
   expect(reached).not.toContain('policy/trust.ts');
   expect(reached).not.toContain('policy/relocation-activation.ts');
   const violations = modules.flatMap((path) => {

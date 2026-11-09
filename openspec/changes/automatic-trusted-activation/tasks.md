@@ -684,3 +684,20 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       independent exact-candidate review, canonical host gate and exact-head CI. Full owning
       typechecks and serial resource acceptance remain gate-host obligations. This prerequisite
       does not close derivative loading, runtime authentication or parent .3.
+
+- [x] 2.1d.1.3e6g1 Capture the exact four raw derivative members with private ownership, strict pins
+      and manifest encoding, immutable provenance, finite copy/load limits and fresh private VM loading.
+      TDD actual unchanged Bun 1.4.4 no-Node initialization, noLib/explicit-library declaration and real
+      resolution controls, then independent raw-member/ownership/budget/loader policy/settlement faults.
+- [ ] 2.1d.1.3e6g2 Bind distinct derivative artifact/execution identity before selector hashing in an
+      additive core route, preserving complete selected/legacy serial identity and lifetime parity.
+- [ ] 2.1d.1.3e6g3 Join four runtime closure tuples to the exact owned ReviewRuntime and derivative
+      envelope; prove foreign owner/role/path/getter/budget failures before compiler/source callbacks.
+- [ ] 2.1d.1.3e6g4 Admit actual compiler-options attempts synchronously on both Program host and
+      direct-system routes, preserving literal pre-admission, origins/order/absence and shared limits.
+- [ ] 2.1d.1.3e6g5 Package exact artifact members after dist recreation; prove installed execution
+      without checkout/node_modules and all independent guard faults; obtain exact-candidate review,
+      owning host checks, canonical gate/CI and serial resources. Full packet remains open until all five.
+- [ ] 2.1d.1.3e6g6 Complete executing producer/config/reference closure, bounded parser settlement,
+      actual CompilerReadManifestV1, eleven documents and preparation/freeze in parent order; obtain
+      independently installed authority and unattended acceptance. No loader-stage trust promotion.
