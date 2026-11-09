@@ -486,7 +486,7 @@ it.each(['restricted-project', 'viewer-project', 'viewer-step', 'viewer-import']
       connection.db.run(sql.raw("UPDATE project SET restricted = 1 WHERE id = 'a1'"));
       const member = {
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'sam', role: 'member' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'sam', role: 'member' as const },
       };
       const viewer = {
         kind: 'scoped' as const,

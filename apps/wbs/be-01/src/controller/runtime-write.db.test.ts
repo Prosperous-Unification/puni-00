@@ -30,7 +30,7 @@ import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { CLAIM_LEASE_MS } from '@wbs/domain';
+import { CLAIM_LEASE_MS, CONTRIBUTOR_CAP } from '@wbs/domain';
 import { SqliteCommandAccess } from '@wbs/store-sqlite/command-access';
 import { MachineCredentialRepository } from '@wbs/store-sqlite/machine-credential';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
@@ -47,7 +47,10 @@ import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const context: RuntimeContext = {
   actor,
-  access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'member' } },
+  access: {
+    kind: 'scoped',
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+  },
   projectId: 'a1',
   personId: 'agent',
 };
@@ -327,6 +330,10 @@ const T = 1_900_000_000_000;
 // Verified-principal dependency seam: these runner tests do not exercise credential cryptography.
 const machineContext: RuntimeContext = {
   ...context,
+  access: {
+    kind: 'scoped',
+    scope: { organizationId: 'org-a', userId: 'ada', role: 'member', cap: CONTRIBUTOR_CAP },
+  },
   actor: {
     ...actor,
     authentication: { kind: 'machine', credentialId: 'verified-machine', personId: 'agent' },
@@ -926,7 +933,7 @@ describe('runtime write transaction boundaries', () => {
           ...context,
           access: {
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' },
+            scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
           },
         },
         request,
@@ -975,7 +982,7 @@ describe('runtime write transaction boundaries', () => {
       actor: { ...actor, scopes: [...actor.scopes] },
       access: {
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       },
     };
     const entered = Promise.withResolvers<undefined>();

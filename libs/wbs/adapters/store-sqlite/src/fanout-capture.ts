@@ -1,4 +1,11 @@
-import { type DirectoryStore, organizationRoleOf, type PlanInputReads, readChain } from '@wbs/core';
+import {
+  accessSubjectOf,
+  capOf,
+  type DirectoryStore,
+  organizationRoleOf,
+  type PlanInputReads,
+  readChain,
+} from '@wbs/core';
 import type {
   BeforeImport,
   BeforeModeSwitch,
@@ -175,6 +182,9 @@ export function resolveProjectWriteScopeIn(
     const scope = {
       organizationId,
       userId: actorId,
+      // Proof: replacing this cap with null failed `preserves the credential
+      // cap when resolving a borrowed project write scope`; watched 2026-11-09.
+      cap: capOf(accessSubjectOf({ id: actorId, authentication })),
       // Proof: F14 substituted member; the malformed trusted-role runtime read succeeded.
       // Proof: RCAP-01 passed undefined here; real-key restricted-project read and acquisition
       // in runtime-principal-cap.db.test.ts returned 200 success instead of 403 forbidden;

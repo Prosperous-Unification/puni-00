@@ -26,7 +26,7 @@ const DEFAULTS = {
 };
 const SCOPED: ResourceAccess = {
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
 };
 
 let directory: string;

@@ -221,7 +221,7 @@ describe('after activation', () => {
     const actorId = h.userId('ada');
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+      scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     const service = h.publicDirectoryService();
     const before = snapshot();
@@ -260,7 +260,12 @@ describe('after activation', () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' as const },
+      scope: {
+        cap: null,
+        organizationId: 'org-a',
+        userId: h.userId('ada'),
+        role: 'member' as const,
+      },
     };
     const before = snapshot();
     const eventBefore = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
@@ -293,7 +298,7 @@ describe('after activation', () => {
         await rejectedError(
           h.removeStandaloneDirectoryWithin('people', 'orphan-person', h.userId('ada'), true, {
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
           }),
         )
       ).message,
@@ -322,7 +327,7 @@ describe('after activation', () => {
         await rejectedError(
           h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
           }),
         )
       ).message,
@@ -336,7 +341,7 @@ describe('after activation', () => {
     const actorId = h.userId('ada');
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+      scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     let racedState: unknown;
     let racedEvents: unknown[] = [];
@@ -420,7 +425,7 @@ describe('after activation', () => {
             await rejectedError(
               h.removeStandaloneDirectoryWithin(scenario.catalog, scenario.id, actorId, true, {
                 kind: 'scoped',
-                scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+                scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
               }),
             )
           ).message,
@@ -464,7 +469,7 @@ describe('after activation', () => {
           await rejectedError(
             h.removeStandaloneDirectoryWithin('people', 'pe-a', actorId, true, {
               kind: 'scoped',
-              scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+              scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
             }),
           )
         ).message,
@@ -482,7 +487,7 @@ describe('after activation', () => {
     const actorId = h.userId('ada');
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+      scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     const before = snapshot();
     const eventsBefore = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
@@ -522,7 +527,7 @@ describe('after activation', () => {
     const actorId = h.userId('ada');
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+      scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const eventsBefore = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
@@ -565,7 +570,7 @@ describe('after activation', () => {
     const actorId = h.userId('ada');
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+      scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     countOwners = true;
     countCaptures = true;
@@ -624,7 +629,7 @@ describe('after activation', () => {
       expect(
         await h.publicDirectoryService().addPersonWithin(actorId, 'pe-a', ['tm-extra'], {
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
         }),
       ).toMatchObject({ ok: true, value: { id: 'pe-a' } });
     } finally {
@@ -670,26 +675,28 @@ describe('after activation', () => {
       await releaseFirst.promise;
     };
     countCaptures = true;
-    const first = h
-      .publicDirectoryService()
-      .patchPersonWithin(
-        'pe-a',
-        aActor,
-        { name: 'Ada concurrent' },
-        { kind: 'scoped', scope: { organizationId: 'org-a', userId: aActor, role: 'member' } },
-      );
+    const first = h.publicDirectoryService().patchPersonWithin(
+      'pe-a',
+      aActor,
+      { name: 'Ada concurrent' },
+      {
+        kind: 'scoped',
+        scope: { cap: null, organizationId: 'org-a', userId: aActor, role: 'member' },
+      },
+    );
     await firstCapture.promise;
     onOwnerAttempt = () => {
       secondOwner.resolve(undefined);
     };
-    const second = h
-      .publicDirectoryService()
-      .patchPersonWithin(
-        'pe-b',
-        bActor,
-        { name: 'Grace concurrent' },
-        { kind: 'scoped', scope: { organizationId: 'org-b', userId: bActor, role: 'member' } },
-      );
+    const second = h.publicDirectoryService().patchPersonWithin(
+      'pe-b',
+      bActor,
+      { name: 'Grace concurrent' },
+      {
+        kind: 'scoped',
+        scope: { cap: null, organizationId: 'org-b', userId: bActor, role: 'member' },
+      },
+    );
     await secondOwner.promise;
     releaseFirst.resolve(undefined);
     try {
@@ -724,22 +731,24 @@ describe('after activation', () => {
     const bActor = h.userId('grace');
     countCaptures = true;
     try {
-      const first = h
-        .publicDirectoryService()
-        .patchPersonWithin(
-          'pe-a',
-          aActor,
-          { name: 'Ada parallel' },
-          { kind: 'scoped', scope: { organizationId: 'org-a', userId: aActor, role: 'member' } },
-        );
-      const second = h
-        .publicDirectoryService()
-        .patchPersonWithin(
-          'pe-b',
-          bActor,
-          { name: 'Grace parallel' },
-          { kind: 'scoped', scope: { organizationId: 'org-b', userId: bActor, role: 'member' } },
-        );
+      const first = h.publicDirectoryService().patchPersonWithin(
+        'pe-a',
+        aActor,
+        { name: 'Ada parallel' },
+        {
+          kind: 'scoped',
+          scope: { cap: null, organizationId: 'org-a', userId: aActor, role: 'member' },
+        },
+      );
+      const second = h.publicDirectoryService().patchPersonWithin(
+        'pe-b',
+        bActor,
+        { name: 'Grace parallel' },
+        {
+          kind: 'scoped',
+          scope: { cap: null, organizationId: 'org-b', userId: bActor, role: 'member' },
+        },
+      );
       const [firstAnswer, secondAnswer] = await Promise.all([first, second]);
       expect(firstAnswer.ok).toBe(true);
       expect(secondAnswer.ok).toBe(true);
@@ -767,7 +776,7 @@ describe('after activation', () => {
     const actorId = h.userId('ada');
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+      scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const eventsBefore = h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all();
@@ -828,7 +837,7 @@ describe('after activation', () => {
               { name: 'Ada after capture', teamIds: ['tm-a'] },
               {
                 kind: 'scoped',
-                scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+                scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
               },
             ),
           )
@@ -883,7 +892,7 @@ describe('after activation', () => {
               { name: 'Retained team', serviceIds: ['sv-a'] },
               {
                 kind: 'scoped',
-                scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+                scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
               },
             ),
           )
@@ -923,7 +932,7 @@ describe('after activation', () => {
     };
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+      scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     for (const scenario of [
       {
@@ -1005,7 +1014,7 @@ describe('after activation', () => {
     };
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+      scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     countOwners = true;
     countCaptures = true;
@@ -1040,7 +1049,7 @@ describe('after activation', () => {
     };
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+      scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     countOwners = true;
     countCaptures = true;
@@ -1078,7 +1087,7 @@ describe('after activation', () => {
     const actorId = h.userId('ada');
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: actorId, role: 'member' as const },
+      scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' as const },
     };
     for (const scenario of [
       {
@@ -1129,14 +1138,15 @@ describe('after activation', () => {
     );
     try {
       await rejectedError(
-        h
-          .publicDirectoryService()
-          .patchPersonWithin(
-            'pe-a',
-            actorId,
-            { name: 'Announced Ada', teamIds: ['tm-a'] },
-            { kind: 'scoped', scope: { organizationId: 'org-a', userId: actorId, role: 'member' } },
-          ),
+        h.publicDirectoryService().patchPersonWithin(
+          'pe-a',
+          actorId,
+          { name: 'Announced Ada', teamIds: ['tm-a'] },
+          {
+            kind: 'scoped',
+            scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
+          },
+        ),
       );
     } finally {
       h.sqlite.run('DROP TRIGGER fail_ordinary_link');
@@ -1172,7 +1182,7 @@ describe('after activation', () => {
     expect(
       await h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+        scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
       }),
     ).toEqual({ ok: true });
     expect(recorded().slice(count)).toContainEqual({
@@ -1217,7 +1227,7 @@ describe('after activation', () => {
     expect(
       await h.removeStandaloneDirectoryWithin('people', 'pe-a', actorId, true, {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
+        scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
       }),
     ).toEqual({ ok: true });
     const pairs = elsewhereChangedPairs();
@@ -1256,7 +1266,7 @@ describe('after activation', () => {
       await rejectedError(
         h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
         }),
       );
     } finally {
@@ -1288,7 +1298,7 @@ describe('after activation', () => {
     };
     const pending = h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+      scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
     });
     await entered.promise;
     try {

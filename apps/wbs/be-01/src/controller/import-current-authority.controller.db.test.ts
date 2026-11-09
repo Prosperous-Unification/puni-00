@@ -4,6 +4,7 @@ import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
 import { ImportedPlanResource } from '@wbs/core/module/plan-import/imported-plan.resource';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
+import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { decodeJwt } from 'jose';
 
@@ -153,7 +154,12 @@ describe('current import authority on the process writer', () => {
         const principal = await harness.authenticatedCommandPrincipal('ada', cookieValue);
         const access = {
           kind: 'scoped' as const,
-          scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+          scope: {
+            cap: null,
+            organizationId: 'org-a',
+            userId: principal.id,
+            role: 'super_admin' as const,
+          },
         };
         let release!: () => void;
         let entered!: () => void;
@@ -412,7 +418,12 @@ for (const kind of ['machine', 'consent'] as const)
           principal,
           expectedAccess: {
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+            scope: {
+              cap: CONTRIBUTOR_CAP,
+              organizationId: 'org-a',
+              userId: principal.id,
+              role: 'member',
+            },
           },
         }),
       ).toEqual({ ok: false, refusal: 'organization_context_changed' });
@@ -454,7 +465,12 @@ for (const kind of ['machine', 'consent'] as const)
       }
       const access = {
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'member' as const },
+        scope: {
+          cap: CONTRIBUTOR_CAP,
+          organizationId: 'org-a',
+          userId: principal.id,
+          role: 'member' as const,
+        },
       };
       const imports = harness.publicImports();
       expect(
@@ -538,7 +554,12 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
         principal,
         expectedAccess: {
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+          scope: {
+            cap: CONTRIBUTOR_CAP,
+            organizationId: 'org-a',
+            userId: principal.id,
+            role: 'member',
+          },
         },
       })
       .then(
@@ -558,11 +579,21 @@ test('direct import compares current kind, organization and principal identity w
     { kind: 'legacy' as const },
     {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-b', userId: principal.id, role: 'super_admin' as const },
+      scope: {
+        cap: null,
+        organizationId: 'org-b',
+        userId: principal.id,
+        role: 'super_admin' as const,
+      },
     },
     {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: 'another-user', role: 'super_admin' as const },
+      scope: {
+        cap: null,
+        organizationId: 'org-a',
+        userId: 'another-user',
+        role: 'super_admin' as const,
+      },
     },
   ]) {
     const before = snapshotTables();
@@ -635,7 +666,7 @@ test('malformed trusted membership throws before direct import effects', async (
       principal,
       expectedAccess: {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
       },
     })
     .then(
@@ -659,7 +690,7 @@ test('direct import refuses a scoped expectation while current authority is lega
       principal,
       expectedAccess: {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
       },
     }),
   ).toEqual({ ok: false, refusal: 'organization_context_changed' });
@@ -746,7 +777,7 @@ test('direct read scope refuses before writer admission', async () => {
       principal,
       expectedAccess: {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
       },
     }),
   ).toEqual({ ok: false, error: 'insufficient_scope' });
@@ -785,7 +816,12 @@ for (const table of [
           principal,
           expectedAccess: {
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+            scope: {
+              cap: null,
+              organizationId: 'org-a',
+              userId: principal.id,
+              role: 'super_admin',
+            },
           },
         })
         .then(
@@ -826,14 +862,20 @@ test('machine import uses the persisted member ceiling despite expected super-ad
       principal,
       expectedAccess: {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
       },
     }),
   ).toMatchObject({ ok: true });
   expect(observed).toEqual([
     {
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: principal.id, role: 'member', delegated: true },
+      scope: {
+        cap: CONTRIBUTOR_CAP,
+        organizationId: 'org-a',
+        userId: principal.id,
+        role: 'member',
+        delegated: true,
+      },
     },
   ]);
 });
@@ -923,7 +965,7 @@ for (const fault of [
         principal,
         expectedAccess: {
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+          scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
         },
       })
       .then(

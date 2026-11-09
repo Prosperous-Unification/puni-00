@@ -14,6 +14,7 @@ import { createRuntimeReceiver } from '@wbs/core/module/plan-commands/compositio
 import { canonicalRuntimeRequest } from '@wbs/core/module/plan-commands/runtime-request';
 import type { RuntimeContext } from '@wbs/core/module/plan-commands/runtime-state';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
 import { openSqliteSource } from '@wbs/store-sqlite/source';
@@ -27,7 +28,10 @@ import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const context: RuntimeContext = {
   actor,
-  access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'member' } },
+  access: {
+    kind: 'scoped',
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+  },
   projectId: 'a1',
   personId: 'agent',
 };
@@ -378,7 +382,10 @@ describe('runtime authorization and request detachment', () => {
     );
     const admin: RuntimeContext = {
       ...context,
-      access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
+      access: {
+        kind: 'scoped',
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
+      },
     };
     expect(await receiver.acquireRuntimeAuthority(admin, acquisition)).toMatchObject({ ok: true });
     // A machine credential's own person is the pin (`wbs-machine-credentials` A12, A18); a
@@ -419,7 +426,12 @@ describe('runtime authorization and request detachment', () => {
       },
       access: {
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+        scope: {
+          cap: CONTRIBUTOR_CAP,
+          organizationId: 'org-a',
+          userId: 'ada',
+          role: 'member' as const,
+        },
       },
     };
     const request = { ...acquisition };
@@ -485,7 +497,10 @@ describe('runtime authorization and request detachment', () => {
     );
     const admin: RuntimeContext = {
       ...context,
-      access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
+      access: {
+        kind: 'scoped',
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
+      },
     };
     receipt(await receiver.acquireRuntimeAuthority(admin, acquisition));
     const entered = Promise.withResolvers<undefined>();
@@ -518,7 +533,7 @@ describe('runtime authorization and request detachment', () => {
       actor: { id: 'grace', username: 'grace', scopes: ['read', 'write'] },
       access: {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: 'grace', role: 'admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: 'grace', role: 'admin' },
       },
     };
     expect(await receiver.acquireRuntimeAuthority(admin, acquisition)).toEqual(first);

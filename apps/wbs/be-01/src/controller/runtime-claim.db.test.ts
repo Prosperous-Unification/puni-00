@@ -35,7 +35,10 @@ import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const context: RuntimeContext = {
   actor,
-  access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'member' } },
+  access: {
+    kind: 'scoped',
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+  },
   projectId: 'a1',
   personId: 'agent',
 };
@@ -799,7 +802,7 @@ describe('conditional exact runtime claim', () => {
       actor: { ...actor },
       access: {
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       },
     };
     const entered = Promise.withResolvers<undefined>();

@@ -37,7 +37,7 @@ type ConnectedSolverRequest = Extract<ReservedSpawnRequest, { kind: 'connected' 
 const installed = { solverVersion: '0.4.0', budgetMs: 1000 };
 const access = {
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {

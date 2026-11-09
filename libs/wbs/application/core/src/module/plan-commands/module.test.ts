@@ -154,7 +154,7 @@ describe('the Plan commands module', () => {
         (
           await commands.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: OWNER, role: 'member' },
           })
         ).ok,
       ).toBe(true);
@@ -166,7 +166,7 @@ describe('the Plan commands module', () => {
       expect(
         missingDelivery.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: OWNER, role: 'member' },
         }),
       ).rejects.toThrow('committed fan-out delivery is missing');
     },

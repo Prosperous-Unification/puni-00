@@ -104,7 +104,12 @@ export async function openFixture(options?: {
   );
   const expectedAccess = {
     kind: 'scoped' as const,
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+    scope: {
+      cap: null,
+      organizationId: 'org-a',
+      userId: principal.id,
+      role: 'super_admin' as const,
+    },
   };
   const input = {
     predecessor: { ...predecessor, scope: 'whole' as const },

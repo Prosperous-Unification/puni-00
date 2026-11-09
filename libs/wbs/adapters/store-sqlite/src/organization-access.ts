@@ -1,4 +1,6 @@
 import {
+  accessSubjectOf,
+  capOf,
   type CredentialRuleFacts,
   type CredentialRuleRefusal,
   credentialRuleRefusal,
@@ -8,7 +10,7 @@ import {
   organizationRoleOf,
   subjectPrefixOf,
 } from '@wbs/core';
-import { ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
+import { ORGANIZATION_ROLES, type OrganizationRole, type OrganizationScope } from '@wbs/domain';
 import { and, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -175,6 +177,10 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
           organizationId,
           userId,
           role,
+          // Proof: replacing this cap with null failed both machine and consent
+          // `resolves a ... principal with delegation and contributor cap` and
+          // authenticated grant integration; watched 2026-11-09.
+          cap: capOf(accessSubjectOf(principal)),
           // Proof: without this flag, `refuses a machine key's cascade over its
           // own person` (`machine-credential-admin.controller.db.test.ts`)
           // removed the person and revoked its credential (200); watched
@@ -189,14 +195,22 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
 /**
  * A membership recheck alone, for a read that already passed the credential
  * rules at its route's admission and only asks whether the member was removed
- * since (the chain snapshot's own connection).
+ * since (the chain snapshot's own connection). Its role-only projection
+ * supplies no credential authority. A caller reconstructing authenticated
+ * access must retain the admitted scope's cap and delegation metadata.
  */
 export function currentMembershipAccess(
   db: Pick<SQLiteBunDatabase, 'select'>,
   organizationId: string,
   userId: string,
 ):
-  | Extract<OrganizationAccessResolution, { ok: true }>
+  | {
+      readonly ok: true;
+      readonly access: {
+        readonly kind: 'scoped';
+        readonly scope: Pick<OrganizationScope, 'organizationId' | 'userId' | 'role'>;
+      };
+    }
   | { readonly ok: false; readonly refusal: 'not_a_member' } {
   const membership = db
     .select({ role: organizationMembership.role })
@@ -213,7 +227,11 @@ export function currentMembershipAccess(
     ok: true,
     access: {
       kind: 'scoped',
-      scope: { organizationId, userId, role: validateStoredRole(membership.role, organizationId) },
+      scope: {
+        organizationId,
+        userId,
+        role: validateStoredRole(membership.role, organizationId),
+      },
     },
   };
 }

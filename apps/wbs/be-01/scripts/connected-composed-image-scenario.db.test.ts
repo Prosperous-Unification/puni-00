@@ -118,7 +118,7 @@ test('composed image admission permits idle pooled readers and source close drai
   try {
     const observation = await source.stores.claims.observeProject(TARGET_PROJECT_ID, {
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+      scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
     });
     expect(observation).toBeDefined();
     expect(() => {

@@ -42,7 +42,7 @@ const PEOPLE = [...AGENTS, 'ann'] as const;
 const SLOT = 'resource-slot';
 const admin: ResourceAccess = {
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
 };
 
 /** Verified-principal fixture; credential pinning remains part of each modeled act. */

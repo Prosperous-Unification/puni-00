@@ -44,7 +44,7 @@ function organizationOf(tx: Reader, actor: ResourceRuntimeActor, admin: boolean)
   if (actor.access.kind !== 'scoped' || readOrganizationActivation(tx) !== 'activated')
     return 'forbidden';
   const member = currentMembershipAccess(tx, actor.access.scope.organizationId, actor.id);
-  if (!member.ok || member.access.kind !== 'scoped') return 'forbidden';
+  if (!member.ok) return 'forbidden';
   // Proof: removing the administrator-role predicate let a viewer bind authority in the composed binding test (2026-10-25).
   if (
     admin &&

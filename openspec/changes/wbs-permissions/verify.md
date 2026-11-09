@@ -337,3 +337,74 @@ root runner).
 | revoke's role filter replaced by `held[0]` (F1)                          | refuses a user who holds no direct grant (ada's viewer grant revoked); revokes only the super-admin grant of a user who also holds … (11 pass, 2 fail) |
 | `unknown_organization` return removed from `operatorSubjectRefusal` (F3) | tells the operator CLI an unknown organization and a credential’s id apart from a member (store, 18 pass, 1 fail)                                      |
 | `machine_credential` return removed from `operatorSubjectRefusal` (F3)   | tells the operator CLI an unknown organization and a credential’s id apart from a member (store, 18 pass, 1 fail)                                      |
+
+## 2.1 Core authorization foundation (2026-11-09, partial task)
+
+Branch `feat/puni-entities-cli`, isolated worktree `/home/df/.codex/worktrees/af5e/puni-00`,
+implementation base `d49fdad84`, planning checkpoint `5a02e986f`. The core helper and
+credential-cap/membership projection are implemented; task 2.1 remains unchecked until
+its required production-controller HTTP 404 fault proof exists after route rewiring.
+Current routes are not claimed to enforce the new grants yet. Historical human-only
+acknowledgment 0.1 is unchanged.
+
+The initial behavioral RED was 1 pass/11 fail against the minimal helper scaffold; GREEN
+was 12 pass/0 fail. The later impossible-organization-null case failed before its guard
+(6 pass/1 fail), then passed after it. The real resource-use membership reconstruction
+failed both credential cases before preservation (0 pass/2 fail), then passed after the
+membership-only projection and original-cap/delegation preservation.
+
+| Command or check                                                                                                                                                                                                                                                                                                                         | Observed result                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `bun test ./libs/wbs/application/core/src/service/authorize.test.ts ./libs/wbs/adapters/store-sqlite/src/organization-authorization.db.test.ts --timeout=30000` after final review fixes                                                                                                                                                 | 17 pass, 0 fail                                                        |
+| Nine focused helper/grant/credential/fanout/authentication files after membership correction                                                                                                                                                                                                                                             | 94 pass, 0 fail, 378 assertions                                        |
+| Independent parent run: helper, organization-authorization, access-decisions and fanout-capture files                                                                                                                                                                                                                                    | 63 pass, 0 fail, 314 assertions                                        |
+| be-01: `bun test ./src/controller/command-current-authority.controller.db.test.ts ./src/controller/import-current-authority.controller.db.test.ts ./src/controller/runtime-authority.db.test.ts ./src/controller/runtime-state.db.test.ts ./src/controller/runtime-write.db.test.ts --timeout=30000` after credential-fixture correction | 285 pass, 0 fail, 1879 assertions                                      |
+| be-01: `bun test ./src/controller/resource-use.controller.db.test.ts --timeout=30000`                                                                                                                                                                                                                                                    | 41 pass, 0 fail                                                        |
+| store-sqlite: `bun test ./src/scoped-import-dependencies.db.test.ts --timeout=30000` after structural-equality/credential-fixture repair                                                                                                                                                                                                 | 39 pass, 0 fail, 220 assertions                                        |
+| store-sqlite: `bun test ./src/working-plan-performance.test.ts --timeout=30000` with source/HEAD held steady                                                                                                                                                                                                                             | 8 pass, 0 fail, 657 assertions; repository unchanged=true, failures=[] |
+| `bunx tsc --build --force libs/wbs/application/core/tsconfig.json libs/wbs/adapters/store-sqlite/tsconfig.json apps/wbs/be-01/tsconfig.json` after review fixes                                                                                                                                                                          | exit 0, no diagnostics                                                 |
+| Focused Nx lint for core/store-sqlite/domain/be-01, plus final changed-fixture ESLint after review fixes                                                                                                                                                                                                                                 | exit 0; final commands had no diagnostics                              |
+| Prettier on all 60 executor-owned files and `git diff --check`                                                                                                                                                                                                                                                                           | exit 0                                                                 |
+
+The broad `bunx nx run-many -t test -p wbs-core,wbs-domain,wbs-store-sqlite --parallel=1
+--skip-nx-cache` run exited 1: core/domain passed; SQLite reported 2655 pass, 1 skip and
+2 fail across 177 files. The performance case rejected the concurrent planning HEAD/status
+change; its failure list contained only that guard, with no ratio failure. The scoped-import
+test compared JSON property order after adding the cap, rather than scope values; it now
+uses structural equality, including the Set. Both failed files then passed their focused
+reruns above. The complete broad run was not repeated or relabeled as passing.
+
+The unchanged existing skip is `assignSubtree on the memory store, beyond the batch —
+refuses a stale undo once another account changed one of its leaves`.
+
+Astra independently reviewed spec compliance and code quality, then re-reviewed its P3
+fixture finding: ordinary machine/consent fixtures now use `CONTRIBUTOR_CAP`, while
+intentional wider/stale-authority probes remain uncapped. Final scoped verdict: approve;
+no production blocker or concrete serialization defect found. The reviewer ran no tests.
+Full reports/log pointers are retained in the ignored task workspace; the observed commands,
+results and safety proofs are recorded here.
+
+### Failure proofs
+
+Every fault below was injected separately into the production path, its named test was
+observed failing, and the original source restored. Adjacent `Proof:` comments name the
+same faults and tests. The broken SQL table proves trusted-query failure propagation,
+not OS-file unreadability.
+
+| Guard / production location                           | Injected fault                                                  | Observed failing production-path test                                                        |
+| ----------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `service/authorize.ts` absent catalog port            | Return ok with the requested permission when the port is absent | `throws when a memory catalog carries no access decisions`: 0 pass, 1 fail                   |
+| `service/authorize.ts` invisible target               | Return forbidden instead of not_found                           | Invisible helper, real-member and authenticated-machine-grant cases: 0 pass, 3 fail          |
+| `service/authorize.ts` required permission            | Bypass `may`                                                    | Viewer and credential manager-only refusal cases: 0 pass, 4 fail                             |
+| `service/authorize.ts` non-null organization contract | Return forbidden on impossible organization null                | `throws when an organization decision violates its non-null contract`: 0 pass, 1 fail        |
+| `service/authorize.ts` trusted read                   | Catch the read failure and admit                                | Fault-identity and dropped SQLite permission-table cases: 0 pass, 2 fail                     |
+| `organization-access.ts` resolved cap                 | Replace derived cap with null                                   | Machine, consent and authenticated-machine-grant integration: 0 pass, 3 fail                 |
+| `fanout-capture.ts` borrowed writer cap               | Replace derived cap with null                                   | `preserves the credential cap when resolving a borrowed project write scope`: 0 pass, 1 fail |
+| `resource-use.ts` membership reconstruction           | Drop preserved metadata and use cap:null                        | Both real machine/consent membership-recheck consumers: 0 pass, 2 fail                       |
+| `resource-use.ts` membership reconstruction           | Override only cap:null while retaining delegation               | Same two consumers: 0 pass, 2 fail; only cap regressed                                       |
+
+Not run for this partial slice: whole-repository build/browser checks, final full format gate,
+h2/h4 canonical gate, or the HTTP grant-visibility mutation proof. Read-only host probes
+confirmed both hosts reachable with Bun 1.4.4; existing lock holders were observed and no
+new remote gate or deployment was started. No whole-scope completion, merge qualification,
+deployment or activation is claimed.

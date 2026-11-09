@@ -170,7 +170,7 @@ async function measure(): Promise<void> {
     );
     const admin = {
       kind: 'scoped',
-      scope: { organizationId: ORG, userId: F, role: 'admin' },
+      scope: { cap: null, organizationId: ORG, userId: F, role: 'admin' },
     } as const;
     const timings: { stated: number[]; unstated: number[] } = { stated: [], unstated: [] };
     for (const [index, workItemId] of fresh.entries()) {

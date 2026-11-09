@@ -223,7 +223,7 @@ describe('the claims read', () => {
     // The memory source holds no organization membership to recheck.
     const scoped = {
       kind: 'scoped',
-      scope: { organizationId: 'org', userId: OWNER, role: 'admin' },
+      scope: { cap: null, organizationId: 'org', userId: OWNER, role: 'admin' },
     } as const;
     const misuse = await source.stores.claims.observeProject(projectId, scoped).then(
       () => 'answered',

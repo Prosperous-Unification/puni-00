@@ -812,7 +812,7 @@ describe('bootBe01', () => {
     const promoted = await writes.uow.run(async (scope) => {
       const access = {
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' as const },
       };
       const dependencies = createDependencyContext(
         scope.stores,

@@ -142,6 +142,7 @@ export * from './ports/work-item-store';
 export type { WriteStamp } from './ports/write-stamp';
 export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime/deadline';
 export * from './service/auth.service';
+export * from './service/authorize';
 export * from './service/compensating';
 export * from './service/directory-usage';
 export * from './service/machine-grant';

@@ -340,7 +340,7 @@ async function createQueuedFixture() {
     personId: 'agent',
     access: {
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: 'ada', role: 'super_admin' },
+      scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'super_admin' },
     },
   };
   const observed = acceptReply(await receiver.readRuntimeState(human, {}));

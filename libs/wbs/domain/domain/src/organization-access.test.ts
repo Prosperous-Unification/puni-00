@@ -10,6 +10,7 @@ import {
 import { ORGANIZATION_ROLES } from './stored-vocabularies';
 
 const scope = (role: (typeof ORGANIZATION_ROLES)[number], userId = 'ada') => ({
+  cap: null,
   organizationId: 'org-a',
   userId,
   role,

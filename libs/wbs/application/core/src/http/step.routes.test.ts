@@ -63,7 +63,10 @@ test('publishes a dependent recovery only after its unit of work commits', async
   expect(
     await runRecoveryWrite<{ ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }>(
       boundary,
-      { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin' } },
+      {
+        kind: 'scoped',
+        scope: { cap: null, organizationId: 'org-a', userId: 'sam', role: 'super_admin' },
+      },
       'project',
       { id: 'sam', username: 'sam', scopes: ['write'] },
       { step: 'add' },
@@ -97,7 +100,7 @@ test('scoped step service cannot borrow a recovery grant for another project, ac
   const stored = inMemorySteps([]);
   const access = {
     kind: 'scoped' as const,
-    scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin' as const },
+    scope: { cap: null, organizationId: 'org-a', userId: 'sam', role: 'super_admin' as const },
   };
   let retained: StepService | undefined;
   const boundary = {

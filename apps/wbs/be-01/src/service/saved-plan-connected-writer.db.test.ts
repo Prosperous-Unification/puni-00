@@ -25,7 +25,7 @@ test.each([
       });
       const access = {
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       };
       let captures = 0;
       let replaceAfterCapture = false;
@@ -134,7 +134,7 @@ test('installed connected writer refuses missing required evidence without parti
             createdById: 'ada',
             access: {
               kind: 'scoped',
-              scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+              scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
             },
           });
         } catch (cause) {

@@ -309,7 +309,7 @@ describe('after activation', () => {
         true,
         {
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
         },
       ),
     ).toEqual({ ok: false, reason: 'forbidden' });
@@ -325,7 +325,12 @@ describe('after activation', () => {
         true,
         {
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: h.userId('nell'), role: 'super_admin' },
+          scope: {
+            cap: null,
+            organizationId: 'org-a',
+            userId: h.userId('nell'),
+            role: 'super_admin',
+          },
         },
       ),
     ).toEqual({ ok: false, reason: 'forbidden' });
@@ -348,7 +353,7 @@ describe('after activation', () => {
         true,
         {
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
         },
       );
     } catch (cause) {

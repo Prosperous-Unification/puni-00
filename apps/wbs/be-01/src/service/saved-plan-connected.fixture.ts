@@ -85,7 +85,7 @@ export async function captureSavedConnectedFixture(
         ...(options.connected === undefined ? {} : { connected: options.connected }),
       }).read('a1', {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
       });
       if (observed.kind !== 'connected')
         throw new Error(`expected connected fixture, received ${observed.kind}`);

@@ -1,15 +1,19 @@
+import type { Permission } from './access-role';
 import { canEditProject, type ProjectOwnership } from './project-ownership';
 import type { OrganizationRole } from './stored-vocabularies';
 
 /**
- * The organization a request acts in, the acting user, and that user's current
- * role there. Only a server-side resolution of trusted session state and current
- * membership produces one; a caller-supplied organization id or role never does.
+ * The organization a request acts in, the acting user, and its permission
+ * cap. The membership role stays for helpers awaiting the grant migration.
+ * Only resolution of trusted session state and current membership produces
+ * one; a caller-supplied organization id or role never does.
  */
 export interface OrganizationScope {
   readonly organizationId: string;
   readonly userId: string;
   readonly role: OrganizationRole;
+  /** Contributor permissions for a machine/consent credential; null for an uncapped account. */
+  readonly cap: ReadonlySet<Permission> | null;
   /**
    * Present, and true, when the request acts through a delegation or a
    * machine credential's direct context rather than as the user themself
@@ -97,7 +101,7 @@ export function mayStateDirectoryCapacityInOrganization(role: OrganizationRole):
  */
 export function canEditProjectInOrganization(
   project: ProjectOwnership,
-  scope: OrganizationScope,
+  scope: Pick<OrganizationScope, 'organizationId' | 'userId' | 'role'>,
 ): boolean {
   return canWriteInOrganization(scope.role) && canEditProject(project, scope.userId);
 }
@@ -163,7 +167,7 @@ export function mayInvite(actor: OrganizationRole, role: OrganizationRole): bool
  */
 export function classifyProjectEdit(
   project: ProjectOwnership,
-  scope: OrganizationScope,
+  scope: Pick<OrganizationScope, 'organizationId' | 'userId' | 'role'>,
 ): 'ordinary' | 'recovery' | 'refused' {
   if (canEditProjectInOrganization(project, scope)) return 'ordinary';
   if (scope.role === 'super_admin' && project.restricted) return 'recovery';

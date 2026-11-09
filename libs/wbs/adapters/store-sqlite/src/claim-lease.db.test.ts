@@ -34,7 +34,7 @@ const SLOT = 'resource-slot';
 
 const admin: ResourceAccess = {
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
 };
 const pinned = (personId: string): CredentialPin => ({ personId });
 

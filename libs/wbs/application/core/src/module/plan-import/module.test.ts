@@ -236,7 +236,7 @@ describe('the Plan import module', () => {
     const { imports } = installPlanImport({ ...requirements(), uow: source.uow, announcements });
     const access: ResourceAccess = {
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: 'importer', role: 'member' },
+      scope: { cap: null, organizationId: 'org-a', userId: 'importer', role: 'member' },
     };
 
     const refused: unknown = await imports

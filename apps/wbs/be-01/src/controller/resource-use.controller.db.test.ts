@@ -964,6 +964,7 @@ it('rechecks a runtime grant after upstream credential admission', async () => {
     access: {
       kind: 'scoped' as const,
       scope: {
+        cap: null,
         organizationId: 'org-a',
         userId: h.userId('owner'),
         role: 'super_admin' as const,
@@ -1101,6 +1102,7 @@ it.each(['unbound', 'rebound'] as const)(
       access: {
         kind: 'scoped' as const,
         scope: {
+          cap: null,
           organizationId: 'org-a',
           userId: h.userId('owner'),
           role: 'super_admin' as const,

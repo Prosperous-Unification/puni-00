@@ -35,7 +35,7 @@ const RUNS = ['a', 'b', null] as const;
 type Run = (typeof RUNS)[number];
 const admin: ResourceAccess = {
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
 };
 
 /** Verified-principal fixture: preserve the same person's optional run in command admission. */

@@ -15,7 +15,7 @@ import {
 
 const scoped = (role: 'member' | 'viewer', organizationId = 'org-a'): ResourceAccess => ({
   kind: 'scoped',
-  scope: { organizationId, userId: 'ada', role },
+  scope: { cap: null, organizationId, userId: 'ada', role },
 });
 const MEMBER = scoped('member');
 

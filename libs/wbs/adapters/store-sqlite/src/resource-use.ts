@@ -50,13 +50,14 @@ export function admitResourceUseProject(
     if (!active) return 'forbidden';
     const member = currentMembershipAccess(tx, access.scope.organizationId, access.scope.userId);
     if (!member.ok) return 'forbidden';
-    if (member.access.kind !== 'scoped')
-      throw new Error('membership recheck returned legacy access');
     access = {
       ...member.access,
       scope: {
+        // Proof: replacing preservation with cap:null, and separately overriding
+        // only cap while retaining delegation, failed both machine/consent
+        // `...through the resource-use membership recheck`; watched 2026-11-09.
+        ...access.scope,
         ...member.access.scope,
-        ...(access.scope.delegated ? { delegated: true as const } : {}),
       },
     };
   }

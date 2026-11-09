@@ -17,7 +17,7 @@ const ACTOR = 'super-admin';
 const PRINCIPAL = { id: ACTOR, username: ACTOR, scopes: ['read', 'write'] as const };
 const SCOPED: ResourceAccess = {
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: ACTOR, role: 'super_admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: ACTOR, role: 'super_admin' },
 };
 
 /** The project as stored: someone else's, restricted, which only a recovery may write. */

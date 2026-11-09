@@ -15,7 +15,7 @@ import { mountEndpoints } from './mount';
 
 const access = {
   kind: 'scoped' as const,
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
 };
 
 // Proof: routing saved read or saved/saved comparison through capture makes the

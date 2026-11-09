@@ -4,6 +4,7 @@ import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
 import { runRecoveryWrite } from '@wbs/core/http/recovery-write';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
+import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { decodeJwt } from 'jose';
@@ -141,7 +142,12 @@ describe('current command authority on the process writer', () => {
         const principal = await harness.authenticatedCommandPrincipal('ada', cookieValue);
         const access = {
           kind: 'scoped' as const,
-          scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+          scope: {
+            cap: null,
+            organizationId: 'org-a',
+            userId: principal.id,
+            role: 'super_admin' as const,
+          },
         };
         let release!: () => void;
         let entered!: () => void;
@@ -301,11 +307,21 @@ test('direct runner compares current kind, organization and principal identity w
     { kind: 'legacy' as const },
     {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-b', userId: principal.id, role: 'super_admin' as const },
+      scope: {
+        cap: null,
+        organizationId: 'org-b',
+        userId: principal.id,
+        role: 'super_admin' as const,
+      },
     },
     {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: 'another-user', role: 'super_admin' as const },
+      scope: {
+        cap: null,
+        organizationId: 'org-a',
+        userId: 'another-user',
+        role: 'super_admin' as const,
+      },
     },
   ]) {
     const before = effects();
@@ -355,7 +371,7 @@ test('malformed trusted membership throws before direct command effects', async 
     .publicCommands()
     .runWithin(fixture.projectId, principal, [], {
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+      scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
     })
     .then(
       () => null,
@@ -373,7 +389,7 @@ test('direct runner refuses a scoped expectation while current authority is lega
   expect(
     await harness.publicCommands().runDirectoryWithin(principal, [], {
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+      scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
     }),
   ).toEqual({ ok: false, refusal: 'organization_context_changed' });
 });
@@ -387,7 +403,12 @@ test('direct authenticated runner entries refuse read-only principals before ope
   };
   const access = {
     kind: 'scoped' as const,
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+    scope: {
+      cap: null,
+      organizationId: 'org-a',
+      userId: principal.id,
+      role: 'super_admin' as const,
+    },
   };
   const runner = harness.publicCommands();
   const before = effects();
@@ -420,7 +441,12 @@ for (const operation of ['project update', 'bare step removal', 'recovery write'
     };
     const access = {
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+      scope: {
+        cap: null,
+        organizationId: 'org-a',
+        userId: principal.id,
+        role: 'super_admin' as const,
+      },
     };
     if (operation !== 'bare step removal') {
       await harness.register('owner');
@@ -577,7 +603,12 @@ for (const kind of ['machine', 'consent'] as const)
       expect(
         await harness.publicCommands().runWithin(fixture.projectId, principal, [], {
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+          scope: {
+            cap: CONTRIBUTOR_CAP,
+            organizationId: 'org-a',
+            userId: principal.id,
+            role: 'member',
+          },
         }),
       ).toEqual({ ok: false, refusal: 'organization_context_changed' });
       expect(effects()).toEqual(before);
@@ -704,7 +735,12 @@ for (const kind of ['machine', 'consent'] as const)
       }
       const access = {
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'member' as const },
+        scope: {
+          cap: CONTRIBUTOR_CAP,
+          organizationId: 'org-a',
+          userId: principal.id,
+          role: 'member' as const,
+        },
       };
       const runner = harness.publicCommands();
       expect(await runner.runWithin(fixture.projectId, principal, [], access)).toMatchObject({
@@ -781,7 +817,12 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
       .publicCommands()
       .runWithin(fixture.projectId, principal, [], {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+        scope: {
+          cap: CONTRIBUTOR_CAP,
+          organizationId: 'org-a',
+          userId: principal.id,
+          role: 'member',
+        },
       })
       .then(
         () => null,
@@ -955,7 +996,12 @@ for (const operation of ['batch', 'prelude', 'undo', 'redo'] as const)
       const replacementPrincipal = await harness.authenticatedMachinePrincipal(replacement.key);
       const access = {
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: accountId, role: 'member' as const },
+        scope: {
+          cap: CONTRIBUTOR_CAP,
+          organizationId: 'org-a',
+          userId: accountId,
+          role: 'member' as const,
+        },
       };
       const runner = harness.publicCommands();
       const commands = [

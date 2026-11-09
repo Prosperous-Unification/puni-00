@@ -419,7 +419,7 @@ for (const store of STORES) {
           opened.activate(F, people);
           const admin = {
             kind: 'scoped',
-            scope: { organizationId: ORG, userId: F, role: 'admin' },
+            scope: { cap: null, organizationId: ORG, userId: F, role: 'admin' },
           } as const;
           const claimIn = (projectId: string, workItemId: string, personId: string) =>
             runner.runWithin(

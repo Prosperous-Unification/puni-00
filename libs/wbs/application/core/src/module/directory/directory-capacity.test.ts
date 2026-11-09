@@ -17,7 +17,7 @@ const DISK = 'resource-disk';
 /** An admin of the organization owning `host ram` and projects A, B and C. */
 const ADMIN: ResourceAccess = {
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: F, role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: F, role: 'admin' },
 };
 const STAMP = { at: 1, by: F };
 

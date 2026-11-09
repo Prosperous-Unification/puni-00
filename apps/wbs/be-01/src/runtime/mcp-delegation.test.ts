@@ -28,7 +28,7 @@ async function authority(now: number) {
           ok: true,
           access: {
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: 'u-ada', role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: 'u-ada', role: 'member' },
           },
         }),
     },

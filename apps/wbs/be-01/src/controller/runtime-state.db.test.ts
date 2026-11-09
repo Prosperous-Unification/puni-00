@@ -21,6 +21,7 @@ import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import { SqliteCommandAccess } from '@wbs/store-sqlite/command-access';
 import { MachineCredentialRepository } from '@wbs/store-sqlite/machine-credential';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
@@ -35,7 +36,7 @@ import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const access: ResourceAccess = {
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 };
 const context: RuntimeContext = { actor, access, projectId: 'a1', personId: 'agent' };
 const stamp = { at: 2, by: 'ada' };
@@ -262,7 +263,10 @@ describe('admitted runtime observation', () => {
     );
     const staleAdmin: RuntimeContext = {
       ...context,
-      access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
+      access: {
+        kind: 'scoped',
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
+      },
     };
     expect(await runtime.captureRuntimeObservation(staleAdmin)).toHaveProperty(
       'scope.personId',
@@ -440,7 +444,12 @@ describe('admitted runtime observation', () => {
         },
         access: {
           kind: 'scoped' as const,
-          scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+          scope: {
+            cap: CONTRIBUTOR_CAP,
+            organizationId: 'org-a',
+            userId: 'ada',
+            role: 'member' as const,
+          },
         },
       };
       const reached = Promise.withResolvers<undefined>();

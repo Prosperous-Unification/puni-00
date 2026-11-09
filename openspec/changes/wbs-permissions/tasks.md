@@ -112,7 +112,8 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       P5); controller fixtures gain `grants:` beside `role:` — test: the existing
       project, step, marker, saved-plan and import `*-organization.controller.db.test.ts`
       green on backfilled grants, plus `command-permission.controller.db.test.ts`
-      asserting each of the 61 kinds (40 work package, 21 directory) against the matrix
+      asserting every current registry kind (62 at d49fdad84: 40 work package, 22 directory,
+      including `setDirectoryCapacity`) against the matrix
       (a contributor, a manager, a viewer, a machine), `setBudget` and `clearBudget` under
       `project.manage_budgets` (a `project-contributor` refused naming it); negatives: one per rewired site, the fault being "skip the
       `authorize` call", each watched against its named existing test (for example

@@ -6874,7 +6874,7 @@ describe('buildServices', () => {
       });
       const access = {
         kind: 'scoped' as const,
-        scope: { organizationId: 'grant-org', userId: ownerId, role: 'member' as const },
+        scope: { cap: null, organizationId: 'grant-org', userId: ownerId, role: 'member' as const },
       };
       const command = {
         kind: 'setEstimate' as const,

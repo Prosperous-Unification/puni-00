@@ -60,6 +60,8 @@ A `package-*` or `project-*` role granted at organization scope counts only for 
 it governs (P9). Sizes: 9 roles × 22 permissions (P19 added `organization.manage_settings`);
 61 command kinds and 159 endpoints below.
 
+_Implementation inventory, 2026-11-09 at d49fdad84:_ `commandDefinitions` currently has 62 kinds: 40 work-package commands and 22 directory commands. The dated counts above are historical observations; executable permission coverage must compare registry ids, never rely on those totals. `setDirectoryCapacity` is the additional directory operation and requires `organization.manage_directory`.
+
 ## Plan-command kinds (`POST /api/work-packages/:id/commands`, 40)
 
 Each command is checked at the work package the batch addresses, `setBudget` and
@@ -79,13 +81,14 @@ both ends until `project.manage_dependencies` gains behaviour. `createWorkItem` 
 `patchWorkItem` naming a type outside the project's `allowedWorkItemTypes` are refused
 `409 type_not_allowed_in_project` after the permission passes (#698 E22).
 
-## Directory commands (`POST /api/directory/commands`, 21)
+## Directory commands (`POST /api/directory/commands`, 22)
 
-| Permission                      | Kinds                                                                                                                                                                                                                                                                              | Today                                                                  |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `organization.manage_directory` | `createTeam`, `patchTeam`, `deleteTeam`, `createPerson`, `patchPerson`, `deletePerson`, `createTag`, `patchTag`, `deleteTag`, `createService`, `patchService`, `deleteService`, `createWorkItemType`, `patchWorkItemType`, `deleteWorkItemType`, `createResource`, `patchResource` | member                                                                 |
-| `organization.manage_directory` | `createMeasure`, `patchMeasure`, `deleteMeasure` (measure definitions)                                                                                                                                                                                                             | admin (`mayDefineMeasuresInOrganization`, `organization-access.ts:54`) |
-| `organization.manage_directory` | `deleteResource`                                                                                                                                                                                                                                                                   | admin (`mayRemoveResourceInOrganization`, `wbs-resources` R8a)         |
+| Permission                      | Kinds                                                                                                                                                                                                                                                                              | Today                                                                                          |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `organization.manage_directory` | `createTeam`, `patchTeam`, `deleteTeam`, `createPerson`, `patchPerson`, `deletePerson`, `createTag`, `patchTag`, `deleteTag`, `createService`, `patchService`, `deleteService`, `createWorkItemType`, `patchWorkItemType`, `deleteWorkItemType`, `createResource`, `patchResource` | member                                                                                         |
+| `organization.manage_directory` | `createMeasure`, `patchMeasure`, `deleteMeasure` (measure definitions)                                                                                                                                                                                                             | admin (`mayDefineMeasuresInOrganization`, `organization-access.ts:54`)                         |
+| `organization.manage_directory` | `deleteResource`                                                                                                                                                                                                                                                                   | admin (`mayRemoveResourceInOrganization`, `wbs-resources` R8a)                                 |
+| `organization.manage_directory` | `setDirectoryCapacity`                                                                                                                                                                                                                                                             | admin (`mayStateDirectoryCapacityInOrganization`; current registry reconciliation, 2026-11-09) |
 
 `patchPerson` with `accountId` (binding) was admin-only and stays inside
 `organization.manage_directory`. A `deletePerson … cascade` that revokes machine

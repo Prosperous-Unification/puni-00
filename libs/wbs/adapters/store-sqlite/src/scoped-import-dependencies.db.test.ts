@@ -17,7 +17,7 @@ import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import type { ScopedDependencyEndpoint } from '@wbs/domain';
+import { CONTRIBUTOR_CAP, type ScopedDependencyEndpoint } from '@wbs/domain';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { sql } from 'drizzle-orm';
@@ -40,7 +40,7 @@ const STAMP = { at: 1_757_851_200_000, by: ACTOR };
 const PRINCIPAL = { id: ACTOR, username: ACTOR, scopes: ['read', 'write'] as const };
 const ACCESS = {
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: ACTOR, role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: ACTOR, role: 'member' },
 } as const;
 const ORGANIZATION_LIMITS = {
   maxAgentPersons: 50,
@@ -626,9 +626,7 @@ describe('scoped import transaction lifetime and effects', () => {
       }),
     ).toMatchObject({ ok: true });
     expect(observations.length).toBeGreaterThanOrEqual(4);
-    expect(observations.every((access) => JSON.stringify(access) === JSON.stringify(ACCESS))).toBe(
-      true,
-    );
+    for (const observed of observations) expect(observed).toEqual(ACCESS);
     const statements = fixture.statements.slice(start);
     const begin = statements.findIndex((statement) => /^begin immediate/i.test(statement));
     const membership = statements.findIndex((statement) =>
@@ -657,7 +655,11 @@ describe('scoped import transaction lifetime and effects', () => {
       authentication: { kind: 'machine' as const, credentialId, personId: 'agent' },
       delegation: { organizationId: 'org-a', audience: 'wbs-be-01/direct' as const },
     };
-    const caller = { kind: 'human' as const, principal, expectedAccess: ACCESS };
+    const caller = {
+      kind: 'human' as const,
+      principal,
+      expectedAccess: { ...ACCESS, scope: { ...ACCESS.scope, cap: CONTRIBUTOR_CAP } },
+    };
     const start = fixture.statements.length;
     expect(await fixture.imports().import(documentFixture(), caller)).toMatchObject({ ok: true });
     const statements = fixture.statements.slice(start);

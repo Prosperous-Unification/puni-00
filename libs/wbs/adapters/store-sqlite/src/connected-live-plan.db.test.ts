@@ -29,7 +29,7 @@ let folder: string;
 let path: string;
 const access = {
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
 function write(statement: string) {
   const client = openDatabase(path);
