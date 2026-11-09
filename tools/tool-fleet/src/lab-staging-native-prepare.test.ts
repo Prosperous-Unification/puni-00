@@ -448,7 +448,11 @@ with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary
         module.LAUNCHED = str(scratch/'attempt.json')
         module.REVIEWED = str(scratch/'review.json')
         module.APPROVED = str(scratch/'approved.json')
-        module.read_prepared = lambda *_: (preparation,request,{})
+        def prepared_after_startup_latency(*_):
+            # Test-only preparation exceeds the old alarm window before a child is owned.
+            if mode == 'real-wall':time.sleep(.2)
+            return (preparation,request,{})
+        module.read_prepared = prepared_after_startup_latency
         review = dict(sourceCommit='a'*40,nonce=nonce,requestSha256=checksum,inventory={},ledger={},builderSha256='e'*64)
         approval = dict(schemaVersion=1,sourceCommit='a'*40,nonce=nonce,requestSha256=checksum,approved=True)
         approval['builderSha256']='e'*64
@@ -512,11 +516,25 @@ with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary
                     while True:time.sleep(5)
                 return original_fsync(descriptor)
             os.open=capture_open;os.fsync=stalled_sync
+        armed=[]
         if mode == 'real-wall':
-            def wall(_number,_frame):raise RuntimeError('operator-wall-timeout')
-            signal.signal(signal.SIGALRM,wall)
-            module.OPERATOR_DEADLINE=time.monotonic()+3.05
-            signal.setitimer(signal.ITIMER_REAL,.05)
+            # Proof: retained .2 s preparation fails the old prelaunch .05 s alarm;
+            # arming at the real selector wait instead observes one live owned child.
+            # The fixture deadline leaves 5 s for preparation; Bun still limits the case to 10 s.
+            module.OPERATOR_DEADLINE=time.monotonic()+8
+            def selector_with_real_work_alarm():
+                selector=selector_factory()
+                real_select=selector.select
+                def first_wait(timeout=None):
+                    if not armed:
+                        armed.append((len(children),children[0].poll() if children else 'absent',time.monotonic()-started))
+                        module.OPERATOR_DEADLINE=time.monotonic()+3.05
+                        module.arm_work_watchdog()
+                    return real_select(timeout)
+                selector.select=first_wait
+                return selector
+            control.selectors.DefaultSelector=selector_with_real_work_alarm
+            if hasattr(module,'selectors'):module.selectors.DefaultSelector=selector_with_real_work_alarm
         refused = False;surfaced=None;started=time.monotonic()
         try:
             try:
@@ -539,7 +557,8 @@ with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary
                 assert refused and not marker.exists(), 'postcapture bound allowed child past overflow'
             else:
                 assert refused
-                assert len(children)==1 and children[0].poll() is not None, 'original CLI was not killed/reaped on setup failure'
+                assert len(children)==1,('owned child count',len(children),repr(surfaced))
+                assert children[0].poll() is not None, 'original CLI was not killed/reaped on setup failure'
                 assert children[0].stdout.closed and children[0].stderr.closed, 'original pipes leaked'
                 if mode not in ('capture-failure','compound-all','omit-primary-failure','stalled-publication','omit-publication-watchdog','no-publication-budget'):
                     capture = json.loads(pathlib.Path(module.CAPTURE).read_bytes())
@@ -551,6 +570,15 @@ with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary
                 nested=[getattr(failure,'__cause__',None),getattr(failure,'__context__',None),*getattr(failure,'exceptions',())]
                 return str(failure)+' '+ ' '.join(failure_graph(part,seen) for part in nested)
             graph=failure_graph(surfaced)
+            if mode=='real-wall':
+                assert len(armed)==1 and armed[0][:2]==(1,None),('real work alarm not armed over exactly one live owned child',armed)
+                assert armed[0][2]>.05,('startup latency did not exceed the old alarm window',armed)
+                # Proof: omitting only arm_work_watchdog(), retaining the deadline shift,
+                # reaches operator-wall-timeout and fails this reason assertion after cleanup.
+                assert 'operator-work-timeout' in graph and 'operator-wall-timeout' not in graph,graph
+                assert 'operator-child-cleanup-uncertain' not in graph and 'operator-capture-unavailable' not in graph,graph
+                # Proof: in-memory child-kill omission fails the unreaped-child assertion.
+                assert capture['exitCode']==-signal.SIGKILL,capture
             if mode=='capture-failure':
                 assert 'setup' in graph and 'injected capture persistence failure' in graph,graph
             if mode in ('cleanup-close-fault','compound-all'):

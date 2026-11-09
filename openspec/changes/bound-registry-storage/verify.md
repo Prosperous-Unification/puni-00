@@ -10048,3 +10048,54 @@ isolation, protection, restore, monitoring, delivery and product-migration tasks
 open. The exact-revision canonical host gate remains required before deployment and
 adoption; this source-only phase neither invents a duplicate host gate nor claims
 host qualification from CI.
+
+## CI overflow-writer fixture lifetime — 2026-11-09
+
+The ordinary source witness for `connectRegistryAuthority` now models only the
+observed peer-closure write errors, `EPIPE` and `ECONNRESET`. It keeps its existing
+750 ms finite fallback and every byte-bound, SIGKILL, reaping, absent-PID and fixed
+SSH-argv assertion. Production transport and limits are unchanged. This restores
+the existing receiving-boundary proof; it adds no runtime contract or activation.
+Terminal exit/signal fields are logged before assertions so a future hosted failure
+retains bounded status diagnostics. The SIGKILL assertion concerns the controlled
+live writer: a real child that self-exits after reader cancellation can instead be
+reaped without a signal; this is not a universal SIGKILL guarantee.
+
+- **RS-A1:** main `ea54808f54ee8ed8a50dd5e1f0e9bb53eadfe140`, CI
+  `42549426363`, workspace job `128941576537`: the stderr witness failed in
+  7.87 ms with expected SIGKILL / observed null. Its exit code and errno were not
+  logged, so neither is asserted for that CI child.
+- **RS-A2:** an ordinary local characterization delayed only an owned child's
+  requested kill by 100 ms. Canceled real pipes produced EPIPE and ECONNRESET;
+  an instrumented child reported the error and exited 73 before that kill could
+  take effect. These are local observations, not an installed-authority proof.
+- **RS-A3:** both observed closure codes enter the existing finite fallback;
+  other errors still throw. The 750 ms fallback is unchanged and is not a claim
+  about arbitrary scheduler starvation. The controlled 100 ms window is proven.
+
+Fresh Bun 1.4.4 commands and controls:
+
+- `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/registry-stream.test.ts --timeout=30000`:
+  5 pass, 0 fail, 20 assertions after the repair and after restoring every fault.
+  Ten pre-repair isolated repetitions also passed; the hosted failure was not
+  dismissed on that basis.
+- The same existing file under an owned-local-child kill-delay preload: original
+  fixture 3 pass / 2 fail at SIGKILL/null; repaired fixture 5 pass / 0 fail, with
+  actual SIGKILL, reaped children and absent PIDs. The preload rejects any real
+  non-Bun spawn and leaves the production SSH boundary mocked as in the source test.
+- **Production-path negative:** removing only the transport's termination line
+  made both witnesses fail SIGKILL/null. The real children reached fallback,
+  exited 0 and were reaped (about 765–770 ms). Exact production bytes were restored.
+- **Unexpected-error negative:** injecting EIO at the real child write-error
+  boundary under that controlled window made both witnesses fail; each actual
+  child exited 1 without a signal and was reaped. EIO is not silently tolerated.
+- The three HTTP witnesses retained produced-byte observations 4325376, 73728 and
+  8192, all with cancellation true. No timeout or retry setting changed.
+- Ten post-repair isolated repetitions each passed all five tests. Owning
+  `bunx nx run-many -t lint typecheck -p tool-fleet --parallel=2 --skip-nx-cache`
+  passed both targets; `bunx openspec validate --all --json` passed all 341 artifacts.
+
+The failed main workflow was allowed to finish; it was not retried. New-head CI,
+normal hooks, independent review and the eventual exact-revision canonical h2puni
+gate remain required. No authenticated authority/Restic/provider probe, stopped
+privileged proof campaign, installed state or production deployment was performed.
