@@ -30,20 +30,24 @@ export class UsageRefusal extends Error {
   override readonly name = 'UsageRefusal';
 }
 
-/** One positional operand, a word as the shell passed it. */
-const operand = (metavar: NonEmptyString) => argument(string({ metavar }));
+/**
+ * One nonblank positional operand, preserving its original spelling.
+ * Proof: removing the pattern fails root Burokrat read-candidate whitespace-only input refusal.
+ */
+const operand = (metavar: NonEmptyString) => argument(string({ metavar, pattern: /\S/u }));
 
 /**
  * A JSON input path of the two plan-consistency commands: non-empty and not flag-shaped, as their
  * hand-written guards required.
  * Proof: dropping `pattern` made `refuses invalid operands before reading` (plan-tasks.test.ts)
  * accept the empty path `''` and read it instead of refusing the usage (2026-11-02).
+ * Proof: removing the nonblank lookahead fails root Burokrat validate-plan-tasks blank input refusal.
  */
 const jsonPath = (metavar: NonEmptyString) =>
   argument(
     string({
       metavar,
-      pattern: /^(?!-)[\s\S]+$/u,
+      pattern: /^(?!-)(?!\s*$)[\s\S]+$/u,
       errors: { patternMismatch: (input) => [text(`not a JSON input path: '${input}'`)] },
     }),
   );

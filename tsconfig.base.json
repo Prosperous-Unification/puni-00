@@ -46,6 +46,20 @@
       "@tools/observability-signals": [
         "./tools/tool-observability-stack/src/configuration/signals.ts"
       ],
+      "@puni/navigator/runtime": [
+        "./apps/twilight-structure/twilight-navigator/cli/src/runtime-facade.ts"
+      ],
+      "@puni/navigator/grammar": [
+        "./apps/twilight-structure/twilight-navigator/cli/src/grammar-facade.ts"
+      ],
+      "@puni/burokrat/runtime": [
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts"
+      ],
+      "@puni/burokrat/grammar": [
+        "./apps/twilight-structure/twilight-burokrat/cli/src/grammar-facade.ts"
+      ],
+      "@puni/dash/runtime": ["./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts"],
+      "@puni/dash/grammar": ["./apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts"],
       "@twilight-burokrat/contracts": [
         "./apps/twilight-structure/twilight-burokrat/cli/src/contracts/index.ts"
       ],

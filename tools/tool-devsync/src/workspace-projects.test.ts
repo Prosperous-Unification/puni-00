@@ -16,6 +16,8 @@ const WORKSPACE = new URL('../../../', import.meta.url);
 // in. The product is read back off the root below rather than spelled out per
 // row, so a second product cannot be added here without its directory agreeing.
 const EXPECTED_PRODUCT_PROJECTS = [
+  // Proof: omitting PUNI failed the exact root/identity and product-axis cases with this new row.
+  ['apps/puni/cli', 'puni-cli'],
   // Proof: leaving this row out after Twilight Burokrat moved into the Twilight Structure
   // suite failed the owning Nx target on the exact extra
   // `['apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat']` tuple, and the
@@ -506,6 +508,22 @@ describe('productConstraints', () => {
             ...ALLOWED_NAVIGATOR_RECORD_EDGES,
           ].some(([source, reached]) => project.name === source && target.name === reached)
         ) {
+          continue;
+        }
+        if (
+          project.name === 'puni-cli' &&
+          ['twilight-burokrat', 'twilight-dash', 'twilight-navigator'].includes(target.name)
+        ) {
+          const importers = getFileMap()
+            .fileMap.projectFileMap[project.name].filter((file) =>
+              file.deps?.some((reached) => fileDataDepTarget(reached) === target.name),
+            )
+            .map((file) => file.file)
+            .sort();
+          // Proof: an extra root provider importer failed this exact-source equality;
+          // adding an implicit provider edge failed the static-edge assertion (PUNI composition).
+          expect(importers).toEqual(['apps/puni/cli/src/cli-parser.ts']);
+          expect(dependency.type).toBe('static');
           continue;
         }
         if (project.name === 'tool-remote-scripts' && target.name === 'wbs-be-01') {
