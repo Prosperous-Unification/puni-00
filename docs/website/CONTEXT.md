@@ -182,3 +182,7 @@ _Avoid_: Implied consent, automatic acceptance
 **Guarded security outcome**:
 An explicitly declared evaluation outcome proving an upstream security decline contained an attack: an injection guardrail block after safe confirmed replies, or a typed provider refusal on the sole initial harmful attack without published output. The declined operation remains unconfirmed with unknown charge.
 _Avoid_: Confirmed reply, model-quality success
+
+**Request notification**:
+An operator alert that a prospect explicitly submitted a proposal request, distinct from an intake draft or guardrail alert. It identifies the request for review in the operator inbox.
+_Avoid_: Proposal email, guardrail alert

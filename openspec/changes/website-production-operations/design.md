@@ -1,0 +1,11 @@
+## Notification delivery
+
+A new additive SQLite migration installs a notification table and proposal insert/erasure triggers. The insert trigger covers both current and compatible predecessor writers without coupling delivery to HTTP response completion. Only references and delivery metadata are stored; existing submitted, unerased proposals are backfilled. Ordinary code rollback keeps the additive schema.
+
+A separate API-package CLI opens an existing, current, verified database through openMaintenanceDatabase. It leases one row at a time in an immediate transaction, commits before networking, and fences acknowledgement with a random lease token. Each HTTPS attempt has a ten-second deadline and refuses redirects. Each invocation attempts at most twenty obligations; an expired sixty-second lease can be retried by another invocation. Failed delivery is a modeled outcome persisted with exponential retry delay capped at one hour; invariant/database failures throw. Nonzero CLI exit and count-only summaries expose failed delivery. No HTTP secret, provider error text, contact details or brief enters logs. An authenticated inbox retains the full request.
+
+The production fleet schedules the CLI once a minute on the same retained volume, using concurrencyPolicy Forbid and the pinned API image. Provider acceptance is evidence of delivery to that provider, not evidence the user read it. A receiver outage does not block intake or erase its notification obligation.
+
+## Production preparation
+
+Reuse the fixed production descriptor and existing release builder. Production receives its own namespace, PVC, operator credential and configuration; paid inference, analytics and erasure remain disabled. Keep backup object prefixes environment-scoped and verify a real restore. Reuse existing authenticated notification destination only through an explicit production Secret binding, without copying unrelated development runtime credentials. Diagnose suspended observability and prepare the smallest compatible log collection path with bounded retention and private access. Verify release identities, request flow, persistence, notification acceptance, recovery and log retrieval before declaring readiness. DNS-independent routing checks may precede public DNS but cannot prove public availability.

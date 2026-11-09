@@ -811,3 +811,6 @@ export class WebsiteStore {
     return draft.created_at;
   }
 }
+
+export type { RequestNotificationLease } from './request-notifications';
+export { claimRequestNotification, finishRequestNotification } from './request-notifications';

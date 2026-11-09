@@ -1,0 +1,68 @@
+[
+  {
+    "name": "capture-red",
+    "path": "/tmp/website-prod-notification-capture-red.log",
+    "bytes": 3620,
+    "sha256": "c5735490e3a36e89354545fa38dc6cbfa552d3ff6ddadc20a7b7d72059a4c312"
+  },
+  {
+    "name": "capture-green",
+    "path": "/tmp/website-prod-notification-capture-green.log",
+    "bytes": 576,
+    "sha256": "0bb6b86211787108059a8a14d2f2fa47350ddd6ce59e215274e352ac230de205"
+  },
+  {
+    "name": "lease-red",
+    "path": "/tmp/website-prod-notification-lease-red.log",
+    "bytes": 1461,
+    "sha256": "e2529f7b04d39f53d907ebc9e5ac5f451a15682d12ed29236746d56c0ac71a38"
+  },
+  {
+    "name": "lease-green",
+    "path": "/tmp/website-prod-notification-lease-green.log",
+    "bytes": 906,
+    "sha256": "6233c93c84393024cade8d834b240097ef32fd604207504b63461506caa7e641"
+  },
+  {
+    "name": "command-red",
+    "path": "/tmp/website-prod-notification-command-red.log",
+    "bytes": 3049,
+    "sha256": "035559925216e3d5301f52931119583d0cdbdbc5b4cc6faba8d36613f2d2cf77"
+  },
+  {
+    "name": "command-green",
+    "path": "/tmp/website-prod-notification-command-green.log",
+    "bytes": 918,
+    "sha256": "bb3231f8e059c7c836a24510dc266e9917b9320c9baf8281025d53c7c20d5a71"
+  },
+  {
+    "name": "command-expanded",
+    "path": "/tmp/website-prod-notification-command-expanded.log",
+    "bytes": 1474,
+    "sha256": "d75fd917f3ddc4581bdf2158afb3eab6977023b779734099c1fe30c9fa47b837"
+  },
+  {
+    "name": "https",
+    "path": "/tmp/website-prod-notification-https.log",
+    "bytes": 514,
+    "sha256": "050fece51d34539bb30d4a628df4afc08a10d587b352f483ac4f9fe799db4098"
+  },
+  {
+    "name": "package-full",
+    "path": "/tmp/website-prod-notification-package-full.log",
+    "bytes": 599,
+    "sha256": "0359f8474ab34254b648f4593789a5fd6d504827e34016ffb720dcb0f7517846"
+  },
+  {
+    "name": "suites",
+    "path": "/tmp/website-prod-notification-suites.log",
+    "bytes": 119732,
+    "sha256": "24f9a1b97fc0f38afe0664c89e66ee515b5f45b0b9128e2553d07bf4257f313d"
+  },
+  {
+    "name": "final-static",
+    "path": "/tmp/website-prod-notification-final-static.log",
+    "bytes": 2258,
+    "sha256": "3c7d9d917533dbc0895bd0f8b581e6eca8a1a62d6164e26fc117ad9795c904f2"
+  }
+]

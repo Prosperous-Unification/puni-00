@@ -8,6 +8,7 @@ const build = await Bun.build({
     join(import.meta.dir, 'src/main.ts'),
     join(import.meta.dir, 'src/draft-retention-cli.ts'),
     join(import.meta.dir, 'src/request-retention-cli.ts'),
+    join(import.meta.dir, 'src/request-notifications-cli.ts'),
   ],
   target: 'bun',
   outdir: output,
@@ -28,5 +29,5 @@ cpSync(join(import.meta.dir, 'src/assets/country'), join(output, 'assets/country
 // refuse the package on 2026-10-25; restoring conversion-scoping/1 passed package smoke.
 writeFileSync(
   join(output, 'capabilities.json'),
-  `${JSON.stringify(['retention-journal/1', 'conversion-scoping/1'])}\n`,
+  `${JSON.stringify(['retention-journal/1', 'conversion-scoping/1', 'request-notifications/1'])}\n`,
 );
