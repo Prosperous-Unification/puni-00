@@ -3373,3 +3373,15 @@ Pending as of 2026-11-08 22:50Z: the gate was still running (3 h 05 min), and it
 recorded. Task 6.4 owns the missing terminal gate record and calibration follow-up. This section does
 not complete 6.4. None of 6.4's deliverables is met: a week of
 observation, calibration, `propose`, or the container measurement. 6.4 stays open.
+
+**EV-A8** This is the upstream record, not a new coordinator measurement. Public commit `5e68f110d`
+reports that at 23:57Z (4 h 12 min) the gate had no exit yet. The scope used 0.019 cores over
+60 s, and `memory.pressure full avg300` read 95.5 %. The commit's committer timestamp is
+23:56:03Z, which is before that reported time, so 23:57Z is unverified. That the throttle had
+effectively stalled the gate is an inference from those figures. The owner's cancel (exit 143),
+its settlement and the `gate` calibration runs are proposed and owed, not observed. This record
+directs no one to cancel another owner's job. The record also reports a peer's waiting gate
+withdrawing on SIGTERM (`interrupted by SIGTERM while waiting; its ticket is withdrawn`). That
+is a ticket withdrawal, not an admission or a gate success, and no second admission was observed.
+Task 6.4 still owns the terminal gate record and calibration. This update completes neither 6.4
+nor 6.7 and does not establish host qualification.
