@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
+import { type InstalledRequest, readInstalledRequest } from '../cli-parser';
 import { OpaqueId } from '../contracts/records';
 import { hashBytes } from '../evidence/content-manifest';
 import { readCandidate } from '../inventory/read-candidate';
@@ -23,57 +24,6 @@ import {
   type RelocationSources,
 } from './relocation-activation';
 import { copyTrustedModules, hashTrustedModules, writeBytes } from './trusted-modules';
-
-const flags = [
-  'candidate-repository',
-  'candidate-sha',
-  'toolkit',
-  'candidate-policy',
-  'candidate-mapping',
-  'review-record',
-  'audit-strata',
-  'destination',
-  'work',
-  'resource-lane',
-  'cwd-identity',
-  'check-runs',
-] as const;
-type Flag = (typeof flags)[number];
-
-/** The usage line of `prepare-activation`; `cli-parser.ts`'s help shows the same grammar (cli.test.ts). */
-export const prepareActivationUsage = `usage: twilight-burokrat prepare-activation ${flags
-  .map((flag) => `--${flag} <value>`)
-  .join(' ')}`;
-
-/**
- * A package executable may supply only its own installed toolkit directory. A consumer's layout is
- * its own: the policy and mapping paths, review record and audit strata remain operator input, and
- * a tool that guessed any of them would be attesting on the operator's behalf. `--check-runs` is
- * the directory `twilight-dash run-activation-checks` wrote for this candidate.
- */
-function readArguments(argv: readonly string[], defaultToolkit?: string): Record<Flag, string> {
-  const selected = new Map<string, string>();
-  for (let index = 0; index < argv.length; index += 2) {
-    const name = argv[index];
-    const value = argv[index + 1];
-    if (!name.startsWith('--') || index + 1 >= argv.length) {
-      throw new Error(prepareActivationUsage);
-    }
-    const flag = name.slice(2);
-    if (!(flags as readonly string[]).includes(flag)) throw new Error(`unknown flag: ${name}`);
-    if (selected.has(flag)) throw new Error(`repeated flag: ${name}`);
-    selected.set(flag, value);
-  }
-  // The loop below assigns every member of `flags` or throws, and `flags` is the key set of that
-  // record, so the cast is discharged before the value escapes this function.
-  const resolved = {} as Record<Flag, string>;
-  for (const flag of flags) {
-    const value = selected.get(flag) ?? (flag === 'toolkit' ? defaultToolkit : undefined);
-    if (value === undefined) throw new Error(`missing required flag: --${flag}`);
-    resolved[flag] = value;
-  }
-  return resolved;
-}
 
 /** The operator's audit stratum table: the risk this repository accepts, never derived from code. */
 const AuditStrataFile = type({
@@ -332,7 +282,37 @@ export function prepareToolkitActivation(
   defaultToolkit?: string,
   expectedToolkitIdentity?: string,
 ): string[] {
-  const options = readArguments(argv, defaultToolkit);
+  return prepareToolkit(
+    readInstalledRequest('prepare-activation', ['prepare-activation', ...argv]),
+    defaultToolkit,
+    expectedToolkitIdentity,
+  );
+}
+
+/** Prepare the typed selection against the verified installed toolkit, preserving identity checks. */
+export function prepareToolkit(
+  request: InstalledRequest<'prepare-activation'>,
+  defaultToolkit?: string,
+  expectedToolkitIdentity?: string,
+): string[] {
+  const toolkitPath = request.toolkit ?? defaultToolkit;
+  // Proof: removing this check lets absent toolkit authority reach the repository reader;
+  // the typed adapter negative loses its required-toolkit refusal before any authority read.
+  if (toolkitPath === undefined) throw new Error('missing required flag: --toolkit');
+  const options = {
+    'candidate-repository': request.candidateRepository,
+    'candidate-sha': request.candidateSha,
+    toolkit: toolkitPath,
+    'candidate-policy': request.candidatePolicy,
+    'candidate-mapping': request.candidateMapping,
+    'review-record': request.reviewRecord,
+    'audit-strata': request.auditStrata,
+    destination: request.destination,
+    work: request.work,
+    'resource-lane': request.resourceLane,
+    'cwd-identity': request.cwdIdentity,
+    'check-runs': request.checkRuns,
+  };
   const repository = realpathSync(resolve(options['candidate-repository']));
   const sha = options['candidate-sha'];
   const destination = assertOutsideCandidate(repository, options.destination, '--destination');

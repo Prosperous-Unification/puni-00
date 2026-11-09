@@ -1,6 +1,6 @@
 # Verification
 
-## Grammar foundation, 2026-11-09
+## Grammar foundation, commit 39f8a616e, 2026-11-09
 
 This is a partial implementation of tasks 1.1 and 1.2. The root composes the three installed Optique grammars, canonical names and aliases through provider-owned grammar facades. Shared Dash coherence checks run after parsing. The grammar consumer alone receives exact facade allowances, retaining all inherited constraints; the actual Nx graph retains the three provider edges and pins their sole source importer and static edge type.
 
@@ -70,7 +70,7 @@ Receipts: `/tmp/puni-cli-mutation-receipt.json` and `/tmp/puni-graph-proof-recei
 
 ### Remaining required checks
 
-No full local suite, installed-package test, startup-budget measurement, Bash/Node-free client test, trusted closure mutation sweep, script-inventory completeness proof, deployment, CI result or canonical h2puni/h4claw gate is claimed. These are required by later tasks and the combined goal. This grammar slice does not establish completion of the CLI or entity scope.
+At this foundation checkpoint no full local suite, installed-package test, startup-budget measurement, Bash/Node-free client test, trusted closure mutation sweep, script-inventory completeness proof, deployment, CI result or canonical h2puni/h4claw gate is claimed. These are required by later tasks and the combined goal. This grammar slice does not establish completion of the CLI or entity scope.
 
 ### Artifact check receipt
 
@@ -79,3 +79,72 @@ No full local suite, installed-package test, startup-budget measurement, Bash/No
 - Final grammar mutation rerun: all 23 named fault cases failed their production-path oracles and were restored; graph proof separately killed both extra-importer and implicit-edge faults.
 - After restoration, root/boundary/workspace graph test rerun: 107 passed, 0 failed, 280 assertions across 3 files, exit 0.
 - `git diff --check`: exit 0 before staging.
+
+## Typed policy grammars, 2026-11-09
+
+Task 1.1 now meets its source grammar/discovery/boundary acceptance. The seven commands from twilight-cli-optique 3.4 publish typed Optique requests in provider-owned policy-parser.ts, and their handlers consume those requests directly. Module usage strings and hand argument loops were removed; remaining transitional argv adapters reuse readInstalledRequest and do not sit on the typed handler path. Check now stays optional, with dated-rule-only enforcement downstream. Toolkit preparation preserves its verified identity comparison; relocation retains its explicitly modeled path defaults. Typed activation calls are wired into the existing installed provider entry.
+
+Task 1.3 stays open for actual installed PUNI execution in 2.1. The existing installed Burokrat regression is additional evidence, not a PUNI installation or Bun-only client claim. Root runtime dispatch, the C9 hashed typed-child bridge, trusted Bun launcher/bootstrap, release identity migration, inventory and remaining client naming remain required. C9 is now a testable delta requirement and a runtime-task obligation.
+
+### Review and regression findings
+
+- Initial request tests: 0 passed, 19 failed before replacing raw argv tails; all 19 then passed. The matrix now tests every required activation flag independently and malformed/duplicate/blank values.
+- First broad request/handler run: 291 passed, 39 failed. Several tests pinned old usage text; rule tests also lacked the TOOL_WIKI_TRUSTED_NODE_MODULES environment explicitly supplied by their owning Nx target. This was not accepted as a green run.
+- With the target's environment, 326 passed and 3 failed: two real workflow parser regressions (a repeated --steps could become its own value while approve became the filename) plus README help generated without package-version support. Added root witnesses, rejected the reserved repeated flag value, and regenerated version-aware help. Focused rerun: 115 passed, 0 failed.
+- Activation/date checks first passed 47 and failed 3 old diagnostic assertions. Updating the expected Optique refusals preserved named missing flags/status. A new assertion then incorrectly accessed stdout on a helper exposing only a parsed verdict; corrected it to assert no verdict, and all 17 dated-rule tests passed. Final combined results below include these cases.
+- A broad command using an unprefixed directory filter also selected three emitted JavaScript test copies in dist/out-tsc: 628 source tests passed, 3 duplicate-module load errors failed the command. The corrected explicit ./ source-path command passed, and puni-cli:test now declares ./src. No generated output was deleted to hide the discovery mistake.
+- Legacy installed-package assertions still expected placeholder help/footer and hand-parser missing-flag text. They were updated to exact typed check/explain/template discovery and Optique missing-option diagnostics. The full package test body subsequently passed, including actual check/template/explain execution, nonpassing verdict output, inactive lint response, toolkit corruption and rebuilding.
+- Fresh Astra code review found no blocking correctness regression. Its sole P3 stale README paragraph was corrected to typed nested discovery and optional check now semantics. Its independent three-suite run passed 237 tests. The reviewer did not verify broad suites, package installation or host gates.
+- Final source filenames name policy/request contracts: policy-parser.ts, request-adapters.test.ts and root burokrat-grammar.test.ts; this mechanical rename followed the initial tests, with final path checks and all 20 mutations rerun afterward.
+
+### Fresh checks
+
+Run from the isolated CLI worktree with Bun 1.4.4:
+
+- Combined source suite: 628 passed, 0 failed, 2803 assertions, 14 files; exit 0. Command: TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test ./apps/puni/cli/src ./tools/tool-devsync/src/puni-boundaries.test.ts ./tools/tool-devsync/src/workspace-projects.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/cli.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/request-adapters.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/rules/rules.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/rules/scenarios.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/rules/job-catalogue.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/templates/templates.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/workflow-binding.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/policy/relocation-activation.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts --timeout=60000. At that run the adapter test still had its pre-rename delegated-adapters filename; final path rerun follows.
+- After final filenames, root/boundary/graph/request/clock suite: 345 passed, 0 failed, 1109 assertions across 7 files; exit 0. Log: /tmp/puni-policy-final-targeted.log.
+- Actual all-leaf discovery tests cover all 93 installed leaves: 187 passed, 0 failed, 766 assertions. They invoke real nested help, Bash dynamic completion and unknown-option refusal for each leaf, and independently pin the advertised leaf inventory including mixed validate/workflow-binding branches.
+- NX_DAEMON=false bunx --no-install nx run puni-cli:test --skip-nx-cache: exit 0, 309 passed, 0 failed. No cached test result was accepted.
+- bunx --no-install tsc --build --force apps/puni/cli/tsconfig.json apps/twilight-structure/twilight-burokrat/cli/tsconfig.json: exit 0 after final filenames. Log: /tmp/puni-policy-final-typecheck.log.
+- Owned TypeScript ESLint: exit 0 after final filenames. Log: /tmp/puni-policy-final-lint.log. All owned source/spec files were formatted; final format and OpenSpec summary are recorded after artifact checking.
+
+### New production-path faults
+
+Every fault below failed its named oracle, then the production source was restored. The 20-fault sweep was repeated at the final filenames; /tmp/puni-delegated-mutation-receipt.json reports 20 observed failures and restored: true. Proof comments are adjacent to the corresponding checks.
+
+| Injected fault                                       | Observed failing oracle                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Remove operand nonblank pattern                      | Check whitespace-only repository refusal                                              |
+| Remove flag-value nonblank pattern                   | Check whitespace-only rule-option refusal                                             |
+| Replace selection choice with string                 | Template bogus-selection refusal                                                      |
+| Remove instant finiteness check                      | Tomorrow yields usage refusal, not an internal date error                             |
+| Remove instant round-trip equality                   | February 30 refuses before IO                                                         |
+| Make check now required                              | Undated complete check request remains accepted                                       |
+| Remove scenario path pattern                         | ../outside.md refuses before IO                                                       |
+| Accept repeated --steps as its value                 | Repeated flag / flag-as-filename root negatives                                       |
+| Remove catalogue nonblank segment check              | Whitespace step segment refusal                                                       |
+| Remove catalogue uniqueness check                    | Duplicate step segment refusal                                                        |
+| Make template subject optional                       | Incomplete verify request refusal                                                     |
+| Make workflow steps optional                         | Binding request without steps refuses                                                 |
+| Make activation mapping optional                     | Isolated required-mapping case                                                        |
+| Make relocation base optional                        | Isolated required-base case                                                           |
+| Make resource lane optional                          | Both preparers' isolated required-lane cases                                          |
+| Make cwd identity optional                           | Both preparers' isolated required-cwd cases                                           |
+| Remove adapter operation guard                       | Help passed to writeExplainCommand gives its named refusal                            |
+| Remove adapter command guard                         | Template list passed to writeExplainCommand gives its named refusal                   |
+| Remove required toolkit source guard                 | Missing toolkit refuses before authority reads                                        |
+| Re-enter the argv adapter in typed template dispatch | Actual child with deliberately broken argv adapter still executes the typed operation |
+
+An additional source mutation removed template verify from the real provider grammar. The root's exact leaf inventory failed; it was restored (/tmp/puni-delegated-leaf-mutation.json). This is separate from merely changing a test's expected string.
+
+### Limits
+
+The verified legacy provider package still contains the existing Bash launcher. These tests do not establish a new installed PUNI artifact, clean C9 child environment, preserved generated MCP helper startup, complete script inventory, Bun-only execution, release publication, deployment or canonical host gate. Those remain required by the active full goal.
+
+### Final typed-policy artifact receipt
+
+- Final-path legacy provider package build and installed dispatch: 3 passed, 0 failed, 87 assertions, exit 0; /tmp/puni-policy-final-package.log. This includes the real toolkit corruption/rebuild body, not only discovery.
+- Complete owned-file Prettier check: exit 0, all matched files formatted; /tmp/puni-policy-final-format.log.
+- bunx --no-install openspec validate --all --json: exit 0; 343 items passed, 0 failed (323 changes, 20 specs); /tmp/puni-policy-final-openspec.log.
+- git diff --check: exit 0 before staging.
+- Foundation commit39f8a616e used normal hooks; the tool-wiki hook explicitly reported inactive/certified:false because its optional external activation root was not provisioned. That output is not a certification or a host-gate result.

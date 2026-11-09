@@ -13,6 +13,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
+import { UsageRefusal } from './cli-parser';
 import { digestOf } from './contracts/canonical';
 import { selectWorkflowActivity } from './contracts/validate-workflow-binding';
 import { WorkflowBindingError } from './contracts/workflow-binding';
@@ -295,7 +296,7 @@ function expectCliRefusal(
 
 test('routes an incomplete binding command before generic record validation', async () => {
   const invocation = await invokeCli(['validate', 'workflow-binding', '/never-read.yaml']);
-  expectCliRefusal(invocation, 'invalid_arguments');
+  expectCliRefusal(invocation, 'usage: twilight-burokrat validate');
   expect(invocation.stderr).not.toContain('binding_missing');
 });
 test('prints only the accepted digest with real cwd and exit status', () => {
@@ -330,10 +331,16 @@ test.each([
   const args = operands.map((operand) =>
     operand === '.twilight/workflows.yaml' ? binding : operand,
   );
-  expectCliRefusal(spawnBinding(['validate', 'workflow-binding', ...args]), 'invalid_arguments');
+  expectCliRefusal(
+    spawnBinding(['validate', 'workflow-binding', ...args]),
+    'usage: twilight-burokrat validate',
+  );
   if (name !== 'no operands') {
     rmSync(binding);
-    expectCliRefusal(spawnBinding(['validate', 'workflow-binding', ...args]), 'invalid_arguments');
+    expectCliRefusal(
+      spawnBinding(['validate', 'workflow-binding', ...args]),
+      'usage: twilight-burokrat validate',
+    );
   }
 });
 // Proof: bypassing only production checkWorkflowBinding step membership made this spawned
@@ -429,7 +436,7 @@ test.each([
     ['validate', 'candidate-entry', '.twilight/workflows.yaml', '--steps', 'approve'],
   ],
 ])('refuses helper %s before filesystem access', (_name, args) => {
-  expectRefusal(() => runWorkflowBindingCommand(args, root), 'invalid_arguments', 'arguments');
+  expect(() => runWorkflowBindingCommand(args, root)).toThrow(UsageRefusal);
   rmSync(binding);
-  expectRefusal(() => runWorkflowBindingCommand(args, root), 'invalid_arguments', 'arguments');
+  expect(() => runWorkflowBindingCommand(args, root)).toThrow(UsageRefusal);
 });

@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
+import { type InstalledRequest, readInstalledRequest } from '../cli-parser';
 import { RelativePath } from '../contracts/records';
 import { hashBytes } from '../evidence/content-manifest';
 import { readCandidate } from '../inventory/read-candidate';
@@ -26,71 +27,6 @@ import {
   trustedModuleNames,
   writeBytes,
 } from './trusted-modules';
-
-const flags = [
-  'candidate-repository',
-  'candidate-sha',
-  'base-activation',
-  'review-record',
-  'destination',
-  'work',
-  'candidate-policy',
-  'candidate-launcher',
-  'validator-entry',
-  'resource-lane',
-  'cwd-identity',
-  'check-runs',
-] as const;
-type Flag = (typeof flags)[number];
-
-/**
- * A flag with no default is required; the candidate's own layout supplies the rest. `resource-lane`
- * and `cwd-identity` deliberately have no default: they are operator attestation the check receipts
- * carry, and a tool that invented them would be attesting on the operator's behalf.
- */
-const defaults: Partial<Record<Flag, string>> = {
-  'candidate-policy': 'docs/wiki-policy/bootstrap-policy.json',
-  'candidate-launcher': 'bin/tool-wiki-lint.sh',
-  'validator-entry': 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts',
-};
-
-/**
- * The usage line of `prepare-relocation-activation`; `cli-parser.ts`'s help shows the same grammar
- * (cli.test.ts).
- */
-export const prepareRelocationActivationUsage = `usage: twilight-burokrat prepare-relocation-activation ${flags
-  .map((flag) => (flag in defaults ? `[--${flag} <value>]` : `--${flag} <value>`))
-  .join(' ')}`;
-
-function readArguments(argv: readonly string[]): Record<Flag, string> {
-  const selected = new Map<string, string>();
-  for (let index = 0; index < argv.length; index += 2) {
-    const name = argv[index];
-    const value = argv[index + 1];
-    if (!name.startsWith('--') || index + 1 >= argv.length) {
-      throw new Error(prepareRelocationActivationUsage);
-    }
-    const flag = name.slice(2);
-    // Proof: forcing this refusal false let `--candidate-revision` pass unread and the command
-    // prepared a whole activation from the defaults; the usage negative expected this message and
-    // received `relocation activation: ...` at exit 0.
-    if (!(flags as readonly string[]).includes(flag)) throw new Error(`unknown flag: ${name}`);
-    if (selected.has(flag)) throw new Error(`repeated flag: ${name}`);
-    selected.set(flag, value);
-  }
-  // The empty object is not yet a `Record<Flag, string>`; the loop below assigns every member
-  // of `flags` or throws, and `flags` is the key set of that record, so the cast is discharged
-  // before the value escapes this function.
-  const resolved = {} as Record<Flag, string>;
-  for (const flag of flags) {
-    const value = selected.get(flag) ?? defaults[flag];
-    // Proof: forcing this refusal false let an absent flag stay undefined; the missing-flag
-    // negative observed `The "paths[0]" property must be of type string, got undefined`.
-    if (value === undefined) throw new Error(`missing required flag: --${flag}`);
-    resolved[flag] = value;
-  }
-  return resolved;
-}
 
 function git(repository: string, argv: string[], subject: string): Uint8Array {
   const invocation = Bun.spawnSync(['git', '-C', repository, ...argv], {
@@ -322,7 +258,33 @@ function archive(
  * do not prove the planned checks on this candidate.
  */
 export async function prepareRelocationActivation(argv: readonly string[]): Promise<string[]> {
-  const options = readArguments(argv);
+  return prepareRelocation(
+    readInstalledRequest('prepare-relocation-activation', [
+      'prepare-relocation-activation',
+      ...argv,
+    ]),
+  );
+}
+
+/** Prepare a typed candidate relocation; optional paths have explicit provider-owned defaults. */
+export async function prepareRelocation(
+  request: InstalledRequest<'prepare-relocation-activation'>,
+): Promise<string[]> {
+  const options = {
+    'candidate-repository': request.candidateRepository,
+    'candidate-sha': request.candidateSha,
+    'base-activation': request.baseActivation,
+    'review-record': request.reviewRecord,
+    destination: request.destination,
+    work: request.work,
+    'candidate-policy': request.candidatePolicy ?? 'docs/wiki-policy/bootstrap-policy.json',
+    'candidate-launcher': request.candidateLauncher ?? 'bin/tool-wiki-lint.sh',
+    'validator-entry':
+      request.validatorEntry ?? 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts',
+    'resource-lane': request.resourceLane,
+    'cwd-identity': request.cwdIdentity,
+    'check-runs': request.checkRuns,
+  };
   const repository = realpathSync(resolve(options['candidate-repository']));
   const sha = options['candidate-sha'];
   const destination = assertOutsideCandidate(repository, options.destination, '--destination');

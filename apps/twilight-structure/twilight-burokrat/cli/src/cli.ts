@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { parseOrThrow } from '@shared/validation';
 
 import {
-  delegatedArityRefusal,
   type exhaustiveDocumentNames,
   readInvocation,
   UsageRefusal,
@@ -41,7 +40,7 @@ import {
   readInvocationJournal,
   validateReviewProvenance,
 } from './review/invocation-journal';
-import { runWorkflowBindingCommand } from './workflow-binding';
+import { validateWorkflowBinding } from './workflow-binding';
 
 interface JsonDocument {
   bytes: Uint8Array;
@@ -302,8 +301,8 @@ type Handlers = {
 
 /**
  * One handler per validator command. A handler receives operands `cli-parser.ts` already
- * counted, typed and, for the dated commands, found `--now` among; the delegated commands
- * receive the words after their name and parse them in their own modules.
+ * counted and typed, including every nested leaf. Dated commands carry explicit evaluation time;
+ * check retains its optional now until the selected rules decide whether it is required.
  */
 export const validatorHandlers: Handlers = {
   'validate-progress-receipt': ({ receipt, planReference, tasks }) => {
@@ -323,17 +322,13 @@ export const validatorHandlers: Handlers = {
   },
   'validate-record': validateRecord,
   validate: validateRecord,
-  'validate workflow-binding': ({ argv }) => {
-    const digest = runWorkflowBindingCommand(
-      ['validate', 'workflow-binding', ...argv],
-      process.cwd(),
-    );
-    process.stdout.write(`${digest}\n`);
+  'validate workflow-binding': (request) => {
+    process.stdout.write(validateWorkflowBinding(request, process.cwd()) + '\n');
   },
   'read-candidate': readSelectedCandidate,
-  'candidate-identity': async ({ kind, repository, revision }) => {
+  'candidate-identity': async (request) => {
     const { writeCandidateIdentityCommand } = await import('./rules/check');
-    writeCandidateIdentityCommand(['candidate-identity', kind, repository, revision]);
+    writeCandidateIdentityCommand(request);
   },
   'classify-candidate': classifyCandidate,
   'content-manifest': writeContentManifest,
@@ -379,32 +374,22 @@ export const validatorHandlers: Handlers = {
       validatorEntryPaths(),
     );
   },
-  check: async ({ argv }) => {
-    // The module reads its flags in pairs after four operands.
-    // Proof: dropping this guard made `check refuses an odd flag tail and explain a two-word tail
-    // before reading` run the check with `--rule` but no rule, which read the repository: `not a
-    // readable Git repository` (2026-11-02).
-    if (argv.length !== 4 && argv.length !== 6 && argv.length !== 8)
-      throw delegatedArityRefusal(
-        'check',
-        `takes 4 operands and up to 2 flags, got ${String(argv.length)} words`,
-      );
-    const { writeCheckCommand } = await import('./rules/check');
-    writeCheckCommand(['check', ...argv]);
+  check: async (request) => {
+    const { writeCheck } = await import('./rules/check');
+    writeCheck(request);
   },
-  explain: async ({ argv }) => {
-    if (argv.length !== 1 && argv.length !== 3)
-      throw delegatedArityRefusal('explain', `takes 1 or 3 words, got ${String(argv.length)}`);
-    const { writeExplainCommand } = await import('./rules/check');
-    writeExplainCommand(['explain', ...argv]);
+  explain: async (request) => {
+    const { writeExplanation } = await import('./rules/check');
+    writeExplanation(request);
   },
-  scenario: async ({ argv }) => {
-    const { writeScenarioCommand } = await import('./rules/scenario-command');
-    writeScenarioCommand(['scenario', ...argv]);
+  scenario: async (request) => {
+    const { writeScenario } = await import('./rules/scenario-command');
+    writeScenario(request);
   },
-  template: async ({ argv }) => {
-    const { writeTemplateCommand } = await import('./templates/verify');
-    writeTemplateCommand(['template', ...argv]);
+  // Proof: invoking writeTemplateCommand here fails the child test whose argv adapter is broken.
+  template: async (request) => {
+    const { writeTemplate } = await import('./templates/verify');
+    writeTemplate(request);
   },
   'inspect-evaluation-coverage': async (command) => {
     const { inspectEvaluationCoverage } = await import('./evidence/evaluation-coverage');

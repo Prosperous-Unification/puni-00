@@ -18,21 +18,15 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { runCli, validatorHandlers } from './cli';
 import {
   commandNamesOf,
-  delegatedGrammars,
   type Grammar,
   installedGrammar,
   readInvocation,
   registerShortName,
+  UsageRefusal,
   type ValidatorCommand,
   validatorGrammar,
 } from './cli-parser';
 import { type CliInvocation, invokeCli } from './invoke-cli';
-import { prepareActivationUsage } from './policy/prepare-activation-cli';
-import { prepareRelocationActivationUsage } from './policy/prepare-relocation-activation-cli';
-import { checkUsage, explainUsage } from './rules/check';
-import { scenarioUsage } from './rules/scenario-command';
-import { templateUsage } from './templates/verify';
-import { workflowBindingUsage } from './workflow-binding';
 
 const repositories: string[] = [];
 const cliPath = join(import.meta.dir, 'cli.ts');
@@ -673,11 +667,11 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
   test('check refuses an odd flag tail and explain a two-word tail before reading', async () => {
     await expectUsageRefusal(
       ['check', 'working', absentRepository, 'HEAD', 'policy.json', '--rule'],
-      /^error: usage: twilight-burokrat check <committed\|staged\|working> .* \(takes 4 operands and up to 2 flags, got 5 words\)\n$/u,
+      /^error: usage: twilight-burokrat check .*\(`--rule` requires `RULE`\.\)\n$/u,
     );
     await expectUsageRefusal(
       ['explain', 'MOD-INDEX', absentRepository],
-      /^error: usage: twilight-burokrat explain <rule-id> \[<repository> <rule-policy-json>\] \(takes 1 or 3 words, got 2\)\n$/u,
+      /^error: usage: twilight-burokrat explain .*RULE-POLICY/u,
     );
   });
 
@@ -768,55 +762,36 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
       expect(printedBy(installedGrammar, line.split(' ')), line).toMatch(stdout);
     }
     expect(printedBy(installedGrammar, ['help', 'check']).replace(/\s+/gu, ' ')).toContain(
-      '<committed|staged|working> <repository> <revision-or-base> <rule-policy-json>',
+      'SELECTION REPOSITORY REVISION-OR-BASE RULE-POLICY',
     );
     const candidates = printedBy(installedGrammar, ['completion', 'zsh', '']);
     for (const name of commandNamesOf(installedGrammar)) expect(candidates).toContain(name);
   });
 
-  test("every delegated grammar is its module's usage line", () => {
-    // Proof: restoring `template`'s `<id>` metavars in `delegatedGrammars` failed this test with
-    // `<template-id>` expected (2026-11-03).
-    const moduleUsages: Record<keyof typeof delegatedGrammars, string> = {
-      check: checkUsage,
-      explain: explainUsage,
-      scenario: scenarioUsage,
-      template: templateUsage,
-      'validate workflow-binding': workflowBindingUsage,
-      'prepare-activation': prepareActivationUsage,
-      'prepare-relocation-activation': prepareRelocationActivationUsage,
-    };
-    for (const [words, grammar] of Object.entries(delegatedGrammars)) {
-      expect(moduleUsages[words as keyof typeof delegatedGrammars], words).toBe(
-        `usage: twilight-burokrat ${words} ${grammar}`,
-      );
+  test('formerly delegated help derives from typed options and nested commands', () => {
+    for (const [words, expected] of [
+      [['check'], '--performance-evidence PATH'],
+      [['explain'], 'RULE'],
+      [['scenario', 'allocate'], '--predecessor ID'],
+      [['template', 'verify'], 'SUBJECT'],
+      [['validate', 'workflow-binding'], '--steps STEPS'],
+      [['prepare-activation'], '--candidate-mapping PATH'],
+      [['prepare-relocation-activation'], '--base-activation PATH'],
+    ] as const) {
+      const help = printedBy(installedGrammar, [...words, '--help']);
+      expect(help).toContain('Usage: twilight-burokrat ' + words.join(' '));
+      expect(help).toContain(expected);
+      expect(help).not.toContain('[...]');
     }
-  });
-
-  test('<delegated command> --help prints its help; other words reach the module', () => {
-    for (const argv of [
-      ['check', '--help'],
-      ['validate', 'workflow-binding', '--help'],
-      ['template', '--help'],
-    ]) {
-      const words = argv.slice(0, -1).join(' ');
-      expect(printedBy(installedGrammar, argv), words).toContain(
-        `Usage: twilight-burokrat ${words} [...]`,
-      );
-    }
-    for (const tail of [
-      ['--version'],
-      ['--now=2026-11-02T00:00:00.000Z'],
-      ['--', '--help'],
-      ['working', '.', 'HEAD', 'policy.json', '--help'],
-    ]) {
-      expect(
+    for (const tail of [['--version'], ['--now=2026-11-02T00:00:00.000Z'], ['--', '--help']])
+      expect(() =>
         readInvocation(validatorGrammar, ['check', ...tail], { stdout: () => undefined }),
-      ).toEqual({
-        kind: 'command',
-        command: { command: 'check', argv: tail },
-      });
-    }
+      ).toThrow(UsageRefusal);
+    expect(
+      readInvocation(validatorGrammar, ['check', 'working', '.', 'HEAD', 'policy.json', '--help'], {
+        stdout: () => undefined,
+      }),
+    ).toEqual({ kind: 'printed' });
   });
 
   test('completion scripts register twib beside twilight-burokrat', () => {

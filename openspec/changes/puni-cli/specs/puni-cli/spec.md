@@ -67,3 +67,17 @@ Root grammar composition SHALL import only the designated provider grammar facad
 
 - **WHEN** controlled files import an approved facade, a provider-private path, a runtime from the grammar consumer, or a facade from an unapproved neighboring file
 - **THEN** only the approved consumer/facade combinations pass the actual production lint policy, without parser errors concealing a boundary failure
+
+### Requirement: Burokrat typed execution preserves the verified process boundary
+
+Ordinary installed Burokrat operations SHALL verify the package and toolkit before starting a Bun validator child from the hashed validator role. A versioned transport SHALL validate an installed-validator-only request once, reject unknown fields and source-only operations, and invoke typed handlers without calling an argv parser. The child SHALL run outside the candidate with explicit trusted environment and dependency closure, preserving caller-relative host paths and repository-relative selectors. Lint SHALL retain external activation selection and the verified immutable validator snapshot; direct installed-validator dispatch SHALL NOT replace that authority path.
+
+#### Scenario: Typed requests do not bypass toolkit authority or reparse argv
+
+- **WHEN** a valid installed request reaches the verified child while its argv adapter is deliberately broken
+- **THEN** the typed operation succeeds with its original output and verdict status, while a malformed transport, source-only request or missing/tampered toolkit fails before operation input access
+
+#### Scenario: Candidate startup settings cannot execute in the trusted child
+
+- **WHEN** the candidate supplies hostile Bun configuration, env files, preload options or dependency overrides and the caller uses relative paths
+- **THEN** no candidate startup code runs, the verified closure remains selected, caller-relative inputs retain their meaning, and repository-relative selectors remain anchored to the selected candidate
