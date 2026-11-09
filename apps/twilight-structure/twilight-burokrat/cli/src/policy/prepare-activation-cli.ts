@@ -12,7 +12,6 @@ import { AuditStratum } from '../review/audit';
 import { prepareActivation, selectActivation } from './activation';
 import { dashCheckRunAuthority } from './check-run-authority';
 import { planCheckRuns, readCheckRuns, retainCheckRuns } from './check-runs';
-import { toolkitRoles } from './release';
 import {
   assertPinnedRuntime,
   type CandidateFile,
@@ -23,23 +22,15 @@ import {
   RelocationRefusal,
   type RelocationSources,
 } from './relocation-activation';
-import { copyTrustedModules, hashTrustedModules, writeBytes } from './trusted-modules';
+import { readToolkit } from './toolkit';
+import { copyTrustedModules, writeBytes } from './trusted-modules';
+
+export { readToolkit, type Toolkit } from './toolkit';
 
 /** The operator's audit stratum table: the risk this repository accepts, never derived from code. */
 const AuditStrataFile = type({
   strata: AuditStratum.array(),
   obligations: type({ '[string]': OpaqueId }),
-}).onUndeclaredKey('reject');
-
-/** The toolkit descriptor, read only to digest-check the roles beside it. */
-const ToolkitDescriptor = type({
-  schemaVersion: '1',
-  tag: 'string>=1',
-  sourceRevision: /^[0-9a-f]{40}$/,
-  bunVersion: 'string>=1',
-  roles: type({ '[string]': /^[0-9a-f]{64}$/ }),
-  trustedNodeModules: 'string[]',
-  trustedNodeModulesIdentity: /^[0-9a-f]{64}$/,
 }).onUndeclaredKey('reject');
 
 function git(repository: string, argv: string[], subject: string): Uint8Array {
@@ -108,89 +99,6 @@ function assertOutsideCandidate(repository: string, path: string, flag: string):
     throw new RelocationRefusal('R3', `${flag} must be outside the candidate repository: ${path}`);
   }
   return resolved;
-}
-
-export interface Toolkit {
-  readonly directory: string;
-  readonly tag: string;
-  readonly sourceRevision: string;
-  readonly digest: string;
-  readonly roleBytes: Readonly<Record<string, Uint8Array>>;
-  readonly trustedNodeModules: readonly string[];
-}
-
-/**
- * Reads a released toolkit and joins everything it will hand a consumer back to its own
- * `toolkit.json`: each role's bytes, the whole runtime closure's digest, and the Bun that built
- * the bundles. `SHA256SUMS` covers the roles and the descriptor but no file below
- * `trusted-node-modules/`, so the closure digest is the only thing that pins those 24 MB.
- * @throws {@link RelocationRefusal} `R19` naming the role whose bytes differ, the closure whose
- * digest differs, or the Bun version the toolkit was built with.
- */
-export function readToolkit(directory: string): Toolkit {
-  const canonical = realpathSync(directory);
-  const descriptorBytes = readFileSync(join(canonical, 'toolkit.json'));
-  const descriptor = parseOrThrow(
-    ToolkitDescriptor,
-    JSON.parse(new TextDecoder().decode(descriptorBytes)) as unknown,
-  );
-  const digests = new Map(Object.entries(descriptor.roles));
-  const roleBytes: Record<string, Uint8Array> = {};
-  for (const role of toolkitRoles) {
-    let bytes: Uint8Array;
-    try {
-      bytes = readFileSync(join(canonical, role));
-    } catch (cause) {
-      // Proof: renaming the installed validator made the packed-install negative observe a raw
-      // ENOENT until this boundary named the unreadable toolkit role the operator must restore.
-      throw new RelocationRefusal('R19', `toolkit role is unreadable: ${role}`, { cause });
-    }
-    const expected = digests.get(role);
-    // Proof: forcing this refusal false prepared an activation whose `launcher.sh` had been
-    // replaced after packing while `toolkit.json` still named the reviewed digest; the altered-role
-    // negative expected this message and received a prepared activation at exit 0. The packaged
-    // executable negative also appends bytes to its installed `validator.mjs` and reaches this
-    // refusal before resolving the deliberately unknown candidate commit.
-    if (expected === undefined || hashBytes(bytes) !== expected) {
-      throw new RelocationRefusal(
-        'R19',
-        `toolkit role differs from toolkit.json: ${role} (${hashBytes(bytes)} != ${expected ?? 'absent'})`,
-      );
-    }
-    roleBytes[role] = bytes;
-  }
-  // Proof: forcing this refusal false prepared an activation whose Bun was not the one that built
-  // the toolkit's `validator.mjs`, so the bundle digest the consumer binds could not be reproduced
-  // by its own runner; the drifted-toolkit negative expected this message and received a prepared
-  // activation at exit 0.
-  if (descriptor.bunVersion !== Bun.version) {
-    throw new RelocationRefusal(
-      'R19',
-      `toolkit was built with another Bun: ${descriptor.bunVersion} != ${Bun.version}`,
-    );
-  }
-  const closure = join(canonical, 'trusted-node-modules');
-  const closureIdentity = hashTrustedModules(closure);
-  // Proof: forcing this refusal false copied an altered `typescript/package.json` out of the
-  // toolkit into the consumer's archive as the validator's runtime; `SHA256SUMS` lists no file
-  // below `trusted-node-modules`, so nothing else in the chain would have noticed. The negative
-  // expected this message and received a prepared, self-certified activation at exit 0.
-  // Proof: disabling this comparison admitted altered arktype/out/index.d.ts bytes through
-  // the installed external extraction command; the vendor-corruption negative observed exit 0.
-  if (closureIdentity !== descriptor.trustedNodeModulesIdentity) {
-    throw new RelocationRefusal(
-      'R19',
-      `toolkit runtime closure differs from toolkit.json: ${closureIdentity} != ${descriptor.trustedNodeModulesIdentity}`,
-    );
-  }
-  return {
-    directory: canonical,
-    tag: descriptor.tag,
-    sourceRevision: descriptor.sourceRevision,
-    digest: hashBytes(descriptorBytes),
-    roleBytes,
-    trustedNodeModules: descriptor.trustedNodeModules,
-  };
 }
 
 function selfCheck(destination: string, repository: string, sha: string): string {

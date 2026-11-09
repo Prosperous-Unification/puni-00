@@ -1,11 +1,25 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { ValidationError } from '@shared/validation';
 import { afterAll, expect, test } from 'bun:test';
 
 import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
-import { prepareActivation, selectActivation, verifyActivation } from './activation';
+import {
+  prepareActivation,
+  readBunActivation,
+  selectActivation,
+  verifyActivation,
+} from './activation';
 
 const scratch: string[] = [];
 const workspace = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
@@ -307,3 +321,214 @@ test.each(['policy', 'authority', 'validator', 'mapping'] as const)(
     );
   },
 );
+
+function rewriteActivation(directory: string, path: string, bytes: string): void {
+  chmodSync(join(directory, path), 0o644);
+  writeFileSync(join(directory, path), bytes);
+}
+
+/** Reader-only schema4 fixture; the production writer intentionally remains schema3 here. */
+function createBunReaderFixture() {
+  const subject = fixture('bunReader');
+  const prepared = prepareActivation({
+    ...subject.request,
+    destination: join(subject.store, 'bun-reader'),
+  });
+  renameSync(
+    join(prepared.directory, 'artifacts/launcher.sh'),
+    join(prepared.directory, 'artifacts/launcher.mjs'),
+  );
+  const manifest = {
+    ...prepared.manifest,
+    schemaVersion: 4 as const,
+    roles: { ...prepared.manifest.roles, launcher: 'artifacts/launcher.mjs' },
+    artifacts: prepared.manifest.artifacts.map((artifact) =>
+      artifact.role === 'launcher' ? { ...artifact, path: 'artifacts/launcher.mjs' } : artifact,
+    ),
+  };
+  rewriteActivation(prepared.directory, 'launcher-path', 'artifacts/launcher.mjs\n');
+  rewriteActivation(prepared.directory, 'manifest.json', serializeCanonical(manifest));
+  const entries = manifest.artifacts.map((artifact) => ({
+    path: artifact.path,
+    identity: artifact.identity,
+  }));
+  for (const path of [
+    'active-v1',
+    'ci-binding-path',
+    'evidence-path',
+    'launcher-path',
+    'local-binding-path',
+    'snapshotter-path',
+    'validator-path',
+  ]) {
+    entries.push({ path, identity: hashBytes(readFileSync(join(prepared.directory, path))) });
+  }
+  rewriteActivation(
+    prepared.directory,
+    'checksums.sha256',
+    entries
+      .sort((left, right) => (left.path < right.path ? -1 : 1))
+      .map((entry) => entry.identity + '  ' + entry.path)
+      .join('\n') + '\n',
+  );
+  return { ...subject, directory: prepared.directory, manifest };
+}
+
+test('historical activation identity remains verifiable but Bun execution refuses schema3', () => {
+  const subject = fixture('historicalReader');
+  const prepared = prepareActivation({
+    ...subject.request,
+    destination: join(subject.store, 'historical'),
+  });
+  const before = readFileSync(join(prepared.directory, 'manifest.json'));
+  expect(verifyActivation(prepared.directory).identity).toBe(hashBytes(before));
+  expect(() => readBunActivation(prepared.directory)).toThrow(
+    'Bun execution requires activation schema 4',
+  );
+  expect(readFileSync(join(prepared.directory, 'manifest.json'))).toEqual(before);
+});
+
+test('verifies manually assembled schema4 role paths, original identity and unchanged selection protocol', () => {
+  const subject = createBunReaderFixture();
+  const verified = readBunActivation(subject.directory);
+  expect(verified.manifest.schemaVersion).toBe(4);
+  expect(verified.manifest.roles.launcher).toBe('artifacts/launcher.mjs');
+  expect(verified.identity).toBe(hashBytes(readFileSync(join(subject.directory, 'manifest.json'))));
+  expect(selectActivation(subject.store, subject.directory, verified.identity).identity).toBe(
+    verified.identity,
+  );
+  expect(JSON.parse(readFileSync(join(subject.store, 'selected.json'), 'utf8'))).toMatchObject({
+    schemaVersion: 1,
+    identity: verified.identity,
+  });
+});
+
+test('refuses the legacy launcher path under schema4 even with its internally consistent hashes', () => {
+  const subject = fixture('mixedReader');
+  const prepared = prepareActivation({
+    ...subject.request,
+    destination: join(subject.store, 'mixed'),
+  });
+  rewriteActivation(
+    prepared.directory,
+    'manifest.json',
+    serializeCanonical({ ...prepared.manifest, schemaVersion: 4 }),
+  );
+  expect(() => verifyActivation(prepared.directory)).toThrow(
+    'activation role path is invalid: launcher',
+  );
+});
+
+test('refuses the Bun launcher path relabeled as historical schema3', () => {
+  const subject = createBunReaderFixture();
+  rewriteActivation(
+    subject.directory,
+    'manifest.json',
+    serializeCanonical({ ...subject.manifest, schemaVersion: 3 }),
+  );
+  expect(() => verifyActivation(subject.directory)).toThrow(
+    'activation role path is invalid: launcher',
+  );
+});
+
+for (const damage of [
+  'unknown-version',
+  'unknown-field',
+  'noncanonical',
+  'marker',
+  'descriptor',
+  'checksum',
+  'role-bytes',
+  'missing-role',
+  'duplicate-role',
+  'extra-role',
+] as const) {
+  test('refuses schema4 ' + damage, () => {
+    const subject = createBunReaderFixture();
+    switch (damage) {
+      case 'unknown-version':
+        rewriteActivation(
+          subject.directory,
+          'manifest.json',
+          serializeCanonical({ ...subject.manifest, schemaVersion: 999 }),
+        );
+        break;
+      case 'unknown-field':
+        rewriteActivation(
+          subject.directory,
+          'manifest.json',
+          serializeCanonical({ ...subject.manifest, unreviewed: true }),
+        );
+        break;
+      case 'noncanonical':
+        rewriteActivation(
+          subject.directory,
+          'manifest.json',
+          JSON.stringify(subject.manifest, null, 2),
+        );
+        break;
+      case 'marker':
+        rewriteActivation(subject.directory, 'active-v1', 'unreviewed\n');
+        break;
+      case 'descriptor':
+        rewriteActivation(subject.directory, 'launcher-path', 'artifacts/launcher.sh\n');
+        break;
+      case 'checksum':
+        rewriteActivation(subject.directory, 'checksums.sha256', 'unreviewed\n');
+        break;
+      case 'role-bytes':
+        rewriteActivation(subject.directory, 'artifacts/launcher.mjs', 'changed\n');
+        break;
+      case 'missing-role':
+        rewriteActivation(
+          subject.directory,
+          'manifest.json',
+          serializeCanonical({
+            ...subject.manifest,
+            artifacts: subject.manifest.artifacts.filter(
+              (artifact) => artifact.role !== 'launcher',
+            ),
+          }),
+        );
+        break;
+      case 'duplicate-role':
+        rewriteActivation(
+          subject.directory,
+          'manifest.json',
+          serializeCanonical({
+            ...subject.manifest,
+            artifacts: subject.manifest.artifacts.map((artifact) =>
+              artifact.role === 'launcher' ? subject.manifest.artifacts[0] : artifact,
+            ),
+          }),
+        );
+        break;
+      case 'extra-role':
+        rewriteActivation(
+          subject.directory,
+          'manifest.json',
+          serializeCanonical({
+            ...subject.manifest,
+            artifacts: [
+              ...subject.manifest.artifacts,
+              { role: 'unknown', path: 'artifacts/unknown', identity: 'a'.repeat(64) },
+            ],
+          }),
+        );
+        break;
+    }
+    const expected = {
+      'unknown-version': ValidationError,
+      'unknown-field': ValidationError,
+      noncanonical: 'activation manifest is not canonical',
+      marker: 'activation marker differs from its package contract',
+      descriptor: 'activation launcher descriptor differs from its package contract',
+      checksum: 'activation checksum manifest differs from roles',
+      'role-bytes': 'activation artifact digest mismatch: artifacts/launcher.mjs',
+      'missing-role': 'activation artifact set is incomplete',
+      'duplicate-role': 'activation artifacts contain a duplicate role or path',
+      'extra-role': ValidationError,
+    }[damage];
+    expect(() => readBunActivation(subject.directory)).toThrow(expected);
+  });
+}

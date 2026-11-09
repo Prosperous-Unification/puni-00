@@ -71,8 +71,7 @@ const RolesRecord = type({
   snapshotter: 'string>=1',
   validator: 'string>=1',
 }).onUndeclaredKey('reject');
-const ManifestRecord = type({
-  schemaVersion: '3',
+const manifestFields = {
   sourceRevision: /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/,
   policyIdentity: Sha256Identity,
   mappingIdentity: Sha256Identity,
@@ -80,7 +79,11 @@ const ManifestRecord = type({
   reviewReceiptIdentity: Sha256Identity,
   roles: RolesRecord,
   artifacts: ArtifactRecord.array(),
-}).onUndeclaredKey('reject');
+} as const;
+const LegacyManifest = type({ ...manifestFields, schemaVersion: '3' }).onUndeclaredKey('reject');
+/** Proof: accepting an unknown version/field fails schema4's typed validation refusals. */
+const BunManifest = type({ ...manifestFields, schemaVersion: '4' }).onUndeclaredKey('reject');
+const ManifestRecord = LegacyManifest.or(BunManifest);
 const BindingArtifactReference = type({ path: 'string>=1', sha256: Sha256Identity });
 const BindingClosureRecord = type({
   policy: BindingArtifactReference,
@@ -90,6 +93,7 @@ const BindingClosureRecord = type({
 });
 
 export type ActivationManifest = typeof ManifestRecord.infer;
+export type BunActivation = VerifiedActivation & { readonly manifest: typeof BunManifest.infer };
 
 export interface PrepareActivationRequest {
   readonly candidateRepository: string;
@@ -260,7 +264,7 @@ function preparedManifest(request: PrepareActivationRequest) {
   const artifacts = sources
     .map(({ identity, role }) => ({ identity, path: rolePaths[role], role }))
     .sort((left, right) => compareCanonicalText(left.role, right.role));
-  const manifest: ActivationManifest = {
+  const manifest: typeof LegacyManifest.infer = {
     artifacts,
     mappingIdentity: request.mappingIdentity,
     policyIdentity: request.policyIdentity,
@@ -311,8 +315,9 @@ function checksumBytes(manifest: ActivationManifest): string {
   entries.push({ identity: hashBytes('tool-wiki-active-v1\n'), path: 'active-v1' });
   for (const role of roles) {
     const descriptor = descriptors[role];
+    // Proof: using the legacy path table rejects the manually assembled schema4 checksum manifest.
     if (descriptor !== undefined)
-      entries.push({ identity: hashBytes(`${rolePaths[role]}\n`), path: descriptor });
+      entries.push({ identity: hashBytes(`${manifest.roles[role]}\n`), path: descriptor });
   }
   return `${entries
     .sort((left, right) => compareCanonicalText(left.path, right.path))
@@ -368,6 +373,9 @@ export function verifyActivation(directory: string): VerifiedActivation {
     throw new Error('cannot read activation manifest', { cause });
   }
   const manifest = decodeManifest(bytes);
+  // Proof: trusting manifest.roles admits a mixed schema4 Bash layout; reversing versions rejects valid schema4.
+  const expectedPaths =
+    manifest.schemaVersion === 3 ? rolePaths : { ...rolePaths, launcher: 'artifacts/launcher.mjs' };
   // Proof: the canonical empty manifest with an unknown trusted field was selected successfully
   // before strict decoding and the complete role boundary replaced the unchecked cast.
   if (manifest.artifacts.length !== roles.length)
@@ -381,7 +389,7 @@ export function verifyActivation(directory: string): VerifiedActivation {
     seenPaths.add(artifact.path);
     if (
       manifest.roles[artifact.role] !== artifact.path ||
-      artifact.path !== rolePaths[artifact.role]
+      artifact.path !== expectedPaths[artifact.role]
     )
       throw new Error(`activation role path is invalid: ${artifact.role}`);
     let actual: string;
@@ -426,13 +434,23 @@ export function verifyActivation(directory: string): VerifiedActivation {
     throw new Error('activation marker differs from its package contract');
   for (const role of roles) {
     const descriptor = descriptors[role];
+    // Proof: bypassing this comparison admits the altered schema4 launcher-path descriptor.
     if (
       descriptor !== undefined &&
-      readFileSync(join(canonical, descriptor), 'utf8') !== `${rolePaths[role]}\n`
+      readFileSync(join(canonical, descriptor), 'utf8') !== `${expectedPaths[role]}\n`
     )
       throw new Error(`activation ${role} descriptor differs from its package contract`);
   }
   return { directory: canonical, identity: hashBytes(bytes), manifest };
+}
+
+/** Require the current activation layout after complete historical/current byte verification. */
+export function readBunActivation(directory: string): BunActivation {
+  const activation = verifyActivation(directory);
+  const manifest = activation.manifest;
+  // Proof: bypassing this guard admits the unchanged historical schema3 execution fixture.
+  if (manifest.schemaVersion !== 4) throw new Error('Bun execution requires activation schema 4');
+  return { ...activation, manifest };
 }
 
 /** Atomically selects only an independently expected verified package identity. */

@@ -31,3 +31,7 @@ Initial owned lint found two unnecessary optional chains in graph assertions; th
 Final owned lint passed (/tmp/puni-shared-startup-lint4.log); an intermediate matcher typed as any was replaced with direct unknown-field assertions after lint3 refused it. TypeScript builds for shared-startup, PUNI and tool-devsync (including their specs) passed, exit 0 (/tmp/puni-shared-startup-final-types.log). Final forced-cache boundary tests passed 19 / 56 again after that matcher cleanup (/tmp/puni-shared-startup-forced-cache-final.log). Thirteen owned files passed formatting and git diff --check (/tmp/puni-shared-startup-final-format.log). OpenSpec passed all 343 items (/tmp/puni-shared-startup-openspec.json). No canonical host gate was run for this component checkpoint.
 
 The actual new Nx target also ran uncached under Bun: 13 pass / 41 assertions, scratch cleanup returned and Nx printed successful target completion (/tmp/puni-shared-startup-nx-target-bun.log). An earlier Node-hosted Nx invocation returned zero with an empty receipt; it is not counted as test evidence.
+
+## Versioned reader foundation, 2026-11-09
+
+The [PUNI reader checkpoint](../puni-cli/verify.md#versioned-toolkit-and-activation-readers-2026-11-09) records toolkit1/2 and activation3/4 verification, exact versioned role types, current-format execution refusal,49 restored faults and existing consumer regressions. Production writers and launchers remain legacy in this component checkpoint; this does not close script-port task3.1 or demonstrate a Bun-only installed client.

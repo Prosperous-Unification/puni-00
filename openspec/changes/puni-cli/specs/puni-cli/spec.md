@@ -130,3 +130,17 @@ Preparation SHALL consume the typed request without another argv parse. Host inp
 
 - **WHEN** the typed preparation operation completes with report lines
 - **THEN** the caller receives those lines separated and terminated by LF, and asynchronous work completes before the returned status
+
+### Requirement: Bun execution formats preserve historical verification
+
+Current Bun toolkit execution SHALL use descriptor schema 2 with launcher.mjs and activation manifest schema 4 with artifacts/launcher.mjs. Supported historical toolkit schema 1 (the pre-migration five-role layout with launcher.sh and a verified trustedNodeModulesIdentity) and activation schema 3 SHALL retain original-byte/hash verification without requiring the current Bun to equal the historical build runtime. Earlier four-role or closure-unbound toolkit layouts SHALL remain unsupported without synthesizing missing authority. Historical role maps SHALL reject additional keys, including those ignored by the former permissive reader. New Bun execution SHALL refuse historical formats before launching a role, retain the current format's exact runtime pin, and reject unknown versions, extra/missing roles and mixed layouts. It SHALL NOT select an interpreter from artifact text or fall back to Bash. Schema 1 package manifests and selection descriptors, the active-v1 marker, and validator request transport v1 SHALL retain their meanings.
+
+#### Scenario: Historical bytes verify but cannot enter Bun execution
+
+- **WHEN** an unchanged supported historical toolkit or activation is verified using a different current Bun runtime
+- **THEN** its original identity verifies, while requesting current Bun execution refuses before a launcher or validator can run
+
+#### Scenario: Current version and fixed layout govern execution
+
+- **WHEN** a current artifact has a mismatched Bun runtime, unknown schema, missing or extra role, mixed legacy path, altered descriptor or changed role bytes
+- **THEN** verification or execution compatibility refuses at the relevant boundary before launch
