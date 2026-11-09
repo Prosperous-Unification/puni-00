@@ -10341,3 +10341,42 @@ nesting checks. Migration/doc-cap hooks had no applicable inputs. Tool Wiki
 reported `status:inactive`, `certified:false`, because its external activation
 root is not provisioned; this is no claim of active Tool Wiki certification.
 The complete hook output is `/tmp/registry-retry-source-commit-20261109.log`.
+
+### Explicit owned-receiver TLS minimum (2026-11-09)
+
+CodeQL check `129085872319` completed with failure on
+`f1f725cc83111844bbdf8ddfe2be7dbd4972131d`, reporting one new high alert at
+`tools/tool-fleet/src/registry-backup-retry.fixture.py:249`. The retained original
+receipt is `/tmp/registry-retry-codeql-original-20261109.json`. Annotation title:
+`Use of insecure SSL/TLS version`; exact message:
+
+```text
+Insecure SSL/TLS protocol version TLSv1 allowed by [call to ssl.SSLContext](1).
+Insecure SSL/TLS protocol version TLSv1_1 allowed by [call to ssl.SSLContext](1).
+```
+
+The owned receiver now sets `tls.minimum_version = ssl.TLSVersion.TLSv1_2`
+directly after constructing its server context. This makes the intended TLS
+contract explicit; all other receiver and real store behavior is preserved.
+A fresh ordinary local observation reports Python `3.14.7`, OpenSSL
+`3.5.8 25 Aug 2026`, and existing default minimum `TLSv1_2`
+(`/tmp/registry-retry-tls-default-20261109.log`). That default observation is not
+an exploit demonstration or proof about other environments. The correction is
+limited to the test-owned receiver, with no production environment/CA seam,
+protocol campaign or installed change.
+
+```sh
+PUNI_TEST_RESTIC_BINARY=/tmp/registry-local-backup-tools-20261109/restic-0.19.1 bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/registry-backup-retry.test.ts --timeout=120000
+```
+
+The selected actual-pinned run passed **3 tests, 0 failures, 19 expectations** in
+**14.69 s** (`/tmp/registry-retry-tls-selected-20261109.log`). Its real TLS/store
+receipt retains verified snapshot, three identical encrypted committed copies,
+two outer Save notices, success after two retries, closed receiver and no
+remaining descendants. Exact executed fixture source and observation are kept
+at `/tmp/registry-store-retry-evidence-lwbjmv_w/`.
+Python `compile` syntax validation and `git diff --check` passed. The owning
+verification document was formatted and checked with Prettier. No broad suite
+or setter-mirroring test was added. Fresh remote CodeQL analysis is required
+before claiming the alert resolved; the original failed check remains the last
+observed remote verdict for this correction.

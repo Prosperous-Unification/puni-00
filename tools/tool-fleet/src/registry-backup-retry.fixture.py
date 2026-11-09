@@ -245,6 +245,7 @@ def observe():
         receiver = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Receiver)
         receiver.daemon_threads = False
         tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        tls.minimum_version = ssl.TLSVersion.TLSv1_2
         tls.load_cert_chain(cert, key)
         receiver.socket = tls.wrap_socket(receiver.socket, server_side=True)
         worker = threading.Thread(target=receiver.serve_forever)
