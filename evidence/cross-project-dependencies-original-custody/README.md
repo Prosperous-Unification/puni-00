@@ -1,8 +1,8 @@
 # Original custody prototype source archive
 
-**DRAFT · PRESERVATION ONLY · DO NOT MERGE.**
+**PRESERVATION ONLY — PROTOTYPE ADOPTION REMAINS ON HOLD.**
 
-These inert text copies preserve an unmerged original-operation custody prototype for source review. Architecture and native acceptance remain held. The implementation and its attached test assertions are unaccepted prototype material; the preservation task has not executed them. Existing proof comments retain that unverified historical context.
+These inert text copies preserve an unadopted original-operation custody prototype for source review. Architecture and native acceptance remain held. Merging this archive preserves source records only; do not merge the prototype into active code, install it, authorize its runtime pin, or treat its archived tests or proof comments as accepted evidence. The implementation and its attached test assertions are unaccepted prototype material; the preservation task has not executed them. Existing proof comments retain that unverified historical context.
 
 The runtime pin remains `PHASE1_UNREVIEWED_NO_RUNTIME_AUTHORIZATION`. This archive adds no runtime imports or installation entry points. One private `PREPARATION_DIRECTORY` literal is replaced with `/__REDACTED_PRIVATE_CUSTODY_PREPARATION__` in the public test copy. The original working files remain preserved; the archive cannot reproduce the external private fixture campaign.
 
