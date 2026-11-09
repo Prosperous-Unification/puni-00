@@ -150,18 +150,45 @@ test('ordinary13 uses the local dialect and refuses external mappings', async ()
 });
 
 test.each([
-  undefined,
-  null,
-  {},
-  [null],
-  [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 0 }],
-])('current sparse collection refuses %j', async (stepParallels) => {
-  const sparsePath: unknown = expect.stringContaining('stepParallels');
-  expect(await decodePlanDocumentTransfer({ ...createDocument(13), stepParallels })).toMatchObject({
-    ok: false,
-    code: 'invalid_body',
-    path: sparsePath,
-  });
+  { name: 'missing collection', supplied: undefined, path: 'stepParallels' },
+  { name: 'null collection', supplied: null, path: 'stepParallels' },
+  { name: 'object collection', supplied: {}, path: 'stepParallels' },
+  { name: 'null row', supplied: [null], path: 'stepParallels[0]' },
+  { name: 'array row', supplied: [[]], path: 'stepParallels[0]' },
+  {
+    name: 'array row with named values',
+    supplied: [Object.assign([], { workItemId: 'row-1', stepId: 'step-1', maxParallel: 1 })],
+    path: 'stepParallels[0]',
+  },
+  {
+    name: 'zero maximum',
+    supplied: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 0 }],
+    path: 'stepParallels[0]',
+  },
+  {
+    name: 'missing owner',
+    supplied: [{ stepId: 'step-1', maxParallel: 1 }],
+    path: 'stepParallels[0]',
+  },
+  {
+    name: 'numeric owner',
+    supplied: [{ workItemId: 1, stepId: 'step-1', maxParallel: 1 }],
+    path: 'stepParallels[0]',
+  },
+  {
+    name: 'missing step',
+    supplied: [{ workItemId: 'row-1', maxParallel: 1 }],
+    path: 'stepParallels[0]',
+  },
+  {
+    name: 'numeric step',
+    supplied: [{ workItemId: 'row-1', stepId: 1, maxParallel: 1 }],
+    path: 'stepParallels[0]',
+  },
+])('current sparse rejects $name at its exact layer', async ({ supplied, path }) => {
+  expect(
+    await decodePlanDocumentTransfer({ ...createDocument(13), stepParallels: supplied }),
+  ).toEqual({ ok: false, code: 'invalid_body', path });
 });
 
 test.each([1, 11, 12])('legacy%i refuses sparse smuggling before projection', async (version) => {
@@ -396,3 +423,156 @@ test.each([12, 14])(
     expect(decoded.value.connected).toEqual(connected);
   },
 );
+
+test.each([
+  { field: 'maxParallel', first: 1, later: 1001 },
+  { field: 'workItemId', first: 'row-1', later: 'row-2' },
+  { field: 'stepId', first: 'step-1', later: 'step-2' },
+])('sparse $field is captured once before validation', async ({ field, first, later }) => {
+  let reads = 0;
+  const fact = { workItemId: 'row-1', stepId: 'step-1', maxParallel: 1 };
+  Object.defineProperty(fact, field, {
+    enumerable: true,
+    get() {
+      reads += 1;
+      return reads === 1 ? first : later;
+    },
+  });
+  const decoded = await decodePlanDocumentTransfer({
+    ...createDocument(13),
+    stepParallels: [fact],
+  });
+  expect(decoded).toMatchObject({
+    ok: true,
+    value: { stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 1 }] },
+  });
+  expect(reads).toBe(1);
+});
+
+test('sparse getter failures propagate without a client-error relabel', async () => {
+  const failure = new Error('sparse getter failed');
+  const fact = {
+    workItemId: 'row-1',
+    stepId: 'step-1',
+    get maxParallel() {
+      throw failure;
+    },
+  };
+  const thrown: unknown = await decodePlanDocumentTransfer({
+    ...createDocument(13),
+    stepParallels: [fact],
+  }).catch((cause: unknown) => cause);
+  expect(thrown).toBe(failure);
+});
+
+test('connected identities are captured once before validation', async () => {
+  const plan = createDocument(14);
+  let reads = 0;
+  const connected = {
+    ...plan.connected,
+    get projectId() {
+      reads += 1;
+      return reads === 1 ? 'source' : 42;
+    },
+  };
+  const decoded = await decodePlanDocumentTransfer({ ...plan, connected });
+  expect(decoded).toMatchObject({
+    ok: true,
+    value: { family: 'connected', connected: { projectId: 'source' } },
+  });
+  expect(reads).toBe(1);
+});
+
+test('nested connected evidence is captured once before validation', async () => {
+  let reads = 0;
+  const project = {
+    projectId: 'peer',
+    name: 'Peer',
+    abbreviation: 'PEER',
+    rank: 0,
+    startDate: null,
+    timezone: 'UTC',
+    seq: 17,
+    get revision() {
+      reads += 1;
+      return reads === 1 ? 9 : NaN;
+    },
+  };
+  const plan = createDocument(14);
+  const decoded = await decodePlanDocumentTransfer({
+    ...plan,
+    connected: { ...plan.connected, projects: [project] },
+  });
+  expect(decoded).toMatchObject({
+    ok: true,
+    value: { family: 'connected', connected: { projects: [{ revision: 9 }] } },
+  });
+  expect(reads).toBe(1);
+});
+
+test('connected malformed values refuse while getter failures propagate', async () => {
+  const plan = createDocument(14);
+  expect(
+    await decodePlanDocumentTransfer({
+      ...plan,
+      connected: { ...plan.connected, projectId: () => 'source' },
+    }),
+  ).toEqual({ ok: false, code: 'invalid_body', path: 'connected' });
+  const failure = new Error('connected getter failed');
+  const thrown: unknown = await decodePlanDocumentTransfer({
+    ...plan,
+    connected: {
+      ...plan.connected,
+      get projectId() {
+        throw failure;
+      },
+    },
+  }).catch((cause: unknown) => cause);
+  expect(thrown).toBe(failure);
+});
+
+test('shared connected evidence is captured once and undeclared JSON fields retain holes', async () => {
+  let reads = 0;
+  const project = {
+    projectId: 'peer',
+    name: 'Peer',
+    abbreviation: 'PEER',
+    rank: 0,
+    startDate: null,
+    timezone: 'UTC',
+    seq: 17,
+    get revision() {
+      reads += 1;
+      return reads === 1 ? 9 : NaN;
+    },
+  };
+  const notes = { labels: new Array<unknown>(2) };
+  notes.labels[1] = 'retained';
+  Object.defineProperty(notes, '__proto__', { enumerable: true, value: { marker: 'own value' } });
+  Object.defineProperty(notes, 'constructor', { enumerable: true, value: 'own constructor' });
+  const plan = createDocument(14);
+  const decoded = await decodePlanDocumentTransfer({
+    ...plan,
+    connected: { ...plan.connected, projects: [project, project], notes },
+  });
+  expect(decoded).toMatchObject({
+    ok: true,
+    value: {
+      family: 'connected',
+      connected: { projects: [{ revision: 9 }, { revision: 9 }], notes },
+    },
+  });
+  expect(reads).toBe(1);
+  if (!decoded.ok || decoded.value.family !== 'connected')
+    throw new Error('connected fixture refused');
+  const preserved: unknown = Reflect.get(decoded.value.connected, 'notes');
+  expect(preserved).toEqual(notes);
+  expect(preserved).not.toBe(notes);
+  if (typeof preserved !== 'object' || preserved === null)
+    throw new Error('connected notes missing');
+  expect(Object.getPrototypeOf(preserved)).toBe(Object.prototype);
+  expect(Object.hasOwn(preserved, '__proto__')).toBe(true);
+  expect(Reflect.get(preserved, '__proto__')).toEqual({ marker: 'own value' });
+  expect(Object.hasOwn(preserved, 'constructor')).toBe(true);
+  expect(Reflect.get(preserved, 'constructor')).toBe('own constructor');
+});

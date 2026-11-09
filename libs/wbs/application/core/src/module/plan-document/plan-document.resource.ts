@@ -1449,8 +1449,18 @@ export async function decodePlanDocumentTransfer(
   } else {
     // Proof: required-list admitted an absent list as empty; current missing/null controls failed (2026-11-09).
     if (!Array.isArray(supplied)) return { ok: false, code: 'invalid_body', path: 'stepParallels' };
-    for (const [at, fact] of supplied.entries()) {
-      const parsed = documentStepParallel(fact);
+    const facts: readonly unknown[] = supplied;
+    for (const [at, fact] of facts.entries()) {
+      // Proof: row-array-shape admitted an array with named values; its exact row-path refusal failed (fix1, 2026-11-10).
+      if (typeof fact !== 'object' || fact === null || Array.isArray(fact))
+        return { ok: false, code: 'invalid_body', path: `stepParallels[${String(at)}]` };
+      // Proof: sparse-single-capture omitted this snapshot; maximum1→1001 and changing identity regressions failed (fix1, 2026-11-10).
+      const captured = {
+        workItemId: 'workItemId' in fact ? fact.workItemId : undefined,
+        stepId: 'stepId' in fact ? fact.stepId : undefined,
+        maxParallel: 'maxParallel' in fact ? fact.maxParallel : undefined,
+      };
+      const parsed = documentStepParallel(captured);
       if (parsed instanceof type.errors)
         return { ok: false, code: 'invalid_body', path: `stepParallels[${String(at)}]` };
       stepParallels.push({
@@ -1486,7 +1496,8 @@ export async function decodePlanDocumentTransfer(
     pairs.add(pair);
   }
   if (isConnectedDocument(version)) {
-    const connected = documentConnected(header.value.connected);
+    // Proof: connected-single-capture omitted the snapshot; project identity and nested revision changed after validation (fix1, 2026-11-10).
+    const connected = documentConnected(captureConnectedValue(header.value.connected));
     // Proof: connected-required supplied invented evidence from a broken parser dependency; absent-evidence assertion failed (2026-11-09).
     if (connected instanceof type.errors)
       return { ok: false, code: 'invalid_body', path: 'connected' };
@@ -1496,4 +1507,45 @@ export async function decodePlanDocumentTransfer(
     };
   }
   return { ok: true, value: { family: 'ordinary', plan, stepParallels } };
+}
+
+/**
+ * Captures enumerable connected JSON fields before validation, evaluating each
+ * property once. The iterative identity map retains shared references and holes
+ * without recursive stack growth. Inherited/non-enumerable fields cannot validate
+ * then disappear from the structured clone. Invalid primitive values stay invalid;
+ * unexpected accessor failures propagate unchanged.
+ */
+function captureConnectedValue(supplied: unknown): unknown {
+  if (typeof supplied !== 'object' || supplied === null) return supplied;
+  const allocateCopy = (source: object): object =>
+    Array.isArray(source) ? new Array<unknown>(source.length) : {};
+  const captured = allocateCopy(supplied);
+  const seen = new Map<object, object>([[supplied, captured]]);
+  const pending = [{ source: supplied, captured }];
+  for (const entry of pending) {
+    for (const key of Object.keys(entry.source)) {
+      const held: unknown = Reflect.get(entry.source, key);
+      let value = held;
+      if (typeof held === 'object' && held !== null) {
+        const previous = seen.get(held);
+        // Proof: shared-connected-capture removed reuse; the same revision getter was read again and the shared-evidence assertion failed (fix1, 2026-11-10).
+        if (previous !== undefined) value = previous;
+        else {
+          const detached = allocateCopy(held);
+          seen.set(held, detached);
+          pending.push({ source: held, captured: detached });
+          value = detached;
+        }
+      }
+      // Proof: prototype-data-copy used Reflect.set; __proto__ ceased being own data and the metadata assertion failed (fix1, 2026-11-10).
+      Object.defineProperty(entry.captured, key, {
+        value,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+  return captured;
 }
