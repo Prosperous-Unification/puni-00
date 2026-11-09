@@ -471,7 +471,7 @@ describe('Burokrat Performance judge', () => {
     const fixture = productionFixture();
     const invalidFlag = await checkProduction(fixture, true, { evidenceFlag: '--other-evidence' });
     expect(invalidFlag.exitCode).toBe(1);
-    expect(stderrOf(invalidFlag)).toContain('--performance-evidence <json>');
+    expect(stderrOf(invalidFlag)).toContain('--performance-evidence PATH');
     const wrongRule = await checkProduction(fixture, true, { ruleId: 'MOD-INDEX' });
     expect(wrongRule.exitCode).toBe(1);
     expect(stderrOf(wrongRule)).toContain(
@@ -858,7 +858,7 @@ describe('complete check Performance evidence', () => {
       stderr: 'pipe',
     });
     expect(help.exitCode, help.stderr.toString()).toBe(0);
-    expect(help.stdout.toString()).toContain('[--performance-evidence <json>]');
+    expect(help.stdout.toString()).toContain('[--performance-evidence PATH]');
     for (const entry of ['source', executable]) {
       const check = async (flags: string[]): Promise<CliInvocation> => {
         const args = [
@@ -883,7 +883,7 @@ describe('complete check Performance evidence', () => {
       };
       const flags = ['--performance-evidence', fixture.evidencePath];
       const valid = await check(flags);
-      expect(valid.stderr, entry).not.toContain('check flag');
+      expect(valid.stderr, entry).not.toContain('usage: twilight-burokrat check ');
       const verdict = JSON.parse(valid.stdout) as {
         ruleIds: string[];
         certifies: boolean;
@@ -925,14 +925,26 @@ describe('complete check Performance evidence', () => {
       expect(missing.exitCode).toBe(1);
       expect(missing.stderr).toContain(fixture.evidencePath);
       writeFileSync(fixture.evidencePath, JSON.stringify(evidence));
-      for (const invalid of [
-        [...flags, ...flags],
-        ['--rule', 'PERF-THRESHOLD', '--rule', 'MOD-INDEX'],
-        ['--other-evidence', fixture.evidencePath],
+      for (const { flags: invalid, diagnostic } of [
+        {
+          flags: [...flags, ...flags],
+          diagnostic: '`--performance-evidence` cannot be used multiple times',
+        },
+        {
+          flags: ['--rule', 'PERF-THRESHOLD', '--rule', 'MOD-INDEX'],
+          diagnostic: '`--rule` cannot be used multiple times',
+        },
+        {
+          flags: ['--other-evidence', fixture.evidencePath],
+          diagnostic: 'Unexpected option or subcommand: `--other-evidence`',
+        },
       ]) {
         const refused = await check(invalid);
         expect(refused.exitCode).toBe(1);
-        expect(refused.stderr).toContain('check flag');
+        expect(refused.stdout).toBe('');
+        expect(refused.stderr).toContain('error: usage: twilight-burokrat check ');
+        expect(refused.stderr).toContain(diagnostic);
+        expect(refused.stderr.trim().split('\n')).toHaveLength(1);
       }
       const unrelated = await check(['--rule', 'MOD-INDEX', ...flags]);
       expect(unrelated.exitCode).toBe(1);

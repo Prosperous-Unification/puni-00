@@ -15,7 +15,7 @@ Renaming historical evidence or changing the bytes and identities of previously 
 
 ## Constraints
 
-Use the existing Optique choice from [ADR 0064](../../../docs/adr/0064-use-optique-for-clis.md), interpreting the request's “oblique” as Optique. Use Bun and Nx. Preserve the Navigator/Burokrat/Dash responsibility boundaries and enforce explicit module facades. Client execution must require neither Bash nor Node. New launcher bytes receive a new versioned identity; historical verification remains valid. Every changed safety check needs a production-path fault proof.
+Use the existing Optique choice from [ADR 0064](../../../docs/adr/0064-use-optique-for-clis.md), interpreting the request's “oblique” as Optique. Use Bun and Nx. Preserve the Navigator/Burokrat/Dash responsibility boundaries and enforce explicit module facades. Client execution must require neither Bash nor Node. Burokrat requires an external stable installation and stable operator-owned Git metadata. New launcher bytes receive a new versioned identity; historical verification remains valid. Every changed safety check needs a production-path fault proof.
 
 ## Capabilities
 

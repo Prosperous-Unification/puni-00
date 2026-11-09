@@ -90,3 +90,24 @@ The installed entrypoint and every generated helper SHALL remove the declared Bu
 
 - **WHEN** an installed invocation or generated helper starts inside a candidate with preload config, dotenv and hostile startup controls, including BUN_INSPECT_PRELOAD
 - **THEN** no candidate preload runs and no candidate dotenv contaminates the application, while installed paths, selected Bun paths and operand paths containing spaces retain their boundaries
+
+### Requirement: Installed Burokrat has an explicit external runtime and Git trust boundary
+
+Ordinary validator execution SHALL require a verified, physically external installation, executed role and dependency closure relative to the selected candidate. A symlink SHALL NOT establish external placement. Installation and operator-owned Git metadata, including worktree/common and included configuration, SHALL remain trusted and stable throughout execution; protection against a concurrent hostile metadata writer is outside this contract.
+
+The ordinary child SHALL use a trusted executable search path and supported Git release version at least 2.36.0 before repository operations. Plain upstream and canonical Apple/Windows vendor forms SHALL be accepted; release candidates and unknown suffixes SHALL refuse. Its explicit environment SHALL exclude ambient global/system Git configuration, disable hooks and fsmonitor, replacement objects, interactive prompts and remote transport protocols. The shared working-selection boundary SHALL refuse any loaded nonempty clean/process filter definition before freezing bytes, including definitions not selected by current attributes or overridden by later empty values, rather than changing their semantics silently. Other operator environment and dependency overrides SHALL NOT reach this child. Only lint-ci SHALL receive the selected caller-anchored CI binding.
+
+#### Scenario: Candidate-local or symlinked runtime assets refuse
+
+- **WHEN** a candidate-local installation or an external toolkit whose executed validator resolves into the candidate is selected
+- **THEN** execution refuses before candidate-controlled code or operation inputs run; a verified external installation retains its declared output and status
+
+#### Scenario: Configured Git execution cannot run candidate programs
+
+- **WHEN** working selection encounters loaded nonempty clean/process commands, or the repository supplies fsmonitor/index-change hooks or ambient global/system configuration
+- **THEN** filters receive a named pre-freeze refusal, hooks and ambient configuration do not execute, and marker files remain absent
+
+#### Scenario: Git prerequisites and protocol denial remain enforced
+
+- **WHEN** Git is missing, malformed or below the supported minimum, or a missing promised object would invoke a configured remote helper
+- **THEN** the operation fails visibly before unsupported Git behavior or the helper executes, without converting failure into an empty or passing observation
