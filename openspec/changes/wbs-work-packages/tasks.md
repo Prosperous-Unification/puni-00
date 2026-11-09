@@ -51,7 +51,8 @@
       pass on a valid report; each watched.
 - [ ] 1.3 Red: `rename-project-to-work-package.db.test.ts` over a dev-shaped fixture store:
       every table, column, index and trigger renamed (no index or trigger in `sqlite_master`
-      names `project` in name or body), audit rows rewritten, trees, startable, history,
+      names `project` in name or body), audit rows rewritten while preserving the earlier
+      access/member actions, subjects and indexes from permissions 4.1, trees, startable, history,
       saved-plan compare, budget headroom and undo answer the same, the guard refuses an
       unmapped work package; a replay of every journal kind proves no payload names
       `projectId` (or the migration's `json_set` rewrite is proven instead);

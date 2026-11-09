@@ -2,8 +2,7 @@
 
 ### Requirement: Grant and access-group acts write audit rows
 
-Granting or revoking an access role, removing a member's grants with the member, removing
-a machine credential's grants with the credential, each
+Granting or revoking an access role, removing a machine credential's grants with the credential, each
 grant the operator's `revoke-backfill` deletes, and creating, renaming or deleting an
 access group or adding or removing its member SHALL each write exactly one
 `organization_audit` row in the same transaction as the act, with actions
@@ -17,6 +16,54 @@ group name where relevant, and SHALL never carry an email. The migration that ad
 values SHALL keep the table's columns and rows, keep every existing action writable by the
 outgoing release, and refuse rollback while a row of a new action exists. The backfill
 SHALL NOT write audit rows.
+
+Direct authenticated member removal SHALL instead write exactly one aggregate
+`organization_member_removed` row with subject kind `organization_member`, subject id
+the removed account id in the row's organization, and detail `source`,
+`removedUserGrantCount`, `removedGroupMembershipCount`. This applies when either count
+is zero. The source SHALL be `route` or `self_leave`, supplied by that owning caller.
+The actor SHALL be the authenticated owning account's id. The row and all
+membership/user-grant/group-membership removals SHALL commit or roll back together;
+no individual `access_revoked` rows SHALL accompany this aggregate.
+
+SCIM deprovisioning SHALL retain its existing single `scim_user_deprovisioned` lifecycle
+row and `scim:<token id>` actor. Its existing detail SHALL additionally carry
+`membershipRemoved`, nullable `boundUserId` and the two removal counts, with no extra
+member or per-grant events. An inactive no-op PATCH SHALL still emit no event; deletion
+of a pending/inactive SCIM record SHALL retain its lifecycle event with
+`membershipRemoved:false` and zero counts. A transaction-bound removal operation SHALL
+return its status and evidence to the owner without opening another transaction or
+appending its own audit.
+
+#### Scenario: Membership removal is one audited aggregate
+
+- **WHEN** the authorized owning caller removes a member holding two direct grants and three access-group memberships
+- **THEN** the membership, both grants and all three group memberships are removed with exactly one `organization_member_removed` row identifying that account and counts 2 and 3, and no per-grant revoke events
+
+#### Scenario: A member without grants still has a membership audit subject
+
+- **WHEN** the authorized owning caller removes a member with no grants or access-group memberships
+- **THEN** exactly one `organization_member_removed` row identifies that account with both counts 0
+
+#### Scenario: Membership audit failure rolls the removal back
+
+- **WHEN** the aggregate audit write fails while removing a member
+- **THEN** the membership, user grants and group memberships are unchanged and the caller receives a server error
+
+#### Scenario: SCIM deprovision preserves its lifecycle audit contract
+
+- **WHEN** SCIM deprovisions an active bound account holding direct grants and group memberships
+- **THEN** all membership authority is removed atomically with its existing single lifecycle row identifying the bound account and removal counts, and no additional member/grant events
+
+#### Scenario: SCIM pending and inactive records do not invent membership removals
+
+- **WHEN** SCIM PATCH makes no change to an already inactive record, or deletes a pending/inactive record
+- **THEN** PATCH writes no event and DELETE preserves its single lifecycle event with false/zero membership-removal evidence
+
+#### Scenario: An inactive SCIM record can still have an audited update
+
+- **WHEN** SCIM PATCH changes `externalId` on an already inactive record while leaving it inactive
+- **THEN** its existing single `scim_user_updated` event is retained, with no membership or per-grant revoke events
 
 #### Scenario: A grant audited
 

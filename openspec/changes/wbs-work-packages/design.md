@@ -948,9 +948,11 @@ review (F5), E41._
 | Task                                                                                                                         | Depends on                                   |
 | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | P 1.1–1.4: grant tables, the catalogue's 22 permissions, `ScopeChain` and `InterimPackageChain`, decisions port, grant store | —                                            |
-| P 2.1–2.5: `authorize` wired, P16's creation rule                                                                            | P 1                                          |
+| P 2.1–2.3 and 2.4a: current write grants and transaction-local security; used compatibility helpers retained                 | P 1                                          |
+| P 4.1: audit widening in current project vocabulary and deferred atomic grant-store/operator audit writes                    | P 1                                          |
+| P 2.5: membership and audited initial grants                                                                                 | P 2.4a, P 4.1                                |
+| P 2.4b: remaining direct role authority, compatibility fields and helpers removed                                            | P 2.5 and all remaining role-reader families |
 | 1.1–1.9: the rename and its window                                                                                           | P 2 (E11's new-sense identifiers)            |
-| P 4.1: `widen_organization_audit_access`, admitting `access_granted`                                                         | 1.9 (its CHECK lists the renamed vocabulary) |
 | P 3.1: the 404 rule                                                                                                          | P 2, 1.9                                     |
 | P 3.3: restricted packages, package creator grants, `canEditProject` retired                                                 | P 3.1, P 4.1                                 |
 | 2.1–2.3: dev cleanup                                                                                                         | 1.9                                          |
@@ -959,6 +961,13 @@ review (F5), E41._
 | 4.1–4.9: settings, markers and spaces, and their window                                                                      | 3.8, P 3.4                                   |
 | P 4.2 onward                                                                                                                 | as `wbs-permissions`' tasks order them       |
 | 5.1–5.4: steps                                                                                                               | `wbs-step-catalogue`                         |
+
+The 2026-11-09 implementation review resolved the old 2.5→rename→4.1→2.5 cycle by
+landing the additive audit foundation before membership rewiring. Task 1.3's audit rebuild
+must retain all `access_*` and membership audit actions/subjects/indexes from that
+foundation while changing only the old project vocabulary. No grant is committed
+without its required audit to satisfy ordering. The security-first/final-cleanup split
+of 2.4 retains compatibility helpers only until their actual callers are converted.
 
 ## Rename inventory (a)
 

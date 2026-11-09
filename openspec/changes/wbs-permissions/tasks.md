@@ -17,7 +17,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       P15 (`revoke-backfill`). Slice 1 waits for P1, P8, P9, P12, P13, P17 and P7, because
       its backfill mapping is P7's decision on what E8 keeps; slice 2 also for P16; slice 3
       for P3, P4, P5 and P10; slice 4 for P11 and P17; slice 6 for P5, P7, P15 and P17.
-      Slices 3 to 7 run after #698 slice 1; 3.2 (its listing statement joins
+      Slices 3 to 7 run after #698 slice 1 except 4.1's audit foundation, which precedes 2.5
+      using current project vocabulary; the rename preserves its additions. Task 2.4 is
+      security rewiring 2.4a first and final role/helper deletion 2.4b after 2.5. 3.2 (its listing statement joins
       `work_package.project_id`) and 3.4 (slice 3's project rules) after #698 slice 2. The
       full order is #698 design.md's "Dependency graph" (#698 E41): 4.1 lands before 3.3
       (creation grants are audited as `access_granted`), and 3.3 and 4.1 land before #698
@@ -127,9 +129,14 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       and claim controller tests green on backfilled grants, P7's narrowing visible as
       named refusals; negatives: skip each `authorize` call against its named test;
       watched.
-- [ ] 2.4 Rewire the store-side `super_admin` reads (domains, SSO, session policy,
-      provisioning, shared-people restore) to `organization.manage_security` in the same
-      transaction, then delete `canWriteInOrganization`, `mayBindAccountInOrganization`,
+- [ ] 2.4 Complete 2.4a then 2.4b; keep this parent unchecked until both are proven.
+      **2.4a:** rewire the store-side `super_admin` reads (domains, SSO, session policy,
+      provisioning, trusted issuers, shared-people restore) to `organization.manage_security`
+      in the same transaction, including SSO connection proof and shared-restore approval
+      consumption/execution rechecks. Retain still-used compatibility helpers/fields.
+      **2.4b, after 2.5:** close the complete direct role-reader inventory (resource/runtime,
+      fanout, enterprise, agent-pool, compute-provider, limits and trusted-issuer families
+      included), then delete `canWriteInOrganization`, `mayBindAccountInOrganization`,
       `canEditProjectInOrganization`, `mayDefineMeasuresInOrganization`,
       `mayAdministerMembership`, `mayInvite`,
       `mayEditProjectWithin`, `isClaimAdmin`, `organizationRoleOf`,
@@ -138,10 +145,16 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       nothing; `OrganizationScope.role` leaves the type; negative: skip the `authorize`
       call in `session-policy.ts` and a `project-contributor` sets the session policy;
       watched.
-- [ ] 2.5 Membership routes: `changeMemberRole` removed, `listMembers` answers effective
+- [ ] 2.5 After 4.1's current-vocabulary audit foundation: membership routes,
+      `changeMemberRole` removed, `listMembers` answers effective
       role and grant count, `removeMember` deletes grants and group memberships in the
-      transaction with one audit row (removing an organization-role holder also needs
-      `organization.manage_organization_roles`, P11), invitations and join-request approval
+      transaction with one aggregate `organization_member_removed` audit row (subject
+      `organization_member`, id the removed account; source and both removal counts).
+      SCIM keeps its single existing lifecycle event/actor enriched with bound account,
+      removal flag and counts, with no duplicate grant/member events. Onboarding
+      and invitation initial grants/audits use transaction-bound grant operations inside
+      their existing owner, never a nested grant-store gate. Removing an organization-role holder also needs
+      `organization.manage_organization_roles`, P11. Invitations and join-request approval
       carry an optional initial grant obeying P11, onboarding's creator receives
       `org-super-admin`, SCIM-provisioned members receive none; every membership removal
       (route, leaving, SCIM deprovisioning: `organization.ts` `removeMember` and `administer`,
@@ -196,8 +209,12 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
 
 ## 4. Grant commands and audit
 
-- [ ] 4.1 Audit widening `widen_organization_audit_access` (compatible rebuild, precedent
-      `20261012090200`), `ORGANIZATION_AUDIT_ACTIONS` and subject kinds, `down.sql`
+- [ ] 4.1 Before 2.5 and #698 slice 1: audit widening `widen_organization_audit_access`
+      using current project vocabulary (the later rename preserves every access action,
+      subject and index); complete deferred atomic grant-store/operator audit writes.
+      Include `organization_member_removed`/`organization_member` and SCIM aggregate
+      exceptions from the organization-audit delta spec. Compatible rebuild, precedent
+      `20261012090200`; `ORGANIZATION_AUDIT_ACTIONS` and subject kinds, `down.sql`
       refusing while a new-action row exists — test: the migration test forward, back
       and refusal; negative: `CHECK (1)` in place of the guard and `migration-lint.test.ts`
       reports it; watched.
