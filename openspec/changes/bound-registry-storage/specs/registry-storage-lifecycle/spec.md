@@ -303,6 +303,35 @@ additions MUST fit the configured backup budget before storage-adding effects.
 - **THEN** the child uses the fixed `s3.retries=1` option and the profile fingerprint commits those actual fixed CLI inputs
 - **AND** outer Restic retries remain enabled; the SDK setting alone does not establish a complete physical reservation or permit admission
 
+### Requirement: Enforced backup execution ceilings
+
+An admitted profile SHALL bind finite fixed addition/count ceilings and accepted
+input limits independently of free space. Admission MUST reserve its entire
+ceiling before launch and reject known input-class violations. Every possible
+upstream addition MUST durably debit its full stored length before dispatch;
+missing enforcement or local-resource evidence MUST refuse. Exhaustion MUST fail
+and preserve prior verified recovery, never authorize retirement.
+
+#### Scenario: Complete profile ceiling does not fit
+
+- **WHEN** complete existing versions/parts plus unreconciled obligations and the fixed profile ceiling exceed 107374182400 bytes
+- **THEN** admission refuses before any new backup file or lock write and never shrinks the ceiling to remaining capacity
+
+#### Scenario: Unexpected additions exhaust the reserved ceiling
+
+- **WHEN** an admitted attempt would dispatch an addition beyond its remaining fixed byte or count ceiling
+- **THEN** that addition is refused before upstream dispatch, the attempt fails fenced, and its prior verified receipt and unresolved liabilities remain
+
+#### Scenario: Lost reply and concurrent retries cannot refill a reservation
+
+- **WHEN** an upstream addition committed without a received reply and concurrent retries request further additions
+- **THEN** each dispatch requires a serialized durable debit, their combined debits cannot exceed the original ceiling, and repeated admission or command settlement grants no refund
+
+#### Scenario: REST cleanup targets previously retained content
+
+- **WHEN** a failed REST save causes cleanup to request deletion of a preexisting protected object
+- **THEN** the relay refuses that deletion and preserves its readable ciphertext and prior verified recovery
+
 ### Requirement: Physical backup accounting
 
 Admission SHALL use complete object/part listings and bounded prune workspace.

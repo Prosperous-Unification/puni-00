@@ -170,6 +170,15 @@ prior receipt`; negatives: missing object listing page, undercounted versions,
       observation; ordinary caller fixtures persist independent S3/local fingerprints
       and refuse drift without replacing history. Preserve local-file commands, outer retries, all deadlines and
       closed physical admission. This does not complete the remaining profile.
+      Proposed next producer: fixed nonelastic execution reservations and durable
+      per-dispatch debits through the same S3 repository via private REST/Unix.
+      Qualify actual pinned cross-backend reads/writes/restores, one upstream
+      dispatch on a lost reply and protected cleanup first. Then integrate complete
+      census, actual ledger/admission/ticket and relay in one funded inspection
+      path; include positive, preflight oversize, debit-removal, persistence,
+      concurrent retry and no-refill proofs. No arbitrary partial-fit allowance or
+      missing-resource attestation may open admission. Snapshot/prune and all
+      installed obligations remain required under the amended contract.
       Complete file accounting with new-content/prune envelopes, durable effect
       authorization, actual protected reclamation and retained post-prune restore
       remain incomplete; a current payload census alone never grants admission.

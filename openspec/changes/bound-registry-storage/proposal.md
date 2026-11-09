@@ -20,6 +20,12 @@ seven days for unpromoted artifacts. Image protections override age and count.
 The 100 GiB backup budget counts stored file/object sizes, including
 versions and uploaded parts; provider billing overhead is outside this measure.
 
+Backup reservations use fixed execution ceilings chosen independently of remaining
+capacity and enforced before upstream writes. The entire ceiling must fit before
+launch; spending and uncertainty never refill it. Unexpected exhaustion fails and
+fences the operation while preserving prior verified recovery. Accepted input
+limits and successful recovery remain separate prerequisites.
+
 Earlier activation authorization is historical; current authorization covers source
 preparation. Runtime readiness remains unverified.
 
@@ -58,11 +64,13 @@ None. This adds an adoption prerequisite to the existing registry workflows.
 ## Domain Terms
 
 Release bundle; image protection, in the
-[factory glossary](../../../docs/twilight-structure/CONTEXT.md).
+[factory glossary](../../../docs/twilight-structure/CONTEXT.md); backup reservation
+and write debit in [registry operations](../../../docs/infra/CONTEXT.md).
 
 ## Decisions Recorded
 
-None. No decision met all three ADR criteria.
+Proposed [fixed backup execution reservations](../../../docs/adr/0079-backup-writes-consume-fixed-reservations.md),
+with transport qualification and the full admission prerequisites still open.
 
 ## Impact
 

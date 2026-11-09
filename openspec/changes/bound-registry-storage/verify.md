@@ -10380,3 +10380,50 @@ verification document was formatted and checked with Prettier. No broad suite
 or setter-mirroring test was added. Fresh remote CodeQL analysis is required
 before claiming the alert resolved; the original failed check remains the last
 observed remote verdict for this correction.
+
+## Proposed fixed backup execution reservations — 2026-11-09
+
+Planning branch `feat/registry-backup-write-enforcement-20261109` starts at
+`46b46001cc4e5ddb0108e27a1af3e30a68fc9527`; PR 918's source branch remains at that
+reviewed head. The [source investigation](../../../docs/findings/registry-backup-write-enforcement.md)
+and proposed [ADR 0079](../../../docs/adr/0079-backup-writes-consume-fixed-reservations.md)
+record the explicit contract change: reserve the complete nonelastic execution
+ceiling before launch, then debit every possible upstream addition durably before
+one audited dispatch. Never shrink an unknown envelope to free space. Known input
+class violations refuse before launch; unexpected exhaustion fails fenced without
+replacing the prior verified receipt or permitting retirement. Original retention,
+source/resource, prune, recovery and activation obligations stay open.
+
+Planning validation, not implementation qualification:
+
+- `bunx openspec validate bound-registry-storage --strict --json`: 1 passed,
+  no issues. Intent through Constraints is 361 words.
+- `bunx openspec validate --all --json`: 341 passed, 0 failed (321 changes,
+  20 specs); full output `/tmp/registry-write-enforcement-all-specs-20261109.json`.
+- Exact Prettier check of the eight design/research/glossary documents passed;
+  58 relative targets/anchors exist. `git diff --check` passed.
+- Physical admission source remains byte-identical, SHA256
+  `4091bcd331fb9d42a5afeffbc3c12f3600c6588dfcca67028a8c4443481612f4`.
+  No new grant, command route, backend, installation or retained-store policy is active.
+
+The ordinary disposable relay experiment is separate and still unqualified here.
+Its required evidence includes the actual pinned Bun/Restic paths, encrypted
+cross-backend read/write/check/restore, one upstream dispatch on lost reply, and
+cleanup that preserves previously retained content. No result is inferred from
+the tagged sources. Real funded inspection, complete enforced profiles, liability
+reconciliation/recycling, snapshots/prune and installed acceptance are unimplemented.
+No new runtime tests or native/privileged proofs were run for this docs change;
+no protected configuration, provider account, installation, notification or product
+migration was requested. The prior stopped-work and credential-probe boundaries persist.
+
+### Corrected PR 918 CodeQL accepted
+
+At exact `46b46001cc4e5ddb0108e27a1af3e30a68fc9527`, CodeQL workflow
+`42596247149` completed success and code-scanning check `129089793392` completed
+success with zero annotations and title `No new alerts in code changed by this
+pull request`. This supersedes the earlier pending TLS-analysis status, including
+the temporary missing-JavaScript coverage warning. Original failure and corrected
+verdict are retained separately in
+`/tmp/registry-retry-codeql-original-20261109.json` and
+`/tmp/registry-retry-tls-codeql-accepted-20261109.json`. Current-head CI/infra and
+the separate canonical host gate remain distinct validation obligations.

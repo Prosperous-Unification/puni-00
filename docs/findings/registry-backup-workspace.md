@@ -777,3 +777,15 @@ derives conditional encrypted lock sizes and additions per Save, and identifies
 the still-missing enforced acquisition/refresh counts. Cancellation timers and
 `--retry-lock=0` do not supply those counts. This does not establish a complete
 reservation or enable physical admission.
+
+### Proposed write enforcement — 2026-11-09
+
+The [write-enforcement investigation](registry-backup-write-enforcement.md)
+compares fixed whole-command analysis with durable pre-dispatch ceilings and
+traces the pinned REST/Unix compatibility path over the same S3 repository.
+[ADR 0079](../adr/0079-backup-writes-consume-fixed-reservations.md) and the owning
+OpenSpec amendment explicitly record the proposed change in admission semantics.
+Ceilings remain nonelastic, known class violations refuse before launch, and
+unexpected exhaustion fails fenced without weakening retained recovery. No such
+producer or physical grant is implemented by these documents; the qualification
+experiment and integrated consumer proof remain outstanding.

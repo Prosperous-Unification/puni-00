@@ -223,8 +223,14 @@ uploaded multipart part within the repository prefix. Restic pack, index, snapsh
 and lock files count by their stored size. Delete markers add no file payload;
 provider metadata charges, minimum billable sizes and billing rounding are excluded.
 A Hetzner billing contract is not an admission prerequisite. Before a
-backup, reserve a conservative upper bound for new unique content, repository
-metadata and prune/repack workspace. If that envelope does not fit, first prune
+backup, reserve the complete fixed execution-profile ceiling for new unique
+content, repository metadata and prune/repack coexistence. Choose that ceiling
+independently of remaining free space and reject known input-class violations
+before launch. Enforce additions at the actual upstream dispatch boundary; an
+unexpected exhaustion fails/fences the attempt and retains the prior verified
+receipt, never authorizing retirement. Admission permits that bounded attempt;
+only successful content verification produces a recovery receipt. If the complete
+ceiling does not fit, first prune
 only already-eligible snapshots while preserving required coverage. If still short,
 block backup and destructive retirement and report the capacity decision required.
 
@@ -266,10 +272,13 @@ turning failed observation into an empty list. Linux enumeration may omit
 inaccessible namespaces; independently proved full reader visibility is still
 required before complete encoding/physical admission. Ignore observer-induced atime drift, which the
 fixed backup command does not preserve. Deterministic source hashes cover the
-observed metadata, not an inferred physical bound. Source observations explicitly
-exclude still-unproved restic ancestor/account-name/serialized-tree/encryption/retry and
-workspace envelopes; those must compose with complete object-size accounting before admission
-can open. No caller-supplied capacity sum represents maximum new physical bytes.
+observed metadata, not an inferred physical bound. Source observations do not establish encoded additions or local resource bounds.
+An admitted execution profile must enforce its complete addition ceiling across
+all actual encoder, lock and transport retry paths, alongside independent local
+workspace/process limits. Full source visibility and recovery correctness remain
+required: a remote byte ceiling cannot prove complete source capture. No
+caller-supplied capacity sum or arbitrary byte number represents that enforcement.
+The direct S3 profile has no enforced total and remains physically unadmitted.
 
 Durable effect consumption is separate from physical admission. Bind one operation
 to repository/scope, root configuration/profile and canonical attempt lineage; an
@@ -910,3 +919,40 @@ certify provider accounting. Ordinary modeled root-action fixtures persist the
 independently expected S3/local fingerprints using real owned effect state and
 refuse descriptor drift without resetting history. Installed root execution and
 the stopped privilege/descriptor campaign are excluded.
+
+### Proposed enforced backup execution ceilings — 2026-11-09
+
+[ADR 0079](../../../docs/adr/0079-backup-writes-consume-fixed-reservations.md)
+records the proposed change from unknown static command totals to fixed,
+nonelastic execution classes. [The write-enforcement investigation](../../../docs/findings/registry-backup-write-enforcement.md)
+provides primary-source compatibility and the unresolved transport obligations.
+This is a planning amendment, not an implemented physical grant.
+
+Bind a class to actual source/repository limits, fixed artifacts, transports and
+byte/request/object/part/marker ceilings. An authenticated producer must establish
+the enforcement; caller numbers, configuration labels and timers alone cannot.
+Before any locked command starts, observe complete upstream versions/parts and
+reserve the entire class ceiling alongside every unreconciled obligation. Never
+resize it to free space, subtract prospective deletes, or double-charge spending
+against the already-held ceiling. Repeat preparation/token rotation reuses the
+same reservation without refilling it.
+
+The proposed root action retains the original S3 scope/credentials and gives the
+fixed Restic child only a private REST/Unix repository route. The relay preserves
+the same ciphertext/key layout and repository identity. Each upstream addition
+consumes a durable debit before one audited dispatch, including every retry or
+uncertain outcome. Bound counts and local buffers independently. Unsupported
+multipart/copy routes refuse before storage additions; complete existing multipart
+parts still count. REST retry cleanup may remove only operation-created content,
+never hide a preexisting protected object. Verify cross-backend read/check/restore
+and both sides of the failure boundary before adoption.
+
+Only the current canonical operation/attempt and consumed command ticket can
+activate its socket. Bind source/phase where required; preserve source
+reobservation and writer exclusion. Missing routing/custody, resource or physical
+proof refuses. Termination, a DELETE response and command settlement do not refund
+a debit. Unknown in-flight work retains its full liability until authenticated
+terminal/provider reconciliation establishes release. Retention coverage,
+protected exact IDs, bounded prune coexistence and independent retained restore
+remain unchanged obligations. Source development does not reopen stopped
+privileged proofs or the rejected credential observation.
