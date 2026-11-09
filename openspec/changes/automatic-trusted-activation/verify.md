@@ -6245,3 +6245,46 @@ installed packaging and combined five-stage proofs, canonical exact-SHA host gat
 resource workloads. Complete runtime/config/reference closure, parser process settlement,
 CompilerReadManifestV1, eleven documents, protected preparation/freeze and independently installed
 external authority remain mandatory; no WBS leaf closes from this loader stage.
+
+### Stage 1 proof correction round 1 — 2026-11-10
+
+Independent review of cac77954e961f82129d931b55bf334038b376497 found two P2 evidence gaps,
+not a production behavior defect. The initial four artifact-member omission trials changed both
+the hash preimage and published provenance, failing metadata equality first. The initial import
+trial changed only denial wording and still refused imports. Those five original receipts are
+explicitly superseded as invalid for their claimed independent identity/deny-policy proofs;
+the original logs/scripts and before-fix1 ledger remain retained rather than erased.
+
+Four corrected trials match the complete unique compilerArtifactIdentity hashCanonical block,
+assert its mutation-site count is one, and omit one member solely from that preimage. Owned
+bytes, records and published provenance stay untouched. All four published tuples pass equality;
+the next independent artifact digest assertion fails with the expected full identity
+2eff9728f5e5fbd7c53fde8571254e7865df0664c7b0a9f55eecf698778b0c62 and these altered identities:
+
+| Omitted only from hash preimage | Altered artifact identity                                        |
+| ------------------------------- | ---------------------------------------------------------------- |
+| LICENSE.txt                     | cd60404ef87b213ad83e637344e70e5c6715024b7c343a9eebc99c938146c16c |
+| NOTICE                          | 4e261767592f32f6eb9b250be91b652d1254504fd826e7a572fdb799930aa9d2 |
+| compiler.cjs                    | 14daefee64403015a2076a5ba3b473f5a8fdd0191fe5cb5d2ce934244a674e7b |
+| manifest.json                   | add3c188feb1a53f49b8dc22f3a8b76ed56b8e1899f531dc5fbdb58894655bd3 |
+
+The amended import test captures the exact importer configured on the actual authenticated
+compiler Script via a test-only Script subclass. It passes the compiler source and options to
+super unchanged, evaluates those original bytes first, then probes node:path in that same context
+using the actual captured handler. No replacement callback is supplied by the probe. Under the
+one-site production-handler fault, only node:path is allowed and its actual host builtin namespace
+is returned. The context import fulfills with {status:'fulfilled',basename:'derivative.ts'};
+the explicit rejected-outcome equality fails on that fulfilled state. Restored production denial
+returns {status:'rejected',message:'compiler derivative dynamic import denied'} and the test passes.
+No network or candidate code is involved; other VM policies and authenticated bytes stay intact.
+
+Each of the five bounded trials exited 1 at its intended assertion and had its own restored
+exit-0 control. Exact commands, source-site assertions, expected/altered digests, state outputs,
+monitored RSS and settlement receipts are retained in
+.superpowers/sdd/task10-architecture-plan/evidence/fix1/{proofs.py,receipts.json,_.command.json,_.log}.
+The main 51-entry ledger now points these five entries to corrected receipts and explicitly embeds
+the superseded originals. Adjacent Proof comments describe only the corrected observed oracles.
+Only covering amended tests, changed-file checks and normal hooks are repeated in this correction;
+prior broad suite/full-acceptance results are historical, not newly rerun here. Exact successor
+review is required; Stages 2–5 and every full parent closure/settlement/read-manifest/eleven-document/
+preparation/freeze/independent-authority/installed acceptance obligation remain open.

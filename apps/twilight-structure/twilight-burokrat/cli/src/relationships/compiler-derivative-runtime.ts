@@ -30,7 +30,8 @@ globalThis.exports = module.exports;
 globalThis.require = () => { throw new Error('compiler derivative require denied'); };
 `;
 
-// Proof: changing the import denial lost its exact rejection in the evaluated context.
+// Proof: allowing node:path through the actual compiler Script importer fulfilled the context
+// import (basename derivative.ts), failing its rejected-state oracle; restored denial passed.
 function denyImport(): never {
   throw new Error('compiler derivative dynamic import denied');
 }

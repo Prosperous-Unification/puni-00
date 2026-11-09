@@ -134,7 +134,8 @@ export function captureCompilerDerivative(
       return Object.freeze({ path, identity, byteLength: bytes.byteLength });
     }),
   );
-  // Proof: omitting upstream or each member independently lost the canonical artifact identity.
+  // Proof: upstream omission changed the canonical identity. Each unique preimage-only member
+  // omission preserved all four published tuples, then failed the independent artifact digest oracle.
   const compilerArtifactIdentity = hashCanonical({
     kind: 'typescript-compiler-derivative',
     schemaVersion: 1,

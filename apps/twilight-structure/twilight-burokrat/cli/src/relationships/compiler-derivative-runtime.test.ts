@@ -171,6 +171,38 @@ async function copyLoader(corruption: string, alter = (source: string) => source
   await writeFile(join(directory, 'runtime.ts'), alter(instrumented));
   return import(join(directory, 'runtime.ts')) as Promise<typeof CompilerDerivativeRuntime>;
 }
+/** Exercises the exact importer configured on the original authenticated compiler Script. */
+function probeCompilerImport(source: string): string {
+  const site = 'new Script(source, {';
+  expect(source.split(site)).toHaveLength(2);
+  const probe = `module.exports.importOutcome = import('node:path').then(
+    namespace => ({ status: 'fulfilled', basename: namespace.basename('/allowed/derivative.ts') }),
+    cause => ({ status: 'rejected', message: cause.message })
+  );`;
+  const dependency = `class CompilerImportProbe extends Script {
+    constructor(source, options) {
+      super(source, options);
+      this.importer = options.importModuleDynamically;
+    }
+    runInContext(context, options) {
+      const completion = super.runInContext(context, options);
+      new Script(${JSON.stringify(probe)}, {
+        filename: 'compiler-derivative:import-policy-probe',
+        importModuleDynamically: this.importer
+      }).runInContext(context, options);
+      return completion;
+    }
+  }
+  `;
+  // The subclass passes the captured compiler source/options through unchanged; only the
+  // actual production compiler Script's supplied importer is reused for the context probe.
+  return dependency + source.replace(site, 'new CompilerImportProbe(source, {');
+}
+
+type CompilerImportOutcome =
+  | { readonly status: 'fulfilled'; readonly basename: string }
+  | { readonly status: 'rejected'; readonly message: string };
+
 test('real raw members execute after physical deletion and poisoned original filename', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'owned-compiler-artifact-'));
   scratch.push(directory);
@@ -207,21 +239,27 @@ test('real raw members execute after physical deletion and poisoned original fil
   }
 });
 test('context excludes ambient IO and denies require string wasm and import machinery', async () => {
-  const loader =
-    await copyLoader(`module.exports.loaderGlobals = [typeof process,typeof Bun,typeof Buffer,typeof fetch,typeof setTimeout,typeof global,typeof __filename,typeof console];
+  const loader = await copyLoader(
+    `module.exports.loaderGlobals = [typeof process,typeof Bun,typeof Buffer,typeof fetch,typeof setTimeout,typeof global,typeof __filename,typeof console];
   try { require('node:fs'); } catch(cause) { module.exports.requireFailure = cause.message; }
   try { Function('return process')(); } catch(cause) { module.exports.stringFailure = cause.name; }
-  try { new WebAssembly.Module(new Uint8Array([0,97,115,109,1,0,0,0])); } catch(cause) { module.exports.wasmFailure = cause.name; }
-  module.exports.importFailure = import('node:fs').then(()=> 'unexpected import', cause=>cause.message);`);
-  let imported: Promise<string> | undefined;
+  try { new WebAssembly.Module(new Uint8Array([0,97,115,109,1,0,0,0])); } catch(cause) { module.exports.wasmFailure = cause.name; }`,
+    probeCompilerImport,
+  );
+  let imported: Promise<CompilerImportOutcome> | undefined;
   loader.withCompilerDerivative(captureCompilerDerivative(members, createLimits()), (compiler) => {
     expect(Reflect.get(compiler, 'loaderGlobals')).toEqual(Array(8).fill('undefined'));
     expect(Reflect.get(compiler, 'requireFailure')).toBe('compiler derivative require denied');
     expect(Reflect.get(compiler, 'stringFailure')).toBe('EvalError');
     expect(Reflect.get(compiler, 'wasmFailure')).toBe('CompileError');
-    imported = Reflect.get(compiler, 'importFailure') as Promise<string>;
+    imported = Reflect.get(compiler, 'importOutcome') as Promise<CompilerImportOutcome>;
   });
-  expect(await imported).toBe('compiler derivative dynamic import denied');
+  const outcome = await imported;
+  console.info('compiler import outcome', JSON.stringify(outcome));
+  expect(outcome).toEqual({
+    status: 'rejected',
+    message: 'compiler derivative dynamic import denied',
+  });
 });
 for (const [label, corruption, message] of [
   ['namespace', 'module.exports = null;', 'namespace differs'],
