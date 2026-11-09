@@ -1,8 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { resolve } from 'node:path';
 
-import ts from 'typescript';
-
 import type { RelationshipRequest } from '../contracts/records';
 import { hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import {
@@ -13,6 +11,7 @@ import {
   type TypeScriptConfigurationMode,
   type TypeScriptLimits,
   type TypeScriptPolicy,
+  type TypeScriptRuntime,
   type TypeScriptSource,
   type TypeScriptSystem,
   workspacePath,
@@ -84,6 +83,8 @@ export interface TypeScriptRelationships {
 }
 
 function readCompilerIdentity(workspace: string, system: TypeScriptSystem): ExtractorIdentity {
+  // Proof: ambient identity selection changed the retained selected-runtime version assertion.
+  const ts = system.compiler;
   if (ts.version.length === 0) throw new Error('TypeScript compiler version unavailable');
   let packageBytes: Uint8Array;
   try {
@@ -105,7 +106,8 @@ function readCompilerIdentity(workspace: string, system: TypeScriptSystem): Extr
 }
 
 /**
- * Shared runner. Only the filesystem compatibility wrapper selects the legacy policy.
+ * Shared runner. The selected executable compiler grants no runtime authentication.
+ * Only the filesystem compatibility wrapper selects the legacy policy.
  * @internal
  */
 export function extractTypeScriptRelationshipsWithPolicy(
@@ -113,13 +115,14 @@ export function extractTypeScriptRelationshipsWithPolicy(
   request: RelationshipRequest['typescript'],
   source: TypeScriptSource,
   policy: TypeScriptPolicy,
+  compiler: TypeScriptRuntime,
   mode: TypeScriptConfigurationMode = 'compatible',
 ): { extractor: ExtractorIdentity; relationships: TypeScriptRelationships } {
   // Proof: validation omission reached the source getter in
   // `compiler configuration mode rejects unknown before source callbacks`.
   if (!['compatible', 'retained-type-roots', 'retained-config-roots'].includes(mode))
     throw new Error('TypeScript configuration mode invalid');
-  const system = boundSource(workspace, source, policy);
+  const system = boundSource(workspace, source, policy, compiler);
   const extractor = readCompilerIdentity(workspace, system);
   const projects = request.configPaths.map((configPath) =>
     parseProject(workspace, configPath, system, mode),
@@ -137,7 +140,7 @@ export function extractTypeScriptRelationshipsWithPolicy(
       ) {
         continue;
       }
-      for (const site of importSites(sourceFile)) {
+      for (const site of importSites(system.compiler, sourceFile)) {
         const resolution = resolveDependency(workspace, project, sourceFile, site);
         // Proof: replacing ambient omission with `external:ambient` made the production test
         // observe a fabricated CSS import selector on 2026-09-21.
@@ -163,11 +166,16 @@ export function extractTypeScriptRelationshipsWithPolicy(
       `${right.source}\0${right.specifier}\0${right.importKind}`,
     ),
   );
-  const diagnostics = projects.flatMap((project) => ts.getPreEmitDiagnostics(project.program));
+  // Proof: ambient diagnostics lost the selected diagnostic sentinel through the bounded entry.
+  const diagnostics = projects.flatMap((project) =>
+    system.compiler.getPreEmitDiagnostics(project.program),
+  );
   if (diagnostics.length > 0) {
     // Proof: removing this refusal made the `MissingType` fixture emit declarations and exit 0;
     // the production compiler-failure oracle expected exit 1.
-    throw new Error(`TypeScript compiler failed: ${diagnostics.map(formatDiagnostic).join('; ')}`);
+    throw new Error(
+      `TypeScript compiler failed: ${diagnostics.map((diagnostic) => formatDiagnostic(system.compiler, diagnostic)).join('; ')}`,
+    );
   }
   for (const project of projects) emitDeclarations(workspace, project);
 
@@ -215,13 +223,15 @@ export function extractTypeScriptRelationshipsWithPolicy(
  * enumerated path and declaration/selector observation, including repeated work. Namespace
  * misses never reach the source except effective explicit typeRoots admission in retained mode.
  * Source implementations must bound their own return allocation;
- * this seam bounds compiler accumulation and does not authenticate the running compiler.
+ * this seam bounds compiler accumulation. The required compiler selects executable operations
+ * without authenticating them, even when its version matches retained package metadata.
  */
 export function extractTypeScriptRelationshipsFromSource(
   workspace: string,
   request: RelationshipRequest['typescript'],
   source: TypeScriptSource,
   limits: TypeScriptLimits,
+  compiler: TypeScriptRuntime,
   mode: TypeScriptConfigurationMode = 'compatible',
 ): ReturnType<typeof extractTypeScriptRelationshipsWithPolicy> {
   const names: readonly (keyof TypeScriptLimits)[] = [
@@ -252,6 +262,7 @@ export function extractTypeScriptRelationshipsFromSource(
     request,
     source,
     { kind: 'bounded', limits: snapshot },
+    compiler,
     mode,
   );
 }

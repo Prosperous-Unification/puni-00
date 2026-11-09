@@ -7,6 +7,7 @@ import {
   RelativePath,
   serializeCanonical,
   type TypeScriptLimits,
+  type TypeScriptRuntime,
 } from '@twilight-burokrat/judge';
 
 import type { RetainedNamespace, RetainedNamespaceProvenance } from './review-namespace';
@@ -30,6 +31,8 @@ export interface RetainedTypeScriptExtractionRequest {
   readonly namespace: RetainedNamespace;
   readonly candidate: RetainedCandidate;
   readonly runtime: ReviewRuntime;
+  /** Selected executable namespace; retained runtime bytes do not authenticate this reference. */
+  readonly compiler: TypeScriptRuntime;
   readonly request: RelationshipRequest['typescript'];
   readonly sourceLimits: RetainedTypeScriptSourceLimits;
   readonly compilerLimits: TypeScriptLimits;
@@ -119,8 +122,18 @@ function captureLimits<K extends string>(
 export function extractRetainedTypeScriptRelationships(
   input: RetainedTypeScriptExtractionRequest,
 ): RetainedTypeScriptExtraction {
-  const { namespace, candidate, runtime, request, sourceLimits, compilerLimits, requestLimits } =
-    input;
+  // Proof: forwarding input.compiler after source admission reached `late compiler selection`;
+  // forwarding installed TypeScript lost the selected identity in the capture-once oracle.
+  const {
+    namespace,
+    candidate,
+    runtime,
+    compiler,
+    request,
+    sourceLimits,
+    compilerLimits,
+    requestLimits,
+  } = input;
   // Proof: output/compiler/source-snapshot substitutions lose `callbacks mutate caller objects`;
   // getter capture is observed once in `snapshots each path and limit getter once`.
   const capturedRequestLimits = captureLimits(
@@ -243,6 +256,7 @@ export function extractRetainedTypeScriptRelationships(
     capturedRequest,
     source,
     capturedCompilerLimits,
+    compiler,
     // Proof: substituting retained-type-roots admitted the unused absolute outside rootDirs
     // in `retained effective rootDirs refuses absolute outside before program with types empty`.
     'retained-config-roots',

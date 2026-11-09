@@ -1680,3 +1680,25 @@ The build SHALL verify the pinned upstream executable SHA-256, require every tra
 
 - **WHEN** upstream bytes, transformation occurrence counts, output bytes or manifest identities differ
 - **THEN** the derivative build or verification refuses the artifact
+
+### Requirement: Explicit selected compiler runtime prerequisite
+
+Each TypeScript extraction SHALL use one explicitly selected executable runtime for compiler
+configuration, host construction, source parsing, references, imports, declarations, diagnostics,
+project reconstruction and extractor identity. The retained entry SHALL require the runtime;
+the filesystem compatibility composition SHALL select the installed runtime. Helpers SHALL
+NOT fall back to an ambient executable compiler namespace.
+
+#### Scenario: Selected runtime differs from ambient exports
+
+- **WHEN** a caller supplies a selected executable runtime and ambient exported compiler
+  operations are unavailable or differ
+- **THEN** extraction uses the selected runtime throughout and selected compiler failures propagate
+- **AND** no matching version string or package manifest establishes runtime authentication
+
+#### Scenario: Serial compatibility and retained trust
+
+- **WHEN** filesystem compatibility selects the installed runtime or retained extraction uses it
+- **THEN** existing identity, relationships, bounded IO policy and budgets remain unchanged
+- **AND** filesystem extraction retains configuration-only captures and phase-local programs
+- **AND** retained runtimeTrust remains unverified and derivative artifacts remain unused

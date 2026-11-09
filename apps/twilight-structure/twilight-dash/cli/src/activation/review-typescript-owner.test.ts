@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import * as judge from '@twilight-burokrat/judge';
 import { serializeCanonical } from '@twilight-burokrat/judge';
 import { expect, spyOn, test } from 'bun:test';
+import ts from 'typescript';
 
 import { createRetainedNamespace, readRetainedNamespaceProvenance } from './review-namespace';
 import * as extraction from './review-typescript';
@@ -78,6 +79,7 @@ function setup() {
   );
   return {
     ...captured,
+    compiler: ts,
     namespace: createRetainedNamespace(captured.candidate, captured.runtime, {
       maximumEntries: 100,
       maximumNodes: 100,

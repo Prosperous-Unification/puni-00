@@ -1,6 +1,6 @@
 import { extname, resolve } from 'node:path';
 
-import ts from 'typescript';
+import type ts from 'typescript';
 
 import { hashCanonical } from '../evidence/content-manifest';
 import {
@@ -42,7 +42,7 @@ function emitSourceDeclaration(
   );
   if (emission.emitSkipped) {
     throw new Error(
-      `TypeScript compiler declaration emit failed for ${project.configPath} source ${sourcePath}: ${emission.diagnostics.map(formatDiagnostic).join('; ') || 'no diagnostic'}`,
+      `TypeScript compiler declaration emit failed for ${project.configPath} source ${sourcePath}: ${emission.diagnostics.map((diagnostic) => formatDiagnostic(project.system.compiler, diagnostic)).join('; ') || 'no diagnostic'}`,
     );
   }
   if (output === undefined) {
@@ -88,7 +88,7 @@ function emitBundledDeclarations(
   if (emission.emitSkipped) {
     throw new Error(
       `TypeScript compiler declaration emit failed for ${project.configPath}: ${emission.diagnostics
-        .map(formatDiagnostic)
+        .map((diagnostic) => formatDiagnostic(project.system.compiler, diagnostic))
         .join('; ')}`,
     );
   }
@@ -111,7 +111,8 @@ export function emitDeclarations(workspace: string, project: ParsedProject): voi
       )
       .sort((left, right) => compareText(left.sourcePath, right.sourcePath));
     for (const { sourceFile } of sources) {
-      if (sourceFile.isDeclarationFile || isJsonSource(sourceFile)) continue;
+      if (sourceFile.isDeclarationFile || isJsonSource(project.system.compiler, sourceFile))
+        continue;
       emitSourceDeclaration(workspace, project, sourceFile, emitted);
     }
   } else {
@@ -145,7 +146,10 @@ function declarationDependencies(
   if (sourceFile === undefined) {
     throw new Error(`TypeScript compiler lost source declaration ${declaration.sourcePath}`);
   }
+  const ts = project.system.compiler;
+  // Proof: ambient emitted-AST construction lost `selected declaration parser` after source compilation.
   const dependencies = importSites(
+    ts,
     ts.createSourceFile(declaration.emittedPath, declaration.text, ts.ScriptTarget.Latest, true),
   ).flatMap((site) => {
     const resolution = resolveDependency(workspace, project, sourceFile, site);
@@ -173,7 +177,7 @@ function declarationDependencies(
     const dependency = path.startsWith('external:')
       ? undefined
       : project.program.getSourceFile(resolve(workspace, path));
-    if (dependency !== undefined && isJsonSource(dependency)) {
+    if (dependency !== undefined && isJsonSource(project.system.compiler, dependency)) {
       throw new Error(
         `TypeScript public declaration JSON dependency unsupported: ${declaration.sourcePath} -> ${path}`,
       );
@@ -191,6 +195,8 @@ function semanticDeclarationDependencies(
   if (sourceFile === undefined) {
     throw new Error(`TypeScript compiler lost public entrypoint ${entrypoint}`);
   }
+  // Proof: ambient isIdentifier lost the selected semantic-traversal extraction sentinel.
+  const ts = project.system.compiler;
   const checker = project.program.getTypeChecker();
   const moduleSymbol = checker.getSymbolAtLocation(sourceFile);
   if (moduleSymbol === undefined) {

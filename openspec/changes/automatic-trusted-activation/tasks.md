@@ -674,3 +674,13 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       missing/duplicate sections and altered output. Verify all four artifact members together
       and refuse each missing/altered member. Cover both typesVersions caller routes. Keep extraction unchanged;
       wildcard admission, complete manifest and runtimeTrust remain unverified and open.
+
+- [x] 2.1d.1.3e6f1 Thread one selected TypeScript runtime through retained compilation and
+      filesystem serial compatibility, including trusted IO, project capture/reconstruction,
+      imports, declarations, diagnostics and identity. Preserve serial lifetimes, legacy output,
+      retained budgets, derivative artifacts and unverified trust. Write failing extraction tests
+      first and observe independent fallback/selection-lifetime faults fail restored controls.
+- [ ] 2.1d.1.3e6f2 Accept the selected-runtime prerequisite after recorded scoped checks,
+      independent exact-candidate review, canonical host gate and exact-head CI. Full owning
+      typechecks and serial resource acceptance remain gate-host obligations. This prerequisite
+      does not close derivative loading, runtime authentication or parent .3.

@@ -79,7 +79,13 @@ test('shared compiler source resolves imports and declaration closure without am
     getCurrentDirectory: forbidden,
   });
   try {
-    const extraction = extractTypeScriptRelationshipsFromSource(workspace, request, source, limits);
+    const extraction = extractTypeScriptRelationshipsFromSource(
+      workspace,
+      request,
+      source,
+      limits,
+      ts,
+    );
     expect(
       extraction.relationships.imports.map(({ source, target, importKind }) => ({
         source,
@@ -111,7 +117,9 @@ test('project reference wildcard enumeration uses the supplied source', () => {
     }),
     'referenced/value.ts': 'export interface Reference { value: string }',
   });
-  forbidAmbient(() => extractTypeScriptRelationshipsFromSource(workspace, request, source, limits));
+  forbidAmbient(() =>
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts),
+  );
   expect(enumerations).toContain('/candidate/referenced');
 });
 
@@ -123,6 +131,7 @@ test('root config absent, directory and malformed stay distinct', () => {
       { ...request, configPaths: ['missing.json'] },
       source,
       limits,
+      ts,
     ),
   ).toThrow('TypeScript config absent: missing.json');
   expect(() =>
@@ -131,11 +140,12 @@ test('root config absent, directory and malformed stay distinct', () => {
       { ...request, configPaths: ['src'] },
       source,
       limits,
+      ts,
     ),
   ).toThrow('TypeScript config unreadable: src');
   files.set('/candidate/tsconfig.json', '{bad');
   expect(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits),
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts),
   ).toThrow('TypeScript config malformed: tsconfig.json');
 });
 
@@ -155,10 +165,16 @@ for (const [limit, expected] of [
     });
     let failure: unknown;
     try {
-      extractTypeScriptRelationshipsFromSource(workspace, request, source, {
-        ...limits,
-        [limit]: 0,
-      });
+      extractTypeScriptRelationshipsFromSource(
+        workspace,
+        request,
+        source,
+        {
+          ...limits,
+          [limit]: 0,
+        },
+        ts,
+      );
     } catch (cause) {
       failure = cause;
     }
@@ -182,7 +198,7 @@ test('compiler source refuses escaping imports before invoking outside ports', (
     return kinds(path);
   };
   expect(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits),
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts),
   ).toThrow('TypeScript import unresolved: src/index.ts');
 });
 
@@ -194,10 +210,16 @@ test('compiler source rejects nonfinite, negative and fractional limits before I
         throw new Error('IO before validation');
       };
       expect(() =>
-        extractTypeScriptRelationshipsFromSource(workspace, request, source, {
-          ...limits,
-          [name]: value,
-        }),
+        extractTypeScriptRelationshipsFromSource(
+          workspace,
+          request,
+          source,
+          {
+            ...limits,
+            [name]: value,
+          },
+          ts,
+        ),
       ).toThrow(`TypeScript ${name} must be a nonnegative safe integer`);
     }
   }
@@ -206,7 +228,13 @@ test('compiler source rejects nonfinite, negative and fractional limits before I
 test('exact final output bytes include identity and empty selector families', () => {
   const { source } = fixture({ 'src/index.ts': 'export const value = 1;' });
   const selection = { ...request, publicEntrypoints: [] };
-  const extraction = extractTypeScriptRelationshipsFromSource(workspace, selection, source, limits);
+  const extraction = extractTypeScriptRelationshipsFromSource(
+    workspace,
+    selection,
+    source,
+    limits,
+    ts,
+  );
   expect(extraction.relationships).toEqual({
     imports: [],
     reverseEdges: [],
@@ -214,16 +242,28 @@ test('exact final output bytes include identity and empty selector families', ()
   });
   const byteLength = Buffer.byteLength(JSON.stringify(extraction)) + 1;
   expect(
-    extractTypeScriptRelationshipsFromSource(workspace, selection, source, {
-      ...limits,
-      maximumOutputBytes: byteLength,
-    }),
+    extractTypeScriptRelationshipsFromSource(
+      workspace,
+      selection,
+      source,
+      {
+        ...limits,
+        maximumOutputBytes: byteLength,
+      },
+      ts,
+    ),
   ).toEqual(extraction);
   expect(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, selection, source, {
-      ...limits,
-      maximumOutputBytes: byteLength - 1,
-    }),
+    extractTypeScriptRelationshipsFromSource(
+      workspace,
+      selection,
+      source,
+      {
+        ...limits,
+        maximumOutputBytes: byteLength - 1,
+      },
+      ts,
+    ),
   ).toThrow('TypeScript output byte limit exceeded');
 });
 
@@ -240,6 +280,7 @@ test('case insensitive compiler preserves TypeScript Unicode canonical names', (
     request,
     insensitive,
     limits,
+    ts,
   );
   expect(extraction.relationships.imports.map(({ target }) => target).sort()).toEqual([
     'src/i̇.ts',
@@ -254,7 +295,13 @@ test('compiler declaration newline follows CRLF config', () => {
       files: ['globals.d.ts', 'src/index.ts'],
     }),
   });
-  const extraction = extractTypeScriptRelationshipsFromSource(workspace, request, source, limits);
+  const extraction = extractTypeScriptRelationshipsFromSource(
+    workspace,
+    request,
+    source,
+    limits,
+    ts,
+  );
   expect(
     extraction.relationships.publicDeclarations[0]?.declarations.find(
       ({ sourcePath }) => sourcePath === 'src/index.ts',
@@ -282,7 +329,7 @@ test('relative and scoped extends, paths aliases and package imports use source 
       "import type { Value } from '@local/value'; import type { External } from '@fixture/value'; export interface Public { value: Value; external: External }",
   });
   const extraction = forbidAmbient(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits),
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts),
   );
   expect(extraction.relationships.imports.map(({ target }) => target).sort()).toEqual([
     'external:@fixture/value',
@@ -306,7 +353,9 @@ test('compiler reads explicitly supplied default library bytes', () => {
     reads.push(path);
     return read(path);
   };
-  forbidAmbient(() => extractTypeScriptRelationshipsFromSource(workspace, request, source, limits));
+  forbidAmbient(() =>
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts),
+  );
   expect(reads).toContain(`${source.compilerLibraryDirectory}/lib.es2022.full.d.ts`);
 });
 
@@ -324,7 +373,7 @@ test('source parsing does not execute candidate preload, package scripts or comp
     'bunfig.toml': 'preload = ["./candidate-plugin.cjs"]',
   });
   const extraction = forbidAmbient(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits),
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts),
   );
   expect(extraction.relationships.imports[0]?.target).toBe('src/value.ts');
 });
@@ -368,7 +417,7 @@ for (const [name, config, expected] of [
     source.realpath = guard('realpath', source.realpath);
     expect(() =>
       forbidAmbient(() =>
-        extractTypeScriptRelationshipsFromSource(workspace, request, source, limits),
+        extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts),
       ),
     ).toThrow(expected);
     expect(outsideCalls).toEqual([]);
@@ -379,7 +428,7 @@ test('compiler refuses canonical source symlink escape', () => {
   const { source } = fixture();
   source.realpath = (path) => (path.endsWith('/src/value.ts') ? '/outside/value.ts' : path);
   expect(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits),
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts),
   ).toThrow('compiler declaration outside trusted copied closure');
 });
 
@@ -391,7 +440,7 @@ test('unreadable config remains unreadable with source context', () => {
     return read(path);
   };
   expect(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits),
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts),
   ).toThrow('TypeScript config unreadable: tsconfig.json');
 });
 
@@ -404,7 +453,7 @@ test('compiler snapshots finite limits before source callbacks mutate caller pol
     return read(path);
   };
   expect(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, ceiling),
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, ceiling, ts),
   ).toThrow('TypeScript output byte limit exceeded');
 });
 
@@ -417,14 +466,20 @@ test('automatic type root enumeration uses the source host', () => {
     'node_modules/@types/fixture/index.d.ts': 'declare const ambient: string;',
   });
   const extraction = forbidAmbient(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits),
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts),
   );
   expect(extraction.relationships.imports[0]?.target).toBe('src/value.ts');
 });
 
 test('observation budget charges every emitted declaration and selector before accumulation', () => {
   const { source } = fixture();
-  const extraction = extractTypeScriptRelationshipsFromSource(workspace, request, source, limits);
+  const extraction = extractTypeScriptRelationshipsFromSource(
+    workspace,
+    request,
+    source,
+    limits,
+    ts,
+  );
   const selectorBytes = [
     ...extraction.relationships.imports,
     ...extraction.relationships.reverseEdges,
@@ -440,16 +495,28 @@ test('observation budget charges every emitted declaration and selector before a
     Buffer.byteLength(globals) +
     declarations.reduce((total, declaration) => total + Buffer.byteLength(declaration.text), 0);
   expect(
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, {
-      ...limits,
-      maximumObservedOutputBytes: observed,
-    }),
+    extractTypeScriptRelationshipsFromSource(
+      workspace,
+      request,
+      source,
+      {
+        ...limits,
+        maximumObservedOutputBytes: observed,
+      },
+      ts,
+    ),
   ).toEqual(extraction);
   expect(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, {
-      ...limits,
-      maximumObservedOutputBytes: observed - 1,
-    }),
+    extractTypeScriptRelationshipsFromSource(
+      workspace,
+      request,
+      source,
+      {
+        ...limits,
+        maximumObservedOutputBytes: observed - 1,
+      },
+      ts,
+    ),
   ).toThrow('TypeScript observed output byte limit exceeded');
 });
 
@@ -468,23 +535,41 @@ test('observation budget charges bundled declaration text before accumulation', 
     }),
     'src/index.ts': `declare global { ${globals} } export interface Value { label: string }`,
   });
-  const extraction = extractTypeScriptRelationshipsFromSource(workspace, request, source, limits);
+  const extraction = extractTypeScriptRelationshipsFromSource(
+    workspace,
+    request,
+    source,
+    limits,
+    ts,
+  );
   const declaration = extraction.relationships.publicDeclarations[0];
   const { identity: _identity, ...selector } = declaration;
   const observed =
     Buffer.byteLength(JSON.stringify(selector)) +
     declaration.declarations.reduce((total, entry) => total + Buffer.byteLength(entry.text), 0);
   expect(
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, {
-      ...limits,
-      maximumObservedOutputBytes: observed,
-    }),
+    extractTypeScriptRelationshipsFromSource(
+      workspace,
+      request,
+      source,
+      {
+        ...limits,
+        maximumObservedOutputBytes: observed,
+      },
+      ts,
+    ),
   ).toEqual(extraction);
   expect(() =>
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, {
-      ...limits,
-      maximumObservedOutputBytes: observed - 1,
-    }),
+    extractTypeScriptRelationshipsFromSource(
+      workspace,
+      request,
+      source,
+      {
+        ...limits,
+        maximumObservedOutputBytes: observed - 1,
+      },
+      ts,
+    ),
   ).toThrow('TypeScript observed output byte limit exceeded');
 });
 
@@ -531,6 +616,7 @@ test('compiler configuration mode rejects unknown before source callbacks', () =
       source,
       limits,
       // @ts-expect-error Unknown mode models an untyped caller at the public boundary.
+      ts,
       'unknown',
     ),
   ).toThrow('TypeScript configuration mode invalid');
@@ -549,7 +635,7 @@ test('compatible source mode preserves explicit outside root probes as absent', 
     return original(path);
   };
   expect(
-    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits).relationships
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits, ts).relationships
       .publicDeclarations,
   ).toHaveLength(1);
   expect(() =>
@@ -558,6 +644,7 @@ test('compatible source mode preserves explicit outside root probes as absent', 
       request,
       source,
       limits,
+      ts,
       'retained-type-roots',
     ),
   ).toThrow('outside admission');
@@ -581,6 +668,7 @@ test('retained configuration mode reaches every requested root project', () => {
       { ...request, configPaths: ['tsconfig.json', 'second.json'] },
       source,
       limits,
+      ts,
       'retained-type-roots',
     ),
   ).toThrow('second root admission');

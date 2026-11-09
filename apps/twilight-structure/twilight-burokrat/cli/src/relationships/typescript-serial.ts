@@ -1,8 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { resolve } from 'node:path';
 
-import ts from 'typescript';
-
 import type { RelationshipRequest } from '../contracts/records';
 import { hashCanonical } from '../evidence/content-manifest';
 import {
@@ -10,6 +8,7 @@ import {
   compareText,
   formatDiagnostic,
   type ParsedProject,
+  type TypeScriptRuntime,
   type TypeScriptSource,
   type TypeScriptSystem,
   workspacePath,
@@ -36,6 +35,8 @@ interface EmittingProject {
 }
 
 function readCompilerIdentity(workspace: string, system: TypeScriptSystem): ExtractorIdentity {
+  // Proof: ambient serial identity selection lost full bounded/serial parity with a selected version.
+  const ts = system.compiler;
   if (ts.version.length === 0) throw new Error('TypeScript compiler version unavailable');
   let packageBytes: Uint8Array;
   try {
@@ -70,7 +71,7 @@ function collectImports(
       project.program.isSourceFileFromExternalLibrary(sourceFile)
     )
       continue;
-    for (const site of importSites(sourceFile)) {
+    for (const site of importSites(project.system.compiler, sourceFile)) {
       const resolution = resolveDependency(workspace, project, sourceFile, site);
       if (resolution.kind === 'ambient-non-code') continue;
       const selector = {
@@ -106,7 +107,10 @@ function observeDiagnostics(
   // Proof: a gateway-only pre-diagnostic collection reclaimed preceding work and let gateway
   // finish; without it the frozen baseline exceeded 4 GiB during gateway diagnostics.
   Bun.gc(true);
-  return ts.getPreEmitDiagnostics(project.program).map(formatDiagnostic);
+  // Proof: ambient serial diagnostics lost `selected formatted diagnostic` in the bounded/serial oracle.
+  return system.compiler
+    .getPreEmitDiagnostics(project.program)
+    .map((diagnostic) => formatDiagnostic(system.compiler, diagnostic));
 }
 
 function prepareEmission(
@@ -119,7 +123,9 @@ function prepareEmission(
   collectImports(workspace, project, extractor);
   // Emission/public replay reaches the same measured live-project diagnostic boundary above.
   Bun.gc(true);
-  const diagnostics = ts.getPreEmitDiagnostics(project.program).map(formatDiagnostic);
+  const diagnostics = system.compiler
+    .getPreEmitDiagnostics(project.program)
+    .map((diagnostic) => formatDiagnostic(system.compiler, diagnostic));
   if (diagnostics.length > 0)
     throw new Error(`TypeScript compiler failed: ${diagnostics.join('; ')}`);
   emitDeclarations(workspace, project);
@@ -220,8 +226,10 @@ export function extractSerialRelationships(
   workspace: string,
   request: RelationshipRequest['typescript'],
   source: TypeScriptSource,
+  compiler: TypeScriptRuntime,
 ): { extractor: ExtractorIdentity; relationships: TypeScriptRelationships } {
-  const system = boundSource(workspace, source, { kind: 'legacy' });
+  // Proof: installed-runtime substitution lost the selected reconstruction-phase sentinel.
+  const system = boundSource(workspace, source, { kind: 'legacy' }, compiler);
   const extractor = readCompilerIdentity(workspace, system);
   try {
     const configurations: ProjectConfiguration[] = [];

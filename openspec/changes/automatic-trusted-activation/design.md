@@ -2494,3 +2494,31 @@ roots. Validate its runtime version, callable signature and returned string at t
 boundary. Admit through system.admitConfigurationRoot without changing options or requiring
 existence. Existing source traversal checks lexical and symlink ancestors, charges repeated
 work, and records link bytes. Earlier modes retain their current compiler probe behavior.
+
+### Selected compiler runtime prerequisite (2026-11-09)
+
+One explicit `TypeScriptRuntime` supplies the executable compiler namespace. The bounded
+source entry receives it as a required argument; Dash retained requests carry it separately
+as `compiler` from the owned retained-byte `ReviewRuntime`. Selection establishes no
+authentication. The existing filesystem composition selects installed TypeScript and passes
+that same object into trusted package IO and serial extraction. Helpers use the runtime carried
+by their bound compiler system; no helper imports an executable ambient compiler. Types-only
+imports remain ordinary TypeScript types. Version and library compatibility checks retain their
+existing purpose and do not authenticate the executing namespace.
+
+The serial extractor retains its configuration-only captures, phase-local programs, ordering,
+reconstruction and collection boundaries. Bounded extraction retains its exact IO policy and
+budgets. Legacy extractor identity and output are unchanged for the installed selection.
+The four derivative members and their hashes remain unchanged and unused by extraction.
+`runtimeTrust` remains `unverified`; loader authentication, complete runtime closure,
+CompilerReadManifestV1 and parent 2.1d.1.3 remain open.
+
+Validation uses a separately selected compiler namespace with consumer-visible selected
+configuration/program/import/diagnostic/declaration failures and existing serial parity
+and retained trust oracles. Independent production fallback mutations must fail extraction
+oracles before restoration and adjacent proof comments are recorded.
+
+The separate declared-relationship extractor (`relationships/declarations.ts`) is outside this
+TypeScript compiler-extraction packet; its AST analysis remains a later full retained-producer
+runtime-closure obligation. The scoped no-ambient assertion covers the compiler extraction
+call graph listed above, not the complete all-eleven-document producer.

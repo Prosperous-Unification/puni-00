@@ -1,10 +1,14 @@
 import { Buffer } from 'node:buffer';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
-import ts from 'typescript';
+import type ts from 'typescript';
 
 import { hashCanonical } from '../evidence/content-manifest';
 import type { ResolvedDeclaration } from './typescript-core';
+
+/** Selected executable compiler namespace; grants no executable-byte authentication. */
+// Proof: replacing this port with never failed the narrow API typecheck at real compiler callers.
+export type TypeScriptRuntime = typeof ts;
 
 /** Compiler IO ports. Implementations own namespace admission; absent probes are explicit. */
 export interface TypeScriptSource {
@@ -34,6 +38,7 @@ export interface TypeScriptLimits {
 }
 
 export interface TypeScriptSystem extends ts.ParseConfigHost {
+  readonly compiler: TypeScriptRuntime;
   readDirectory(
     path: string,
     extensions: readonly string[],
@@ -63,6 +68,7 @@ export function boundSource(
   workspace: string,
   source: TypeScriptSource,
   policy: TypeScriptPolicy,
+  compiler: TypeScriptRuntime,
 ): TypeScriptSystem {
   // Proof: omitting each admission route independently invoked a forbidden outside port in
   // `compiler namespace misses never delegate outside paths to any source port`.
@@ -92,6 +98,10 @@ export function boundSource(
     return admits(path) ? source.pathKind(path) : 'absent';
   };
   return {
+    // Proof: spreading the compiler lost the non-enumerable selected literal helper sentinel.
+    // Proof: a module-global compiler getter lost the outer diagnostic sentinel in
+    // `nested retained extraction cannot replace the outer selected runtime`.
+    compiler,
     compilerLibraryDirectory: source.compilerLibraryDirectory,
     useCaseSensitiveFileNames: source.useCaseSensitiveFileNames,
     pathKind,
@@ -165,12 +175,13 @@ export function workspacePath(workspace: string, path: string): string | undefin
     : fromRoot;
 }
 
-export function formatDiagnostic(diagnostic: ts.Diagnostic): string {
-  return ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+export function formatDiagnostic(compiler: TypeScriptRuntime, diagnostic: ts.Diagnostic): string {
+  // Proof: ambient formatting lost `selected formatted diagnostic` in the bounded/serial oracle.
+  return compiler.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
 }
 
-export function isJsonSource(sourceFile: ts.SourceFile): boolean {
-  return (sourceFile.flags & ts.NodeFlags.JsonFile) !== 0;
+export function isJsonSource(compiler: TypeScriptRuntime, sourceFile: ts.SourceFile): boolean {
+  return (sourceFile.flags & compiler.NodeFlags.JsonFile) !== 0;
 }
 
 function normalizedCompilerValue(value: unknown, workspace: string): unknown {
@@ -193,10 +204,15 @@ function normalizedCompilerValue(value: unknown, workspace: string): unknown {
 /**
  * Uses the lockfile-pinned @typescript/old 6.0.3 pure path algebra, including drive roots and
  * backslashes. This private helper performs no IO and never consults an ambient cwd.
- * @throws Error if the installed private helper's version, signature or return shape differs.
+ * @throws Error if the selected private helper's version, signature or return shape differs.
  */
-function resolveLiteralPath(base: string, substitution: string): string {
-  const runtime: unknown = ts;
+function resolveLiteralPath(
+  compiler: TypeScriptRuntime,
+  base: string,
+  substitution: string,
+): string {
+  // Proof: ambient substitution lost the selected literal-path sentinel in `selected runtime owns literal path normalization`.
+  const runtime: unknown = compiler;
   // Proof: helper-callable/version/signature omissions failed the isolated helper-absent,
   // helper-version and helper-signature production boundary cases in typescript-compiler.test.ts.
   if (
@@ -258,7 +274,7 @@ function admitLiteralPaths(options: ts.CompilerOptions, system: TypeScriptSystem
       // missing success. Ambient sys access lost removed-root replay; omitting link census lost
       // inside-linked raw bytes. Compiler/source omission or reset and omitted steps lost shared
       // exact-fit controls. Lexical-only admission lost ancestor escape refusal.
-      system.admitConfigurationRoot(resolveLiteralPath(base, substitution));
+      system.admitConfigurationRoot(resolveLiteralPath(system.compiler, base, substitution));
     }
   }
 }
@@ -276,16 +292,19 @@ export function parseProject(
   system: TypeScriptSystem,
   mode: TypeScriptConfigurationMode = 'compatible',
 ): ParsedProject {
+  const ts = system.compiler;
   const absoluteConfig = resolve(workspace, configPath);
   // Proof: removing this boundary made the production CLI report the absent
   // `missing-tsconfig.json` as unreadable; the exact absent assertion failed.
   if (system.pathKind(absoluteConfig) === 'absent')
     throw new Error(`TypeScript config absent: ${configPath}`);
+  // Proof: independent ambient config-reader/parser/program substitutions lost their selected
+  // sentinels in `selected runtime ... failure reaches source extraction`.
   const config = ts.readConfigFile(absoluteConfig, (path) => system.readFile(path));
   if (config.error !== undefined) {
     // Proof: removing this branch made the directory supplied as config exit 0; the production
     // unreadable-config oracle expected exit 1 and failed before the malformed case.
-    const detail = formatDiagnostic(config.error);
+    const detail = formatDiagnostic(ts, config.error);
     // Proof: omitting code 5012 labeled the injected unreadable source config malformed;
     // `unreadable config remains unreadable with source context` failed.
     const failure =
@@ -303,7 +322,7 @@ export function parseProject(
   );
   if (parsed.errors.length > 0) {
     throw new Error(
-      `TypeScript config malformed: ${configPath}: ${parsed.errors.map(formatDiagnostic).join('; ')}`,
+      `TypeScript config malformed: ${configPath}: ${parsed.errors.map((diagnostic) => formatDiagnostic(ts, diagnostic)).join('; ')}`,
     );
   }
   // Proof: loop/masked-route/auto-discovery gating omissions admitted the outside root with
@@ -413,6 +432,9 @@ export function createCompilerHost(
   options: ts.CompilerOptions,
   system: TypeScriptSystem,
 ): ts.CompilerHost {
+  // Proof: ambient default-library and source-factory substitutions independently lost the
+  // selected-library and selected-source-parser sentinels in production extraction.
+  const ts = system.compiler;
   const host: ts.CompilerHost = {
     getDefaultLibFileName: (compilerOptions) =>
       resolve(system.compilerLibraryDirectory, ts.getDefaultLibFileName(compilerOptions)),
