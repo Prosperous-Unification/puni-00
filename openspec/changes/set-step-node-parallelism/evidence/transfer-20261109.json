@@ -1,0 +1,177 @@
+[
+  {
+    "fault": "request-object",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > refuses request shape atomically [0.18ms]",
+    "maxRSSKiB": 32888
+  },
+  {
+    "fault": "references-object",
+    "exit": 1,
+    "failedTests": 2,
+    "firstFailure": "internal sparse parallel transfer > refuses missing source atomically [0.15ms]",
+    "maxRSSKiB": 32568
+  },
+  {
+    "fault": "reference-lists",
+    "exit": 1,
+    "failedTests": 2,
+    "firstFailure": "internal sparse parallel transfer > refuses source owner list atomically [0.12ms]",
+    "maxRSSKiB": 32172
+  },
+  {
+    "fault": "owner-object",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > refuses owner object shape atomically [0.14ms]",
+    "maxRSSKiB": 32196
+  },
+  {
+    "fault": "owner-id",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > refuses owner ID shape atomically [0.14ms]",
+    "maxRSSKiB": 32012
+  },
+  {
+    "fault": "parent-id",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > refuses parent ID shape atomically [0.15ms]",
+    "maxRSSKiB": 32664
+  },
+  {
+    "fault": "step-object",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > refuses step object shape atomically [0.13ms]",
+    "maxRSSKiB": 32352
+  },
+  {
+    "fault": "step-id",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > refuses step ID shape atomically [0.13ms]",
+    "maxRSSKiB": 32356
+  },
+  {
+    "fault": "map-list",
+    "exit": 1,
+    "failedTests": 2,
+    "firstFailure": "internal sparse parallel transfer > refuses missing owner map atomically [0.12ms]",
+    "maxRSSKiB": 31844
+  },
+  {
+    "fault": "map-entry",
+    "exit": 1,
+    "failedTests": 2,
+    "firstFailure": "internal sparse parallel transfer > refuses malformed map entry atomically [0.15ms]",
+    "maxRSSKiB": 32140
+  },
+  {
+    "fault": "map-id",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > refuses malformed map ID atomically [0.11ms]",
+    "maxRSSKiB": 32192
+  },
+  {
+    "fault": "map-source-reference",
+    "exit": 1,
+    "failedTests": 2,
+    "firstFailure": "internal sparse parallel transfer > refuses unused unknown source owner atomically [0.31ms]",
+    "maxRSSKiB": 31752
+  },
+  {
+    "fault": "map-target-reference",
+    "exit": 1,
+    "failedTests": 2,
+    "firstFailure": "internal sparse parallel transfer > refuses unused unknown target owner atomically [0.12ms]",
+    "maxRSSKiB": 32184
+  },
+  {
+    "fault": "map-duplicate",
+    "exit": 1,
+    "failedTests": 2,
+    "firstFailure": "internal sparse parallel transfer > refuses duplicate owner map atomically [0.18ms]",
+    "maxRSSKiB": 31736
+  },
+  {
+    "fault": "source-validation",
+    "exit": 1,
+    "failedTests": 3,
+    "firstFailure": "internal sparse parallel transfer > refuses missing facts atomically [0.12ms]",
+    "maxRSSKiB": 31052
+  },
+  {
+    "fault": "owner-mapping",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > refuses unmapped owner atomically [0.11ms]",
+    "maxRSSKiB": 31976
+  },
+  {
+    "fault": "step-mapping",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > refuses unmapped step atomically [0.20ms]",
+    "maxRSSKiB": 32072
+  },
+  {
+    "fault": "target-validation",
+    "exit": 1,
+    "failedTests": 3,
+    "firstFailure": "internal sparse parallel transfer > refuses target parent owner atomically [0.20ms]",
+    "maxRSSKiB": 31712
+  },
+  {
+    "fault": "equality-collapse",
+    "exit": 1,
+    "failedTests": 7,
+    "firstFailure": "internal sparse parallel transfer > preserves explicit equality and absence with detached exact pairs [0.80ms]",
+    "maxRSSKiB": 32892
+  },
+  {
+    "fault": "maximum-rewrite",
+    "exit": 1,
+    "failedTests": 2,
+    "firstFailure": "internal sparse parallel transfer > orders owner then step by saved-plan UTF-16 comparison and preserves colon tuples [0.81ms]",
+    "maxRSSKiB": 32708
+  },
+  {
+    "fault": "owner-order",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > orders owner then step by saved-plan UTF-16 comparison and preserves colon tuples [1.15ms]",
+    "maxRSSKiB": 33716
+  },
+  {
+    "fault": "step-order",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > orders owner then step by saved-plan UTF-16 comparison and preserves colon tuples [1.63ms]",
+    "maxRSSKiB": 33620
+  },
+  {
+    "fault": "owner-utf8",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > orders owner then step by saved-plan UTF-16 comparison and preserves colon tuples [1.02ms]",
+    "maxRSSKiB": 33240
+  },
+  {
+    "fault": "step-utf8",
+    "exit": 1,
+    "failedTests": 1,
+    "firstFailure": "internal sparse parallel transfer > orders owner then step by saved-plan UTF-16 comparison and preserves colon tuples [0.99ms]",
+    "maxRSSKiB": 32688
+  },
+  {
+    "fault": "source-mutation",
+    "exit": 1,
+    "failedTests": 8,
+    "firstFailure": "internal sparse parallel transfer > preserves explicit equality and absence with detached exact pairs [0.84ms]",
+    "maxRSSKiB": 33012
+  }
+]

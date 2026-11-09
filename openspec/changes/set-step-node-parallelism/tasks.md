@@ -37,6 +37,8 @@
 - [x] 3.3.2 Implement detached source captures, canonical policy preservation and current/legacy readers; prove each safety boundary with watched faults.
 - [x] 3.3.3 Write v9 JSON export preservation fence RED for direct/captured evidence and isolated/shared routes.
 - [x] 3.4.1 Implement required same-snapshot sparse export evidence and typed unsupported_step_parallelism refusal; prove changed boundaries.
+- [x] 3.3.4 Write internal transfer RED for detached canonical sparse facts, exact ID maps, reference failures and collision refusal.
+- [x] 3.4.2 Implement pure internal transfer only; watch independent safety-check faults fail, record proofs and preserve current public boundaries.
 - [ ] 3.4 Implement transports, duplication, captures, compatibility readers and recovery tooling.
 - [ ] 3.5 Prove no lifecycle/transfer path drops, invents, widens or silently defaults an override.
 

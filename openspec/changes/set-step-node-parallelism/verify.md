@@ -1493,3 +1493,78 @@ typecheck attempt was killed before diagnostics and is disqualified; authorized
 1400MiB RED and GREEN runs reached the compiler. Local full backend and host exact
 gate completion remain unclaimed. Normal commit hooks and final containing-commit
 identity are external receipts delivered after review.
+
+## 2026-11-09 — internal transfer prerequisite only
+
+Base `d87afb94a6362d345480f665b6e3b5d20d787686`; managed isolated worktree.
+Tasks 3.3.4 and 3.4.2 implement only the pure structured transfer primitive.
+Parents 3.3/3.4, public lifecycle ownership and release remain open. Current
+ordinary/connected/saved writer versions remain 11/12/10; exporter refusal,
+command/history admission, scheduler and UI are unchanged.
+
+- Existing resolver and saved-plan baseline: 59 pass, 82 assertions, 39,164 KiB peak RSS.
+- Initial empty-return stub: 1 pass, 37 fail; exact output and refusal assertions failed.
+  The earlier missing-module run was a setup error, not the behavior RED.
+- Unused map endpoint RED: 40 pass, 4 fail before endpoint checks were added.
+- Restored three-suite run: 105 pass, 174 assertions, 39,176 KiB peak RSS.
+  Command: `bun test libs/wbs/domain/domain/src/step-parallel-transfer.test.ts libs/wbs/domain/domain/src/step-parallel.test.ts libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts`.
+- 25 independent production faults: each exited 1 with owning test failures;
+  restored controls after the batch. Exact fault names, first failed oracle,
+  failed counts and per-run RSS are in `evidence/transfer-20261109.json`.
+  Maximum fault RSS 33,716 KiB. Faults remove request/reference/map shape,
+  map uniqueness/endpoints, source validation, each missing-map guard and target
+  validation, drop explicit equality, rewrite maxima, replace each ordering key
+  independently with locale/UTF-8 order and inject a source mutation. Existing
+  shared range/pair/leaf validation is reused unchanged, with its own prior proofs.
+- `NX_DAEMON=false NODE_OPTIONS=--max-old-space-size=768 bunx nx run wbs-domain:lint`:
+  passed uncached, 1,050,460 KiB peak RSS. Initial lint:fast found a union typed
+  template interpolation in a test name; `String(maxParallel)` fixed it before rerun.
+- Same environment, `bunx nx run wbs-domain:typecheck`: passed uncached,
+  624,088 KiB peak RSS.
+
+Bun 1.4.4. Compared bun.lock byte-for-byte before reusing matching-lock root
+node_modules through a worktree-local symlink; no fresh installation or dependency
+certification is claimed. Focused tests stayed below the initial 300 MiB budget;
+Nx checks ran serially only after coordinator granted the 1,500 MiB heavy slot.
+Canonical h2/h4 gate, full workspace tests/build, hosted CI and independent review
+are not established here. No push, host action, migration or live consumer change.
+
+- Normal selected OpenSpec validation passed (66,504 KiB peak RSS).
+  Selected `--strict` remains non-green: its 12 long-requirement warnings exactly
+  match the fresh base validation (same issue objects, base exit 1). The added
+  requirement adds no strict warning; details remain testable in its scenarios.
+
+## 2026-11-09 — review correction 1: reference inventory holes
+
+Astra reviewed exact `bd1200d0904aabcd86df7e9cf2aa93e037665475` and requested
+changes for one P2: `Array.map` skips sparse inventory slots, while empty sparse
+fact collections return before the shared reader validates those rows. No new
+behavior is allocated; this restores the stated requirement that empty policy
+still validates its inventories.
+
+- Added four empty-policy source/target × owner/step hole negatives. On the
+  reviewed candidate: 46 pass, 4 fail, 33,744 KiB peak RSS. These assert the
+  intended row refusal and unchanged input, including hole identity and length.
+- Replaced only the two reference captures with `Array.from` mapping so holes
+  reach the existing row guards. Valid empty policy and unused maps remain valid.
+- Owning transfer suite: 50 pass, 108 assertions, 32,792 KiB peak RSS.
+- Independently restored hole-skipping owner capture and step capture: each
+  exited 1 with exactly its two source/target hole regressions failing. Exact
+  substitutions, failed oracles and RSS (33,128/33,168 KiB) are recorded in
+  `evidence/transfer-holes-20261109.json`; controls were restored in `finally`.
+- Restored owning resolver/transfer/saved-plan command from above: 109 pass,
+  190 assertions, 39,604 KiB peak RSS. All tiny Bun runs remained below300MiB
+  while the compiler owned the heavy slot.
+
+The original 25 proof receipts and original candidate report remain historical
+evidence for that exact candidate; this correction adds two capture-specific
+faults. Public versions, writer admission, scheduler, ownership and rollout scope
+remain unchanged. Full host gate, CI and independent corrected-candidate review
+remain pending.
+
+After coordinator granted the heavy slot, focused uncached `wbs-domain:typecheck`
+and `wbs-domain:lint` passed with `NX_DAEMON=false` and
+`NODE_OPTIONS=--max-old-space-size=768`; peak RSS618,356/1,031,716 KiB.
+A live process sample during lint showed ESLint967,796 KiB plus Nx207,592 KiB
+and small wrappers, below the granted1,500 MiB bound. Focused Prettier and
+`git diff --check` passed. No cap escalation, full local gate or host action.
