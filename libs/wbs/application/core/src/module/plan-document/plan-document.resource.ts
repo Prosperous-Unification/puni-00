@@ -3,6 +3,8 @@ import {
   documentAttempt,
   type DocumentBudget,
   documentBudget,
+  type DocumentConnected,
+  documentConnected,
   type DocumentDemand,
   documentDemand,
   documentExternalMappingRequest,
@@ -16,6 +18,8 @@ import {
   documentResource,
   type DocumentResourceCapacity,
   documentResourceCapacity,
+  type DocumentStepParallel,
+  documentStepParallel,
   type DocumentTypedDependency,
   documentV4TypedDependencyRequest,
   documentV10TypedDependencyRequest,
@@ -27,6 +31,7 @@ import {
   type PlanDocumentImport,
   type PlanDocumentRequest,
   planDocumentRequest,
+  planDocumentTransferHeaderRequest,
   type PlanDocumentV11 as PlanDocument,
   validateSchema,
   type WorkItemTree,
@@ -731,6 +736,15 @@ function spellStepNodes(tree: {
  * version 5 accepts FS, SS and FF.
  */
 export async function classifyPlanDocument(input: unknown): Promise<PlanDocumentClassification> {
+  // Proof: mounted-decoder enabled13/14; mounted refusal tests observed6 UUID allocations each (2026-11-09).
+  return classifyDocument(input, false);
+}
+
+/** Shares historical upgrades while keeping transfer versions outside mounted admission. */
+async function classifyDocument(
+  input: unknown,
+  acceptsTransfer: boolean,
+): Promise<PlanDocumentClassification> {
   const header = await validateSchema(planDocumentHeaderRequest, input);
   if (header.issues !== undefined) {
     return { ok: false, code: 'invalid_body', path: pathOf(header.issues[0]?.path) };
@@ -750,8 +764,9 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 8 &&
     version !== 9 &&
     version !== 10 &&
-    version !== PLAN_DOCUMENT_VERSION &&
-    version !== PLAN_DOCUMENT_EXTERNAL_VERSION
+    version !== 11 &&
+    version !== 12 &&
+    !(acceptsTransfer && (version === 13 || version === 14))
   ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
   }
@@ -760,7 +775,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
   }
   // Proof: forcing this historical screen false made mounted v1, v2 and v3 imports return 201 with new projects instead of refusing typedDependencies[0] (2026-10-22).
-  if (version < PLAN_DOCUMENT_EXTERNAL_VERSION && Array.isArray(checked.value.typedDependencies)) {
+  if (!isConnectedDocument(version) && Array.isArray(checked.value.typedDependencies)) {
     for (const [at, entry] of checked.value.typedDependencies.entries()) {
       if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) continue;
       for (const side of ['predecessor', 'successor'] as const) {
@@ -857,7 +872,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       const parsed =
         version === 4
           ? await validateSchema(documentV4TypedDependencyRequest, entry)
-          : version < PLAN_DOCUMENT_EXTERNAL_VERSION
+          : !isConnectedDocument(version)
             ? await validateSchema(documentV10TypedDependencyRequest, entry)
             : await validateSchema(documentV12TypedDependencyRequest, entry);
       // Proof (2026-09-28): bypassing schema refusal made the unknown-type
@@ -874,12 +889,12 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
   const externalMappings: PlanDocumentImport['externalMappings'] = [];
   const rawMappings = checked.value.externalMappings;
   if (
-    version < PLAN_DOCUMENT_EXTERNAL_VERSION &&
+    !isConnectedDocument(version) &&
     rawMappings !== undefined &&
     (!Array.isArray(rawMappings) || rawMappings.length > 0)
   )
     return { ok: false, code: 'invalid_typed_dependency', path: 'externalMappings' };
-  if (version === PLAN_DOCUMENT_EXTERNAL_VERSION && rawMappings !== undefined) {
+  if (isConnectedDocument(version) && rawMappings !== undefined) {
     if (!Array.isArray(rawMappings))
       return { ok: false, code: 'invalid_typed_dependency', path: 'externalMappings' };
     const declared = new Set(
@@ -1106,7 +1121,8 @@ function measuresOf(
     budgets: document.budgets,
   };
   const factor = document.settings.budgetFactor;
-  if (version < PLAN_DOCUMENT_VERSION) {
+  // Proof: measures-threshold moved to13; frozen11/12 measure controls refused (2026-11-09).
+  if (version < 11) {
     for (const [path, held] of Object.entries(listed))
       if (held !== undefined && (!Array.isArray(held) || held.length > 0))
         return { ok: false, code: 'invalid_body', path };
@@ -1385,4 +1401,99 @@ function referencedDirectory(tree: WorkItemTree, complete: CompleteDirectory): C
     types: requireRows('work item type', typeIds, complete.types),
     externalSystems: requireRows('external system', externalSystemIds, complete.externalSystems),
   };
+}
+
+/** Connected dialect membership is historical, independent of the current writer. */
+function isConnectedDocument(version: number): boolean {
+  // Proof: connected-family forced false; connected12 exact-mapping control failed (2026-11-09).
+  return version === 12 || version === 14;
+}
+
+/**
+ * A preparatory read capability, deliberately separate from PlanDocumentImport.
+ * Sparse facts are target-local and detached; connected evidence remains historical.
+ * This type conveys neither persistence nor authority to author policy.
+ */
+export type PlanDocumentTransferClassification =
+  | {
+      ok: true;
+      value: {
+        plan: PlanDocumentImport;
+        stepParallels: DocumentStepParallel[];
+      } & ({ family: 'ordinary' } | { family: 'connected'; connected: DocumentConnected });
+    }
+  | Extract<PlanDocumentClassification, { ok: false }>;
+
+/**
+ * Reads reserved13/14 and explicit historical upgrades without mounting a writer.
+ * Checks opaque sparse declarations before the tolerant import projection can erase them.
+ * Reference checks use only the file's local inventory, never external mappings.
+ * Malformed external input returns typed refusal; internal failures propagate.
+ */
+export async function decodePlanDocumentTransfer(
+  input: unknown,
+): Promise<PlanDocumentTransferClassification> {
+  const header = await validateSchema(planDocumentTransferHeaderRequest, input);
+  if (header.issues !== undefined)
+    return { ok: false, code: 'invalid_body', path: pathOf(header.issues[0]?.path) };
+  const version = header.value.document.version;
+  // Proof: transfer-header removed; future-header control received sparse invalid_body (2026-11-09).
+  if (version < 1 || version > 14)
+    return { ok: false, code: 'unsupported_version', path: 'document.version' };
+  const supplied = header.value.stepParallels;
+  const stepParallels: DocumentStepParallel[] = [];
+  if (version <= 12) {
+    // Proof: legacy-smuggling disabled; legacy nonempty/malformed sparse refusals failed (2026-11-09).
+    if (supplied !== undefined && (!Array.isArray(supplied) || supplied.length !== 0))
+      return { ok: false, code: 'invalid_body', path: 'stepParallels' };
+  } else {
+    // Proof: required-list admitted an absent list as empty; current missing/null controls failed (2026-11-09).
+    if (!Array.isArray(supplied)) return { ok: false, code: 'invalid_body', path: 'stepParallels' };
+    for (const [at, fact] of supplied.entries()) {
+      const parsed = documentStepParallel(fact);
+      if (parsed instanceof type.errors)
+        return { ok: false, code: 'invalid_body', path: `stepParallels[${String(at)}]` };
+      stepParallels.push({
+        workItemId: parsed.workItemId,
+        stepId: parsed.stepId,
+        maxParallel: parsed.maxParallel,
+      });
+    }
+  }
+  const classified = await classifyDocument(input, true);
+  if (!classified.ok) return classified;
+  const plan = classified.value;
+  const owners = new Map(plan.workItems.map((row) => [row.id, row]));
+  const steps = new Set(plan.steps.map((step) => step.id));
+  const parents = new Set(plan.workItems.map((row) => row.parentId));
+  // Proof: owner-unique removed; duplicate local owner test succeeded unexpectedly (2026-11-09).
+  if (owners.size !== plan.workItems.length)
+    return { ok: false, code: 'invalid_body', path: 'workItems' };
+  // Proof: step-unique removed; duplicate-step empty-policy control succeeded (2026-11-09).
+  if (steps.size !== plan.steps.length) return { ok: false, code: 'invalid_body', path: 'steps' };
+  const pairs = new Set<string>();
+  for (const [at, fact] of stepParallels.entries()) {
+    const prefix = `stepParallels[${String(at)}]`;
+    // Proof: local-owner and leaf-owner independently removed; foreign-owner and parent tests failed (2026-11-09).
+    if (!owners.has(fact.workItemId) || parents.has(fact.workItemId))
+      return { ok: false, code: 'invalid_body', path: `${prefix}.workItemId` };
+    // Proof: local-step removed; unknown local-step assertion failed (2026-11-09).
+    if (!steps.has(fact.stepId))
+      return { ok: false, code: 'invalid_body', path: `${prefix}.stepId` };
+    const pair = JSON.stringify([fact.workItemId, fact.stepId]);
+    // Proof: pair-unique removed; duplicate-pair assertion failed (2026-11-09).
+    if (pairs.has(pair)) return { ok: false, code: 'invalid_body', path: prefix };
+    pairs.add(pair);
+  }
+  if (isConnectedDocument(version)) {
+    const connected = documentConnected(header.value.connected);
+    // Proof: connected-required supplied invented evidence from a broken parser dependency; absent-evidence assertion failed (2026-11-09).
+    if (connected instanceof type.errors)
+      return { ok: false, code: 'invalid_body', path: 'connected' };
+    return {
+      ok: true,
+      value: { family: 'connected', plan, stepParallels, connected: structuredClone(connected) },
+    };
+  }
+  return { ok: true, value: { family: 'ordinary', plan, stepParallels } };
 }

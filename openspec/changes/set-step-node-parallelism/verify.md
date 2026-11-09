@@ -1568,3 +1568,71 @@ and `wbs-domain:lint` passed with `NX_DAEMON=false` and
 A live process sample during lint showed ESLint967,796 KiB plus Nx207,592 KiB
 and small wrappers, below the granted1,500 MiB bound. Focused Prettier and
 `git diff --check` passed. No cap escalation, full local gate or host action.
+
+## StageA archival reader prerequisite — 2026-11-09
+
+Base `82fa8928664998c9a8b72f6af16018d2c142547e`, isolated native tree
+`/home/df/.codex/worktrees/6335/puni-00`, branch `feat/task11-stageA-formats`.
+This is reader preparation only. Parent3.3/3.4 and StageB–I remain open. Current
+output11/12, mounted1–12 import, normalized `PlanDocumentImport` and sparse writer
+preservation fences remain active. No source admission, boot/grant or imported-plan
+owner was changed. Existing version9/schema8 receipts above remain historical.
+
+API: lazy `createPlanDocumentV13()` / `createPlanDocumentV14()` require
+`documentStepParallel[]`. `decodePlanDocumentTransfer(unknown)` returns the existing
+typed refusal or `{plan, stepParallels, family}`; `family: connected` additionally
+requires detached `DocumentConnected`. Original header versions remain on `plan`.
+Transfer-only opaque header fields survive projection; the active import request
+and normalized type remain unchanged. External mappings never supply sparse owner
+or step membership. No non-test caller mounts this reader.
+
+Fresh serial commands (all from this tree, `/usr/bin/time -v`):
+
+| Command                                                                                      | Observed                                                                                     | Maximum RSS KiB |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------: |
+| `bun test libs/wbs/application/core/src/module/plan-document/plan-document-transfer.test.ts` | 51 pass,0 fail;1–14, future/invalid headers, exact policy, local refs, historical evidence   |          434060 |
+| `bun test libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts` | 98 pass,0 fail; existing behavior and lazy13/14 shapes                                       |          563608 |
+| `bun test apps/wbs/be-01/src/controller/plan-import-compatibility.controller.db.test.ts`     | 8 pass,0 fail;13/14 valid/malformed header refusals, full DB snapshots, zero allocator calls |          576440 |
+| `bun test libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts`                  | 2 pass,0 fail;379MB shape-load delta below500MB bound                                        |          432472 |
+| `bunx openspec validate set-step-node-parallelism --strict --json`                           | exit1:12 pre-existing long-requirement warnings; no new reader warning                       |           95188 |
+| `bunx openspec validate --all --json`                                                        | exit 0:341 passed (321 changes,20 specs)                                                     |          169264 |
+
+Initial behavior RED used a delegation stub and observed32 assertion failures with8
+passing existing header/fence controls. Its430096KiB peak exceeded the initial300MiB
+runtime allowance; this was reported immediately and further runtime checks paused
+until the coordinator explicitly granted900MiB serial checks. The missing-export
+loader error preceding the stub was not counted as behavior evidence. Locked
+`bun.lock` matches the dependency checkout; `node_modules` is an explicitly reused
+symlink to `/home/df/wd/puni/puni-00/node_modules`, not a fresh install.
+
+R5 mutants were applied individually to production code and restored before each
+positive control. Every accepted mutant exited1 on an intended assertion; every
+restored targeted control exited0. The external StageA evidence directory retains
+fault/control logs and exact mutation anchors, mutant SHA-256 and exit receipts.
+
+| Fault                                                   | Production oracle that failed                                                                  |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Connected-family membership forced false                | connected12 exact external-mapping success                                                     |
+| Measures threshold changed11→13                         | frozen11/12 nonempty measures/resources retained                                               |
+| Required collection absent→empty fallback               | current missing/null collection typed refusals                                                 |
+| Legacy nonempty/malformed refusal removed               | raw legacy smuggling typed refusal                                                             |
+| Mounted classifier enabled transfer versions            | valid13/14 triggered6 production UUID allocations each; malformed body precedence also changed |
+| Primitive maxima loosened to number                     | current invalid range/fraction cases succeeded                                                 |
+| Owner identity uniqueness removed                       | duplicate local owner inventory succeeded                                                      |
+| Step identity uniqueness removed                        | duplicate steps with empty policy succeeded                                                    |
+| Leaf check removed                                      | parent-owned fact succeeded                                                                    |
+| Local owner membership removed                          | foreign/missing owner succeeded                                                                |
+| Local step membership removed                           | foreign step succeeded                                                                         |
+| Pair uniqueness removed                                 | duplicate exact pair succeeded                                                                 |
+| Connected parser supplied invented evidence for absence | required connected evidence refusal became success                                             |
+| Transfer future-version fence removed                   | future header misclassified as sparse invalid_body                                             |
+
+A trial removing only the connected error guard reached `structuredClone` with a
+schema error and failed via DataCloneError. It was rejected as proof, restored, then
+replaced by the accepted absent-evidence parser dependency fault. This trial is not
+one of the14 accepted mutants. No safety check is claimed proven by a syntax error,
+unsupported-family positive, OOM or generic internal exception.
+
+The first uncached `NX_DAEMON=false NX_PARALLEL=1 NODE_OPTIONS=--max-old-space-size=1024 bunx nx run wbs-contracts:typecheck --skip-nx-cache` passed, but `/usr/bin/time -v` measured 3114848 KiB maximum RSS, exceeding the 1500MiB graph grant. This is a resource-policy breach, not an in-budget receipt. Further heavy checks stopped immediately and the coordinator was notified. Inspection then confirmed `tsc` invokes the native TypeScript 7 executable; the Node heap flag does not cap that child. No cap increase was requested. The coordinator cleared one retry changing only `GOMAXPROCS=1`, through `bounded-monitor.py 1500 120 /usr/bin/time -v bunx nx run wbs-contracts:typecheck --skip-nx-cache` with the same prior environment. The live monitor refused at 1537228 KiB against 1536000 KiB (1500MiB), elapsed 8.527s, child SIGKILL, exit 97. All broad owning compiler/lint targets stopped on that first refusal. Bounded compiler acceptance is unavailable and deferred to canonical host validation; no cap increase was requested. Monitored staged-file ESLint initially found three unnecessary test guards and one unsafe matcher assignment; these were repaired. Its final uncached staged-file run passed (child max RSS 1333084 KiB; live process-tree peak 1349984 KiB, exit 0, no refusal). Normal commit-hook receipt follows in the external report. Full local Nx gate, host gate/CI, independent exact review,
+installed reader acceptance and all writer/rollout checks remain unverified here.
+No migration changed, so migration lint/rollback were not run for this packet.

@@ -460,3 +460,25 @@ without mutating inputs, losing explicit equality or synthesizing absent facts.
 - **AND** malformed IDs/maxima and duplicate source/output pairs are refused
 - **AND** even unused mapping entries require existing source and target IDs
 - **AND** public writer admission and existing document versions remain unchanged
+
+## ADDED Requirements
+
+### Requirement: Dormant archival sparse reader
+
+The preparatory reader SHALL accept historical1–12 and reserved ordinary13/connected14
+without mounting a sparse writer. Versions13/14 SHALL require a `stepParallels` collection
+of exact local leaf/step identities and integer maxima1–1000. Explicit equality SHALL
+survive, absent siblings SHALL remain absent, and malformed, duplicate or foreign pairs
+SHALL refuse. Historical1–12 SHALL upgrade only missing/empty sparse declarations.
+
+#### Scenario: Frozen connected12 and ordinary13 dialects
+
+- **WHEN** connected12 names external predecessors/mappings or ordinary13 names local links
+- **THEN** the reader preserves the respective dialect and measures introduced at11
+- **AND** connected14 retains the connected evidence plus target-local policy
+
+#### Scenario: Mounted import remains fenced
+
+- **WHEN**13/14 reaches the current public import route
+- **THEN** it refuses unsupported_version at document.version before allocation/writes
+- **AND** exports remain11/12 and sparse preservation refusals remain active

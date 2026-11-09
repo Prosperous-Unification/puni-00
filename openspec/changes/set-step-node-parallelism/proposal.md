@@ -45,3 +45,15 @@ None.
 `@wbs/domain`, `@wbs/core`, source conformance, memory/SQLite adapters and additive migration
 in this foundation. Later slices reach commands, history, HTTP/MCP, UI, scheduling, import,
 copy, saved plans and deployment compatibility guards.
+
+## Current transport intent (2026-11-09)
+
+Problem: current archival versions 11/12 cannot carry sparse authored policy. Outcome:
+freeze ordinary13 and connected14 as reader prerequisites, with required structured
+`stepParallels`, explicit historical-family decoding and lossless measures and connected
+evidence. Historical1–12 upgrade only absent/empty policy; other declarations refuse.
+Non-goals: activating output, import persistence, duplication/replay, scheduling or public
+authoring in this prerequisite. Constraints: current exports remain11/12; mounted import
+rejects13/14; normalized `PlanDocumentImport` and existing preservation fences remain.
+Complete importer ownership, durable admission, compatible lifecycle/scheduling consumers
+and installed rollout/recovery remain required before enabling any sparse writer.

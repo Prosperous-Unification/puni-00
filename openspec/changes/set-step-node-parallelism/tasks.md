@@ -64,3 +64,10 @@
 - [ ] 5.1 Prove compatible readers/lifecycle guards and refusal of old-writer downgrade with retained facts.
 - [ ] 5.2 Implement phased writer admission after incompatible writers drain and documented recovery.
 - [ ] 5.3 Complete full feature verification, exact-SHA host gate, review and authorized release.
+
+## Current StageA reader prerequisite (2026-11-09)
+
+- [x] A1 Freeze11/12 controls and13/14 required sparse shapes; cover1–14/header failures.
+- [x] A2 Implement unmounted raw-input transfer decoding with explicit historical families.
+- [x] A3 Prove independent connected/measures/list/legacy/mounted faults and restored controls.
+- [ ] A4 Verify scoped suites and document handoff; leave3.3/3.4 and complete feature open.
