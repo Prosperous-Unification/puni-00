@@ -9,6 +9,7 @@ import { mock, spyOn } from 'bun:test';
 
 import type { RegistryBackupReservation } from './registry-backup-reservation';
 import { modelRegistryBackupEffects } from './registry-backup-reservation.fixture';
+import { createRegistryBackupProfile } from './registry-backup-store';
 import { invokeRegistryCallback } from './registry-callback';
 import type { RegistryMaintenanceInstallation } from './registry-maintenance-installation';
 import type { RegistryMaintenanceJournal } from './registry-managed-journal';
@@ -357,7 +358,10 @@ try {
       },
       verifyRegistryHostArtifact: () => Promise.resolve(Buffer.from(JSON.stringify(configuration))),
     }));
-    await mock.module('./registry-backup-store', () => ({ createRegistryBackupStore: () => ({}) }));
+    await mock.module('./registry-backup-store', () => ({
+      createRegistryBackupProfile,
+      createRegistryBackupStore: () => ({}),
+    }));
     const { executeRegistryBackupAction } = await import('./registry-maintenance-backup');
     const sentinel = new Error('captured caller');
     await assert.rejects(

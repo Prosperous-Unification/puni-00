@@ -15,7 +15,11 @@ import {
   type RegistryBackupEffectPort,
 } from './registry-backup-reservation';
 import { RegistryBackupSourceLimits } from './registry-backup-source';
-import { createRegistryBackupStore, type RegistryBackupAdmission } from './registry-backup-store';
+import {
+  createRegistryBackupProfile,
+  createRegistryBackupStore,
+  type RegistryBackupAdmission,
+} from './registry-backup-store';
 import { measureVerifiedFilesystem } from './registry-capacity';
 import {
   type RegistryMaintenanceInstallation,
@@ -136,7 +140,7 @@ export async function executeRegistryBackupAction(input: {
             JSON.stringify({
               binary: configuration.binary,
               configuration: input.installed.backupConfiguration.sha256,
-              profile: 'restic/no-cache/locked-commands/v1',
+              profile: createRegistryBackupProfile(configuration.environment.RESTIC_REPOSITORY),
             }),
           ),
         },

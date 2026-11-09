@@ -56,6 +56,24 @@ export type RegistryBackupPreparation = Omit<
   'journalRevision' | 'censusSha256'
 >;
 
+/**
+ * Fixed execution inputs shared by the launcher and durable effect fingerprint.
+ * One S3 SDK attempt preserves Restic's outer retries. Conditional nonempty single-PUT
+ * counting is not a complete command, provider, workspace or physical-admission bound.
+ */
+export function createRegistryBackupProfile(repository: string) {
+  return repository.startsWith('s3:')
+    ? Object.freeze({
+        name: 'restic/s3-single-attempt/locked-commands/v2',
+        // Proof: omitting only s3.retries=1 completed the real TLS/store witness with zero outer Save retries instead of two.
+        arguments: Object.freeze(['--no-cache', '-o', 's3.retries=1'] as const),
+      })
+    : Object.freeze({
+        name: 'restic/no-cache/locked-commands/v1',
+        arguments: Object.freeze(['--no-cache'] as const),
+      });
+}
+
 /** Pinned encrypted restic storage. Caller owns the common authority and separately verifies bounded source/restore mounts. */
 export function createRegistryBackupStore(configuration: {
   signal: AbortSignal;
@@ -110,7 +128,8 @@ export function createRegistryBackupStore(configuration: {
     const ticket = await configuration.effects.consumeEffect(effect);
     cycleSignal.throwIfAborted();
     installMaintenanceReaper();
-    const child = Bun.spawn([configuration.binary, '--no-cache', ...arguments_], {
+    const profile = createRegistryBackupProfile(environment.RESTIC_REPOSITORY);
+    const child = Bun.spawn([configuration.binary, ...profile.arguments, ...arguments_], {
       env: { PATH: '/usr/bin:/bin', ...environment },
       stdio: ['ignore', 'pipe', 'pipe', authority.authorityDescriptor],
       detached: configuration.lifetime !== 'worker',
