@@ -10,6 +10,7 @@ import {
 import { dirname, join } from 'node:path';
 
 import { expect, test } from 'bun:test';
+import ts from 'typescript';
 
 import { createTrustedSystem } from './trusted-files';
 import { extractTypeScriptRelationships } from './typescript';
@@ -60,12 +61,18 @@ function observe(
     const request = configure(root, writeSerialFixture(root));
     if (strategy === 'serial')
       return { ok: true, report: extractTypeScriptRelationships(root, request, modules) };
-    const system = createTrustedSystem(root, modules);
+    const system = createTrustedSystem(root, modules, ts);
     return {
       ok: true,
-      report: extractTypeScriptRelationshipsWithPolicy(root, request, compilerSource(system), {
-        kind: 'legacy',
-      }),
+      report: extractTypeScriptRelationshipsWithPolicy(
+        root,
+        request,
+        compilerSource(system),
+        {
+          kind: 'legacy',
+        },
+        ts,
+      ),
     };
   } catch (cause) {
     return {
@@ -186,8 +193,8 @@ test('reconstruction preserves transitive reference wildcard roots after package
         exclude: [],
       }),
     );
-    const trusted = createTrustedSystem(root, modules);
-    const system = boundSource(root, compilerSource(trusted), { kind: 'legacy' });
+    const trusted = createTrustedSystem(root, modules, ts);
+    const system = boundSource(root, compilerSource(trusted), { kind: 'legacy' }, ts);
     const selected = captureProject(root, 'config/provider.json', system);
     expect(selected.commands.get(join(root, 'nested/tsconfig.json'))?.fileNames).toEqual([
       join(root, 'globals.d.ts'),
@@ -392,3 +399,35 @@ for (const shape of ['nested', 'cyclic', 'absent', 'malformed'] as const) {
     }
   });
 }
+
+test('trusted filesystem adapter compares libraries with the selected executable version', () => {
+  const root = mkdtempSync('/tmp/burokrat-selected-version-');
+  try {
+    writeSerialFixture(root);
+    expect(() =>
+      createTrustedSystem(root, trustedModules, { ...ts, version: 'foreign-runtime' }),
+    ).toThrow('bundled TypeScript foreign-runtime');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('trusted filesystem adapter delegates reads through the selected executable system', () => {
+  const root = mkdtempSync('/tmp/burokrat-selected-system-');
+  try {
+    writeSerialFixture(root);
+    const selected = {
+      ...ts,
+      sys: {
+        ...ts.sys,
+        readFile: () => {
+          throw new Error('selected filesystem read');
+        },
+      },
+    };
+    const system = createTrustedSystem(root, trustedModules, selected);
+    expect(() => system.readFile(join(root, 'src/index.ts'))).toThrow('selected filesystem read');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

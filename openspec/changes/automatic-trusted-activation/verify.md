@@ -6094,3 +6094,76 @@ The actual normal commit must rerun hooks on that final code. Exact successor cl
 resulting commit/bundle identities are recorded in the final handoff. The task checkbox and parent `.3` remain open.
 This slice claims no wildcard expansion, reference-config policy, complete compiler manifest,
 protected freeze, authentication, full repository gate, public publication, merge or deployment.
+
+### 2026-11-09 — selected compiler runtime source prerequisite (.3e6f1)
+
+Base `d87afb94a6362d345480f665b6e3b5d20d787686`; isolated branch
+`feat/selected-typescript-runtime-20261109`. Source completion is distinct from .3e6f2
+acceptance, which remains unchecked pending exact-candidate review and host gate/CI.
+
+The required executable compiler is selected once, carried by `TypeScriptSystem.compiler`,
+and supplied explicitly by retained Dash input separately from owned retained-byte runtime
+provenance. The filesystem wrapper selects installed TypeScript for both trusted IO and serial
+extraction. Configuration-only captures, phase-local programs, collection boundaries, legacy
+identity/output, bounded accounting and the unverified trust marker remain in place. The
+successful extraction's private owner binding authenticates its object/request provenance,
+not executable compiler bytes. The separate declared-relationship extractor and full retained
+producer/runtime closure remain outside this prerequisite.
+
+Dependency provenance: worktree/root lockfiles compared byte-for-byte, then root `node_modules`
+was reused by symlink. No frozen install ran. Bun and `.bun-version` are 1.4.4; executable
+TypeScript reports 6.0.3 and installed native typechecker reports 7.0.2. Lock SHA-256 is
+`983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6`.
+The derivative builder remains exactly base Git blob `a4800be21517130cf4bddf2cdc15808752def416`;
+its four artifact members and fixed hashes were not changed or rebuilt.
+
+Observed focused checks, executed serially with a 25ms sampled process-tree RSS monitor:
+
+| Check                                                                                   | Observed outcome                                                       | Peak KiB / ceiling MiB         |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------ |
+| New required-runtime RED / initial GREEN                                                | 0/8 then 8/0 pass/fail                                                 | 147104 / 900; 154260 / 900     |
+| Core, compiler, serial, runtime, legacy and facade Bun regression                       | 109 pass, 242 assertions                                               | 314108 / 900                   |
+| Six retained extraction/owner/roots/config-roots/baseUrl/literal-paths Bun suites       | 133 pass, 3368 assertions                                              | 780688 / 900                   |
+| Narrow API native type diagnostic rooted at runtime and retained extraction/owner tests | pass; not full owning type acceptance                                  | 428796 / 1500                  |
+| Production port type changed to never                                                   | diagnostic failed at real callers; restored pass                       | restored 440444 / 1500         |
+| Scoped changed-file ESLint, Burokrat then Dash                                          | both pass                                                              | 879364 / 1500; 1469192 / 1500  |
+| Selected strict OpenSpec, fresh base and candidate                                      | both fail with the identical 25 pre-existing long-requirement warnings | no new warning                 |
+| OpenSpec all                                                                            | 341/341 pass                                                           | not a runtime acceptance check |
+
+The six-file Burokrat command was `bun test` over
+`relationships/{typescript-core,typescript-compiler,typescript-serial,typescript-runtime,typescript-legacy}.test.ts`
+and `judge-facade.test.ts`. The Dash command used
+`activation/review-typescript{,-owner,-roots,-config-roots,-base-url,-literal-paths}.test.ts`.
+Both ran from the repository root with full source paths, `--preload ./tools/test/scratch/preload.ts`
+and `--timeout=60000`. These tests retain complete legacy snapshots, SHA-1/SHA-256
+noLib/ES5/implicit-library removed-root parity, ambient IO traps, ownership/census/budget
+negatives and serial failure precedence. A subsequent selected-version assertion strengthened
+full bounded/serial identity parity; its direct restored control passes with four assertions.
+
+Twenty-five independent production faults were observed failing their intended extraction
+oracles and restored controls passed after each: ambient config reader, config parser, program
+factory, source factory, default library, private path helper, import resolver, import predicate,
+syntax constants, emitted declaration AST, semantic traversal, bounded diagnostics, serial
+diagnostics, formatting, reconstruction, reference normalization, serial entry, trusted library
+version, trusted filesystem read, bounded identity, retained entry, retained selection reread,
+module-global selection, copying away a non-enumerable private helper, and serial identity.
+Adjacent `Proof:` comments name the observed boundaries. A late-selection reread reached its
+explicit injected `late compiler selection` sentinel; no unrelated earlier compiler error was
+counted as that proof. Reentrant retained extraction preserves the outer selected diagnostic
+sentinel. Narrow type diagnostics were independently broken by the production port type fault.
+
+Refused checks and remaining obligations:
+
+- Owning `bunx nx run twilight-burokrat:typecheck --skip-nx-cache` exceeded the 1500 MiB
+  process-tree ceiling (1559772 KiB observed), was killed with monitor exit 97, and produced no
+  typecheck result. No cap increase or full-project retry followed.
+- An additional source CLI declaration/import subset passed its first six cases, then exceeded
+  900 MiB (1002048 KiB observed) and was killed with monitor exit 97. The subset did not pass
+  as a whole and was not retried with a larger cap.
+- Full owning Burokrat/Dash typechecks, builds and lint, installed packaging regressions,
+  remaining source CLI cases, the canonical exact-SHA host gate/CI and large serial resource
+  workload are not established by this laptop packet. Existing resource tests were not weakened;
+  focused semantic RSS measurements do not prove the 25-config or real-repository memory ceiling.
+- No derivative loading/authentication, wildcard admission, complete read manifest, protected
+  freeze, external authority, public wire change, StepParallel change, host action or publication
+  occurred. Parent .3 and WBS030.6 remain incomplete.

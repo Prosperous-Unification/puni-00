@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { dirname, join } from 'node:path';
 
 import { expect, test } from 'bun:test';
+import ts from 'typescript';
 
 import { extractTypeScriptRelationships } from './typescript';
 import { fixture, limits, request, workspace } from './typescript.test.fixture';
@@ -25,7 +26,7 @@ test('legacy wrapper and source preserve full pre-seam relationships and identit
     );
     const selection = empty ? { ...request, publicEntrypoints: [] } : request;
     observations.push(
-      extractTypeScriptRelationshipsFromSource(workspace, selection, source, limits),
+      extractTypeScriptRelationshipsFromSource(workspace, selection, source, limits, ts),
     );
     const directory = mkdtempSync('/tmp/typescript-legacy-parity-');
     try {

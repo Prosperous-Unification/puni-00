@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import type ts from 'typescript';
 
 import {
   assertProgramSources,
@@ -28,6 +28,7 @@ export function captureProject(
   configPath: string,
   system: TypeScriptSystem,
 ): ProjectConfiguration {
+  const ts = system.compiler;
   const project = parseProject(workspace, configPath, system);
   const commands = new Map<string, ts.ParsedCommandLine | undefined>();
   const visit = (
@@ -40,6 +41,7 @@ export function captureProject(
     if (resolved?.length !== references.length)
       throw new Error('TypeScript project reference census is incomplete');
     for (const [index, reference] of references.entries()) {
+      // Proof: ambient reference normalization lost `selected reference path` in serial extraction.
       const path = ts.resolveProjectReferencePath(reference);
       if (commands.has(path)) continue;
       const selected = resolved[index];
@@ -69,6 +71,7 @@ export function reconstructProject(
   configuration: ProjectConfiguration,
   system: TypeScriptSystem,
 ): ParsedProject {
+  const ts = system.compiler;
   const host = createCompilerHost(configuration.options, system);
   host.getParsedCommandLine = (path) => {
     // Proof: deleting this guard made the cleared-reference-map assertion fail in
@@ -77,6 +80,8 @@ export function reconstructProject(
       throw new Error(`TypeScript project reference was not selected: ${path}`);
     return configuration.commands.get(path);
   };
+  // Proof: ambient program reconstruction lost `selected reconstruction 2`; selected-runtime
+  // controls also reach the diagnostic, emission and public replay reconstruction phases.
   const program = ts.createProgram({
     host,
     rootNames: configuration.roots,

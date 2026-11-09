@@ -91,6 +91,7 @@ function setup(
   );
   return {
     ...captured,
+    compiler: ts,
     namespace: createRetainedNamespace(captured.candidate, captured.runtime, {
       maximumEntries: 100,
       maximumNodes: 100,

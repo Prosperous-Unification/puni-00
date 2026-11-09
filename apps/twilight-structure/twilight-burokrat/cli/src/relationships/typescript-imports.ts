@@ -1,9 +1,9 @@
 import { isBuiltin } from 'node:module';
 import { basename } from 'node:path';
 
-import ts from 'typescript';
+import type ts from 'typescript';
 
-import { type ParsedProject, workspacePath } from './typescript-compiler';
+import { type ParsedProject, type TypeScriptRuntime, workspacePath } from './typescript-compiler';
 import type { ImportKind } from './typescript-core';
 
 interface ImportSite {
@@ -15,7 +15,9 @@ interface ImportSite {
 type DependencyResolution =
   { readonly kind: 'ambient-non-code' } | { readonly kind: 'target'; readonly target: string };
 
-export function importSites(sourceFile: ts.SourceFile): ImportSite[] {
+export function importSites(ts: TypeScriptRuntime, sourceFile: ts.SourceFile): ImportSite[] {
+  // Proof: ambient predicate substitution lost `selected runtime isImportDeclaration`;
+  // ambient SyntaxKind changed the observed kind in `selected syntax constants determine import kind`.
   const sites: ImportSite[] = [];
   const visit = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
@@ -118,9 +120,13 @@ function externalTarget(specifier: string): string {
 }
 
 /** Maps an emitted declaration import, whose synthetic AST has no checker binding, to its original program-bound source site. */
-function boundImportSite(sourceFile: ts.SourceFile, site: ImportSite): ImportSite | undefined {
+function boundImportSite(
+  compiler: TypeScriptRuntime,
+  sourceFile: ts.SourceFile,
+  site: ImportSite,
+): ImportSite | undefined {
   if (site.moduleSpecifier?.getSourceFile() === sourceFile) return site;
-  return importSites(sourceFile).find(
+  return importSites(compiler, sourceFile).find(
     (candidate) =>
       candidate.specifier === site.specifier &&
       candidate.importKind === site.importKind &&
@@ -135,7 +141,8 @@ function isCompilerSupportedAmbientImport(
 ): boolean {
   // Proof: forcing this predicate false made the production ambient-non-code test fail with
   // `TypeScript import unresolved: ... -> './styles.css'` on 2026-09-21.
-  const bound = boundImportSite(sourceFile, site);
+  const ts = project.system.compiler;
+  const bound = boundImportSite(ts, sourceFile, site);
   if (bound?.moduleSpecifier === undefined) return false;
   const symbol = project.program.getTypeChecker().getSymbolAtLocation(bound.moduleSpecifier);
   const declarations = symbol?.declarations ?? [];
@@ -153,6 +160,7 @@ export function resolveDependency(
   sourceFile: ts.SourceFile,
   site: ImportSite,
 ): DependencyResolution {
+  const ts = project.system.compiler;
   if (site.importKind === 'reference-path') {
     const resolvedName = ts.resolveTripleslashReference(site.specifier, sourceFile.fileName);
     const referenced = project.program.getSourceFile(resolvedName);
@@ -234,6 +242,7 @@ export function resolveDependency(
   if (isBuiltin(site.specifier)) {
     return { kind: 'target', target: externalTarget(site.specifier) };
   }
+  // Proof: ambient module resolution lost the selected resolveModuleName extraction sentinel.
   const resolved = ts.resolveModuleName(
     site.specifier,
     sourceFile.fileName,

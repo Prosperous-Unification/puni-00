@@ -121,6 +121,7 @@ export {
 export { type ExtractorIdentity } from './relationships/typescript';
 export type {
   TypeScriptConfigurationMode,
+  TypeScriptRuntime,
   TypeScriptSource,
 } from './relationships/typescript-compiler';
 export {
