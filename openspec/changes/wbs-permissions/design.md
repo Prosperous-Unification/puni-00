@@ -319,7 +319,11 @@ person (P11) and may not bind a role above the granter's own effective role at t
 (no escalation); a role above contributor may be granted and reads as contributor, because
 the cap is evaluated, not stored. Revoking a credential, or the `deletePerson … cascade`
 that revokes it, deletes its grants in the same transaction with one `access_revoked` row
-each (origin `cascade`). Backfill: at migration time each unrevoked credential whose person
+each (origin `cascade`). _Amended 2026-11-08 (#891 review F1; assumed by the coordinator, overrulable by Dany by id):_
+re-keying an agent pool is a rotation, not a revocation: each person's new key receives a copy
+of the grants of the keys it replaces (same scope, role and origin, creator carried) in the
+re-key's transaction, before the old keys' grants are deleted, so leases and grants both
+survive a re-key; revoking the pool, or one credential, deletes them. Backfill: at migration time each unrevoked credential whose person
 is bound to a current member receives a copy of that account's backfilled grants capped at
 contributor (`org-super-admin` and `org-admin` become `project-contributor` at organization
 scope, matching A23's "acts as member"; `project-contributor` and `project-viewer`
@@ -387,6 +391,14 @@ credential, and a missing or unreadable database; it writes the grant and one
 the organization's super-admin count afterwards. Dev runbook gains the line. Rejected: a
 "PUNI staff" web role (P20) and a `--force` that bypasses the membership check (an operator
 who needs a non-member in charge first admits them through the ordinary onboarding path).
+_Shipped 2026-11-08 (task 1.5, verify.md 1.5)._ _Amended 2026-11-08 (1.5, assumed by the
+coordinator, overrulable by Dany by id):_ the `access_granted` and `access_revoked` audit
+rows are deferred to task 4.1 (`widen_organization_audit_access`), because
+`organization_audit`'s CHECK admits no `access_*` action yet and the grant store of 1.4
+writes none for the same reason. Until then the CLI writes the grant (origin `operator`,
+`created_by` null) or deletes it in the store's one transaction, and its JSON output names
+the actor `operator:<os login>` the row will carry. A machine credential's id is refused
+`machine_credential`; `already_granted` and revoke's `not_granted` are refusals too.
 
 ## Tables
 
@@ -594,6 +606,13 @@ function authorize(
   | { ok: false; reason: 'forbidden'; permission }
 >;
 ```
+
+_Shipped 2026-11-08 (task 1.3):_ the organization target evaluates in the `any` mode
+(CP16, CP20): every reaching grant in the organization implies `organization.navigate`
+there, a project or work package grant contributes only that, and an organization-scope
+grant contributes its whole set besides; it is never null. Until #698 slice 2
+`AccessTarget`'s work package member carries only `InterimPackageChain`, and no project
+grant reaches a package in detail or in the listing.
 
 `authorize` answers `not_found` when `effectiveRoleAt` is null and the target is not the
 organization, `forbidden` with the permission when it is not in the effective set, `ok`

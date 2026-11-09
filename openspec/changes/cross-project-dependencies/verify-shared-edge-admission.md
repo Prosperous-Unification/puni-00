@@ -248,3 +248,129 @@ and fail-fast competing observations (controlled original-promises pending oracl
 Each omitted version exited 1 at its owning assertion before emergency rescue;
 each exact byte-restored version exited 0. Original intermediate failures and
 prior review receipts remain historical evidence, not final-source certificates.
+
+## Follow-up: failed release retains the original waiting group (2026-11-08)
+
+The preceding eight-case inventory was incomplete: the manual dev deploy holder
+was a ninth instance of the same READY-before-cleanup defect. It now uses the
+same owner, with an additional real manual-holder READY-failure regression.
+`roots` and its cleanup hook are declared before the helper tests. Configure's
+nonzero-exit assertion remains on the successful body path; a failed body still
+joins the original configure observations and propagates its primary failure.
+
+The owner now creates its child with Bun's POSIX `detached: true` contract, making
+that child its own session and process-group leader. If cooperative release cannot
+be written while observations remain pending, it signals only the group named by
+the PID it created, then joins the original exit and both pipes. The aggregate
+retains the primary failure, release failure and termination marker. A signal
+failure other than `ESRCH` reports loudly that the observations were not joined,
+retaining all causes; it does not claim successful custody or wait indefinitely.
+
+The new real flock regression removes only its own empty release directory after
+READY. It verifies bounded completion before emergency rescue, original
+observations settled at completion, retained primary identity and `ENOENT`, empty
+streams, and a fresh contender acquiring the released lock. It also verifies that
+the waiting Bash is flock's forked descendant, so a wrapper-only kill cannot
+satisfy the proof.
+
+Observed development receipts (the earlier 48-case receipt stays historical):
+
+- Test-only RED: `bun test tools/tool-remote-scripts/src/edge-admission.test.ts`
+  produced 49 passed, 1 failed, 182 assertions. The new release-failure oracle
+  observed unfinished cleanup before its independent cooperative rescue.
+- First implementation GREEN: the same command produced 50 passed, 0 failed,
+  192 assertions in 14.56 seconds.
+- Each of three exact source faults—omit `detached`, signal only the flock wrapper,
+  and omit termination—exited 1 at the release-failure completion oracle before
+  rescue. Omitting the original join separately exited 1 at the physical
+  acknowledgment pending oracle. The source hash was restored exactly after
+  each bounded run; each run joined its own original observations after rescue.
+- Initial owning lint found two errors, corrected with an AggregateError `cause`
+  and a closure-state getter. Typecheck passed before and after that correction.
+- A subsequent run alongside lint/typecheck produced 49 passed and 1 failed at
+  configure's unchanged READY assertion. This failure is retained; the READY
+  budget and assertions were not increased or weakened.
+
+These are local disposable fixture proofs. They do not qualify installed/native
+custody, UNKNOWN settlement, physical storage, a host rollout or a deployment.
+
+Final local verification after bringing the follow-up onto main `a5e9dbe9`
+(including merged #843) and installing its lockfile frozen:
+
+- Serial `bun test tools/tool-remote-scripts/src/edge-admission.test.ts`: 50 passed,
+  0 failed, 192 assertions, 15.81 seconds. This retains the concurrent-run failure
+  above without changing the READY oracle.
+- On that main: `bunx nx run tool-remote-scripts:lint` exited 0 (59.6 seconds),
+  `bunx nx run tool-remote-scripts:typecheck` exited 0 (8.0 seconds), and
+  `bunx nx run tool-remote-scripts:build` plus eleven dependency tasks exited 0
+  (3.8 seconds).
+- `./node_modules/.bin/openspec validate --all --json`: 340 passed, 0 failed.
+
+Merge-order clarification (2026-11-08): this paragraph supersedes this packet's
+earlier pre-source-merge wording that hosted checks and the canonical h2puni gate
+were both still required before merge. All numeric receipts above are unchanged.
+Complete hosted checks on the exact published head gate source merge of this
+bounded fixture-only repair. That merge is bounded source integration, not
+qualification or task completion. The [migration plan](design.md#migration-plan)
+step 7 still requires the isolated h2puni gate on the actual candidate (combined)
+SHA plus CI migration/secrets checks before completion. Claiming this packet or
+parent tasks 10.1/10.2 done still requires that gate on the final SHA; both
+parent tasks remain open. The queued post-merge canonical gate is not claimed
+passed, and local or hosted evidence does not establish host qualification.
+These local receipts do not stand in for the hosted checks; as of 2026-11-08 no
+passing hosted verdict for this head is recorded in this packet.
+
+The actual Fable 5.1 review approved this two-file follow-up and closed the two
+Important findings from #900. Two nonblocking limitations remain: detached
+fixture groups can survive interruption or hard termination of the test runner,
+so any surviving fixture must be identified as belonging to that run before
+manual termination; the runner's process group alone is insufficient. Also,
+the numeric process-group identity is guarded by original-observation settlement,
+not a kernel identity pin. The small interval after all group members exit but
+before that flag's reaction runs is not formally protected against PID reuse.
+These limits concern disposable test fixtures; no production group is accepted
+as an argument to the factory. No interruption handler or additional runtime
+identity check was introduced without a corresponding proof.
+
+### Signal-refusal proof completion
+
+Fable noted that the non-`ESRCH` signal-failure branch had no regression. This
+changed safety refusal needs an R5 negative even though the code review approved
+the two-file repair. A final test-only follow-up closes that proof gap; the
+50-case receipts above describe the preceding revision.
+
+The additional test creates a real owned flock group and removes only its own
+release directory. A mock at the `process.kill` dependency boundary injects
+`EPERM` only for that fixture's exact group and SIGKILL; other calls retain their
+original behavior. Mock installation occurs inside the owned body, and an
+installed mock is restored before independent cooperative rescue. Before rescue,
+the test observes the refusal returning with original observations still pending
+and a live original member retaining the real lock. It checks the identical
+primary failure, `ENOENT`, injected signal error and aggregate cause, plus the
+explicit report that the observations were not joined. This is dependency fault
+injection, not a claim of live kernel permission-denial or native qualification.
+
+Observed: the complete owning file passed 51 tests, 206 assertions, in 15.30
+seconds. Removing just the non-`ESRCH` refusal made this regression exit 1 at its
+unfinished-completion oracle before rescue. The source was restored byte-for-byte
+(SHA-256 `dfb9f32fe5b85f5d76efd9425d72e54da4130fc9507cab54b3356824809353e6`),
+and the restored regression exited 0. Existing READY budgets, production code,
+helper behavior and the two documented nonblocking fixture limits are unchanged.
+
+The actual scoped Fable review approved this proof addition and closed the
+missing-refusal-test limitation. One further nonblocking test-tool limit remains:
+if Bun installs the spy but its subsequent `mockImplementation` operation throws
+internally, the restoration callback has not yet been registered. The default
+spy is pass-through; no claim is made to harden Bun's own partial-install failure.
+The existing two fixture limits remain documented above.
+
+A later complete run produced 50 passed, 1 failed (198 assertions, 43.52 seconds):
+the unchanged forced-READY configure regression did not reach its deliberate
+absent-READY failure, leaving its captured failure undefined. Its cleanup still
+settled. This failure is retained alongside the earlier 51/206 pass; no polling
+budget or assertion was weakened. A bounded serial rerun follows.
+
+The bounded serial rerun completed with 51 passed, 0 failed, 206 assertions in
+18.21 seconds. Configured typecheck passed in 9.2 seconds and lint in 31.2
+seconds after the proof addition. The final scoped review approved the added
+case; hosted CI and a canonical gate for the final published head remain pending.

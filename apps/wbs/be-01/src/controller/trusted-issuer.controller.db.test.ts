@@ -428,6 +428,25 @@ describe('removing a trusted issuer', () => {
     ).toHaveLength(2);
   });
 
+  it('deletes a grant an older release left on a revoked credential with the issuer (wbs-permissions P17)', async () => {
+    const id = ((await register('dany', { issuer: ci.url })).body as { id: string }).id;
+    const credential = await createOidc(id, 'repo:acme/wbs:ref:refs/heads/main', 'main');
+    expect(
+      (await h.call('dany', 'DELETE', `/api/organization/machine-credentials/${credential}`))
+        .status,
+    ).toBe(204);
+    // A revocation by a release without the cascade leaves the grant standing.
+    h.sqlite.run(
+      `INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at)
+       VALUES (?, 'org-a', 'organization', 'org-a', 'machine_credential', ?, 'project-contributor', 'route', 1)`,
+      [crypto.randomUUID(), credential],
+    );
+    expect((await h.call('dany', 'DELETE', `${PATH}/${id}`)).status).toBe(204);
+    expect(
+      h.sqlite.query("SELECT id FROM access_grant WHERE subject_kind = 'machine_credential'").all(),
+    ).toEqual([]);
+  });
+
   it("answers another organization's issuer not_found", async () => {
     const id = ((await register('bob', { issuer: ci.url })).body as { id: string }).id;
     expect(await h.call('dany', 'DELETE', `${PATH}/${id}`)).toEqual({

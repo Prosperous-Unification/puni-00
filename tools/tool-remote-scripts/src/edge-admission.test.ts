@@ -1,10 +1,20 @@
 import { rejects } from 'node:assert/strict';
 import { fstatSync } from 'node:fs';
-import { chmod, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  rmdir,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import {
   controllerAccountPlugin,
@@ -18,6 +28,11 @@ import { readPhase } from './lib/phase';
 import { execute } from './swap';
 
 type WaitingChild = Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
+
+const roots: string[] = [];
+afterEach(async () => {
+  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
+});
 
 /** Joins every original observation before propagating read failure or returning captured values. */
 async function joinChild(
@@ -73,13 +88,37 @@ test('a failed child observation retains original exit and sibling stream settle
   }
 });
 
-/** Owns the original exit and both pipes before readiness can fail; release never replaces a reader. */
-function ownWaitingChild(child: WaitingChild, release: string) {
+/**
+ * Spawns argv detached, so POSIX setsid() makes the original child its own session and
+ * process-group leader, then owns its exit and both pipes before readiness can fail.
+ * Cooperative release is the normal path and never replaces a reader. Only the PID this
+ * factory itself created names the group it may signal; no caller supplies a group or child.
+ */
+function spawnOwnedWaitingChild(
+  argv: string[],
+  release: string,
+  env?: Record<string, string | undefined>,
+) {
+  const child: WaitingChild = Bun.spawn(argv, {
+    ...(env === undefined ? {} : { env }),
+    // Proof: omitting detached kept the release-failure regression's bounded observer at
+    // finished false, exiting 1 before emergency rescue; byte-exact restoration passes.
+    detached: true,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const group = child.pid;
   const stdout = new Response(child.stdout).text();
   const stderr = new Response(child.stderr).text();
   const settled = Promise.allSettled([child.exited, stdout, stderr] as const);
   const releaseWritten = Promise.withResolvers<undefined>();
+  let observationsSettled = false;
+  void settled.then(() => {
+    observationsSettled = true;
+  });
   return {
+    child,
     settled,
     releaseWritten: releaseWritten.promise,
     async run(body: () => Promise<void>): Promise<void> {
@@ -91,6 +130,7 @@ function ownWaitingChild(child: WaitingChild, release: string) {
       } catch (cause) {
         outcome = { status: 'failed', cause };
       }
+      const primary: unknown[] = outcome.status === 'failed' ? [outcome.cause] : [];
       // Proof: moving the body before cleanup coverage fails both real forced-READY release
       // oracles before outer rescue; restoring coverage settles the original children.
       const failures: unknown[] = [];
@@ -99,6 +139,32 @@ function ownWaitingChild(child: WaitingChild, release: string) {
         releaseWritten.resolve(undefined);
       } catch (cause) {
         failures.push(cause);
+        // Pending observations mean a group member may still hold the lock and both pipes;
+        // flock's forked Bash is outside a parent-only kill, so signal the whole owned group.
+        if (!observationsSettled) {
+          try {
+            // Proof: omitting this kill, or signalling only the flock wrapper PID, kept the
+            // release-failure observer at finished false, exiting 1 before emergency rescue.
+            process.kill(-group, 'SIGKILL');
+            failures.push(new Error('owned waiting group terminated after release failed'));
+          } catch (signalFailure) {
+            // ESRCH means no owned member remains, so the join below settles. Any other kill(2)
+            // error may leave members alive: the original exit and pipes are then unjoinable,
+            // so report them as not joined now instead of awaiting observations forever.
+            const groupAbsent =
+              signalFailure instanceof Error &&
+              'code' in signalFailure &&
+              signalFailure.code === 'ESRCH';
+            // Proof: treating every signal failure as absent kept the injected-EPERM regression's
+            // bounded observer at finished false, exiting 1 before emergency rescue; restoring passes.
+            if (!groupAbsent)
+              throw new AggregateError(
+                [...primary, ...failures, signalFailure],
+                'owned waiting group termination failed; original observations not joined',
+                { cause: signalFailure },
+              );
+          }
+        }
       }
       // Proof: bypassing this join makes the release-ACK/finish-permit regression observe
       // run completed while original child exit and both EOF remain pending, before rescue.
@@ -106,15 +172,14 @@ function ownWaitingChild(child: WaitingChild, release: string) {
       for (const observation of outcomes)
         if (observation.status === 'rejected') failures.push(observation.reason);
       if (failures.length !== 0)
-        throw new AggregateError(
-          [...(outcome.status === 'failed' ? [outcome.cause] : []), ...failures],
-          'waiting child cleanup failed',
-        );
+        throw new AggregateError([...primary, ...failures], 'waiting child cleanup failed');
 
       if (outcome.status === 'failed') throw outcome.cause;
     },
   };
 }
+
+type WaitingOwner = ReturnType<typeof spawnOwnedWaitingChild>;
 
 test('original waiting child remains owned after its release acknowledgment', async () => {
   const state = await mkdtemp(join(tmpdir(), 'edge-release-join-'));
@@ -123,7 +188,7 @@ test('original waiting child remains owned after its release acknowledgment', as
   const release = join(state, 'release');
   const acknowledgment = join(state, 'release-ack');
   const finish = join(state, 'finish');
-  const child = Bun.spawn(
+  const owned = spawnOwnedWaitingChild(
     [
       'flock',
       '-n',
@@ -137,9 +202,8 @@ test('original waiting child remains owned after its release acknowledgment', as
       acknowledgment,
       finish,
     ],
-    { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+    release,
   );
-  const owned = ownWaitingChild(child, release);
   const primary = new Error('forced readiness body failure');
   let finished = false;
   let observationsSettled = false;
@@ -171,7 +235,7 @@ test('original waiting child remains owned after its release acknowledgment', as
     // Child ACK proves it consumed release, but its separate finish gate retains exit/both EOF.
     // One event-loop turn drains promise reactions; elapsed time grants no readiness credit.
     await new Promise<void>((resolve) => setImmediate(resolve));
-    expect(child.exitCode).toBeNull();
+    expect(owned.child.exitCode).toBeNull();
     expect(observationsSettled).toBe(false);
     expect(finished).toBe(false);
     await writeFile(finish, 'finish');
@@ -189,10 +253,218 @@ test('original waiting child remains owned after its release acknowledgment', as
   }
 });
 
-const roots: string[] = [];
-afterEach(async () => {
-  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
+test('release-write failure terminates the original owned flock group before reporting', async () => {
+  const state = await mkdtemp(join(tmpdir(), 'edge-release-failure-'));
+  roots.push(state);
+  const signals = join(state, 'signals');
+  await mkdir(signals);
+  const lock = join(state, 'edge.lock');
+  const ready = join(state, 'ready');
+  const release = join(signals, 'release');
+  const owned = spawnOwnedWaitingChild(
+    [
+      'flock',
+      '-n',
+      lock,
+      'bash',
+      '-c',
+      'printf %s "$$" > "$1.part"; mv "$1.part" "$1"; while [ ! -e "$2" ]; do sleep 0.01; done',
+      'hold',
+      ready,
+      release,
+    ],
+    release,
+  );
+  const primary = new Error('forced body failure before an unwritable release');
+  let finished = false;
+  let observationsSettled = false;
+  let settledAtCompletion = false;
+  void owned.settled.then(() => {
+    observationsSettled = true;
+  });
+  const completion = owned
+    .run(async () => {
+      for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
+        await Bun.sleep(5);
+      expect(await Bun.file(ready).exists()).toBe(true);
+      // The waiting Bash is flock's forked descendant: signalling only the flock PID would
+      // leave that descendant holding the lock and both original pipes.
+      expect(Number(await Bun.file(ready).text())).not.toBe(owned.child.pid);
+      await rmdir(signals);
+      throw primary;
+    })
+    .then(
+      () => {
+        settledAtCompletion = observationsSettled;
+        finished = true;
+        return undefined;
+      },
+      (cause: unknown) => {
+        settledAtCompletion = observationsSettled;
+        finished = true;
+        return cause;
+      },
+    );
+  const hasFinished = () => finished;
+  try {
+    // Bounded failure observer with its own budget; no existing READY poll budget changes.
+    for (let attempt = 0; attempt < 200 && !hasFinished(); attempt++) await Bun.sleep(5);
+    expect(finished).toBe(true);
+    expect(settledAtCompletion).toBe(true);
+    const refusal = await completion;
+    expect(refusal).toBeInstanceOf(AggregateError);
+    if (!(refusal instanceof AggregateError)) throw new Error('release failure was not retained');
+    expect(refusal.errors).toHaveLength(3);
+    expect(refusal.errors[0]).toBe(primary);
+    expect(refusal.errors[1]).toHaveProperty('code', 'ENOENT');
+    expect(String(refusal.errors[2])).toBe(
+      'Error: owned waiting group terminated after release failed',
+    );
+    const [exit, stdout, stderr] = await owned.settled;
+    expect(exit.status).toBe('fulfilled');
+    expect(stdout).toEqual({ status: 'fulfilled', value: '' });
+    expect(stderr).toEqual({ status: 'fulfilled', value: '' });
+    // A free lock proves no forked Bash descendant survived the owner's termination.
+    const contender = Bun.spawn(['flock', '-n', lock, 'true'], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const contention = await joinChild(
+      contender.exited,
+      new Response(contender.stdout).text(),
+      new Response(contender.stderr).text(),
+    );
+    expect(contention.exit).toBe(0);
+  } finally {
+    // Emergency rescue follows the failing or passing oracle and never supplies its proof.
+    await mkdir(signals, { recursive: true });
+    await writeFile(release, 'release');
+    await owned.settled;
+    await completion;
+  }
 });
+
+test('release-write failure refuses unjoinable observations when owned group signalling fails', async () => {
+  const state = await mkdtemp(join(tmpdir(), 'edge-signal-failure-'));
+  roots.push(state);
+  const signals = join(state, 'signals');
+  await mkdir(signals);
+  const lock = join(state, 'edge.lock');
+  const ready = join(state, 'ready');
+  const release = join(signals, 'release');
+  const owned = spawnOwnedWaitingChild(
+    [
+      'flock',
+      '-n',
+      lock,
+      'bash',
+      '-c',
+      'touch "$1"; while [ ! -e "$2" ]; do sleep 0.01; done',
+      'hold',
+      ready,
+      release,
+    ],
+    release,
+  );
+  const group = owned.child.pid;
+  const primary = new Error('forced body failure before an unwritable release and failed signal');
+  const signalFailure = Object.assign(
+    new Error('injected kill(2) EPERM for the owned fixture group'),
+    { code: 'EPERM', syscall: 'kill' },
+  );
+  let intercepted = 0;
+  // Undefined only while no mock is installed: the body failed before installation or
+  // spyOn itself threw. Once installed, finally restores it before the emergency rescue.
+  let restoreKill: (() => void) | undefined;
+  let finished = false;
+  let observationsSettled = false;
+  let settledAtCompletion = false;
+  void owned.settled.then(() => {
+    observationsSettled = true;
+  });
+  const completion = owned
+    .run(async () => {
+      for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
+        await Bun.sleep(5);
+      expect(await Bun.file(ready).exists()).toBe(true);
+      // Installation stays inside the owned body: if it throws, run captures that failure
+      // and cooperatively writes release, so the holder cannot leak.
+      const originalKill = process.kill.bind(process);
+      const kill = spyOn(process, 'kill').mockImplementation(
+        (pid: number, signal?: string | number) => {
+          // Only this fixture's exact owned group SIGKILL is refused; nothing is delivered
+          // to it, and every other call reaches the captured original unchanged.
+          if (pid === -group && signal === 'SIGKILL') {
+            intercepted++;
+            throw signalFailure;
+          }
+          return originalKill(pid, signal);
+        },
+      );
+      restoreKill = () => {
+        kill.mockRestore();
+      };
+      await rmdir(signals);
+      throw primary;
+    })
+    .then(
+      () => {
+        settledAtCompletion = observationsSettled;
+        finished = true;
+        return undefined;
+      },
+      (cause: unknown) => {
+        settledAtCompletion = observationsSettled;
+        finished = true;
+        return cause;
+      },
+    );
+  const hasFinished = () => finished;
+  try {
+    // Same bounded observer; a refusal that awaited the live group never finishes here.
+    for (let attempt = 0; attempt < 200 && !hasFinished(); attempt++) await Bun.sleep(5);
+    expect(finished).toBe(true);
+    // Physical observation: original exit and both pipes were still pending at refusal.
+    expect(settledAtCompletion).toBe(false);
+    const refusal = await completion;
+    expect(observationsSettled).toBe(false);
+    expect(owned.child.exitCode).toBeNull();
+    expect(intercepted).toBe(1);
+    expect(refusal).toBeInstanceOf(AggregateError);
+    if (!(refusal instanceof AggregateError))
+      throw new Error('signal failure refusal was not retained');
+    expect(refusal.message).toBe(
+      'owned waiting group termination failed; original observations not joined',
+    );
+    expect(refusal.errors).toHaveLength(3);
+    expect(refusal.errors[0]).toBe(primary);
+    expect(refusal.errors[1]).toHaveProperty('code', 'ENOENT');
+    expect(refusal.errors[2]).toBe(signalFailure);
+    expect(refusal.cause).toBe(signalFailure);
+    // The surviving original member still holds the lock: the refusal did not wait for it.
+    const contender = Bun.spawn(['flock', '-n', lock, 'true'], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const contention = await joinChild(
+      contender.exited,
+      new Response(contender.stdout).text(),
+      new Response(contender.stderr).text(),
+    );
+    expect(contention.exit).toBe(1);
+  } finally {
+    // Restore an installed mock first; the fixture-only cooperative rescue then follows
+    // every oracle above, never depends on the mock and never supplies its proof.
+    if (restoreKill !== undefined) restoreKill();
+    await mkdir(signals, { recursive: true });
+    await writeFile(release, 'release');
+    await owned.settled;
+    await completion;
+  }
+});
+
 const repository = resolve(import.meta.dir, '../../..');
 const launchers = [
   'bin/dev-poll.sh',
@@ -272,13 +544,31 @@ async function command(launcher: string, state: string): Promise<string[]> {
   return [launcher.includes('tool-bootstrap') ? 'sh' : 'bash', script];
 }
 
-for (const flavor of ['flock', 'configure'] as const)
+/** Spawns the manual-dev contention holder's exact argv through the detached owning factory. */
+function spawnManualEdgeHolder(state: string): WaitingOwner {
+  return spawnOwnedWaitingChild(
+    [
+      'flock',
+      '-n',
+      join(state, 'edge.lock'),
+      'bash',
+      '-c',
+      'touch "$1"; while [ ! -e "$2" ]; do sleep 0.01; done',
+      'hold',
+      join(state, 'ready'),
+      join(state, 'release'),
+    ],
+    join(state, 'release'),
+  );
+}
+
+for (const flavor of ['flock', 'configure', 'manual'] as const)
   test(`failed READY observation settles the original ${flavor} child and streams`, async () => {
     const state = await mkdtemp(join(tmpdir(), 'edge-ready-failure-'));
     roots.push(state);
     const release = join(state, 'release');
     const absentReady = join(state, 'absent-ready');
-    let child: WaitingChild;
+    let owned: WaitingOwner;
     if (flavor === 'configure') {
       const commands = join(state, 'commands');
       await mkdir(commands);
@@ -298,14 +588,15 @@ for (const flavor of ['flock', 'configure'] as const)
           edgeState: state,
         }),
       );
-      child = Bun.spawn(await command('tools/tool-bootstrap/src/configure.sh', state), {
-        env: { ...process.env, WBS_EDGE_STATE: state, PATH: `${commands}:${executablePath}` },
-        stdin: 'ignore',
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
+      owned = spawnOwnedWaitingChild(
+        await command('tools/tool-bootstrap/src/configure.sh', state),
+        release,
+        { ...process.env, WBS_EDGE_STATE: state, PATH: `${commands}:${executablePath}` },
+      );
+    } else if (flavor === 'manual') {
+      owned = spawnManualEdgeHolder(state);
     } else {
-      child = Bun.spawn(
+      owned = spawnOwnedWaitingChild(
         [
           'flock',
           '-n',
@@ -317,10 +608,9 @@ for (const flavor of ['flock', 'configure'] as const)
           join(state, 'ready'),
           release,
         ],
-        { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+        release,
       );
     }
-    const owned = ownWaitingChild(child, release);
     let readinessFailure: unknown;
     try {
       const failure = await owned
@@ -355,6 +645,10 @@ for (const flavor of ['flock', 'configure'] as const)
       if (flavor === 'configure') {
         expect(exit.value).not.toBe(0);
         expect(stderr.value).toContain('must run as root');
+      } else if (flavor === 'manual') {
+        expect(exit.value).toBe(0);
+        expect(stdout.value).toBe('');
+        expect(stderr.value).toBe('');
       } else {
         expect(exit.value).toBe(0);
         expect(stdout.value).toBe('stdout-settled');
@@ -416,7 +710,7 @@ for (const launcher of launchers) {
     const state = await mkdtemp(join(tmpdir(), 'edge-lock-'));
     roots.push(state);
     const ready = join(state, 'ready');
-    const holder = Bun.spawn(
+    const owned = spawnOwnedWaitingChild(
       [
         'flock',
         '-n',
@@ -428,9 +722,8 @@ for (const launcher of launchers) {
         ready,
         join(state, 'release'),
       ],
-      { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+      join(state, 'release'),
     );
-    const owned = ownWaitingChild(holder, join(state, 'release'));
     await owned.run(async () => {
       for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
         await Bun.sleep(5);
@@ -508,7 +801,7 @@ test('separately opened inherited descriptor cannot borrow another process lock'
   const state = await mkdtemp(join(tmpdir(), 'edge-independent-'));
   roots.push(state);
   const ready = join(state, 'ready');
-  const holder = Bun.spawn(
+  const owned = spawnOwnedWaitingChild(
     [
       'flock',
       '-n',
@@ -520,9 +813,8 @@ test('separately opened inherited descriptor cannot borrow another process lock'
       ready,
       join(state, 'release'),
     ],
-    { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+    join(state, 'release'),
   );
-  const owned = ownWaitingChild(holder, join(state, 'release'));
   await owned.run(async () => {
     for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
       await Bun.sleep(5);
@@ -570,13 +862,11 @@ test('configure writer excludes concurrent prod and dev swaps and bootstrap', as
       edgeState: state,
     }),
   );
-  const configure = Bun.spawn(await command('tools/tool-bootstrap/src/configure.sh', state), {
-    env: { ...process.env, WBS_EDGE_STATE: state, PATH: `${commands}:${executablePath}` },
-    stdin: 'ignore',
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const owned = ownWaitingChild(configure, release);
+  const owned = spawnOwnedWaitingChild(
+    await command('tools/tool-bootstrap/src/configure.sh', state),
+    release,
+    { ...process.env, WBS_EDGE_STATE: state, PATH: `${commands}:${executablePath}` },
+  );
   await owned.run(async () => {
     for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
       await Bun.sleep(5);
@@ -608,7 +898,7 @@ test('configure writer excludes concurrent prod and dev swaps and bootstrap', as
     expect(bootstrapStderr).toContain('shared edge lock held');
     expect(bootstrapExit).not.toBe(0);
   });
-  expect(await configure.exited).not.toBe(0);
+  expect(await owned.child.exited).not.toBe(0);
 });
 
 for (const launcher of ['bin/dev-poll-sync.sh', 'tools/tool-remote-scripts/src/swap.ts']) {
@@ -659,40 +949,34 @@ test('manual dev deploy takes edge.lock before poll.lock and cannot reach fetch 
   roots.push(state);
   const remote = await readManualOperation(state);
   const ready = join(state, 'ready');
-  const holder = Bun.spawn([
-    'flock',
-    '-n',
-    join(state, 'edge.lock'),
-    'bash',
-    '-c',
-    'touch "$1"; while [ ! -e "$2" ]; do sleep 0.01; done',
-    'hold',
-    ready,
-    join(state, 'release'),
-  ]);
-  for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
-    await Bun.sleep(5);
-  expect(await Bun.file(ready).exists()).toBe(true);
-  const commands = join(state, 'commands');
-  await mkdir(commands);
-  await writeFile(join(commands, 'git'), '#!/bin/sh\ntouch "$WBS_EDGE_STATE/fetched"\nexit 42\n', {
-    mode: 0o755,
-  });
-  const executablePath = process.env['PATH'];
-  if (executablePath === undefined) throw new Error('test requires PATH');
-  try {
+  const owned = spawnManualEdgeHolder(state);
+  await owned.run(async () => {
+    for (let attempt = 0; attempt < 100 && !(await Bun.file(ready).exists()); attempt++)
+      await Bun.sleep(5);
+    expect(await Bun.file(ready).exists()).toBe(true);
+    const commands = join(state, 'commands');
+    await mkdir(commands);
+    await writeFile(
+      join(commands, 'git'),
+      '#!/bin/sh\ntouch "$WBS_EDGE_STATE/fetched"\nexit 42\n',
+      { mode: 0o755 },
+    );
+    const executablePath = process.env['PATH'];
+    if (executablePath === undefined) throw new Error('test requires PATH');
     const child = Bun.spawn(['bash', '-c', remote], {
       env: { ...process.env, WBS_EDGE_STATE: state, PATH: `${commands}:${executablePath}` },
       stdout: 'pipe',
       stderr: 'pipe',
     });
-    expect(await child.exited).toBe(75);
+    const { exit: childExit } = await joinChild(
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    );
+    expect(childExit).toBe(75);
     expect(await Bun.file(join(state, 'fetched')).exists()).toBe(false);
     expect(await Bun.file(join(state, 'poll.lock')).exists()).toBe(false);
-  } finally {
-    await writeFile(join(state, 'release'), 'release');
-    await holder.exited;
-  }
+  });
 });
 
 for (const marker of ['edge-owner.json', 'edge-owner.pending']) {

@@ -15,6 +15,11 @@ The API, and the only thing that writes the database. Elysia + Drizzle +
   proves every shape is bound once and reaches the production app.
   `controller/join-request.controller.db.test.ts` mounts join-request decisions
   against SQLite and the injected test mail sink.
+- **`*-cli.ts`** — host operator commands. `organization-limits-cli.ts` and
+  `access-grant-cli.ts` run against the database `DB_PATH` names: the second
+  grants and revokes an organization's `org-super-admin` (`wbs-permissions`
+  P21; test `access-grant-cli.db.test.ts`). Both are documented in
+  `docs/runbook-organization-activation.md`.
 - **`services.ts`** — the composition. One broadcaster, one clock, one write
   lock, built once and shared, because "there is exactly one of these in the
   process" is a claim about this file rather than about the classes.

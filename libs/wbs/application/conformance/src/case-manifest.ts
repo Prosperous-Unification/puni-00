@@ -7,6 +7,7 @@ export type PortName =
 export const PORT_NAMES = [
   'projects',
   'projectRanks',
+  'accessDecisions',
   'users',
   'directory',
   'organizationLimits',
@@ -43,6 +44,7 @@ export const CASE_MANIFEST = {
   livePlans: ['livePlans.read:legacy-and-absence'],
   projects: ['projects.create:steps', 'projects.update:scope', 'projects.recordOpen:reader-order'],
   projectRanks: ['projectRanks.orderIn:scoped-move'],
+  accessDecisions: ['accessDecisions.effectiveRoleAt:grant-reaches-package'],
   users: [
     'users.create:unique-name',
     'users.find:identity',

@@ -65,6 +65,7 @@ describe('the closed case manifest', () => {
       'livePlans',
       'projects',
       'projectRanks',
+      'accessDecisions',
       'users',
       'directory',
       'organizationLimits',

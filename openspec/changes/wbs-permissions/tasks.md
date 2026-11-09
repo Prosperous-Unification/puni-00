@@ -49,7 +49,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       widen the cap with `project.manage_budgets` and the machine case manages budgets; add
       `package.claim_for_others` to `package-contributor`'s seed and the machine case
       passes; watched.
-- [ ] 1.3 Green: port `AccessDecisions` (`effectiveRoleAt`, `readablePackageIds`) in
+- [x] 1.3 Green: port `AccessDecisions` (`effectiveRoleAt`, `readablePackageIds`) in
       `@wbs/core`, SQLite implementation with the two statements of design.md, exposed on
       the admitted turn's stores and the read stores; provenance returned; work package
       targets without a project until #698 slice 2 (design.md, "The `may` port") — test:
@@ -70,7 +70,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       case is manager; catch-and-skip the unknown row and the throw test fails; drop the
       `:machine = 0` guards and an `org-admin`'s agent writes a package no grant of its
       credential names; watched.
-- [ ] 1.4 Grant store `AccessGrants` (`grant`, `revoke`, `list`, groups and members) with
+- [x] 1.4 Grant store `AccessGrants` (`grant`, `revoke`, `list`, groups and members) with
       the in-transaction invariants (`role_scope_mismatch`, scope ownership through
       `work_package_organization`, today's `project_organization`; `not_a_member`,
       `unknown_group`, `unknown_credential`, `already_granted`, `last_super_admin`), and a
@@ -81,7 +81,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       granted in A; skip the credential cascade and a revoked credential's grant row
       survives; watched.
 
-- [ ] 1.5 `access-grant-cli.ts grant-super-admin|revoke-super-admin --organization=<id> --user=<id>`
+- [x] 1.5 `access-grant-cli.ts grant-super-admin|revoke-super-admin --organization=<id> --user=<id>`
       (P21) over the grant store of 1.4 — test: `access-grant-cli.db.test.ts`: grant to a
       current member writes the grant and one `access_granted` row (origin `operator`, actor
       `operator:<os login>`) and prints the count; a non-member, a machine credential, an
@@ -90,6 +90,10 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       `last_super_admin`; negatives: drop the membership check and a non-member is granted;
       drop the CP14 count from the revoke and the organization is left with none; catch
       the unreadable database and the command exits 0 having written nothing; watched.
+      _Shipped 2026-11-08 (verify.md 1.5) without the `access_granted`/`access_revoked`
+      rows, which task 4.1 owes (design.md P21, amended): the output names the actor
+      `operator:<os login>` they will carry. Refusals also cover `already_granted` and
+      revoke's `not_granted`; a machine credential's id is `machine_credential`._
 
 ## 2. `may()` wired into core, the old checks removed
 
@@ -98,6 +102,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       (`OrganizationScope.role` stays for the old helpers until 2.4); `scopesOfRoles` is left to `wbs-machine-credentials` slice 4 (#731), which deletes it, so no rewiring here whichever lands first — test: `authorize.test.ts` (not_found, forbidden-with-permission, ok) and the
       existing `authentication.feature` tests with grants; negative: answer `forbidden`
       where the level is null and the "invisible is 404" controller case leaks; watched.
+      `authorize` is the single reader of `stores.accessDecisions`: it throws when the
+      catalog carries none (negative: answer `ok` on `undefined` and a memory-backed
+      decision admits; watched), and call sites never `?.` the port.
 - [ ] 2.2 Rewire the work-package sites, old helpers kept: batches
       (`admitted-scope.resource.ts`, per kind from permission-matrix.md), project, step,
       calendar marker, saved plan, import, create (P16: `organization.create_project`
@@ -135,7 +142,11 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       transaction with one audit row (removing an organization-role holder also needs
       `organization.manage_organization_roles`, P11), invitations and join-request approval
       carry an optional initial grant obeying P11, onboarding's creator receives
-      `org-super-admin`, SCIM-provisioned members receive none — test:
+      `org-super-admin`, SCIM-provisioned members receive none; every membership removal
+      (route, leaving, SCIM deprovisioning: `organization.ts` `removeMember` and `administer`,
+      `scim-user.ts`) deletes the member's `access_group_member` rows and `user` grants in the
+      same transaction, because the composite key to `organization_membership` has no
+      `ON DELETE` and the delete throws once a group member exists (#891 review F3) — test:
       `membership-organization.controller.db.test.ts` rewritten, with the scenarios "A
       SCIM-provisioned member arrives with no grant" and "Removing an organization-role
       holder"; negatives: skip the grant cascade on removal and the removed member's grant
