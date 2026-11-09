@@ -111,7 +111,11 @@ for (const pipe of ['stdout', 'stderr'] as const) {
       [
         process.execPath,
         '-e',
-        `const chunk = Buffer.alloc(65536); for (let n = 0; n < 512; n++) { await Bun.write(Bun.${pipe}, chunk); } await Bun.sleep(750); process.exit(0);`,
+        // Reader cancellation can reject the writer with EPIPE or ECONNRESET before kill wins.
+        // Keep the existing bounded lifetime for those observed closure errors; rethrow all others.
+        // Proof: removing transport termination failed both authority cases with exit0/null;
+        // injecting EIO likewise failed with exit1/null. Both children were reaped.
+        `const chunk = Buffer.alloc(65536); for (let n = 0; n < 512; n++) { try { await Bun.write(Bun.${pipe}, chunk); } catch (cause) { if (!(cause instanceof Error && 'code' in cause && (cause.code === 'EPIPE' || cause.code === 'ECONNRESET'))) throw cause; break; } } await Bun.sleep(750); process.exit(0);`,
       ],
       { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
     );
@@ -126,6 +130,15 @@ for (const pipe of ['stdout', 'stderr'] as const) {
       expect(
         await rejectionOf(connectRegistryAuthority(enrollment)({ command: 'read' })),
       ).toBeInstanceOf(Error);
+      console.log(
+        JSON.stringify({
+          boundary: `authority-${pipe}-terminal`,
+          exitCode: child.exitCode,
+          signal: child.signalCode,
+          reaped,
+          pid: child.pid,
+        }),
+      );
       expect(child.signalCode).toBe('SIGKILL');
       expect(reaped).toBe(true);
       expect(() => process.kill(child.pid, 0)).toThrow();

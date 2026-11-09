@@ -4,8 +4,11 @@ A gate host runs `bin/h2puni-gate.sh <sha>` exactly as h2puni does, under its ow
 lock, so gates on different hosts run in parallel. h2puni is the original gate host. h4claw is the
 second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and live since
 2026-10-21: the apply converged twice and a full gate exited 0 there, recorded in
-[the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md). Gate on it as
-`puni1` from `~/puni-00-gate-tbf`; a full gate takes about 100 minutes.
+[the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md). Since 2026-11-08
+h4claw is enrolled in its Dash host pool in observe mode, so gate on it as `puni1` from
+`~/puni-00-gate-launcher` ([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of
+about 100 minutes for a full gate is from before enrollment; the first observe-mode gate was
+throttled by the estimated `gate` envelope (the known issue in that section).
 
 ## What the role sets up
 
@@ -48,7 +51,8 @@ second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and l
   `website-dev-build` declares.
 - **Host pool configuration.** Only where `puni_gate_host_pool_enroll` is true, because the file
   existing is what enrolls a host: `~/.config/dash/host-pool.json`, 0600, rewritten only when it
-  differs. Budgets are the host's `nproc` and MemTotal in whole GiB, headroom 1 core and 2 GiB,
+  differs. Budgets are the host's `nproc` and MemTotal in whole GiB, headroom `puni_gate_pool_headroom`
+  (role default 1 core and 2 GiB; h4claw's ledger pins 1 core and 5 GiB, see step 7),
   `exclusiveUnits` the two gate trees and the two token units, `enrollmentId`
   `<inventory name>-host-pool`, `launcherCheckouts` the launcher checkout (on h2puni also
   `~/wbs-dev/src`, from the inventory), `concurrencyEligible` empty. The ledger pins all but
@@ -228,7 +232,8 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    `"puni_gate_host_pool_enroll": true, "puni_gate_host_pool": {"authorityId": …, "epoch": …,
 "providerId": …, "mcpResource": "https://…/mcp", "credential": "wbs_mk_…", "diskBudgetUnits": …}`.
    Units are GiB. The budget must leave `headroomBytes` (10 GiB) free beyond it whenever a
-   calibration runs.
+   calibration runs. Headroom is a separate role input, `puni_gate_pool_headroom`; once the pool
+   is initialized it is pinned, so reapplies must carry the enrolling vars (step 7).
 3. **Drain.** Stop intake, including unattended intake: on h2puni the dev poller's
    `solver-image-publish` launches heavy jobs by itself, so stop the poller first. Then let the
    host's heavy queue drain (`bin/with-heavy-lock.sh status` reads `holder none`). Enrolling while
@@ -250,10 +255,28 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool init --config ~/.config/dash/host-pool.json && systemctl --user start dash-resources-watch.service dash-job-audit.timer gate-launcher-refresh.timer
    ```
 
-   Prove the restart once: kill the watch process and watch systemd start it again
-   (`journalctl --user -u dash-resources-watch.service`). Rerun `--tags validate`.
+   Prove the restart once with `kill -9` on the watch's `MainPID`. A plain `kill` (SIGTERM) is
+   the watch's modelled cancellation (`resources/command.ts` aborts and returns 0), and
+   `Restart=on-failure` treats a clean exit as a stop, so the unit would stay inactive. Refusals
+   thrown out of `runResources` reach `entrypoint.ts`, which exits nonzero; those are eligible
+   for automatic restart. Task 6.7's broader modelled-stop requirement remains open: this
+   observation does not prove that every modelled stop comes back. On h4claw
+   (2026-11-08), `puni1` over ssh could not read its own journal: `journalctl --user` printed "No
+   journal files were opened due to insufficient permissions". h2puni's journal access over ssh is
+   not observed. Read the restart from
+   `systemctl --user show -p NRestarts,MainPID,ActiveState,InactiveExitTimestamp,ActiveEnterTimestamp dash-resources-watch.service`
+   instead, before and after the kill. `NRestarts` goes up by one per kill, and
+   `ActiveEnterTimestamp` lands `RestartSec` (30 s) after `InactiveExitTimestamp`. The counter
+   counts automatic restarts, not their cause, and `show` keeps only the latest timestamp pair, so
+   record the kill itself. `ops pool inspect` must show the same `guard`, `guardHolder` and unit
+   holders before and after. In observe mode `guardHolder` is always `null`, so there this proves
+   only `Restart=on-failure`. A guard holder surviving a restart can be shown only in concurrent
+   mode (step 8, 6.5). Rerun `--tags validate`. It is a read-only probe, not step 4's converging
+   second apply.
 
-6. **Observe for a week (6.4).** Every launcher goes through `run_heavy_job` in observe mode. Gates
+6. **Observe for a week (6.4).** On h4claw, first calibrate `gate` through step 7 before
+   launching further observe-mode gates: the first run is throttled at the 6 GiB estimate
+   ([known issue](#launch-a-gate-on-h4claw)). Every launcher goes through `run_heavy_job` in observe mode. Gates
    launch from `~/puni-00-gate-launcher`. From step 5 on, `gate-launcher-refresh.timer` keeps it
    fresh: hourly, with up to five minutes' random delay and catching up after downtime, it
    fetches `origin`. If `main` moved, and no process of `puni1` other than the watch's works in
@@ -261,37 +284,82 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    changed. Then it restarts the watch, which runs from the same checkout, only if it was
    running. Otherwise it exits 75 and the next hour retries. A checkout with edited tracked
    files is refused 65, never moved over. A failed fetch, checkout, install or restart is 70.
-   Read the outcome with `journalctl --user -u gate-launcher-refresh.service`.
+   Read the most recent run's outcome with
+   `systemctl --user show -p ExecMainStatus,ExecMainExitTimestamp gate-launcher-refresh.service`
+   (on h4claw the journal is unreadable over ssh, as in step 5). It shows only the latest
+   invocation, so a 70 followed by a 75 reads as 75. A running or waiting gate from the
+   launcher works in the checkout, so 75 is the expected outcome while gates run.
 7. **Calibrate and propose (6.4).** Run `ops job calibrate` cold and warm for each type, then
    `ops job propose`, and land the catalogue PRs. Budgets and headroom are pinned at step 5: once
    the pool is initialized, a changed `nproc`, MemTotal GiB, headroom, unit list, enrollment id or
    disk input stops the role before it rewrites the configuration ("pinned field differs from
    the ledger"). Choose headroom before init; changing it later needs re-enrollment, which with
-   the fixed root means retiring the ledger first.
+   the fixed root means retiring the ledger first. h4claw's ledger pins headroom 1 core and 5 GiB,
+   not the role default of 1 core and 2 GiB. The staged enrolling vars file
+   `$OPS/gate.json.enroll-h4claw.2026-11-08` sets
+   `puni_gate_pool_headroom {cpuCores 1, memoryGib 5}`, matching the rendered host configuration
+   in a comparison on 2026-11-09 (verify.md). The vars actually passed to the lost applies and
+   why 5 GiB was chosen are not recorded. Preserve the pinned headroom on every reapply;
+   the other pinned fields in the staged file have not been checked against the ledger, so a
+   successful reapply with that file stays owed. A reapply with the default 2 GiB stops at
+   "pinned field differs from the ledger".
 8. **Switch (6.5).** Run `ops pool switch-mode concurrent` after the five-launcher checklist, with
    the types allowed to overlap listed in `puni_gate_pool_concurrency_eligible`. Reapply the role
    to write them.
 
 ## Launch a gate on h4claw
 
+h4claw has been enrolled in observe mode since 2026-11-08, so launch from `~/puni-00-gate-launcher`:
+
+```sh
+ssh puni1@<h4claw public address> \
+  'cd ~/puni-00-gate-launcher && git fetch -q origin && bin/h2puni-gate.sh <sha>' > gate-<sha8>.log 2>&1
+```
+
+Known issue, pending as of 2026-11-08 22:50Z. The first gate from this path, `gate:a5e9dbe9`, ran
+under `MemoryHigh` at the `gate` type's estimated 6 GiB and was throttled: `memory.peak` reached
+6.93 GiB, `memory.pressure` stayed above 90 %, two `bun test` runs timed out and three `eslint`
+runs hit heap OOMs. At 3 h 05 min it was still in its first `nx run-many`, and its exit is not
+recorded ([dash-host-jobs verification](../../openspec/changes/dash-host-jobs/verify.md), EV-A5).
+The latest upstream report says it was still held at 23:57Z (4 h 12 min); that time is unverified
+(EV-A8). The 22:50Z read remains the last coordinator observation.
+A gate that fails under this throttling is an observed gate failure: its cause needs resolving,
+and it is not a pass. Rerun that sha's canonical gate on h2puni for final qualification. An
+h4claw rerun becomes a verdict only once `gate` is calibrated and this path has a recorded
+passing terminal gate (6.4). Memory pressure alone cannot diagnose the payload, and a red run
+never becomes a qualification pass. The `gate` type must be calibrated (step 7 of
+[Enroll a host in the host pool](#enroll-a-host-in-the-host-pool)) before this path's run time
+or failures can be judged. The canonical gate is unchanged: a gate passes only by exiting 0, as
+on h2puni.
+
+Before 2026-11-08 h4claw was gated from the shared gate tree. That form is for a host that is not
+enrolled, and it is kept here only as the pre-enrollment record; do not use it on h4claw:
+
 ```sh
 ssh puni1@<h4claw public address> \
   'cd ~/puni-00-gate-tbf && git fetch -q origin && bin/h2puni-gate.sh <sha>' > gate-<sha8>.log 2>&1
 ```
 
-Once the host is enrolled, launch from `~/puni-00-gate-launcher` instead of `~/puni-00-gate-tbf`.
-A launcher working in a unit holds it (J19, S6-A6), so the pool would always hand out `tbf2`, and
-two gates would serialise without saying why.
+The sha must resolve in the launcher, because the admitted gate tree fetches it from there, so
+fetch the branch that carries it. A fetch moves no head. After `ops pool init`, never check
+out in the launcher: the refresh timer owns its head. Step 5's one-time bootstrap before init
+is the manual exception. `run_heavy_job` then runs the payload as `ops job run --type gate`,
+and the pool hands it a free gate tree. A launcher working in a unit holds it (J19, S6-A6), so
+the pool would always hand out `tbf2`, and two gates would serialise without saying why. Read the running job and the waiters, oldest first, with
+`bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status --config ~/.config/dash/host-pool.json`
+from the launcher.
 
 The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
 
 - Pass the sha. Do not check it out first.
 - Trust the printed `h2puni gate: running on <sha>`.
 - Exit 65 means the tree is dirty, and exit 66 means it has unreadable tracked paths.
-- `bin/with-heavy-lock.sh status` names the holder of the lock on that host.
+- `bin/with-heavy-lock.sh status` names the holder of the lock on that host. On an enrolled host
+  in observe mode the holder is `dash-job-<job id>`, held through a file in the ledger's
+  `legacy-holds/` until the job settles.
 - Every launcher enters through `run_heavy_job`, which takes this lock on a host that is not
-  enrolled in a Dash host pool. Neither gate host is enrolled yet, and none may be before J12's
-  observe mode and singleton guard land; see [heavy job launchers](heavy-job-launchers.md).
+  enrolled in a Dash host pool, and admits the job through the pool on one that is. h4claw is
+  enrolled in observe mode; h2puni is not yet. See [heavy job launchers](heavy-job-launchers.md).
 
 ## Capacity reports into WBS
 
