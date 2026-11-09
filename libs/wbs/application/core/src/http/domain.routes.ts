@@ -10,6 +10,7 @@ import { isCanonicalDomain } from '@wbs/domain';
 import type { Clock } from '../ports/clock';
 import type { DomainChallenges } from '../ports/domain-challenges';
 import type { OrganizationAccess } from '../ports/organization-access';
+import { retainSecurityPrincipal } from '../ports/security-principal';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
@@ -45,21 +46,29 @@ export function domainRoutes(
         // Proof: 2026-09-28, bypassing this guard made mounted
         // `refuses a delegated caller even with current super-admin membership`
         // answer not_found rather than insufficient_scope for domain release.
+        // Proof: bypassing this HTTP refusal (http-domain-nondelegation-0) failed `refuses a delegated caller even with current super-admin membership`; restored GREEN.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
+        // Proof: retaining the caller alias across organization resolution (route-snapshot-domain-release) failed `retains the route security principal across organization resolution at domain-release: id`; restored GREEN.
+        const actor = retainSecurityPrincipal(principal);
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const released = await challenges.releaseClaim(
           resolved.access.scope.organizationId,
-          principal.id,
+          actor,
           params.id,
         );
         switch (released) {
           case 'inactive':
             return organizationRefusal('no_active_organization');
           case 'forbidden':
-            return { ok: false, status: 403, body: { error: 'forbidden' } };
+            return {
+              ok: false,
+              status: 403,
+              // Proof: dropping this permission property (http-permission-domain-release) failed `encodes a current grant denial before effects at domain-release`; restored GREEN.
+              body: { error: 'forbidden', permission: 'organization.manage_security' },
+            };
           case 'not_found':
             return { ok: false, status: 404, body: { error: 'not_found' } };
           case 'stale':
@@ -76,8 +85,11 @@ export function domainRoutes(
       async ({ principal, params }): Promise<HttpReply<typeof rotateDomainProof>> => {
         // Proof: 2026-09-28, bypassing this guard made mounted `refuses a
         // delegated caller even with current super-admin membership` return 404 instead of 403.
+        // Proof: bypassing this HTTP refusal (http-domain-nondelegation-1) failed `refuses a delegated caller even with current super-admin membership`; restored GREEN.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
+        // Proof: retaining the caller alias across organization resolution (route-snapshot-domain-rotate) failed `retains the route security principal across organization resolution at domain-rotate: id`; restored GREEN.
+        const actor = retainSecurityPrincipal(principal);
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
@@ -87,16 +99,21 @@ export function domainRoutes(
         const now = clock.now();
         const rotated = await challenges.rotateClaim(
           resolved.access.scope.organizationId,
-          principal.id,
+          actor,
           params.id,
           token,
-          { at: now, by: principal.id },
+          { at: now, by: actor.id },
         );
         switch (rotated.kind) {
           case 'inactive':
             return organizationRefusal('no_active_organization');
           case 'forbidden':
-            return { ok: false, status: 403, body: { error: 'forbidden' } };
+            return {
+              ok: false,
+              status: 403,
+              // Proof: dropping this permission property (http-permission-domain-rotate) failed `encodes a current grant denial before effects at domain-rotate`; restored GREEN.
+              body: { error: 'forbidden', permission: 'organization.manage_security' },
+            };
           case 'not_found':
             return { ok: false, status: 404, body: { error: 'not_found' } };
           case 'stale':
@@ -122,19 +139,24 @@ export function domainRoutes(
         // Proof: 2026-09-28, removing this guard made mounted `refuses a
         // delegated caller even with current super-admin membership` promote
         // a matching claim, 200 instead of 403.
+        // Proof: bypassing this HTTP refusal (http-domain-nondelegation-2) failed `refuses a delegated caller even with current super-admin membership`; restored GREEN.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
+        // Proof: retaining the caller alias across organization resolution (route-snapshot-domain-verify) failed `retains the route security principal across organization resolution at domain-verify: id`; restored GREEN.
+        const actor = retainSecurityPrincipal(principal);
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const organizationId = resolved.access.scope.organizationId;
-        const claim = await challenges.readClaimForVerification(
-          organizationId,
-          principal.id,
-          params.id,
-        );
+        const claim = await challenges.readClaimForVerification(organizationId, actor, params.id);
         if (claim === 'inactive') return organizationRefusal('no_active_organization');
-        if (claim === 'forbidden') return { ok: false, status: 403, body: { error: 'forbidden' } };
+        if (claim === 'forbidden')
+          return {
+            ok: false,
+            status: 403,
+            // Proof: dropping this permission property (http-permission-domain-verify) failed `encodes a current grant denial before effects at domain-verify`; restored GREEN.
+            body: { error: 'forbidden', permission: 'organization.manage_security' },
+          };
         if (claim === 'not_found') return { ok: false, status: 404, body: { error: 'not_found' } };
         if (claim === 'stale') return { ok: false, status: 409, body: { error: 'stale' } };
         const now = clock.now();
@@ -194,10 +216,10 @@ export function domainRoutes(
           return { ok: false, status: 409, body: { error: 'proof_mismatch' } };
         const verified = await challenges.verifyClaim(
           organizationId,
-          principal.id,
+          actor,
           claim,
           claim.challengeDigest,
-          { at: clock.now(), by: principal.id },
+          { at: clock.now(), by: actor.id },
           () => clock.now(),
         );
         switch (verified) {
@@ -206,7 +228,12 @@ export function domainRoutes(
           case 'inactive':
             return organizationRefusal('no_active_organization');
           case 'forbidden':
-            return { ok: false, status: 403, body: { error: 'forbidden' } };
+            return {
+              ok: false,
+              status: 403,
+              // Proof: dropping this permission property (http-permission-domain-verify-commit) failed `rechecks current security grants after the lookup`; restored GREEN.
+              body: { error: 'forbidden', permission: 'organization.manage_security' },
+            };
           case 'not_found':
             return { ok: false, status: 404, body: { error: 'not_found' } };
           case 'taken':
@@ -221,16 +248,22 @@ export function domainRoutes(
       async ({ principal }): Promise<HttpReply<typeof listOrganizationDomains>> => {
         // Proof: 2026-09-28, bypassing this GET guard made mounted `refuses a
         // delegated caller` expose the domain list instead of answering 403.
+        // Proof: bypassing this HTTP refusal (http-domain-nondelegation-3) failed `refuses a delegated caller even with current super-admin membership`; restored GREEN.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
+        // Proof: retaining the caller alias across organization resolution (route-snapshot-domain-list) failed `retains the route security principal across organization resolution at domain-list: id`; restored GREEN.
+        const actor = retainSecurityPrincipal(principal);
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
-        const claims = await challenges.listClaims(
-          resolved.access.scope.organizationId,
-          principal.id,
-        );
-        if (claims === 'forbidden') return { ok: false, status: 403, body: { error: 'forbidden' } };
+        const claims = await challenges.listClaims(resolved.access.scope.organizationId, actor);
+        if (claims === 'forbidden')
+          return {
+            ok: false,
+            status: 403,
+            // Proof: dropping this permission property (http-permission-domain-list) failed `encodes a current grant denial before effects at domain-list`; restored GREEN.
+            body: { error: 'forbidden', permission: 'organization.manage_security' },
+          };
         return { ok: true, status: 200, body: { domains: [...claims] } };
       },
     ),
@@ -239,8 +272,11 @@ export function domainRoutes(
       async ({ principal, body }): Promise<HttpReply<typeof createDomainChallenge>> => {
         // Proof: 2026-09-28, bypassing this POST guard made mounted `refuses a
         // delegated caller` issue a challenge instead of answering 403.
+        // Proof: bypassing this HTTP refusal (http-domain-nondelegation-4) failed `refuses a delegated caller even with current super-admin membership`; restored GREEN.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
+        // Proof: retaining the caller alias across organization resolution (route-snapshot-domain-challenge) failed `retains the route security principal across organization resolution at domain-challenge: id`; restored GREEN.
+        const actor = retainSecurityPrincipal(principal);
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
@@ -265,17 +301,22 @@ export function domainRoutes(
         const expiresAt = now + 24 * 60 * 60 * 1000;
         const issued = await challenges.reissueClaim(
           resolved.access.scope.organizationId,
-          principal.id,
+          actor,
           domain,
           digest,
           expiresAt,
-          { at: now, by: principal.id },
+          { at: now, by: actor.id },
         );
         switch (issued.kind) {
           case 'inactive':
             return organizationRefusal('no_active_organization');
           case 'forbidden':
-            return { ok: false, status: 403, body: { error: 'forbidden' } };
+            return {
+              ok: false,
+              status: 403,
+              // Proof: dropping this permission property (http-permission-domain-challenge) failed `encodes a current grant denial before effects at domain-challenge`; restored GREEN.
+              body: { error: 'forbidden', permission: 'organization.manage_security' },
+            };
           case 'unclaimable':
             return { ok: false, status: 409, body: { error: 'unclaimable' } };
           case 'already_claimed':

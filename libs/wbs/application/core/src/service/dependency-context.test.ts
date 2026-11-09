@@ -410,7 +410,6 @@ for (const phase of ['before-call', 'ownership-read', 'grant-read'] as const) {
         id: 'relation',
         projectId: 'b',
         type: 'FS',
-        lag: 0,
         predecessor: { projectId: 'a', scope: 'whole', workItemId: 'a1' },
         successor: { projectId: 'b', scope: 'whole', workItemId: 'b1' },
       },

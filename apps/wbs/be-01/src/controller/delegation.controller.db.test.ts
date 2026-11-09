@@ -310,7 +310,8 @@ describe('after activation', () => {
     });
   });
 
-  it('refuses delegated restore approval even for a super-admin', async () => {
+  it('refuses delegated restore approval even for a super-admin with a security grant', async () => {
+    h.grantPermissions('org-a', 'ada', ['organization.manage_security']);
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
@@ -329,6 +330,43 @@ describe('after activation', () => {
     expect(h.sqlite.query('SELECT * FROM shared_people_restore_operation').all()).toEqual([]);
     expect(h.sqlite.query('SELECT * FROM shared_people_restore_approval').all()).toEqual([]);
   });
+
+  for (const method of ['GET', 'PUT'] as const) {
+    it(
+      'refuses delegated session-policy ' +
+        method +
+        ' despite an effective personal security grant',
+      async () => {
+        h.grantPermissions('org-a', 'ada', ['organization.manage_security']);
+        const policy = { maxSessionSeconds: 28_800, reauthenticateAfterSeconds: 3_600 };
+        const before = h.sqlite.query('SELECT * FROM organization_session_policy').all();
+        expect(
+          await h.callWith(
+            await delegation(),
+            method,
+            '/api/organization/session-policy',
+            method === 'GET' ? undefined : policy,
+          ),
+        ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
+        expect(h.sqlite.query('SELECT * FROM organization_session_policy').all()).toEqual(before);
+        expect(
+          h.sqlite
+            .query("SELECT * FROM organization_audit WHERE action = 'session_policy_changed'")
+            .all(),
+        ).toEqual([]);
+        expect(
+          (
+            await h.call(
+              'ada',
+              method,
+              '/api/organization/session-policy',
+              method === 'GET' ? undefined : policy,
+            )
+          ).status,
+        ).toBe(200);
+      },
+    );
+  }
 
   it('lists only the delegated organization’s projects', async () => {
     const answer = await h.callWith(await delegation(), 'GET', '/api/projects');

@@ -939,6 +939,9 @@ describe('bootBe01', () => {
       seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
       );
+      seed.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('trusted-admin','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
+      );
     } finally {
       seed.close();
     }
@@ -956,8 +959,8 @@ describe('bootBe01', () => {
       },
     });
     if (trusted === undefined) throw new Error('boot did not wire trusted issuers');
-    expect(await trusted.administration.list('org-a', 'ada')).toEqual([]);
-    expect(await trusted.administration.list('org-a', 'nobody')).toBe('forbidden');
+    expect(await trusted.administration.list('org-a', { id: 'ada' })).toEqual([]);
+    expect(await trusted.administration.list('org-a', { id: 'nobody' })).toBe('forbidden');
     expect(await trusted.configuredIssuer()).toBeNull();
   });
 

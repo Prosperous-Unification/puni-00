@@ -97,6 +97,7 @@ async function populate(): Promise<void> {
   h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
   h.member('org-b', 'bob', 'admin', ['org-admin']);
+  h.grantPermissions('org-b', 'bob', ['organization.manage_security']);
   h.bind('dany', 'org-a');
   h.bind('mem', 'org-a');
   h.bind('bob', 'org-b');

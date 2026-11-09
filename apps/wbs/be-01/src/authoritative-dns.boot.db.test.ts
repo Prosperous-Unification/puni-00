@@ -113,6 +113,7 @@ async function open(
   await be.register('owner');
   be.organization('org-a');
   be.member('org-a', 'owner', 'super_admin');
+  be.grantPermissions('org-a', 'owner', ['organization.manage_security']);
   be.activate();
   await select('org-a');
   return be;
@@ -248,13 +249,14 @@ it('inactive or unauthorized route sends no packets', async () => {
   const process = await open();
   const claim = await issue();
   values = [claim.dnsValue];
-  process.sqlite.run(
-    "UPDATE organization_membership SET role='member' WHERE organization_id='org-a'",
-  );
-  expect((await call(`/api/organization/domains/${claim.id}/verify`)).status).toBe(403);
-  process.sqlite.run(
-    "UPDATE organization_membership SET role='super_admin' WHERE organization_id='org-a'",
-  );
+  process.sqlite.run("DELETE FROM access_grant WHERE organization_id='org-a' AND subject_id=?", [
+    process.userId('owner'),
+  ]);
+  expect(await call(`/api/organization/domains/${claim.id}/verify`)).toEqual({
+    status: 403,
+    body: { error: 'forbidden', permission: 'organization.manage_security' },
+  });
+  process.grantPermissions('org-a', 'owner', ['organization.manage_security']);
   // Disposable fault injection bypasses the permanent-marker trigger only.
   process.sqlite.run('DROP TRIGGER organization_activation_no_revert');
   process.sqlite.run("UPDATE organization_activation SET state='pre_activation',activated_at=NULL");
@@ -273,7 +275,8 @@ it.each(['membership', 'challenge', 'expiry', 'activation'] as const)(
       beforeTxt = undefined;
       if (fault === 'membership')
         process.sqlite.run(
-          "UPDATE organization_membership SET role='member' WHERE organization_id='org-a'",
+          "DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id=?",
+          [process.userId('owner')],
         );
       if (fault === 'challenge')
         process.sqlite.run(
@@ -347,6 +350,7 @@ it('concurrent organizations cannot acquire one domain through production compos
   const process = await open();
   process.organization('org-b');
   process.member('org-b', 'owner', 'super_admin');
+  process.grantPermissions('org-b', 'owner', ['organization.manage_security']);
   const first = await issue();
   await select('org-b');
   const second = await issue('org-b');

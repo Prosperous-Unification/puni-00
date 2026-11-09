@@ -608,6 +608,9 @@ function approveHost(savedBackup: unknown) {
     sqlite.run(
       "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
     );
+    sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('host-security','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
+    );
     sqlite.run('INSERT INTO shared_people_restore_operation VALUES (?, ?, 1)', [
       'restore-1',
       digestSharedPeople(savedBackup),

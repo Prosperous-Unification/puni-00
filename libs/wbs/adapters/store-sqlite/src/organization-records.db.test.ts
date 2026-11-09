@@ -434,7 +434,7 @@ describe('DomainClaimRepository', () => {
     let now = 100;
     const verification = claims.verifyClaim(
       'org-a',
-      'u-a',
+      { id: 'u-a' },
       {
         id: 'c-a',
         domain: 'example.org',
@@ -470,11 +470,11 @@ describe('DomainClaimRepository', () => {
       },
       stamp('u-a'),
     );
-    expect(await claims.readClaimForVerification('org-a', 'u-a', 'c-a')).toBe('inactive');
+    expect(await claims.readClaimForVerification('org-a', { id: 'u-a' }, 'c-a')).toBe('inactive');
     expect(
       await claims.verifyClaim(
         'org-a',
-        'u-a',
+        { id: 'u-a' },
         {
           id: 'c-a',
           domain: 'example.org',
@@ -492,6 +492,9 @@ describe('DomainClaimRepository', () => {
     const organizations = new OrganizationRepository(connection.db, OPEN);
     await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
     await organizations.createForUnaffiliatedUser({ id: 'org-b', name: 'B' }, 'u-b', stamp('u-b'));
+    connection.db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('domain-admin-a','org-a','organization','org-a','user','u-a','org-super-admin','route',1), ('domain-admin-b','org-b','organization','org-b','user','u-b','org-super-admin','route',1)`,
+    );
     const claims = new DomainClaimRepository(connection.db, OPEN);
     for (const [id, organizationId, by] of [
       ['c-a', 'org-a', 'u-a'],
@@ -563,7 +566,7 @@ describe('DomainClaimRepository', () => {
     expect(
       await claims.reissueClaim(
         'org-a',
-        'u-a',
+        { id: 'u-a' },
         'example.org',
         'digest-new',
         2000,
@@ -579,7 +582,7 @@ describe('DomainClaimRepository', () => {
     expect(
       await claims.reissueClaim(
         'org-a',
-        'u-a',
+        { id: 'u-a' },
         'example.org',
         'digest-new',
         2000,
@@ -608,7 +611,7 @@ describe('DomainClaimRepository', () => {
     await entered.promise;
     let settled = false;
     const issuance = claims
-      .reissueClaim('org-a', 'u-a', 'example.org', 'digest-after', 2000, stamp('u-a', 20))
+      .reissueClaim('org-a', { id: 'u-a' }, 'example.org', 'digest-after', 2000, stamp('u-a', 20))
       .then((issued) => {
         settled = true;
         return issued;

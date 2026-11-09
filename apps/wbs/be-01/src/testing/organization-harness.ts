@@ -38,6 +38,7 @@ import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
+import type { SecurityPrincipal } from '@wbs/core/ports/security-principal';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
 import type { DeliveryGateLimits } from '@wbs/core/service/delivery-gate';
@@ -412,16 +413,16 @@ export class OrganizationHarness {
   }
 
   /** Calls the production rotation transaction directly to prove its marker guard. */
-  rotateDomainClaim(organizationId: string, actorId: string, claimId: string) {
-    return this.domains.rotateClaim(organizationId, actorId, claimId, '0'.repeat(64), {
+  rotateDomainClaim(organizationId: string, principal: SecurityPrincipal, claimId: string) {
+    return this.domains.rotateClaim(organizationId, principal, claimId, '0'.repeat(64), {
       at: Date.now(),
-      by: actorId,
+      by: principal.id,
     });
   }
 
   /** Calls the production release transaction directly to prove its marker guard. */
-  releaseDomainClaim(organizationId: string, actorId: string, claimId: string) {
-    return this.domains.releaseClaim(organizationId, actorId, claimId);
+  releaseDomainClaim(organizationId: string, principal: SecurityPrincipal, claimId: string) {
+    return this.domains.releaseClaim(organizationId, principal, claimId);
   }
 
   /**
