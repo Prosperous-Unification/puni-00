@@ -141,3 +141,26 @@ Other70 source/data and11 dependencies remain exact; all8 document comparisons
 use the actual f99 Root-owned append rather than the earlier pre-append snapshot.
 No full source71 gate, necessity/native qualification, active-compatible operation,
 full original publisher, architectural main adoption or deployment is inferred.
+
+### Bootstrap missing-reader fixture isolation — 2026-11-09
+
+The ordinary missing-reader negative now maps both fixed installed-reader paths
+to absent files inside its own directory. Previously it mapped only the edge
+state, so a prepared host could invoke its real installed reader and refuse at
+the earlier canonical-state boundary. The unchanged test block in the original
+`53d43d6c` run failed its expected reader-preparation diagnostic at that earlier
+boundary; that retained failure is the historical red, not a newly replayed host
+proof. Source-anchor validation before launch checks fixture containment only;
+it is not a behavioral necessity witness.
+
+The existing nonzero exit, missing writer marker, preparation diagnostic, absent
+apt-update output and unchanged lock-byte assertions remain intact. A paired
+ordinary positive uses the real owned prepared reader and ordinary policy,
+reaches the first provisioning-command sentinel, records its marker and returns 42. Direct shell errexit stops there; no provisioning follows. Production
+bootstrap, reader guards and test deadlines are unchanged.
+
+Local scoped execution with Bun1.4.4 passed both cases: **2 tests, 0 failures,
+10 assertions**. Only the two exact bootstrap cases were selected; 50 other
+cases were filtered. This is ordinary fixture coverage on the measured local
+runtime, not Bun1.3.14 coverage, current CI, a complete host gate, native proof,
+database qualification or a resolution of the other original gate failures.

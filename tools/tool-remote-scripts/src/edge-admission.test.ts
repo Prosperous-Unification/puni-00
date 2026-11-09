@@ -1061,7 +1061,16 @@ test('actual bootstrap refuses an unprepared fixed reader before running any can
   );
   const source = await readFile(join(repository, 'tools/tool-bootstrap/src/bootstrap.sh'), 'utf8');
   const script = join(state, 'bootstrap.sh');
-  await writeFile(script, source.replaceAll('/home/puni1/wbs/state', state));
+  let isolated = source.replaceAll('/home/puni1/wbs/state', state);
+  for (const [anchor, absent] of [
+    ['/home/puni1/.local/lib/wbs-solver/bun', join(state, 'absent-bun')],
+    ['/home/puni1/.local/lib/wbs-solver/solver-supervisor.js', join(state, 'absent-reader.js')],
+  ] as const) {
+    if (source.split(anchor).length !== 2)
+      throw new Error(`fixed bootstrap reader anchor differs: ${anchor}`);
+    isolated = isolated.replaceAll(anchor, absent);
+  }
+  await writeFile(script, isolated);
   const child = Bun.spawn(['sh', script], {
     env: {
       ...process.env,
@@ -1078,6 +1087,49 @@ test('actual bootstrap refuses an unprepared fixed reader before running any can
   expect(await Bun.file(join(state, 'writer-called')).exists()).toBe(false);
   expect(stderr).toMatch(/fixed installed controller reader|reader preparation/);
   expect(stdout).not.toContain('apt update');
+  expect(await readFile(join(state, 'edge.lock'), 'utf8')).toBe('edge sentinel');
+});
+
+test('actual bootstrap reaches its first provisioning command with an owned prepared reader', async () => {
+  const state = await mkdtemp(join(tmpdir(), 'bootstrap-prepared-'));
+  roots.push(state);
+  await writeFile(join(state, 'edge.lock'), 'edge sentinel');
+  await writeFile(
+    join(state, 'edge-policy.json'),
+    JSON.stringify({
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'ordinary',
+      edgeState: state,
+    }),
+  );
+  const commands = join(state, 'commands');
+  await mkdir(commands);
+  await writeFile(join(commands, 'id'), '#!/bin/sh\nprintf "0\\n"\n', { mode: 0o755 });
+  await writeFile(
+    join(commands, 'apt-get'),
+    '#!/bin/sh\nprintf called > "$WBS_EDGE_STATE/writer-called"\nexit 42\n',
+    { mode: 0o755 },
+  );
+  const child = Bun.spawn(await command('tools/tool-bootstrap/src/bootstrap.sh', state), {
+    env: {
+      ...process.env,
+      WBS_EDGE_STATE: state,
+      PATH: `${commands}:${String(process.env['PATH'])}`,
+    },
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const { exit, stdout, stderr } = await joinChild(
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  );
+  expect(exit).toBe(42);
+  expect(await readFile(join(state, 'writer-called'), 'utf8')).toBe('called');
+  expect(stderr).toBe('');
+  expect(stdout).toContain('[bootstrap] apt update + base packages');
   expect(await readFile(join(state, 'edge.lock'), 'utf8')).toBe('edge sentinel');
 });
 
