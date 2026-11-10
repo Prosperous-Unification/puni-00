@@ -37,6 +37,27 @@ export interface RetainedNamespaceProvenance {
   readonly runtimeTrust: 'unverified';
 }
 const Owners = new WeakMap<RetainedNamespace, Readonly<RetainedNamespaceProvenance>>();
+const ConstructionOwners = new WeakMap<
+  RetainedNamespace,
+  Readonly<{
+    candidate: RetainedCandidate;
+    runtime: ReviewRuntime;
+  }>
+>();
+
+/** Requires the exact successful namespace construction inputs before inspecting capabilities. */
+export function assertRetainedNamespaceOwners(
+  namespace: RetainedNamespace,
+  candidate: RetainedCandidate,
+  runtime: ReviewRuntime,
+): void {
+  // Proof: independent lookup/candidate/runtime omissions lose `exact construction joins`
+  // with copied/proxy tokens and genuine equal-content owners; other references remain intact.
+  const owners = ConstructionOwners.get(namespace);
+  if (owners === undefined) throw new Error('owned retained namespace required');
+  if (owners.candidate !== candidate) throw new Error('namespace candidate owner differs');
+  if (owners.runtime !== runtime) throw new Error('namespace runtime owner differs');
+}
 const CandidateRoot = '/__puni_review__/candidate';
 const LibraryDirectory = '/__puni_review__/candidate/node_modules/typescript/lib';
 // Proof: recipe-field omission changes the literal canonical vector in the V1 recipe oracle.
@@ -238,5 +259,6 @@ export function createRetainedNamespace(
       namespacePolicyIdentity,
     }),
   );
+  ConstructionOwners.set(namespace, Object.freeze({ candidate, runtime }));
   return namespace;
 }

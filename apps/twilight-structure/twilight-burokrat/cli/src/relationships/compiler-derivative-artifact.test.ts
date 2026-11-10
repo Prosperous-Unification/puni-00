@@ -6,7 +6,9 @@ import {
   captureCompilerDerivative,
   type CompilerDerivative,
   type CompilerDerivativeMembers,
+  listCompilerDerivativeMembers,
   readCompilerDerivativeProvenance,
+  withCompilerDerivativeSource,
 } from './compiler-derivative-artifact';
 import { createLimits, createMembers } from './compiler-derivative-fixture.test-support';
 
@@ -244,4 +246,67 @@ test('a forged same-version compiler is refused as executable bytes', () => {
   expect(() =>
     captureCompilerDerivative({ ...members, 'compiler.cjs': forged }, createLimits()),
   ).toThrow('compiler derivative compiler.cjs differs');
+});
+
+test('compiled member metadata is a closed independent immutable vector', () => {
+  const expected = [
+    {
+      path: 'LICENSE.txt',
+      identity: 'a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47',
+      byteLength: 9197,
+    },
+    {
+      path: 'NOTICE',
+      identity: '2bc5ce9e6b7ca3e8cdee8a6593241646056d5018e5d6e21ea5df299f2a200555',
+      byteLength: 37980,
+    },
+    {
+      path: 'compiler.cjs',
+      identity: '47bffa39459dbbb0797606506c790af1420a983ed6bc1d3ca4945a64ee782559',
+      byteLength: 9144652,
+    },
+    {
+      path: 'manifest.json',
+      identity: '8b82b8fcaf4fe52d963152efacd98932cc41bb6cd3b701e4c5b47b71cea2d743',
+      byteLength: 526,
+    },
+  ] as const;
+  const contract = listCompilerDerivativeMembers();
+  expect(contract).toEqual(expected);
+  expect(Object.isFrozen(contract)).toBe(true);
+  for (const member of contract) expect(Object.isFrozen(member)).toBe(true);
+  expect(contract).toEqual(
+    names.map((path) => ({
+      path,
+      identity: hash(members[path]),
+      byteLength: members[path].byteLength,
+    })),
+  );
+});
+
+test('public immutable source bridge preserves exact text ceiling and private ownership', () => {
+  let limitReads = 0;
+  const artifact = captureCompilerDerivative(members, {
+    ...createLimits(),
+    get maximumLoadMilliseconds() {
+      limitReads++;
+      return 1234;
+    },
+  });
+  const source = withCompilerDerivativeSource(artifact, (text, ceiling) => {
+    expect(typeof text).toBe('string');
+    expect(hash(text)).toBe('47bffa39459dbbb0797606506c790af1420a983ed6bc1d3ca4945a64ee782559');
+    expect(ceiling).toBe(1234);
+    return text;
+  });
+  expect(source).toBe(new TextDecoder('utf-8', { fatal: true }).decode(members['compiler.cjs']));
+  expect(limitReads).toBe(1);
+  const poison = new Proxy(artifact, {
+    get() {
+      throw new Error('source token touched');
+    },
+  });
+  expect(() => {
+    withCompilerDerivativeSource(poison, () => undefined);
+  }).toThrow('compiler derivative ownership differs');
 });

@@ -3,21 +3,18 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeAll, expect, test } from 'bun:test';
-import type ts from 'typescript';
-
-import { writeCompilerDerivative } from '../packaging/compiler-derivative';
 import {
   captureCompilerDerivative,
   type CompilerDerivativeMembers,
-} from './compiler-derivative-artifact';
-import {
-  createLimits,
-  createMembers,
-  readLibrary,
-} from './compiler-derivative-fixture.test-support';
-import type * as CompilerDerivativeRuntime from './compiler-derivative-runtime';
-import { withCompilerDerivative } from './compiler-derivative-runtime';
+} from '@twilight-burokrat/judge';
+import { afterEach, beforeAll, expect, test } from 'bun:test';
+import type ts from 'typescript';
+
+import { monotonicClock } from '../clock';
+import { createLimits, createMembers, readLibrary } from './review-compiler-fixture.test-support';
+import { writeCompilerDerivative } from './review-compiler-fixture.test-support';
+import type * as CompilerDerivativeRuntime from './review-compiler-runtime';
+import { withCompilerDerivative } from './review-compiler-runtime';
 
 let members: CompilerDerivativeMembers;
 beforeAll(() => {
@@ -85,7 +82,7 @@ function compile(compiler: typeof ts, noLib: boolean, defaultLibrary = false) {
 for (const noLib of [true, false])
   test(`captured bytes compile noLib=${String(noLib)} with real resolution and declarations`, () => {
     const artifact = captureCompilerDerivative(members, createLimits());
-    withCompilerDerivative(artifact, (compiler) => {
+    withCompilerDerivative(artifact, monotonicClock(), (compiler) => {
       expect(compiler.version).toBe('6.0.3');
       expect(compiler.sys).toBeUndefined();
       expect(typeof Reflect.get(compiler, 'resolvePath')).toBe('function');
@@ -96,10 +93,10 @@ test('owned bytes survive caller mutation and each invocation receives a fresh o
   const supplied = { ...members, 'compiler.cjs': members['compiler.cjs'].slice() };
   const artifact = captureCompilerDerivative(supplied, createLimits());
   supplied['compiler.cjs'].fill(0);
-  withCompilerDerivative(artifact, (compiler) => {
+  withCompilerDerivative(artifact, monotonicClock(), (compiler) => {
     Object.defineProperty(compiler, 'stageOneMarker', { value: 42 });
   });
-  withCompilerDerivative(artifact, (compiler) => {
+  withCompilerDerivative(artifact, monotonicClock(), (compiler) => {
     expect(Reflect.get(compiler, 'stageOneMarker')).toBeUndefined();
     compile(compiler, true);
   });
@@ -112,12 +109,12 @@ test('cumulative staging allowance has exact fit and cannot reset after callback
     maximumOwnedBytes: total + allowance,
   });
   expect(() =>
-    withCompilerDerivative(artifact, () => {
+    withCompilerDerivative(artifact, monotonicClock(), () => {
       throw new Error('controlled extraction failure');
     }),
   ).toThrow('controlled extraction failure');
   expect(() =>
-    withCompilerDerivative(artifact, () => {
+    withCompilerDerivative(artifact, monotonicClock(), () => {
       throw new Error('unexpected callback');
     }),
   ).toThrow('compiler derivative maximumOwnedBytes exceeded');
@@ -126,14 +123,14 @@ test('cumulative staging allowance has exact fit and cannot reset after callback
     maximumOwnedBytes: total + allowance - 1,
   });
   expect(() =>
-    withCompilerDerivative(short, () => {
+    withCompilerDerivative(short, monotonicClock(), () => {
       throw new Error('unexpected callback');
     }),
   ).toThrow('compiler derivative maximumOwnedBytes exceeded');
 });
 test('fresh realm namespace retains original compiler exports', () => {
   const artifact = captureCompilerDerivative(members, createLimits());
-  withCompilerDerivative(artifact, (compiler) => {
+  withCompilerDerivative(artifact, monotonicClock(), (compiler) => {
     const resolve = Reflect.get(compiler, 'resolvePath') as (
       base: string,
       ...paths: string[]
@@ -151,18 +148,11 @@ afterEach(async () => {
 async function copyLoader(corruption: string, alter = (source: string) => source) {
   const directory = await mkdtemp(join(tmpdir(), 'owned-compiler-loader-'));
   scratch.push(directory);
-  const original = await readFile(
-    new URL('./compiler-derivative-runtime.ts', import.meta.url),
-    'utf8',
-  );
+  const original = await readFile(new URL('./review-compiler-runtime.ts', import.meta.url), 'utf8');
   const instrumented = original
     .replace(
-      "from './compiler-derivative-artifact'",
-      `from '${new URL('./compiler-derivative-artifact.ts', import.meta.url).pathname}'`,
-    )
-    .replace(
-      "from './typescript-compiler'",
-      `from '${new URL('./typescript-compiler.ts', import.meta.url).pathname}'`,
+      "from '@twilight-burokrat/judge'",
+      `from '${import.meta.resolve('@twilight-burokrat/judge')}'`,
     )
     .replace(
       'lifetime.compiler = requireCompiler(',
@@ -230,7 +220,7 @@ test('real raw members execute after physical deletion and poisoned original fil
     },
   } as NodeJS.Module;
   try {
-    withCompilerDerivative(artifact, (compiler) => {
+    withCompilerDerivative(artifact, monotonicClock(), (compiler) => {
       compile(compiler, false);
     });
   } finally {
@@ -247,13 +237,17 @@ test('context excludes ambient IO and denies require string wasm and import mach
     probeCompilerImport,
   );
   let imported: Promise<CompilerImportOutcome> | undefined;
-  loader.withCompilerDerivative(captureCompilerDerivative(members, createLimits()), (compiler) => {
-    expect(Reflect.get(compiler, 'loaderGlobals')).toEqual(Array(8).fill('undefined'));
-    expect(Reflect.get(compiler, 'requireFailure')).toBe('compiler derivative require denied');
-    expect(Reflect.get(compiler, 'stringFailure')).toBe('EvalError');
-    expect(Reflect.get(compiler, 'wasmFailure')).toBe('CompileError');
-    imported = Reflect.get(compiler, 'importOutcome') as Promise<CompilerImportOutcome>;
-  });
+  loader.withCompilerDerivative(
+    captureCompilerDerivative(members, createLimits()),
+    monotonicClock(),
+    (compiler) => {
+      expect(Reflect.get(compiler, 'loaderGlobals')).toEqual(Array(8).fill('undefined'));
+      expect(Reflect.get(compiler, 'requireFailure')).toBe('compiler derivative require denied');
+      expect(Reflect.get(compiler, 'stringFailure')).toBe('EvalError');
+      expect(Reflect.get(compiler, 'wasmFailure')).toBe('CompileError');
+      imported = Reflect.get(compiler, 'importOutcome') as Promise<CompilerImportOutcome>;
+    },
+  );
   const outcome = await imported;
   console.info('compiler import outcome', JSON.stringify(outcome));
   expect(outcome).toEqual({
@@ -293,9 +287,13 @@ for (const [label, corruption, message] of [
     const loader = await copyLoader(corruption);
     let calls = 0;
     expect(() => {
-      loader.withCompilerDerivative(captureCompilerDerivative(members, createLimits()), () => {
-        calls++;
-      });
+      loader.withCompilerDerivative(
+        captureCompilerDerivative(members, createLimits()),
+        monotonicClock(),
+        () => {
+          calls++;
+        },
+      );
     }).toThrow(`compiler derivative ${message}`);
     expect(calls).toBe(0);
   });
@@ -303,14 +301,18 @@ test('non-enumerable private helper stays on original namespace', async () => {
   const loader = await copyLoader(
     `const original=module.exports; module.exports=Object.create(null,Object.fromEntries(Reflect.ownKeys(original).map(key=>[key,{...Object.getOwnPropertyDescriptor(original,key),enumerable:key==='resolvePath'?false:true}])));`,
   );
-  loader.withCompilerDerivative(captureCompilerDerivative(members, createLimits()), (compiler) => {
-    expect(Object.getOwnPropertyDescriptor(compiler, 'resolvePath')?.enumerable).toBe(false);
-    const resolve = Reflect.get(compiler, 'resolvePath') as (
-      base: string,
-      ...paths: string[]
-    ) => unknown;
-    expect(resolve('/workspace', 'main.ts')).toBe('/workspace/main.ts');
-  });
+  loader.withCompilerDerivative(
+    captureCompilerDerivative(members, createLimits()),
+    monotonicClock(),
+    (compiler) => {
+      expect(Object.getOwnPropertyDescriptor(compiler, 'resolvePath')?.enumerable).toBe(false);
+      const resolve = Reflect.get(compiler, 'resolvePath') as (
+        base: string,
+        ...paths: string[]
+      ) => unknown;
+      expect(resolve('/workspace', 'main.ts')).toBe('/workspace/main.ts');
+    },
+  );
 });
 for (const [label, alter, message] of [
   [
@@ -328,15 +330,31 @@ for (const [label, alter, message] of [
     const loader = await copyLoader('', alter);
     let calls = 0;
     expect(() => {
-      loader.withCompilerDerivative(captureCompilerDerivative(members, createLimits()), () => {
-        calls++;
-      });
+      loader.withCompilerDerivative(
+        captureCompilerDerivative(members, createLimits()),
+        monotonicClock(),
+        () => {
+          calls++;
+        },
+      );
     }).toThrow(`compiler derivative ${message}`);
     expect(calls).toBe(0);
   });
+/** Counts actual VM run calls in a copied production image without changing source/options. */
+function observeRuns(source: string): string {
+  const observed = source.replaceAll('new Script(', 'new ObservedScript(');
+  return (
+    `export let observedRuns = 0;
+class ObservedScript extends Script {
+  runInContext(context, options) { observedRuns++; return super.runInContext(context, options); }
+}
+` + observed
+  );
+}
+
 test('evaluation timeout settles without callback and consumes its allocation allowance', async () => {
   const loader = await copyLoader('', (source) =>
-    source.replace('new Script(source,', 'new Script("while (true) {}",'),
+    observeRuns(source.replace('new Script(source,', 'new Script("while (true) {}",')),
   );
   const total = Object.values(members).reduce((sum, bytes) => sum + bytes.byteLength, 0);
   const artifact = captureCompilerDerivative(members, {
@@ -347,26 +365,32 @@ test('evaluation timeout settles without callback and consumes its allocation al
   let calls = 0;
   const start = performance.now();
   expect(() => {
-    loader.withCompilerDerivative(artifact, () => {
+    loader.withCompilerDerivative(artifact, monotonicClock(), () => {
       calls++;
     });
-  }).toThrow(/timed out|timeout/);
+  }).toThrow(/Script execution timed out/);
   expect(calls).toBe(0);
+  expect(Reflect.get(loader, 'observedRuns')).toBe(2);
   expect(performance.now() - start).toBeLessThan(700);
   expect(() => {
-    withCompilerDerivative(artifact, () => {
+    withCompilerDerivative(artifact, monotonicClock(), () => {
       calls++;
     });
   }).toThrow('maximumOwnedBytes exceeded');
 });
 
 test('default-library host selection compiles with the captured executable', () => {
-  withCompilerDerivative(captureCompilerDerivative(members, createLimits()), (compiler) => {
-    compile(compiler, false, true);
-  });
+  withCompilerDerivative(
+    captureCompilerDerivative(members, createLimits()),
+    monotonicClock(),
+    (compiler) => {
+      compile(compiler, false, true);
+    },
+  );
 });
 
-test('load deadline includes captured executable decoding before VM evaluation', () => {
+test('load deadline includes captured executable decoding before VM evaluation', async () => {
+  const loader = await copyLoader('', observeRuns);
   const artifact = captureCompilerDerivative(members, {
     ...createLimits(),
     maximumLoadMilliseconds: 100,
@@ -389,7 +413,7 @@ test('load deadline includes captured executable decoding before VM evaluation',
   let calls = 0;
   try {
     expect(() => {
-      withCompilerDerivative(artifact, () => {
+      loader.withCompilerDerivative(artifact, monotonicClock(), () => {
         calls++;
       });
     }).toThrow('compiler derivative load timeout exceeded');
@@ -397,4 +421,5 @@ test('load deadline includes captured executable decoding before VM evaluation',
     globalThis.TextDecoder = Decoder;
   }
   expect(calls).toBe(0);
+  expect(Reflect.get(loader, 'observedRuns')).toBe(0);
 });

@@ -5,7 +5,11 @@ import { expect, spyOn, test } from 'bun:test';
 import ts from 'typescript';
 
 import { fixture, globals, limits, request, workspace } from './typescript.test.fixture';
-import { extractTypeScriptRelationshipsFromSource, type TypeScriptLimits } from './typescript-core';
+import {
+  extractTypeScriptObservations,
+  extractTypeScriptRelationshipsFromSource,
+  type TypeScriptLimits,
+} from './typescript-core';
 
 function forbidAmbient<T>(extract: () => T): T {
   const forbidden = (): never => {
@@ -615,8 +619,8 @@ test('compiler configuration mode rejects unknown before source callbacks', () =
       request,
       source,
       limits,
-      // @ts-expect-error Unknown mode models an untyped caller at the public boundary.
       ts,
+      // @ts-expect-error Unknown mode models an untyped caller at the public boundary.
       'unknown',
     ),
   ).toThrow('TypeScript configuration mode invalid');
@@ -672,4 +676,25 @@ test('retained configuration mode reaches every requested root project', () => {
       'retained-type-roots',
     ),
   ).toThrow('second root admission');
+});
+
+test('unverified computation mode refuses unknown before source binding', () => {
+  const { source } = fixture();
+  Object.defineProperty(source, 'compilerLibraryDirectory', {
+    get() {
+      throw new Error('unverified mode reached source');
+    },
+  });
+  expect(() =>
+    extractTypeScriptObservations(
+      workspace,
+      request,
+      source,
+      { kind: 'bounded', limits },
+      ts,
+      { extractorId: 'unverified', version: 'v1', blob: 'caller tag' },
+      // @ts-expect-error The public lowlevel boundary must refuse untyped modes as well.
+      'unknown',
+    ),
+  ).toThrow('TypeScript configuration mode invalid');
 });

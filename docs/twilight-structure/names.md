@@ -85,7 +85,10 @@ reads (WBS a81d93a0). Dash also measures the activation checks: `twilight-dash
 run-activation-checks` records each check's instants in a CheckRun ledger, and both
 `prepare-*-activation` commands judge those recorded instants (WBS ba5d3298,
 [ADR 0052](../adr/0052-dash-runs-activation-checks-and-burokrat-judges-their-receipts.md)). Among
-Dash's production modules only `src/clock.ts` reads a clock.
+Dash's production modules only `src/clock.ts` reads a clock. Dash owns compiler derivative VM
+loading, aggregate load deadlines and authenticated extraction publication. Burokrat owns deterministic
+artifact/source validation and unverified observation computation; it receives neither a clock-reading
+callback nor a remaining-budget callback to make temporal decisions.
 
 `no-ambient-clock.test.ts` in the Burokrat package fails on any reference to the JavaScript or Bun
 clock APIs in its sources; it has no list of exceptions. The shared detector it applies,

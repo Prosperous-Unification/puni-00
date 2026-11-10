@@ -1793,6 +1793,72 @@ and bound privately to its exact owned artifact only after complete success.
 
 - **WHEN** the existing selected or filesystem serial entry executes
 - **THEN** its full identity, selectors and phase lifetime behavior remain unchanged
-- **AND** the internal derivative module stays absent from judge reachability until the strict
-  public composition is assembled with Stage 3 ownership and both Stage 4 admission paths
+- **AND** Dash owns authenticated derivative composition; judge exposes only immutable-source
+  acquisition and explicitly unverified computation, never executable loading or an owned extraction
+- **AND** strict public composition still requires Stage 3 ownership and both Stage 4 admission paths
 - **AND** no no-op observer, optional trusted identity or new public unverified route fills that gap
+
+### Requirement: Exact retained derivative acquisition and source preparation
+
+Retained derivative preparation SHALL acquire the four compiled members only through the exact
+owned runtime, validate all tuples before reads, and join exact candidate/runtime/namespace/source
+construction owners. It SHALL snapshot the complete shared request policy and return only internal
+non-executing preparation. Strict public extraction remains dependent on both Stage 4 admission paths.
+
+#### Scenario: Immutable member contract and pre-read tuple admission
+
+- **WHEN** a real runtime is selected for derivative acquisition
+- **THEN** all four compiler-derivative paths, roles, hashes and lengths match the immutable public
+  metadata-only contract before ANY runtime.readFile; extra unrelated closure files are permitted
+- **AND** actual runtime capture distinguishes missing files from unreadable files and roots may
+  disappear after owned capture without changing later acquired bytes
+- **AND** every returned copy consumes existing lifetime runtime limits without resets
+
+#### Scenario: Exact owner joins precede source callbacks
+
+- **WHEN** a complete derivative request is prepared
+- **THEN** caller references/getters, request arrays/paths and all existing limits are captured once
+  by the shared full-request policy before exact runtime/namespace owner checks and source creation
+- **AND** the newly constructed real source must match exact namespace/candidate/runtime owners
+  before source or compiler callbacks; equal-content foreign owners, copies and proxies refuse
+- **AND** selected compatibility retains its previous semantics; no callback/AST/Program is stored
+  in the opaque compiler binding and no prepared state is registered as successful extraction
+
+#### Scenario: Qualified length admission under inconsistent expected metadata
+
+- **WHEN** a test-only expected-hash dependency matches authentic altered-length bytes while the
+  compiled expected length remains unchanged
+- **THEN** length admission refuses without spending runtime read/copy allowances
+- **AND** removing only that guard spends an allowance before later raw-pin refusal; this proves
+  combined dependency/guard admission, not an intact-contract hostile-owner bypass
+
+### Requirement: Dash owns timed authenticated derivative execution
+
+Dash SHALL own VM loading, temporal load decisions and private authenticated extraction publication.
+Burokrat SHALL retain deterministic raw artifact ownership and expose only immutable-source acquisition
+and explicit unverified shared computation; it SHALL NOT sample a clock directly or through a timing callback.
+
+#### Scenario: Required temporal owner and one aggregate allowance
+
+- **WHEN** Dash loads a real owned artifact
+- **THEN** it captures a separately supplied required Monotonic method once with its receiver and
+  validates the start before decode; request/runtime/options cannot supply or override it
+- **AND** all later finite nondecreasing samples have finite elapsed subtraction; fractional/equal
+  samples are valid and missing/noncallable/nonfinite/backwards/overflow/thrown timing fails
+- **AND** the single artifact-owned allowance decreases from the original start through policy,
+  authenticated evaluation, exports retrieval and final check, with finite clamped Script timeouts
+- **AND** exhausted work prevents consumers/private success publication and finally releases loader references
+
+#### Scenario: Immutable source is not executable authority
+
+- **WHEN** the facade source bridge yields authenticated decoded text after cumulative staging charges
+- **THEN** no writable byte view, VM, clock or replacement compiler crosses that deterministic bridge
+- **AND** the explicit shared computation authenticates neither compiler nor extractor identity;
+  matching-tag computed/copied output is refused by Dash's exact successful extraction owner lookup
+
+#### Scenario: Real temporal controls and unchanged isolation
+
+- **WHEN** real slow decoding or infinite evaluation executes through the actual Dash clock producer
+- **THEN** the aggregate timeout refuses with no consumer or failed owned publication
+- **AND** all original namespace/selector/request/budget/freeze oracles remain active after relocation
+- **AND** unchanged Burokrat and Dash scanners reject direct clock references outside Dash clock.ts

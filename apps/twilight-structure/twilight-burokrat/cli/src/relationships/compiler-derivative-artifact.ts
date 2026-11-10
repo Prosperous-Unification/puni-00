@@ -56,6 +56,29 @@ const expected = Object.freeze({
   'manifest.json': digest(compilerDerivativeManifest),
 });
 
+const memberLengths = Object.freeze({
+  'LICENSE.txt': 9197,
+  NOTICE: 37980,
+  'compiler.cjs': 9144652,
+  'manifest.json': 526,
+});
+// Proof: each of four path/hash/length substitutions loses the independent literal vector;
+// independent array/child freeze omissions lose `compiled member metadata` immutability.
+const memberContract = Object.freeze(
+  memberNames.map((path) =>
+    Object.freeze({ path, identity: expected[path], byteLength: memberLengths[path] }),
+  ),
+);
+
+/** Returns the frozen four-member compiled contract without acquiring bytes or executable authority. */
+export function listCompilerDerivativeMembers(): readonly Readonly<{
+  path: MemberName;
+  identity: string;
+  byteLength: number;
+}>[] {
+  return memberContract;
+}
+
 function readOwnedDerivative(artifact: CompilerDerivative): OwnedDerivative {
   // Proof: removing the private lookup refusal lost forged/copied/proxy ownership errors before token reads.
   const owned = derivatives.get(artifact);
@@ -175,7 +198,9 @@ export function readCompilerDerivativeProvenance(
 }
 
 /**
- * Internal loader bridge; no bytes or compiler are exported through judge.
+ * Authenticated immutable-source bridge for Dash effect composition; no writable bytes or compiler escape.
+ * Yields the original decoded string and captured load ceiling after exact ownership and staging charge.
+ * Reads no clock, loads no VM and accepts no replacement namespace.
  * Reserves four executable byte lengths for UTF-16 decode and Script staging before decoding.
  * Charges persist across failed and successful loads; VM-internal code/AST/heap is not counted.
  * Full parser process settlement is a separate mandatory boundary.
