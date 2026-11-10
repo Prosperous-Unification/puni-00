@@ -238,3 +238,9 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **WHEN** the current planner receives valid explicit PUNI release metadata and the five reviewed role byte sequences
 - **THEN** it emits a canonical schema2 descriptor naming launcher.mjs, pins every role and the supplied closure identity, and emits ordered checksums for those five roles and the descriptor with a final LF
 - **AND** malformed claimed metadata refuses before output, dependency arrays validate before normalization, and the legacy planner retains its original descriptor and checksum bytes without implying a completed producer switch
+
+#### Scenario: Prepared activation self-certification retains execution authority and failure evidence
+
+- **WHEN** a preparer supplies authenticated bootstrap bytes, native external placement, protected launch capability and its interruption owner
+- **THEN** self-certification uses the existing private parent lane with a typed committed request, frozen explicit Git environment, required admission and the archive-default closure; successful certification requires all five enforce-certificate values while allowing extra report fields
+- **AND** only matching recorded first cancellation returns130/143; normal1 remains a failure with complete replayed stderr, other interrupted output is labeled as a captured prefix, and unexpected decoder/transport failures retain their original context

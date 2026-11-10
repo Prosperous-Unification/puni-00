@@ -2,12 +2,10 @@ import { Buffer } from 'node:buffer';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
-import { parseSecretsOrThrow, type, ValidationError } from '@shared/validation';
-
 import { assertGitVersionResponse } from './git-environment';
 import { decodeCandidateRoot } from './inventory/read-candidate';
-import { decodeJsonInput, JsonInputRefusal } from './json-input';
 import { readLintActivation } from './lint-activation';
+import { hasEnforceCertificate } from './lint-certificate';
 import { LintCleanupFailure, runLintChild } from './lint-child';
 import type { SubscribeLintInterrupts } from './lint-interrupts';
 import type { LintOutput } from './lint-output';
@@ -27,42 +25,6 @@ export interface LintContext {
   readonly stdout: LintOutput;
   readonly stderr: LintOutput;
   readonly subscribeInterrupts: SubscribeLintInterrupts;
-}
-
-const certificate = type({
-  // Proof: certificate-required-schemaVersion; `Bun lint activation execution > refuses a zero verdict missing certificate field schemaVersion` fails with this injected fault and passes after restoration.
-  // Proof: certificate-value-schemaVersion; `refuses a zero verdict with wrong certificate schemaVersion` fails with this injected fault and passes after restoration.
-  schemaVersion: '1',
-  // Proof: certificate-required-mode; `Bun lint activation execution > refuses a zero verdict missing certificate field mode` fails with this injected fault and passes after restoration.
-  // Proof: certificate-value-mode; `refuses a zero verdict with wrong certificate mode` fails with this injected fault and passes after restoration.
-  mode: '"enforce"',
-  // Proof: certificate-required-trustProvenance; `Bun lint activation execution > refuses a zero verdict missing certificate field trustProvenance` fails with this injected fault and passes after restoration.
-  // Proof: certificate-value-trustProvenance; `refuses a zero verdict with wrong certificate trustProvenance` fails with this injected fault and passes after restoration.
-  trustProvenance: '"ci-preselected"',
-  // Proof: certificate-required-accepted; `Bun lint activation execution > refuses a zero verdict missing certificate field accepted` fails with this injected fault and passes after restoration.
-  // Proof: certificate-value-accepted; `refuses a zero verdict with wrong certificate accepted` fails with this injected fault and passes after restoration.
-  accepted: 'true',
-  // Proof: certificate-required-certified; `Bun lint activation execution > refuses a zero verdict missing certificate field certified` fails with this injected fault and passes after restoration.
-  // Proof: certificate-value-certified; `refuses a zero verdict with wrong certificate certified` fails with this injected fault and passes after restoration.
-  certified: 'true',
-});
-
-function isCertified(bytes: Uint8Array): boolean {
-  let input: unknown;
-  try {
-    input = decodeJsonInput(bytes);
-  } catch (cause) {
-    if (!(cause instanceof JsonInputRefusal)) throw cause;
-    return false;
-  }
-  try {
-    parseSecretsOrThrow(certificate, input);
-    return true;
-  } catch (cause) {
-    // Proof: certificate-schema-classifier; `preserves internal certificate schema TypeErrors` fails with this injected fault and passes after restoration.
-    if (!(cause instanceof ValidationError)) throw cause;
-    return false;
-  }
 }
 
 function isWithin(root: string, path: string): boolean {
@@ -251,7 +213,7 @@ export async function runLint(invocation: LintInvocation, context: LintContext):
     // Proof: driver-verdict-status; `Bun lint activation execution > preserves raw binary output and a nonzero validator verdict` fails with this injected fault and passes after restoration.
     if (verdict.status !== 0 || !context.required) return verdict.status;
     // Proof: driver-required-certificate; `Bun lint activation execution > refuses a zero verdict missing certificate field schemaVersion` fails with this injected fault and passes after restoration.
-    if (isCertified(verdict.stdout)) return 0;
+    if (hasEnforceCertificate(verdict.stdout)) return 0;
     // Proof: driver-required-refusal-await; `preserves cancellation of a required certificate refusal report` fails with this injected fault and passes after restoration.
     const written = await context.stderr(
       Buffer.from('tool-wiki lint: required admission did not return certified enforce output\n'),
