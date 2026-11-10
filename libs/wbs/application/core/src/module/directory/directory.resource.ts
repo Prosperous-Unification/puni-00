@@ -1161,7 +1161,7 @@ export class DirectoryService {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<DirectoryOutcome<{ id: string; name: string }>>(
         { kind: 'add', catalog, access },
         actorId,
         (refusal) => refusal,
@@ -1237,7 +1237,7 @@ export class DirectoryService {
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<{ id: string; name: string }>> {
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<DirectoryOutcome<{ id: string; name: string }>>(
         { kind: 'rename', catalog, resourceId: id, access },
         actorId,
         (refusal) => refusal,
@@ -1370,7 +1370,7 @@ export class DirectoryService {
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<TeamWithServices>> {
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<DirectoryOutcome<TeamWithServices>>(
         { kind: 'patch-team', teamId, serviceIds: patch.serviceIds, access },
         actorId,
         (refusal) => refusal,
@@ -1489,7 +1489,7 @@ export class DirectoryService {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<DirectoryOutcome<Person>>(
         { kind: 'add-person', teamIds, access },
         actorId,
         (refusal) => refusal,
@@ -1591,7 +1591,7 @@ export class DirectoryService {
     access: ResourceAccess,
   ): Promise<PersonPatchOutcome> {
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<PersonPatchOutcome>(
         { kind: 'patch-person', personId, teamIds: patch.teamIds, access },
         actorId,
         (refusal) => refusal,
@@ -1703,7 +1703,7 @@ export class DirectoryService {
     access: ResourceAccess,
   ): Promise<RemoveDirectoryOutcome> {
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<RemoveDirectoryOutcome>(
         { kind: 'remove', catalog, resourceId: id, access },
         actorId,
         // Proof: converting the invocation refusal to not_found failed standalone removal after queued revocation, 2026-11-09.
