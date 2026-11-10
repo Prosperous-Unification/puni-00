@@ -480,12 +480,6 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
-    operationId: 'patchApiOrganizationMembersByUserId',
-    method: 'PATCH',
-    path: '/api/organization/members/:userId',
-    kind: 'mutation',
-  },
-  {
     operationId: 'patchApiOrganizationSso-connectionsById',
     method: 'PATCH',
     path: '/api/organization/sso-connections/:id',

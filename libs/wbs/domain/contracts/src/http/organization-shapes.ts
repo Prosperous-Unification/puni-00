@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -32,41 +33,22 @@ const refusals = [
   organizationRefusal,
   organizationContextRefusal,
   // The role matrix refuses this change to this caller.
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
   // No membership of that user in the caller's active organization.
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   // The change would leave the organization without a super-admin.
   { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
 ] as const;
 
-/**
- * Changes one member's role in the caller's active organization, which comes
- * from the server-validated session alone: no organization id is accepted from
- * the request. Answered only after organization activation.
- */
-export const changeMemberRole = defineEndpointShape({
-  method: 'PATCH',
-  path: '/api/organization/members/:userId',
-  operationId: 'patchApiOrganizationMembersByUserId',
-  humanOnly: true,
-  policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
-  params: memberParams,
-  body: requestSchema(type({ role })),
-  responses: [
-    {
-      kind: 'json',
-      status: 200,
-      schema: responseSchema(type({ membership: { userId: 'string', role } })),
-    },
-  ],
-  refusals: [
-    ...refusals,
-    { status: 400, schema: responseSchema(type({ error: "'invalid_json' | 'invalid_body'" })) },
-  ],
-  document: { summary: "Change a member's role in the active organization." },
-});
-
-/** Removes one member from the caller's active organization; see {@link changeMemberRole}. */
+/** Removes one member from the caller's active organization under current grants. */
 export const removeMember = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/members/:userId',
@@ -86,9 +68,9 @@ export const removeMember = defineEndpointShape({
 });
 
 /**
- * Lists the members of the caller's active organization for an administrator.
- * Only admin and super-admin may read it (the invitation gate); a member or
- * viewer is refused `forbidden`, and a delegated caller `insufficient_scope`.
+ * Lists members under current organization.read. Effective organization-kind
+ * access and distinct account-reaching grant counts replace membership roles.
+ * A delegated caller is refused insufficient_scope.
  * Answered only after organization activation.
  */
 export const listMembers = defineEndpointShape({
@@ -110,7 +92,17 @@ export const listMembers = defineEndpointShape({
             userId: 'string',
             username: 'string',
             email: 'string | null',
-            role,
+            effectiveRole: type({
+              permissions: type.enumerated(...PERMISSIONS.map(({ id }) => id)).array(),
+              via: type({
+                scopeKind: "'organization' | 'project' | 'work_package'",
+                scopeId: 'string',
+                subjectKind: "'user' | 'group' | 'organization_members' | 'machine_credential'",
+                subjectId: 'string',
+                roleId: 'string',
+              }).array(),
+            }).or('null'),
+            grantCount: 'number',
             createdAt: 'number',
           }).array(),
         }),

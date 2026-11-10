@@ -23,6 +23,7 @@ import {
   organizationTrustedIssuer,
 } from './schema';
 import { readSecurityRefusal, runSecurityTransaction } from './security-transaction';
+import { LastSuperAdmin, requireSuperAdminIn } from './super-admin';
 
 type Transaction = SQLiteBunDatabase;
 type TrustedIssuerRow = typeof organizationTrustedIssuer.$inferSelect;
@@ -326,6 +327,10 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
           .where(inArray(machineCredentialSecret.credentialId, revoked))
           .run();
         tx.delete(machineCredential).where(inArray(machineCredential.id, revoked)).run();
+        /* Proof: cp14-issuer: removed/changed production boundary.
+         * refuses physical cleanup of zero-grant revoked issuer credentials without a direct holder
+         * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+        requireSuperAdminIn(tx, organizationId);
       }
       tx.delete(organizationTrustedIssuer).where(eq(organizationTrustedIssuer.id, id)).run();
       appendOrganizationAudit(tx, {
@@ -339,6 +344,12 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
         at: act.stamp.at,
       });
       return 'removed' as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-issuer-remove: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at issuer-remove
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return 'last_super_admin' as const;
+      throw failure;
     });
   }
 }

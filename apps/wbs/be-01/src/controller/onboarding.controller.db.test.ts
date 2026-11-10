@@ -1,6 +1,10 @@
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import type { SecurityPrincipal } from '@wbs/core/ports/security-principal';
+import { openConnection } from '@wbs/store-sqlite/db';
+import { OPEN, WriteCoordinator } from '@wbs/store-sqlite/gate';
+import { OnboardingRepository } from '@wbs/store-sqlite/onboarding';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -126,6 +130,176 @@ describe('onboarding routes', () => {
     ).toEqual({ status: 400, body: { error: 'invalid_body' } });
     expect(harness.sqlite.query('SELECT id FROM organization').all()).toEqual([]);
   });
+
+  it('bootstraps the creator direct grant and creation audit in the organization owner', async () => {
+    harness.activate();
+    verified();
+    const created = await harness.call('ada', 'POST', '/api/onboarding/organizations', {
+      name: 'Creator access',
+    });
+    expect(created.status).toBe(201);
+    const organizationId = (created.body as { organization: { id: string } }).organization.id;
+    expect(
+      harness.sqlite
+        .query(
+          'SELECT scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_by FROM access_grant WHERE organization_id=?',
+        )
+        .all(organizationId),
+    ).toEqual([
+      {
+        scope_kind: 'organization',
+        scope_id: organizationId,
+        subject_kind: 'user',
+        subject_id: harness.userId('ada'),
+        role_id: 'org-super-admin',
+        origin: 'creation',
+        created_by: harness.userId('ada'),
+      },
+    ]);
+    expect(
+      harness.sqlite
+        .query(
+          "SELECT actor_id,action,json_extract(detail,'$.origin') AS origin FROM organization_audit WHERE organization_id=?",
+        )
+        .all(organizationId),
+    ).toEqual([{ actor_id: harness.userId('ada'), action: 'access_granted', origin: 'creation' }]);
+    harness.bind('ada', organizationId);
+    expect((await harness.call('ada', 'GET', '/api/organization/members')).status).toBe(200);
+  });
+
+  it('rolls creator organization membership and grant back on a late access audit fault', async () => {
+    harness.activate();
+    verified();
+    harness.sqlite.run(
+      "CREATE TRIGGER fail_creator_access_audit BEFORE INSERT ON organization_audit WHEN NEW.action='access_granted' BEGIN SELECT RAISE(ABORT,'creator access audit unavailable');END",
+    );
+    expect(
+      (
+        await harness.call('ada', 'POST', '/api/onboarding/organizations', {
+          name: 'Must roll back',
+        })
+      ).status,
+    ).toBe(500);
+    expect(harness.sqlite.query('SELECT * FROM organization').all()).toEqual([]);
+    expect(harness.sqlite.query('SELECT * FROM organization_membership').all()).toEqual([]);
+    expect(harness.sqlite.query('SELECT * FROM access_grant').all()).toEqual([]);
+    expect(harness.sqlite.query('SELECT * FROM organization_audit').all()).toEqual([]);
+  });
+
+  it('refuses a creator grant lost after audit before committing the bootstrap', async () => {
+    harness.activate();
+    verified();
+    harness.sqlite.run(
+      "CREATE TRIGGER lose_creator_grant AFTER INSERT ON organization_audit WHEN NEW.action='access_granted' BEGIN DELETE FROM access_grant WHERE id=NEW.subject_id;END",
+    );
+    expect(
+      (await harness.call('ada', 'POST', '/api/onboarding/organizations', { name: 'Lost creator' }))
+        .status,
+    ).toBe(500);
+    for (const table of [
+      'organization',
+      'organization_membership',
+      'access_grant',
+      'organization_audit',
+    ])
+      expect(harness.sqlite.query('SELECT * FROM ' + table).all()).toEqual([]);
+  });
+
+  it('throws rather than committing partial bootstrap when the seeded creator role is missing', async () => {
+    harness.activate();
+    verified();
+    harness.sqlite.run("DELETE FROM access_role_permission WHERE role_id='org-super-admin'");
+    harness.sqlite.run("DELETE FROM access_role WHERE id='org-super-admin'");
+    const connection = openConnection(harness.databasePath());
+    const actor = harness.userId('ada');
+    try {
+      expect(
+        (
+          await readRejection(
+            new OnboardingRepository(connection.db, OPEN).createOrganization(
+              { id: actor },
+              'Missing role',
+              { actor, stamp: { at: 100, by: actor }, auditId: 'missing-creator-role' },
+            ),
+          )
+        ).message,
+      ).toContain('creator grant refused: unknown_role');
+    } finally {
+      connection.close();
+    }
+    for (const table of [
+      'organization',
+      'organization_membership',
+      'access_grant',
+      'organization_audit',
+    ])
+      expect(harness.sqlite.query('SELECT * FROM ' + table).all()).toEqual([]);
+  });
+
+  it('rejects corrupt creator role permissions before bootstrap commits', async () => {
+    harness.activate();
+    verified();
+    harness.sqlite.run("DELETE FROM access_role_permission WHERE role_id='org-super-admin'");
+    expect(
+      (
+        await harness.call('ada', 'POST', '/api/onboarding/organizations', {
+          name: 'Empty creator role',
+        })
+      ).status,
+    ).toBe(500);
+    for (const table of [
+      'organization',
+      'organization_membership',
+      'access_grant',
+      'organization_audit',
+    ])
+      expect(harness.sqlite.query('SELECT * FROM ' + table).all()).toEqual([]);
+  });
+
+  for (const kind of ['delegated', 'machine', 'consent'] as const) {
+    it('enforces personal-only creator admission at the direct port for ' + kind, async () => {
+      harness.activate();
+      verified();
+      const actor = harness.userId('ada');
+      const principal: SecurityPrincipal =
+        kind === 'delegated'
+          ? { id: actor, delegation: { organizationId: 'org-other', audience: 'wbs-be-01/direct' } }
+          : kind === 'machine'
+            ? {
+                id: actor,
+                authentication: { kind: 'machine', credentialId: 'key', personId: 'agent' },
+              }
+            : {
+                id: actor,
+                authentication: {
+                  kind: 'consent',
+                  credentialId: 'consent',
+                  personId: 'agent',
+                  issuer: 'https://issuer.test',
+                  subject: 'subject',
+                },
+              };
+      const connection = openConnection(harness.databasePath());
+      try {
+        expect(
+          await new OnboardingRepository(connection.db, OPEN).createOrganization(
+            principal,
+            'Personal only',
+            { actor, stamp: { at: 100, by: actor }, auditId: 'personal-creator' },
+          ),
+        ).toEqual({ ok: false, refusal: 'insufficient_scope' });
+      } finally {
+        connection.close();
+      }
+      for (const table of [
+        'organization',
+        'organization_membership',
+        'access_grant',
+        'organization_audit',
+      ])
+        expect(harness.sqlite.query('SELECT * FROM ' + table).all()).toEqual([]);
+    });
+  }
 
   it('creates the organization with its first super-admin together', async () => {
     harness.activate();
@@ -329,4 +503,83 @@ describe('onboarding routes', () => {
       harness.sqlite.query('SELECT role FROM organization_membership ORDER BY role').all(),
     ).toEqual([{ role: 'member' }, { role: 'super_admin' }]);
   });
+  it('retains the creator audited act before its queued owner', async () => {
+    harness.activate();
+    verified();
+    await harness.register('substitute');
+    const substitute = harness.userId('substitute');
+    const connection = openConnection(harness.databasePath());
+    const gate = new WriteCoordinator();
+    const release = Promise.withResolvers<undefined>();
+    const entered = Promise.withResolvers<undefined>();
+    const blocker = gate.enter(async () => {
+      entered.resolve(undefined);
+      await release.promise;
+    });
+    await entered.promise;
+    const actor = harness.userId('ada');
+    const principal = { id: actor };
+    const act = { actor, stamp: { at: 100, by: actor }, auditId: 'retained-creator' };
+    const pending = new OnboardingRepository(connection.db, gate).createOrganization(
+      principal,
+      'Retained creator',
+      act,
+    );
+    principal.id = substitute;
+    Object.assign(act, { actor: substitute, auditId: 'replacement' });
+    Object.assign(act.stamp, { at: 999, by: substitute });
+    release.resolve(undefined);
+    await blocker;
+    try {
+      expect((await pending).ok).toBe(true);
+      expect(
+        harness.sqlite.query('SELECT actor_id,created_at,id FROM organization_audit').get(),
+      ).toEqual({ actor_id: actor, created_at: 100, id: 'retained-creator' });
+      expect(harness.sqlite.query('SELECT subject_id,created_by FROM access_grant').get()).toEqual({
+        subject_id: actor,
+        created_by: actor,
+      });
+    } finally {
+      connection.close();
+    }
+  });
+  for (const fault of ['actor', 'stamp'] as const) {
+    it('rejects creator identity mismatch before the queued owner at ' + fault, async () => {
+      const actor = harness.userId('ada');
+      const act = { actor, stamp: { at: 100, by: actor }, auditId: 'creator-mismatch' };
+      if (fault === 'actor') act.actor = 'replacement';
+      else act.stamp.by = 'replacement';
+      const connection = openConnection(harness.databasePath());
+      const gate = {
+        enter: () => {
+          throw new Error('unexpected creator owner entry');
+        },
+      };
+      try {
+        expect(
+          (
+            await readRejection(
+              new OnboardingRepository(connection.db, gate).createOrganization(
+                { id: actor },
+                'Mismatch',
+                act,
+              ),
+            )
+          ).message,
+        ).toContain('security principal differs from the audited actor');
+      } finally {
+        connection.close();
+      }
+    });
+  }
 });
+
+async function readRejection(pending: Promise<unknown>): Promise<Error> {
+  const failure: unknown = await pending.then(
+    () => undefined,
+    (cause: unknown) => cause,
+  );
+  if (!(failure instanceof Error))
+    throw new Error('Expected the production operation to reject', { cause: failure });
+  return failure;
+}

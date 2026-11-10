@@ -139,7 +139,14 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       has only organization-records.db.test.ts, no production port/route/caller.
       Close the complete direct role-reader inventory (resource/runtime,
       fanout, enterprise, agent-pool, compute-provider, limits and trusted-issuer families
-      included), then delete `canWriteInOrganization`, `mayBindAccountInOrganization`,
+      included). Close the historical AccessDecisionRepository.effectiveRoleAt/list
+      orphan-catalogue omission: their role INNER JOIN currently drops grants with
+      missing catalogue rows. Validate every selected reaching grant before projection,
+      including missing/unknown role kind and invalid permission sets; test a corrupt
+      reaching grant beside independently sufficient valid authority and require an
+      unexpected-state failure without effects. Task2.5 fixes only its new member-summary,
+      initial-grant comparison and direct-target readers; it does not close this older
+      evaluator finding. Then delete `canWriteInOrganization`, `mayBindAccountInOrganization`,
       `canEditProjectInOrganization`, `mayDefineMeasuresInOrganization`,
       `mayAdministerMembership`, `mayInvite`,
       `mayEditProjectWithin`, `isClaimAdmin`, `organizationRoleOf`,
@@ -148,7 +155,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       nothing; `OrganizationScope.role` leaves the type; negative: skip the `authorize`
       call in `session-policy.ts` and a `project-contributor` sets the session policy;
       watched.
-- [ ] 2.5 After 4.1's current-vocabulary audit foundation: membership routes,
+- [x] 2.5 After 4.1's current-vocabulary audit foundation: membership routes,
       `changeMemberRole` removed, `listMembers` answers effective
       role and grant count, `removeMember` deletes grants and group memberships in the
       transaction with one aggregate `organization_member_removed` audit row (subject
@@ -284,6 +291,8 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       the spec's scenario, a second organization untouched, `org-*` and creator rows
       kept; negatives: drop the count guard and a mismatched run deletes; drop the origin
       predicate and a route grant is deleted; watched.
+
+- [ ] 6.4 Required initial-access deployment boundary: before the offer-selection migration reaches a shared live store, quiesce outgoing invitation acceptance and onboarding mutations before migration, and retire/drain outgoing authorization readers (including existing gateway/WebSocket sessions) before upgraded writers expose new grant semantics, or refuse activation. Prove an old writer cannot consume an offer/create unaudited membership authority and an old reader cannot continue authorizing by legacy roles during the swap. Preserve read availability and rollback contracts. The additive old-writer insert trigger preserves offer intent only; it does not satisfy this boundary (ADR0081). Coordinate the deploy/Bun CLI slice; task2.5 does not claim live cutover.
 
 ## 7. fe-01
 

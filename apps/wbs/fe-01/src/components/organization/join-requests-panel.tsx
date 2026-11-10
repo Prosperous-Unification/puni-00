@@ -11,6 +11,11 @@ import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient } from '@/runtime/organization-resources';
 
 import {
+  InitialAccessOptions,
+  type InitialRoleId,
+  readInitialRoleId,
+} from './initial-access-options';
+import {
   type AccessLoss,
   lostAccess,
   READ_ONLY,
@@ -35,7 +40,6 @@ type JoinRequest = Extract<
   ClientReply<typeof listJoinRequests>,
   { kind: 'success' }
 >['body']['requests'][number];
-type ApprovalRole = 'viewer' | 'member';
 type View =
   | { kind: 'loading' }
   | { kind: 'failure'; message: string }
@@ -43,7 +47,7 @@ type View =
 
 /**
  * Join requests to the active organization. Approval issues an invitation at
- * the chosen viewer or member role and never grants membership by itself;
+ * the chosen initial access and never grants membership by itself;
  * denial only resolves the request. Every decision re-reads the list.
  */
 export function JoinRequestsPanel({
@@ -53,7 +57,7 @@ export function JoinRequestsPanel({
 }): React.JSX.Element {
   const joinRequests = useResourceClient(JOIN_REQUESTS_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
-  const [roles, setRoles] = useState<Readonly<Record<string, ApprovalRole>>>({});
+  const [roles, setRoles] = useState<Readonly<Record<string, InitialRoleId>>>({});
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState('');
   const [fault, setFault] = useState<Error | null>(null);
@@ -92,11 +96,10 @@ export function JoinRequestsPanel({
     try {
       const reply =
         decision === 'approve'
-          ? // Proof: 2026-09-29, sending a fixed `member` role failed `approves at
-            // the chosen role, then re-reads the list` with { role: 'member' }.
+          ? // Initial access is an offer; no grant exists until personal acceptance.
             await joinRequests.postApiOrganizationJoinRequestsByIdApprove({
               params: { id: request.id },
-              body: { role: roles[request.id] ?? 'member' },
+              body: { initialRoleId: roles[request.id] ?? null },
             })
           : await joinRequests.postApiOrganizationJoinRequestsByIdDeny({
               params: { id: request.id },
@@ -158,19 +161,25 @@ export function JoinRequestsPanel({
               <span className="min-w-0 font-medium [overflow-wrap:anywhere]">{request.email}</span>
               <span className={ROW_ACTIONS_CLASS}>
                 <label htmlFor={`join-role-${request.id}`} className="sr-only">
-                  Role for {request.email}
+                  Initial access for {request.email}
                 </label>
                 <select
                   id={`join-role-${request.id}`}
                   className={ROW_SELECT_CLASS}
-                  value={roles[request.id] ?? 'member'}
+                  value={roles[request.id] ?? ''}
                   onChange={(event) => {
-                    const role = approvalRoleOf(event.target.value);
-                    setRoles((current) => ({ ...current, [request.id]: role }));
+                    /* Proof: join-selection-boundary: removed/changed production boundary.
+                     * routes an impossible initial access selection to the Error Boundary at join
+                     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+                    try {
+                      const role = readInitialRoleId(event.target.value);
+                      setRoles((current) => ({ ...current, [request.id]: role }));
+                    } catch (cause) {
+                      setFault(new Error('Unexpected join initial access selection', { cause }));
+                    }
                   }}
                 >
-                  <option value="viewer">Viewer</option>
-                  <option value="member">Member</option>
+                  <InitialAccessOptions />
                 </select>
                 <Button
                   type="button"
@@ -228,12 +237,6 @@ const STATUS_NAMES: Record<JoinRequest['status'], string> = {
   denied: 'Denied',
 };
 
-/** The select offers only the two approval roles; anything else is a programming error. */
-function approvalRoleOf(value: string): ApprovalRole {
-  if (value === 'viewer' || value === 'member') return value;
-  throw new Error(`Unexpected approval role option: ${value}`);
-}
-
 /**
  * The join-request routes share one refusal set; approval adds lost delivery.
  *
@@ -257,7 +260,11 @@ function decisionRefusal(
     case 'reauthentication_required':
       return lostAccess(refusal);
     case 'forbidden':
-      return said(`Your role cannot ${action}.`);
+      return said(
+        'permission' in refusal && refusal.permission !== undefined
+          ? `Missing permission: ${refusal.permission}.`
+          : `Your role cannot ${action}.`,
+      );
     case 'request_resolved':
       return said('That request was already approved or denied.');
     case 'domain_changed':

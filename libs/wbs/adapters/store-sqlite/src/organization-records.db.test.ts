@@ -80,6 +80,12 @@ const membershipAct = (actor: string) => ({
   auditId: crypto.randomUUID(),
 });
 
+function grantRole(organizationId: string, userId: string, roleId: string): void {
+  connection.db.run(
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(${crypto.randomUUID()},${organizationId},'organization',${organizationId},'user',${userId},${roleId},'route',1)`,
+  );
+}
+
 let dir: string;
 let path: string;
 let connection: Connection;
@@ -248,6 +254,7 @@ describe('OrganizationRepository', () => {
     const organizations = new OrganizationRepository(connection.db, OPEN);
     await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
     await organizations.addMember('org-a', 'u-b', 'super_admin', stamp('u-a'));
+    grantRole('org-a', 'u-b', 'org-super-admin');
     await organizations.addMember('org-a', 'u-c', 'viewer', stamp('u-a'));
 
     expect(await organizations.changeRole('org-a', 'u-a', 'member', stamp('u-b'))).toBe('changed');
@@ -267,40 +274,35 @@ describe('OrganizationRepository', () => {
 });
 
 describe('OrganizationRepository.administer', () => {
-  /** org-a with u-a and u-b as super-admins and u-c as a member; u-c is also a member of org-b. */
-  async function seeded(): Promise<OrganizationRepository> {
+  async function seeded() {
     const organizations = new OrganizationRepository(connection.db, OPEN);
     await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
     await organizations.addMember('org-a', 'u-b', 'super_admin', stamp('u-a'));
     await organizations.addMember('org-a', 'u-c', 'member', stamp('u-a'));
-    const db = openDatabase(path);
-    try {
-      db.run("INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-b', 'B', 0, 1)");
-      db.run(
-        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-b', 'u-c', 'member', 1)",
-      );
-    } finally {
-      db.close();
-    }
+    grantRole('org-a', 'u-a', 'org-super-admin');
+    grantRole('org-a', 'u-b', 'org-super-admin');
+    connection.db.run(
+      sql`INSERT INTO organization(id,name,legacy,created_at) VALUES('org-b','B',0,1)`,
+    );
+    connection.db.run(
+      sql`INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-b','u-c','member',1)`,
+    );
     return organizations;
   }
-
   it('lets exactly one of two super-admins leave when both try across two connections', async () => {
-    // bun:sqlite runs each immediate transaction to completion, so these
-    // serialize: this watches the recheck inside the transaction, which is
-    // what refuses the second leaver.
-    const organizations = await seeded();
+    await seeded();
+    const gate = new WriteCoordinator();
+    const organizations = new OrganizationRepository(connection.db, gate);
     const other = openConnection(path);
     try {
       const outcomes = await Promise.all([
-        organizations.administer('org-a', 'u-a', 'u-a', null, membershipAct('u-a'), 'route'),
-        new OrganizationRepository(other.db, OPEN).administer(
+        organizations.administer('org-a', { id: 'u-a' }, 'u-a', membershipAct('u-a'), 'self_leave'),
+        new OrganizationRepository(other.db, gate).administer(
           'org-a',
+          { id: 'u-b' },
           'u-b',
-          'u-b',
-          null,
           membershipAct('u-b'),
-          'route',
+          'self_leave',
         ),
       ]);
       expect(outcomes.map((each) => (each.ok ? 'removed' : each.refusal)).sort()).toEqual([
@@ -311,109 +313,103 @@ describe('OrganizationRepository.administer', () => {
       other.close();
     }
   });
-
-  it("refuses an actor demoted on another connection after the request's access resolved", async () => {
+  it('refuses an actor whose grant was revoked on another connection after access resolved', async () => {
     const organizations = await seeded();
     const other = openConnection(path);
     try {
-      await new OrganizationRepository(other.db, OPEN).administer(
-        'org-a',
-        'u-b',
-        'u-a',
-        'member',
-        membershipAct('u-b'),
-        'route',
-      );
+      other.db.run(sql`DELETE FROM access_grant WHERE subject_id='u-a'`);
       expect(
         await organizations.administer(
           'org-a',
-          'u-a',
+          { id: 'u-a' },
           'u-c',
-          'viewer',
           membershipAct('u-a'),
           'route',
         ),
-      ).toEqual({ ok: false, refusal: 'forbidden' });
+      ).toEqual({ ok: false, refusal: 'forbidden', permission: 'organization.manage_members' });
     } finally {
       other.close();
     }
   });
-
-  it('changes and removes only the membership in the given organization', async () => {
+  it('removes only the membership in the given organization', async () => {
     const organizations = await seeded();
     expect(
-      (
-        await organizations.administer(
+      await organizations.administer('org-a', { id: 'u-a' }, 'u-c', membershipAct('u-a'), 'route'),
+    ).toEqual({ ok: true, membership: null });
+    expect(await organizations.listMemberships('u-c')).toEqual([
+      { organizationId: 'org-b', role: 'member' },
+    ]);
+  });
+  it('preserves fresh removed-actor refusal in reciprocal removal across two connections', async () => {
+    await seeded();
+    const gate = new WriteCoordinator();
+    const organizations = new OrganizationRepository(connection.db, gate);
+    const other = openConnection(path);
+    try {
+      const outcomes = await Promise.all([
+        organizations.administer('org-a', { id: 'u-a' }, 'u-b', membershipAct('u-a'), 'route'),
+        new OrganizationRepository(other.db, gate).administer(
           'org-a',
+          { id: 'u-b' },
           'u-a',
-          'u-c',
-          'viewer',
-          membershipAct('u-a'),
+          membershipAct('u-b'),
           'route',
-        )
-      ).ok,
-    ).toBe(true);
-    expect(await organizations.listMemberships('u-c')).toEqual([
-      { organizationId: 'org-a', role: 'viewer' },
-      { organizationId: 'org-b', role: 'member' },
-    ]);
-    expect(
-      (await organizations.administer('org-a', 'u-a', 'u-c', null, membershipAct('u-a'), 'route'))
-        .ok,
-    ).toBe(true);
-    expect(await organizations.listMemberships('u-c')).toEqual([
-      { organizationId: 'org-b', role: 'member' },
-    ]);
+        ),
+      ]);
+      expect(outcomes).toEqual([
+        { ok: true, membership: null },
+        { ok: false, refusal: 'forbidden' },
+      ]);
+    } finally {
+      other.close();
+    }
   });
 });
 
 describe('OrganizationRepository.listMembers', () => {
-  /** org-a: u-a super-admin, u-b admin, u-c member; org-b: u-c member. */
-  async function seeded(): Promise<OrganizationRepository> {
+  async function seeded() {
     const organizations = new OrganizationRepository(connection.db, OPEN);
     await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
-    await organizations.addMember('org-a', 'u-b', 'admin', stamp('u-a'));
+    await organizations.addMember('org-a', 'u-b', 'viewer', stamp('u-a'));
     await organizations.addMember('org-a', 'u-c', 'member', stamp('u-a'));
+    grantRole('org-a', 'u-a', 'org-super-admin');
+    grantRole('org-a', 'u-b', 'org-viewer');
     connection.db.run(
-      sql`INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-b', 'B', 0, 1)`,
+      sql`INSERT INTO organization(id,name,legacy,created_at) VALUES('org-b','B',0,1)`,
     );
     connection.db.run(
-      sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-b', 'u-c', 'member', 1)`,
+      sql`INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-b','u-c','member',1)`,
     );
     return organizations;
   }
-
-  const activate = () =>
-    connection.db.run(
-      sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
-    );
-
   it('refuses before activation', async () => {
     const organizations = await seeded();
-    expect(await organizations.listMembers('org-a', 'u-a')).toEqual({
+    expect(await organizations.listMembers('org-a', { id: 'u-a' })).toEqual({
       ok: false,
       refusal: 'onboarding_inactive',
     });
   });
-
-  it('lists only the given organization to an admin, and refuses a member', async () => {
+  it('lists only the given organization under organization.read and refuses a role-only member', async () => {
     const organizations = await seeded();
-    activate();
-    const listed = await organizations.listMembers('org-a', 'u-b');
-    if (!listed.ok) throw new Error(`refused: ${listed.refusal}`);
-    expect(listed.members.map((member) => [member.userId, member.role]).sort()).toEqual([
-      ['u-a', 'super_admin'],
-      ['u-b', 'admin'],
-      ['u-c', 'member'],
+    connection.db.run(
+      sql`UPDATE organization_activation SET state='activated',activated_at=5 WHERE singleton=1`,
+    );
+    const listed = await organizations.listMembers('org-a', { id: 'u-b' });
+    if (!listed.ok) throw new Error('unexpected refusal ' + listed.refusal);
+    expect(listed.members.map((member) => [member.userId, member.grantCount]).sort()).toEqual([
+      ['u-a', 1],
+      ['u-b', 1],
+      ['u-c', 0],
     ]);
-    expect(await organizations.listMembers('org-b', 'u-b')).toEqual({
-      ok: false,
-      refusal: 'forbidden',
-    });
-    expect(await organizations.listMembers('org-a', 'u-c')).toEqual({
-      ok: false,
-      refusal: 'forbidden',
-    });
+    for (const [org, user] of [
+      ['org-b', 'u-b'],
+      ['org-a', 'u-c'],
+    ])
+      expect(await organizations.listMembers(org, { id: user })).toEqual({
+        ok: false,
+        refusal: 'forbidden',
+        permission: 'organization.read',
+      });
   });
 });
 
@@ -782,6 +778,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
@@ -930,9 +927,8 @@ for (const fault of ['actor', 'stamp', 'source', 'self-leave']) {
       });
       const pending = repository.administer(
         'org-a',
-        'u-a',
+        { id: 'u-a' },
         'u-c',
-        null,
         performed,
         fault === 'source'
           ? ('unknown' as 'route')
@@ -955,6 +951,7 @@ for (const operation of ['raw', 'administer']) {
     const setup = new OrganizationRepository(connection.db, OPEN);
     await setup.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
     await setup.addMember('org-a', 'u-c', 'member', stamp('u-a'));
+    grantRole('org-a', 'u-a', 'org-super-admin');
     const gate = new WriteCoordinator();
     const repository = new OrganizationRepository(connection.db, gate);
     const held = Promise.withResolvers<undefined>();
@@ -969,7 +966,7 @@ for (const operation of ['raw', 'administer']) {
     const pending =
       operation === 'raw'
         ? repository.removeMember('org-a', 'u-c', performed, 'route')
-        : repository.administer('org-a', 'u-a', 'u-c', null, performed, 'route');
+        : repository.administer('org-a', { id: 'u-a' }, 'u-c', performed, 'route');
     Object.assign(performed, { actor: 'u-b', auditId: 'replacement' });
     Object.assign(performed.stamp, { at: 999, by: 'u-b' });
     held.resolve(undefined);
@@ -987,15 +984,20 @@ it('throws and rolls back when borrowed membership state disappears after the ow
   const setup = new OrganizationRepository(connection.db, OPEN);
   await setup.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
   await setup.addMember('org-a', 'u-b', 'super_admin', stamp('u-a'));
+  grantRole('org-a', 'u-a', 'org-super-admin');
+  grantRole('org-a', 'u-b', 'org-super-admin');
   const before = connection.db.all(sql`SELECT * FROM organization_membership ORDER BY user_id`);
   let injected = false;
+  let targetReads = 0;
   const observed: Connection = openConnection(path, {
-    logQuery(query) {
+    logQuery(query, parameters) {
       if (
-        !injected &&
-        query.startsWith('select count(') &&
-        query.includes('organization_membership')
-      ) {
+        query.startsWith('select "user_id"') &&
+        query.includes('organization_membership') &&
+        parameters.includes('u-b')
+      )
+        targetReads++;
+      if (!injected && targetReads === 2) {
         injected = true;
         observed.db.run(
           sql`DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id='u-b'`,
@@ -1009,9 +1011,8 @@ it('throws and rolls back when borrowed membership state disappears after the ow
         await rejectionOf(
           new OrganizationRepository(observed.db, OPEN).administer(
             'org-a',
-            'u-a',
+            { id: 'u-a' },
             'u-b',
-            null,
             membershipAct('u-a'),
             'route',
           ),

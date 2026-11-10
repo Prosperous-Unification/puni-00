@@ -269,6 +269,7 @@ const batchRefusals = [
       type.or(
         plainRefusals(
           'cycle',
+          'last_super_admin',
           // `patchResource.providerId` naming another organization's instance.
           'provider_not_in_organization',
           // Retired at ADR 0023 and deliberately kept: no release since refuses a

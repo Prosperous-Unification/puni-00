@@ -966,10 +966,34 @@ describe('MCP consent as an agent person (wbs-machine-credentials A20)', () => {
     });
   });
 
+  test('returns a named CP14 conflict for an ended consent and preserves all backend authority', async () => {
+    const booted = await boot();
+    be = booted;
+    await activateWithAgents(booted);
+    expect((await requestMint(booted, 'auth0|ada')).status).toBe(201);
+    const snapshot = () => ({
+      credentials: consentRows(booted),
+      grants: booted.sqlite.query('SELECT * FROM access_grant ORDER BY id').all(),
+      claims: booted.sqlite.query('SELECT * FROM claim ORDER BY id').all(),
+      audits: booted.sqlite.query('SELECT * FROM organization_audit ORDER BY rowid').all(),
+    });
+    const before = snapshot();
+    expect(
+      await call(booted, 'POST', '/internal/mcp/credentials/ended', INTERNAL, {
+        credentialId: CREDENTIAL,
+        family: 'family-claire',
+      }),
+    ).toEqual({ status: 409, body: { error: 'last_super_admin' } });
+    expect(snapshot()).toEqual(before);
+  });
+
   test('revokes a consent credential whose family mcp-01 ended, once', async () => {
     const booted = await boot();
     be = booted;
     await activateWithAgents(booted);
+    booted.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('consent-end-surviving-human','org-a','organization','org-a','user','u-ada','org-super-admin','route',1)",
+    );
     expect((await requestMint(booted, 'auth0|ada')).status).toBe(201);
     const end = (body: Record<string, string>) =>
       call(booted, 'POST', '/internal/mcp/credentials/ended', INTERNAL, body);

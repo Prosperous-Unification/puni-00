@@ -161,6 +161,7 @@ export const rekeyAgentPool = defineEndpointShape({
     ...common,
     malformed,
     notFound,
+    { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
     { status: 409, schema: responseSchema(type({ error: "'pool_changed' | 'pool_expired'" })) },
   ],
   document: { summary: 'Re-key an agent pool for its existing persons, shown once.' },
@@ -195,10 +196,16 @@ export const revokeAgentPool = defineEndpointShape({
     ...common,
     malformed,
     notFound,
+    { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
     {
       status: 409,
       schema: responseSchema(
-        type({ error: "'persons_not_removed'", poolId: 'string', revokedCredentials: 'number' }),
+        type({
+          error: "'persons_not_removed'",
+          poolId: 'string',
+          revokedCredentials: 'number',
+          'cause?': "'last_super_admin'",
+        }),
       ),
     },
   ],

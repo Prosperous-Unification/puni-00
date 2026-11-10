@@ -1,8 +1,19 @@
-import type { Onboarding, OnboardingAnswer, OnboardingState, WriteStamp } from '@wbs/core';
+import type {
+  AuditedAct,
+  Onboarding,
+  OnboardingAnswer,
+  OnboardingState,
+  SecurityPrincipal,
+  WriteStamp,
+} from '@wbs/core';
+import { retainSecurityPrincipal } from '@wbs/core';
 import { isClaimableDomain } from '@wbs/domain';
 import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { appendGrantAudit } from './access-audit';
+import { readMemberAccessIn } from './access-decisions';
+import { writeGrantIn } from './access-grant';
 import { auditOnCreate } from './audit';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
@@ -14,6 +25,7 @@ import {
   organizationMembership,
   users,
 } from './schema';
+import { requireSuperAdminIn } from './super-admin';
 
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 interface Ready {
@@ -75,17 +87,39 @@ export class OnboardingRepository implements Onboarding {
   }
 
   async createOrganization(
-    userId: string,
+    principal: SecurityPrincipal,
     name: string,
-    stamp: WriteStamp,
+    act: AuditedAct,
   ): Promise<
     OnboardingAnswer<{
       organization: { id: string; name: string };
       membership: { organizationId: string; userId: string; role: 'super_admin' };
     }>
   > {
+    /* Proof: creator-coherence: identity-coherence dependency; detached clone deliberately retained.
+     * rejects creator identity mismatch before the queued owner at actor
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    /* Proof: creator-act: removed/changed production boundary.
+     * retains the creator audited act before its queued owner
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    act = structuredClone(act);
+    const userId = principal.id;
+    const stamp = act.stamp;
+    /* Proof: creator-direct-human: removed/changed production boundary.
+     * enforces personal-only creator admission at the direct port for machine
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    if (
+      principal.delegation !== undefined ||
+      principal.authentication?.kind === 'machine' ||
+      principal.authentication?.kind === 'consent'
+    )
+      return { ok: false, refusal: 'insufficient_scope' };
     return this.gate.enter(async () =>
       Promise.resolve(
+        /* Proof: creator-native-owner: removed/changed production boundary.
+         * rolls creator organization membership and grant back on a late access audit fault
+         * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
         this.db.transaction(
           (tx) => {
             const ready = readReady(tx, userId);
@@ -108,6 +142,44 @@ export class OnboardingRepository implements Onboarding {
             tx.insert(organizationMembership)
               .values({ organizationId: id, userId, role: 'super_admin', ...auditOnCreate(stamp) })
               .run();
+            const granted = writeGrantIn(
+              tx,
+              id,
+              {
+                id: crypto.randomUUID(),
+                scope: { kind: 'organization' },
+                subject: { kind: 'user', userId },
+                /* Proof: creator-builtin: fixed builtin bootstrap conformance; current CP14 still fences a wrong role.
+                 * bootstraps the creator direct grant and creation audit in the organization owner
+                 * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+                roleId: 'org-super-admin',
+                origin: 'creation',
+              },
+              { actor: { kind: 'user', userId }, at: stamp.at, auditId: act.auditId },
+            );
+            /* Proof: creator-impossible-refusal: removed/changed production boundary.
+             * throws rather than committing partial bootstrap when the seeded creator role is missing
+             * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+            if (typeof granted === 'string') throw new Error('creator grant refused: ' + granted);
+            /* Proof: creator-role-validation: removed/changed production boundary.
+             * rejects corrupt creator role permissions before bootstrap commits
+             * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+            readMemberAccessIn(tx, id, userId);
+            /* Proof: creator-audit: removed/changed production boundary.
+             * bootstraps the creator direct grant and creation audit in the organization owner
+             * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+            appendGrantAudit(tx, {
+              grant: granted.grant,
+              action: 'access_granted',
+              auditId: act.auditId,
+              actorId: userId,
+              at: stamp.at,
+              origin: 'creation',
+            });
+            /* Proof: creator-cp14: removed/changed production boundary.
+             * refuses a creator grant lost after audit before committing the bootstrap
+             * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+            requireSuperAdminIn(tx, id);
             return {
               ok: true,
               value: {

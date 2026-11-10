@@ -613,3 +613,21 @@ export function effectiveRoleOn(
   const effective = combineGrants(grants, target, cap);
   return effective.permissions.has(READ_PERMISSION_OF[target.kind]) ? effective : null;
 }
+
+/** The P11 catalogue roles a personal invitation or join approval may offer at organization scope. */
+export const INITIAL_ACCESS_ROLES = [
+  'org-admin',
+  'org-viewer',
+  'project-contributor',
+  'project-viewer',
+] as const;
+export type InitialAccessRole = (typeof INITIAL_ACCESS_ROLES)[number];
+
+/** Initial access is an explicit catalogue role or none, separate from membership. */
+export type InitialAccess =
+  { readonly kind: 'none' } | { readonly kind: 'role'; readonly roleId: InitialAccessRole };
+
+/** Normalizes the HTTP boundary's optional nullable selection into a fresh internal value. */
+export function selectInitialAccess(roleId: InitialAccessRole | null): InitialAccess {
+  return roleId === null ? { kind: 'none' } : { kind: 'role', roleId };
+}

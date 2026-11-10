@@ -106,6 +106,7 @@ async function signIn(sub: string, email: string) {
 describe('the organization audit is complete', () => {
   it('writes one row per act and none per refusal, holding no secret', async () => {
     const ada = harness.userId('ada');
+    harness.grant('org-a', 'ada', 'org-super-admin');
     const expected: string[][] = [];
     const act = (actor: string, action: string, kind: string) => {
       expected.push([actor, action, kind]);

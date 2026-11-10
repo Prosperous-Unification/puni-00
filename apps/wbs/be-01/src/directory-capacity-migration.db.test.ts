@@ -49,7 +49,13 @@ function baselineStore(): { root: string; dbPath: string } {
   roots.push(root);
   cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
   const dbPath = join(root, 'plan.db');
-  for (const name of [AUDIT_WIDENING, DIRECTORY_CAPACITY, HOST_JOB_PROJECTION, ACCESS_AUDIT])
+  for (const name of [
+    AUDIT_WIDENING,
+    DIRECTORY_CAPACITY,
+    HOST_JOB_PROJECTION,
+    ACCESS_AUDIT,
+    '20261103110000_add_initial_access_offers',
+  ])
     rmSync(join(root, 'drizzle', name), { recursive: true });
   runMigrations(dbPath, join(root, 'drizzle'));
   return { root, dbPath };
@@ -257,7 +263,7 @@ describe(AUDIT_WIDENING, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261102130000_widen_organization_audit_access, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
+      `rolled back: 20261103110000_add_initial_access_offers, 20261102130000_widen_organization_audit_access, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
     );
     expect(auditSchemaOf(dbPath)).toEqual(baseline);
   }, 60_000);
@@ -302,7 +308,7 @@ describe(DIRECTORY_CAPACITY, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261102130000_widen_organization_audit_access, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`,
+      `rolled back: 20261103110000_add_initial_access_offers, 20261102130000_widen_organization_audit_access, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`,
     );
     expect(
       count(

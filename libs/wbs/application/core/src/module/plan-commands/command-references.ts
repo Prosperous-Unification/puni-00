@@ -24,7 +24,8 @@ export type PlainReason =
   | 'unknown_ref'
   | 'missing_id'
   | 'person_required'
-  | 'duplicate_ref';
+  | 'duplicate_ref'
+  | 'last_super_admin';
 /**
  * Refuses a command naming a row or step outside the project, for the
  * references a command can name without leaving them in the project's final

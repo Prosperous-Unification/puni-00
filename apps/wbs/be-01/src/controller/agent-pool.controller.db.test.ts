@@ -959,3 +959,64 @@ for (const substitution of ['authentication', 'delegation']) {
     },
   );
 }
+
+it('preserves committed pool revocation when later person cleanup is CP14-blocked', async () => {
+  const doc = await createPool('dany', { name: 'cp14-two-owners', size: 2 });
+  onResolve = () => {
+    const revoked = h.sqlite
+      .query<{ n: number }, []>('SELECT count(*) AS n FROM agent_pool WHERE revoked_at IS NOT NULL')
+      .get();
+    if (revoked === null) throw new Error('pool CP14 fault count missing');
+    if (revoked.n !== 1) return;
+    onResolve = undefined;
+    h.sqlite.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND role_id='org-super-admin'",
+    );
+    h.grantPermissions('org-a', 'dany', ['organization.manage_directory']);
+  };
+  const answer = await h.call('dany', 'DELETE', PATH + '/' + doc.poolId + '?removePersons=true');
+  expect(answer).toEqual({
+    status: 409,
+    body: {
+      error: 'persons_not_removed',
+      poolId: doc.poolId,
+      revokedCredentials: 2,
+      cause: 'last_super_admin',
+    },
+  });
+  expect(agentPersons()).toBe(2);
+  expect(count('SELECT count(*) AS n FROM machine_credential WHERE revoked_at IS NOT NULL')).toBe(
+    2,
+  );
+  expect(count('SELECT count(*) AS n FROM agent_pool WHERE revoked_at IS NOT NULL')).toBe(1);
+  expect(auditRows().filter((row) => row.action === 'machine_credential_revoked')).toHaveLength(2);
+  expect(auditRows().filter((row) => row.action === 'agent_pool_revoked')).toHaveLength(1);
+});
+
+for (const operation of ['rekey', 'revoke'] as const) {
+  it('returns a named CP14 conflict before pool effects at ' + operation, async () => {
+    const doc = await createPool('dany', { name: 'cp14-first-owner', size: 1 });
+    h.sqlite.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND role_id='org-super-admin'",
+    );
+    const snapshot = () =>
+      [
+        'agent_pool',
+        'person',
+        'machine_credential',
+        'machine_credential_secret',
+        'organization_audit',
+        'event_log',
+      ].map((table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
+    const before = snapshot();
+    expect(
+      await h.call(
+        'dany',
+        operation === 'rekey' ? 'POST' : 'DELETE',
+        PATH + '/' + doc.poolId + (operation === 'rekey' ? '/rekey' : '?removePersons=true'),
+        operation === 'rekey' ? {} : undefined,
+      ),
+    ).toEqual({ status: 409, body: { error: 'last_super_admin' } });
+    expect(snapshot()).toEqual(before);
+  });
+}

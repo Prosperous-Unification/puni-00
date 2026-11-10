@@ -10,7 +10,7 @@ import {
 import { loadConfig, type McpConfig } from './config';
 import type { DeploymentFaultReporter } from './deployment-fault';
 import { type McpOAuthHandler, startHttpServer } from './http';
-import { mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
+import { type ConsentEndSweep, mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
 import { type OpenApiDocument, readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer } from './server';
 import { createUnexpectedToolFailureReporter } from './unexpected-tool-failure';
@@ -24,7 +24,7 @@ interface ApplicationOAuth extends McpOAuthHandler, TokenVerifier {
     upstreamToken: string,
     scopes: readonly string[],
   ): Promise<string>;
-  reportEndedConsents(): Promise<number>;
+  reportEndedConsents(): Promise<ConsentEndSweep>;
 }
 
 /** How often ended consent families are reported to be-01 (`McpOAuthServer.reportEndedConsents`). */
@@ -123,7 +123,19 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
     if (sweeping) return;
     sweeping = true;
     try {
-      await oauth.reportEndedConsents();
+      const sweep = await oauth.reportEndedConsents();
+      /* Proof: consent-end-visible: removed/changed production boundary.
+       * reports a modeled CP14-blocked consent sweep distinctly from transport or server failure
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (typeof sweep !== 'number')
+        logger.warn(
+          {
+            event: 'mcp_consent_end_blocked',
+            reason: sweep.reason,
+            acknowledged: sweep.acknowledged,
+          },
+          'MCP consent end report blocked',
+        );
     } catch (cause) {
       logger.error(
         { err: registerReportedFailure(reportFailure(cause, { redact: redactSweepFailure })) },

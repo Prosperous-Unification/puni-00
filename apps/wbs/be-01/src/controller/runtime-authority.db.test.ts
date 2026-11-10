@@ -954,7 +954,7 @@ describe('accepted runtime lifecycle', () => {
     });
     sqlite.db.run("DELETE FROM access_grant WHERE origin='route'");
     const installed = readInstallation();
-    expect(installed.migrations.slice(-24)).toMatchObject([
+    expect(installed.migrations.slice(-25)).toMatchObject([
       { name: '20261022130000_add_organization_limits' },
       { name: '20261022130100_widen_organization_audit_organization_limits' },
       { name: '20261022140000_add_resource_provider' },
@@ -979,8 +979,10 @@ describe('accepted runtime lifecycle', () => {
       { name: '20261101120000_add_host_job_projection' },
       { name: '20261102120000_add_access_grants' },
       { name: '20261102130000_widen_organization_audit_access' },
+      { name: '20261103110000_add_initial_access_offers' },
     ]);
     expect(rollbackTo(dbPath, migrations, '20261022121000_add_runtime_commands')).toEqual([
+      '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
@@ -1007,7 +1009,7 @@ describe('accepted runtime lifecycle', () => {
       '20261022130000_add_organization_limits',
     ]);
     const before = readInstallation();
-    expect(before.migrations).toEqual(installed.migrations.slice(0, -24));
+    expect(before.migrations).toEqual(installed.migrations.slice(0, -25));
     expect(() => rollbackTo(dbPath, migrations, '20261020130000_add_claim_occupancy')).toThrow(
       'runtime history',
     );

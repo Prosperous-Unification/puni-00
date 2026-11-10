@@ -13,11 +13,11 @@ beforeEach(async () => {
   for (const username of ['sam', 'adam', 'ada', 'vic', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'sam', 'super_admin');
-  h.member('org-a', 'adam', 'admin');
+  h.member('org-a', 'sam', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'adam', 'admin', ['org-viewer']);
   h.member('org-a', 'ada', 'member');
   h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'super_admin');
+  h.member('org-b', 'grace', 'super_admin', ['org-super-admin']);
   for (const username of ['sam', 'adam', 'ada', 'vic']) h.bind(username, 'org-a');
   h.bind('grace', 'org-b');
   h.sqlite.run("UPDATE users SET email = 'ada@acme.test' WHERE id = ?", [h.userId('ada')]);
@@ -27,7 +27,7 @@ afterEach(() => {
   h.close();
 });
 
-const forbidden = { status: 403, body: { error: 'forbidden' } };
+const forbidden = { status: 403, body: { error: 'forbidden', permission: 'organization.read' } };
 
 describe('the member list', () => {
   it('has no organization to list before activation', async () => {
@@ -52,11 +52,13 @@ describe('the member list', () => {
       expect(members.find((member) => member.username === 'ada')).toMatchObject({
         userId: h.userId('ada'),
         email: 'ada@acme.test',
-        role: 'member',
+        effectiveRole: null,
+        grantCount: 0,
       });
       expect(members.find((member) => member.username === 'vic')).toMatchObject({
         email: null,
-        role: 'viewer',
+        effectiveRole: null,
+        grantCount: 0,
       });
     }
   });

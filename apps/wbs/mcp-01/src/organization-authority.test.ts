@@ -370,3 +370,10 @@ describe('organization authority client', () => {
     ).toBeInstanceOf(OrganizationAuthorityDefect);
   });
 });
+
+it('models a named CP14 consent end conflict independently of transport failure', async () => {
+  const { authority } = client(() => Response.json({ error: 'last_super_admin' }, { status: 409 }));
+  expect(
+    await authority.reportConsentEnded({ credentialId: 'credential-1', familyId: 'family-1' }),
+  ).toEqual({ kind: 'blocked', reason: 'last_super_admin' });
+});

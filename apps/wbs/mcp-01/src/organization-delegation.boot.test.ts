@@ -980,6 +980,59 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(typeof (await consents()).at(-1)?.revokedAt).toBe('number');
   });
 
+  test('a CP14-blocked consent end stays durable across the real backend and repairs exactly once', async () => {
+    const connected = await connect('auth0|dany', { agent: 'Claire' });
+    await grantConsent(connected.access, 'project-contributor', { kind: 'organization' });
+    const familyId = decodeJwt(connected.access)['mcp_family_id'];
+    if (typeof familyId !== 'string') throw new Error('consent family missing');
+    const before = await fixture('cp14-consent', { familyId, action: 'clear' });
+    let repaired = false;
+    try {
+      const revoked = await oauthCall(
+        new Request(OAUTH + '/revoke', {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ token: connected.access }),
+        }),
+      );
+      expect(revoked.status).toBe(200);
+      expect((await tool(connected.access, 'getApiProjects', {})).status).toBe(401);
+      expect(await oauth.reportEndedConsents()).toEqual({
+        kind: 'blocked',
+        reason: 'last_super_admin',
+        acknowledged: 0,
+      });
+      expect(await fixture('cp14-consent', { familyId, action: 'state' })).toEqual(before);
+      expect((await tool(connected.access, 'getApiProjects', {})).status).toBe(401);
+      await fixture('cp14-consent', { familyId, action: 'repair' });
+      repaired = true;
+      expect(await oauth.reportEndedConsents()).toBe(1);
+      const settled = (await fixture('cp14-consent', { familyId, action: 'state' })) as {
+        credential: { id: string; revoked_at: number };
+        grants: unknown[];
+        revoked: { action: string; actor_id: string }[];
+      };
+      expect(typeof settled.credential.revoked_at).toBe('number');
+      expect(settled.grants).toEqual([]);
+      expect(settled.revoked.map((event) => event.action).sort()).toEqual([
+        'access_revoked',
+        'machine_credential_revoked',
+      ]);
+      expect(settled.revoked.every((event) => event.actor_id === 'mcp-01')).toBe(true);
+      const replay = await fetch(beUrl + '/internal/mcp/credentials/ended', {
+        method: 'POST',
+        headers: { 'x-internal-auth': BOOTED_INTERNAL_SECRET, 'content-type': 'application/json' },
+        body: JSON.stringify({ credentialId: settled.credential.id, family: familyId }),
+      });
+      expect(replay.status).toBe(200);
+      expect(await replay.json()).toEqual({ outcome: 'already_revoked' });
+      expect(await fixture('cp14-consent', { familyId, action: 'state' })).toEqual(settled);
+      expect(await oauth.reportEndedConsents()).toBe(0);
+    } finally {
+      if (!repaired) await fixture('cp14-consent', { familyId, action: 'repair' });
+    }
+  });
+
   test('MCP and direct HTTP carry the same scoped external command to the dormant backend', async () => {
     if (!Object.hasOwn(sessions, 'dany'))
       throw new Error('the organization-bound session is missing');

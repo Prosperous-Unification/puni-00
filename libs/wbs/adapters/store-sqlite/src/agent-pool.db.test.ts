@@ -43,6 +43,18 @@ function freshStore(): void {
   }
 }
 
+/** Explicit direct holder only for successful authority-removal fixtures. */
+function seedDirectHolder(): void {
+  const connection = openConnection(path);
+  try {
+    connection.db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('cp14-fixture-holder','org-a','organization','org-a','user','dany','org-super-admin','backfill',0)`,
+    );
+  } finally {
+    connection.close();
+  }
+}
+
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-agent-pool-'));
   path = join(dir, 'test.db');
@@ -189,6 +201,7 @@ describe('re-keying a pool', () => {
   // one-person key set answered 'rekeyed'; watched 2026-10-28.
   it('refuses keys that do not name exactly the pool’s persons, writing nothing', async () => {
     freshStore();
+    seedDirectHolder();
     const real = openPools();
     const draft = await draftOf(2);
     expect((await real.create('org-a', 'dany', draft, act())).kind).toBe('created');
@@ -240,6 +253,7 @@ describe('re-keying a pool', () => {
 for (const operation of ['rekey', 'revoke'] as const) {
   it('retains the actual queued pool cascade owner at ' + operation, async () => {
     freshStore();
+    seedDirectHolder();
     const connection = openConnection(path);
     connection.db.run(sql`INSERT INTO users(id,username,created_at) VALUES ('other','other',1)`);
     try {
@@ -304,6 +318,7 @@ for (const operation of ['rekey', 'revoke'] as const) {
 
 it('retains the deep renewal keys before the queued pool re-key owner', async () => {
   freshStore();
+  seedDirectHolder();
   const connection = openConnection(path);
   try {
     const original = await draftOf(1);
@@ -381,6 +396,7 @@ for (const operation of ['rekey', 'revoke'] as const) {
 
 it('audits only actually inserted pool grant copies when old keys overlap', async () => {
   freshStore();
+  seedDirectHolder();
   const connection = openConnection(path);
   try {
     const original = await draftOf(1);
@@ -414,9 +430,11 @@ it('audits only actually inserted pool grant copies when old keys overlap', asyn
       act(),
     );
     expect(outcome.kind).toBe('rekeyed');
-    expect(connection.db.all(sql`SELECT subject_id,origin,created_by FROM access_grant`)).toEqual([
-      { subject_id: credentialId, origin: 'backfill', created_by: null },
-    ]);
+    expect(
+      connection.db.all(
+        sql`SELECT subject_id,origin,created_by FROM access_grant WHERE subject_kind='machine_credential'`,
+      ),
+    ).toEqual([{ subject_id: credentialId, origin: 'backfill', created_by: null }]);
     const rows = connection.db.all<{ action: string; detail: string }>(
       sql`SELECT action,detail FROM organization_audit WHERE action IN ('access_granted','access_revoked')`,
     );
@@ -434,3 +452,50 @@ it('audits only actually inserted pool grant copies when old keys overlap', asyn
     connection.close();
   }
 });
+
+for (const operation of ['rekey', 'revoke'] as const) {
+  it(
+    'rolls a zero-grant pool authority change back without a direct holder at ' + operation,
+    async () => {
+      freshStore();
+      const connection = openConnection(path);
+      const repository = new AgentPoolRepository(connection.db, OPEN, DEFAULTS);
+      try {
+        const draft = await draftOf(1);
+        expect((await repository.create('org-a', 'dany', draft, act())).kind).toBe('created');
+        const snapshot = () =>
+          [
+            'agent_pool',
+            'machine_credential',
+            'machine_credential_secret',
+            'access_grant',
+            'organization_audit',
+          ].map((table) =>
+            connection.db.all(sql.raw('SELECT * FROM ' + table + ' ORDER BY rowid')),
+          );
+        const before = snapshot();
+        const answer =
+          operation === 'revoke'
+            ? await repository.revoke('org-a', 'dany', draft.id, act())
+            : await repository.rekey(
+                'org-a',
+                'dany',
+                draft.id,
+                {
+                  keys: draft.agents.map((agent) => ({
+                    personId: agent.personId,
+                    credentialId: crypto.randomUUID(),
+                    secretId: crypto.randomUUID(),
+                    digest: agent.digest,
+                  })),
+                },
+                act(),
+              );
+        expect(answer).toEqual({ kind: 'last_super_admin' });
+        expect(snapshot()).toEqual(before);
+      } finally {
+        connection.close();
+      }
+    },
+  );
+}

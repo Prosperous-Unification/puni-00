@@ -211,7 +211,6 @@ const HUMAN_ONLY = [
   'getApiOrganizationTrusted-issuers',
   'patchApiOrganization',
   'patchApiOrganizationCompute-providersById',
-  'patchApiOrganizationMembersByUserId',
   'patchApiOrganizationSso-connectionsById',
   'postApiOnboardingEmailChallenges',
   'postApiOnboardingEmailChallengesConfirm',

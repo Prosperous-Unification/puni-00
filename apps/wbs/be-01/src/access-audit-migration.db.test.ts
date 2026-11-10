@@ -76,6 +76,7 @@ const OLD_KINDS = [
 ] as const;
 let directory: string;
 let path: string;
+let migrationFolder: string;
 
 function readStore<T>(work: (sqlite: Database) => T): T {
   const sqlite = openDatabase(path);
@@ -114,9 +115,17 @@ function readLedger() {
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-access-audit-'));
   path = join(directory, 'plan.db');
+  migrationFolder = join(directory, 'candidate');
+  cpSync(FOLDER, migrationFolder, { recursive: true });
+  for (const name of readdirSync(migrationFolder))
+    if (name > MIGRATION) rmSync(join(migrationFolder, name), { recursive: true, force: true });
   const baseline = join(directory, 'drizzle');
   cpSync(FOLDER, baseline, { recursive: true });
   rmSync(join(baseline, MIGRATION), { recursive: true, force: true });
+  rmSync(join(baseline, '20261103110000_add_initial_access_offers'), {
+    recursive: true,
+    force: true,
+  });
   runMigrations(path, baseline);
   readStore((sqlite) => {
     sqlite.run("INSERT INTO users(id,username,created_at) VALUES ('actor','actor',1)");
@@ -143,14 +152,14 @@ it('publishes the full current-vocabulary access audit catalogue', () => {
 
 for (const action of NEW_ACTIONS) {
   it('admits the access audit action ' + action, () => {
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrationFolder);
     appendAudit('new', action, 'access_grant');
     expect(readAuditRows()).toMatchObject([{ id: 'new', action, subject_kind: 'access_grant' }]);
   });
 }
 for (const kind of NEW_KINDS) {
   it('admits the access audit subject ' + kind, () => {
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrationFolder);
     appendAudit('new', 'restricted_project_recovery', kind);
     expect(readAuditRows()).toMatchObject([{ id: 'new', subject_kind: kind }]);
   });
@@ -165,7 +174,7 @@ it('preserves all outgoing audit rows, actions, subjects, indexes and append-onl
   const structures = readAuditSchema().filter(({ type }) => type !== 'table');
   expect(structures.filter(({ type, sql }) => type === 'index' && sql !== null)).toHaveLength(3);
   expect(structures.filter(({ type }) => type === 'trigger')).toHaveLength(2);
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrationFolder);
   expect(readAuditRows()).toEqual(rows);
   expect(readAuditSchema().filter(({ type }) => type !== 'table')).toEqual(structures);
   for (const [index, action] of OLD_ACTIONS.entries())
@@ -186,9 +195,9 @@ it('restores the complete outgoing audit schema byte for byte on a clean rollbac
   const schema = readAuditSchema();
   const rows = readAuditRows();
   const before = readLedger();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrationFolder);
   expect(readAuditSchema()).not.toEqual(schema);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+  expect(rollbackTo(path, migrationFolder, BASELINE)).toEqual([MIGRATION]);
   expect(readAuditSchema()).toEqual(schema);
   expect(readAuditRows()).toEqual(rows);
   expect(readLedger()).toEqual(before);
@@ -199,12 +208,12 @@ for (const [action, kind, label] of [
   ...NEW_KINDS.map((kind) => ['restricted_project_recovery', kind, kind]),
 ]) {
   it('refuses rollback before changing any evidence for ' + label, () => {
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrationFolder);
     appendAudit('new', action, kind);
     const rows = readAuditRows();
     const schema = readAuditSchema();
     const before = readLedger();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow('access audit rows exist');
+    expect(() => rollbackTo(path, migrationFolder, BASELINE)).toThrow('access audit rows exist');
     expect(readAuditRows()).toEqual(rows);
     expect(readAuditSchema()).toEqual(schema);
     expect(readLedger()).toEqual(before);
@@ -212,7 +221,7 @@ for (const [action, kind, label] of [
 }
 
 it('refuses unknown audit actions and subjects after widening', () => {
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrationFolder);
   expect(() => {
     appendAudit('unknown-action', 'access_guessed', 'project');
   }).toThrow(/CHECK/);
@@ -223,7 +232,7 @@ it('refuses unknown audit actions and subjects after widening', () => {
 });
 
 it('retains both machine-token targeted insert indexes through the access audit rebuild', async () => {
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrationFolder);
   const connection = openConnection(path);
   const repository = new MachineTokenAuditRepository(connection.db, OPEN);
   let sequence = 0;
@@ -264,7 +273,7 @@ it('refuses an audit rebuild that would commit broken organization references', 
   const rows = readAuditRows();
   const before = readLedger();
   expect(() => {
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrationFolder);
   }).toThrow();
   expect(readAuditSchema()).toEqual(schema);
   expect(readAuditRows()).toEqual(rows);
@@ -273,7 +282,7 @@ it('refuses an audit rebuild that would commit broken organization references', 
 
 for (const operation of ['UPDATE', 'DELETE']) {
   it('retains the access audit append-only guard on actual ' + operation, () => {
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrationFolder);
     appendAudit('immutable', 'access_granted', 'access_grant');
     const before = readAuditRows();
     expect(() =>

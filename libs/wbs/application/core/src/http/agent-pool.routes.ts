@@ -223,6 +223,8 @@ export function agentPoolRoutes(
             return forbidden;
           case 'not_found':
             return notFound;
+          case 'last_super_admin':
+            return { ok: false, status: 409, body: { error: 'last_super_admin' } };
           case 'pool_changed':
           case 'pool_expired':
             return { ok: false, status: 409, body: { error: rekeyed.kind } };
@@ -257,6 +259,8 @@ export function agentPoolRoutes(
             return forbidden;
           case 'not_found':
             return notFound;
+          case 'last_super_admin':
+            return { ok: false, status: 409, body: { error: 'last_super_admin' } };
           case 'revoked':
             break;
         }
@@ -298,6 +302,12 @@ export function agentPoolRoutes(
             status: 409,
             body: {
               error: 'persons_not_removed',
+              /* Proof: cp14-pool-cleanup-cause: removed/changed production boundary.
+               * preserves committed pool revocation when later person cleanup is CP14-blocked
+               * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+              ...('reason' in removed && removed.reason === 'last_super_admin'
+                ? { cause: 'last_super_admin' as const }
+                : {}),
               poolId: params.id,
               revokedCredentials: revoked.revokedCredentials,
             },

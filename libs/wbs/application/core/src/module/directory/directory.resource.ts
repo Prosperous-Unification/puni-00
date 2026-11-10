@@ -135,7 +135,11 @@ export type PersonPatchInput = Omit<PersonPatch, 'kind'> & { kind?: string };
  */
 export type RemoveDirectoryOutcome =
   | { ok: true }
-  | { ok: false; reason: 'not_found' | 'forbidden'; readonly permission?: Permission }
+  | {
+      ok: false;
+      reason: 'not_found' | 'forbidden' | 'last_super_admin';
+      readonly permission?: Permission;
+    }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
 
 /**
@@ -1076,7 +1080,11 @@ export class DirectoryService {
       { kind: 'none' },
     );
     if (!removed.ok) {
-      if (removed.reason === 'not_found' || removed.reason === 'forbidden')
+      if (
+        removed.reason === 'not_found' ||
+        removed.reason === 'forbidden' ||
+        removed.reason === 'last_super_admin'
+      )
         return { ok: false, reason: removed.reason };
       // The transaction's own usage, not the fast path's: it is the only one
       // that was still true at the moment the deletes would have run.
@@ -1773,6 +1781,7 @@ export class DirectoryService {
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       if (removed.reason === 'forbidden') return { ok: false, reason: 'forbidden' };
+      if (removed.reason === 'last_super_admin') return { ok: false, reason: 'last_super_admin' };
       return { ok: false, reason: 'in_use', usage: await shown(removed.usage) };
     }
     // Proof: skipping this check made `fails closed on a directory entry a

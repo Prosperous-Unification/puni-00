@@ -19,6 +19,7 @@ import { roleIn } from './organization';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import { machineCredential, person, personOrganization } from './schema';
+import { LastSuperAdmin, requireSuperAdminIn } from './super-admin';
 
 /** {@link ConsentCredentials} over the shared database. */
 export class ConsentCredentialRepository implements ConsentCredentials {
@@ -147,6 +148,10 @@ export class ConsentCredentialRepository implements ConsentCredentials {
       // in `access-grant-store.db.test.ts` kept the consent's grant row;
       // watched 2026-11-08.
       const removedGrants = deleteGrantsOfCredentials(tx, [credentialId]);
+      /* Proof: cp14-consent: removed/changed production boundary.
+       * rolls back a zero-grant credential revocation without a direct human holder at consent-end
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      requireSuperAdminIn(tx, row.organizationId);
       for (const grant of removedGrants)
         // Proof: cascade-consent-credential-end: removing this boundary failed `are deleted when an MCP consent ends`;
         // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
@@ -175,6 +180,12 @@ export class ConsentCredentialRepository implements ConsentCredentials {
         at,
       });
       return 'revoked' as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-consent-end: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at consent-end
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return 'last_super_admin' as const;
+      throw failure;
     });
   }
 }
