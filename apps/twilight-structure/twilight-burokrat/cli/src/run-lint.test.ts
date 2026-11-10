@@ -17,7 +17,8 @@ import { afterEach, describe, expect, it, spyOn } from 'bun:test';
 
 import * as childModule from './lint-child';
 import { LintCleanupFailure } from './lint-child';
-import { runLint } from './run-lint';
+import { readLintRuntime } from './lint-runtime';
+import { readLintCandidate, runLint } from './run-lint';
 import { createLintFixture } from './testing/lint-fixtures';
 import { decodeRequest as decodeValidatorRequest } from './validator-request';
 
@@ -151,7 +152,10 @@ it('retains owned scratch when process-group cleanup cannot be confirmed', async
     [new Error('injected group disappearance deadline')],
     'unconfirmed fixture cleanup',
   );
-  const run = spyOn(childModule, 'runLintChild').mockRejectedValue(fault);
+  const executeChild = childModule.runLintChild;
+  const run = spyOn(childModule, 'runLintChild').mockImplementation((request) =>
+    request.stage === 'snapshotter' ? Promise.reject(fault) : executeChild(request),
+  );
   try {
     const failure: unknown = await runLint(fixture.invocation, fixture.context).then(
       () => undefined,
@@ -230,6 +234,7 @@ it('refuses invalid UTF-8 certification while preserving its bytes', async () =>
 });
 it('refuses unsupported Git before optional inactive activation can return', async () => {
   const fixture = createFixture('export {};');
+  const rootQueried = join(fixture.root, 'git-root-query.executed');
   const bin = join(fixture.root, 'bin');
   mkdirSync(bin);
   const git = join(bin, 'git');
@@ -237,7 +242,9 @@ it('refuses unsupported Git before optional inactive activation can return', asy
     git,
     '#!' +
       process.execPath +
-      '\nprocess.stdout.write(process.argv.includes("--version") ? "git version 2.35.9\\n" : ' +
+      '\nimport{writeFileSync}from"node:fs";if(!process.argv.includes("--version"))writeFileSync(' +
+      JSON.stringify(rootQueried) +
+      ',"queried");process.stdout.write(process.argv.includes("--version") ? "git version 2.35.9\\n" : ' +
       JSON.stringify(fixture.candidate + '\n') +
       ');',
   );
@@ -254,6 +261,7 @@ it('refuses unsupported Git before optional inactive activation can return', asy
   if (!(failure instanceof Error)) throw failure;
   expect(failure.message).toBe('Git 2.36.0 or newer is required');
   expect(fixture.stdout).toHaveLength(0);
+  expect(existsSync(rootQueried)).toBe(false);
 });
 it('refuses a nonrepository before optional inactive activation can return', async () => {
   const fixture = createFixture('export {};');
@@ -383,33 +391,49 @@ it('keeps the selected Git PATH identity when the captured validator changes cwd
 
 it('runs both Git probes from the trusted runtime cwd after PATH is frozen', async () => {
   const fixture = createFixture('export {};');
-  const bin = join(fixture.root, 'observed-bin');
-  mkdirSync(bin);
-  const observed = join(fixture.root, 'git-cwds');
-  const git = join(bin, 'git');
-  writeFileSync(
-    git,
-    createShebang() +
-      '\nimport{appendFileSync}from"node:fs";appendFileSync(' +
-      JSON.stringify(observed) +
-      ',process.cwd()+"\\n");const child=Bun.spawnSync(["/usr/bin/git",...process.argv.slice(2)],{stdin:"ignore",stdout:"inherit",stderr:"inherit"});if(child.exitCode!==0)throw new Error("native fixture Git failed");',
-  );
-  chmodSync(git, 0o755);
-  expect(
-    await runLint(
-      {
-        ...fixture.invocation,
-        callerDirectory: fixture.candidate,
-        request: { ...fixture.invocation.request, repository: '.' },
-      },
-      {
-        ...fixture.context,
-        path: bin + ':' + dirname(process.execPath) + ':/usr/bin:/bin',
-        activationRoot: undefined,
-      },
-    ),
-  ).toBe(0);
-  expect(readFileSync(observed, 'utf8')).toBe(fixture.root + '\n' + fixture.root + '\n');
+  const priorAmbient = process.env['PUNI_LINT_AMBIENT_SENTINEL'];
+  process.env['PUNI_LINT_AMBIENT_SENTINEL'] = 'must-not-reach-Git-probes';
+  try {
+    const bin = join(fixture.root, 'observed-bin');
+    mkdirSync(bin);
+    const observed = join(fixture.root, 'git-cwds');
+    const git = join(bin, 'git');
+    writeFileSync(
+      git,
+      createShebang() +
+        '\nimport{appendFileSync}from"node:fs";appendFileSync(' +
+        JSON.stringify(observed) +
+        ',JSON.stringify({directory:process.cwd(),global:process.env.GIT_CONFIG_GLOBAL,system:process.env.GIT_CONFIG_SYSTEM,protocol:process.env.GIT_ALLOW_PROTOCOL,hooks:process.env.GIT_CONFIG_VALUE_0,monitor:process.env.GIT_CONFIG_VALUE_1,hasAmbientSentinel:Object.hasOwn(process.env,"PUNI_LINT_AMBIENT_SENTINEL")})+"\\n");const child=Bun.spawnSync(["/usr/bin/git",...process.argv.slice(2)],{stdin:"ignore",stdout:"inherit",stderr:"inherit"});if(child.exitCode!==0)throw new Error("native fixture Git failed");',
+    );
+    chmodSync(git, 0o755);
+    expect(
+      await runLint(
+        {
+          ...fixture.invocation,
+          callerDirectory: fixture.candidate,
+          request: { ...fixture.invocation.request, repository: '.' },
+        },
+        {
+          ...fixture.context,
+          path: bin + ':' + dirname(process.execPath) + ':/usr/bin:/bin',
+          activationRoot: undefined,
+        },
+      ),
+    ).toBe(0);
+    const observation = JSON.stringify({
+      directory: fixture.root,
+      global: '/dev/null',
+      system: '/dev/null',
+      protocol: '',
+      hooks: '/dev/null',
+      monitor: 'false',
+      hasAmbientSentinel: false,
+    });
+    expect(readFileSync(observed, 'utf8')).toBe(observation + '\n' + observation + '\n');
+  } finally {
+    if (priorAmbient === undefined) delete process.env['PUNI_LINT_AMBIENT_SENTINEL'];
+    else process.env['PUNI_LINT_AMBIENT_SENTINEL'] = priorAmbient;
+  }
 });
 
 it('preserves cancellation of the optional inactive report without creating scratch', async () => {
@@ -432,5 +456,41 @@ it('preserves cancellation of a required certificate refusal report', async () =
       stderr: () => Promise.resolve({ kind: 'cancelled', signal: 'SIGINT' }),
     }),
   ).toBe(130);
+  expect(readdirSync(fixture.scratch)).toEqual([]);
+});
+
+it('preserves unconfirmed preflight cleanup without creating activation scratch', async () => {
+  const fixture = createFixture('throw new Error("must not start after Git failure");');
+  const fault = new LintCleanupFailure(
+    [new Error('injected preflight group cleanup failure')],
+    'preflight cleanup unconfirmed',
+  );
+  const executeChild = childModule.runLintChild;
+  const run = spyOn(childModule, 'runLintChild').mockImplementation((request) =>
+    request.stage === 'Git version' ? Promise.reject(fault) : executeChild(request),
+  );
+  try {
+    const failure: unknown = await runLint(fixture.invocation, fixture.context).then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+    expect(failure).toBe(fault);
+    expect(readdirSync(fixture.scratch)).toEqual([]);
+  } finally {
+    run.mockRestore();
+  }
+});
+
+it('does not spawn a Git probe after prior cancellation reaches its direct API', async () => {
+  const fixture = createFixture('export {};');
+  const candidate = await readLintCandidate(
+    fixture.invocation,
+    readLintRuntime('', fixture.root),
+    (listener) => {
+      listener('SIGINT');
+      return () => undefined;
+    },
+  );
+  expect(candidate).toEqual({ kind: 'cancelled', status: 130 });
   expect(readdirSync(fixture.scratch)).toEqual([]);
 });

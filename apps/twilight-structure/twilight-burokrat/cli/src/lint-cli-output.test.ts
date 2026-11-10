@@ -1,9 +1,17 @@
 import { Buffer } from 'node:buffer';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
-import { createLaunch } from '@shared/bun-startup';
+import { createLaunch, createShebang } from '@shared/bun-startup';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 
 import { buildLintLauncher } from './policy/build-lint-launcher';
@@ -464,3 +472,91 @@ it('bounds the terminal diagnostic when native stderr is already full', async ()
     ]);
   }
 }, 15000);
+
+for (const probe of ['version', 'root'] as const) {
+  for (const repeated of [false, true]) {
+    it(
+      'owns cancellation during the ' +
+        probe +
+        ' Git probe with ' +
+        (repeated ? 'a repeated signal' : 'bounded first-signal grace'),
+      async () => {
+        const fixture = createLintFixture(
+          'throw new Error("validator must not start after preflight cancellation");',
+          (root) =>
+            'import{writeFileSync}from"node:fs";writeFileSync(' +
+            JSON.stringify(join(root, 'snapshotter.executed')) +
+            ',"executed");throw new Error("snapshotter must not start after cancellation");',
+        );
+        roots.push(fixture.root);
+        const bin = join(fixture.root, 'trusted-git-bin');
+        mkdirSync(bin);
+        const git = join(bin, 'git');
+        const pidPath = join(fixture.root, 'git.pid');
+        const received = join(fixture.root, 'git.signal');
+        const shouldBlock = probe === 'version' ? 'isVersion' : '!isVersion';
+        await Bun.write(
+          git,
+          createShebang() +
+            '\n' +
+            'import{writeFileSync}from"node:fs";' +
+            'const args=process.argv.slice(2);const isVersion=args.length===1&&args[0]==="--version";' +
+            'if(' +
+            shouldBlock +
+            '){' +
+            'const record=signal=>writeFileSync(' +
+            JSON.stringify(received) +
+            ',signal);' +
+            'process.on("SIGINT",()=>record("SIGINT"));process.on("SIGTERM",()=>record("SIGTERM"));' +
+            'writeFileSync(' +
+            JSON.stringify(pidPath) +
+            ',String(process.pid));' +
+            'setInterval(()=>undefined,1000);' +
+            '}else{const child=Bun.spawnSync(["/usr/bin/git",...args],{stdin:"ignore",stdout:"pipe",stderr:"pipe"});' +
+            'process.stdout.write(child.stdout);process.stderr.write(child.stderr);' +
+            'if(child.signalCode!==undefined)throw new Error("fixture Git was signaled");process.exitCode=child.exitCode;}',
+        );
+        chmodSync(git, 0o755);
+        const child = Bun.spawn([...createLaunch(process.execPath, executable), '--puni-lint-v1'], {
+          cwd: fixture.candidate,
+          env: {
+            PATH: bin + ':' + dirname(process.execPath) + ':/usr/bin:/bin',
+            TOOL_WIKI_ACTIVATION_ROOT: fixture.archive,
+            TMPDIR: fixture.scratch,
+          },
+          stdin: Buffer.from(JSON.stringify(fixture.invocation)),
+          stdout: 'pipe',
+          stderr: 'pipe',
+          detached: true,
+        });
+        const stdout = new Response(child.stdout).text();
+        const stderr = new Response(child.stderr).text();
+        try {
+          await waitPath(pidPath);
+          process.kill(child.pid, repeated ? 'SIGINT' : 'SIGTERM');
+          await waitPath(received);
+          expect(readFileSync(received, 'utf8')).toBe(repeated ? 'SIGINT' : 'SIGTERM');
+          let repeatedAt: number | undefined;
+          if (repeated) {
+            repeatedAt = performance.now();
+            process.kill(child.pid, 'SIGTERM');
+          }
+          expect(await waitExit(child)).toBe(repeated ? 130 : 143);
+          if (repeatedAt !== undefined) expect(performance.now() - repeatedAt).toBeLessThan(900);
+          expect(child.signalCode).toBeNull();
+          assertGroupGone(Number(readFileSync(pidPath, 'utf8')));
+          expect(existsSync(join(fixture.root, 'snapshotter.executed'))).toBe(false);
+          expect(readdirSync(fixture.scratch)).toEqual([]);
+          expect(await stdout).toBe('');
+          expect(await stderr).toBe('');
+        } finally {
+          if (existsSync(pidPath)) killGroup(Number(readFileSync(pidPath, 'utf8')));
+          killGroup(child.pid);
+          if (child.exitCode === null) child.kill('SIGKILL');
+          await Promise.allSettled([child.exited, stdout, stderr]);
+        }
+      },
+      15000,
+    );
+  }
+}

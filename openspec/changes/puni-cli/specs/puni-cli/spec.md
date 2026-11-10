@@ -193,3 +193,8 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 
 - **WHEN** the validator completes normally with arbitrary binary stdout/stderr and a nonzero verdict
 - **THEN** all bytes are written and flushed before the executable returns that verdict
+
+#### Scenario: Git preflight participates in owned cancellation
+
+- **WHEN** cancellation arrives while the required Git version or actual-worktree-root query is still running, including a child that ignores the first signal
+- **THEN** the launcher forwards the signal to that probe's owned group, escalates only through its bounded owner or repeated signal, returns the first controlled130/143 after cleanup, and starts no subsequent probe or activation role

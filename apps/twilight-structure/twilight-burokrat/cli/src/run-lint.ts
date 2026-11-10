@@ -4,7 +4,7 @@ import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { parseSecretsOrThrow, type, ValidationError } from '@shared/validation';
 
-import { assertGitVersion } from './git-environment';
+import { assertGitVersionResponse } from './git-environment';
 import { decodeCandidateRoot } from './inventory/read-candidate';
 import { decodeJsonInput, JsonInputRefusal } from './json-input';
 import { readLintActivation } from './lint-activation';
@@ -72,30 +72,71 @@ function isWithin(root: string, path: string): boolean {
   );
 }
 
-/** Require supported Git and resolve the actual worktree root even for an interior operand. */
-export function readLintCandidate(invocation: LintInvocation, runtime: LintRuntime): string {
-  const environment = runtime.environment;
-  // Proof: driver-git-version; `refuses unsupported Git before optional inactive activation can return` fails with this injected fault and passes after restoration.
-  // Proof: driver-version-trusted-cwd; `runs both Git probes from the trusted runtime cwd after PATH is frozen` fails with this injected fault and passes after restoration.
-  assertGitVersion(runtime.directory, environment);
-  const child = Bun.spawnSync(
-    [
+export type LintCandidateOutcome =
+  | { readonly kind: 'candidate'; readonly directory: string }
+  | { readonly kind: 'cancelled'; readonly status: 130 | 143 };
+
+/**
+ * Own asynchronous Git version/root probes under the invocation's interruption source.
+ * Each probe settles its group and pipes before another stage can start. A synchronous probe
+ * delays Bun signal delivery and cannot preserve controlled cancellation while its child blocks.
+ */
+export async function readLintCandidate(
+  invocation: LintInvocation,
+  runtime: LintRuntime,
+  subscribeInterrupts: SubscribeLintInterrupts,
+): Promise<LintCandidateOutcome> {
+  const common = {
+    // Proof: preflight-trusted-cwd; `runs both Git probes from the trusted runtime cwd after PATH is frozen` fails with this injected fault and passes after restoration.
+    directory: runtime.directory,
+    // Proof: preflight-explicit-environment; `runs both Git probes from the trusted runtime cwd after PATH is frozen` fails with this injected fault and passes after restoration.
+    environment: runtime.environment,
+    // Proof: preflight-interruption-source; `does not spawn a Git probe after prior cancellation reaches its direct API` fails with this injected fault and passes after restoration.
+    subscribeInterrupts,
+  };
+  const version = await runLintChild({
+    ...common,
+    argv: ['git', '--version'],
+    stage: 'Git version',
+    stdin: undefined,
+    stdout: () => ({ kind: 'written' }),
+    stderr: () => ({ kind: 'written' }),
+  });
+  // Proof: preflight-version-cancel; `owns cancellation during the version Git probe with bounded first-signal grace` fails with this injected fault and passes after restoration.
+  if (version.kind === 'cancelled') return { kind: 'cancelled', status: version.status };
+  // Proof: preflight-version-before-root; `refuses unsupported Git before optional inactive activation can return` fails with this injected fault and passes after restoration.
+  // Proof: preflight-version-order; `refuses unsupported Git before optional inactive activation can return` fails with this injected fault and passes after restoration.
+  assertGitVersionResponse(version.status, Buffer.from(version.stdout).toString());
+  const errors: Uint8Array[] = [];
+  const root = await runLintChild({
+    ...common,
+    argv: [
       'git',
       '-C',
       anchorPath(invocation.request.repository, invocation.callerDirectory),
       'rev-parse',
       '--show-toplevel',
     ],
-    // Proof: driver-root-trusted-cwd; `runs both Git probes from the trusted runtime cwd after PATH is frozen` fails with this injected fault and passes after restoration.
-    { cwd: runtime.directory, env: environment, stdout: 'pipe', stderr: 'pipe' },
-  );
-  return realpathSync.native(
-    decodeCandidateRoot({
-      exitCode: child.exitCode,
-      stdout: child.stdout,
-      stderr: child.stderr.toString(),
-    }),
-  );
+    stage: 'candidate root',
+    stdin: undefined,
+    stdout: () => ({ kind: 'written' }),
+    stderr: (bytes) => {
+      errors.push(bytes.slice());
+      return { kind: 'written' };
+    },
+  });
+  // Proof: preflight-root-cancel; `owns cancellation during the root Git probe with bounded first-signal grace` fails with this injected fault and passes after restoration.
+  if (root.kind === 'cancelled') return { kind: 'cancelled', status: root.status };
+  return {
+    kind: 'candidate',
+    directory: realpathSync.native(
+      decodeCandidateRoot({
+        exitCode: root.status,
+        stdout: root.stdout,
+        stderr: Buffer.concat(errors).toString(),
+      }),
+    ),
+  };
 }
 
 /**
@@ -114,7 +155,11 @@ export async function runLint(invocation: LintInvocation, context: LintContext):
   // Proof: driver-recorded-cancel; `preserves recorded cancellation before optional activation preflight` fails with this injected fault and passes after restoration.
   if (cancellation.status !== undefined) return cancellation.status;
   const runtime = readLintRuntime(context.path, context.runtimeDirectory);
-  const candidateRoot = readLintCandidate(invocation, runtime);
+  // Proof: preflight-no-early-scratch; `preserves unconfirmed preflight cleanup without creating activation scratch` fails with this injected fault and passes after restoration.
+  const candidate = await readLintCandidate(invocation, runtime, context.subscribeInterrupts);
+  // Proof: preflight-driver-cancel; `owns cancellation during the version Git probe with bounded first-signal grace` fails with this injected fault and passes after restoration.
+  if (candidate.kind === 'cancelled') return candidate.status;
+  const candidateRoot = candidate.directory;
   const selected = readLintActivation({
     candidateRoot,
     callerDirectory: invocation.callerDirectory,
