@@ -6,6 +6,21 @@ together is explained in [names and boundaries](names.md).
 
 ## Language
 
+**Authenticated compiler source**:
+The immutable decoded compiler text tied to an exact privately owned derivative artifact and its
+cumulative staging allowance.
+_Avoid_: An executable compiler namespace as source provenance
+
+**Compiler observations**:
+Detached extraction and selector records computed from an explicitly supplied compiler and extractor
+identity; their shape or matching tag grants no authenticated execution ownership.
+_Avoid_: An authenticated derivative extraction based on matching metadata
+
+**Authenticated derivative extraction**:
+A detached successful compiler extraction privately joined by Twilight Dash to the exact derivative
+artifact whose bytes Dash executed.
+_Avoid_: A copied report or compiler observations as execution authority
+
 **Release bundle**:
 The complete set of immutable product artifacts delivered together as one release,
 including every tier required by that product.

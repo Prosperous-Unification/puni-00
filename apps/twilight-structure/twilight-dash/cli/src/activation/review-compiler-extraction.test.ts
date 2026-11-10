@@ -4,28 +4,23 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  captureCompilerDerivative,
+  extractTypeScriptObservations,
+  readCompilerDerivativeProvenance,
+} from '@twilight-burokrat/judge';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 import ts from 'typescript';
 
-import { captureCompilerDerivative } from './compiler-derivative-artifact';
-import {
-  createLimits,
-  createMembers,
-  readLibrary,
-} from './compiler-derivative-fixture.test-support';
-import { fixture, limits, request, workspace } from './typescript.test.fixture';
-import {
-  extractTypeScriptRelationshipsFromSource,
-  runTypeScriptExtraction,
-} from './typescript-core';
-import type * as DerivativeModule from './typescript-derivative';
+import { monotonicClock } from '../clock';
+import type * as DerivativeModule from './review-compiler-extraction';
 import {
   extractDerivativeTypeScriptPrerequisite,
   readDerivativeTypeScriptBinding,
-} from './typescript-derivative';
-import expected from './typescript-derivative.expected.json';
-import type { TypeScriptExecution } from './typescript-execution';
-import { extractSerialRelationships } from './typescript-serial';
+} from './review-compiler-extraction';
+import expected from './review-compiler-extraction.expected.json';
+import { fixture, limits, request, workspace } from './review-compiler-extraction.test.fixture';
+import { createLimits, createMembers, readLibrary } from './review-compiler-fixture.test-support';
 
 const expectObservation = (value: unknown) => expect(value);
 
@@ -60,6 +55,7 @@ for (const family of families)
       fixture().source,
       limits,
       owned,
+      monotonicClock(),
     );
     expect(extraction.relationships[family][0]?.identity).toBe(
       expected.derivative.relationships[family][0]?.identity,
@@ -77,6 +73,7 @@ for (const family of families)
       fixture().source,
       limits,
       artifact(),
+      monotonicClock(),
     );
     for (const selector of extraction.relationships[family]) {
       const { identity, ...preimage } = selector;
@@ -98,6 +95,7 @@ test('actual core execution pins complete provenance and bypasses wrapper packag
     source,
     limits,
     owned,
+    monotonicClock(),
   );
   expect(independentHash(expected.configuration)).toBe(
     '4fed7305d69eb0ce076391dc7260f4ed79d926b48db682b1b5bd45c007fd420d',
@@ -129,20 +127,7 @@ test('actual core execution pins complete provenance and bypasses wrapper packag
     compiler: extraction.compiler,
   });
 });
-test('selected and serial complete legacy output is unchanged and differs from derivative', () => {
-  const selected = extractTypeScriptRelationshipsFromSource(
-    workspace,
-    request,
-    fixture().source,
-    limits,
-    ts,
-  );
-  expectObservation(selected).toEqual(expected.legacy);
-  expectObservation(extractSerialRelationships(workspace, request, fixture().source, ts)).toEqual(
-    expected.legacy,
-  );
-  expect(selected.extractor).not.toEqual(expected.derivative.extractor);
-});
+
 test('explicit ES5 library uses actual derivative core and preserves semantic families', () => {
   const overrides = {
     'tsconfig.json': JSON.stringify({
@@ -161,6 +146,7 @@ test('explicit ES5 library uses actual derivative core and preserves semantic fa
     fixture(overrides).source,
     { ...limits, maximumReadBytes: 10_000_000 },
     artifact(),
+    monotonicClock(),
   );
   expect(
     extraction.relationships.imports.map(({ source, target }) => ({ source, target })),
@@ -179,6 +165,7 @@ test('whole envelope exact cap includes request and execution provenance', () =>
     fixture().source,
     limits,
     artifact(),
+    monotonicClock(),
   );
   const bytes = Buffer.byteLength(canonical(extraction));
   expect(() =>
@@ -188,6 +175,7 @@ test('whole envelope exact cap includes request and execution provenance', () =>
       fixture().source,
       { ...limits, maximumOutputBytes: bytes },
       artifact(),
+      monotonicClock(),
     ),
   ).not.toThrow();
   expect(() =>
@@ -197,6 +185,7 @@ test('whole envelope exact cap includes request and execution provenance', () =>
       fixture().source,
       { ...limits, maximumOutputBytes: bytes - 1 },
       artifact(),
+      monotonicClock(),
     ),
   ).toThrow('TypeScript derivative output byte limit exceeded');
 });
@@ -208,7 +197,12 @@ test('output and every selector child are deeply frozen and privately owned', ()
     fixture().source,
     limits,
     owned,
+    monotonicClock(),
   );
+  expect(readDerivativeTypeScriptBinding(extraction, owned)).toEqual({
+    request,
+    compiler: extraction.compiler,
+  });
   const pending: object[] = [extraction];
   for (const value of pending) {
     expect(Object.isFrozen(value)).toBe(true);
@@ -256,6 +250,7 @@ test('request and finite limits are captured once before source callbacks mutate
     source,
     policy,
     owned,
+    monotonicClock(),
   );
   expect(extraction.request).toEqual(request);
   expectObservation(extraction.relationships).toEqual(expected.derivative.relationships);
@@ -290,6 +285,7 @@ test('limit and request getters read once and invalid bounds refuse before sourc
     fixture().source,
     policy,
     artifact(),
+    monotonicClock(),
   );
   expect(Object.values(reads).every((count) => count === 1)).toBe(true);
   const { source } = fixture();
@@ -303,6 +299,7 @@ test('limit and request getters read once and invalid bounds refuse before sourc
       source,
       { ...limits, maximumOutputBytes: NaN },
       artifact(),
+      monotonicClock(),
     ),
   ).toThrow('TypeScript maximumOutputBytes must be a nonnegative safe integer');
 });
@@ -315,6 +312,7 @@ test('failed compiler cap and freeze never register output', () => {
     fixture().source,
     limits,
     owned,
+    monotonicClock(),
   );
   const exact = Buffer.byteLength(canonical(complete));
   const registered: object[] = [];
@@ -344,6 +342,7 @@ test('failed compiler cap and freeze never register output', () => {
         fixture().source,
         limits,
         owned,
+        monotonicClock(),
       ),
     ).toThrow('TypeScript config absent');
     expect(() =>
@@ -353,6 +352,7 @@ test('failed compiler cap and freeze never register output', () => {
         fixture().source,
         { ...limits, maximumOutputBytes: exact - 1 },
         owned,
+        monotonicClock(),
       ),
     ).toThrow('TypeScript derivative output byte limit exceeded');
     const freezing = spyOn(Object, 'freeze').mockImplementation(<T>(value: T): Readonly<T> => {
@@ -373,6 +373,7 @@ test('failed compiler cap and freeze never register output', () => {
           fixture().source,
           limits,
           owned,
+          monotonicClock(),
         ),
       ).toThrow('injected derivative freeze failure');
     } finally {
@@ -409,6 +410,7 @@ test('request array length and each indexed getter are captured once', () => {
     fixture().source,
     limits,
     artifact(),
+    monotonicClock(),
   );
   expect(extraction.request).toEqual(request);
   expect(Object.values(reads).every((count) => count === 1)).toBe(true);
@@ -422,6 +424,7 @@ test('request array and sparse path guards refuse before compiler execution', ()
       fixture().source,
       limits,
       owned,
+      monotonicClock(),
     ),
   ).toThrow('TypeScript derivative request arrays required');
   expect(() =>
@@ -431,6 +434,7 @@ test('request array and sparse path guards refuse before compiler execution', ()
       fixture().source,
       limits,
       owned,
+      monotonicClock(),
     ),
   ).toThrow('TypeScript derivative request path missing');
 });
@@ -449,6 +453,7 @@ test('request count refuses before indexed getter and byte bound before accumula
       fixture().source,
       { ...limits, maximumOutputBytes: 1 },
       owned,
+      monotonicClock(),
     ),
   ).toThrow('TypeScript derivative request byte limit exceeded');
   const push = Array.prototype.push;
@@ -467,39 +472,64 @@ test('request count refuses before indexed getter and byte bound before accumula
         fixture().source,
         { ...limits, maximumOutputBytes: 4 },
         owned,
+        monotonicClock(),
       ),
     ).toThrow('TypeScript derivative request byte limit exceeded');
   } finally {
     accumulating.mockRestore();
   }
 });
-test('unknown execution branch refuses instead of selecting any runtime identity', () => {
-  const { source } = fixture();
-  source.readFile = () => {
-    throw new Error('source identity read before selection');
+test('matching-tag unverified computation and copies cannot acquire Dash extraction ownership', () => {
+  const owned = artifact();
+  const provenance = readCompilerDerivativeProvenance(owned);
+  const computed = extractTypeScriptObservations(
+    workspace,
+    request,
+    fixture().source,
+    { kind: 'bounded', limits },
+    ts,
+    {
+      extractorId: 'typescript.compiler.paths-observer',
+      version: 'v6.0.3.paths-observer.1',
+      blob: provenance.compilerExecutionIdentity,
+    },
+    'compatible',
+  );
+  expectObservation(computed).toEqual(expected.derivative);
+  expect(() => readDerivativeTypeScriptBinding(computed, owned)).toThrow(
+    'owned derivative TypeScript extraction required',
+  );
+  expect(() => readDerivativeTypeScriptBinding({ ...computed }, owned)).toThrow(
+    'owned derivative TypeScript extraction required',
+  );
+  const structured = {
+    schemaVersion: 1,
+    kind: 'typescript-derivative-prerequisite',
+    runtimeTrust: 'unverified',
+    request,
+    compiler: provenance,
+    ...computed,
   };
-  expect(() =>
-    runTypeScriptExtraction(
-      workspace,
-      request,
-      source,
-      { kind: 'bounded', limits },
-      { kind: 'unknown', compiler: ts } as unknown as TypeScriptExecution,
-      'compatible',
-    ),
-  ).toThrow('TypeScript execution selection invalid');
+  expect(() => readDerivativeTypeScriptBinding(structured, owned)).toThrow(
+    'owned derivative TypeScript extraction required',
+  );
 });
 
 test('authenticated namespace reaches actual core program construction', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'derivative-core-namespace-'));
   try {
     const rewrite = (source: string, base: string, loader?: string) =>
-      source.replace(
-        /from '(\.{1,2}\/[^']+)'/g,
-        (_match: string, path: string) =>
-          `from '${path === './compiler-derivative-runtime' && loader !== undefined ? loader : new URL(path + '.ts', base).pathname}'`,
-      );
-    const runtimeUrl = new URL('./compiler-derivative-runtime.ts', import.meta.url);
+      source
+        .replace(
+          "from '@twilight-burokrat/judge'",
+          `from '${import.meta.resolve('@twilight-burokrat/judge')}'`,
+        )
+        .replace(
+          /from '(\.{1,2}\/[^']+)'/g,
+          (_match: string, path: string) =>
+            `from '${path === './review-compiler-runtime' && loader !== undefined ? loader : new URL(path + '.ts', base).pathname}'`,
+        );
+    const runtimeUrl = new URL('./review-compiler-runtime.ts', import.meta.url);
     const runtime = await readFile(runtimeUrl, 'utf8');
     const site = 'lifetime.compiler = requireCompiler(';
     expect(runtime.split(site)).toHaveLength(2);
@@ -509,7 +539,7 @@ test('authenticated namespace reaches actual core program construction', async (
     );
     const runtimePath = join(directory, 'runtime.ts');
     await writeFile(runtimePath, rewrite(corrupted, runtimeUrl.href));
-    const compositionUrl = new URL('./typescript-derivative.ts', import.meta.url);
+    const compositionUrl = new URL('./review-compiler-extraction.ts', import.meta.url);
     await writeFile(
       join(directory, 'derivative.ts'),
       rewrite(await readFile(compositionUrl, 'utf8'), compositionUrl.href, runtimePath),
@@ -522,6 +552,7 @@ test('authenticated namespace reaches actual core program construction', async (
         fixture().source,
         limits,
         artifact(),
+        monotonicClock(),
       ),
     ).toThrow('owned derivative core sentinel');
   } finally {
@@ -544,7 +575,75 @@ test('invalid captured request lengths refuse before loading', () => {
         fixture().source,
         limits,
         owned,
+        monotonicClock(),
       ),
     ).toThrow('TypeScript derivative request length invalid');
+  }
+});
+
+test('trusted timing is separate from request and policy timing-shaped properties', () => {
+  const hostileRequest = {
+    ...request,
+    get monotonic(): never {
+      throw new Error('request timing selected');
+    },
+  };
+  const hostileLimits = {
+    ...limits,
+    get monotonic(): never {
+      throw new Error('policy timing selected');
+    },
+  };
+  const extraction = extractDerivativeTypeScriptPrerequisite(
+    workspace,
+    hostileRequest,
+    fixture().source,
+    hostileLimits,
+    artifact(),
+    monotonicClock(),
+  );
+  expect(extraction.runtimeTrust).toBe('unverified');
+});
+
+test('expired final loader deadline cannot publish a successful Dash extraction', () => {
+  const owned = artifact();
+  const registered: unknown[] = [];
+  const original: unknown = Object.getOwnPropertyDescriptor(WeakMap.prototype, 'set')?.value;
+  if (typeof original !== 'function') throw new Error('WeakMap setter absent');
+  const registration = spyOn(WeakMap.prototype, 'set').mockImplementation(function (
+    this: WeakMap<WeakKey, unknown>,
+    key,
+    value,
+  ) {
+    if (typeof value === 'object' && value !== null && 'artifact' in value && 'metadata' in value)
+      registered.push(key);
+    Reflect.apply(original, this, [key, value]);
+    return this;
+  });
+  let samples = 0;
+  const monotonic = {
+    now() {
+      samples++;
+      return samples === 5 ? 10000 : 0;
+    },
+  };
+  let failure: unknown;
+  try {
+    try {
+      extractDerivativeTypeScriptPrerequisite(
+        workspace,
+        request,
+        fixture().source,
+        limits,
+        owned,
+        monotonic,
+      );
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(registered).toEqual([]);
+    expect(String(failure)).toContain('compiler derivative load timeout exceeded');
+  } finally {
+    registration.mockRestore();
   }
 });

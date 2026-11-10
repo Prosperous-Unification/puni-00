@@ -1,0 +1,185 @@
+{
+  "legacy": {
+    "extractor": {
+      "extractorId": "typescript.compiler",
+      "version": "v6.0.3",
+      "blob": "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91"
+    },
+    "relationships": {
+      "imports": [
+        {
+          "source": "src/index.ts",
+          "specifier": "./value",
+          "target": "src/value.ts",
+          "importKind": "type",
+          "extractor": {
+            "extractorId": "typescript.compiler",
+            "version": "v6.0.3",
+            "blob": "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91"
+          },
+          "identity": "919db98b6eb55ee86f004dc850dfdf4d41698abf077beaf47b968dd3ba52cc08"
+        }
+      ],
+      "reverseEdges": [
+        {
+          "provider": "src/value.ts",
+          "importers": [
+            {
+              "source": "src/index.ts",
+              "specifier": "./value",
+              "importKind": "type"
+            }
+          ],
+          "extractor": {
+            "extractorId": "typescript.compiler",
+            "version": "v6.0.3",
+            "blob": "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91"
+          },
+          "identity": "97885da202018e71322a84b795ad1c93bffc8b0a66293fbabddfda4249fe991e"
+        }
+      ],
+      "publicDeclarations": [
+        {
+          "configPath": "tsconfig.json",
+          "entrypoint": "src/index.ts",
+          "configurationIdentity": "4fed7305d69eb0ce076391dc7260f4ed79d926b48db682b1b5bd45c007fd420d",
+          "declarations": [
+            {
+              "sourcePath": "src/index.ts",
+              "emittedPath": "src/index.d.ts",
+              "text": "import type { Value } from './value';\nexport declare const value: Value;\n"
+            },
+            {
+              "sourcePath": "src/value.ts",
+              "emittedPath": "src/value.d.ts",
+              "text": "export interface Value {\n    label: string;\n}\n"
+            }
+          ],
+          "extractor": {
+            "extractorId": "typescript.compiler",
+            "version": "v6.0.3",
+            "blob": "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91"
+          },
+          "identity": "abfa647b21c045fe7b3527accb42d2a68fdcffee64306491a9b436631e66001c"
+        }
+      ]
+    }
+  },
+  "derivative": {
+    "extractor": {
+      "extractorId": "typescript.compiler.paths-observer",
+      "version": "v6.0.3.paths-observer.1",
+      "blob": "5c0c6d82bf82918032bdf831a69dddce02571fdacd03df5b8d1d77af076f9d8d"
+    },
+    "relationships": {
+      "imports": [
+        {
+          "source": "src/index.ts",
+          "specifier": "./value",
+          "target": "src/value.ts",
+          "importKind": "type",
+          "extractor": {
+            "extractorId": "typescript.compiler.paths-observer",
+            "version": "v6.0.3.paths-observer.1",
+            "blob": "5c0c6d82bf82918032bdf831a69dddce02571fdacd03df5b8d1d77af076f9d8d"
+          },
+          "identity": "92d7b16ceaf8f6fc0f735d7347d9c9248e4a92dfb302c1dbd3372c32a860ee32"
+        }
+      ],
+      "reverseEdges": [
+        {
+          "provider": "src/value.ts",
+          "importers": [
+            {
+              "source": "src/index.ts",
+              "specifier": "./value",
+              "importKind": "type"
+            }
+          ],
+          "extractor": {
+            "extractorId": "typescript.compiler.paths-observer",
+            "version": "v6.0.3.paths-observer.1",
+            "blob": "5c0c6d82bf82918032bdf831a69dddce02571fdacd03df5b8d1d77af076f9d8d"
+          },
+          "identity": "c65dd1d176672056e16a03b0ed3cf69fa0798cff6206b38b7bdf964cd6cb96a1"
+        }
+      ],
+      "publicDeclarations": [
+        {
+          "configPath": "tsconfig.json",
+          "entrypoint": "src/index.ts",
+          "configurationIdentity": "4fed7305d69eb0ce076391dc7260f4ed79d926b48db682b1b5bd45c007fd420d",
+          "declarations": [
+            {
+              "sourcePath": "src/index.ts",
+              "emittedPath": "src/index.d.ts",
+              "text": "import type { Value } from './value';\nexport declare const value: Value;\n"
+            },
+            {
+              "sourcePath": "src/value.ts",
+              "emittedPath": "src/value.d.ts",
+              "text": "export interface Value {\n    label: string;\n}\n"
+            }
+          ],
+          "extractor": {
+            "extractorId": "typescript.compiler.paths-observer",
+            "version": "v6.0.3.paths-observer.1",
+            "blob": "5c0c6d82bf82918032bdf831a69dddce02571fdacd03df5b8d1d77af076f9d8d"
+          },
+          "identity": "99e4306c482dbd955ebdd43b8c8755f1408dc7eb9809d451e17ee25a6a33a506"
+        }
+      ]
+    }
+  },
+  "configuration": {
+    "configPath": "tsconfig.json",
+    "fileNames": ["globals.d.ts", "src/index.ts"],
+    "options": {
+      "noLib": true,
+      "types": [],
+      "module": 99,
+      "configFilePath": "tsconfig.json",
+      "declaration": true,
+      "emitDeclarationOnly": true,
+      "declarationMap": false,
+      "noEmit": false
+    }
+  },
+  "provenance": {
+    "artifact": {
+      "kind": "typescript-compiler-derivative",
+      "schemaVersion": 1,
+      "upstreamIdentity": "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39",
+      "members": [
+        {
+          "path": "LICENSE.txt",
+          "identity": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47",
+          "byteLength": 9197
+        },
+        {
+          "path": "NOTICE",
+          "identity": "2bc5ce9e6b7ca3e8cdee8a6593241646056d5018e5d6e21ea5df299f2a200555",
+          "byteLength": 37980
+        },
+        {
+          "path": "compiler.cjs",
+          "identity": "47bffa39459dbbb0797606506c790af1420a983ed6bc1d3ca4945a64ee782559",
+          "byteLength": 9144652
+        },
+        {
+          "path": "manifest.json",
+          "identity": "8b82b8fcaf4fe52d963152efacd98932cc41bb6cd3b701e4c5b47b71cea2d743",
+          "byteLength": 526
+        }
+      ]
+    },
+    "execution": {
+      "kind": "typescript-compiler-execution",
+      "schemaVersion": 1,
+      "artifactIdentity": "2eff9728f5e5fbd7c53fde8571254e7865df0664c7b0a9f55eecf698778b0c62",
+      "compilerVersion": "6.0.3",
+      "loaderPolicyIdentity": "d3a0a1bb071f7b6fb1b2892e45c06eaba82880a02aa108bf4c57a52be8b9a9df"
+    },
+    "loaderPolicyRecipe": "typescript-compiler-loader-v1\nfresh-node-vm-context\ncontext-local-commonjs\ncaptured-authenticated-bytes-only\nabsent-node-bun-io-timers\ndenied-require-and-dynamic-import\nno-string-or-wasm-code-generation\nno-ambient-resolution\n"
+  }
+}

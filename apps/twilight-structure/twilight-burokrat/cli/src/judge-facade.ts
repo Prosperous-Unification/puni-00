@@ -1,7 +1,8 @@
 /**
  * The only Twilight Burokrat surface Twilight Dash may reach: the admission and activation judges.
- * Every export answers "is this artifact allowed?" or "do these bytes reconcile?" from a Git
- * revision plus bytes; none takes a store, reads a clock or reaches the network. Dash's runtime
+ * Exports deterministic artifact judgments/facts and explicitly unverified compiler computation.
+ * Its authenticated source bridge yields immutable text, never an executable namespace.
+ * No export takes a store, reads a clock, loads a VM or reaches the network. Dash's runtime
  * authority (store, claims, generations, composition and publication) and its activation
  * controller and review invoker call these through `@twilight-burokrat/judge`; Burokrat never
  * imports Dash. `judge-facade.test.ts` pins the runtime export list and scans every module this
@@ -115,6 +116,7 @@ export {
   captureCompilerDerivative,
   listCompilerDerivativeMembers,
   readCompilerDerivativeProvenance,
+  withCompilerDerivativeSource,
 } from './relationships/compiler-derivative-artifact';
 export {
   type DeclarationSource,
@@ -132,11 +134,15 @@ export {
 export { type ExtractorIdentity } from './relationships/typescript';
 export type {
   TypeScriptConfigurationMode,
+  TypeScriptPolicy,
   TypeScriptRuntime,
   TypeScriptSource,
 } from './relationships/typescript-compiler';
 export {
+  captureTypeScriptLimits,
+  extractTypeScriptObservations,
   extractTypeScriptRelationshipsFromSource,
+  type TypeScriptExtraction,
   type TypeScriptLimits,
 } from './relationships/typescript-core';
 export { AuditFinding } from './review/audit';

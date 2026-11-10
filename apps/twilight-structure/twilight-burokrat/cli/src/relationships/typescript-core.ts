@@ -26,7 +26,6 @@ import {
   publicDeclaration,
   selectDeclarationOwner,
 } from './typescript-declarations';
-import type { TypeScriptExecution } from './typescript-execution';
 import { importSites, resolveDependency } from './typescript-imports';
 
 export interface ExtractorIdentity {
@@ -112,49 +111,40 @@ export interface TypeScriptExtraction {
   relationships: TypeScriptRelationships;
 }
 
-function selectExtractor(
-  workspace: string,
-  system: TypeScriptSystem,
-  execution: TypeScriptExecution,
-): ExtractorIdentity {
-  switch (execution.kind) {
-    case 'selected':
-      return readCompilerIdentity(workspace, system);
-    // Proof: legacy identity substitution lost the independently pinned import selector digest
-    // and reached the forbidden wrapper-package read in actual derivative core execution.
-    case 'derivative':
-      return Object.freeze({
-        extractorId: 'typescript.compiler.paths-observer',
-        version: 'v6.0.3.paths-observer.1',
-        blob: execution.provenance.compilerExecutionIdentity,
-      });
-    // Proof: selecting legacy identity here reached forbidden source IO for the unknown branch.
-    default:
-      throw new Error('TypeScript execution selection invalid');
-  }
+function assertConfigurationMode(mode: TypeScriptConfigurationMode): void {
+  // Proof: validation omission reached the source getter in `compiler configuration mode rejects unknown`.
+  if (!['compatible', 'retained-type-roots', 'retained-config-roots'].includes(mode))
+    throw new Error('TypeScript configuration mode invalid');
 }
 
 /**
- * Internal shared runner; derivative selections are privately built by owned composition.
- * Selects execution identity before any import, reverse-edge or declaration selector hash.
- * It does not establish retained source ownership or install strict paths admission.
- * @internal
+ * Computes unverified observations with explicit compiler and extractor inputs before every selector hash.
+ * Authenticates neither namespace nor identity and publishes no owned derivative extraction.
+ * Only the caller's exact execution-owner registry can certify their join; matching tags grant no authority.
+ * All arguments are required. Retained execution additionally requires exact owners and both admission routes.
  */
-export function runTypeScriptExtraction(
+export function extractTypeScriptObservations(
   workspace: string,
   request: RelationshipRequest['typescript'],
   source: TypeScriptSource,
   policy: TypeScriptPolicy,
-  execution: TypeScriptExecution,
+  compiler: TypeScriptRuntime,
+  extractor: ExtractorIdentity,
   mode: TypeScriptConfigurationMode,
 ): TypeScriptExtraction {
-  // Proof: validation omission reached the source getter in
-  // `compiler configuration mode rejects unknown before source callbacks`.
-  if (!['compatible', 'retained-type-roots', 'retained-config-roots'].includes(mode))
-    throw new Error('TypeScript configuration mode invalid');
-  // Proof: installed namespace substitution lost the authenticated createProgram sentinel.
-  const system = boundSource(workspace, source, policy, execution.compiler);
-  const extractor = selectExtractor(workspace, system, execution);
+  assertConfigurationMode(mode);
+  const system = boundSource(workspace, source, policy, compiler);
+  return computeTypeScriptObservations(workspace, request, system, policy, extractor, mode);
+}
+
+function computeTypeScriptObservations(
+  workspace: string,
+  request: RelationshipRequest['typescript'],
+  system: TypeScriptSystem,
+  policy: TypeScriptPolicy,
+  extractor: ExtractorIdentity,
+  mode: TypeScriptConfigurationMode,
+): TypeScriptExtraction {
   const projects = request.configPaths.map((configPath) =>
     parseProject(workspace, configPath, system, mode),
   );
@@ -264,14 +254,10 @@ export function extractTypeScriptRelationshipsWithPolicy(
   compiler: TypeScriptRuntime,
   mode: TypeScriptConfigurationMode = 'compatible',
 ): TypeScriptExtraction {
-  return runTypeScriptExtraction(
-    workspace,
-    request,
-    source,
-    policy,
-    { kind: 'selected', compiler },
-    mode,
-  );
+  assertConfigurationMode(mode);
+  const system = boundSource(workspace, source, policy, compiler);
+  const extractor = readCompilerIdentity(workspace, system);
+  return computeTypeScriptObservations(workspace, request, system, policy, extractor, mode);
 }
 
 /**

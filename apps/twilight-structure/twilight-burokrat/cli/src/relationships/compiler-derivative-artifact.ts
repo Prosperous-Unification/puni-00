@@ -198,7 +198,9 @@ export function readCompilerDerivativeProvenance(
 }
 
 /**
- * Internal loader bridge; no bytes or compiler are exported through judge.
+ * Authenticated immutable-source bridge for Dash effect composition; no writable bytes or compiler escape.
+ * Yields the original decoded string and captured load ceiling after exact ownership and staging charge.
+ * Reads no clock, loads no VM and accepts no replacement namespace.
  * Reserves four executable byte lengths for UTF-16 decode and Script staging before decoding.
  * Charges persist across failed and successful loads; VM-internal code/AST/heap is not counted.
  * Full parser process settlement is a separate mandatory boundary.

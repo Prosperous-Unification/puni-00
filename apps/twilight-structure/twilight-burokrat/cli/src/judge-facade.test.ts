@@ -20,6 +20,9 @@ const RUNTIME_SURFACE = [
   'assertNarrative',
   'assertUnambiguousPath',
   'captureCompilerDerivative',
+  'captureTypeScriptLimits',
+  'extractTypeScriptObservations',
+  'withCompilerDerivativeSource',
   'listCompilerDerivativeMembers',
   'readCompilerDerivativeProvenance',
   'canonicalPaths',
@@ -101,6 +104,8 @@ const IN_MEMORY_SQLITE = new Set(['relationships/declarations.ts']);
 
 /** Store, runtime-half, Dash, clock and network reads the judge must never reach. */
 const FORBIDDEN = [
+  // Proof: a real node:vm import in reachable artifact metadata failed this unchanged graph scan.
+  { pattern: /from ['"]node:vm['"]/, reason: 'imports executable VM' },
   { pattern: /from '[^']*authority-store'/, reason: 'imports the authority store' },
   { pattern: /from '[^']*admission-runtime\//, reason: 'imports the runtime half' },
   { pattern: /twilight-dash/, reason: 'names Twilight Dash' },

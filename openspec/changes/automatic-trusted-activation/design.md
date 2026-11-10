@@ -2560,12 +2560,12 @@ and serial recipe/output/lifetime behavior. This stage adds no public retained d
 observer placeholder, activation or trust claim; exact retained ownership and both actual-attempt
 admission paths remain prerequisites for the strict public composition.
 
-An IO-free internal execution type distinguishes selected compilation from a nominal derivative
-selection. The core runner requires that union. Its selected wrapper constructs only the selected
-branch and reads the same package/version identity as before. The private derivative composition
-constructs its selection only inside the authenticated Stage 1 namespace callback, using owned
-artifact provenance; callers supply no identity or alternate compiler. Only this branch bypasses
-the wrapper identity recipe. The separate serial extractor is unchanged.
+Burokrat exposes one explicitly unverified observation computation with required compiler,
+extractor, policy and mode inputs. Selected compatibility derives the original package/version
+identity in the same validation/source-binding order; both entries share one computation body.
+Dash derives the derivative identity from owned provenance inside its authenticated loader callback.
+No nominal derivative selection or public trusted identity mint remains in Burokrat. The separate
+serial extractor is unchanged.
 
 The internal prerequisite returns an explicit schema/kind with unverified compiler provenance,
 captured request, extractor and all relationships. It snapshots finite compiler limits and request
@@ -2575,10 +2575,10 @@ and only then registers an exact-object/owned-artifact binding. Failures publish
 This ownership is the internal extraction/artifact join; Stage 3 must still establish the exact
 ReviewRuntime/source ownership and acquisition evidence before any strict retained entry exists.
 
-The pure core and IO-free types remain reachable from judge; the VM composition does not. Keep the
-Stage 1 type-inclusive no-loader/no-builder facade invariant and all clock/store/network scans.
-At the first actual public executable reachability in Stages 3/4, refine only the bounded loader clock
-and explicit deny-list token interaction with independent isolation negatives. No blanket exemption.
+The pure computation and authenticated immutable-source bridge are reachable from judge; the
+VM and authenticated derivative extraction owner live only in Dash. This deliberately supersedes
+only the former no-source-through-judge rule. No executable-loader/builder reachability or ambient
+clock/store/network scanner exception is permitted.
 
 ### Retained derivative acquisition/source preparation (Stage 3)
 
@@ -2617,3 +2617,32 @@ actual runtime bytes carry their real hash, and only the reader's expected hash 
 while its compiled length stays old. Hold this fault in control and mutant; removing only length
 admission must spend a real read/copy allowance before any later raw-pin error. This is a combined
 dependency/guard pre-read proof, not an independent hostile-owner bypass under unchanged hashes.
+
+### Compiler loader effect ownership correction (2026-11-10)
+
+Intent: restore Burokrat's semantic no-clock boundary without weakening authenticated bytes,
+aggregate load allowance, exact ownership, selector identity or detached publication. Move the
+existing timed loader and authenticated extraction composition to Dash; preserve Stage3 preparation
+as nonexecuting and leave both Stage4 admission paths and all Stage5/full-closure duties required.
+
+`withCompilerDerivativeSource` crosses judge as an authenticated immutable string plus the captured
+artifact load ceiling, after exact ownership and cumulative staging charges. It has no clock/VM or
+replacement namespace. Burokrat's explicit `extractTypeScriptObservations` computes selectors with
+all arguments required and authenticates neither namespace nor tag; only Dash's private successful
+extraction/artifact binding certifies their execution join. Matching-tag computations/copies refuse
+that private reader. This adds no strict retained execution entry or placeholder admission callback.
+
+Dash receives a required Monotonic separately from artifact/request/source/options. It captures the
+method once with its receiver and samples before source decode. Fractional finite samples and equal
+successive samples are valid; missing/noncallable/nonfinite/backwards samples, finite-endpoint elapsed
+overflow and thrown dependencies fail. The artifact allowance is captured once. Policy, authenticated
+compiler, module.exports and final compatibility checks all use the same start and diminishing
+`allowance - ceil(elapsed)`, refusing nonpositive values and clamping positive Script timeouts to 2147483647. No phase reset, fallback clock or candidate timing override exists. Finally drops context/
+compiler references on all failures; failed work publishes no owned extraction. Synchronous decoding
+cannot be interrupted, but its elapsed cost is charged before evaluation. Parser/VM heap settlement
+and installed execution remain separate obligations.
+
+Only Dash clock.ts produces ambient samples; immediate tests use its actual monotonicClock for slow
+decode/infinite evaluation, complemented by controlled phase samples. Both unchanged package scanners
+must pass, fail direct-clock injections in ordinary source, and pass restored. Packaging must include
+the moved Dash loader/composition and Burokrat source/computation closure through the actual facade.

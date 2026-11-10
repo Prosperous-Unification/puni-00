@@ -1,20 +1,21 @@
 import { Buffer } from 'node:buffer';
 
-import type { RelationshipRequest } from '../contracts/records';
-import { serializeCanonical } from '../evidence/content-manifest';
-import {
-  type CompilerDerivative,
-  type CompilerDerivativeProvenance,
-  readCompilerDerivativeProvenance,
-} from './compiler-derivative-artifact';
-import { withCompilerDerivative } from './compiler-derivative-runtime';
-import type { TypeScriptLimits, TypeScriptRuntime, TypeScriptSource } from './typescript-compiler';
 import {
   captureTypeScriptLimits,
-  runTypeScriptExtraction,
+  type CompilerDerivative,
+  type CompilerDerivativeProvenance,
+  type ExtractorIdentity,
+  extractTypeScriptObservations,
+  readCompilerDerivativeProvenance,
+  type RelationshipRequest,
+  serializeCanonical,
   type TypeScriptExtraction,
-} from './typescript-core';
-import type { TypeScriptDerivativeExecution } from './typescript-execution';
+  type TypeScriptLimits,
+  type TypeScriptSource,
+} from '@twilight-burokrat/judge';
+
+import type { Monotonic } from '../clock';
+import { withCompilerDerivative } from './review-compiler-runtime';
 
 type DeepReadonly<T> = T extends readonly (infer Member)[]
   ? readonly DeepReadonly<Member>[]
@@ -97,16 +98,13 @@ function captureRequest(request: TypeScriptRequest, maximumBytes: number): TypeS
   return captured;
 }
 
-function selectDerivative(
-  compiler: TypeScriptRuntime,
-  provenance: CompilerDerivativeProvenance,
-): TypeScriptDerivativeExecution {
-  // Boundary: only the authenticated Stage 1 callback supplies this original namespace and owned provenance.
+// Proof: artifact-identity substitution loses all three independent execution-selector vectors.
+function selectDerivative(provenance: CompilerDerivativeProvenance): ExtractorIdentity {
   return Object.freeze({
-    kind: 'derivative',
-    compiler,
-    provenance,
-  }) as TypeScriptDerivativeExecution;
+    extractorId: 'typescript.compiler.paths-observer',
+    version: 'v6.0.3.paths-observer.1',
+    blob: provenance.compilerExecutionIdentity,
+  });
 }
 
 /**
@@ -115,7 +113,7 @@ function selectDerivative(
  * then registers exact artifact/output ownership. No raw compiler or trusted identity is accepted.
  * The compatible configuration mode installs no placeholder observer. Stages 3 and 4 must join
  * exact retained owners and both actual-attempt admission paths before strict public composition.
- * This module remains absent from judge exports/reachability until that complete route exists.
+ * This Dash effect owner is never exported through judge; timing is separately supplied by trusted composition.
  * @throws Error for capture/loading/compiler/budget/freeze failures; no failed envelope is owned.
  */
 // Proof: narrowing the required owned-artifact input to never failed real callers in the API diagnostic.
@@ -125,19 +123,23 @@ export function extractDerivativeTypeScriptPrerequisite(
   source: TypeScriptSource,
   limits: TypeScriptLimits,
   artifact: CompilerDerivative,
+  monotonic: Monotonic,
 ): DerivativeTypeScriptPrerequisite {
   // Proof: original-policy forwarding and late ceiling rereads lost snapshot/getter controls.
   const capturedLimits = captureTypeScriptLimits(limits);
   const capturedRequest = captureRequest(request, capturedLimits.maximumOutputBytes);
   const provenance = readCompilerDerivativeProvenance(artifact);
-  return withCompilerDerivative(artifact, (compiler) => {
+  return withCompilerDerivative(artifact, monotonic, (compiler) => {
     // Proof: original-request forwarding lost actual core output after callback mutation.
-    const core = runTypeScriptExtraction(
+    const core = extractTypeScriptObservations(
       workspace,
       capturedRequest,
       source,
       { kind: 'bounded', limits: capturedLimits },
-      selectDerivative(compiler, provenance),
+      // Proof: a constant test-only installed namespace dependency, substituted only here, loses
+      // the authenticated createProgram sentinel; actual namespace control/restoration pass.
+      compiler,
+      selectDerivative(provenance),
       'compatible',
     );
     // Proof: original-request publication lost the detached request snapshot assertion.
@@ -170,8 +172,9 @@ export function readDerivativeTypeScriptBinding(
 ): ExtractionMetadata {
   const binding =
     typeof extraction === 'object' && extraction !== null ? extractions.get(extraction) : undefined;
-  // Proof: omitted lookup refusal lost forged-token boundary errors; omitting artifact equality
-  // admitted an equal-content foreign artifact. No token property was read.
+  // Proof: omitted lookup refusal loses matching-tag computation/copy modeled errors to native
+  // property failure (not publication). Artifact equality omission admits a genuine equal-content
+  // foreign artifact; complete structural matching-tag envelopes still have no private ownership.
   if (binding === undefined) throw new Error('owned derivative TypeScript extraction required');
   if (binding.artifact !== artifact)
     throw new Error('owned derivative TypeScript extraction required');

@@ -7,7 +7,8 @@ The user requires this work to proceed automatically without per-PR operator ste
 ## What Changes
 
 - A bounded successor captures the pinned four-member compiler derivative and executes its
-  owned bytes privately, then binds distinct execution identity and actual paths admission
+  owned bytes privately in Dash; Burokrat supplies immutable source/authentication facts and
+  explicit unverified computation. Dash binds distinct execution identity and actual paths admission
   to retained extraction. Full runtime closure, preparation/freeze and external acceptance
   remain required; internal identity/core staging stays non-activating until exact retained
   ownership and both actual-attempt admission routes exist. Metadata-only member expectations

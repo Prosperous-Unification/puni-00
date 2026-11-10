@@ -8,6 +8,7 @@ import {
   type CompilerDerivativeMembers,
   listCompilerDerivativeMembers,
   readCompilerDerivativeProvenance,
+  withCompilerDerivativeSource,
 } from './compiler-derivative-artifact';
 import { createLimits, createMembers } from './compiler-derivative-fixture.test-support';
 
@@ -281,4 +282,31 @@ test('compiled member metadata is a closed independent immutable vector', () => 
       byteLength: members[path].byteLength,
     })),
   );
+});
+
+test('public immutable source bridge preserves exact text ceiling and private ownership', () => {
+  let limitReads = 0;
+  const artifact = captureCompilerDerivative(members, {
+    ...createLimits(),
+    get maximumLoadMilliseconds() {
+      limitReads++;
+      return 1234;
+    },
+  });
+  const source = withCompilerDerivativeSource(artifact, (text, ceiling) => {
+    expect(typeof text).toBe('string');
+    expect(hash(text)).toBe('47bffa39459dbbb0797606506c790af1420a983ed6bc1d3ca4945a64ee782559');
+    expect(ceiling).toBe(1234);
+    return text;
+  });
+  expect(source).toBe(new TextDecoder('utf-8', { fatal: true }).decode(members['compiler.cjs']));
+  expect(limitReads).toBe(1);
+  const poison = new Proxy(artifact, {
+    get() {
+      throw new Error('source token touched');
+    },
+  });
+  expect(() => {
+    withCompilerDerivativeSource(poison, () => undefined);
+  }).toThrow('compiler derivative ownership differs');
 });

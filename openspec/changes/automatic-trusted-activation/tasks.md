@@ -694,7 +694,7 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       and lifetime parity. Complete detached envelope bounds/freeze/private ownership are source-proven;
       exact review and owning/installed/canonical acceptance remain in g5. No strict public route
       before g3 exact retained ownership and both g4 admission paths.
-- [x] 2.1d.1.3e6g3 Join four runtime closure tuples to the exact owned ReviewRuntime and derivative
+- [ ] 2.1d.1.3e6g3 Join four runtime closure tuples to the exact owned ReviewRuntime and derivative
       acquisition; prepare the real source with full shared request snapshots and exact construction
       owners. Source controls and independent faults pass; exact review and owning/installed/canonical
       acceptance remain open. No extraction executes before both g4 admission routes.
@@ -716,3 +716,9 @@ Stage 3 ruling: g3 includes metadata-only compiled member expectations, real two
 acquisition, private exact construction-owner assertions, shared pure full-request snapshots and
 real non-executing retained source preparation. The expected-hash/length proof is explicitly
 qualified; it never repins production or manufactures ownership. Strict composition remains in g4.
+
+- [ ] 2.1d.1.3e6g3c Restore semantic clock ownership: move timed loader/authenticated extraction to
+      Dash with required separate Monotonic; expose immutable source and unverified shared computation
+      through judge. Preserve all aggregate phase deadlines, owner/selector/cap/freeze proofs, actual
+      slow-decode/infinite-VM controls and unchanged scanners. Source implementation/proofs are
+      recorded; exact combined Stage3/clock review remains required before acceptance.

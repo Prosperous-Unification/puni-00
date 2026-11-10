@@ -6418,3 +6418,73 @@ No push, host/gate, full Nx, installed packaging, frozen install or aggregate tr
 was performed. Stage 4 BOTH actual-attempt admission paths, Stage 5, full producer/config/
 reference closure, parser settlement, actual complete read manifest, eleven documents,
 protected freeze and independent installed authority/unattended acceptance remain mandatory.
+
+### Clock ownership correction — in progress
+
+Successor fixbase35c38592b3539b15c0670736f0cc89596ba8f5d7; combined reviewbasecf603 remains.
+The original architect ruled to move the effect owner to Dash, not inject clock/remaining callbacks
+into Burokrat. Stage3 receipts remain historical and its known clock failure is not relabeled green.
+Clock correction evidence, exact commands/faults and final identity will live in the Task10 ledger's
+clock-evidence/ and clock-report.md. No Stage4/5, installed, owning/gate/CI or trust acceptance follows.
+
+### Clock ownership source checkpoint (2026-11-10)
+
+Fixbase35c38592b3539b15c0670736f0cc89596ba8f5d7; combined reviewbasecf603 remains.
+The timed VM loader and authenticated extraction/private success binding now live in Dash.
+Burokrat exports an authenticated immutable-source bridge and explicit unverified computation,
+sharing one core body with selected compatibility. Its nominal derivative execution union is
+removed. No Burokrat clock/remaining callback or VM wrapper remains. Existing raw pins and
+semantic loader-policy identities are unchanged; they do not attest the moved implementation closure.
+
+Required Monotonic is a separate trusted Dash dependency; no default/request/options timing exists.
+The method is captured once with its receiver, with finite start before decode and finite,
+nondecreasing subsequent samples/finite elapsed subtraction. One captured allowance spans all
+Script phases/final check; rounding/clamp, thrown dependencies and finally cleanup remain enforced.
+Actual monotonicClock tests witness two VM runs and exact Script timeout for the infinite program,
+versus zero runs after real slow decode. This does not interrupt synchronous decode or bound parser heap.
+
+Observed ordinary900MiB/120s commands and full logs are retained in clock-evidence/:
+
+| Focus                                            | Result                   | Peak KiB |
+| ------------------------------------------------ | ------------------------ | -------- |
+| Final moved loader/timing/cleanup                | 50 pass /138 assertions  | 446808   |
+| Final authenticated extraction/API controls      | 22 pass /92 assertions   | 783540   |
+| Core/compiler/selected/serial parity             | 109 pass /240 assertions | 323972   |
+| Artifact/immutable source/both scanners/facade   | 52 pass /105 assertions  | 454008   |
+| Selected retained/exact extraction owner         | 49 pass /3050 assertions | 785708   |
+| Stage3 real acquisition/nonexecuting preparation | 24 pass /85 assertions   | 486216   |
+
+Total306 passing tests/3710 assertions. The combined retained+reader batch was refused97 at
+923040KiB/900; it is not a passing run. The two smaller serial groups above pass at the unchanged cap.
+
+There are38 distinct ordinary fault/restored cases:34 temporal/owner/selector/scanner cases,
+two actual publication-order faults, one namespace forwarding fault with a constant disclosed
+installed-namespace test dependency, and one new explicit no-VM facade fence. All completed
+mutants exit1 at intended oracles and restored controls exit0; unique site counts are one.
+Four final-form timing-ingress repeats are refreshes, not additional distinct cases. Actual
+phase/consumer/publication admission is distinguished from modeled/native error-order evidence
+for shape, nonfinite later/elapsed, rounding/clamp and invalid timeout guards. No owner entries
+or producer pins are manufactured. Initial registration-omission selection survived because its
+chosen test omitted a valid-owner positive; the retained receipt is disqualified, the oracle now
+calls the real owner reader and the same omission fails. Initial too-short scripted budgets are
+also disqualified; real100ms infinite/150ms decode controls remain unchanged in production allowance.
+
+The required runtime/composition timing parameter each independently narrowed to never fails real
+callers (TS2345), then restores. Compile-only missing-argument controls remain active. These are
+narrow actual roots, not full owning native typechecks. Full commands/config/receipts are in
+api-proof-receipts.json and api-tsconfig.json.
+
+Both unchanged package clock scanners pass after owner relocation and independently fail direct
+clock injections in ordinary Burokrat/moved Dash source, then pass restored. Facade isolation adds
+an explicit node:vm predicate: an actual reachable VM import first exposed the missing fence,
+then fails the strengthened scan and passes restored. Existing store/network/clock/builder and
+type-inclusive graph checks remain; only the intentional immutable-source API restriction changed.
+
+Scoped lint uses unchanged rules/projectService and the previously authorized NODE_OPTIONS1024
+strategy under1500MiB/120s; current Dash lint passes1276632KiB. Normal hooks/exact final identities,
+final API/OpenSpec outcomes and any remaining limitations are recorded in clock-report.md.
+No full native/index/Nx/gate, installed packaging, source publication, host action or trust promotion.
+Combined Stage3/clock review remains pending. Stage4 BOTH actual-attempt routes and real trusted
+process clock composition, Stage5 moved dependency packaging/installed execution, complete producer/
+config/reference closure, parser settlement, actual full read manifest, eleven documents,
+protected freeze and independently installed authority/unattended acceptance remain mandatory.
