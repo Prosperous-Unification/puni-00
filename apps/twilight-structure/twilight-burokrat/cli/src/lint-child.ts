@@ -15,10 +15,11 @@ interface Context {
 type Request = Context &
   (
     | {
-        readonly stage: 'Git version' | 'candidate root' | 'snapshotter' | 'preparation Git';
+        readonly stage: 'Git version' | 'candidate root' | 'snapshotter';
         readonly stdin: undefined;
       }
     | { readonly stage: 'validator'; readonly stdin: Uint8Array }
+    | { readonly stage: 'preparation Git'; readonly stdin: Uint8Array | undefined }
   );
 
 export type LintChildOutcome =

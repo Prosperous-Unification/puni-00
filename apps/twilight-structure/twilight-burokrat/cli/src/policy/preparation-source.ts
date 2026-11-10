@@ -2,11 +2,11 @@ import { Buffer } from 'node:buffer';
 import { realpathSync } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
-import { runLintChild } from '../lint-child';
 import type { SubscribeLintInterrupts } from '../lint-interrupts';
 import type { LintRuntime } from '../lint-runtime';
 import { readLintCandidate } from '../run-lint';
 import { anchorPath } from '../validator-paths';
+import { runPreparationGit } from './preparation-git';
 import { RelocationRefusal } from './relocation-refusal';
 import { type BunToolkit, readBunToolkit } from './toolkit';
 
@@ -165,23 +165,8 @@ export async function readPreparationSource(
   // Proof: prep-full-revision; `refuses noncurrent full revision "HEAD"` failed under its recorded source fault and passed after restoration.
   if (!/^[0-9a-f]{40}$/u.test(selection.candidateSha))
     throw new RelocationRefusal('R1', 'candidate revision must be a full commit identity');
-  async function git(argv: readonly string[]) {
-    const errors: Uint8Array[] = [];
-    const outcome = await runLintChild({
-      argv: ['git', '-C', repository, ...argv],
-      directory: runtime.directory,
-      environment: runtime.environment,
-      stage: 'preparation Git',
-      stdin: undefined,
-      stdout: () => ({ kind: 'written' }),
-      stderr: (bytes) => {
-        errors.push(bytes.slice());
-        return { kind: 'written' };
-      },
-      subscribeInterrupts,
-    });
-    return { ...outcome, stderr: Buffer.concat(errors) };
-  }
+  const git = (argv: readonly string[]) =>
+    runPreparationGit(argv, { repository, runtime, subscribeInterrupts });
   const resolved = await git([
     'rev-parse',
     '--verify',

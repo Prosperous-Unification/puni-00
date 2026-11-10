@@ -251,3 +251,10 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **THEN** source selection requires toolkit2 before candidate-dependent IO, checks native external placement of runtime/toolkit/descriptor/roles/closure, resolves exact full commit and HEAD equality, and requires Git-reported cleanliness through owned asynchronous Git
 - **AND** configured clean/process filters and indexed submodules at every index stage refuse before status can execute them; prior and per-query cancellation preserve controlled130/143 and cleanup, while unexpected decode/spawn/cleanup failures propagate
 - **AND** selection does not imply immutable capture, output reservation, preparer execution, archive certification or a producer-default change
+
+#### Scenario: Current preparation captures selected committed bytes without live-tree substitution
+
+- **WHEN** current preparation captures an explicitly selected full commit, including an earlier reviewed commit
+- **THEN** it retains that commit/tree and all exact path/mode/blob tuples, reads each blob once through owned explicit Git, verifies actual Git content hashes and complete batch framing, and returns fresh metadata/file copies independent of caller or worktree mutations
+- **AND** noncanonical/duplicate/file-ancestor paths, gitlinks, absent/substituted objects and malformed/extra batch bytes refuse; cancellation settles owned queries before returning controlled130/143 without parsing partial output
+- **AND** capture does not imply physical materialization, valid native symlink/collision placement, completed preparation or producer cutover
