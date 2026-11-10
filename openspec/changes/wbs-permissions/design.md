@@ -1017,3 +1017,42 @@ prevalidated as current authority. Retain scoped access and complete write actor
 before resource awaits, full route callers/targets before resolver awaits, and
 caller stamps before UoW queueing. Borrowed rank savepoints and after-commit
 fanout delivery keep their existing owners and lifetime guards.
+
+### Resource/runtime retained authority and async owners (task 2.4b)
+
+ResourceUseActor carries the actual detached SecurityPrincipal. Before reads,
+actor ID, scoped member/principal ID, authentication discriminant and defined
+metadata must agree; machine/consent person IDs and machine runtime credential ID
+are derived from that evidence. Canonical historical fingerprints remain replay
+identity, never authority. Routes capture actual authority, targets and validated
+nested inputs before organization resolution; stores capture before Gate.
+
+All nine public resource/runtime operations share the existing Gate and SQLite
+connection. BEGIN IMMEDIATE fences current grant or credential reads through
+completion, including the request stream's awaited current identity check.
+Borrowed async admission/registration and synchronous append/event bodies do not
+open another owner. Late failure rolls back projection/history/sequence/request
+and audit together; paired rollback failure stays unexpected.
+
+A bounded durable credential check validates selected source/time/person-kind
+and consent-family state, current nonrevocation, organization/pinned agent/current
+bound account and membership. api_key and oidc are compatible with generic machine
+authentication; valid mcp_consent is incompatible. Consent keeps its current family
+and retained non-direct context. Stale identity is modeled forbidden; malformed or
+unreadable trusted storage throws. This reuses no secret or expiry verifier.
+
+Infrastructure replay discovers immutable receipts after current bound authority
+but before mutable planning references. The first registered confirmation of a
+provisional admission is infrastructure-only for live and deleted packages alike;
+it preserves newer operator projection/history/cleanup state. J10 host jobs remain
+infrastructure-only even with an optional project link. Deleted cleanup never
+enters personal orphan authorization. These paths perform no grant/package/directory
+permission lookup; fresh live admission and actual live follow-up still require
+package.write. Ordinary worker reports cannot attest physical release.
+
+The shared raw grant decoder additionally enforces roleFitsScope after checking
+both kind vocabularies, before transformation, caps or filtering. A recognized but
+incompatible stored pair is corruption, even beside sufficient valid authority or
+before an organization-role summary discards nonorganization roles. Selection SQL
+and the pure evaluator are unchanged; broader organization-scope project/package
+contributor grants remain valid.

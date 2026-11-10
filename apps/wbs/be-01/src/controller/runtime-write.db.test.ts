@@ -12,6 +12,7 @@ import type {
 } from '@wbs/contracts';
 import type { ResourceRuntimeActor } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
+import { resourceUseActorOf } from '@wbs/core/http/resource-use.routes';
 import {
   createPlanCommandRunner,
   createRuntimeReceiver,
@@ -1118,27 +1119,35 @@ describe('runtime write transaction boundaries', () => {
       "INSERT INTO resource (id,name,kind,unit_label,provider_id) VALUES ('release-disk','Release disk','divisible','GB','resource-provider')",
       "INSERT INTO resource_organization (resource_id,organization_id,name) VALUES ('release-disk','org-a','Release disk')",
       "INSERT INTO machine_credential (id,organization_id,person_id,issued_by,source,name,created_at,created_by) VALUES ('00000000-0000-4000-8000-000000000001','org-a','other-agent','ada','api_key','Release controller',2,'ada')",
-      "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
+      "UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'",
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('release-controller-write','org-a','work_package','a1','machine_credential','00000000-0000-4000-8000-000000000001','package-contributor','route',1)",
     ])
       sqlite.db.run(statement);
+    if (context.access.kind !== 'scoped') throw new Error('expected scoped runtime fixture');
+    const controllerPrincipal = {
+      id: actor.id,
+      authentication: { kind: 'machine' as const, credentialId, personId: 'other-agent' },
+      delegation: { organizationId: 'org-a', audience: 'wbs-be-01/direct' as const },
+    };
     const controller: ResourceRuntimeActor = {
-      id: 'ada',
-      personId: 'other-agent',
+      ...resourceUseActorOf(controllerPrincipal, {
+        kind: 'scoped',
+        scope: { ...context.access.scope, cap: CONTRIBUTOR_CAP },
+        principal: {
+          id: controllerPrincipal.id,
+          authentication: structuredClone(controllerPrincipal.authentication),
+        },
+      }),
       credentialId,
-      fingerprint: 'release-controller',
-      access: { ...context.access },
     };
     expect(
       await runtime.bind(
         'release-runtime',
-        { ...controller, credentialId: null, personId: null },
+        { ...resourceUseActorOf(actor, context.access), credentialId: null },
         { providerId: 'resource-provider', credentialId, epoch: 'release-epoch' },
         2,
       ),
     ).toMatchObject({ ok: true });
-    sqlite.db.run(
-      "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'",
-    );
     sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
     expect(
       await runtime.ingest(

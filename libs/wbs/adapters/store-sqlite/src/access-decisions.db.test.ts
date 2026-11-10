@@ -759,3 +759,44 @@ describe('selected catalogue state beside independently sufficient authority', (
     }
   }
 });
+
+for (const statement of ['effectiveRoleAt', 'readablePackageIds'] as const) {
+  for (const corruptRole of ['project-contributor', 'nonreading project role'] as const) {
+    it(
+      'throws for an incompatible role scope through ' +
+        statement +
+        ' alongside sufficient valid authority: ' +
+        corruptRole,
+      async () => {
+        grant('organization', ORG, 'user', 'ada', 'org-super-admin');
+        expect(await permissionsOn(person('ada'), 'wp-open')).toContain('package.write');
+        expect(await listed(person('ada'))).toContain('wp-open');
+        const roleId = corruptRole === 'project-contributor' ? corruptRole : 'misbound-budget-role';
+        if (corruptRole === 'nonreading project role')
+          customRole(roleId, 'project', ['project.manage_budgets']);
+        grant('work_package', 'wp-open', 'user', 'ada', roleId);
+        const bad = sqlite
+          .query<{ id: string }, [string, string]>(
+            'SELECT id FROM access_grant WHERE role_id=? AND scope_kind=?',
+          )
+          .get(roleId, 'work_package');
+        if (bad === null) throw new Error('missing incompatible raw grant fixture');
+        const pending =
+          statement === 'effectiveRoleAt'
+            ? decisions.effectiveRoleAt(person('ada'), await packageTarget('wp-open'))
+            : decisions.readablePackageIds(person('ada'), ORG);
+        const failure = await pending.then(
+          () => null,
+          (failure: unknown) => failure,
+        );
+        expect(failure).toBeInstanceOf(Error);
+        if (!(failure instanceof Error))
+          throw new Error('expected incompatible trusted role scope failure');
+        expect(failure.message).toContain(bad.id);
+        expect(failure.message).toContain(roleId);
+        expect(failure.message).toContain('project');
+        expect(failure.message).toContain('work_package');
+      },
+    );
+  }
+}

@@ -165,7 +165,7 @@ function grantTargetOf(target: AccessTarget): GrantTarget {
  * that batch's transaction. It never writes, so it takes no gate turn.
  */
 export class AccessDecisionRepository implements AccessDecisions {
-  constructor(private readonly db: Drizzle) {}
+  constructor(private readonly db: Pick<Drizzle, 'all'>) {}
 
   /**
    * Validates every selected reaching grant before P5/cap projection.

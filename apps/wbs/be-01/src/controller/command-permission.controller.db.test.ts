@@ -2209,7 +2209,7 @@ for (const role of ['org-admin', 'org-super-admin']) {
           });
         h.sqlite.run('DELETE FROM access_grant WHERE subject_id=?', [h.userId('manager')]);
         grant('manager', role);
-        grant('manager', 'project-contributor', 'work_package', 'wp');
+        grant('manager', 'package-contributor', 'work_package', 'wp');
         h.sqlite.run("UPDATE project SET restricted=1 WHERE id='wp'");
         const before = [
           'work_item_budget',

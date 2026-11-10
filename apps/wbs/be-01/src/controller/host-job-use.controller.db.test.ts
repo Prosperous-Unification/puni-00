@@ -3,7 +3,11 @@ import { createHash } from 'node:crypto';
 import { readProjectResources, resourceRuntimeEvent, validateSchema } from '@wbs/contracts';
 import { afterEach, beforeAll, beforeEach, expect, it } from 'bun:test';
 
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
 
@@ -14,6 +18,7 @@ let leaf: string;
 let ram: string;
 let providerId: string;
 let runtimeKey: string;
+let runtimeCredentialId: string;
 const authorityId = 'dash-h2puni';
 const eventsPath = `/api/resource-authorities/${authorityId}/events`;
 const DIGEST = 'a'.repeat(64);
@@ -68,6 +73,7 @@ beforeEach(async () => {
     name: 'runtime-key',
   });
   runtimeKey = issued.key;
+  runtimeCredentialId = issued.id;
   expect(
     (
       await h.call('owner', 'PUT', `/api/organization/resource-authorities/${authorityId}`, {
@@ -223,6 +229,14 @@ it('keeps a deleted project from stranding a linked host job', async () => {
 });
 
 it('accepts a v1 use byte for byte beside the variant', async () => {
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    runtimeCredentialId,
+    'package-contributor',
+    'work_package',
+    projectId,
+  );
   const v1 = {
     eventId: crypto.randomUUID(),
     epoch: 'epoch-one',
@@ -392,6 +406,14 @@ it('refuses what a host job cannot be, accepting nothing and advancing no sequen
   ).toBe(409);
   expect((await publish(hostJobEvent(2, useId, 'release_verified', use))).status).toBe(200);
   // A host job never takes the id of a worktree use.
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    runtimeCredentialId,
+    'package-contributor',
+    'work_package',
+    projectId,
+  );
   const worktree = crypto.randomUUID();
   expect(
     (

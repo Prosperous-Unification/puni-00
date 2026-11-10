@@ -6,10 +6,11 @@ import {
   authorize,
   AuthService,
   clockOf,
+  fingerprintResourceUseActor,
   type OrganizationPrincipal,
-  type ResourceAccess,
+  retainSecurityPrincipal,
+  type SecurityPrincipal,
 } from '@wbs/core';
-import * as accessPolicies from '@wbs/core/ports/organization-access';
 import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
@@ -214,44 +215,76 @@ describe('resolved organization authority with grants', () => {
     ['machine', machine],
     ['consent', consent],
   ] as const) {
-    it(`preserves a ${kind} principal's cap and delegation through the resource-use membership recheck`, async () => {
-      const resolved = await access.resolve(principal);
-      if (!resolved.ok || resolved.access.kind !== 'scoped')
-        throw new Error('expected scoped access');
-      const observed: ResourceAccess[] = [];
-      const check = accessPolicies.mayEditProjectWithin;
-      const observer = spyOn(accessPolicies, 'mayEditProjectWithin').mockImplementation(
-        (project, actorId, access) => {
-          observed.push(access);
-          return check(project, actorId, access);
-        },
+    it(`preserves the actual ${kind} principal and fixed cap through resource-use grant admission`, async () => {
+      const retained = retainSecurityPrincipal(principal);
+      const authentication = retained.authentication;
+      if (authentication?.kind !== 'machine' && authentication?.kind !== 'consent')
+        throw new Error('expected pinned native fixture');
+      Object.assign(authentication, { credentialId: crypto.randomUUID() });
+      if (authentication.kind === 'consent')
+        Object.assign(retained, {
+          delegation: {
+            organizationId: 'org-a',
+            audience: 'wbs-be-01/via-mcp-01',
+            client: 'native-fixture',
+            grant: 'native-family',
+          },
+        });
+      sqlite.run("INSERT INTO person(id,name,kind,account_id) VALUES(?,?,'agent','ada')", [
+        authentication.personId,
+        authentication.personId,
+      ]);
+      sqlite.run(
+        "INSERT INTO person_organization(resource_id,organization_id,name) VALUES(?,'org-a',?)",
+        [authentication.personId, authentication.personId],
       );
+      sqlite.run(
+        "INSERT INTO machine_credential(id,organization_id,person_id,issued_by,source,name,mcp_family_id,created_at,created_by) VALUES(?,'org-a',?,'ada',?,?,?,1,'ada')",
+        [
+          authentication.credentialId,
+          authentication.personId,
+          authentication.kind === 'consent' ? 'mcp_consent' : 'api_key',
+          kind,
+          authentication.kind === 'consent' ? 'native-family' : null,
+        ],
+      );
+      grant('machine_credential', authentication.credentialId, 'package-manager');
+      const resolved = await access.resolve(retained);
+      if (!resolved.ok || resolved.access.kind !== 'scoped')
+        throw new Error('expected scoped resource grant fixture');
+      const observed: SecurityPrincipal[] = [];
+      // Capture before installing the spy; call(this, ...) below retains its actual borrowed connection.
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const check = AccessDecisionRepository.prototype.effectiveRoleAt;
+      const observer = spyOn(
+        AccessDecisionRepository.prototype,
+        'effectiveRoleAt',
+      ).mockImplementation(async function (this: AccessDecisionRepository, current, target) {
+        observed.push(structuredClone(current));
+        return check.call(this, current, target);
+      });
       try {
         expect(
-          admitResourceUseProject(
+          await admitResourceUseProject(
             openDrizzle(join(dir, 'test.db')),
             'wp-a',
-            { id: principal.id, fingerprint: kind, personId: null, access: resolved.access },
+            {
+              id: retained.id,
+              principal: retained,
+              fingerprint: fingerprintResourceUseActor(retained),
+              personId: authentication.personId,
+              access: resolved.access,
+            },
             true,
             false,
           ),
         ).toEqual({ name: 'A', organizationId: 'org-a' });
-        expect(observed).toEqual([
-          {
-            principal: {
-              id: principal.id,
-              authentication: structuredClone(principal.authentication),
-            },
-            kind: 'scoped',
-            scope: {
-              organizationId: 'org-a',
-              userId: 'ada',
-              role: 'super_admin',
-              cap: CONTRIBUTOR_CAP,
-              delegated: true,
-            },
-          },
-        ]);
+        expect(observed).toEqual([retained]);
+        expect(await authorize(decisions, retained, target, 'package.manage_settings')).toEqual({
+          ok: false,
+          reason: 'forbidden',
+          permission: 'package.manage_settings',
+        });
       } finally {
         observer.mockRestore();
       }

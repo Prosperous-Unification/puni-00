@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -88,7 +89,19 @@ const refusals = [
     status: 403,
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        // Proof: manual-permission-schema-field.
+        // The recorded fault broke `validates the manual resource refusal against the full permission catalogue`; restored GREEN.
+        // Proof: manual-permission-schema-vocabulary.
+        // The recorded fault broke `validates the manual resource refusal against the full permission catalogue`; restored GREEN.
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   { status: 409, schema: responseSchema(type({ error: "'conflict'" })) },
   { status: 503, schema: responseSchema(type({ error: "'resource_tracking_unavailable'" })) },
