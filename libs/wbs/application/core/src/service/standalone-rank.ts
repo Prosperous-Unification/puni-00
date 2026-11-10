@@ -8,7 +8,8 @@ import { recordCommittedFanout } from './committed-fanout';
 /**
  * A public rank writer owns one complete async write turn. The scope's rank
  * repository is OPEN, so its synchronous savepoint remains inside the owner.
- * Capture and event rows settle with the rank; delivery starts after release.
+ * Caller and stamp are retained before queuing. Capture and event rows settle
+ * with the rank; delivery starts after release.
  */
 export function standaloneRankStore(
   publicRanks: ProjectRankStore,
@@ -20,19 +21,43 @@ export function standaloneRankStore(
     orderIn: (organizationId) => publicRanks.orderIn(organizationId),
     async moveAfter(organizationId, projectId, afterProjectId, stamp, caller): Promise<RankMoved> {
       if (caller === undefined) throw new Error('rank writer lacks authenticated caller evidence');
+      // Proof: rank-owner-caller: retaining queued command-caller aliases.
+      // retains standalone rank queued caller authority and expected context
+      // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+      // Proof: rank-owner-caller-deep: shallow caller copying retains principal and expected-context aliases.
+      // retains standalone rank queued caller authority and expected context
+      // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
       caller = structuredClone(caller);
+      // Proof: rank-owner-stamp: retaining the caller-owned queued stamp.
+      // retains standalone rank queued stamp by before admitted ownership
+      // retains standalone rank queued stamp at before admitted ownership
+      // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+      stamp = { ...stamp };
       const settled = await uow.run<{
         moved: RankMoved;
         events: readonly CommittedProjectEvent[];
       }>(async (scope) => {
         const capture = scope.fanoutCapture;
         const ranks = scope.stores.projectRanks;
-        if (capture?.authorizeRankMove === undefined || ranks === undefined)
-          throw new Error('standalone rank owner lacks borrowed capture, authority or rank store');
+        // Proof: rank-required-capture: omitting required borrowed capture before a no-op.
+        // requires capture before a standalone rank no-op
+        // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+        // Proof: rank-required-store: omitting required borrowed store preflight before authorization.
+        // requires the borrowed rank store before a standalone self move
+        // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+        // Proof: rank-retired-authority-marker: requiring the retired role marker despite current grant authority.
+        // moves rank with current grants and no retired role-authority slots
+        // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+        if (capture === undefined || ranks === undefined)
+          throw new Error('standalone rank owner lacks borrowed capture or rank store');
         // Proof: bypassing this current-membership check lets a queued demotion
         // write ranks; moving capture above it invokes the throwing capture spy.
         const resolved = await commandAccess.resolve(caller);
         if (!resolved.ok)
+          // Proof: rank-modeled-context-conflict: throwing for a modeled stale expected-context refusal.
+          // preserves stale expected user as a modeled conflict at standalone rank
+          // preserves stale expected organization as a modeled conflict at standalone rank
+          // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
           return {
             commit: false,
             value: { moved: { ok: false, authority: resolved }, events: [] },
@@ -45,6 +70,10 @@ export function standaloneRankStore(
           access.scope.userId !== stamp.by
         )
           throw new Error('rank writer authority differs from its addressed organization or actor');
+        // Proof: rank-required-grant-port: bypassing current grant evaluation before a self/no-op.
+        // requires grants before a standalone rank no-op
+        // propagates unreadable grant state before a standalone rank no-op
+        // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
         const authority = await authorize(
           scope.stores.accessDecisions,
           access.principal,
@@ -52,6 +81,9 @@ export function standaloneRankStore(
           'organization.manage_spaces',
         );
         // Proof: rank-grant fault failed 'rechecks queued rank grants' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+        // Proof: rank-current-decision: discarding the current named permission refusal.
+        // names the current rank permission before a role-only standalone no-op
+        // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
         if (!authority.ok)
           return {
             commit: false,

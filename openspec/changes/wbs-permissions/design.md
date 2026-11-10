@@ -1005,3 +1005,15 @@ credential. Pool revoke and directory cleanup remain two committed owners. Prese
 both runner admission.refusal and execution.reason forbidden outcomes as a partial409
 with the returned catalog permission; never invent a permission for an unannotated
 refusal. afterRevoke runs exactly once after committed stage one, even if cleanup fails.
+
+The rank/mode cleanup removes BeforeRankMove/BeforeModeSwitch and their SQLite
+role implementations/installations together: no invocation remains, and rank's
+old presence-only role marker is replaced by required capture presence. Actual
+AccessDecisions stays required before every no-op. Direct resource identity is
+trusted construction evidence (actor equals scope user equals grant principal),
+so disagreement throws before reads. Standalone caller.expectedAccess remains a
+fencing expectation and is resolved first to its modeled409; it is never
+prevalidated as current authority. Retain scoped access and complete write actors
+before resource awaits, full route callers/targets before resolver awaits, and
+caller stamps before UoW queueing. Borrowed rank savepoints and after-commit
+fanout delivery keep their existing owners and lifetime guards.

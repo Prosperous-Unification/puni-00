@@ -631,3 +631,40 @@ validated targets/intent before resolver awaits and preserve named HTTP403 refus
 - **AND** committed key/grant revocation and lifecycle audit remain committed without retry
 - **AND** people, claims, directory history and publication remain unchanged by the refused cleanup
 - **AND** existing unannotated partial causes and last_super_admin keep their modeled shapes.
+
+### Requirement: Rank and capacity-mode boundaries retain coherent authenticated evidence
+
+Direct scoped rank and capacity-mode resources SHALL reject incoherent actor,
+member and authenticated principal identity before grant or fact reads. They
+SHALL retain the actual scoped principal, including authentication, and the
+complete write caller before awaited dependencies. Routes SHALL retain scalar
+read identity/delegation and full write caller/validated targets before resolving
+organization context. Legacy access SHALL still return organization_required.
+
+Standalone writers SHALL retain the caller-owned stamp before queuing, resolve
+current CommandAccess before applying fresh identity invariants, and keep current
+manage_spaces or manage_capacity_mode authorization before no-op/order/mutation.
+Stale expected user/organization SHALL remain organization_context_changed;
+expectedAccess SHALL NOT supply current authority. Required borrowed capture,
+rank and grant ports SHALL NOT become optional when unused legacy role-authority
+markers are retired. Remaining capability lifetime guards and transaction/fanout
+ownership SHALL remain unchanged.
+
+#### Scenario: A mismatched principal has sufficient grants of its own
+
+- **GIVEN** both addressed accounts hold the needed current grant
+- **WHEN** a direct resource receives mismatched actor/member/principal evidence
+- **THEN** it throws before any grant/fact read, mutation or publication
+- **AND** no ordinary permission denial masks that trusted-state failure.
+
+#### Scenario: A retired role marker does not admit an unowned no-op
+
+- **WHEN** a rank move has valid current grants and real capture/rank stores but no retired role-authority slot
+- **THEN** it succeeds through the existing owner
+- **AND** absent capture/rank/grant ports or unreadable grants still throw before a self/no-op can mutate or publish.
+
+#### Scenario: Queued provenance and stale context remain distinct
+
+- **WHEN** caller aliases alter a retained write stamp after invocation
+- **THEN** the original actor and caller-supplied instant remain in stored rank/mode audit
+- **AND** a separately stale expected user or organization returns its modeled context conflict without mutation.
