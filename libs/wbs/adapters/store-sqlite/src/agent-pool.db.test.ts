@@ -43,6 +43,24 @@ function freshStore(): void {
   }
 }
 
+/** Explicit minimal directory permission for each intended positive pool fixture. */
+function grantDirectory(): void {
+  const sqlite = openDatabase(path);
+  try {
+    sqlite.run(
+      "INSERT INTO access_role(id,name,object_kind,level,reaches_restricted,organization_id,created_at) VALUES ('pool-fixture-directory','Pool fixture directory','organization',NULL,0,'org-a',1)",
+    );
+    sqlite.run(
+      "INSERT INTO access_role_permission(role_id,permission) VALUES ('pool-fixture-directory','organization.manage_directory')",
+    );
+    sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('pool-fixture-directory-grant','org-a','organization','org-a','user','dany','pool-fixture-directory','route',1)",
+    );
+  } finally {
+    sqlite.close();
+  }
+}
+
 /** Explicit direct holder only for successful authority-removal fixtures. */
 function seedDirectHolder(): void {
   const connection = openConnection(path);
@@ -126,7 +144,7 @@ class CreateOne implements fc.AsyncCommand<CapModel, AgentPoolRepository> {
   constructor(readonly size: number) {}
   check = () => true;
   async run(model: CapModel, real: AgentPoolRepository): Promise<void> {
-    const answer = await real.create('org-a', 'dany', await draftOf(this.size), act());
+    const answer = await real.create('org-a', { id: 'dany' }, await draftOf(this.size), act());
     expect(answer.kind).toBe(expectCreation(model, this.size));
     expect(agentPersons()).toBe(model.agents);
   }
@@ -146,8 +164,8 @@ class CreateRacing implements fc.AsyncCommand<CapModel, AgentPoolRepository> {
   async run(model: CapModel, real: AgentPoolRepository): Promise<void> {
     const [a, b] = await Promise.all([draftOf(this.first), draftOf(this.second)]);
     const answers = await Promise.all([
-      real.create('org-a', 'dany', a, act()),
-      real.create('org-a', 'dany', b, act()),
+      real.create('org-a', { id: 'dany' }, a, act()),
+      real.create('org-a', { id: 'dany' }, b, act()),
     ]);
     expect(answers.map((each) => each.kind)).toEqual([
       expectCreation(model, this.first),
@@ -175,6 +193,7 @@ describe('agent pool creation against the agent-person cap', () => {
     await fc.assert(
       fc.asyncProperty(commands, async (history) => {
         freshStore();
+        grantDirectory();
         const model: CapModel = { agents: 0 };
         await fc.asyncModelRun(() => ({ model, real: openPools() }), history);
       }),
@@ -184,9 +203,12 @@ describe('agent pool creation against the agent-person cap', () => {
 
   it('answers the cap, the count and the size when a pool crosses it, writing nothing', async () => {
     freshStore();
+    grantDirectory();
     const real = openPools();
-    expect((await real.create('org-a', 'dany', await draftOf(5), act())).kind).toBe('created');
-    expect(await real.create('org-a', 'dany', await draftOf(4), act())).toEqual({
+    expect((await real.create('org-a', { id: 'dany' }, await draftOf(5), act())).kind).toBe(
+      'created',
+    );
+    expect(await real.create('org-a', { id: 'dany' }, await draftOf(4), act())).toEqual({
       kind: 'agent_person_limit',
       cap: CAP,
       current: 5,
@@ -201,10 +223,11 @@ describe('re-keying a pool', () => {
   // one-person key set answered 'rekeyed'; watched 2026-10-28.
   it('refuses keys that do not name exactly the pool’s persons, writing nothing', async () => {
     freshStore();
+    grantDirectory();
     seedDirectHolder();
     const real = openPools();
     const draft = await draftOf(2);
-    expect((await real.create('org-a', 'dany', draft, act())).kind).toBe('created');
+    expect((await real.create('org-a', { id: 'dany' }, draft, act())).kind).toBe('created');
     const first = draft.agents.at(0);
     const second = draft.agents.at(1);
     if (first === undefined || second === undefined) throw new Error('the pool has no agents');
@@ -220,7 +243,7 @@ describe('re-keying a pool', () => {
       [fresh(first.personId), fresh(crypto.randomUUID())],
       [fresh(first.personId), fresh(second.personId), fresh(crypto.randomUUID())],
     ])
-      expect(await real.rekey('org-a', 'dany', draft.id, { keys }, act())).toEqual({
+      expect(await real.rekey('org-a', { id: 'dany' }, draft.id, { keys }, act())).toEqual({
         kind: 'pool_changed',
       });
     const sqlite = openDatabase(path);
@@ -239,7 +262,7 @@ describe('re-keying a pool', () => {
       (
         await real.rekey(
           'org-a',
-          'dany',
+          { id: 'dany' },
           draft.id,
           { keys: [fresh(second.personId), fresh(first.personId)] },
           act(),
@@ -253,13 +276,14 @@ describe('re-keying a pool', () => {
 for (const operation of ['rekey', 'revoke'] as const) {
   it('retains the actual queued pool cascade owner at ' + operation, async () => {
     freshStore();
+    grantDirectory();
     seedDirectHolder();
     const connection = openConnection(path);
     connection.db.run(sql`INSERT INTO users(id,username,created_at) VALUES ('other','other',1)`);
     try {
       const original = await draftOf(1);
       const setup = new AgentPoolRepository(connection.db, OPEN, DEFAULTS);
-      expect((await setup.create('org-a', 'dany', original, act())).kind).toBe('created');
+      expect((await setup.create('org-a', { id: 'dany' }, original, act())).kind).toBe('created');
       const person = original.agents.at(0);
       if (person === undefined) throw new Error('pool fixture has no person');
       connection.db.run(
@@ -289,8 +313,8 @@ for (const operation of ['rekey', 'revoke'] as const) {
       };
       const pending =
         operation === 'rekey'
-          ? repository.rekey('org-a', 'dany', original.id, { keys }, performed)
-          : repository.revoke('org-a', 'dany', original.id, performed);
+          ? repository.rekey('org-a', { id: 'dany' }, original.id, { keys }, performed)
+          : repository.revoke('org-a', { id: 'dany' }, original.id, performed);
       Object.assign(performed, { actor: 'other', auditId: 'replacement' });
       Object.assign(performed.stamp, { at: 999, by: 'other' });
       held.resolve(undefined);
@@ -318,12 +342,13 @@ for (const operation of ['rekey', 'revoke'] as const) {
 
 it('retains the deep renewal keys before the queued pool re-key owner', async () => {
   freshStore();
+  grantDirectory();
   seedDirectHolder();
   const connection = openConnection(path);
   try {
     const original = await draftOf(1);
     const setup = new AgentPoolRepository(connection.db, OPEN, DEFAULTS);
-    expect((await setup.create('org-a', 'dany', original, act())).kind).toBe('created');
+    expect((await setup.create('org-a', { id: 'dany' }, original, act())).kind).toBe('created');
     const person = original.agents.at(0);
     if (person === undefined) throw new Error('pool fixture has no person');
     const key = {
@@ -343,7 +368,7 @@ it('retains the deep renewal keys before the queued pool re-key owner', async ()
       await held.promise;
     });
     await entered.promise;
-    const pending = repository.rekey('org-a', 'dany', original.id, renewal, act());
+    const pending = repository.rekey('org-a', { id: 'dany' }, original.id, renewal, act());
     Object.assign(key, { credentialId: crypto.randomUUID(), secretId: crypto.randomUUID() });
     held.resolve(undefined);
     await blocker;
@@ -382,8 +407,8 @@ for (const operation of ['rekey', 'revoke'] as const) {
           };
           expect(() =>
             operation === 'rekey'
-              ? repository.rekey('org-a', 'dany', original.id, { keys: [key] }, performed)
-              : repository.revoke('org-a', 'dany', original.id, performed),
+              ? repository.rekey('org-a', { id: 'dany' }, original.id, { keys: [key] }, performed)
+              : repository.revoke('org-a', { id: 'dany' }, original.id, performed),
           ).toThrow('pool audit identity differs from its actor');
           expect(connection.db.all(sql`SELECT * FROM organization_audit`)).toEqual([]);
         } finally {
@@ -396,12 +421,15 @@ for (const operation of ['rekey', 'revoke'] as const) {
 
 it('audits only actually inserted pool grant copies when old keys overlap', async () => {
   freshStore();
+  grantDirectory();
   seedDirectHolder();
   const connection = openConnection(path);
   try {
     const original = await draftOf(1);
     const repository = new AgentPoolRepository(connection.db, OPEN, DEFAULTS);
-    expect((await repository.create('org-a', 'dany', original, act())).kind).toBe('created');
+    expect((await repository.create('org-a', { id: 'dany' }, original, act())).kind).toBe(
+      'created',
+    );
     const person = original.agents.at(0);
     if (person === undefined) throw new Error('pool person absent');
     const second = crypto.randomUUID();
@@ -415,7 +443,7 @@ it('audits only actually inserted pool grant copies when old keys overlap', asyn
     const credentialId = crypto.randomUUID();
     const outcome = await repository.rekey(
       'org-a',
-      'dany',
+      { id: 'dany' },
       original.id,
       {
         keys: [
@@ -458,11 +486,14 @@ for (const operation of ['rekey', 'revoke'] as const) {
     'rolls a zero-grant pool authority change back without a direct holder at ' + operation,
     async () => {
       freshStore();
+      grantDirectory();
       const connection = openConnection(path);
       const repository = new AgentPoolRepository(connection.db, OPEN, DEFAULTS);
       try {
         const draft = await draftOf(1);
-        expect((await repository.create('org-a', 'dany', draft, act())).kind).toBe('created');
+        expect((await repository.create('org-a', { id: 'dany' }, draft, act())).kind).toBe(
+          'created',
+        );
         const snapshot = () =>
           [
             'agent_pool',
@@ -476,10 +507,10 @@ for (const operation of ['rekey', 'revoke'] as const) {
         const before = snapshot();
         const answer =
           operation === 'revoke'
-            ? await repository.revoke('org-a', 'dany', draft.id, act())
+            ? await repository.revoke('org-a', { id: 'dany' }, draft.id, act())
             : await repository.rekey(
                 'org-a',
-                'dany',
+                { id: 'dany' },
                 draft.id,
                 {
                   keys: draft.agents.map((agent) => ({

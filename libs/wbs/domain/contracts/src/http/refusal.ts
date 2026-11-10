@@ -851,7 +851,9 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
      * (`wbs-mcp-agent-surface` M7): the pool, and how many keys the revocation
      * ended before the refusal.
      */
-    persons_not_removed: { poolId: string; revokedCredentials: number; cause?: 'last_super_admin' };
+    persons_not_removed:
+      | { poolId: string; revokedCredentials: number; cause?: 'last_super_admin' }
+      | { poolId: string; revokedCredentials: number; cause: 'forbidden'; permission: Permission };
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.

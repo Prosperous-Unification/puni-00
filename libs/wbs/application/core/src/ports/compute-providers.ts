@@ -3,9 +3,16 @@ import type {
   CapacityReportDecision,
   CapacityReportRequest,
   ComputeProviderKind,
+  Permission,
 } from '@wbs/domain';
 
-import type { MachineCredentialActorRefusal } from './machine-credentials';
+import type { SecurityPrincipal } from './security-principal';
+
+/** Current named directory permission denial; no provider facts are exposed. */
+export interface ComputeProviderPermissionRefusal {
+  readonly kind: 'forbidden';
+  readonly permission: Permission;
+}
 import type { AuditedAct } from './organization-audit';
 
 /** One provider instance as its administrators list it, with the count of resources it fulfils. */
@@ -41,11 +48,11 @@ export interface FulfilledResource {
 }
 
 /**
- * Provider instance administration (`compute-providers` P2), for `admin` and
- * `super_admin` only: an instance admits reports every project of the
- * organization sees, the trusted-issuer shape (`forbidden` for a member or a
- * viewer, `inactive` before activation). Every write rechecks the role in one
- * immediate transaction with its `organization_audit` row. An instance of
+ * Provider instance administration (`compute-providers` P2), through organization.manage_directory from the
+ * retained actual authenticated principal, with fixed credential cap and no delegation.
+ * Every public owner checks current grants on its own connection and shared Gate;
+ * writes and audit append commit together. Inputs and audit identity are detached
+ * before queueing. Inactive activation remains a modeled refusal. An instance of
  * another organization, or none, is `unknown_provider`.
  *
  * @throws when trusted state is malformed, and when the audit row cannot be
@@ -54,26 +61,28 @@ export interface FulfilledResource {
 export interface ComputeProviderAdministration {
   list(
     organizationId: string,
-    actorId: string,
-  ): Promise<readonly ComputeProviderSummary[] | MachineCredentialActorRefusal>;
+    principal: SecurityPrincipal,
+  ): Promise<readonly ComputeProviderSummary[] | 'inactive' | ComputeProviderPermissionRefusal>;
   register(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     draft: ComputeProviderDraft,
     act: AuditedAct,
   ): Promise<
     | { readonly kind: 'registered'; readonly provider: ComputeProviderSummary }
-    | { readonly kind: MachineCredentialActorRefusal | 'name_taken' }
+    | { readonly kind: 'inactive' | 'name_taken' }
+    | ComputeProviderPermissionRefusal
   >;
   update(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     id: string,
     patch: ComputeProviderPatch,
     act: AuditedAct,
   ): Promise<
     | { readonly kind: 'updated'; readonly provider: ComputeProviderSummary }
-    | { readonly kind: MachineCredentialActorRefusal | 'unknown_provider' | 'name_taken' }
+    | { readonly kind: 'inactive' | 'unknown_provider' | 'name_taken' }
+    | ComputeProviderPermissionRefusal
   >;
   /**
    * Removes instance `id`. While resources reference it: `in_use` naming them,
@@ -83,13 +92,14 @@ export interface ComputeProviderAdministration {
    */
   remove(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     id: string,
     cascade: boolean,
     act: AuditedAct,
   ): Promise<
     | 'removed'
-    | MachineCredentialActorRefusal
+    | 'inactive'
+    | ComputeProviderPermissionRefusal
     | 'unknown_provider'
     | { readonly kind: 'in_use'; readonly resources: readonly FulfilledResource[] }
   >;
@@ -143,7 +153,10 @@ export interface CapacityReports {
    */
   put(request: CapacityReportRequest): Promise<CapacityReportDecision>;
   /**
-   * The provider reference and latest report of each of `resourceIds`; an id nothing holds is absent.
+   * The provider reference and latest report of each retained `resourceIds`; an id nothing holds is absent.
+   * This public snapshot owner serializes with administration on the same source Gate;
+   * it adds no permission requirement to the calling package read. An empty retained
+   * selection may answer without entering the database.
    *
    * @throws when a reference names no instance or an instance has a kind
    * outside the four, or a report names another instance than its resource:

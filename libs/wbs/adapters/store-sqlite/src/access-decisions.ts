@@ -64,7 +64,7 @@ function readGrantRoleRow(record: JoinedGrantRoleRecord): StoredGrantRow {
 
 /** One row of the listing: a reaching grant's permission row, or a readable package. */
 type ListingRecord =
-  | ({ readonly row_kind: 'grant'; readonly package_id: null } & GrantPermissionRecord)
+  | ({ readonly row_kind: 'grant'; readonly package_id: null } & JoinedGrantRoleRecord)
   | { readonly row_kind: 'package'; readonly package_id: string };
 
 /**
@@ -167,6 +167,11 @@ function grantTargetOf(target: AccessTarget): GrantTarget {
 export class AccessDecisionRepository implements AccessDecisions {
   constructor(private readonly db: Drizzle) {}
 
+  /**
+   * Validates every selected reaching grant before P5/cap projection.
+   * @throws for missing catalogue rows or malformed kind, flag and permission sets,
+   * even when another current grant independently supplies the requested authority.
+   */
   async effectiveRoleAt(
     principal: ScopedPrincipal,
     target: AccessTarget,
@@ -181,22 +186,29 @@ export class AccessDecisionRepository implements AccessDecisions {
             sql`, scope(kind, id) AS (${scopeRows(target)})`,
             sql`JOIN scope c ON c.kind = g.scope_kind AND c.id = g.scope_id`,
           ];
-    // Proof: turning this `LEFT JOIN` inner (here, and separately the
+    // Proof: turning the permission `LEFT JOIN` inner (here, and separately the
     // listing's) made `throws EmptyRoleSet on both statements` resolve, the
     // empty role read as no grant; watched 2026-11-08.
-    const records = this.db.all<GrantPermissionRecord>(sql`
+    const records = this.db.all<JoinedGrantRoleRecord>(sql`
       WITH ${subjectRows(subject, organizationId)}${scopeTable}
       SELECT g.id AS grant_id, g.scope_kind, g.scope_id, g.subject_kind, g.subject_id, g.role_id,
-             r.object_kind, r.reaches_restricted, p.permission
+             r.id AS catalogue_id, r.object_kind, r.reaches_restricted, p.permission
       FROM subject s
       CROSS JOIN access_grant g ON g.subject_kind = s.kind AND g.subject_id = s.id
       ${scopeJoin}
-      JOIN access_role r ON r.id = g.role_id
+      /* Proof: effective-catalogue-join: making this role join INNER silently omitted the orphan.
+       * rejects selected orphan-role beside sufficient grant at organization-effective
+       * refuses a mounted project mutation on selected orphan-role beside sufficient package authority
+       * both failed under the fault and passed after restoration (task2.4b catalogue receipts). */
+      LEFT JOIN access_role r ON r.id = g.role_id
       LEFT JOIN access_role_permission p ON p.role_id = g.role_id
       WHERE g.organization_id = ${organizationId} AND ${membershipHolds(subject, organizationId)}
       ORDER BY g.id, p.permission`);
+    /* Proof: effective-all-grant-validation: filtering raw rows by package.read/write hid corrupt permissions.
+     * rejects selected unknown-permission beside sufficient grant at organization-effective
+     * failed under the fault and passed after restoration (task2.4b catalogue receipts). */
     return effectiveRoleOn(
-      reachingGrantsOf(records.map(storedGrantRowOf)),
+      reachingGrantsOf(records.map(readGrantRoleRow)),
       grantTargetOf(target),
       capOf(subject),
     );
@@ -232,10 +244,13 @@ export class AccessDecisionRepository implements AccessDecisions {
       WITH ${subjectRows(subject, organizationId)},
       reaching AS MATERIALIZED (
         SELECT g.id AS grant_id, g.scope_kind, g.scope_id, g.subject_kind, g.subject_id, g.role_id,
-               r.object_kind, r.reaches_restricted
+               r.id AS catalogue_id, r.object_kind, r.reaches_restricted
         FROM subject s
         CROSS JOIN access_grant g ON g.subject_kind = s.kind AND g.subject_id = s.id
-        JOIN access_role r ON r.id = g.role_id
+        /* Proof: listing-catalogue-join: an INNER role join omitted the selected orphan before validation.
+         * rejects selected orphan-role beside sufficient grant at listing
+         * failed under the fault and passed after restoration (task2.4b catalogue receipts). */
+        LEFT JOIN access_role r ON r.id = g.role_id
         WHERE g.organization_id = ${organizationId} AND ${membershipHolds(subject, organizationId)}
       ),
       readers AS MATERIALIZED (
@@ -246,10 +261,10 @@ export class AccessDecisionRepository implements AccessDecisions {
       )
       SELECT 'grant' AS row_kind, NULL AS package_id, reach.grant_id, reach.scope_kind,
              reach.scope_id, reach.subject_kind, reach.subject_id, reach.role_id,
-             reach.object_kind, reach.reaches_restricted, p.permission
+             reach.catalogue_id, reach.object_kind, reach.reaches_restricted, p.permission
       FROM reaching reach LEFT JOIN access_role_permission p ON p.role_id = reach.role_id
       UNION ALL
-      SELECT 'package', wp.id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+      SELECT 'package', wp.id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
       FROM project wp
       JOIN project_organization wpo ON wpo.resource_id = wp.id
       WHERE wpo.organization_id = ${organizationId}
@@ -259,8 +274,11 @@ export class AccessDecisionRepository implements AccessDecisions {
            OR (reader.scope_kind = 'work_package' AND reader.scope_id = wp.id))`);
     const grantRows: StoredGrantRow[] = [];
     const packageIds = new Set<string>();
+    /* Proof: listing-all-grant-validation: retaining only package.read grant records hid corrupt rows.
+     * rejects selected unknown-permission beside sufficient grant at listing
+     * failed under the fault and passed after restoration (task2.4b catalogue receipts). */
     for (const record of records)
-      if (record.row_kind === 'grant') grantRows.push(storedGrantRowOf(record));
+      if (record.row_kind === 'grant') grantRows.push(readGrantRoleRow(record));
       else packageIds.add(record.package_id);
     reachingGrantsOf(grantRows);
     return packageIds;

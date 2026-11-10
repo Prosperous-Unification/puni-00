@@ -4,9 +4,11 @@ import { join } from 'node:path';
 
 import type { OrganizationLimitsReading } from '@wbs/domain';
 import type { Database } from 'bun:sqlite';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
+import { AccessDecisionRepository } from './access-decisions';
 import { openDatabase, openDrizzle } from './db';
+import { WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import {
   countAgentPersons,
@@ -142,14 +144,19 @@ describe('effective limits', () => {
   it('refuses absent deployment defaults, naming them', () => {
     // An untyped caller is the only way to reach this; the cast is that caller.
     const absent = undefined as unknown as typeof DEFAULTS;
-    expect(() => new OrganizationLimitsRepository(open(), absent)).toThrow(
+    expect(() => new OrganizationLimitsRepository(open(), absent, new WriteCoordinator())).toThrow(
       'organization limits of the deployment default are missing',
     );
   });
 
   it('refuses deployment defaults outside the bounds', () => {
     expect(
-      () => new OrganizationLimitsRepository(open(), { ...DEFAULTS, maxConcurrentClaims: -1 }),
+      () =>
+        new OrganizationLimitsRepository(
+          open(),
+          { ...DEFAULTS, maxConcurrentClaims: -1 },
+          new WriteCoordinator(),
+        ),
     ).toThrow('organization limits of the deployment default are malformed');
   });
 });
@@ -251,24 +258,290 @@ describe('sumStatedCapacity and readCapacityUsage', () => {
 
 describe('OrganizationLimitsRepository.read', () => {
   it('answers inactive before activation', async () => {
-    expect(await new OrganizationLimitsRepository(open(), DEFAULTS).read('org-a', 'dany')).toBe(
-      'inactive',
-    );
+    expect(
+      await new OrganizationLimitsRepository(open(), DEFAULTS, new WriteCoordinator()).read(
+        'org-a',
+        { id: 'dany' },
+      ),
+    ).toBe('inactive');
   });
 
-  it('answers caps and usage to an admin and a super-admin, and forbidden to everyone else', async () => {
+  it('answers caps and usage to explicit read grants and names missing read permission', async () => {
     activate();
+    for (const userId of ['dany', 'bea'])
+      sqlite.run(
+        "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES (?,'org-a','organization','org-a','user',?,'org-viewer','route',1)",
+        ['read-' + userId, userId],
+      );
     personIn('org-a', 'claire', 'agent');
-    const limits = new OrganizationLimitsRepository(open(), DEFAULTS);
+    const limits = new OrganizationLimitsRepository(open(), DEFAULTS, new WriteCoordinator());
     const reading: OrganizationLimitsReading = {
       source: 'default',
       limits: DEFAULTS,
       usage: { agentPersons: 1, concurrentClaims: 0, capacityUnits: [] },
     };
-    expect(await limits.read('org-a', 'dany')).toEqual(reading);
-    expect(await limits.read('org-a', 'bea')).toEqual(reading);
-    for (const actor of ['mo', 'vi']) expect(await limits.read('org-a', actor)).toBe('forbidden');
+    expect(await limits.read('org-a', { id: 'dany' })).toEqual(reading);
+    expect(await limits.read('org-a', { id: 'bea' })).toEqual(reading);
+    for (const actor of ['mo', 'vi'])
+      expect(await limits.read('org-a', { id: actor })).toEqual({
+        kind: 'forbidden',
+        permission: 'organization.read',
+      });
     // dany is only a member of B.
-    expect(await limits.read('org-b', 'dany')).toBe('forbidden');
+    expect(await limits.read('org-b', { id: 'dany' })).toEqual({
+      kind: 'forbidden',
+      permission: 'organization.read',
+    });
   });
+});
+
+for (const operation of ['inspect', 'set', 'reset'] as const) {
+  it('serializes limits ' + operation + ' behind an awaited personal grant decision', async () => {
+    activate();
+    sqlite.run(
+      "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('read-grant','org-a','organization','org-a','user','dany','org-admin','route',1)",
+    );
+    const gate = new WriteCoordinator();
+    const limits = new OrganizationLimitsRepository(open(), DEFAULTS, gate);
+    await limits.set(
+      'org-a',
+      { maxAgentPersons: 8 },
+      { actor: 'operator:original', at: 30, auditId: 'original' },
+      'apply',
+    );
+    const held = Promise.withResolvers<undefined>();
+    const entered = Promise.withResolvers<undefined>();
+    const observer = spyOn(AccessDecisionRepository.prototype, 'effectiveRoleAt');
+    const original = observer.getMockImplementation();
+    if (original === undefined) throw new Error('limits decision spy lost the real implementation');
+    observer.mockImplementation(async function (this: AccessDecisionRepository, principal, target) {
+      entered.resolve(undefined);
+      await held.promise;
+      return original.call(this, principal, target);
+    });
+    const read = limits.read('org-a', { id: 'dany' });
+    let operationSettled = false;
+    let pending: Promise<unknown> | undefined;
+    try {
+      await Promise.race([
+        entered.promise,
+        Bun.sleep(100).then(() => {
+          throw new Error('personal grant decision never entered');
+        }),
+      ]);
+      pending = (
+        operation === 'inspect'
+          ? limits.inspect('org-a')
+          : operation === 'set'
+            ? limits.set(
+                'org-a',
+                { maxAgentPersons: 9 },
+                { actor: 'operator:later', at: 40, auditId: 'later' },
+                'apply',
+              )
+            : limits.reset('org-a', { actor: 'operator:later', at: 40, auditId: 'later' }, 'apply')
+      ).finally(() => {
+        operationSettled = true;
+      });
+      await Bun.sleep(10);
+      expect(operationSettled).toBe(false);
+    } finally {
+      held.resolve(undefined);
+      observer.mockRestore();
+    }
+    expect(await read).toMatchObject({ source: 'organization', limits: { maxAgentPersons: 8 } });
+    expect(await pending).toMatchObject(
+      operation === 'inspect'
+        ? { source: 'organization', limits: { maxAgentPersons: 8 } }
+        : { change: operation },
+    );
+    expect(await limits.inspect('org-a')).toMatchObject({
+      limits: { maxAgentPersons: operation === 'reset' ? 50 : operation === 'set' ? 9 : 8 },
+    });
+  });
+}
+
+it('releases a failed limits read before the queued operator commit', async () => {
+  activate();
+  const limits = new OrganizationLimitsRepository(open(), DEFAULTS, new WriteCoordinator());
+  const held = Promise.withResolvers<undefined>();
+  const entered = Promise.withResolvers<undefined>();
+  const observer = spyOn(AccessDecisionRepository.prototype, 'effectiveRoleAt').mockImplementation(
+    async () => {
+      entered.resolve(undefined);
+      await held.promise;
+      throw new Error('injected limits grant failure');
+    },
+  );
+  const read = limits.read('org-a', { id: 'dany' }).then(
+    () => {
+      throw new Error('failed grant read resolved');
+    },
+    (failure: unknown) => failure,
+  );
+  await entered.promise;
+  const written = limits.set(
+    'org-a',
+    { maxAgentPersons: 7 },
+    { actor: 'operator:repair', at: 50, auditId: 'repair' },
+    'apply',
+  );
+  held.resolve(undefined);
+  try {
+    expect(await read).toMatchObject({ message: 'injected limits grant failure' });
+    expect(await written).toMatchObject({
+      change: 'set',
+      after: { limits: { maxAgentPersons: 7 } },
+    });
+    expect(sqlite.query('SELECT id,actor_id,created_at FROM organization_audit').all()).toEqual([
+      { id: 'repair', actor_id: 'operator:repair', created_at: 50 },
+    ]);
+  } finally {
+    observer.mockRestore();
+  }
+});
+
+for (const operation of ['set', 'reset'] as const) {
+  it('retains queued limits ' + operation + ' operator provenance and requested caps', async () => {
+    activate();
+    const gate = new WriteCoordinator();
+    const limits = new OrganizationLimitsRepository(open(), DEFAULTS, gate);
+    if (operation === 'reset')
+      await limits.set(
+        'org-a',
+        { maxAgentPersons: 9 },
+        { actor: 'operator:setup', at: 1, auditId: 'setup' },
+        'apply',
+      );
+    const held = Promise.withResolvers<undefined>();
+    const entered = Promise.withResolvers<undefined>();
+    const blocker = gate.enter(async () => {
+      entered.resolve(undefined);
+      await held.promise;
+    });
+    await entered.promise;
+    const change = { maxAgentPersons: 7 };
+    const act = { actor: 'operator:original', at: 60, auditId: 'original' };
+    const pending =
+      operation === 'set'
+        ? limits.set('org-a', change, act, 'apply')
+        : limits.reset('org-a', act, 'apply');
+    change.maxAgentPersons = 21;
+    act.actor = 'operator:substitute';
+    act.at = 99;
+    act.auditId = 'substitute';
+    held.resolve(undefined);
+    await blocker;
+    expect(await pending).toMatchObject({
+      change: operation,
+      after: { limits: { maxAgentPersons: operation === 'set' ? 7 : 50 } },
+    });
+    expect(
+      sqlite
+        .query("SELECT id,actor_id,created_at FROM organization_audit WHERE id <> 'setup'")
+        .all(),
+    ).toEqual([{ id: 'original', actor_id: 'operator:original', created_at: 60 }]);
+  });
+}
+
+it('rechecks the retained queued limits principal after its read grant is revoked', async () => {
+  activate();
+  sqlite.run(
+    "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('grant-a','org-a','organization','org-a','user','dany','org-admin','route',1),('grant-b','org-a','organization','org-a','user','bea','org-admin','route',1)",
+  );
+  const gate = new WriteCoordinator();
+  const limits = new OrganizationLimitsRepository(open(), DEFAULTS, gate);
+  const held = Promise.withResolvers<undefined>();
+  const entered = Promise.withResolvers<undefined>();
+  const blocker = gate.enter(async () => {
+    entered.resolve(undefined);
+    await held.promise;
+  });
+  await entered.promise;
+  const principal = { id: 'dany' };
+  const pending = limits.read('org-a', principal);
+  principal.id = 'bea';
+  sqlite.run("DELETE FROM access_grant WHERE id='grant-a'");
+  held.resolve(undefined);
+  await blocker;
+  expect(await pending).toEqual({ kind: 'forbidden', permission: 'organization.read' });
+  expect(sqlite.query('SELECT * FROM organization_audit').all()).toEqual([]);
+});
+
+for (const failure of ['missing-grants', 'corrupt-permission'] as const) {
+  it('throws before limits usage on ' + failure + ' trusted authority', async () => {
+    activate();
+    sqlite.run(
+      "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('grant-a','org-a','organization','org-a','user','dany','org-admin','route',1)",
+    );
+    if (failure === 'missing-grants')
+      sqlite.run('ALTER TABLE access_grant RENAME TO unreadable_access_grant');
+    else {
+      sqlite.run('PRAGMA ignore_check_constraints=ON');
+      try {
+        sqlite.run(
+          "UPDATE access_role_permission SET permission='unknown.permission' WHERE role_id='org-admin' AND permission='organization.read'",
+        );
+      } finally {
+        sqlite.run('PRAGMA ignore_check_constraints=OFF');
+      }
+    }
+    const limits = new OrganizationLimitsRepository(open(), DEFAULTS, new WriteCoordinator());
+    const before = sqlite.query('SELECT * FROM organization_audit').all();
+    const rejected = await limits.read('org-a', { id: 'dany' }).then(
+      () => null,
+      (failure: unknown) => failure,
+    );
+    expect(rejected).toBeInstanceOf(Error);
+    if (!(rejected instanceof Error)) throw new Error('trusted grant failure did not throw');
+    expect(rejected.message).toMatch(
+      failure === 'missing-grants' ? /access_grant/ : /unknown.permission|permission/,
+    );
+    expect(sqlite.query('SELECT * FROM organization_audit').all()).toEqual(before);
+  });
+}
+
+it('keeps the limits grant decision inside its immediate transaction', async () => {
+  activate();
+  const limits = new OrganizationLimitsRepository(open(), DEFAULTS, new WriteCoordinator());
+  const held = Promise.withResolvers<undefined>();
+  const entered = Promise.withResolvers<undefined>();
+  const observer = spyOn(AccessDecisionRepository.prototype, 'effectiveRoleAt');
+  const original = observer.getMockImplementation();
+  if (original === undefined) throw new Error('limits decision spy lost the real implementation');
+  observer.mockImplementation(async function (this: AccessDecisionRepository, principal, target) {
+    entered.resolve(undefined);
+    await held.promise;
+    return original.call(this, principal, target);
+  });
+  const pending = limits.read('org-a', { id: 'dany' });
+  await entered.promise;
+  sqlite.run('PRAGMA busy_timeout=0');
+  try {
+    expect(() => sqlite.run("UPDATE organization SET name='concurrent' WHERE id='org-a'")).toThrow(
+      /locked|busy/,
+    );
+  } finally {
+    held.resolve(undefined);
+    observer.mockRestore();
+  }
+  expect(await pending).toEqual({ kind: 'forbidden', permission: 'organization.read' });
+  expect(sqlite.query("SELECT name FROM organization WHERE id='org-a'").get()).toEqual({
+    name: 'A',
+  });
+});
+
+it('refuses a delegated personal read grant at the direct limits owner', async () => {
+  activate();
+  sqlite.run(
+    "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('read-grant','org-a','organization','org-a','user','dany','org-viewer','route',1)",
+  );
+  const limits = new OrganizationLimitsRepository(open(), DEFAULTS, new WriteCoordinator());
+  expect(await limits.read('org-a', { id: 'dany' })).toMatchObject({ source: 'default' });
+  expect(
+    await limits.read('org-a', {
+      id: 'dany',
+      delegation: { organizationId: 'org-a', audience: 'wbs-be-01/direct' },
+    }),
+  ).toEqual({ kind: 'forbidden', permission: 'organization.read' });
 });

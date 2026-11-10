@@ -755,6 +755,8 @@ export async function bootBe01(
               organizationLimits: new OrganizationLimitsRepository(
                 db,
                 opts.organizationDefaultLimits,
+                // Proof: limits-boot-gate-dependency failed `serves the organization limits with the configured defaults once activated` with the injected fault; restored GREEN.
+                services.gate,
               ),
               pendingMemberships: new ScimUserRepository(db, services.gate),
               enterpriseConnections: new EnterpriseConnectionRepository(db, services.gate),

@@ -297,3 +297,25 @@ keeps them in (P5, P6). Clearing it is `package.manage_settings`, or, for an
   1 `organization.manage_settings` + 3 `project.read` + 6 `project.manage_settings` +
   3 `project.manage_packages` + 28 `package.read` + 9 `package.write` +
   3 `package.manage_settings`.
+
+### Protocol endpoints added after the original route-count snapshot
+
+These exact current shape exports supplement the dated route inventory; existing
+capacity-report infrastructure authority remains unchanged. Permission checks use
+the retained actual principal and current owned/borrowed connection.
+
+| Method and path                                             | Endpoint                    | Authority                                                                                                                                               |
+| ----------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST /api/projects/:id/resource-uses                        | registerResourceUse         | package.write on the live package                                                                                                                       |
+| GET /api/projects/:id/resource-uses                         | listResourceUses            | package.read live; nondelegated manage_directory for immutable current-org orphans                                                                      |
+| POST /api/projects/:id/resource-uses/:useId/events          | appendResourceUseEvent      | package.write live; nondelegated manage_directory for immutable current-org orphans                                                                     |
+| GET /api/projects/:id/resource-uses/:useId/history          | readResourceUseHistory      | package.read live; nondelegated manage_directory for immutable current-org orphans                                                                      |
+| PUT /api/organization/resource-authorities/:authorityId     | bindResourceAuthority       | organization.manage_directory                                                                                                                           |
+| GET /api/organization/resource-authorities/:authorityId     | readResourceAuthority       | organization.manage_directory                                                                                                                           |
+| PUT /api/resource-authorities/:authorityId/admissions       | admitResourceRuntimeUse     | exact bound infrastructure authority; new live registration additionally package.write; immutable replay precedes deleted planning-reference resolution |
+| PUT /api/resource-authorities/:authorityId/events           | ingestResourceRuntimeEvent  | exact bound infrastructure authority; live package mutation additionally package.write; deleted-package cleanup retains own infrastructure authority    |
+| GET /api/resource-authorities/:authorityId/cleanup-requests | readResourceCleanupRequests | own exact bound infrastructure request stream                                                                                                           |
+
+Missing, foreign or unreadable immutable orphans answer404 without a fabricated
+package chain. Ordinary workers cannot attest release. Public compatibility role
+labels and permission-driven UI slots remain7.1/7.2, never server authority.
