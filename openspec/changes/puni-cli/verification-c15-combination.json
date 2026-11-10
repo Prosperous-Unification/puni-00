@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "scope": "CLI/permissions checkpoint combination and erased directory outcome type fix; whole goal remains active",
+  "combinedSha": "7f1fc36de6177fbe5acf4ef17576779b3364c447",
+  "membershipSha": "dbb7b858238f32570c176853c51c209c1b74df19",
+  "controlSha": "a0d873f3fd36f8c43d49ada5e769482810c8cfec",
+  "typeFixSha": "2a645706f7264f63f06cd125c6ffd15fdc35185d",
+  "source": {
+    "path": "libs/wbs/application/core/src/module/directory/directory.resource.ts",
+    "sha256": "48d0f5fca4eba094c7bef18bd824111c242d43e6c807fcaa877cde4ff610b816"
+  },
+  "combinationChecks": [
+    {
+      "id": "types",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/typescript/lib/tsc.js",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-navigator/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "exit": 2,
+      "log": "/tmp/puni-combined-membership-cli-types.log",
+      "logSha256": "4447929076d9e2b10bcc9ed402fc573d70a0d3b17c160dc13c03da5dc6cc1342"
+    },
+    {
+      "id": "tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-child.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-death.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.test.ts",
+        "./apps/puni/cli/src",
+        "./tools/tool-devsync/src/puni-boundaries.test.ts",
+        "--timeout=30000"
+      ],
+      "exit": 0,
+      "log": "/tmp/puni-combined-membership-cli-tests.log",
+      "logSha256": "1535791f0770a8db2c58deaf960a42a0b9aa7304d5120f32aea27c3df82a6bbf"
+    }
+  ],
+  "runtimeRegression": {
+    "sourceSha": "7f1fc36de6177fbe5acf4ef17576779b3364c447",
+    "pass": 693,
+    "fail": 0,
+    "assertions": 2387,
+    "files": 18,
+    "seconds": 127.73
+  },
+  "typeFailure": {
+    "exitCode": 2,
+    "uniqueErrors": 6,
+    "reason": "standaloneWrite T inferred from identity refusal under less-strict importing CLI context; core strict builds alone did not expose it",
+    "log": "/tmp/puni-combined-membership-cli-types.log"
+  },
+  "fix": {
+    "behavior": "Six explicit full operation outcome type arguments, without casts or runtime changes",
+    "runtimeErasure": {
+      "path": "libs/wbs/application/core/src/module/directory/directory.resource.ts",
+      "identical": true,
+      "sha256": "14c1e511f732e3f3797ed302873999db91bf87c32cd0540d1470417737c21d9a",
+      "bytes": 36876,
+      "bunVersion": "1.4.4"
+    },
+    "normalHooks": 0
+  },
+  "checks": [
+    {
+      "id": "forced-six-root-types",
+      "argv": [
+        "bun",
+        "node_modules/typescript/lib/tsc.js",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-navigator/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json",
+        "libs/wbs/application/core/tsconfig.json",
+        "libs/wbs/adapters/store-sqlite/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "exitEvidence": "unified exec session37922 final exit0",
+      "log": "/tmp/puni-combined-directory-types-green1.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "directory-service-tests",
+      "argv": [
+        "bun",
+        "test",
+        "./libs/wbs/application/core/src/module/directory/directory.resource.test.ts"
+      ],
+      "exitCode": 0,
+      "observed": {
+        "pass": 9,
+        "fail": 0,
+        "assertions": 29
+      },
+      "log": "/tmp/puni-combined-directory-tests.log",
+      "logSha256": "979051a9aac5f7b93fa0703e04aba13d70662ba24744b615e0ca7d3c27b717ba"
+    },
+    {
+      "id": "directory-lint",
+      "argv": [
+        "bun",
+        "node_modules/eslint/bin/eslint.js",
+        "libs/wbs/application/core/src/module/directory/directory.resource.ts"
+      ],
+      "exitCode": 0,
+      "exitEvidence": "unified exec session73568 final exit0",
+      "log": "/tmp/puni-combined-directory-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "limits": [
+    "693 runtime tests belong to the pre-type-fix merge SHA; unchanged emitted JavaScript plus9 targeted tests tie the erased fix to that behavior",
+    "no full WBS regression repeat after CLI merge",
+    "canonical host gate, public package/root executor, macOS qualification and deployment remain unrun"
+  ]
+}
