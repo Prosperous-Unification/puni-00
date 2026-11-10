@@ -668,3 +668,35 @@ ownership SHALL remain unchanged.
 - **WHEN** caller aliases alter a retained write stamp after invocation
 - **THEN** the original actor and caller-supplied instant remain in stored rank/mode audit
 - **AND** a separately stale expected user or organization returns its modeled context conflict without mutation.
+
+### Requirement: Resource tracking preserves current authority and immutable protocol completion
+
+Live manual registration/events SHALL require package.write and list/history SHALL
+require package.read from the actual retained principal. Personal orphan access
+SHALL require nondelegated manage_directory over immutable same-organization use
+evidence; absent, foreign or denied orphan evidence SHALL remain identical404.
+Runtime personal binding/read SHALL require manage_directory. A fixed credential
+cap SHALL NOT be replaced by the issuing account's grants or compatibility role.
+
+All public operations SHALL retain coherent actor/scope/authentication and nested
+inputs before awaited resolution or queueing and keep current checks and effects
+on the existing same-Gate owner connection. Current credential revocation, source,
+pinned agent, organization, bound account/membership and consent context SHALL be
+rechecked; stale state SHALL refuse and malformed/unreadable trusted state SHALL
+throw. Source validity SHALL NOT add planning or grant dependencies to infrastructure.
+
+#### Scenario: A valid bound controller completes prior physical admission
+
+- **GIVEN** an immutable admission and a still-current exact bound credential
+- **WHEN** planning references disappear or package grants are revoked
+- **THEN** exact replay returns its original receipt and first provisional confirmation, requests, deleted cleanup and host-job protocol remain infrastructure-authorized
+- **AND** no mutable planning or grant lookup is introduced and newer cleanup/projection/history state is preserved
+- **AND** new live admission, new registration and actual live follow-up still require package.write.
+
+#### Scenario: An incompatible raw role scope coexists with sufficient grants
+
+- **GIVEN** a reaching role kind is recognized but cannot be held at its stored grant scope
+- **AND** another valid grant independently supplies the requested authority
+- **WHEN** a native permission read, listing, member summary or mounted write decodes the selected rows
+- **THEN** it throws trusted-state failure naming grant, role and both kinds before filtering or effects
+- **AND** valid project/package contributor roles at organization scope remain valid.
