@@ -214,3 +214,9 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 
 - **WHEN** cancellation arrives while the required Git version or actual-worktree-root query is still running, including a child that ignores the first signal
 - **THEN** the launcher forwards the signal to that probe's owned group, escalates only through its bounded owner or repeated signal, returns the first controlled130/143 after cleanup, and starts no subsequent probe or activation role
+
+#### Scenario: Typed installed lint shares executable ownership without transport re-entry
+
+- **WHEN** the installed root invokes a typed lint request with its independently captured lookup origin
+- **THEN** the same executable owner contains runtime-construction failures, delivers native cancellation, preserves required admission and exact output/verdict status, and reaches installed execution without reading stdin or reparsing argv
+- **AND** a lint-specific terminal exit follows ownership settlement; reusable provider APIs continue returning or throwing, and other namespaces retain ordinary output draining

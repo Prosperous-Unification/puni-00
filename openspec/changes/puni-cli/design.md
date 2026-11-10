@@ -73,3 +73,5 @@ Land provider facades and root grammar, then import-safe lazy execution, complet
 ## Open Questions
 
 None blocking implementation. Assumptions C1–C8 are recorded under the user's instruction to proceed proactively; discovered contradictions are resolved against the explicit goal and current contracts with a recorded ruling.
+
+The typed installed lint executable adapter and standalone launcher share one private runLintOperation owner. The root supplies an independently captured lookup origin; runtime construction occurs inside the owned reporter/signals/output scope before executeLint, without stdin or argv re-entry. Both executables must use a lint-specific terminal exit only after that owner settles, because unconfirmed preflight groups or abandoned output can retain native references. Other namespace operations retain ordinary native draining. Reusable executeLint keeps caller-supplied owners.

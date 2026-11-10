@@ -305,6 +305,36 @@ it('releases a stalled stdout API when the stderr consumer fails', async () => {
 }, 15000);
 
 it('exits after unconfirmed group cleanup with PID diagnostics and retained scratch', async () => {
+  if (process.platform === 'linux' && process.arch === 'x64') {
+    const { runUnconfirmedExitFixture } = await import('./testing/unconfirmed-lint-exit');
+    const report: unknown = await runUnconfirmedExitFixture();
+    expect(report).toMatchObject({
+      observation: {
+        settledBeforeCleanup: true,
+        launcherStatus: 1,
+        launcherSignal: null,
+        stdout: 'ready',
+        stageAliveBeforeCleanup: true,
+        cleanup: { reaped: true, gone: true, priorRestored: true },
+      },
+    });
+    if (typeof report !== 'object' || report === null || !('observation' in report))
+      throw new Error('isolated native-exit observation absent');
+    const observation = report.observation as {
+      stderr: string;
+      stagePid: number;
+      retainedScratch: string[];
+      stageParentBeforeCleanup: number;
+      supervisorPid: number;
+    };
+    expect(observation.retainedScratch).toHaveLength(1);
+    expect(observation.stderr).toContain('process group ' + String(observation.stagePid));
+    expect(observation.stderr).toContain('retained scratch: ' + observation.retainedScratch[0]);
+    expect(observation.stageParentBeforeCleanup).toBe(observation.supervisorPid);
+    return;
+  }
+  // Other existing POSIX paths retain their lifecycle coverage; adopting-reap qualification is Linux x64 only.
+
   const fixture = createLintFixture(
     (root) =>
       'import{writeFileSync}from"node:fs";process.on("SIGINT",()=>undefined);writeFileSync(' +

@@ -6,9 +6,11 @@ import type { Request } from './grammar-facade';
 import { type InstalledLintContext, readInstalledLint } from './installed-lint';
 import { runInstalledLintLauncher } from './installed-lint-launcher';
 import { decodeCandidateRoot } from './inventory/read-candidate';
+import { runLintOperation } from './lint-execution';
 import type { LintDiagnostic, LintOutput } from './lint-output';
 import { lintParentMode } from './lint-parent-control';
 import type { LintRequest } from './lint-request';
+import { readLintRuntime } from './lint-runtime';
 import { readInstalledToolkit } from './packaging/installed';
 import { prepareToolkit, type Toolkit } from './policy/prepare-activation-cli';
 import { prepareRelocation } from './policy/prepare-relocation-activation-cli';
@@ -226,4 +228,42 @@ export async function executeLint(request: LintRequest, context: LintContext): P
     reportDiagnostic: context.reportDiagnostic,
     subscribeInterrupts: context.subscribeInterrupts,
   });
+}
+
+/** Caller-selected lookup authority, captured independently of the provider being verified. */
+export interface LintExecutableContext extends Omit<
+  LintContext,
+  'runtime' | 'stdout' | 'stderr' | 'reportDiagnostic' | 'subscribeInterrupts'
+> {
+  readonly lookup: { readonly directory: string; readonly path: string };
+}
+
+/**
+ * Run a typed installed lint operation with executable-owned signals, output and diagnostics.
+ * Runtime construction occurs inside that owner; it never reads stdin or reparses user argv.
+ * The root must perform its mode-specific terminal exit only after this owner returns, since
+ * unconfirmed preflight cleanup or abandoned native output may retain refs independently of
+ * the installed launcher. Reusable callers retain {@link executeLint} with their own owners.
+ */
+export function runInstalledLint(
+  request: LintRequest,
+  context: LintExecutableContext,
+): Promise<number> {
+  // Proof: typed-runtime-inside-owner; moving runtime construction before this owner failed `contains runtime construction failure through the executable bounded reporter`; restoration passed.
+  // Proof: typed-no-stdin; reading Bun.stdin.stream here failed `owns typed installed execution without stdin or argv re-entry and preserves binary verdict37`; restoration passed.
+  return runLintOperation(({ outputs, subscribeInterrupts }) => {
+    // Proof: typed-lookup-origin; rebasing lookup onto the provider failed `freezes relative Git lookup at the independently captured origin instead of provider directories`; restoration passed.
+    const runtime = readLintRuntime(context.lookup.path, context.lookup.directory);
+    return executeLint(request, {
+      // Proof: typed-required-setting; overriding required to false failed `preserves required admission status78 through the typed executable owner`; restoration passed.
+      ...context,
+      runtime,
+      // Proof: typed-output-wiring; routing stdout to stderr failed `owns typed installed execution without stdin or argv re-entry and preserves binary verdict37`; restoration passed.
+      stdout: outputs.stdout,
+      stderr: outputs.stderr,
+      reportDiagnostic: outputs.reportDiagnostic,
+      // Proof: typed-native-cancellation; replacing the subscription with a no-op failed `delivers actual native cancellation through the typed owner and removes its live stage`; restoration passed.
+      subscribeInterrupts,
+    });
+  }, false);
 }
