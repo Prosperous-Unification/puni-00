@@ -12,6 +12,8 @@ const bootstrap = fileURLToPath(new URL('staging-native-prepare-bootstrap.py', d
 const fixture = String.raw`
 import ast, builtins, hashlib, importlib.util, io, json, os, pathlib, signal, subprocess, sys, tempfile, time, types
 builder_path, bootstrap_path, mode = sys.argv[1:]
+delayed_prelaunch=mode in ('stalled-publication-delayed','omit-publication-watchdog-delayed')
+if delayed_prelaunch:mode=mode.removesuffix('-delayed')
 source = pathlib.Path(builder_path).read_bytes()
 root = pathlib.Path(builder_path).parents[4]
 def load(payload=source):
@@ -415,9 +417,6 @@ with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary
         def spawn(_command, **keywords):
             child = original_popen(['/usr/bin/python3','-I','-B','-c',program], **keywords)
             children.append(child)
-            if mode in ('stalled-publication','omit-publication-watchdog'):
-                def real_work_alarm(_number,_frame):raise RuntimeError('injected-real-work-alarm')
-                signal.signal(signal.SIGALRM,real_work_alarm);signal.setitimer(signal.ITIMER_REAL,.02)
             return child
         if mode == 'omit-output':
             tree=ast.parse(source)
@@ -450,7 +449,7 @@ with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary
         module.APPROVED = str(scratch/'approved.json')
         def prepared_after_startup_latency(*_):
             # Test-only preparation exceeds the old alarm window before a child is owned.
-            if mode == 'real-wall':time.sleep(.2)
+            if mode == 'real-wall' or delayed_prelaunch:time.sleep(.2)
             return (preparation,request,{})
         module.read_prepared = prepared_after_startup_latency
         review = dict(sourceCommit='a'*40,nonce=nonce,requestSha256=checksum,inventory={},ledger={},builderSha256='e'*64)
@@ -496,12 +495,10 @@ with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary
         missing_watchdog=[];publication_fds=[]
         original_fsync=os.fsync;original_open=os.open
         if mode in ('stalled-publication','omit-publication-watchdog'):
+            # Proof: removing the actual terminal watchdog in the positive delayed case
+            # exposes the outer fixture watch and fails the required hard-timeout graph.
             if mode=='omit-publication-watchdog':
                 module.arm_terminal_watchdog=lambda:None
-            module.OPERATOR_DEADLINE=time.monotonic()+3.08
-            def work_alarm(_number,_frame):raise RuntimeError('injected-real-work-alarm')
-            signal.signal(signal.SIGALRM,work_alarm)
-            signal.setitimer(signal.ITIMER_REAL,.08)
             def capture_open(path,*arguments,**keywords):
                 descriptor=original_open(path,*arguments,**keywords)
                 if str(path)==module.CAPTURE:publication_fds.append(descriptor)
@@ -517,10 +514,10 @@ with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary
                 return original_fsync(descriptor)
             os.open=capture_open;os.fsync=stalled_sync
         armed=[]
-        if mode == 'real-wall':
-            # Proof: retained .2 s preparation fails the old prelaunch .05 s alarm;
-            # arming at the real selector wait instead observes one live owned child.
-            # The fixture deadline leaves 5 s for preparation; Bun still limits the case to 10 s.
+        if mode in ('real-wall','stalled-publication','omit-publication-watchdog'):
+            # Proof: delayed publication preparation reproduces the old prelaunch .08 s alarm
+            # with zero children; first-wait arming observes exactly one live owned child.
+            # Keep the existing real-wall preparation envelope and the publication <4 s oracle.
             module.OPERATOR_DEADLINE=time.monotonic()+8
             def selector_with_real_work_alarm():
                 selector=selector_factory()
@@ -528,7 +525,8 @@ with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary
                 def first_wait(timeout=None):
                     if not armed:
                         armed.append((len(children),children[0].poll() if children else 'absent',time.monotonic()-started))
-                        module.OPERATOR_DEADLINE=time.monotonic()+3.05
+                        module.OPERATOR_DEADLINE=time.monotonic()+(3.05 if mode=='real-wall' else 3.02)
+                        # Proof: omitting this arm retains the deadline but yields operator-wall-timeout, not work-timeout.
                         module.arm_work_watchdog()
                     return real_select(timeout)
                 selector.select=first_wait
@@ -587,10 +585,13 @@ with tempfile.TemporaryDirectory(prefix='puni-operator-component-') as temporary
             if mode=='omit-primary-failure':
                 assert 'registration failure' not in graph and 'injected selector close failure' in graph and 'injected capture persistence failure' in graph,graph
             if mode in ('stalled-publication','omit-publication-watchdog'):
+                assert len(armed)==1 and armed[0][:2]==(1,None),('publication alarm lacked a live owned child',armed)
+                if delayed_prelaunch:
+                    assert armed[0][2]>=.2,('delayed preparation did not cross the old alarm window',armed)
                 assert time.monotonic()-started<4, 'publication exceeded functioning outer fixture watch'
                 if mode=='stalled-publication':
                     assert not missing_watchdog and 'operator-hard-timeout' in graph and 'operator-capture-unavailable' in graph,graph
-                    assert 'operator-work-timeout' in graph or 'injected-real-work-alarm' in graph,graph
+                    assert 'operator-work-timeout' in graph,graph
                 else:
                     assert missing_watchdog and 'fixture outer watch exposed' in graph,graph
                 for descriptor in publication_fds:
@@ -821,6 +822,8 @@ for (const mode of [
   'omit-primary-failure',
   'stalled-publication',
   'omit-publication-watchdog',
+  'stalled-publication-delayed',
+  'omit-publication-watchdog-delayed',
   'no-publication-budget',
   'positive-child',
   'overflow',
