@@ -1,0 +1,2057 @@
+{
+  "checkpoint": "C29",
+  "baseCommit": "61b9982ba29171b9ccea280d2732010bc3dd0d13",
+  "scope": "Internal shared Bun native mutex/epoch primitive; higher-level queue/status/helpers and production caller conversion remain open.",
+  "createdAt": "2026-11-10T23:44:54.832Z",
+  "checks": {
+    "runtime": {
+      "argv": [
+        "bun",
+        "test",
+        "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+        "./libs/shared/adapters/bun-startup/src/startup.test.ts",
+        "./tools/tool-devsync/src/puni-boundaries.test.ts"
+      ],
+      "status": 0,
+      "passed": 80,
+      "failed": 0,
+      "assertions": 292,
+      "files": 3,
+      "durationSeconds": 11.08,
+      "evidence": {
+        "path": "/tmp/puni-c29b-runtime-final.log",
+        "sha256": "0a5aa8c08f0e343650c69865c431c0e24cc6da7f6037dd1d6ad9f8033fae47ea",
+        "bytes": 8638
+      }
+    },
+    "forcedTypes": {
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "libs/shared/adapters/heavy-lock/tsconfig.json"
+      ],
+      "status": 0,
+      "evidence": {
+        "path": "/tmp/puni-c29b-types-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    "nxTarget": {
+      "argv": [
+        "bun",
+        "node_modules/nx/dist/bin/nx.js",
+        "run",
+        "shared-heavy-lock:test",
+        "--skip-nx-cache",
+        "--output-style=static"
+      ],
+      "status": 0,
+      "passed": 25,
+      "failed": 0,
+      "assertions": 128,
+      "evidence": {
+        "path": "/tmp/puni-c29b-nx-test2.log",
+        "sha256": "083127311e15116adc22ccf42c6c26950a3aa4fa97ead0fcedade6dea912467c",
+        "bytes": 3920
+      }
+    },
+    "projectGraph": {
+      "project": {
+        "name": "shared-heavy-lock",
+        "type": "lib",
+        "data": {
+          "root": "libs/shared/adapters/heavy-lock",
+          "targets": {
+            "test": {
+              "cache": true,
+              "inputs": ["default", "^production"],
+              "outputs": ["{projectRoot}/coverage"],
+              "executor": "nx:run-commands",
+              "options": {
+                "env": {
+                  "CLAUDECODE": "0",
+                  "AGENT": "0"
+                },
+                "command": "bun test --preload ../../../../tools/test/scratch/preload.ts ./src --timeout=30000",
+                "cwd": "libs/shared/adapters/heavy-lock"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "cache": true,
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.js",
+                "{workspaceRoot}/tools/tool-devsync/product-policies.mjs",
+                "{workspaceRoot}/tools/tool-devsync/workspace-projects.mjs",
+                "{workspaceRoot}/apps/*/eslint.product.mjs",
+                "{workspaceRoot}/apps/*/*/eslint.product.mjs",
+                "{workspaceRoot}/libs/*/eslint.product.mjs",
+                "{workspaceRoot}/apps/**/project.json",
+                "{workspaceRoot}/libs/**/project.json",
+                "{workspaceRoot}/tools/**/project.json",
+                "{workspaceRoot}/.prettierrc.json"
+              ],
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "bunx eslint libs/shared/adapters/heavy-lock/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "build": {
+              "cache": true,
+              "dependsOn": ["^build"],
+              "inputs": ["production", "^production"],
+              "executor": "nx:run-commands",
+              "outputs": ["{workspaceRoot}/dist/out-tsc"],
+              "options": {
+                "command": "bunx tsc --build --force libs/shared/adapters/heavy-lock/tsconfig.lib.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "cache": true,
+              "inputs": ["default", "^production", "{workspaceRoot}/tsconfig.base.json"],
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "bunx tsc --build --force libs/shared/adapters/heavy-lock/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "test:unit": {
+              "executor": "nx:run-commands",
+              "options": {
+                "env": {
+                  "CLAUDECODE": "0",
+                  "AGENT": "0"
+                },
+                "command": "bun test --preload ../../../../tools/test/scratch/preload.ts ./src --timeout=30000",
+                "cwd": "libs/shared/adapters/heavy-lock"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
+          "name": "shared-heavy-lock",
+          "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+          "sourceRoot": "libs/shared/adapters/heavy-lock/src",
+          "projectType": "library",
+          "tags": ["scope:shared", "type:adapter", "runtime:bun", "ring:adapter", "product:shared"],
+          "implicitDependencies": []
+        }
+      },
+      "dependencies": []
+    },
+    "styleState": "passed-before-final-record-serialization",
+    "finalStyle": {
+      "paths": [
+        "libs/shared/adapters/heavy-lock/project.json",
+        "libs/shared/adapters/heavy-lock/src/index.ts",
+        "libs/shared/adapters/heavy-lock/src/native.test.ts",
+        "libs/shared/adapters/heavy-lock/src/native.ts",
+        "libs/shared/adapters/heavy-lock/tsconfig.json",
+        "libs/shared/adapters/heavy-lock/tsconfig.lib.json",
+        "libs/shared/adapters/heavy-lock/tsconfig.spec.json",
+        "openspec/changes/bun-scripts/design.md",
+        "openspec/changes/bun-scripts/tasks.md",
+        "openspec/changes/bun-scripts/verification-c29-native.json",
+        "openspec/changes/bun-scripts/verify.md",
+        "tsconfig.base.json"
+      ],
+      "typed": 3,
+      "sourceHashes": {
+        "libs/shared/adapters/heavy-lock/project.json": "6308a11ab6a93a05ef6979ced463cd6d840dbf678cb0016ebdc2ee93ecb69aee",
+        "libs/shared/adapters/heavy-lock/src/index.ts": "9ce1d2966ee2c62d0ef018f6ef97d52020072464ad7c12f20294b095f2c6649d",
+        "libs/shared/adapters/heavy-lock/src/native.test.ts": "b5a60ce15aac7435d2b7dbe2479129cd4443b090833bc07fdadc307d7c3e7813",
+        "libs/shared/adapters/heavy-lock/src/native.ts": "c3571c71b39fbc540075410effcc2d38c041cfde8f200034200716288310a06a",
+        "libs/shared/adapters/heavy-lock/tsconfig.json": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+        "libs/shared/adapters/heavy-lock/tsconfig.lib.json": "d9fc823045aab2bd1b3c190c3ce5aca0b9b872b8c630b2977e8ef422b4da441c",
+        "libs/shared/adapters/heavy-lock/tsconfig.spec.json": "396394bfb5739f15e978bea409a4bf8f63e7bdcd21401b54879f7fa7ab0e82f1",
+        "openspec/changes/bun-scripts/design.md": "33b86206b28cbff4ad627282ec08b9ba4988441a682e0d05940a4292fd6dc9f6",
+        "openspec/changes/bun-scripts/tasks.md": "cd97d47d1712428c306b39de22d9aea95a0a87ba1d4823857288ea63d5dd7819",
+        "openspec/changes/bun-scripts/verification-c29-native.json": "ffb1130245bfdb9a25d074dd7bbe29453f4ba174d09295cb0f7da76de5f6b160",
+        "openspec/changes/bun-scripts/verify.md": "3fd7ea320d6d1562832952b54d6356e979c6722fe86144b05fc6e5d0a9fc63e1",
+        "tsconfig.base.json": "a64ed48fd7fc2bcfff3f25f6351f6551d1915f81cf856395820ea3b4b1c1850c"
+      },
+      "drift": [],
+      "checks": [
+        {
+          "name": "lint",
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "x",
+            "eslint",
+            "--max-warnings=0",
+            "libs/shared/adapters/heavy-lock/src/index.ts",
+            "libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "libs/shared/adapters/heavy-lock/src/native.ts"
+          ],
+          "status": 0,
+          "signal": null,
+          "log": "/tmp/puni-c29b-final-lint.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "name": "format",
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "x",
+            "prettier",
+            "--check",
+            "--ignore-unknown",
+            "libs/shared/adapters/heavy-lock/project.json",
+            "libs/shared/adapters/heavy-lock/src/index.ts",
+            "libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "libs/shared/adapters/heavy-lock/src/native.ts",
+            "libs/shared/adapters/heavy-lock/tsconfig.json",
+            "libs/shared/adapters/heavy-lock/tsconfig.lib.json",
+            "libs/shared/adapters/heavy-lock/tsconfig.spec.json",
+            "openspec/changes/bun-scripts/design.md",
+            "openspec/changes/bun-scripts/tasks.md",
+            "openspec/changes/bun-scripts/verification-c29-native.json",
+            "openspec/changes/bun-scripts/verify.md",
+            "tsconfig.base.json"
+          ],
+          "status": 0,
+          "signal": null,
+          "log": "/tmp/puni-c29b-final-format.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        {
+          "name": "openspec",
+          "argv": ["/home/df/.bun/bin/bun", "x", "openspec", "validate", "--all", "--json"],
+          "status": 0,
+          "signal": null,
+          "log": "/tmp/puni-c29b-final-openspec.log",
+          "sha256": "d74c20e4e1e695ead1217dea83784ab4063de73771cb431a678534e126d23f4c",
+          "bytes": 331931
+        },
+        {
+          "name": "diff",
+          "argv": ["/usr/bin/git", "diff", "--check"],
+          "status": 0,
+          "signal": null,
+          "log": "/tmp/puni-c29b-final-diff.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ],
+      "phase": "12-path annotated source/document/draft-record snapshot; final serialization checked separately"
+    },
+    "openspec": {
+      "passed": 343,
+      "failed": 0,
+      "warnings": 786,
+      "addedWarnings": 0
+    }
+  },
+  "proofs": {
+    "audit": {
+      "state": "verified-complete",
+      "faults": 23,
+      "distinctMutants": 23,
+      "logs": 46,
+      "inputs": 10,
+      "failedNames": 26,
+      "passedOccurrences": 26,
+      "interpretations": {
+        "native-await-work": "First actual RED is in-process independent descriptor acquisition returning owned/Promise instead ofbusy; the later external-peer assertion is not reached.",
+        "native-errno-pointer": "Underlying Bun still refuses null with ptr must be a number; proof is explicit boundary diagnostic only.",
+        "native-open-nonblocking": "Actual isolated writer-side FIFO opener blocks without NONBLOCK; parent observes controlled SIGKILL status instead ofnormalrefusal, not a Bun testtimeout.",
+        "native-platform": "Library-loading ordering only; actual Linux cannot load the selected Darwin library after guardremoval."
+      }
+    },
+    "plan": {
+      "state": "ready-for-observation",
+      "root": "/home/df/.codex/worktrees/6ce4/puni-00",
+      "faults": [
+        {
+          "id": "native-architecture",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "refuses architecture before opening",
+          "qualification": "Controlled host metadata only; not actual32-bit platform qualification.",
+          "edits": [
+            {
+              "find": "(process.arch !== 'x64' && process.arch !== 'arm64')",
+              "replacement": "false"
+            }
+          ]
+        },
+        {
+          "id": "native-endianness",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "refuses endianness before opening",
+          "qualification": "Controlled host metadata only; not actualbig-endian ABI qualification.",
+          "edits": [
+            {
+              "find": "endianness() !== 'LE'",
+              "replacement": "false"
+            }
+          ]
+        },
+        {
+          "id": "native-platform",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "refuses platform before opening",
+          "qualification": "Ordering before attempted native library loading; removed guard still meets a missing Darwin library on actual Linux.",
+          "edits": [
+            {
+              "find": "if (platform !== 'linux' && platform !== 'darwin')",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "native-errno-pointer",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled native errno-pointer",
+          "qualification": "Null errno pointer boundary diagnostic/refusal only: underlying Bun may also reject null after explicit guard removal.",
+          "edits": [
+            {
+              "find": "if (pointer === null) throw new Error('heavy lock native errno pointer is absent');",
+              "replacement": "if (false) throw new Error(\"disabled errno pointer check\");"
+            }
+          ]
+        },
+        {
+          "id": "native-clock-status",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled realtime clock-error",
+          "qualification": "Injected clock fills otherwisevalid native timespec then returns failure, isolating status admission.",
+          "edits": [
+            {
+              "find": "if (library.symbols.clock_gettime(0, timespec) !== 0)",
+              "replacement": "if ((library.symbols.clock_gettime(0, timespec), false))"
+            }
+          ]
+        },
+        {
+          "id": "native-nanoseconds-lower",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled realtime nanoseconds-negative",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "nanoseconds < 0n ||",
+              "replacement": "false ||"
+            }
+          ]
+        },
+        {
+          "id": "native-nanoseconds-upper",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled realtime nanoseconds-large",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "nanoseconds >= 1_000_000_000n",
+              "replacement": "false"
+            }
+          ]
+        },
+        {
+          "id": "native-stamp-width",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled realtime stamp-width",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "if (!/^[0-9]{19}$/u.test(stamp.toString()))",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "native-regular-file",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "ready FIFO at the regular-file boundary",
+          "qualification": "A ready native FIFO reader reaches the regular-file guard; readerless open refusal is separate.",
+          "edits": [
+            {
+              "find": "if (!fstatSync(descriptor).isFile())",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "native-open-nonblocking",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "readerless FIFO before native open can block",
+          "qualification": "Controlled inner FIFO writer-side opener kill gives ordinary parent assertion failure; not a Bun testtimeout.",
+          "edits": [
+            {
+              "find": "constants.O_WRONLY | constants.O_CREAT | constants.O_APPEND | constants.O_NONBLOCK",
+              "replacement": "constants.O_WRONLY | constants.O_CREAT | constants.O_APPEND"
+            }
+          ]
+        },
+        {
+          "id": "native-flags-status",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled native flags-error",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "if (flags < 0)",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "native-cloexec",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "actual descriptor whose close-on-exec bit was cleared",
+          "qualification": "Actual bit is cleared on the opened descriptor before admission; generic child FD absence alone doesnot prove this guard.",
+          "edits": [
+            {
+              "find": "if ((flags & 1) !== 1)",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "native-flock-error-status",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled native flock-error",
+          "qualification": "Native error classification only: removed branch later refuses invalid status, without specific errno context.",
+          "edits": [
+            {
+              "find": "if (acquired === -1)",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "native-contention",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled native flock-error",
+          "qualification": "Unknown native errno must not degrade to the modeled busy outcome.",
+          "edits": [
+            {
+              "find": "if (errno === native.contention)",
+              "replacement": "if (true)"
+            }
+          ]
+        },
+        {
+          "id": "native-flock-status",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled native flock-status",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "if (acquired !== 0) throw new Error('heavy lock native flock returned an invalid status');",
+              "replacement": "if (false) throw new Error(\"disabled invalid status check\");"
+            }
+          ]
+        },
+        {
+          "id": "native-await-work",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "holds the actual inode through awaited work",
+          "qualification": "Interpret actual first failure: in-process independent descriptor acquisition can be reached before the external peer assertion.",
+          "edits": [
+            {
+              "find": "value: await work()",
+              "replacement": "value: work()"
+            }
+          ]
+        },
+        {
+          "id": "native-close",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "preserves the operation failure and closes its kernel lock",
+          "qualification": "Original callback failure may remain; actual independent peer must acquire before caller returns.",
+          "edits": [
+            {
+              "find": "    closeSync(descriptor);",
+              "replacement": "    void descriptor;"
+            }
+          ]
+        },
+        {
+          "id": "native-original-failure",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "preserves the operation failure and closes its kernel lock",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "    throw settled.cause;",
+              "replacement": "    return {kind:'busy' as const};"
+            }
+          ]
+        },
+        {
+          "id": "native-paired-causes",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "paired operation and close failure identity",
+          "qualification": "Injected close executes real close before throwing; failed-close alone does not prove actual release.",
+          "edits": [
+            {
+              "find": "[settled.cause, release.cause]",
+              "replacement": "[release.cause]"
+            }
+          ]
+        },
+        {
+          "id": "native-close-failure",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "close-only failure identity",
+          "qualification": "Injected close executes real close before throwing; exact release-failure identity must survive.",
+          "edits": [
+            {
+              "find": "if (release !== undefined) throw release.cause;",
+              "replacement": "if (false) throw new Error(\"disabled close failure\");"
+            }
+          ]
+        },
+        {
+          "id": "native-backend-before-open",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "refuses (platform|architecture|endianness|library) before opening",
+          "qualification": "One reorder fault moves native admission after descriptor acquisition; no mutexmayexist on unsupported backend.",
+          "edits": [
+            {
+              "find": "  const native = readKernel();\n  // NONBLOCK",
+              "replacement": "  // NONBLOCK"
+            },
+            {
+              "find": "    0o600,\n  );\n  async function runWork()",
+              "replacement": "    0o600,\n  );\n  const native = readKernel();\n  async function runWork()"
+            }
+          ]
+        },
+        {
+          "id": "native-preserve-inode-bytes",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "never removes or replaces an existing canonical mutex inode",
+          "qualification": "Unsafe truncating-open fault proves the existing mutex bytes remain intact.",
+          "edits": [
+            {
+              "find": "constants.O_APPEND",
+              "replacement": "constants.O_TRUNC"
+            }
+          ]
+        },
+        {
+          "id": "native-lazy-import",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "imports the native adapter without opening",
+          "qualification": "Injected eager load trips the isolated refused-library control during import; actual plain import performs no backend action.",
+          "edits": [
+            {
+              "find": "let kernel: Kernel | undefined;",
+              "replacement": "let kernel: Kernel | undefined;\nreadKernel();"
+            }
+          ]
+        }
+      ],
+      "frozenHashes": {
+        "libs/shared/adapters/heavy-lock/project.json": "6308a11ab6a93a05ef6979ced463cd6d840dbf678cb0016ebdc2ee93ecb69aee",
+        "libs/shared/adapters/heavy-lock/src/index.ts": "9ce1d2966ee2c62d0ef018f6ef97d52020072464ad7c12f20294b095f2c6649d",
+        "libs/shared/adapters/heavy-lock/src/native.test.ts": "b5a60ce15aac7435d2b7dbe2479129cd4443b090833bc07fdadc307d7c3e7813",
+        "libs/shared/adapters/heavy-lock/src/native.ts": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+        "libs/shared/adapters/heavy-lock/tsconfig.json": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+        "libs/shared/adapters/heavy-lock/tsconfig.lib.json": "d9fc823045aab2bd1b3c190c3ce5aca0b9b872b8c630b2977e8ef422b4da441c",
+        "libs/shared/adapters/heavy-lock/tsconfig.spec.json": "396394bfb5739f15e978bea409a4bf8f63e7bdcd21401b54879f7fa7ab0e82f1",
+        "openspec/changes/bun-scripts/design.md": "33b86206b28cbff4ad627282ec08b9ba4988441a682e0d05940a4292fd6dc9f6",
+        "openspec/changes/bun-scripts/tasks.md": "6d457efb749251ee356c3047f54e8210ac1e3e16ef0b9f5cdb260f548c6c75a4",
+        "tsconfig.base.json": "a64ed48fd7fc2bcfff3f25f6351f6551d1915f81cf856395820ea3b4b1c1850c"
+      }
+    },
+    "observations": {
+      "planHash": "65179d016b53afdc857d8ef446c54acc70e98ba642af03d48fb78ef4c617767f",
+      "observations": [
+        {
+          "id": "native-architecture",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "refuses architecture before opening",
+          "qualification": "Controlled host metadata only; not actual32-bit platform qualification.",
+          "edits": [
+            {
+              "find": "(process.arch !== 'x64' && process.arch !== 'arm64')",
+              "replacement": "false"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=refuses architecture before opening"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses architecture before opening a mutex or entering work"],
+          "passedRaw": ["refuses architecture before opening a mutex or entering work"],
+          "failed": ["refuses architecture before opening a mutex or entering work"],
+          "passed": ["refuses architecture before opening a mutex or entering work"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "60821884b52ffca701140d937b50097415b5b319bbda5f60d1babbacd778a351",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-architecture.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-architecture.green.log",
+          "redLogHash": "a9922cddd29e1d00d69cbbe8ed640dbbe220d394936f69535392e369ae539fa4",
+          "greenLogHash": "42ad50077a51dbe1596fee96e825a7773913c4a580745dedea2113ebde94c405",
+          "redLogBytes": 797,
+          "greenLogBytes": 247
+        },
+        {
+          "id": "native-endianness",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "refuses endianness before opening",
+          "qualification": "Controlled host metadata only; not actualbig-endian ABI qualification.",
+          "edits": [
+            {
+              "find": "endianness() !== 'LE'",
+              "replacement": "false"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=refuses endianness before opening"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses endianness before opening a mutex or entering work"],
+          "passedRaw": ["refuses endianness before opening a mutex or entering work"],
+          "failed": ["refuses endianness before opening a mutex or entering work"],
+          "passed": ["refuses endianness before opening a mutex or entering work"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "3cd05de3508561960a3d676c2daead30438d0989d3121bd16856fc8883923241",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-endianness.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-endianness.green.log",
+          "redLogHash": "26b8c7738fa260089eb1d05a1b7d2b7a8281bf2d516378a9cd75f77d922f2fc6",
+          "greenLogHash": "7de39850106a9d0ccda14a02efde4947f2ccf375fa9dae706ac10a707b603b2d",
+          "redLogBytes": 795,
+          "greenLogBytes": 245
+        },
+        {
+          "id": "native-platform",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "refuses platform before opening",
+          "qualification": "Ordering before attempted native library loading; removed guard still meets a missing Darwin library on actual Linux.",
+          "edits": [
+            {
+              "find": "if (platform !== 'linux' && platform !== 'darwin')",
+              "replacement": "if (false)"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=refuses platform before opening"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses platform before opening a mutex or entering work"],
+          "passedRaw": ["refuses platform before opening a mutex or entering work"],
+          "failed": ["refuses platform before opening a mutex or entering work"],
+          "passed": ["refuses platform before opening a mutex or entering work"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "c7eb7259871b7fe943770becf0bf7feedb7ba9dff97a51e14ae28dc37a2d2872",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-platform.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-platform.green.log",
+          "redLogHash": "6c4a02012338e966afd0d96ef88861e648aa2ab9203a85e5da6fe3f416d3a77b",
+          "greenLogHash": "64cdd6e9d57ac0c8da44fe9d133b4679063207fef5c2deeb067c194f76e07739",
+          "redLogBytes": 801,
+          "greenLogBytes": 243
+        },
+        {
+          "id": "native-errno-pointer",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled native errno-pointer",
+          "qualification": "Null errno pointer boundary diagnostic/refusal only: underlying Bun may also reject null after explicit guard removal.",
+          "edits": [
+            {
+              "find": "if (pointer === null) throw new Error('heavy lock native errno pointer is absent');",
+              "replacement": "if (false) throw new Error(\"disabled errno pointer check\");"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=controlled native errno-pointer"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses controlled native errno-pointer without entering work"],
+          "passedRaw": ["refuses controlled native errno-pointer without entering work"],
+          "failed": ["refuses controlled native errno-pointer without entering work"],
+          "passed": ["refuses controlled native errno-pointer without entering work"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "687b9db1aa909d80aee5e779938d383d274c673cc77cadf8e30e67c6b3515294",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-errno-pointer.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-errno-pointer.green.log",
+          "redLogHash": "4b11d4e1a401a3ebd1f8d37228f4930d094adf6da3706e1816b1ff5109bc929b",
+          "greenLogHash": "5000db6f7ebba098dfec80b73d7d13a8d43e9511b1c0c33c1e1f983f61a64e81",
+          "redLogBytes": 866,
+          "greenLogBytes": 248
+        },
+        {
+          "id": "native-clock-status",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled realtime clock-error",
+          "qualification": "Injected clock fills otherwisevalid native timespec then returns failure, isolating status admission.",
+          "edits": [
+            {
+              "find": "if (library.symbols.clock_gettime(0, timespec) !== 0)",
+              "replacement": "if ((library.symbols.clock_gettime(0, timespec), false))"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=controlled realtime clock-error"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses controlled realtime clock-error before returning a ticket stamp"],
+          "passedRaw": ["refuses controlled realtime clock-error before returning a ticket stamp"],
+          "failed": ["refuses controlled realtime clock-error before returning a ticket stamp"],
+          "passed": ["refuses controlled realtime clock-error before returning a ticket stamp"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "f2e8f2f2cd4ad24f922fd836d09ce615cfa42c90ed36f627f7faa53ad2465218",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-clock-status.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-clock-status.green.log",
+          "redLogHash": "a20834dc0f8cbcd873e794bae49841a953d5547cc894299eac57f60b45c287d6",
+          "greenLogHash": "05f60e8373b871852692a848825a37e1d61f5090ae0049ad30734db9b4376a82",
+          "redLogBytes": 794,
+          "greenLogBytes": 258
+        },
+        {
+          "id": "native-nanoseconds-lower",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled realtime nanoseconds-negative",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "nanoseconds < 0n ||",
+              "replacement": "false ||"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=controlled realtime nanoseconds-negative"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": [
+            "refuses controlled realtime nanoseconds-negative before returning a ticket stamp"
+          ],
+          "passedRaw": [
+            "refuses controlled realtime nanoseconds-negative before returning a ticket stamp"
+          ],
+          "failed": [
+            "refuses controlled realtime nanoseconds-negative before returning a ticket stamp"
+          ],
+          "passed": [
+            "refuses controlled realtime nanoseconds-negative before returning a ticket stamp"
+          ],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "686c13bbd6af65bd2b707f647dc3c01f98aa672ec6b3b6c667e9f42f501dff19",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-nanoseconds-lower.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-nanoseconds-lower.green.log",
+          "redLogHash": "56824538e1ae87ca512700dc472944c3ca5e2e4c1ce632f73ca65fa7660c5a59",
+          "greenLogHash": "86e5cca72e13154a8d09667383b1fce211ae1155fb3799e436dd6894af656fd4",
+          "redLogBytes": 803,
+          "greenLogBytes": 267
+        },
+        {
+          "id": "native-nanoseconds-upper",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled realtime nanoseconds-large",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "nanoseconds >= 1_000_000_000n",
+              "replacement": "false"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=controlled realtime nanoseconds-large"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": [
+            "refuses controlled realtime nanoseconds-large before returning a ticket stamp"
+          ],
+          "passedRaw": [
+            "refuses controlled realtime nanoseconds-large before returning a ticket stamp"
+          ],
+          "failed": [
+            "refuses controlled realtime nanoseconds-large before returning a ticket stamp"
+          ],
+          "passed": [
+            "refuses controlled realtime nanoseconds-large before returning a ticket stamp"
+          ],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "481128888b9a4e4ca0c7127967a4624d8c1dd15905be2c776504d5be8f4659c7",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-nanoseconds-upper.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-nanoseconds-upper.green.log",
+          "redLogHash": "ce1e309a48e498d063b1f9892d65d066dfd13a96019b311c74816ec15a96c9f2",
+          "greenLogHash": "e895963b0da539962b773adc64c71e6bf4932e586c22e215eb6e26c5d7444ad8",
+          "redLogBytes": 800,
+          "greenLogBytes": 264
+        },
+        {
+          "id": "native-stamp-width",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled realtime stamp-width",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "if (!/^[0-9]{19}$/u.test(stamp.toString()))",
+              "replacement": "if (false)"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=controlled realtime stamp-width"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses controlled realtime stamp-width before returning a ticket stamp"],
+          "passedRaw": ["refuses controlled realtime stamp-width before returning a ticket stamp"],
+          "failed": ["refuses controlled realtime stamp-width before returning a ticket stamp"],
+          "passed": ["refuses controlled realtime stamp-width before returning a ticket stamp"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "22853d862cef4d35d1f319836a6b1bea0e9a27b1e997cf6a86efa2ffed17f24b",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-stamp-width.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-stamp-width.green.log",
+          "redLogHash": "7355cb1b14d53d1935652df6c0e7b9301ef98d146f6d1c8aab50a360cffc93e9",
+          "greenLogHash": "5fd6850e12b31415e2902b7688d5a9db5267b4b6dbc4f21afed038f80898ce82",
+          "redLogBytes": 794,
+          "greenLogBytes": 258
+        },
+        {
+          "id": "native-regular-file",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "ready FIFO at the regular-file boundary",
+          "qualification": "A ready native FIFO reader reaches the regular-file guard; readerless open refusal is separate.",
+          "edits": [
+            {
+              "find": "if (!fstatSync(descriptor).isFile())",
+              "replacement": "if (false)"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=ready FIFO at the regular-file boundary"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses a ready FIFO at the regular-file boundary without entering work"],
+          "passedRaw": ["refuses a ready FIFO at the regular-file boundary without entering work"],
+          "failed": ["refuses a ready FIFO at the regular-file boundary without entering work"],
+          "passed": ["refuses a ready FIFO at the regular-file boundary without entering work"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "f3cdb0c4b1d002b0508bf3ceb18bdb0b5a9d58a4a5487621fef869e03896fa0b",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-regular-file.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-regular-file.green.log",
+          "redLogHash": "fc1634631963161839abed94b481b9c5dc89e21fa902a665f1c413cb79f0b512",
+          "greenLogHash": "aac76fb0308de705cc581a24e87212f9a557e49bafad30fb25aac63e014e7915",
+          "redLogBytes": 648,
+          "greenLogBytes": 257
+        },
+        {
+          "id": "native-open-nonblocking",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "readerless FIFO before native open can block",
+          "qualification": "Controlled inner FIFO writer-side opener kill gives ordinary parent assertion failure; not a Bun testtimeout.",
+          "edits": [
+            {
+              "find": "constants.O_WRONLY | constants.O_CREAT | constants.O_APPEND | constants.O_NONBLOCK",
+              "replacement": "constants.O_WRONLY | constants.O_CREAT | constants.O_APPEND"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=readerless FIFO before native open can block"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses a readerless FIFO before native open can block"],
+          "passedRaw": ["refuses a readerless FIFO before native open can block"],
+          "failed": ["refuses a readerless FIFO before native open can block"],
+          "passed": ["refuses a readerless FIFO before native open can block"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "9f693560cefce4b9c1af326c96f02d398356bb7799db9df462478c5922cec4b3",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-open-nonblocking.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-open-nonblocking.green.log",
+          "redLogHash": "4f80b33c743a4e66471eca94d517321d74728a33c8ae3ffe36a50456b374a106",
+          "greenLogHash": "8715703e7136dbbe026f86a5b9a6b8bd2a9f32b5f22675d71ea69e5117d62132",
+          "redLogBytes": 710,
+          "greenLogBytes": 241
+        },
+        {
+          "id": "native-flags-status",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled native flags-error",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "if (flags < 0)",
+              "replacement": "if (false)"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=controlled native flags-error"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses controlled native flags-error without entering work"],
+          "passedRaw": ["refuses controlled native flags-error without entering work"],
+          "failed": ["refuses controlled native flags-error without entering work"],
+          "passed": ["refuses controlled native flags-error without entering work"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "c649856c951ff63bd9c87870a6634c53772b3311d39ddd86dd81d68d1cce1c04",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-flags-status.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-flags-status.green.log",
+          "redLogHash": "033f507c7b02c4e1028080f66b9faf6447e7ce98aa6490fd3187dba50136aace",
+          "greenLogHash": "617df3d865ae169b52a440d0bae5f9b069247d3b25fb3989ce608f3f13b992f7",
+          "redLogBytes": 769,
+          "greenLogBytes": 246
+        },
+        {
+          "id": "native-cloexec",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "actual descriptor whose close-on-exec bit was cleared",
+          "qualification": "Actual bit is cleared on the opened descriptor before admission; generic child FD absence alone doesnot prove this guard.",
+          "edits": [
+            {
+              "find": "if ((flags & 1) !== 1)",
+              "replacement": "if (false)"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=actual descriptor whose close-on-exec bit was cleared"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": [
+            "refuses an actual descriptor whose close-on-exec bit was cleared before admission"
+          ],
+          "passedRaw": [
+            "refuses an actual descriptor whose close-on-exec bit was cleared before admission"
+          ],
+          "failed": [
+            "refuses an actual descriptor whose close-on-exec bit was cleared before admission"
+          ],
+          "passed": [
+            "refuses an actual descriptor whose close-on-exec bit was cleared before admission"
+          ],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "4a4956115d1ab577cec9c4306ba1760742617da24575ab8f88c0a16bc0623608",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-cloexec.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-cloexec.green.log",
+          "redLogHash": "a04437db95dbb6f621213ab479d710f57aee0c5dfd9dbc7d90633b137ae46965",
+          "greenLogHash": "8256af81cbe5a33eb8c0d0f55c2944ec0a541ef6205c9599646f4b3cc5866ed0",
+          "redLogBytes": 649,
+          "greenLogBytes": 266
+        },
+        {
+          "id": "native-flock-error-status",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled native flock-error",
+          "qualification": "Native error classification only: removed branch later refuses invalid status, without specific errno context.",
+          "edits": [
+            {
+              "find": "if (acquired === -1)",
+              "replacement": "if (false)"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=controlled native flock-error"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses controlled native flock-error without entering work"],
+          "passedRaw": ["refuses controlled native flock-error without entering work"],
+          "failed": ["refuses controlled native flock-error without entering work"],
+          "passed": ["refuses controlled native flock-error without entering work"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "eb20d436e7083770d317ce68c3f994f052f695d3d3ab679b7419d5bf38cd852e",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-flock-error-status.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-flock-error-status.green.log",
+          "redLogHash": "1af2c4852e5653d8b17fb6bfca5724c9c851bea5ccb0cdbb843fd9842cc0d478",
+          "greenLogHash": "2da9fdd6f3335259c23e5ee7152f686dc37c4b78562ebc4836639ad3518eecf0",
+          "redLogBytes": 892,
+          "greenLogBytes": 246
+        },
+        {
+          "id": "native-contention",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled native flock-error",
+          "qualification": "Unknown native errno must not degrade to the modeled busy outcome.",
+          "edits": [
+            {
+              "find": "if (errno === native.contention)",
+              "replacement": "if (true)"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=controlled native flock-error"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses controlled native flock-error without entering work"],
+          "passedRaw": ["refuses controlled native flock-error without entering work"],
+          "failed": ["refuses controlled native flock-error without entering work"],
+          "passed": ["refuses controlled native flock-error without entering work"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "2664442249e9871109b287a47bc652f5166800413beb4add00c41a9bc9ef2136",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-contention.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-contention.green.log",
+          "redLogHash": "fb5b9d884b8254b23989279f5b72cf3ea3d6ea13a3027806ffbd31b1d55dddb4",
+          "greenLogHash": "07624baade8daac39f6d287953528c25fa7564072574510a98b904069f35aedf",
+          "redLogBytes": 771,
+          "greenLogBytes": 246
+        },
+        {
+          "id": "native-flock-status",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "controlled native flock-status",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "if (acquired !== 0) throw new Error('heavy lock native flock returned an invalid status');",
+              "replacement": "if (false) throw new Error(\"disabled invalid status check\");"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=controlled native flock-status"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["refuses controlled native flock-status without entering work"],
+          "passedRaw": ["refuses controlled native flock-status without entering work"],
+          "failed": ["refuses controlled native flock-status without entering work"],
+          "passed": ["refuses controlled native flock-status without entering work"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "1eb5daff1209b1b9a85ebaf2efcedbce0e606962e2f1fe188af8952374285de4",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-flock-status.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-flock-status.green.log",
+          "redLogHash": "64c8a46848d75b37f7481cd693bbace25d0a20bf1f70452cd89d35c49962b1f6",
+          "greenLogHash": "c9fb2f7c21bed180bdeafd876ae1a6887368db5bf6fdf693a905de4c15639887",
+          "redLogBytes": 770,
+          "greenLogBytes": 247
+        },
+        {
+          "id": "native-await-work",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "holds the actual inode through awaited work",
+          "qualification": "Interpret actual first failure: in-process independent descriptor acquisition can be reached before the external peer assertion.",
+          "edits": [
+            {
+              "find": "value: await work()",
+              "replacement": "value: work()"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=holds the actual inode through awaited work"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": [
+            "holds the actual inode through awaited work and admits the next independent process only after close"
+          ],
+          "passedRaw": [
+            "holds the actual inode through awaited work and admits the next independent process only after close"
+          ],
+          "failed": [
+            "holds the actual inode through awaited work and admits the next independent process only after close"
+          ],
+          "passed": [
+            "holds the actual inode through awaited work and admits the next independent process only after close"
+          ],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "4fd0de7aa8e6dbc8a12f3b0b057fc16fbb9b4d6ab364708ea67e98eb02fd8f07",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-await-work.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-await-work.green.log",
+          "redLogHash": "913608b131b4fc8c6f15fd1f4b4331b498de5e6bfbd476ae1d1c0679f9cc798f",
+          "greenLogHash": "5e8862fdda639a5d08e180c2ec728ae4f7b014520e34d95c767428afe1d35903",
+          "redLogBytes": 763,
+          "greenLogBytes": 287
+        },
+        {
+          "id": "native-close",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "preserves the operation failure and closes its kernel lock",
+          "qualification": "Original callback failure may remain; actual independent peer must acquire before caller returns.",
+          "edits": [
+            {
+              "find": "    closeSync(descriptor);",
+              "replacement": "    void descriptor;"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=preserves the operation failure and closes its kernel lock"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": [
+            "preserves the operation failure and closes its kernel lock before returning it"
+          ],
+          "passedRaw": [
+            "preserves the operation failure and closes its kernel lock before returning it"
+          ],
+          "failed": [
+            "preserves the operation failure and closes its kernel lock before returning it"
+          ],
+          "passed": [
+            "preserves the operation failure and closes its kernel lock before returning it"
+          ],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "485cd63a279193db3f53810b100f5661e1de70efb7a079989e71b4f25e06a180",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-close.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-close.green.log",
+          "redLogHash": "80a8a150d38bd2f85fdad562b5528b3ab5a82e4b29bbf8de9be98a651bcc915b",
+          "greenLogHash": "b2f9a0d7dc6004418286914ab30111e23b57356dbcead34d36180dd587634395",
+          "redLogBytes": 889,
+          "greenLogBytes": 265
+        },
+        {
+          "id": "native-original-failure",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "preserves the operation failure and closes its kernel lock",
+          "qualification": "Exact named production-path RED and restored GREEN; claim follows its observed assertion.",
+          "edits": [
+            {
+              "find": "    throw settled.cause;",
+              "replacement": "    return {kind:'busy' as const};"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=preserves the operation failure and closes its kernel lock"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": [
+            "preserves the operation failure and closes its kernel lock before returning it"
+          ],
+          "passedRaw": [
+            "preserves the operation failure and closes its kernel lock before returning it"
+          ],
+          "failed": [
+            "preserves the operation failure and closes its kernel lock before returning it"
+          ],
+          "passed": [
+            "preserves the operation failure and closes its kernel lock before returning it"
+          ],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "bbccc626b61a736e05c6af7fe75e826011f2ba2dad1ae832499d992e1acd71c9",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-original-failure.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-original-failure.green.log",
+          "redLogHash": "9a4a055df4e742178236b2234dda6b1694836971fdc890d7cd1f9f72c19876d2",
+          "greenLogHash": "2c22ab30bf921284c5eb55e4d0429a937a73c51d488c010da461df44ff71f1ee",
+          "redLogBytes": 1280,
+          "greenLogBytes": 265
+        },
+        {
+          "id": "native-paired-causes",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "paired operation and close failure identity",
+          "qualification": "Injected close executes real close before throwing; failed-close alone does not prove actual release.",
+          "edits": [
+            {
+              "find": "[settled.cause, release.cause]",
+              "replacement": "[release.cause]"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=paired operation and close failure identity"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": [
+            "preserves paired operation and close failure identity after the real descriptor closes"
+          ],
+          "passedRaw": [
+            "preserves paired operation and close failure identity after the real descriptor closes"
+          ],
+          "failed": [
+            "preserves paired operation and close failure identity after the real descriptor closes"
+          ],
+          "passed": [
+            "preserves paired operation and close failure identity after the real descriptor closes"
+          ],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "5673504628d320216effaaa11d7c40f261c8205d58b778092889675494b1e7cf",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-paired-causes.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-paired-causes.green.log",
+          "redLogHash": "6c49b6f174c788dd58ea3cd670460c56e736791ca7a0db67594ae908afc0cc3f",
+          "greenLogHash": "e71477b74286b2f96f2d25be8a31d0291af767df302c3c40316c362be42c596b",
+          "redLogBytes": 915,
+          "greenLogBytes": 273
+        },
+        {
+          "id": "native-close-failure",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "close-only failure identity",
+          "qualification": "Injected close executes real close before throwing; exact release-failure identity must survive.",
+          "edits": [
+            {
+              "find": "if (release !== undefined) throw release.cause;",
+              "replacement": "if (false) throw new Error(\"disabled close failure\");"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=close-only failure identity"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["preserves close-only failure identity after the real descriptor closes"],
+          "passedRaw": ["preserves close-only failure identity after the real descriptor closes"],
+          "failed": ["preserves close-only failure identity after the real descriptor closes"],
+          "passed": ["preserves close-only failure identity after the real descriptor closes"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "8c618f0bf6187a237e14e1d584286eecd3a9cf6c47da722c3d53c9a2c22ae57d",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-close-failure.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-close-failure.green.log",
+          "redLogHash": "8e01748adaff210023bbcfe820b3d8814600ba3f5239ef87202c6e32e678d387",
+          "greenLogHash": "693ee315555989dbd941dfa7d560ae108f5a803c83cd3b1103f661b4f5af74f6",
+          "redLogBytes": 1334,
+          "greenLogBytes": 257
+        },
+        {
+          "id": "native-backend-before-open",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "refuses (platform|architecture|endianness|library) before opening",
+          "qualification": "One reorder fault moves native admission after descriptor acquisition; no mutexmayexist on unsupported backend.",
+          "edits": [
+            {
+              "find": "  const native = readKernel();\n  // NONBLOCK",
+              "replacement": "  // NONBLOCK"
+            },
+            {
+              "find": "    0o600,\n  );\n  async function runWork()",
+              "replacement": "    0o600,\n  );\n  const native = readKernel();\n  async function runWork()"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=refuses (platform|architecture|endianness|library) before opening"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": [
+            "refuses platform before opening a mutex or entering work",
+            "refuses architecture before opening a mutex or entering work",
+            "refuses endianness before opening a mutex or entering work",
+            "refuses library before opening a mutex or entering work"
+          ],
+          "passedRaw": [
+            "refuses platform before opening a mutex or entering work",
+            "refuses architecture before opening a mutex or entering work",
+            "refuses endianness before opening a mutex or entering work",
+            "refuses library before opening a mutex or entering work"
+          ],
+          "failed": [
+            "refuses platform before opening a mutex or entering work",
+            "refuses architecture before opening a mutex or entering work",
+            "refuses endianness before opening a mutex or entering work",
+            "refuses library before opening a mutex or entering work"
+          ],
+          "passed": [
+            "refuses platform before opening a mutex or entering work",
+            "refuses architecture before opening a mutex or entering work",
+            "refuses endianness before opening a mutex or entering work",
+            "refuses library before opening a mutex or entering work"
+          ],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "57cab64c8cd949af1118bbc69d3b09a1d21fa9eadd9c23ecd80fc09c222fce49",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-backend-before-open.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-backend-before-open.green.log",
+          "redLogHash": "2ba65fe250c768ddb48cf812581c98c3389f95319a9dd2b9bffcae1e43302f97",
+          "greenLogHash": "6da947286a8a28743db7694fa0094fbdb459afc07195310ac4a61751868c5782",
+          "redLogBytes": 2673,
+          "greenLogBytes": 473
+        },
+        {
+          "id": "native-preserve-inode-bytes",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "never removes or replaces an existing canonical mutex inode",
+          "qualification": "Unsafe truncating-open fault proves the existing mutex bytes remain intact.",
+          "edits": [
+            {
+              "find": "constants.O_APPEND",
+              "replacement": "constants.O_TRUNC"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=never removes or replaces an existing canonical mutex inode"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": ["never removes or replaces an existing canonical mutex inode or its bytes"],
+          "passedRaw": ["never removes or replaces an existing canonical mutex inode or its bytes"],
+          "failed": ["never removes or replaces an existing canonical mutex inode or its bytes"],
+          "passed": ["never removes or replaces an existing canonical mutex inode or its bytes"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "b841b7f9cc985baf9cb89eb3628d9ebdda29803530f75112f6414fb8169f3076",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-preserve-inode-bytes.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-preserve-inode-bytes.green.log",
+          "redLogHash": "e53d0ecb70ec4cba707b6b49fb1b3ff49619273d2dc2dd7555dfcae69b3ab276",
+          "greenLogHash": "a13600cec0dad5bcc8a8cd329d2deebd3004fa28fde34bdf2aa0c3b02270c0ca",
+          "redLogBytes": 804,
+          "greenLogBytes": 257
+        },
+        {
+          "id": "native-lazy-import",
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "pattern": "imports the native adapter without opening",
+          "qualification": "Injected eager load trips the isolated refused-library control during import; actual plain import performs no backend action.",
+          "edits": [
+            {
+              "find": "let kernel: Kernel | undefined;",
+              "replacement": "let kernel: Kernel | undefined;\nreadKernel();"
+            }
+          ],
+          "argv": [
+            "/usr/bin/env",
+            "-u",
+            "BUN_OPTIONS",
+            "-u",
+            "BUN_INSPECT_PRELOAD",
+            "-u",
+            "NODE_OPTIONS",
+            "-u",
+            "BUN_BE_BUN",
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "./libs/shared/adapters/heavy-lock/src/native.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern=imports the native adapter without opening"
+          ],
+          "state": "killed-restored",
+          "redExit": 1,
+          "greenExit": 0,
+          "failedRaw": [
+            "imports the native adapter without opening a library clock mutex or worker"
+          ],
+          "passedRaw": [
+            "imports the native adapter without opening a library clock mutex or worker"
+          ],
+          "failed": ["imports the native adapter without opening a library clock mutex or worker"],
+          "passed": ["imports the native adapter without opening a library clock mutex or worker"],
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "mutantHash": "5e0ed422100b55d96eb4d020e06a2290bd6d665161cf091dceb4add83959ad0a",
+          "restoredHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "redLog": "/tmp/puni-c29b-proofs/native-lazy-import.red.log",
+          "greenLog": "/tmp/puni-c29b-proofs/native-lazy-import.green.log",
+          "redLogHash": "82a0e5a9fe6ef83d455221b288b45b2200f8b282ac28649906711ac24e0ff7e3",
+          "greenLogHash": "9d6c4e301660cddf96be3eeed2b3190d39da042e095019e746aab0e2990a2e56",
+          "redLogBytes": 1934,
+          "greenLogBytes": 261
+        }
+      ]
+    },
+    "notes": {
+      "state": "verified-executable-equal",
+      "sourceInventory": 10,
+      "commentedPaths": 1,
+      "proofNotes": 24,
+      "records": [
+        {
+          "path": "libs/shared/adapters/heavy-lock/project.json",
+          "beforeHash": "6308a11ab6a93a05ef6979ced463cd6d840dbf678cb0016ebdc2ee93ecb69aee",
+          "commentedHash": "6308a11ab6a93a05ef6979ced463cd6d840dbf678cb0016ebdc2ee93ecb69aee",
+          "proofNotes": 0,
+          "formattedHash": "6308a11ab6a93a05ef6979ced463cd6d840dbf678cb0016ebdc2ee93ecb69aee"
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/index.ts",
+          "beforeHash": "9ce1d2966ee2c62d0ef018f6ef97d52020072464ad7c12f20294b095f2c6649d",
+          "commentedHash": "9ce1d2966ee2c62d0ef018f6ef97d52020072464ad7c12f20294b095f2c6649d",
+          "executableHash": "adfb57398e416e55cf3b19d76173bda519254a5fc5384250b36aac34a219a0c6",
+          "proofNotes": 0,
+          "formattedHash": "9ce1d2966ee2c62d0ef018f6ef97d52020072464ad7c12f20294b095f2c6649d",
+          "executableEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "beforeHash": "b5a60ce15aac7435d2b7dbe2479129cd4443b090833bc07fdadc307d7c3e7813",
+          "commentedHash": "b5a60ce15aac7435d2b7dbe2479129cd4443b090833bc07fdadc307d7c3e7813",
+          "executableHash": "0f30def7a688f3d0356314fc1fa51938045985ed02a02ea8aadad5a8a9b30d63",
+          "proofNotes": 0,
+          "formattedHash": "b5a60ce15aac7435d2b7dbe2479129cd4443b090833bc07fdadc307d7c3e7813",
+          "executableEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "beforeHash": "50b24c7ef0ca49612d22707d5e15abd1800859d19f48941241550dde3b0360b0",
+          "commentedHash": "c3571c71b39fbc540075410effcc2d38c041cfde8f200034200716288310a06a",
+          "executableHash": "a40fed60805e1e2eac5c149fed0de0f34f102c46c9efaba0164f26022b66a989",
+          "proofNotes": 24,
+          "formattedHash": "c3571c71b39fbc540075410effcc2d38c041cfde8f200034200716288310a06a",
+          "executableEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/tsconfig.json",
+          "beforeHash": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+          "commentedHash": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+          "proofNotes": 0,
+          "formattedHash": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a"
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/tsconfig.lib.json",
+          "beforeHash": "d9fc823045aab2bd1b3c190c3ce5aca0b9b872b8c630b2977e8ef422b4da441c",
+          "commentedHash": "d9fc823045aab2bd1b3c190c3ce5aca0b9b872b8c630b2977e8ef422b4da441c",
+          "proofNotes": 0,
+          "formattedHash": "d9fc823045aab2bd1b3c190c3ce5aca0b9b872b8c630b2977e8ef422b4da441c"
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/tsconfig.spec.json",
+          "beforeHash": "396394bfb5739f15e978bea409a4bf8f63e7bdcd21401b54879f7fa7ab0e82f1",
+          "commentedHash": "396394bfb5739f15e978bea409a4bf8f63e7bdcd21401b54879f7fa7ab0e82f1",
+          "proofNotes": 0,
+          "formattedHash": "396394bfb5739f15e978bea409a4bf8f63e7bdcd21401b54879f7fa7ab0e82f1"
+        },
+        {
+          "path": "openspec/changes/bun-scripts/design.md",
+          "beforeHash": "33b86206b28cbff4ad627282ec08b9ba4988441a682e0d05940a4292fd6dc9f6",
+          "commentedHash": "33b86206b28cbff4ad627282ec08b9ba4988441a682e0d05940a4292fd6dc9f6",
+          "proofNotes": 0,
+          "formattedHash": "33b86206b28cbff4ad627282ec08b9ba4988441a682e0d05940a4292fd6dc9f6"
+        },
+        {
+          "path": "openspec/changes/bun-scripts/tasks.md",
+          "beforeHash": "6d457efb749251ee356c3047f54e8210ac1e3e16ef0b9f5cdb260f548c6c75a4",
+          "commentedHash": "6d457efb749251ee356c3047f54e8210ac1e3e16ef0b9f5cdb260f548c6c75a4",
+          "proofNotes": 0,
+          "formattedHash": "cd97d47d1712428c306b39de22d9aea95a0a87ba1d4823857288ea63d5dd7819"
+        },
+        {
+          "path": "tsconfig.base.json",
+          "beforeHash": "a64ed48fd7fc2bcfff3f25f6351f6551d1915f81cf856395820ea3b4b1c1850c",
+          "commentedHash": "a64ed48fd7fc2bcfff3f25f6351f6551d1915f81cf856395820ea3b4b1c1850c",
+          "proofNotes": 0,
+          "formattedHash": "a64ed48fd7fc2bcfff3f25f6351f6551d1915f81cf856395820ea3b4b1c1850c"
+        }
+      ]
+    },
+    "independentReview": {
+      "state": "independently-reconstructed",
+      "canonicalEpoch": "c29b",
+      "observations": 23,
+      "distinctMutants": 23,
+      "logs": 46,
+      "frozenInputsMatched": 10,
+      "failedNamesPerFault": 26,
+      "restoredPassOccurrences": 26,
+      "nativeEqualsEpochA": true,
+      "editsAndQualificationsEqualEpochA": true,
+      "sourceReview": "Mechanical renames only versus original reviewed native.ts; no new control flow. Public export and tests use holdLock.",
+      "findings": [],
+      "scope": "Read-only reconstruction; no tests/mutations. Original C29 and C29a superseded, excluded from final canonical totals. Linux x64 scope unchanged.",
+      "assertions": [
+        {
+          "id": "native-architecture",
+          "assertions": "Expected: false\nReceived: true\n(fail) refuses architecture before opening a mutex or entering work [39.33ms]"
+        },
+        {
+          "id": "native-endianness",
+          "assertions": "Expected: false\nReceived: true\n(fail) refuses endianness before opening a mutex or entering work [34.26ms]"
+        },
+        {
+          "id": "native-platform",
+          "assertions": "Expected: false\nReceived: true\n(fail) refuses platform before opening a mutex or entering work [35.22ms]"
+        },
+        {
+          "id": "native-errno-pointer",
+          "assertions": "Received: \"ptr must be a number.\"\n(fail) refuses controlled native errno-pointer without entering work [29.17ms]"
+        },
+        {
+          "id": "native-clock-status",
+          "assertions": "Expected: \"refused\"\nReceived: \"returned\"\n(fail) refuses controlled realtime clock-error before returning a ticket stamp [37.15ms]"
+        },
+        {
+          "id": "native-nanoseconds-lower",
+          "assertions": "Expected: \"refused\"\nReceived: \"returned\"\n(fail) refuses controlled realtime nanoseconds-negative before returning a ticket stamp [31.61ms]"
+        },
+        {
+          "id": "native-nanoseconds-upper",
+          "assertions": "Expected: \"refused\"\nReceived: \"returned\"\n(fail) refuses controlled realtime nanoseconds-large before returning a ticket stamp [41.47ms]"
+        },
+        {
+          "id": "native-stamp-width",
+          "assertions": "Expected: \"refused\"\nReceived: \"returned\"\n(fail) refuses controlled realtime stamp-width before returning a ticket stamp [35.64ms]"
+        },
+        {
+          "id": "native-regular-file",
+          "assertions": "Expected: 0\nReceived: 1\n(fail) refuses a ready FIFO at the regular-file boundary without entering work [2.58ms]"
+        },
+        {
+          "id": "native-open-nonblocking",
+          "assertions": "Expected: 0\nReceived: 137\n(fail) refuses a readerless FIFO before native open can block [2010.04ms]"
+        },
+        {
+          "id": "native-flags-status",
+          "assertions": "Expected: 0\nReceived: 1\n(fail) refuses controlled native flags-error without entering work [33.11ms]"
+        },
+        {
+          "id": "native-cloexec",
+          "assertions": "Expected: 0\nReceived: 1\n(fail) refuses an actual descriptor whose close-on-exec bit was cleared before admission [1.00ms]"
+        },
+        {
+          "id": "native-flock-error-status",
+          "assertions": "Received: \"heavy lock native flock returned an invalid status\"\n(fail) refuses controlled native flock-error without entering work [30.87ms]"
+        },
+        {
+          "id": "native-contention",
+          "assertions": "Expected: \"refused\"\nReceived: \"returned\"\n(fail) refuses controlled native flock-error without entering work [27.36ms]"
+        },
+        {
+          "id": "native-flock-status",
+          "assertions": "Expected: 0\nReceived: 1\n(fail) refuses controlled native flock-status without entering work [31.38ms]"
+        },
+        {
+          "id": "native-await-work",
+          "assertions": "(fail) holds the actual inode through awaited work and admits the next independent process only after close [1.05ms]"
+        },
+        {
+          "id": "native-close",
+          "assertions": "(fail) preserves the operation failure and closes its kernel lock before returning it [26.77ms]"
+        },
+        {
+          "id": "native-original-failure",
+          "assertions": "Expected: 74 |   expect(JSON.parse(peer.stdout.toString())).toEqual({ kind: 'owned', value: 'peer-owned' });\nReceived: undefined\n(fail) preserves the operation failure and closes its kernel lock before returning it [1.12ms]"
+        },
+        {
+          "id": "native-paired-causes",
+          "assertions": "(fail) preserves paired operation and close failure identity after the real descriptor closes [1.48ms]"
+        },
+        {
+          "id": "native-close-failure",
+          "assertions": "Expected: 315 |       ' failure identity after the real descriptor closes',\nReceived: undefined\n(fail) preserves close-only failure identity after the real descriptor closes [1.11ms]"
+        },
+        {
+          "id": "native-backend-before-open",
+          "assertions": "Expected: false\nReceived: true\n(fail) refuses platform before opening a mutex or entering work [32.03ms]\nExpected: false\nReceived: true\n(fail) refuses architecture before opening a mutex or entering work [29.74ms]\nExpected: false\nReceived: true\n(fail) refuses endianness before opening a mutex or entering work [34.07ms]\nExpected: false\nReceived: true\n(fail) refuses library before opening a mutex or entering work [42.66ms]"
+        },
+        {
+          "id": "native-preserve-inode-bytes",
+          "assertions": "Expected: \"operator-owned mutex bytes\"\nReceived: \"\"\n(fail) never removes or replaces an existing canonical mutex inode or its bytes [2.42ms]"
+        },
+        {
+          "id": "native-lazy-import",
+          "assertions": "Expected: 0\nReceived: 1\n(fail) imports the native adapter without opening a library clock mutex or worker [39.85ms]"
+        }
+      ]
+    },
+    "planEvidence": {
+      "path": "/tmp/puni-c29b-proof-plan.json",
+      "sha256": "65179d016b53afdc857d8ef446c54acc70e98ba642af03d48fb78ef4c617767f",
+      "bytes": 13519
+    },
+    "receiptEvidence": {
+      "path": "/tmp/puni-c29b-proofs.json",
+      "sha256": "ad1e35d3d18a26e2911f0f601ac8f043377af28718c2cc68de343c335d6a13ed",
+      "bytes": 50487
+    },
+    "reviewEvidence": {
+      "path": "/tmp/puni-c29b-independent-evidence-review.json",
+      "sha256": "e5f2a68aeb3ba174bb9863e002def5c0fe8c65dd5b8d0b005e4ef13b48b8e373",
+      "bytes": 5511
+    },
+    "supersededEpochs": [
+      "puni-c29 (pre verb-object naming)",
+      "puni-c29a (correct native bytes, unsorted test/export specifiers)"
+    ],
+    "qualification": "Only finalpuni-c29b23pairs/46logs are canonical. No count inflation from earlier successful epochs. Reuses reviewed/negatively-tested C28 runner logic with naming substitution only."
+  },
+  "limits": [
+    "Linux/x64 only; Darwin/arm64 not qualified",
+    "Bun FFI remains experimental, with no fallback to a different lock mechanism",
+    "Stable trusted mutex pathname namespace is a premise, not protection from privileged concurrent replacement",
+    "The caller must settle its protected work/descendants before callback completion; no signal/descendant owner is provided here",
+    "A failed close does not prove release; the close-error fixtures explicitly close first before throwing",
+    "Canonical queue/status/record/enrollment/gate/helper consumers remain unchanged",
+    "No full exact-SHA host gate, live deployment or publication"
+  ],
+  "exploratoryProbe": {
+    "receipt": {
+      "qualification": "Exploratory Linux x64 ABI/process probe only; not production adapter or cross-platform/gate qualification",
+      "directory": "/tmp/puni-c29-native-probe-s4OGd8",
+      "runtime": {
+        "version": "1.4.4",
+        "revision": "38afee6c84fcf48c0edb2466aa4b27d287a59c30",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "sourceHash": "d304f09808e2314dc6f4d425f79c3771275cac41d9756d790cf17adaf714f24a",
+      "observations": [
+        {
+          "kind": "native-flock",
+          "contentionErrno": 11,
+          "invalidDescriptorErrno": 9
+        },
+        {
+          "kind": "realtime-clock",
+          "seconds": "1794351902",
+          "nanoseconds": "823631954",
+          "epoch": "1794351902823631954",
+          "beforeMilliseconds": "1794351902823",
+          "afterMilliseconds": "1794351902823"
+        },
+        {
+          "kind": "close-on-exec",
+          "status": 0,
+          "stdout": "no inherited locked inode",
+          "stderr": ""
+        },
+        {
+          "kind": "release-after-close",
+          "acquired": true
+        }
+      ]
+    },
+    "evidence": {
+      "path": "/tmp/puni-c29-native-probe-unsandboxed.log",
+      "sha256": "406b5797e0cac6545f3c9b14082b2aeefe8787c98272c1275fcff934c0abcf4a",
+      "bytes": 67
+    },
+    "qualified": "Four local ABI/process observations only; not production/cross-platform rollout authority"
+  },
+  "failedOrExcludedAttempts": [
+    "Missing module bootRED is separate from reached stub1pass4fail",
+    "Sandboxed plain and fstat children both stdoutEPERM; excluded from native qualification",
+    "Initial test lint6errors then2BigInt serialization errors corrected",
+    "Naming replay required2specifier sorting fixes; original/A successfulepochs preserved but superseded",
+    "Old guessed Nxbin path missing; package-manifest entry corrected and actual target verified"
+  ],
+  "sourceHashes": {
+    "libs/shared/adapters/heavy-lock/project.json": "6308a11ab6a93a05ef6979ced463cd6d840dbf678cb0016ebdc2ee93ecb69aee",
+    "libs/shared/adapters/heavy-lock/src/index.ts": "9ce1d2966ee2c62d0ef018f6ef97d52020072464ad7c12f20294b095f2c6649d",
+    "libs/shared/adapters/heavy-lock/src/native.test.ts": "b5a60ce15aac7435d2b7dbe2479129cd4443b090833bc07fdadc307d7c3e7813",
+    "libs/shared/adapters/heavy-lock/src/native.ts": "c3571c71b39fbc540075410effcc2d38c041cfde8f200034200716288310a06a",
+    "libs/shared/adapters/heavy-lock/tsconfig.json": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+    "libs/shared/adapters/heavy-lock/tsconfig.lib.json": "d9fc823045aab2bd1b3c190c3ce5aca0b9b872b8c630b2977e8ef422b4da441c",
+    "libs/shared/adapters/heavy-lock/tsconfig.spec.json": "396394bfb5739f15e978bea409a4bf8f63e7bdcd21401b54879f7fa7ab0e82f1",
+    "openspec/changes/bun-scripts/design.md": "33b86206b28cbff4ad627282ec08b9ba4988441a682e0d05940a4292fd6dc9f6",
+    "openspec/changes/bun-scripts/tasks.md": "cd97d47d1712428c306b39de22d9aea95a0a87ba1d4823857288ea63d5dd7819",
+    "tsconfig.base.json": "a64ed48fd7fc2bcfff3f25f6351f6551d1915f81cf856395820ea3b4b1c1850c"
+  },
+  "documentHashes": {
+    "openspec/changes/bun-scripts/verify.md": "3fd7ea320d6d1562832952b54d6356e979c6722fe86144b05fc6e5d0a9fc63e1"
+  },
+  "identityExclusions": [
+    "This JSON cannot include its own final hash; a separate commit receipt pins its bytes.",
+    "The future commit identity is recorded separately."
+  ]
+}
