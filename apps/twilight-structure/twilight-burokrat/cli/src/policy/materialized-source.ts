@@ -1,10 +1,10 @@
 import { realpathSync } from 'node:fs';
 import { mkdir, open, symlink } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 
 import type { LintInterrupt, SubscribeLintInterrupts } from '../lint-interrupts';
-import { anchorPath } from '../validator-paths';
 import type { CommittedSource } from './committed-source';
+import { reservePreparationDirectory } from './preparation-directory';
 import type { PreparationSource } from './preparation-source';
 
 export interface MaterializationContext {
@@ -87,7 +87,8 @@ export async function materializeSource(
     // Proof: material-first-reason; `retains first cancellation after a completed write and closes before returning` failed under its recorded source fault and passed after restoration.
     first ??= signal;
   });
-  const readCancellation = (): MaterializationOutcome | undefined =>
+  const readCancellation = ():
+    Extract<MaterializationOutcome, { kind: 'cancelled' }> | undefined =>
     first === undefined
       ? undefined
       : {
@@ -135,48 +136,17 @@ export async function materializeSource(
       // Proof: material-mode-refusal; `refuses unsupported captured mode rather than silently omitting a trusted entry` failed under its recorded source fault and passed after restoration.
       else throw new Error('captured source has unsupported materialization mode: ' + entry.path);
     }
-    const operand = anchorPath(destination, callerDirectory),
-      leaf = basename(operand);
-    if (
-      // Proof: material-destination-empty; `refuses invalid fresh output leaf ""` failed under its recorded source fault and passed after restoration.
-      destination === '' || // Proof: material-leaf-empty; `refuses invalid fresh output leaf "/"` failed under its recorded source fault and passed after restoration.
-      leaf === '' || // Proof: material-leaf-dot; `refuses invalid fresh output leaf "."` failed under its recorded source fault and passed after restoration.
-      leaf === '.' || // Proof: material-leaf-parent; `refuses invalid fresh output leaf ".."` failed under its recorded source fault and passed after restoration.
-      leaf === '..'
-    )
-      throw new Error('materialization requires a fresh output leaf');
-    const parent = // Proof: material-native-parent; `preserves native symlink-parent output placement` failed under its recorded source fault and passed after restoration.
-        realpathSync.native(dirname(operand)),
-      proposed = join(parent, leaf);
-    const toolkit = selection.toolkit.directory;
-    const protectedPaths = [
-      // Proof: material-protect-candidate; `refuses output beneath native protected candidate authority before reservation` failed under its recorded source fault and passed after restoration.
-      selection.candidateDirectory,
-      // Proof: material-protect-toolkit; `refuses output beneath native protected toolkit authority before reservation` failed under its recorded source fault and passed after restoration.
-      toolkit,
-      // Proof: material-protect-runtime; `refuses output beneath native protected runtime authority before reservation` failed under its recorded source fault and passed after restoration.
-      selection.runtime.directory,
-      // Proof: material-protect-closure; `refuses output beneath native protected closure authority before reservation` failed under its recorded source fault and passed after restoration.
-      join(toolkit, 'trusted-node-modules'),
-      // Proof: material-descriptor-availability; `refuses missing selected descriptor target before output ownership` failed under its recorded source fault and passed after restoration.
-      join(toolkit, 'toolkit.json'),
-      // Proof: material-role-availability; `refuses missing selected role target before output ownership` failed under its recorded source fault and passed after restoration.
-      ...Object.keys(selection.toolkit.roleBytes).map((role) => join(toolkit, role)),
-    ] // Proof: material-protected-native; `refuses output beneath native protected closure authority before reservation` failed under its recorded source fault and passed after restoration.
-      .map((path) => realpathSync.native(path));
-    if (
-      // Proof: material-protected-refusal; `refuses output beneath native protected candidate authority before reservation` failed under its recorded source fault and passed after restoration.
-      protectedPaths.some((path) => isWithin(path, proposed))
-    )
-      throw new Error('materialization output is beneath protected source authority');
-    const cancelledBeforeRoot = readCancellation();
-    // Proof: material-before-root-cancel; `honors cancellation recorded by captured metadata before any output reservation` failed under its recorded source fault and passed after restoration.
-    if (cancelledBeforeRoot !== undefined) return cancelledBeforeRoot;
-    // Proof: material-fresh-root; `refuses existing directory without replacement or output ownership` failed under its recorded source fault and passed after restoration.
-    await mkdir(proposed, { mode: 0o700 });
-    // Proof: material-record-ownership; `retains created root identity when native canonicalization fails after successful mkdir` failed under its recorded source fault and passed after restoration.
-    owned = proposed;
-    owned = realpathSync.native(proposed);
+    const reserved = await reservePreparationDirectory(destination, {
+      callerDirectory,
+      selection,
+      readCancellation,
+      otherDirectories: [],
+      recordOwnership: (directory) => {
+        owned = directory;
+      },
+    });
+    if (reserved.kind === 'cancelled') return { ...reserved, directory: owned };
+    owned = reserved.directory;
     const root = owned;
     const directories = [...parents].sort(
       (left, right) =>

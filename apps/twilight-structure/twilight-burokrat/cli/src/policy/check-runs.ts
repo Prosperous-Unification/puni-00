@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { type } from '@shared/validation';
@@ -136,11 +136,16 @@ export function planCandidateCheckRuns(
   );
 }
 
+function readCheckFile(path: string): Uint8Array {
+  // Proof: prep-check-file-regular; its recorded production-source fault failed `refuses a native FIFO ledger input within the bounded subprocess`; `refuses a native FIFO stream input within the bounded subprocess` and passed after restoration.
+  if (!statSync(path).isFile()) throw new Error('check-run input must be a regular file: ' + path);
+  return readFileSync(path);
+}
 function readLedger(directory: string): CheckRunLedger {
   const path = join(directory, checkRunLayout.ledger);
   let bytes: Uint8Array;
   try {
-    bytes = readFileSync(path);
+    bytes = readCheckFile(path);
   } catch (cause) {
     // Proof (2026-10-12, through readCheckRuns, the function both preparers call): deleting the
     // `absent` branch failed `refuses an absent ledger and an unreadable one by name`, which
@@ -288,7 +293,7 @@ function readStream(directory: string, digest: string, subject: string): Uint8Ar
   const path = join(directory, checkRunLayout.streams, digest);
   let bytes: Uint8Array;
   try {
-    bytes = readFileSync(path);
+    bytes = readCheckFile(path);
   } catch (cause) {
     throw new CheckRunRefusal('missing-stream', `${subject}: ${path}`, { cause });
   }

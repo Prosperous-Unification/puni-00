@@ -265,3 +265,12 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **THEN** the existing output parent resolves natively, a fresh private root refuses existing state, candidate/toolkit/runtime/native closure and authority targets stay protected, metadata names refuse, and exclusive directory/file/link creation prevents merging or overwrite
 - **AND** exact regular bytes/modes and awaited descriptor closure precede link creation, preserved link targets must resolve natively inside the root before success, and failures retain original causes plus any owned partial root
 - **AND** recorded cancellation stops later stages and remains controlled after release, while operation/close/release failures remain errors; no dependency/build/preparer/archive completion is inferred
+
+#### Scenario: Current toolkit preparation assembles and certifies before publishing an archive
+
+- **WHEN** an internal current toolkit preparation receives authenticated installed identity, explicit runtime authority and operator review/check inputs
+- **THEN** it captures exact candidate and reviewed commits through owned Git, derives plans from regular captured source/Nx bytes, and refuses nonregular operator/check-record files without blocking on FIFOs
+- **AND** native check-run directory selection preserves symlink-parent semantics, required runtime state refuses before output reservation, and fresh native-external work and activation roots are mutually disjoint
+- **AND** the written activation uses schema4 and the selected Bun bootstrap/closure, whose actual bytes are checked before full enforce self-certification with required admission and archive-default closure
+- **AND** only successful certification permits an exclusive PUNI archive; GNU tar, archive writes and descriptor close settle before its digest and success report, while faults preserve causes and owned partial outputs and cancellation returns no success instructions
+- **AND** this internal path does not imply completed relocation preparation, usable released preparer roles, a public package or coordinated default cutover
