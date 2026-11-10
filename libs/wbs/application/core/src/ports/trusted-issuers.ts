@@ -165,6 +165,7 @@ export interface TrustedIssuerAdministration {
     act: AuditedAct,
   ): Promise<
     | 'removed'
+    | 'last_super_admin'
     | MachineCredentialActorRefusal
     | 'not_found'
     | { readonly kind: 'in_use'; readonly machineCredentials: number }

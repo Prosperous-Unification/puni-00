@@ -113,6 +113,31 @@ const breakAudit = () => {
 };
 
 describe('SCIM deprovisioning', () => {
+  it.each(['PATCH', 'DELETE'] as const)(
+    'protects the final direct grant holder on SCIM %s regardless of legacy role',
+    async (method) => {
+      const { h } = world;
+      const id = await bound('carol', 'carol@acme.test');
+      h.sqlite.run(
+        "DELETE FROM access_grant WHERE organization_id='org-a' AND role_id='org-super-admin'",
+      );
+      h.grant('org-a', 'carol', 'org-super-admin');
+      const before = snapshot();
+      const grants = h.sqlite.query('SELECT * FROM access_grant ORDER BY id').all();
+      const answer = await scim(
+        h,
+        token.token,
+        method,
+        '/scim/v2/Users/' + id,
+        ...(method === 'PATCH' ? [replace({ path: 'active', value: false })] : []),
+      );
+      expect(answer.status).toBe(409);
+      expect(answer.body).toMatchObject({ scimType: 'mutability' });
+      expect(snapshot()).toEqual(before);
+      expect(h.sqlite.query('SELECT * FROM access_grant ORDER BY id').all()).toEqual(grants);
+    },
+  );
+
   it('ends browser, gateway and MCP access to A at once, leaving B unchanged', async () => {
     const { h } = world;
     const id = await bound('carol', 'carol@acme.test');
@@ -235,7 +260,8 @@ describe('SCIM deprovisioning', () => {
     expect(snapshot()).toEqual(before);
     expect(roleIn('org-a', 'ada')).toBe('super_admin');
 
-    // With a second super-admin the same act succeeds.
+    // A second direct built-in holder permits the same removal.
+    h.grant('org-a', 'carol', 'org-super-admin');
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('carol')],

@@ -102,6 +102,7 @@ import {
   workItemWorkItemType,
 } from './schema';
 import { writingStep } from './step-reference';
+import { LastSuperAdmin, requireSuperAdminIn } from './super-admin';
 import { WORK_ITEM_COLUMNS } from './work-item';
 
 /** Nothing points at it: the empty usage, with both halves present as the spec requires. */
@@ -2159,71 +2160,80 @@ export class DirectoryRepository implements DirectoryStore {
     // Proof: directory-reach-snapshot: removing this boundary failed `refuses raw directory reach escalation while its removal waits for the owner`;
     // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
     reach = structuredClone(reach);
-    return await this.gate.enter(async () => {
-      await Promise.resolve();
-      return this.db.transaction((tx) => {
-        const held = tx
-          .select({ workItemId: assignment.workItemId })
-          .from(assignment)
-          .where(eq(assignment.personId, personId))
-          .all();
-        // Own and delegated: the delegated go by the parent cascade, and their
-        // work items' revisions move with the rest.
-        const claimed = claimsTakenWith(tx, personId);
-        const machines = liveMachineCredentialsOf(tx, personId);
-        // Proof: with `claimed` left out of this test, the SQLite certification's
-        // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
-        // Proof: with `machines` left out of this test, `refuses removing a
-        // person with a live machine credential unless cascaded` in
-        // `machine-credential-admin.controller.db.test.ts` removed the person
-        // unconfirmed; watched 2026-10-22.
-        if (!cascade && (held.length > 0 || claimed.length > 0 || machines.length > 0)) {
-          return {
-            ok: false,
-            reason: 'in_use',
-            usage: personUsageIn(tx, this.projectsReaching(tx, personId), personId),
-          };
-        }
-        // Proof: with this refusal removed, `refuses a member's cascade over
-        // another account's agent's credential` and `refuses a machine key's
-        // cascade over its own person` in
-        // `machine-credential-admin.controller.db.test.ts` removed the person
-        // and revoked the credentials (200); watched 2026-10-22.
-        if (machines.length > 0 && !reachesPerson(tx, personId, reach))
-          return { ok: false, reason: 'forbidden' };
-        const projectIds = this.projectsReaching(tx, personId);
-        tx.delete(assignment).where(eq(assignment.personId, personId)).run();
-        // Delegated claims under these go with them: `parent_claim_id` cascades.
-        tx.delete(claim).where(eq(claim.personId, personId)).run();
-        // The rows the retired operator link pinned to this person admit
-        // nothing (`wbs-machine-credentials` A18) and go with it, unasked:
-        // `external_identity.person_id` has no `ON DELETE` action. This write
-        // is the column's last use until a cleanup change drops it.
-        // Proof: with this delete removed, `removes a person with a pinned row
-        // unconfirmed, taking the inert row with it`
-        // (`fleet-credential.controller.db.test.ts`) answered 500 on the
-        // foreign key; watched 2026-10-25.
-        tx.delete(externalIdentity).where(eq(externalIdentity.personId, personId)).run();
-        // Proof: without this, the confirmed removals in `refuses removing a
-        // person with a live machine credential unless cascaded` and `removes a
-        // person whose credentials are all revoked …` failed on the
-        // `machine_credential.person_id` foreign key (500); watched 2026-10-22.
-        removeMachineCredentialsOf(tx, personId, machines, stamp);
-        tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
-        const removed = tx.delete(person).where(eq(person.id, personId)).returning().all();
-        // Nothing was deleted, so there was nothing here to delete: somebody
-        // else's removal committed first. This request changed nothing and must
-        // move no revision — the two deletes above touched nothing for the same
-        // reason.
-        if (removed.length === 0) return { ok: false, reason: 'not_found' };
-        // Proof: with `claimed` read as the person's own claims alone, the
-        // SQLite `directory.removePerson:delegated-claims` case found the
-        // worker's work item missing from the removal; watched 2026-10-20.
-        const workItemIds = [...new Set([...held, ...claimed].map((each) => each.workItemId))];
-        bumpWorkItems(tx, workItemIds, stamp);
-        return { ok: true, removal: { workItemIds, projectIds } };
+    return await this.gate
+      .enter(async () => {
+        await Promise.resolve();
+        return this.db.transaction((tx): PersonRemoved => {
+          const held = tx
+            .select({ workItemId: assignment.workItemId })
+            .from(assignment)
+            .where(eq(assignment.personId, personId))
+            .all();
+          // Own and delegated: the delegated go by the parent cascade, and their
+          // work items' revisions move with the rest.
+          const claimed = claimsTakenWith(tx, personId);
+          const machines = liveMachineCredentialsOf(tx, personId);
+          // Proof: with `claimed` left out of this test, the SQLite certification's
+          // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
+          // Proof: with `machines` left out of this test, `refuses removing a
+          // person with a live machine credential unless cascaded` in
+          // `machine-credential-admin.controller.db.test.ts` removed the person
+          // unconfirmed; watched 2026-10-22.
+          if (!cascade && (held.length > 0 || claimed.length > 0 || machines.length > 0)) {
+            return {
+              ok: false,
+              reason: 'in_use',
+              usage: personUsageIn(tx, this.projectsReaching(tx, personId), personId),
+            };
+          }
+          // Proof: with this refusal removed, `refuses a member's cascade over
+          // another account's agent's credential` and `refuses a machine key's
+          // cascade over its own person` in
+          // `machine-credential-admin.controller.db.test.ts` removed the person
+          // and revoked the credentials (200); watched 2026-10-22.
+          if (machines.length > 0 && !reachesPerson(tx, personId, reach))
+            return { ok: false, reason: 'forbidden' };
+          const projectIds = this.projectsReaching(tx, personId);
+          tx.delete(assignment).where(eq(assignment.personId, personId)).run();
+          // Delegated claims under these go with them: `parent_claim_id` cascades.
+          tx.delete(claim).where(eq(claim.personId, personId)).run();
+          // The rows the retired operator link pinned to this person admit
+          // nothing (`wbs-machine-credentials` A18) and go with it, unasked:
+          // `external_identity.person_id` has no `ON DELETE` action. This write
+          // is the column's last use until a cleanup change drops it.
+          // Proof: with this delete removed, `removes a person with a pinned row
+          // unconfirmed, taking the inert row with it`
+          // (`fleet-credential.controller.db.test.ts`) answered 500 on the
+          // foreign key; watched 2026-10-25.
+          tx.delete(externalIdentity).where(eq(externalIdentity.personId, personId)).run();
+          // Proof: without this, the confirmed removals in `refuses removing a
+          // person with a live machine credential unless cascaded` and `removes a
+          // person whose credentials are all revoked …` failed on the
+          // `machine_credential.person_id` foreign key (500); watched 2026-10-22.
+          removeMachineCredentialsOf(tx, personId, machines, stamp);
+          tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
+          const removed = tx.delete(person).where(eq(person.id, personId)).returning().all();
+          // Nothing was deleted, so there was nothing here to delete: somebody
+          // else's removal committed first. This request changed nothing and must
+          // move no revision — the two deletes above touched nothing for the same
+          // reason.
+          if (removed.length === 0) return { ok: false, reason: 'not_found' };
+          // Proof: with `claimed` read as the person's own claims alone, the
+          // SQLite `directory.removePerson:delegated-claims` case found the
+          // worker's work item missing from the removal; watched 2026-10-20.
+          const workItemIds = [...new Set([...held, ...claimed].map((each) => each.workItemId))];
+          bumpWorkItems(tx, workItemIds, stamp);
+          return { ok: true, removal: { workItemIds, projectIds } };
+        });
+      })
+      .catch((failure: unknown) => {
+        /* Proof: aggregate-classification-directory-remove: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+         * preserves an unexpected aggregate from the actual owner dependency at directory-remove
+         * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+        if (failure instanceof LastSuperAdmin)
+          return { ok: false, reason: 'last_super_admin' } as const;
+        throw failure;
       });
-    });
   }
 
   /**
@@ -2635,12 +2645,12 @@ function removeMachineCredentialsOf(
       },
       at: stamp.at,
     });
-  const credentialIds = tx
-    .select({ id: machineCredential.id })
+  const credentials = tx
+    .select({ id: machineCredential.id, organizationId: machineCredential.organizationId })
     .from(machineCredential)
     .where(eq(machineCredential.personId, personId))
-    .all()
-    .map(({ id }) => id);
+    .all();
+  const credentialIds = credentials.map(({ id }) => id);
   if (credentialIds.length === 0) return;
   // A removed credential leaves no grant naming it (`wbs-permissions` P17).
   // Proof: with this call removed, `deletes every grant naming the removed
@@ -2663,6 +2673,11 @@ function removeMachineCredentialsOf(
     .where(inArray(machineCredentialSecret.credentialId, credentialIds))
     .run();
   tx.delete(machineCredential).where(inArray(machineCredential.id, credentialIds)).run();
+  /* Proof: cp14-directory-orgs: removed/changed production boundary.
+   * checks every affected credential organization during raw person cleanup at revoked
+   * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+  for (const organizationId of new Set(credentials.map((credential) => credential.organizationId)))
+    requireSuperAdminIn(tx, organizationId);
 }
 
 /**

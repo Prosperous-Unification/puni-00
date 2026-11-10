@@ -4,12 +4,14 @@ import {
   accessSubjectOf,
   type AccessTarget,
   capOf,
+  type MemberEffectiveRole,
   type ScopedPrincipal,
 } from '@wbs/core';
 import {
   type EffectiveRole,
   effectiveRoleOn,
   type GrantTarget,
+  type Permission,
   reachingGrantsOf,
   type StoredGrantRow,
 } from '@wbs/domain';
@@ -28,6 +30,36 @@ interface GrantPermissionRecord {
   readonly object_kind: string;
   readonly reaches_restricted: number;
   readonly permission: string | null;
+}
+
+/** A role LEFT JOIN preserves orphan grants as explicit corrupt trusted state. */
+interface JoinedGrantRoleRecord extends Omit<
+  GrantPermissionRecord,
+  'object_kind' | 'reaches_restricted'
+> {
+  readonly catalogue_id: string | null;
+  readonly object_kind: string | null;
+  readonly reaches_restricted: number | null;
+}
+
+/** Validates nullable joined role metadata before the ordinary complete-row decoder. */
+function readGrantRoleRow(record: JoinedGrantRoleRecord): StoredGrantRow {
+  /* Proof: joined-role-missing: explicit missing-catalogue diagnostic before complete-row validation.
+   * reports missing catalogue state through the actual direct-target writer
+   * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+  if (
+    record.catalogue_id === null ||
+    record.object_kind === null ||
+    record.reaches_restricted === null
+  )
+    throw new Error(
+      'access grant ' + record.grant_id + ' references missing access role ' + record.role_id,
+    );
+  return storedGrantRowOf({
+    ...record,
+    object_kind: record.object_kind,
+    reaches_restricted: record.reaches_restricted,
+  });
 }
 
 /** One row of the listing: a reaching grant's permission row, or a readable package. */
@@ -265,4 +297,120 @@ export class AccessDecisionRepository implements AccessDecisions {
       restricted: row.restricted === 1,
     };
   }
+}
+
+/**
+ * Reads account-reaching grants once for membership summaries. Every raw role is
+ * validated before organization-kind projection; corruption at another scope is not
+ * hidden. Only organization-scope provenance is returned, so no package ID escapes.
+ */
+export function readMemberAccessIn(
+  db: Pick<Drizzle, 'all'>,
+  organizationId: string,
+  userId: string,
+): { readonly effectiveRole: MemberEffectiveRole | null; readonly grantCount: number } {
+  const subject: AccessSubject = { kind: 'account', accountId: userId };
+  const records = db.all<JoinedGrantRoleRecord>(sql`WITH ${subjectRows(subject, organizationId)}
+    SELECT g.id AS grant_id, g.scope_kind, g.scope_id, g.subject_kind, g.subject_id, g.role_id,
+      r.id AS catalogue_id,r.object_kind, r.reaches_restricted, p.permission
+    FROM subject s JOIN access_grant g ON g.subject_kind=s.kind AND g.subject_id=s.id
+    /* Proof: member-summary-catalogue: removed/changed production boundary.
+     * throws for an orphan target account grant before member summary projection
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    LEFT JOIN access_role r ON r.id=g.role_id
+    LEFT JOIN access_role_permission p ON p.role_id=g.role_id
+    WHERE g.organization_id=${organizationId} AND ${membershipHolds(subject, organizationId)}
+    ORDER BY g.id,p.permission`);
+  // Proof: member-summary-validate-all: removed/broken boundary failed `throws on corrupt nonorganization role rows before projecting member access`; named assertion RED and restored GREEN (task-2.5 guard-faults).
+  reachingGrantsOf(records.map(readGrantRoleRow));
+  // Proof: member-summary-role-kind: removed/broken boundary failed `reports organization-kind permission unions and distinct all-scope account grant counts`; named assertion RED and restored GREEN (task-2.5 guard-faults).
+  const grants = reachingGrantsOf(
+    records
+      .filter(
+        (record) =>
+          record.scope_kind === 'organization' &&
+          record.scope_id === organizationId &&
+          record.object_kind === 'organization',
+      )
+      .map(readGrantRoleRow),
+  );
+  const permissions = new Set<Permission>();
+  for (const grant of grants)
+    for (const permission of grant.permissions) permissions.add(permission);
+  return {
+    // Proof: member-summary-distinct-count: removed/broken boundary failed `reports organization-kind permission unions and distinct all-scope account grant counts`; named assertion RED and restored GREEN (task-2.5 guard-faults).
+    grantCount: new Set(records.map((record) => record.grant_id)).size,
+    effectiveRole:
+      grants.length === 0
+        ? null
+        : {
+            permissions: [...permissions].sort(),
+            via: grants.map(({ scopeKind, scopeId, subjectKind, subjectId, roleId }) => ({
+              scopeKind,
+              scopeId,
+              subjectKind,
+              subjectId,
+              roleId,
+            })),
+          },
+  };
+}
+
+/** Full organization-ancestor grant sets for P11; no target-kind filtering, P5 or cap. Caller admits the actual capped principal first. */
+export function readGrantComparisonIn(
+  db: Pick<Drizzle, 'all'>,
+  principal: ScopedPrincipal,
+  organizationId: string,
+): ReadonlySet<Permission> {
+  const subject = accessSubjectOf(principal);
+  const records = db.all<JoinedGrantRoleRecord>(sql`WITH ${subjectRows(subject, organizationId)}
+    SELECT g.id AS grant_id,g.scope_kind,g.scope_id,g.subject_kind,g.subject_id,g.role_id,
+      r.id AS catalogue_id,r.object_kind,r.reaches_restricted,p.permission
+    FROM subject s JOIN access_grant g ON g.subject_kind=s.kind AND g.subject_id=s.id
+    /* Proof: comparison-catalogue: removed/changed production boundary.
+     * throws for an orphan issuer grant even when valid current authority suffices
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    LEFT JOIN access_role r ON r.id=g.role_id LEFT JOIN access_role_permission p ON p.role_id=g.role_id
+    /* Proof: initial-comparison-binding: canonical permission projection binding dependency; not scope-predicate removal or healthy-row isolation.
+     * refuses the first permission missing from the full initial-role comparison set
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    WHERE g.organization_id=${organizationId} AND g.scope_kind='organization' AND g.scope_id=${organizationId}
+      AND ${membershipHolds(subject, organizationId)} ORDER BY g.id,p.permission`);
+  const permissions = new Set<Permission>();
+  for (const grant of reachingGrantsOf(records.map(readGrantRoleRow)))
+    for (const permission of grant.permissions) permissions.add(permission);
+  return permissions;
+}
+
+/**
+ * Classifies only the target account's direct organization-scope user grants.
+ * Every selected role and complete permission set is validated before checking
+ * catalogue kind; an orphan or malformed role cannot disappear as no holder.
+ * Group/member-wide authority is outside this direct-holder rule.
+ */
+export function holdsDirectOrganizationRoleIn(
+  db: Pick<Drizzle, 'all'>,
+  organizationId: string,
+  userId: string,
+): boolean {
+  const records =
+    db.all<JoinedGrantRoleRecord>(sql`SELECT g.id AS grant_id,g.scope_kind,g.scope_id,g.subject_kind,g.subject_id,g.role_id,
+  r.id AS catalogue_id,r.object_kind,r.reaches_restricted,p.permission
+  /* Proof: direct-target-catalogue: removed/changed production boundary.
+   * throws for target-only direct role catalogue missing before membership removal
+   * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+  FROM access_grant g LEFT JOIN access_role r ON r.id=g.role_id LEFT JOIN access_role_permission p ON p.role_id=g.role_id
+  /* Proof: direct-target-user: direct-holder classification, not tenant isolation.
+   * does not require organization-role permission for authority held only through a group
+   * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+  WHERE g.organization_id=${organizationId} AND g.subject_kind='user' AND g.subject_id=${userId}
+    AND g.scope_kind='organization' AND g.scope_id=${organizationId} ORDER BY g.id,p.permission`);
+  /* Proof: direct-target-permissions: removed/changed production boundary.
+   * throws for target-only direct role catalogue kind before membership removal
+   * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+  reachingGrantsOf(records.map(readGrantRoleRow));
+  /* Proof: direct-target-role-kind: removed/changed production boundary.
+   * requires organization-role permission to remove a direct org-viewer holder
+   * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+  return records.some((record) => record.object_kind === 'organization');
 }

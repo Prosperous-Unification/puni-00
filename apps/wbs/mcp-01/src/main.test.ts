@@ -11,6 +11,7 @@ import type { McpConfig } from './config';
 import type { McpDeploymentFault } from './deployment-fault';
 import { MachineGrantDefect } from './machine-grant-client';
 import { type McpApplicationDeps, startMcpApplication } from './main';
+import type { ConsentEndSweep } from './oauth';
 import type { DerivedTool } from './openapi-tools';
 import { SessionRefreshRefused } from './wbs-client';
 
@@ -365,7 +366,7 @@ test.each([
 });
 
 /** Starts the application with `reportEndedConsents` and a hand-driven schedule. */
-function startWithSweeps(reportEndedConsents: () => Promise<number>) {
+function startWithSweeps(reportEndedConsents: () => Promise<ConsentEndSweep>) {
   const sweeps: (() => Promise<void>)[] = [];
   const lines: string[] = [];
   startMcpApplication({
@@ -414,4 +415,23 @@ test('schedules the consent end report and reports its failure', async () => {
   const failed = lines.filter((line) => line.includes('MCP consent end report failed'));
   expect(failed).toHaveLength(1);
   expect(failed[0]).not.toContain('boundary-secret');
+});
+
+test('reports a modeled CP14-blocked consent sweep distinctly from transport or server failure', async () => {
+  const { lines } = startWithSweeps(() =>
+    Promise.resolve({
+      kind: 'blocked' as const,
+      reason: 'last_super_admin' as const,
+      acknowledged: 0,
+    }),
+  );
+  await Bun.sleep(0);
+  const blocked = lines.filter((line) => line.includes('MCP consent end report blocked'));
+  expect(blocked).toHaveLength(1);
+  expect(JSON.parse(blocked[0] ?? 'null')).toMatchObject({
+    event: 'mcp_consent_end_blocked',
+    reason: 'last_super_admin',
+    acknowledged: 0,
+  });
+  expect(lines.filter((line) => line.includes('MCP consent end report failed'))).toEqual([]);
 });

@@ -24,6 +24,7 @@ import {
   organizationScimUser,
   organizationSsoConnection,
 } from './schema';
+import { LastSuperAdmin } from './super-admin';
 
 type Transaction = ImmediateTransaction;
 type Reader = Pick<SQLiteBunDatabase, 'select'>;
@@ -268,6 +269,12 @@ export class ScimUserRepository implements ScimUsers {
       const updated = userIn(tx, organizationId, id);
       if (updated === undefined) throw new Error(`updated SCIM user ${id} vanished`);
       return { kind: 'updated', user: checkedUser(updated) };
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-scim-update: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at scim-update
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return { kind: 'last_super_admin' } as const;
+      throw failure;
     });
   }
 
@@ -306,6 +313,12 @@ export class ScimUserRepository implements ScimUsers {
         at: act.stamp.at,
       });
       return 'deleted' as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-scim-remove: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at scim-remove
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return 'last_super_admin' as const;
+      throw failure;
     });
   }
 

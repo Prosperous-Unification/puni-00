@@ -391,6 +391,7 @@ function answerBatch(
     // The resource's kind refuses the units whatever the plan holds.
     case 'exclusive_demand_is_one':
       return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
+    case 'last_super_admin':
     case 'cycle':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'arrangement_positions_unavailable':

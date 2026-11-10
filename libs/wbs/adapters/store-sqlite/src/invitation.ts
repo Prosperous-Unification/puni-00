@@ -1,165 +1,225 @@
-import type { Invitation, InvitationAnswer, InvitationSummary, WriteStamp } from '@wbs/core';
-import { mayInvite, ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
+import {
+  type Invitation,
+  type InvitationAnswer,
+  type InvitationSummary,
+  retainSecurityPrincipal,
+  type SecurityPrincipal,
+  type WriteStamp,
+} from '@wbs/core';
+import type { InitialAccess } from '@wbs/domain';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { appendGrantAudit } from './access-audit';
+import { writeGrantIn } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Gate } from './gate';
+import {
+  decodeInitialAccess,
+  encodeInitialAccess,
+  projectLegacyOfferRole,
+  readInitialAccessRefusalIn,
+  readMembershipRefusalIn,
+} from './initial-access';
 import { readOrganizationActivation } from './organization-activation';
 import { organizationInvitation, organizationMembership, users } from './schema';
+import { runSecurityTransaction } from './security-transaction';
 
-type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
-
-/** The current actor role in the same transaction that changes an invitation. */
-function actorRole(
-  tx: Transaction,
-  organizationId: string,
-  actorId: string,
-): OrganizationRole | null {
-  const membership = tx
-    .select({ role: organizationMembership.role })
-    .from(organizationMembership)
-    .where(
-      and(
-        eq(organizationMembership.organizationId, organizationId),
-        eq(organizationMembership.userId, actorId),
-      ),
-    )
-    .get();
-  if (membership === undefined) return null;
-  const known: readonly string[] = ORGANIZATION_ROLES;
-  if (!known.includes(membership.role)) throw new Error(`malformed membership role for ${actorId}`);
-  // The runtime vocabulary check above is the boundary for persisted role values.
-  return membership.role;
+/**
+ * Durable personal issuance is established by the original personal-only route and
+ * writer boundary. Only that stored issuer may become an account subject for P11
+ * revalidation; missing provenance never falls back to recipient or current actor.
+ */
+function readPersonalIssuer(row: typeof organizationInvitation.$inferSelect): string {
+  /* Proof: accept-issuer-provenance: removed/changed production boundary.
+   * rejects missing durable issuer provenance null before consuming
+   * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+  if (row.createdBy === null || row.createdBy === '')
+    throw new Error('invitation personal issuer is missing');
+  return row.createdBy;
 }
 
-/** Maps only public invitation columns; token digests never leave this repository. */
-function summary(row: typeof organizationInvitation.$inferSelect): InvitationSummary {
+/** Public projection decodes only new trusted initial access; compatibility role and digests stay private. */
+function summarizeInvitation(row: typeof organizationInvitation.$inferSelect): InvitationSummary {
+  const selection = decodeInitialAccess(row.initialAccess);
+  readPersonalIssuer(row);
   return {
     id: row.id,
     email: row.recipientEmail,
-    role: row.role,
+    initialRoleId: selection.kind === 'role' ? selection.roleId : null,
     expiresAt: row.expiresAt,
     revokedAt: row.revokedAt,
     consumedAt: row.consumedAt,
   };
 }
 
-/** Invitation storage uses immediate transactions for issue, revoke and single-use acceptance. */
+/** Current-grant personal offers; awaited checks and all effects retain one existing writer owner. */
 export class InvitationRepository implements Invitation {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
   ) {}
 
-  /** Lists only the scoped organization's offers after a fresh activation and role read. */
-  list(organizationId: string, actorId: string): Promise<InvitationAnswer<InvitationSummary[]>> {
-    return Promise.resolve(
-      this.db.transaction((tx) => {
+  list(
+    organizationId: string,
+    principal: SecurityPrincipal,
+  ): Promise<InvitationAnswer<InvitationSummary[]>> {
+    /* Proof: invitation-list-principal: removed/changed production boundary.
+     * retains queued credential authentication at invitation-list
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    principal = retainSecurityPrincipal(principal);
+    /* Proof: invitation-list-owner: removed/changed production boundary.
+     * rechecks queued current offer authority at invitation-list
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    return runSecurityTransaction(
+      this.db,
+      this.gate,
+      async (tx): Promise<InvitationAnswer<InvitationSummary[]>> => {
         if (readOrganizationActivation(tx) !== 'activated')
           return { ok: false, refusal: 'onboarding_inactive' };
-        const role = actorRole(tx, organizationId, actorId);
-        // Proof: 2026-09-28, bypassing this current-role check failed `limits listing and revocation to the current administrator role`.
-        if (role === null || !mayInvite(role, 'viewer')) return { ok: false, refusal: 'forbidden' };
+        const refusal = await readMembershipRefusalIn(
+          tx,
+          organizationId,
+          principal,
+          'organization.manage_members',
+        );
+        /* Proof: invitation-list-current-check: removed/changed production boundary.
+         * rechecks queued current offer authority at invitation-list
+         * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+        if (refusal !== null) return { ok: false, ...refusal };
         return {
           ok: true,
           value: tx
             .select()
             .from(organizationInvitation)
-            // Proof: 2026-09-28, removing this organization predicate made `lists only invitations in the active organization` return both tenants' offers.
             .where(eq(organizationInvitation.organizationId, organizationId))
             .all()
-            .map(summary),
+            .map(summarizeInvitation),
         };
-      }),
+      },
     );
   }
 
-  /** Issues a seven-day digest-bound offer under the current role matrix. */
   issue(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     email: string,
-    role: InvitationSummary['role'],
+    initialAccess: InitialAccess,
     digest: string,
     expiresAt: number,
     stamp: WriteStamp,
   ): Promise<InvitationAnswer<InvitationSummary>> {
-    return this.gate.enter(async () =>
-      Promise.resolve(
-        this.db.transaction(
-          (tx) => {
-            if (readOrganizationActivation(tx) !== 'activated')
-              return { ok: false, refusal: 'onboarding_inactive' };
-            const actor = actorRole(tx, organizationId, actorId);
-            // Proof: 2026-09-28, bypassing this current-role check failed `refuses an admin's admin invitation and a removed issuer`.
-            if (actor === null || !mayInvite(actor, role))
-              return { ok: false, refusal: 'forbidden' };
-            const row = {
-              id: crypto.randomUUID(),
-              organizationId,
-              recipientEmail: email,
-              role,
-              tokenDigest: digest,
-              expiresAt,
-            };
-            tx.insert(organizationInvitation)
-              .values({ ...row, ...auditOnCreate(stamp) })
-              .run();
-            return {
-              ok: true,
-              value: { id: row.id, email, role, expiresAt, revokedAt: null, consumedAt: null },
-            };
+    /* Proof: invitation-issue-principal: removed/changed production boundary.
+     * retains queued credential authentication at invitation-issue
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    principal = retainSecurityPrincipal(principal, stamp.by);
+    /* Proof: invitation-issue-selection: removed/changed production boundary.
+     * retains the queued initial selection at invitation-issue
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    initialAccess = structuredClone(initialAccess);
+    /* Proof: invitation-issue-stamp: removed/changed production boundary.
+     * retains the queued request stamp at invitation-issue
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    stamp = structuredClone(stamp);
+    /* Proof: invitation-issue-owner: removed/changed production boundary.
+     * rechecks queued current offer authority at invitation-issue
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    return runSecurityTransaction(
+      this.db,
+      this.gate,
+      async (tx): Promise<InvitationAnswer<InvitationSummary>> => {
+        if (readOrganizationActivation(tx) !== 'activated')
+          return { ok: false, refusal: 'onboarding_inactive' };
+        const refusal = await readInitialAccessRefusalIn(
+          tx,
+          organizationId,
+          principal,
+          initialAccess,
+        );
+        /* Proof: invitation-issue-current-check: removed/changed production boundary.
+         * rechecks queued current offer authority at invitation-issue
+         * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+        if (refusal !== null) return { ok: false, ...refusal };
+        const row = {
+          id: crypto.randomUUID(),
+          organizationId,
+          recipientEmail: email,
+          role: projectLegacyOfferRole(initialAccess),
+          initialAccess: encodeInitialAccess(initialAccess),
+          tokenDigest: digest,
+          expiresAt,
+          ...auditOnCreate(stamp),
+        };
+        tx.insert(organizationInvitation).values(row).run();
+        return {
+          ok: true,
+          value: {
+            id: row.id,
+            email,
+            initialRoleId: initialAccess.kind === 'role' ? initialAccess.roleId : null,
+            expiresAt,
+            revokedAt: null,
+            consumedAt: null,
           },
-          { behavior: 'immediate' },
-        ),
-      ),
+        };
+      },
     );
   }
 
-  /** Revokes a visible offer if current authority still permits its role. */
   revoke(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     id: string,
     stamp: WriteStamp,
   ): Promise<InvitationAnswer<null>> {
-    return this.gate.enter(async () =>
-      Promise.resolve(
-        this.db.transaction(
-          (tx) => {
-            if (readOrganizationActivation(tx) !== 'activated')
-              return { ok: false, refusal: 'onboarding_inactive' };
-            const actor = actorRole(tx, organizationId, actorId);
-            // Proof: 2026-09-28, bypassing this current-role check failed `limits listing and revocation to the current administrator role` on a missing target.
-            if (actor === null || !mayInvite(actor, 'viewer'))
-              return { ok: false, refusal: 'forbidden' };
-            const invitation = tx
-              .select()
-              .from(organizationInvitation)
-              .where(
-                and(
-                  eq(organizationInvitation.id, id),
-                  eq(organizationInvitation.organizationId, organizationId),
-                ),
-              )
-              .get();
-            // Proof: 2026-09-28, dropping the organization predicate failed `gives identical 404 for missing and foreign revocation`.
-            if (invitation === undefined) return { ok: false, refusal: 'not_found' };
-            // Proof: 2026-09-28, bypassing this offered-role check failed `limits listing and revocation to the current administrator role` on an admin offer.
-            if (!mayInvite(actor, invitation.role)) return { ok: false, refusal: 'forbidden' };
-            // Proof: 2026-09-28, bypassing this state check failed `refuses expired, revoked and replayed invitations` on duplicate revocation.
-            if (invitation.revokedAt !== null || invitation.consumedAt !== null)
-              return { ok: false, refusal: 'invitation_invalid' };
-            tx.update(organizationInvitation)
-              .set({ revokedAt: stamp.at, ...auditOnUpdate(stamp) })
-              .where(eq(organizationInvitation.id, id))
-              .run();
-            return { ok: true, value: null };
-          },
-          { behavior: 'immediate' },
-        ),
-      ),
+    /* Proof: invitation-revoke-principal: removed/changed production boundary.
+     * retains queued credential authentication at invitation-revoke
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    principal = retainSecurityPrincipal(principal, stamp.by);
+    /* Proof: invitation-revoke-stamp: removed/changed production boundary.
+     * retains the queued request stamp at invitation-revoke
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    stamp = structuredClone(stamp);
+    /* Proof: invitation-revoke-owner: removed/changed production boundary.
+     * rechecks queued current offer authority at invitation-revoke
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    return runSecurityTransaction(
+      this.db,
+      this.gate,
+      async (tx): Promise<InvitationAnswer<null>> => {
+        if (readOrganizationActivation(tx) !== 'activated')
+          return { ok: false, refusal: 'onboarding_inactive' };
+        const refusal = await readMembershipRefusalIn(
+          tx,
+          organizationId,
+          principal,
+          'organization.manage_members',
+        );
+        /* Proof: invitation-revoke-current-check: removed/changed production boundary.
+         * rechecks queued current offer authority at invitation-revoke
+         * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+        if (refusal !== null) return { ok: false, ...refusal };
+        const invitation = tx
+          .select()
+          .from(organizationInvitation)
+          .where(
+            and(
+              eq(organizationInvitation.id, id),
+              eq(organizationInvitation.organizationId, organizationId),
+            ),
+          )
+          .get();
+        if (invitation === undefined) return { ok: false, refusal: 'not_found' };
+        decodeInitialAccess(invitation.initialAccess);
+        readPersonalIssuer(invitation);
+        if (invitation.revokedAt !== null || invitation.consumedAt !== null)
+          return { ok: false, refusal: 'invitation_invalid' };
+        tx.update(organizationInvitation)
+          .set({ revokedAt: stamp.at, ...auditOnUpdate(stamp) })
+          .where(eq(organizationInvitation.id, id))
+          .run();
+        return { ok: true, value: null };
+      },
     );
   }
 
@@ -184,91 +244,152 @@ export class InvitationRepository implements Invitation {
     });
   }
 
-  /** Samples expiry after acquiring the write lock, then consumes with membership insertion in one immediate transaction. */
+  /**
+   * Owns completion time: sample after BEGIN for initial expiry ordering, then after
+   * current issuer awaits immediately before consumption. This changes no retained
+   * caller stamp: acceptance takes a clock, not an AuditedAct. Issuance time is immutable.
+   */
   accept(
-    userId: string,
+    principal: SecurityPrincipal,
     digest: string,
-    actorId: string,
     now: () => number,
-  ): Promise<InvitationAnswer<{ organizationId: string; role: OrganizationRole }>> {
-    return this.gate.enter(async () =>
-      Promise.resolve(
-        this.db.transaction(
-          (tx) => {
-            // Proof: 2026-09-28, sampling now() before gate.enter made both `refuses an invitation that expires while acceptance waits for the write gate` and `records acceptance at the time the write gate opens` fail; the latter stored consumed_at and updated_at at 100 after the gate opened at 300.
-            const acceptedStamp: WriteStamp = { at: now(), by: actorId };
-            // Proof: 2026-09-28, bypassing this read failed `checks activation during acceptance, even with a planted valid offer`.
-            // Bypassing the read with absent, unreadable and malformed markers failed all three `throws for an activation marker during acceptance` cases.
-            if (readOrganizationActivation(tx) !== 'activated')
-              return { ok: false, refusal: 'onboarding_inactive' };
-            const invitation = tx
-              .select()
-              .from(organizationInvitation)
-              .where(eq(organizationInvitation.tokenDigest, digest))
-              .get();
-            if (invitation === undefined) return { ok: false, refusal: 'not_found' };
-            // Proof: 2026-09-28, the pre-gate clock mutation above accepted an expired offer. Skipping this state check failed `refuses expired, revoked and replayed invitations`.
-            if (
-              invitation.expiresAt <= acceptedStamp.at ||
-              invitation.revokedAt !== null ||
-              invitation.consumedAt !== null
-            )
-              return { ok: false, refusal: 'invitation_invalid' };
-            const account = tx
-              .select({ email: users.email, verified: users.emailVerified })
-              .from(users)
-              .where(eq(users.id, userId))
-              .get();
-            if (account === undefined) throw new Error(`signed-in user ${userId} is absent`);
-            // Proof: 2026-09-28, bypassing verified/current-email checks failed `refuses an unverified or changed recipient without consuming`.
-            if (!account.verified || account.email === null)
-              return { ok: false, refusal: 'email_verification_required' };
-            if (account.email.toLowerCase() !== invitation.recipientEmail)
-              return { ok: false, refusal: 'recipient_mismatch' };
-            const existing = tx
-              .select({ role: organizationMembership.role })
-              .from(organizationMembership)
-              .where(
-                and(
-                  eq(organizationMembership.organizationId, invitation.organizationId),
-                  eq(organizationMembership.userId, userId),
-                ),
-              )
-              .get();
-            if (existing !== undefined && !ORGANIZATION_ROLES.includes(existing.role))
-              throw new Error('malformed existing membership role');
-            // Proof: 2026-09-28, removing this update made `consumes once across independent SQLite processes` return two successes; the separate processes used distinct connections to the same WAL database.
-            tx.update(organizationInvitation)
-              .set({
-                consumedAt: acceptedStamp.at,
-                consumedBy: userId,
-                ...auditOnUpdate(acceptedStamp),
-              })
-              .where(eq(organizationInvitation.id, invitation.id))
-              .run();
-            if (existing === undefined) {
-              // Proof: 2026-09-28, `rolls consumption back when membership insertion fails` injects a membership-insert abort and observes HTTP 500 with null consumed_at; this test checks rollback, while the independent-process test above checks replay.
-              tx.insert(organizationMembership)
-                .values({
-                  organizationId: invitation.organizationId,
-                  userId,
-                  role: invitation.role,
-                  ...auditOnCreate(acceptedStamp),
-                })
-                .run();
-            }
-            return {
-              ok: true,
-              value: {
-                organizationId: invitation.organizationId,
-                role: existing?.role ?? invitation.role,
+  ): Promise<InvitationAnswer<{ organizationId: string }>> {
+    /* Proof: accept-principal: removed/changed production boundary.
+     * retains acceptance authority before the queued owner at id
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    principal = retainSecurityPrincipal(principal);
+    /* Proof: accept-personal-owner: removed/changed production boundary.
+     * enforces personal acceptance before acquiring its owner for machine
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    if (
+      principal.delegation !== undefined ||
+      principal.authentication?.kind === 'machine' ||
+      principal.authentication?.kind === 'consent'
+    )
+      return Promise.resolve({ ok: false, refusal: 'insufficient_scope' });
+    /* Proof: accept-owner: removed/changed production boundary.
+     * rolls consumption membership and initial access back when its grant audit fails
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    return runSecurityTransaction(
+      this.db,
+      this.gate,
+      async (tx): Promise<InvitationAnswer<{ organizationId: string }>> => {
+        const initiallyAcceptedAt = now();
+        if (readOrganizationActivation(tx) !== 'activated')
+          return { ok: false, refusal: 'onboarding_inactive' };
+        const invitation = tx
+          .select()
+          .from(organizationInvitation)
+          .where(eq(organizationInvitation.tokenDigest, digest))
+          .get();
+        if (invitation === undefined) return { ok: false, refusal: 'not_found' };
+        const selection = decodeInitialAccess(invitation.initialAccess);
+        const issuerId = readPersonalIssuer(invitation);
+        if (
+          invitation.expiresAt <= initiallyAcceptedAt ||
+          invitation.revokedAt !== null ||
+          invitation.consumedAt !== null
+        )
+          return { ok: false, refusal: 'invitation_invalid' };
+        const account = tx
+          .select({ email: users.email, verified: users.emailVerified })
+          .from(users)
+          .where(eq(users.id, principal.id))
+          .get();
+        if (account === undefined) throw new Error('signed-in user ' + principal.id + ' is absent');
+        if (!account.verified || account.email === null)
+          return { ok: false, refusal: 'email_verification_required' };
+        if (account.email.toLowerCase() !== invitation.recipientEmail)
+          return { ok: false, refusal: 'recipient_mismatch' };
+        const existing = tx
+          .select({ userId: organizationMembership.userId })
+          .from(organizationMembership)
+          .where(
+            and(
+              eq(organizationMembership.organizationId, invitation.organizationId),
+              eq(organizationMembership.userId, principal.id),
+            ),
+          )
+          .get();
+        /* Proof: accept-none-issuer: removed/changed production boundary.
+         * rechecks a none-offer issuer current grant before new membership
+         * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+        if (existing === undefined) {
+          const refusal = await readInitialAccessRefusalIn(
+            tx,
+            invitation.organizationId,
+            { id: issuerId },
+            selection,
+          );
+          if (refusal !== null) return { ok: false, ...refusal };
+        }
+        const completedAt = now();
+        /* Proof: accept-completion-expiry: removed/changed production boundary.
+         * owns acceptance completion clock after awaited issuer checks with expiry 200
+         * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+        if (invitation.expiresAt <= completedAt)
+          return { ok: false, refusal: 'invitation_invalid' };
+        /* Proof: accept-membership-recipient: removed/changed production boundary.
+         * grants org-admin as the durable personal issuer inside new-member acceptance
+         * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+        const acceptedStamp: WriteStamp = { at: completedAt, by: principal.id };
+        tx.update(organizationInvitation)
+          .set({
+            consumedAt: completedAt,
+            consumedBy: principal.id,
+            ...auditOnUpdate(acceptedStamp),
+          })
+          .where(eq(organizationInvitation.id, invitation.id))
+          .run();
+        if (existing === undefined) {
+          tx.insert(organizationMembership)
+            .values({
+              organizationId: invitation.organizationId,
+              userId: principal.id,
+              role: 'viewer',
+              ...auditOnCreate(acceptedStamp),
+            })
+            .run();
+          if (selection.kind === 'role') {
+            const auditId = crypto.randomUUID();
+            const granted = writeGrantIn(
+              tx,
+              invitation.organizationId,
+              {
+                id: crypto.randomUUID(),
+                scope: { kind: 'organization' },
+                subject: { kind: 'user', userId: principal.id },
+                roleId: selection.roleId,
+                origin: 'invitation',
               },
-            };
-          },
-          // Proof: 2026-09-28, changing acceptance to DEFERRED made `consumes once across independent SQLite processes` fail: one worker exited 1 instead of returning a typed refusal.
-          { behavior: 'immediate' },
-        ),
-      ),
+              /* Proof: accept-grant-issuer: removed/changed production boundary.
+               * grants org-admin as the durable personal issuer inside new-member acceptance
+               * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+              { actor: { kind: 'user', userId: issuerId }, at: completedAt, auditId },
+            );
+            /* Proof: accept-impossible-refusal: removed/changed production boundary.
+             * throws and rolls all acceptance effects back on an impossible borrowed initial grant refusal
+             * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+            if (typeof granted === 'string')
+              throw new Error('accepted initial grant refused: ' + granted);
+            /* Proof: accept-audit: removed/changed production boundary.
+             * grants org-admin as the durable personal issuer inside new-member acceptance
+             * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+            appendGrantAudit(tx, {
+              grant: granted.grant,
+              action: 'access_granted',
+              auditId,
+              /* Proof: accept-audit-issuer: removed/changed production boundary.
+               * grants org-admin as the durable personal issuer inside new-member acceptance
+               * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+              actorId: issuerId,
+              at: completedAt,
+              origin: 'invitation',
+            });
+          }
+        }
+        return { ok: true, value: { organizationId: invitation.organizationId } };
+      },
     );
   }
 }

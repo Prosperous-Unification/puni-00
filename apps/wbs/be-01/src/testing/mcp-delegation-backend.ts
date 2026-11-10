@@ -1,5 +1,6 @@
 import { JwksTokenVerifier } from '@wbs/auth';
 import type { SqliteSource } from '@wbs/store-sqlite';
+import { AccessGrantRepository } from '@wbs/store-sqlite/access-grant';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 
@@ -270,6 +271,73 @@ const server = Bun.serve({
       );
       const body: unknown = await created.json();
       return Response.json({ status: created.status, body });
+    }
+    if (request.method === 'POST' && path === '/__fixture/cp14-consent') {
+      const { familyId, action } = (await request.json()) as {
+        familyId: string;
+        action: 'clear' | 'repair' | 'state';
+      };
+      const credential = backend.sqlite
+        .query<
+          { id: string; organization_id: string; issued_by: string; person_id: string },
+          [string]
+        >(
+          'SELECT id,organization_id,issued_by,person_id FROM machine_credential WHERE mcp_family_id=?',
+        )
+        .get(familyId);
+      if (credential === null) throw new Error('CP14 fixture family has no credential');
+      if (action === 'clear')
+        backend.sqlite.run(
+          "DELETE FROM access_grant WHERE organization_id=? AND scope_kind='organization' AND subject_kind='user' AND role_id='org-super-admin'",
+          [credential.organization_id],
+        );
+      if (action === 'repair') {
+        if (source === undefined) throw new Error('CP14 fixture source missing');
+        const granted = await new AccessGrantRepository(source.db, source.gate).grant(
+          credential.organization_id,
+          {
+            id: crypto.randomUUID(),
+            scope: { kind: 'organization' },
+            subject: { kind: 'user', userId: credential.issued_by },
+            roleId: 'org-super-admin',
+            origin: 'operator',
+          },
+          {
+            actor: { kind: 'operator', login: 'cp14-repair' },
+            at: Date.now(),
+            auditId: crypto.randomUUID(),
+          },
+        );
+        if (typeof granted === 'string')
+          throw new Error('operator CP14 repair refused: ' + granted);
+      }
+      const holders = backend.sqlite
+        .query<{ n: number }, [string]>(
+          "SELECT count(*) AS n FROM access_grant g JOIN organization_membership m ON m.organization_id=g.organization_id AND m.user_id=g.subject_id WHERE g.organization_id=? AND g.scope_kind='organization' AND g.scope_id=g.organization_id AND g.subject_kind='user' AND g.role_id='org-super-admin'",
+        )
+        .get(credential.organization_id);
+      if (holders === null) throw new Error('CP14 fixture count missing');
+      if (action === 'repair' && holders.n < 1)
+        throw new Error('audited CP14 repair did not establish a direct holder');
+      return Response.json({
+        directHolders: holders.n,
+        credential: backend.sqlite
+          .query('SELECT id,revoked_at FROM machine_credential WHERE id=?')
+          .get(credential.id),
+        grants: backend.sqlite
+          .query(
+            "SELECT id,role_id FROM access_grant WHERE subject_kind='machine_credential' AND subject_id=? ORDER BY id",
+          )
+          .all(credential.id),
+        claims: backend.sqlite
+          .query('SELECT * FROM claim WHERE person_id=? ORDER BY id')
+          .all(credential.person_id),
+        revoked: backend.sqlite
+          .query(
+            "SELECT action,actor_id,subject_id FROM organization_audit WHERE (action='machine_credential_revoked' AND subject_id=?) OR (action='access_revoked' AND json_extract(detail,'$.subjectId')=?) ORDER BY rowid",
+          )
+          .all(credential.id, credential.id),
+      });
     }
     if (request.method === 'POST' && path === '/__fixture/grant-consent') {
       const { familyId, roleId, scope } = (await request.json()) as {

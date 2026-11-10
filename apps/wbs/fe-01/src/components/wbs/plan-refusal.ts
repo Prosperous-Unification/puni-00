@@ -480,6 +480,11 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'not_before_reason_needs_a_date':
     case 'invalid_kind':
     case 'nothing_to_change':
+    /* Proof: cp14-command-bridge: removed/changed production boundary.
+     * renders CP14 through the actual typed command error bridge
+     * These grouped codes fall through to the shared projection.
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    case 'last_super_admin':
     case 'forbidden':
     case 'not_found':
     case 'unknown_step':
@@ -962,6 +967,11 @@ export const PLAN_REFUSALS: RefusalWords = {
     // watched 2026-10-27.
     already_claimed: 'Somebody else already holds a claim on this row. Nothing was changed.',
     person_required: 'A claim from here names a person, and none was named. Nothing was changed.',
+    /* Proof: cp14-command-presenter: removed/changed production boundary.
+     * renders CP14 directory command refusal
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    last_super_admin:
+      'Restore a direct organization super-admin grant before retrying. Nothing was changed.',
     person_not_bound:
       'Your account is not bound to that person — an organization admin binds it in the Directory. Nothing was changed.',
     credential_not_for_person: 'This credential may not act for that person. Nothing was changed.',

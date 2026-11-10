@@ -145,7 +145,14 @@ export interface AgentPools {
     act: AuditedAct,
   ): Promise<
     | { readonly kind: 'rekeyed'; readonly issued: AgentPoolIssued }
-    | { readonly kind: AgentPoolActorRefusal | 'not_found' | 'pool_changed' | 'pool_expired' }
+    | {
+        readonly kind:
+          | AgentPoolActorRefusal
+          | 'not_found'
+          | 'pool_changed'
+          | 'pool_expired'
+          | 'last_super_admin';
+      }
   >;
   /**
    * Revokes the live pool `poolId` and every live key of it at
@@ -165,7 +172,7 @@ export interface AgentPools {
         readonly revokedCredentials: number;
         readonly personIds: readonly string[];
       }
-    | { readonly kind: AgentPoolActorRefusal | 'not_found' }
+    | { readonly kind: AgentPoolActorRefusal | 'not_found' | 'last_super_admin' }
   >;
 }
 

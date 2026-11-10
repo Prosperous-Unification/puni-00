@@ -137,7 +137,6 @@ test('pins the complete protected and exempt operation matrix', () => {
       'lookupRuntimeReceipt',
       'patchApiOrganization',
       'patchApiOrganizationCompute-providersById',
-      'patchApiOrganizationMembersByUserId',
       'patchApiOrganizationSso-connectionsById',
       'patchApiProjectsById',
       'patchApiProjectsByIdCalendar-markersByMarkerId',

@@ -244,13 +244,19 @@ revocation) checks the count after the write in its transaction and rolls back
 `409 last_super_admin`. Was: "revoking the last `org-super-admin` grant, or removing that
 member, is refused". Removing a member needs
 `organization.manage_members`; removing one who holds an organization-role grant directly
-(`org-admin` or `org-super-admin`) also needs `organization.manage_organization_roles`, as
+(catalogue object kind `organization`, including `org-viewer` and custom organization roles) also needs `organization.manage_organization_roles`, as
 revoking that grant does (review PM-11). A member's removal
 deletes their grants and group memberships in the same transaction, audited once.
 Invitations and join-request approvals carry an optional initial grant from the catalogue
 (`org-admin`, `org-viewer`, `project-contributor` or `project-viewer` at organization
 scope, or none); SCIM-provisioned and onboarding-created members arrive with none, except
 the organization's creator, who is `org-super-admin`.
+
+Task 2.5 clarification: member summaries report the full permission union and provenance of organization-kind grants at organization scope, or null, plus the distinct account-reaching grant count over all scopes; they do not invent a strongest role or include package identifiers. List admission uses the actual caller's `organization.read`; invitation/join lists require `organization.manage_members`. Initial organization roles require `organization.manage_organization_roles`; initial project roles require `organization.manage_access`, in addition to `organization.manage_members` and the full-set subset rule. Personal-only invitation/join guards remain the durable issuer boundary. Only new membership acceptance creates initial access: it rechecks the stored personal issuer's current membership and P11 authority, records grant/audit actor as issuer with origin invitation, and consumes an existing member's offer without upgrading access.
+
+Initial access is persisted as an explicit bounded none/role selection. NULL is reserved for legacy-writer omission; additive backfill and an old-writer-only insert trigger preserve all historical admin/member/viewer offers. Runtime reads only the validated selection, never the old role column. Down first rejects any historical nonrepresentable, malformed or inverse-incoherent selection. See [ADR0081](../../../docs/adr/0081-initial-grant-offers-preserve-legacy-writer-intent.md). A required deployment cutover boundary must route or quiesce acceptance and onboarding onto upgraded grant-and-audit owners before applying this migration; the compatibility trigger cannot upgrade old owners.
+
+CP14 checks the post-write direct built-in user-holder count on the owner connection and throws a modeled rollback refusal before returning 409. A reciprocal removal race may remove the second actor first, so fresh not-a-member/403 precedes the target invariant; two self-leaves instead produce success and last_super_admin. Bootstrap permits transient zero only until the creator's direct grant and audit are written.
 
 **P12. Machine cap at check and at grant.** The evaluator intersects the effective set with `CONTRIBUTOR_CAP` (the union of the
 seeded `project-contributor` and `package-contributor` sets, `wbs-custom-permissions` CP8)
@@ -940,3 +946,5 @@ A scoped application ResourceAccess carries a required detached ScopedPrincipal 
 The old journal has no complete, joinable original-command provenance: compensation kinds and labels collapse distinct authority requirements. New rows therefore add an authorization envelope to the existing JSON payload with version 1 and immutable permission/semantic-anchor obligations. No SQL migration or rewrite of historical payload bytes is needed. Existing readers tolerate the extra field, and cursor flip/restamp leave it intact. Storage compatibility does not imply old-binary grant-policy compatibility; deployments must not claim old binaries enforce these obligations.
 
 Legacy scoped entries without this envelope refuse with modeled 409 replay_provenance_unavailable before stale discard; malformed present envelopes throw. New metadata is detached at recording, aggregated only from actual contributors, and retained unchanged through undo→redo→undo. Current budget ownership is resolved from the package anchor at replay time, rather than retaining its original parent. The actual engagement-parent move proof waits for #698 slice 2; interim tests can prove current organization ownership resolution only. Slice 2 retains an explicit parent-move regression obligation.
+
+Deployment clarification: outgoing binaries still interpret the compatibility viewer column. Before migration, outgoing acceptance/onboarding mutations must be quiesced; before exposing upgraded grant semantics, outgoing authorization readers and existing gateway/WebSocket sessions must be retired or drained, or activation refused. This required task6.4 boundary must preserve actual read availability and rollback contracts.

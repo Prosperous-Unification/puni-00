@@ -32,6 +32,7 @@ import {
   person,
   personOrganization,
 } from './schema';
+import { LastSuperAdmin, requireSuperAdminIn } from './super-admin';
 
 type Transaction = SQLiteBunDatabase;
 type CredentialReach = 'own' | 'every';
@@ -426,7 +427,7 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
     principal: OrganizationPrincipal,
     credentialId: string,
     act: AuditedAct,
-  ): Promise<'revoked' | MachineCredentialActorRefusal | 'not_found'> {
+  ): Promise<'revoked' | MachineCredentialActorRefusal | 'not_found' | 'last_super_admin'> {
     principal = structuredClone(principal);
     const actorId = principal.id;
     // Proof: owner-identity-machine-actor: removing this boundary failed `rejects a machine-revoke audit actor mismatch before owner entry`;
@@ -466,6 +467,10 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
       // `access-grant-store.db.test.ts` kept the revoked key's grant row;
       // watched 2026-11-08.
       const removedGrants = deleteGrantsOfCredentials(tx, [credentialId]);
+      /* Proof: cp14-machine: removed/changed production boundary.
+       * rolls back a zero-grant credential revocation without a direct human holder at machine-revoke
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      requireSuperAdminIn(tx, organizationId);
       for (const grant of removedGrants)
         // Proof: cascade-machine-credential-administration-revoke: removing this boundary failed `are deleted with an administrator’s revocation, and no other credential’s`;
         // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
@@ -488,6 +493,12 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
         at,
       });
       return 'revoked' as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-machine-revoke: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at machine-revoke
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return 'last_super_admin' as const;
+      throw failure;
     });
   }
 
@@ -503,6 +514,9 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
         try {
           transaction.rollback();
         } catch (rollbackFailure) {
+          /* Proof: native-rollback-aggregation: removed/changed production boundary.
+           * preserves actual CP14 and rollback failures before manual owner repair
+           * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
           throw new AggregateError(
             [failure, rollbackFailure],
             'machine credential write and rollback failed',

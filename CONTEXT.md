@@ -143,8 +143,12 @@ An authenticated user's request to become a member of an organization; it grants
 _Avoid_: automatic enrollment, JIT membership
 
 **Invitation**:
-An offer to a specific email address to join an organization with a specified role.
+An offer to a specific email address to join an organization, with explicit initial access or none.
 _Avoid_: join request, signup link
+
+**Initial access**:
+The access role an invitation or approved join request offers a new member, or no role. It is separate from membership and never upgrades an account that is already a member.
+_Avoid_: membership role, default access
 
 **Email submission**:
 The handoff of one purpose-specific message for one recipient to an explicitly configured mail relay.

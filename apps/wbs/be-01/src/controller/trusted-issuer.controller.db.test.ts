@@ -405,6 +405,7 @@ describe('removing a trusted issuer', () => {
   // Proof: with the `in_use` refusal removed from `remove`, this answered 500
   // on the foreign key instead of 409; watched 2026-10-22.
   it('refuses removing an issuer two live credentials name, then removes it once both are revoked', async () => {
+    h.grant('org-a', 'dany', 'org-super-admin');
     const id = ((await register('dany', { issuer: ci.url })).body as { id: string }).id;
     const first = await createOidc(id, 'repo:acme/wbs:ref:refs/heads/main', 'main');
     const second = await createOidc(id, 'repo:acme/wbs:ref:refs/heads/next', 'next');
@@ -432,6 +433,7 @@ describe('removing a trusted issuer', () => {
   });
 
   it('deletes a grant an older release left on a revoked credential with the issuer (wbs-permissions P17)', async () => {
+    h.grant('org-a', 'dany', 'org-super-admin');
     const id = ((await register('dany', { issuer: ci.url })).body as { id: string }).id;
     const credential = await createOidc(id, 'repo:acme/wbs:ref:refs/heads/main', 'main');
     expect(
@@ -662,6 +664,7 @@ function readGrantAudits() {
 }
 
 it('rolls stale issuer grant removal back when the required cascade audit fails', async () => {
+  h.grant('org-a', 'dany', 'org-super-admin');
   const id = ((await register('dany', { issuer: ci.url })).body as { id: string }).id;
   const credential = await createOidc(id, 'repo:acme/wbs:ref:refs/heads/main', 'main');
   expect(
@@ -680,5 +683,25 @@ it('rolls stale issuer grant removal back when the required cascade audit fails'
     "CREATE TRIGGER fail_issuer_access_audit BEFORE INSERT ON organization_audit WHEN NEW.action='access_revoked' BEGIN SELECT RAISE(ABORT,'issuer access audit unavailable'); END",
   );
   expect((await h.call('dany', 'DELETE', PATH + '/' + id)).status).toBe(500);
+  expect(snapshot()).toEqual(before);
+});
+
+it('refuses physical cleanup of zero-grant revoked issuer credentials without a direct holder', async () => {
+  const id = ((await register('dany', { issuer: ci.url })).body as { id: string }).id;
+  const credential = await createOidc(id, 'repo:cp14:main', 'cp14-key');
+  h.sqlite.run('UPDATE machine_credential SET revoked_at=5 WHERE id=?', [credential]);
+  const snapshot = () =>
+    [
+      'organization_trusted_issuer',
+      'machine_credential',
+      'machine_credential_secret',
+      'access_grant',
+      'organization_audit',
+    ].map((table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
+  const before = snapshot();
+  expect(await h.call('dany', 'DELETE', PATH + '/' + id)).toEqual({
+    status: 409,
+    body: { error: 'last_super_admin' },
+  });
   expect(snapshot()).toEqual(before);
 });

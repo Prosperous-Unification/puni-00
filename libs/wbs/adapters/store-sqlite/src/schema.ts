@@ -3324,7 +3324,10 @@ export const organizationInvitation = sqliteTable(
       .notNull()
       .references(() => organization.id),
     recipientEmail: text('recipient_email').notNull(),
+    /** Outgoing-writer compatibility only; incoming authority reads initialAccess. */
     role: text('role', { enum: INVITABLE_ROLES }).notNull(),
+    /** ADR0081: SQL NULL means an outgoing writer omitted the selection, never no initial access. */
+    initialAccess: text('initial_access'),
     tokenDigest: text('token_digest').notNull(),
     expiresAt: integer('expires_at').notNull(),
     revokedAt: integer('revoked_at'),

@@ -14,7 +14,7 @@ describe('organization join request decisions', () => {
     await harness.register('owner');
     await harness.register('applicant');
     harness.organization('org');
-    harness.member('org', 'owner', 'super_admin');
+    harness.member('org', 'owner', 'super_admin', ['org-super-admin']);
     harness.bind('owner', 'org');
     harness.sqlite.run(
       "UPDATE users SET email = 'applicant@example.org', email_verified = 1 WHERE id = ?",
@@ -42,7 +42,7 @@ describe('organization join request decisions', () => {
     expect(
       (
         await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-          role: 'viewer',
+          initialRoleId: 'project-viewer',
         })
       ).status,
     ).toBe(200);
@@ -58,20 +58,20 @@ describe('organization join request decisions', () => {
     });
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({ status: 409, body: { error: 'request_resolved' } });
     expect(
       await harness.call('applicant', 'POST', '/api/onboarding/invitations/accept', { token }),
-    ).toEqual({ status: 200, body: { membership: { organizationId: 'org', role: 'viewer' } } });
+    ).toEqual({ status: 200, body: { membership: { organizationId: 'org' } } });
   });
 
-  it('rejects an admin approval role at the HTTP boundary', async () => {
+  it('rejects a super-admin initial offer at the HTTP boundary', async () => {
     harness.activate();
     const id = await submit();
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'admin',
+        initialRoleId: 'org-super-admin',
       }),
     ).toEqual({ status: 400, body: { error: 'invalid_body' } });
     expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(0);
@@ -103,7 +103,7 @@ describe('organization join request decisions', () => {
     harness.sqlite.run("UPDATE organization_domain_claim SET status = 'suspended'");
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'member',
+        initialRoleId: 'project-contributor',
       }),
     ).toEqual({ status: 409, body: { error: 'domain_changed' } });
     harness.sqlite.run("UPDATE organization_domain_claim SET status = 'verified'");
@@ -112,7 +112,7 @@ describe('organization join request decisions', () => {
     ]);
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'member',
+        initialRoleId: 'project-contributor',
       }),
     ).toEqual({ status: 409, body: { error: 'domain_changed' } });
     expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(0);
@@ -126,7 +126,7 @@ describe('organization join request decisions', () => {
     ]);
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({ status: 409, body: { error: 'domain_changed' } });
     harness.sqlite.run(
@@ -135,7 +135,7 @@ describe('organization join request decisions', () => {
     );
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({ status: 409, body: { error: 'domain_changed' } });
     expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(0);
@@ -151,7 +151,7 @@ describe('organization join request decisions', () => {
     expect(
       (
         await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-          role: 'viewer',
+          initialRoleId: 'project-viewer',
         })
       ).status,
     ).toBe(500);
@@ -166,7 +166,7 @@ describe('organization join request decisions', () => {
     expect(
       (
         await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-          role: 'viewer',
+          initialRoleId: 'project-viewer',
         })
       ).status,
     ).toBe(403);
@@ -185,7 +185,7 @@ describe('organization join request decisions', () => {
     await harness.register('owner');
     await harness.register('applicant');
     harness.organization('org');
-    harness.member('org', 'owner', 'super_admin');
+    harness.member('org', 'owner', 'super_admin', ['org-super-admin']);
     harness.bind('owner', 'org');
     harness.sqlite.run(
       "UPDATE users SET email = 'applicant@example.org', email_verified = 1 WHERE id = ?",
@@ -199,9 +199,12 @@ describe('organization join request decisions', () => {
     removeAfterResolve = true;
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_members' },
+    });
     expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(0);
   });
 
@@ -213,7 +216,7 @@ describe('organization join request decisions', () => {
     });
     await harness.register('owner');
     harness.organization('org');
-    harness.member('org', 'owner', 'super_admin');
+    harness.member('org', 'owner', 'super_admin', ['org-super-admin']);
     harness.bind('owner', 'org');
     harness.activate();
     deactivateAfterResolve = true;
@@ -232,7 +235,7 @@ describe('organization join request decisions', () => {
       await harness.register('owner');
       await harness.register('applicant');
       harness.organization('org');
-      harness.member('org', 'owner', 'super_admin');
+      harness.member('org', 'owner', 'super_admin', ['org-super-admin']);
       harness.bind('owner', 'org');
       harness.sqlite.run(
         "UPDATE users SET email = 'applicant@example.org', email_verified = 1 WHERE id = ?",
@@ -250,7 +253,7 @@ describe('organization join request decisions', () => {
             'owner',
             'POST',
             `/api/organization/join-requests/${id}/${decision}`,
-            decision === 'approve' ? { role: 'viewer' } : undefined,
+            decision === 'approve' ? { initialRoleId: 'project-viewer' } : undefined,
           )
         ).status,
       ).toBe(500);
@@ -261,19 +264,19 @@ describe('organization join request decisions', () => {
     harness.activate();
     const id = await submit();
     harness.organization('other');
-    harness.member('other', 'owner', 'super_admin');
+    harness.member('other', 'owner', 'super_admin', ['org-super-admin']);
     harness.bind('owner', 'other');
     const foreign = await harness.call(
       'owner',
       'POST',
       `/api/organization/join-requests/${id}/approve`,
-      { role: 'viewer' },
+      { initialRoleId: 'project-viewer' },
     );
     const absent = await harness.call(
       'owner',
       'POST',
       '/api/organization/join-requests/missing/approve',
-      { role: 'viewer' },
+      { initialRoleId: 'project-viewer' },
     );
     expect(foreign).toEqual({ status: 404, body: { error: 'not_found' } });
     expect(absent).toEqual(foreign);
@@ -284,7 +287,7 @@ describe('organization join request decisions', () => {
     const id = await submit();
     const decisions = await Promise.all([
       harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
       harness.call('owner', 'POST', `/api/organization/join-requests/${id}/deny`),
     ]);
@@ -360,7 +363,7 @@ describe('organization join request decisions', () => {
     expect(
       (
         await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-          role: 'viewer',
+          initialRoleId: 'project-viewer',
         })
       ).status,
     ).toBe(500);
@@ -379,7 +382,7 @@ describe('organization join request decisions', () => {
     expect(
       (
         await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-          role: 'viewer',
+          initialRoleId: 'project-viewer',
         })
       ).status,
     ).toBe(500);
@@ -408,30 +411,33 @@ describe('organization join request decisions', () => {
     harness.bind('applicant', 'org');
     expect(await harness.call('applicant', 'GET', '/api/organization/join-requests')).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_members' },
     });
     expect(
       await harness.call('applicant', 'POST', `/api/organization/join-requests/${id}/deny`),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_members' },
+    });
     expect(
       harness.sqlite.query('SELECT status FROM organization_join_request WHERE id = ?').get(id),
     ).toEqual({ status: 'pending' });
   });
 
-  it('throws for a malformed trusted administrator role', async () => {
+  it('throws for malformed current administrator grant state', async () => {
     harness.close();
     let corruptAfterResolve = false;
     harness = OrganizationHarness.openComposed(false, () => {
       if (corruptAfterResolve) {
         harness.sqlite.run('PRAGMA ignore_check_constraints = ON');
-        harness.sqlite.run("UPDATE organization_membership SET role = 'broken' WHERE user_id = ?", [
-          harness.userId('owner'),
-        ]);
+        harness.sqlite.run(
+          "INSERT INTO access_role_permission(role_id,permission) VALUES('org-super-admin','unknown.permission')",
+        );
       }
     });
     await harness.register('owner');
     harness.organization('org');
-    harness.member('org', 'owner', 'super_admin');
+    harness.member('org', 'owner', 'super_admin', ['org-super-admin']);
     harness.bind('owner', 'org');
     harness.activate();
     corruptAfterResolve = true;
@@ -468,7 +474,7 @@ describe('organization join request decisions', () => {
     );
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({
       status: 409,
@@ -479,7 +485,7 @@ describe('organization join request decisions', () => {
     );
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({
       status: 409,
@@ -499,7 +505,7 @@ describe('organization join request decisions', () => {
     expect(
       (
         await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-          role: 'viewer',
+          initialRoleId: 'project-viewer',
         })
       ).status,
     ).toBe(500);
@@ -512,7 +518,7 @@ describe('organization join request decisions', () => {
     harness.activate();
     const id = await submit();
     harness.organization('other');
-    harness.member('other', 'owner', 'super_admin');
+    harness.member('other', 'owner', 'super_admin', ['org-super-admin']);
     harness.bind('owner', 'other');
     const foreign = await harness.call(
       'owner',
@@ -531,7 +537,7 @@ describe('organization join request decisions', () => {
     harness.failEmailDelivery();
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({ status: 503, body: { error: 'delivery_failed' } });
     expect(
@@ -557,7 +563,7 @@ describe('organization join request decisions', () => {
     });
     expect(
       await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({
       status: 503,

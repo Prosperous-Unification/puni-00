@@ -365,6 +365,7 @@ describe('20260927190000_add_organization_bridge', () => {
   it('rolls back to no triggers, keeping mappings and legacy writes working', () => {
     run([LEGACY, ...writeRootsBeforeResources('1')]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([
+      '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',

@@ -1,3 +1,5 @@
+import type { AuditedAct } from './organization-audit';
+import type { SecurityPrincipal } from './security-principal';
 import type { WriteStamp } from './write-stamp';
 
 export type OnboardingState =
@@ -15,7 +17,8 @@ export type OnboardingRefusal =
   | 'already_member'
   | 'domain_matched'
   | 'join_request_pending'
-  | 'not_found';
+  | 'not_found'
+  | 'insufficient_scope';
 
 export type OnboardingAnswer<T> =
   { ok: true; value: T } | { ok: false; refusal: OnboardingRefusal };
@@ -30,10 +33,11 @@ export interface Onboarding {
    */
   isActive(): Promise<boolean>;
   discover(userId: string): Promise<OnboardingAnswer<OnboardingState>>;
+  /** Personal bootstrap: actual authority and audit are retained before its queued owner. */
   createOrganization(
-    userId: string,
+    principal: SecurityPrincipal,
     name: string,
-    stamp: WriteStamp,
+    act: AuditedAct,
   ): Promise<
     OnboardingAnswer<{
       organization: { id: string; name: string };

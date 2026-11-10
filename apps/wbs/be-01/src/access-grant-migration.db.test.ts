@@ -94,6 +94,7 @@ beforeEach(() => {
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    '20261103110000_add_initial_access_offers',
     '20261102130000_widen_organization_audit_access',
     MIGRATION,
   ]);
@@ -466,7 +467,11 @@ describe(MIGRATION, () => {
   describe('the rollback', () => {
     it('rolls back over the backfill and the built-ins, dropping the five tables', () => {
       expect(tablesLeft()).toEqual(TABLES);
-      expect(rollBack()).toEqual(['20261102130000_widen_organization_audit_access', MIGRATION]);
+      expect(rollBack()).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
+        MIGRATION,
+      ]);
       expect(tablesLeft()).toEqual([]);
       expect(db.query('SELECT COUNT(*) AS n FROM organization_membership').get()).toEqual({ n: 6 });
     });
@@ -507,6 +512,7 @@ describe(MIGRATION, () => {
       // Isolate this historical grant guard before corrupting trusted state; the
       // newer audit rebuild independently rejects foreign-key violations.
       expect(rollbackTo(path, FOLDER, MIGRATION)).toEqual([
+        '20261103110000_add_initial_access_offers',
         '20261102130000_widen_organization_audit_access',
       ]);
       db.run('PRAGMA foreign_keys = OFF');

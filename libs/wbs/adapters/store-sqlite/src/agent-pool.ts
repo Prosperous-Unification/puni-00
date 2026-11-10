@@ -37,6 +37,7 @@ import {
   person,
   personOrganization,
 } from './schema';
+import { LastSuperAdmin, requireSuperAdminIn } from './super-admin';
 
 type Transaction = ImmediateTransaction;
 
@@ -469,7 +470,7 @@ export class AgentPoolRepository implements AgentPools {
     renewal = structuredClone(renewal);
     const { keys } = renewal;
     assertDigests(keys);
-    return this.write((tx) => {
+    return this.write((tx): Awaited<ReturnType<AgentPools['rekey']>> => {
       const refused = poolAdministratorRefusal(tx, organizationId, actorId);
       if (refused !== null) return { kind: refused };
       const found = livePool(tx, organizationId, poolId);
@@ -532,6 +533,10 @@ export class AgentPoolRepository implements AgentPools {
         issuePoolKey(tx, organizationId, actorId, poolId, key, personName, act);
         agents.push({ personId: key.personId, personName, credentialId: key.credentialId });
       }
+      /* Proof: cp14-pool-rekey: removed/changed production boundary.
+       * rolls a zero-grant pool authority change back without a direct holder at rekey
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      requireSuperAdminIn(tx, organizationId);
       appendOrganizationAudit(tx, {
         id: act.auditId,
         organizationId,
@@ -551,6 +556,12 @@ export class AgentPoolRepository implements AgentPools {
         .run();
       agents.sort((a, b) => (a.personName < b.personName ? -1 : 1));
       return { kind: 'rekeyed', issued: { pool: checkedPool(pool), agents } } as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-pool-rekey: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at pool-rekey
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return { kind: 'last_super_admin' } as const;
+      throw failure;
     });
   }
 
@@ -569,7 +580,7 @@ export class AgentPoolRepository implements AgentPools {
     // Proof: owner-act-pool-revoke: removing this boundary failed `retains the actual queued pool cascade owner at revoke`;
     // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
     act = structuredClone(act);
-    return this.write((tx) => {
+    return this.write((tx): Awaited<ReturnType<AgentPools['revoke']>> => {
       const refused = poolAdministratorRefusal(tx, organizationId, actorId);
       if (refused !== null) return { kind: refused };
       if (livePool(tx, organizationId, poolId) === undefined) return { kind: 'not_found' };
@@ -588,6 +599,10 @@ export class AgentPoolRepository implements AgentPools {
         .set({ revokedAt: at, ...auditOnUpdate(act.stamp) })
         .where(eq(agentPool.id, poolId))
         .run();
+      /* Proof: cp14-pool-revoke: removed/changed production boundary.
+       * rolls a zero-grant pool authority change back without a direct holder at revoke
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      requireSuperAdminIn(tx, organizationId);
       appendOrganizationAudit(tx, {
         id: act.auditId,
         organizationId,
@@ -599,6 +614,12 @@ export class AgentPoolRepository implements AgentPools {
         at,
       });
       return { kind: 'revoked', revokedCredentials: live.length, personIds } as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-pool-revoke: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at pool-revoke
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return { kind: 'last_super_admin' } as const;
+      throw failure;
     });
   }
 

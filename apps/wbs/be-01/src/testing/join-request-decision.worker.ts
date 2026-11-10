@@ -21,14 +21,14 @@ try {
     decision === 'approve'
       ? await repository.approve(
           'org',
-          actorId,
+          { id: actorId },
           requestId,
-          'viewer',
+          { kind: 'role', roleId: 'project-viewer' },
           `${databasePath}.${lane}-digest`,
           stamp.at + 1000,
           stamp,
         )
-      : await repository.deny('org', actorId, requestId, stamp);
+      : await repository.deny('org', { id: actorId }, requestId, stamp);
   process.stdout.write(JSON.stringify(answer));
 } finally {
   connection.close();

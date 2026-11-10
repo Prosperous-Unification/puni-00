@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AccessAct, GrantDraft, GrantScope, GrantSubject } from '@wbs/core';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import {
@@ -11,12 +11,17 @@ import {
   directSuperAdminCount,
   operatorSubjectRefusal,
 } from './access-grant';
+import { AgentPoolRepository } from './agent-pool';
 import { ConsentCredentialRepository } from './consent-credential';
 import { type Connection, openConnection } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN, WriteCoordinator } from './gate';
 import { MachineCredentialAdministrationRepository } from './machine-credential-administration';
 import { runMigrations } from './migrate';
+import { OrganizationRepository } from './organization';
+import { ScimUserRepository } from './scim-user';
+import { LastSuperAdmin } from './super-admin';
+import { TrustedIssuerAdministrationRepository } from './trusted-issuer-administration';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION: GrantScope = { kind: 'organization' };
@@ -344,8 +349,16 @@ describe('granting', () => {
   });
 });
 
+/** Explicit surviving direct holder for positive authority-removal fixtures only. */
+function seedDirectHolder(): void {
+  connection.db.run(
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('cp14-fixture-holder','org-a','organization','org-a','user','ben','org-super-admin','backfill',0)`,
+  );
+}
+
 describe('revoking', () => {
   it('revokes a grant of its own organization only', async () => {
+    seedDirectHolder();
     const id = await grantInA('cy', 'org-viewer');
     expect(await grants.revoke('org-b', id, createAdaAct())).toBe('not_found');
     expect(await grants.revoke('org-a', id, createAdaAct())).toMatchObject({
@@ -429,6 +442,7 @@ describe('access groups', () => {
   });
 
   it('adds only current members, once, and removes them', async () => {
+    seedDirectHolder();
     await grants.createGroup('org-a', { id: 'ops', name: 'Ops' }, createAdaAct());
     expect(await grants.addGroupMember('org-a', 'ops', 'out', createAdaAct())).toBe('not_a_member');
     expect(await grants.addGroupMember('org-a', 'ops', 'dee', createAdaAct())).toBe('not_a_member');
@@ -451,6 +465,7 @@ describe('access groups', () => {
   });
 
   it('deletes a group with its grants and members, and nothing of another group', async () => {
+    seedDirectHolder();
     await grants.createGroup('org-a', { id: 'ops', name: 'Ops' }, createAdaAct());
     await grants.createGroup('org-a', { id: 'dev', name: 'Dev' }, createAdaAct());
     for (const groupId of ['ops', 'dev']) {
@@ -469,6 +484,7 @@ describe('access groups', () => {
     });
     expect(await grants.listGroups('org-a')).toMatchObject([{ id: 'dev', memberIds: ['cy'] }]);
     expect((await grants.list('org-a', {})).map((grant) => grant.subject)).toEqual([
+      { kind: 'user', userId: 'ben' },
       { kind: 'group', groupId: 'dev' },
     ]);
   });
@@ -501,6 +517,7 @@ describe('a revoked credential’s grants', () => {
     it(
       'rolls the credential and grant cascade back when its access audit fails at ' + operation,
       async () => {
+        seedDirectHolder();
         activate();
         const credentialId = operation === 'machine-revoke' ? LIVE_KEY : CONSENT;
         await grantTo(credentialId);
@@ -543,6 +560,7 @@ describe('a revoked credential’s grants', () => {
   }
 
   it('are deleted with an administrator’s revocation, and no other credential’s', async () => {
+    seedDirectHolder();
     activate();
     await grantTo(LIVE_KEY);
     await grantTo(CONSENT);
@@ -554,11 +572,13 @@ describe('a revoked credential’s grants', () => {
       ),
     ).toMatchObject([{ actor_id: 'ada', credential_id: LIVE_KEY, origin: 'cascade' }]);
     expect((await grants.list('org-a', {})).map((grant) => grant.subject)).toEqual([
+      { kind: 'user', userId: 'ben' },
       { kind: 'machine_credential', credentialId: CONSENT },
     ]);
   });
 
   it('are deleted when an MCP consent ends', async () => {
+    seedDirectHolder();
     await grantTo(CONSENT);
     const consents = new ConsentCredentialRepository(connection.db, OPEN);
     expect(
@@ -573,11 +593,17 @@ describe('a revoked credential’s grants', () => {
         sql`SELECT actor_id,json_extract(detail,'$.subjectId') AS credential_id,json_extract(detail,'$.origin') AS origin FROM organization_audit WHERE action='access_revoked'`,
       ),
     ).toMatchObject([{ actor_id: 'mcp-01', credential_id: CONSENT, origin: 'cascade' }]);
-    expect(await grants.list('org-a', {})).toEqual([]);
+    expect(
+      (await grants.list('org-a', {})).map((grant) => ({
+        roleId: grant.roleId,
+        subject: grant.subject,
+      })),
+    ).toEqual([{ roleId: 'org-super-admin', subject: { kind: 'user', userId: 'ben' } }]);
   });
 
   for (const operation of ['machine-revoke', 'consent-end']) {
     it('retains actual queued cascade audit provenance at ' + operation, async () => {
+      seedDirectHolder();
       activate();
       const credentialId = operation === 'machine-revoke' ? LIVE_KEY : CONSENT;
       await grantTo(credentialId);
@@ -643,6 +669,7 @@ describe('a revoked credential’s grants', () => {
   }
 
   it('retains raw directory stamp and reach before the queued removal owner', async () => {
+    seedDirectHolder();
     activate();
     await grantTo(LIVE_KEY);
     const gate = new WriteCoordinator();
@@ -705,3 +732,264 @@ async function rejectionOf(pending: Promise<unknown>): Promise<Error> {
     throw new Error('expected the production operation to reject', { cause: failure });
   return failure;
 }
+
+for (const operation of ['revoke', 'group-delete', 'group-member-remove'] as const) {
+  it(
+    'rolls back a nonlowering access removal without a direct built-in holder at ' + operation,
+    async () => {
+      const created = await grants.createGroup('org-a', { id: 'ops', name: 'Ops' }, createAdaAct());
+      expect(created).toMatchObject({ kind: 'created' });
+      expect(await grants.addGroupMember('org-a', 'ops', 'cy', createAdaAct())).toBe('added');
+      const granted = await grants.grant(
+        'org-a',
+        draft(ORGANIZATION, { kind: 'group', groupId: 'ops' }, 'org-super-admin'),
+        createAdaAct(),
+      );
+      if (typeof granted === 'string') throw new Error(granted);
+      const before = {
+        grants: connection.db.all(sql`SELECT * FROM access_grant ORDER BY id`),
+        groups: connection.db.all(sql`SELECT * FROM access_group ORDER BY id`),
+        members: connection.db.all(
+          sql`SELECT * FROM access_group_member ORDER BY group_id,user_id`,
+        ),
+        audits: connection.db.all(sql`SELECT * FROM organization_audit ORDER BY rowid`),
+      };
+      const answer =
+        operation === 'revoke'
+          ? await grants.revoke('org-a', granted.grant.id, createAdaAct())
+          : operation === 'group-delete'
+            ? await grants.deleteGroup('org-a', 'ops', createAdaAct())
+            : await grants.removeGroupMember('org-a', 'ops', 'cy', createAdaAct());
+      expect(answer).toBe('last_super_admin');
+      expect({
+        grants: connection.db.all(sql`SELECT * FROM access_grant ORDER BY id`),
+        groups: connection.db.all(sql`SELECT * FROM access_group ORDER BY id`),
+        members: connection.db.all(
+          sql`SELECT * FROM access_group_member ORDER BY group_id,user_id`,
+        ),
+        audits: connection.db.all(sql`SELECT * FROM organization_audit ORDER BY rowid`),
+      }).toEqual(before);
+    },
+  );
+}
+
+for (const operation of ['machine-revoke', 'consent-end'] as const) {
+  it(
+    'rolls back a zero-grant credential revocation without a direct human holder at ' + operation,
+    async () => {
+      connection.db.run(
+        sql`UPDATE organization_activation SET state='activated',activated_at=5 WHERE singleton=1`,
+      );
+      const before = {
+        credentials: connection.db.all(sql`SELECT * FROM machine_credential ORDER BY id`),
+        audits: connection.db.all(sql`SELECT * FROM organization_audit ORDER BY rowid`),
+      };
+      const performed = {
+        actor: 'ada',
+        stamp: { at: 40, by: 'ada' },
+        auditId: 'nonlowering-credential',
+      };
+      const answer =
+        operation === 'machine-revoke'
+          ? await new MachineCredentialAdministrationRepository(connection.db, OPEN).revoke(
+              'org-a',
+              { id: 'ada' },
+              LIVE_KEY,
+              performed,
+            )
+          : await new ConsentCredentialRepository(connection.db, OPEN).end(CONSENT, 'family-1', {
+              ...performed,
+              actor: 'mcp-01',
+              stamp: { at: 40, by: 'mcp-01' },
+            });
+      expect(answer).toBe('last_super_admin');
+      expect({
+        credentials: connection.db.all(sql`SELECT * FROM machine_credential ORDER BY id`),
+        audits: connection.db.all(sql`SELECT * FROM organization_audit ORDER BY rowid`),
+      }).toEqual(before);
+    },
+  );
+}
+
+for (const state of ['live', 'revoked'] as const) {
+  it(
+    'checks every affected credential organization during raw person cleanup at ' + state,
+    async () => {
+      await grantInA('ada', 'org-super-admin');
+      connection.db.run(
+        sql`UPDATE machine_credential SET person_id='bot',revoked_at=${state === 'revoked' ? 5 : null} WHERE id=${FOREIGN_KEY}`,
+      );
+      const before = [
+        'person',
+        'person_organization',
+        'machine_credential',
+        'machine_credential_secret',
+        'access_grant',
+        'organization_audit',
+      ].map((table) => connection.db.all(sql.raw('SELECT * FROM ' + table + ' ORDER BY rowid')));
+      expect(
+        await new DirectoryRepository(connection.db, OPEN).removePerson(
+          'bot',
+          true,
+          { at: 50, by: 'ada' },
+          { kind: 'every' },
+        ),
+      ).toEqual({ ok: false, reason: 'last_super_admin' });
+      expect(
+        [
+          'person',
+          'person_organization',
+          'machine_credential',
+          'machine_credential_secret',
+          'access_grant',
+          'organization_audit',
+        ].map((table) => connection.db.all(sql.raw('SELECT * FROM ' + table + ' ORDER BY rowid'))),
+      ).toEqual(before);
+    },
+  );
+}
+
+for (const operation of [
+  'grant-revoke',
+  'group-delete',
+  'group-member-remove',
+  'member-remove',
+  'member-raw',
+  'scim-update',
+  'scim-remove',
+  'machine-revoke',
+  'consent-end',
+  'pool-rekey',
+  'pool-revoke',
+  'issuer-remove',
+  'directory-remove',
+] as const) {
+  it(
+    'preserves an unexpected aggregate from the actual owner dependency at ' + operation,
+    async () => {
+      const failure = new AggregateError(
+        [new LastSuperAdmin(), new Error('injected rollback failure')],
+        'owner and rollback unavailable',
+      );
+      let turns = 0;
+      const broken = {
+        enter: () => {
+          turns++;
+          return Promise.reject(failure);
+        },
+      };
+      const performed = { actor: 'ada', stamp: { at: 40, by: 'ada' }, auditId: 'aggregate-owner' };
+      const scimAct = {
+        actor: 'scim:token',
+        stamp: { at: 40, by: 'ada' },
+        auditId: 'aggregate-scim',
+      };
+      const mcpAct = {
+        actor: 'mcp-01',
+        stamp: { at: 40, by: 'mcp-01' },
+        auditId: 'aggregate-consent',
+      };
+      const snapshot = () =>
+        ['organization_membership', 'access_grant', 'machine_credential', 'organization_audit'].map(
+          (table) => connection.db.all(sql.raw('SELECT * FROM ' + table + ' ORDER BY rowid')),
+        );
+      const before = snapshot();
+      const access = new AccessGrantRepository(connection.db, broken);
+      const members = new OrganizationRepository(connection.db, broken);
+      const scim = new ScimUserRepository(connection.db, broken);
+      const pools = new AgentPoolRepository(connection.db, broken, {
+        maxAgentPersons: 10,
+        maxConcurrentClaims: 10,
+        maxCapacityUnitsPerResource: 10,
+      });
+      const pending =
+        operation === 'grant-revoke'
+          ? access.revoke('org-a', 'unread-before-owner', createAdaAct())
+          : operation === 'group-delete'
+            ? access.deleteGroup('org-a', 'unread-before-owner', createAdaAct())
+            : operation === 'group-member-remove'
+              ? access.removeGroupMember('org-a', 'unread-before-owner', 'cy', createAdaAct())
+              : operation === 'member-remove'
+                ? members.administer('org-a', { id: 'ada' }, 'cy', performed, 'route')
+                : operation === 'member-raw'
+                  ? members.removeMember('org-a', 'cy', performed, 'route')
+                  : operation === 'scim-update'
+                    ? scim.update('org-a', 'unread-before-owner', { active: false }, scimAct)
+                    : operation === 'scim-remove'
+                      ? scim.remove('org-a', 'unread-before-owner', scimAct)
+                      : operation === 'machine-revoke'
+                        ? new MachineCredentialAdministrationRepository(
+                            connection.db,
+                            broken,
+                          ).revoke('org-a', { id: 'ada' }, LIVE_KEY, performed)
+                        : operation === 'consent-end'
+                          ? new ConsentCredentialRepository(connection.db, broken).end(
+                              CONSENT,
+                              'family-1',
+                              mcpAct,
+                            )
+                          : operation === 'pool-rekey'
+                            ? pools.rekey(
+                                'org-a',
+                                'ada',
+                                'unread-before-owner',
+                                { keys: [] },
+                                performed,
+                              )
+                            : operation === 'pool-revoke'
+                              ? pools.revoke('org-a', 'ada', 'unread-before-owner', performed)
+                              : operation === 'issuer-remove'
+                                ? new TrustedIssuerAdministrationRepository(
+                                    connection.db,
+                                    broken,
+                                  ).remove('org-a', { id: 'ada' }, 'unread-before-owner', performed)
+                                : new DirectoryRepository(connection.db, broken).removePerson(
+                                    'bot',
+                                    true,
+                                    performed.stamp,
+                                    { kind: 'every' },
+                                  );
+      expect(await rejectionOf(pending)).toBe(failure);
+      expect(turns).toBe(1);
+      expect(snapshot()).toEqual(before);
+    },
+  );
+}
+
+it('preserves actual CP14 and rollback failures before manual owner repair', async () => {
+  connection.db.run(
+    sql`UPDATE organization_activation SET state='activated',activated_at=5 WHERE singleton=1`,
+  );
+  const snapshot = () =>
+    ['machine_credential', 'access_grant', 'organization_audit'].map((table) =>
+      connection.db.all(sql.raw('SELECT * FROM ' + table + ' ORDER BY rowid')),
+    );
+  const before = snapshot();
+  const original = connection.db.run.bind(connection.db);
+  let controls = 0;
+  const run = spyOn(connection.db, 'run').mockImplementation((query) => {
+    controls++;
+    if (controls === 2) throw new Error('injected actual CP14 rollback failure');
+    return original(query);
+  });
+  try {
+    const failure = await rejectionOf(
+      new MachineCredentialAdministrationRepository(connection.db, OPEN).revoke(
+        'org-a',
+        { id: 'ada' },
+        LIVE_KEY,
+        { actor: 'ada', stamp: { at: 40, by: 'ada' }, auditId: 'paired-cp14' },
+      ),
+    );
+    expect(failure).toBeInstanceOf(AggregateError);
+    if (!(failure instanceof AggregateError))
+      throw new Error('actual paired failure was not aggregate');
+    expect(failure.errors[0]).toBeInstanceOf(LastSuperAdmin);
+    expect(failure.errors[1]).toMatchObject({ message: 'injected actual CP14 rollback failure' });
+    expect(controls).toBe(2);
+  } finally {
+    run.mockRestore();
+    connection.db.run('ROLLBACK');
+  }
+  expect(snapshot()).toEqual(before);
+});

@@ -56,6 +56,13 @@ export function agentPoolRefusal(
     case 'sso_required':
     case 'reauthentication_required':
       return lostAccess(refusal);
+    /* Proof: cp14-pool-presenter: removed/changed production boundary.
+     * renders CP14 pool refusal
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    case 'last_super_admin':
+      return said(
+        'Restore a direct organization super-admin grant before retrying. Nothing was changed.',
+      );
     case 'forbidden':
       return said(
         operation === 'read'

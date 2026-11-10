@@ -35,7 +35,7 @@ describe('invitation acceptance', () => {
           }),
       ],
       'POST /api/onboarding/invitations/accept': [
-        () => answer(200, { membership: { organizationId: 'o', role: 'member' } }),
+        () => answer(200, { membership: { organizationId: 'o' } }),
       ],
       'GET /api/organization/memberships': [
         () =>
@@ -100,4 +100,20 @@ describe('invitation acceptance', () => {
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', copy);
     expect(screen.getByLabelText('Invitation code')).toBeDefined();
   });
+});
+
+it('renders the issuer grant refusal without consuming the code', async () => {
+  stubServer({
+    'GET /api/onboarding': [() => answer(200, { state: 'create_organization' })],
+    'POST /api/onboarding/invitations/accept': [
+      () => answer(403, { error: 'forbidden', permission: 'organization.manage_members' }),
+    ],
+  });
+  renderScreen();
+  await acceptCode('tok');
+  expect(await screen.findByRole('alert')).toHaveProperty(
+    'textContent',
+    'The invitation issuer is missing permission: organization.manage_members. Ask for a new invitation.',
+  );
+  expect(screen.getByLabelText('Invitation code')).toHaveProperty('value', 'tok');
 });

@@ -163,6 +163,8 @@ export function trustedIssuerRoutes(
             return forbidden;
           case 'not_found':
             return { ok: false, status: 404, body: { error: 'not_found' } };
+          case 'last_super_admin':
+            return { ok: false, status: 409, body: { error: 'last_super_admin' } };
           case 'removed':
             return { ok: true, status: 204, body: EMPTY };
         }

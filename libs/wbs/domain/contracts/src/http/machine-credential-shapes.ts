@@ -216,7 +216,12 @@ export const revokeMachineCredential = defineEndpointShape({
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
-  refusals: [...common, malformed, notFound],
+  refusals: [
+    ...common,
+    malformed,
+    notFound,
+    { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
+  ],
   document: { summary: 'Revoke a machine credential immediately.' },
 });
 
@@ -353,6 +358,7 @@ export const removeTrustedIssuer = defineEndpointShape({
     ...trustedIssuerCommon,
     malformed,
     notFound,
+    { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
     {
       status: 409,
       schema: responseSchema(type({ error: "'in_use'", machineCredentials: 'number' })),

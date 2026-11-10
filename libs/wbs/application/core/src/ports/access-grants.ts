@@ -176,6 +176,7 @@ export interface AccessGrants {
   ): Promise<
     | { readonly kind: 'deleted'; readonly grantsDeleted: number; readonly membersRemoved: number }
     | 'unknown_group'
+    | 'last_super_admin'
   >;
   /**
    * Adds a current member of the organization to a group: `not_a_member` for
@@ -196,7 +197,7 @@ export interface AccessGrants {
     groupId: string,
     userId: string,
     act: AccessAct,
-  ): Promise<'removed' | 'unknown_group' | 'not_in_group'>;
+  ): Promise<'removed' | 'unknown_group' | 'not_in_group' | 'last_super_admin'>;
 }
 
 /**

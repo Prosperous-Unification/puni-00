@@ -41,7 +41,10 @@ export interface ConsentCredentialRequest {
 export type ConsentCredentialOutcome = { readonly kind: 'minted' } | { readonly kind: 'refused' };
 
 /** Whether be-01 acknowledged an ended consent family, or could not be reached now. */
-export type ConsentEndReport = 'acknowledged' | 'unavailable';
+export type ConsentEndReport =
+  | 'acknowledged'
+  | 'unavailable'
+  | { readonly kind: 'blocked'; readonly reason: 'last_super_admin' };
 
 /** What a consent binds: nothing before activation, else one of these memberships. */
 export type ConsentOrganizations =
@@ -107,6 +110,7 @@ const ORGANIZATIONS = type({ state: "'pre_activation'" }).or({
   }).array(),
 });
 const MINTED = type({ credentialId: 'string' });
+const BLOCKED_END = type({ error: "'last_super_admin'" });
 const ENDED = type({ outcome: "'revoked' | 'already_revoked' | 'absent'" });
 const DELEGATION = type({ token: 'string' });
 const AUTHORITY = type({ outcome: "'denied'" }).or({
@@ -325,6 +329,13 @@ export function organizationAuthority(
       }
       const text = await response.text();
       if (response.status >= 500) return 'unavailable';
+      /* Proof: consent-end-client409: removed/changed production boundary.
+       * models a named CP14 consent end conflict independently of transport failure
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (response.status === 409) {
+        parsed(BLOCKED_END, text, 'credentials/ended');
+        return { kind: 'blocked', reason: 'last_super_admin' };
+      }
       if (response.status !== 200) throw unmodeled('credentials/ended', response.status, text);
       parsed(ENDED, text, 'credentials/ended');
       return 'acknowledged';

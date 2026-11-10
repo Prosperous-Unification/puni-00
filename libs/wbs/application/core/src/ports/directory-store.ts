@@ -248,7 +248,8 @@ export type DirectoryRemoved =
  * would remove machine credentials the caller's {@link MachineCredentialReach}
  * does not reach (`wbs-machine-credentials` A24).
  */
-export type PersonRemoved = DirectoryRemoved | { ok: false; reason: 'forbidden' };
+export type PersonRemoved =
+  DirectoryRemoved | { ok: false; reason: 'forbidden' } | { ok: false; reason: 'last_super_admin' };
 
 /**
  * Whose machine credentials a person removal may revoke (`wbs-machine-credentials`

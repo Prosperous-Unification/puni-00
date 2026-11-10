@@ -11,7 +11,7 @@ import type {
 } from '@wbs/core';
 import { retainAccessAct } from '@wbs/core';
 import { type AccessObjectKind, type GrantSubjectKind, roleFitsScope } from '@wbs/domain';
-import { and, asc, count, eq, inArray, isNull, ne, or, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or, type SQL } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { appendGrantAudit, readAccessActorId, readAccessOperationOrigin } from './access-audit';
@@ -30,12 +30,10 @@ import {
   organizationMembership,
   projectOrganization,
 } from './schema';
+import { LastSuperAdmin, requireSuperAdminIn } from './super-admin';
 
 type Transaction = ImmediateTransaction;
 type Reader = Pick<SQLiteBunDatabase, 'select'>;
-
-/** The built-in role whose direct holders CP14 keeps at one or more. */
-const SUPER_ADMIN_ROLE = 'org-super-admin';
 
 /**
  * The SQLite {@link AccessGrants}. Each write runs in this process's write
@@ -92,16 +90,12 @@ export class AccessGrantRepository implements AccessGrants {
     return this.write((tx) => {
       const row = findGrant(tx, organizationId, grantId);
       if (row === undefined) return 'not_found';
-      // Proof: bypassing the CP14 guard admitted the last direct human revoke and both racing self-revokes in access-grant-store.db.test.ts (2026-11-08).
-      if (
-        countsAsSuperAdmin(tx, row) &&
-        directSuperAdminCount(tx, organizationId, { besides: row.id }) === 0
-      )
-        return 'last_super_admin';
       const grant = recordOf(row);
       tx.delete(accessGrant)
         .where(and(eq(accessGrant.id, grantId), eq(accessGrant.organizationId, organizationId)))
         .run();
+      // Proof: cp14-access-revoke: removed/broken boundary failed `rolls back a nonlowering access removal without a direct built-in holder at revoke`; named assertion RED and restored GREEN (task-2.5 guard-faults).
+      requireSuperAdminIn(tx, organizationId);
       // Proof: append-revoke-access_revoked: removing this boundary failed `audits revoke provenance from the current actor rather than the grant creator or stored origin`;
       // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
       // Proof: operator-revoke-audit: removing this boundary failed `revokes after a hand-over and prints the count left`;
@@ -115,6 +109,12 @@ export class AccessGrantRepository implements AccessGrants {
         origin: readAccessOperationOrigin(act.actor),
       });
       return { kind: 'revoked', grant } as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-grant-revoke: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at grant-revoke
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return 'last_super_admin' as const;
+      throw failure;
     });
   }
 
@@ -240,6 +240,7 @@ export class AccessGrantRepository implements AccessGrants {
   ): Promise<
     | { readonly kind: 'deleted'; readonly grantsDeleted: number; readonly membersRemoved: number }
     | 'unknown_group'
+    | 'last_super_admin'
   > {
     // Proof: act-snapshot-group-delete: removing this boundary failed `retains the actual audit act before the queued access owner at group-delete`;
     // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
@@ -247,6 +248,8 @@ export class AccessGrantRepository implements AccessGrants {
     return this.write((tx) => {
       const removed = deleteGroupAccessIn(tx, organizationId, groupId);
       if (removed === null) return 'unknown_group';
+      // Proof: cp14-group-delete: removed/broken boundary failed `rolls back a nonlowering access removal without a direct built-in holder at group-delete`; named assertion RED and restored GREEN (task-2.5 guard-faults).
+      requireSuperAdminIn(tx, organizationId);
       for (const grant of removed.grants)
         // Proof: append-deleteGroup-access_revoked: removing this boundary failed `audits group deletion as exactly N grant revokes plus M member removals plus one group deletion`;
         // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
@@ -293,6 +296,12 @@ export class AccessGrantRepository implements AccessGrants {
         grantsDeleted: removed.grants.length,
         membersRemoved: removed.memberIds.length,
       } as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-group-delete: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at group-delete
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return 'last_super_admin' as const;
+      throw failure;
     });
   }
 
@@ -341,7 +350,7 @@ export class AccessGrantRepository implements AccessGrants {
     groupId: string,
     userId: string,
     act: AccessAct,
-  ): Promise<'removed' | 'unknown_group' | 'not_in_group'> {
+  ): Promise<'removed' | 'unknown_group' | 'not_in_group' | 'last_super_admin'> {
     // Proof: act-snapshot-member-remove: removing this boundary failed `retains the actual audit act before the queued access owner at member-remove`;
     // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
     act = retainAccessAct(act);
@@ -359,6 +368,8 @@ export class AccessGrantRepository implements AccessGrants {
         )
         .run().changes;
       if (removed === 0) return 'not_in_group';
+      // Proof: cp14-group-member-remove: removed/broken boundary failed `rolls back a nonlowering access removal without a direct built-in holder at group-member-remove`; named assertion RED and restored GREEN (task-2.5 guard-faults).
+      requireSuperAdminIn(tx, organizationId);
       // Proof: append-removeGroupMember-access_group_member_removed: removing this boundary failed `audits actual group-member addition and removal without duplicating refused acts`;
       // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
       appendOrganizationAudit(tx, {
@@ -372,6 +383,12 @@ export class AccessGrantRepository implements AccessGrants {
         at: act.at,
       });
       return 'removed' as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-group-member-remove: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at group-member-remove
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return 'last_super_admin' as const;
+      throw failure;
     });
   }
 
@@ -560,34 +577,7 @@ export function copyGrantsOfCredential(
   return copied;
 }
 
-/**
- * How many current members of `organizationId` hold the built-in
- * `org-super-admin` through a direct `user` grant at organization scope
- * (`wbs-custom-permissions` CP14), not counting grant `besides`. Group-held,
- * custom-role and credential grants never count.
- */
-export function directSuperAdminCount(
-  reader: Reader,
-  organizationId: string,
-  options: { readonly besides: string | null },
-): number {
-  const conditions = [superAdminGrantOf(organizationId)];
-  if (options.besides !== null) conditions.push(ne(accessGrant.id, options.besides));
-  const counted = reader
-    .select({ holders: count() })
-    .from(accessGrant)
-    .innerJoin(
-      organizationMembership,
-      and(
-        eq(organizationMembership.organizationId, accessGrant.organizationId),
-        eq(organizationMembership.userId, accessGrant.subjectId),
-      ),
-    )
-    .where(and(...conditions))
-    .get();
-  if (counted === undefined) throw new Error('a COUNT(*) query answered no row');
-  return counted.holders;
-}
+export { directSuperAdminCount } from './super-admin';
 
 /**
  * Why the operator CLI (`wbs-permissions` P21, task 1.5) may not name
@@ -753,29 +743,6 @@ function subjectRefusalOf(
       return live === undefined ? 'unknown_credential' : null;
     }
   }
-}
-
-/** Whether `row` is a direct organization-scope `org-super-admin` grant of a current member. */
-function countsAsSuperAdmin(tx: Reader, row: AccessGrantRow): boolean {
-  return (
-    row.scopeKind === 'organization' &&
-    row.subjectKind === 'user' &&
-    row.roleId === SUPER_ADMIN_ROLE &&
-    isMemberOf(tx, row.organizationId, row.subjectId)
-  );
-}
-
-function superAdminGrantOf(organizationId: string): SQL {
-  const condition = and(
-    eq(accessGrant.organizationId, organizationId),
-    eq(accessGrant.scopeKind, 'organization'),
-    eq(accessGrant.subjectKind, 'user'),
-    eq(accessGrant.roleId, SUPER_ADMIN_ROLE),
-  );
-  // `and` of several conditions always answers one; an absent one would
-  // count every grant of every organization.
-  if (condition === undefined) throw new Error('the super-admin predicate could not be built');
-  return condition;
 }
 
 function isMemberOf(tx: Reader, organizationId: string, userId: string): boolean {

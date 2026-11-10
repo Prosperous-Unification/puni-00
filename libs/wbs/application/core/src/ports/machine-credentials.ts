@@ -250,7 +250,7 @@ export interface MachineCredentialAdministration {
     principal: OrganizationPrincipal,
     credentialId: string,
     act: AuditedAct,
-  ): Promise<'revoked' | MachineCredentialActorRefusal | 'not_found'>;
+  ): Promise<'revoked' | MachineCredentialActorRefusal | 'not_found' | 'last_super_admin'>;
 }
 
 /**
@@ -291,7 +291,7 @@ export type ConsentMintRefusal = 'inactive' | 'not_a_member' | 'person_not_bound
  * now, already `revoked` before, or `absent` (never minted, or removed with
  * its person). Every outcome lets mcp-01 forget the report.
  */
-export type ConsentEndOutcome = 'revoked' | 'already_revoked' | 'absent';
+export type ConsentEndOutcome = 'revoked' | 'already_revoked' | 'absent' | 'last_super_admin';
 
 /**
  * The `mcp_consent` source (`wbs-machine-credentials` A8, A20): what be-01's

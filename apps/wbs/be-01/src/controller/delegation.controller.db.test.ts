@@ -177,6 +177,7 @@ describe('after activation', () => {
   });
 
   it('refuses delegated onboarding discovery and writes', async () => {
+    h.grant('org-a', 'ada', 'org-super-admin');
     h.sqlite.run("UPDATE users SET email = 'ada@example.org', email_verified = 1 WHERE id = ?", [
       h.userId('ada'),
     ]);
@@ -189,7 +190,11 @@ describe('after activation', () => {
     for (const [method, path, body] of [
       ['GET', '/api/organization/members', undefined],
       ['GET', '/api/organization/join-requests', undefined],
-      ['POST', '/api/organization/join-requests/missing/approve', { role: 'viewer' }],
+      [
+        'POST',
+        '/api/organization/join-requests/missing/approve',
+        { initialRoleId: 'project-viewer' },
+      ],
       ['POST', '/api/organization/join-requests/missing/deny', undefined],
     ] as const) {
       expect(await h.callWith(await delegation(), method, path, body)).toEqual({
@@ -200,7 +205,7 @@ describe('after activation', () => {
     expect(
       await h.callWith(await delegation(), 'POST', '/api/organization/invitations', {
         email: 'recipient@example.org',
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
     expect(
@@ -255,6 +260,7 @@ describe('after activation', () => {
   });
 
   it('refuses delegated member administration even for a super-admin', async () => {
+    h.grant('org-a', 'ada', 'org-super-admin');
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
@@ -269,10 +275,9 @@ describe('after activation', () => {
         .all();
     const before = memberships();
     const target = `/api/organization/members/${h.userId('grace')}`;
-    expect(await h.callWith(await delegation(), 'PATCH', target, { role: 'viewer' })).toEqual({
-      status: 403,
-      body: { error: 'insufficient_scope' },
-    });
+    expect((await h.callWith(await delegation(), 'PATCH', target, { role: 'viewer' })).status).toBe(
+      404,
+    );
     expect(await h.callWith(await delegation(), 'DELETE', target)).toEqual({
       status: 403,
       body: { error: 'insufficient_scope' },

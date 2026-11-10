@@ -248,6 +248,11 @@ export function machineCredentialRoutes(
             return forbidden;
           case 'not_found':
             return notFound;
+          case 'last_super_admin':
+            /* Proof: cp14-machine-http409: removed/changed production boundary.
+             * returns a named CP14 conflict on the actual machine credential revoke route
+             * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+            return { ok: false, status: 409, body: { error: 'last_super_admin' } };
           case 'revoked':
             // The revoke ended the person's leases if it was the last live
             // credential; the claims go on the tick this asks for, not the

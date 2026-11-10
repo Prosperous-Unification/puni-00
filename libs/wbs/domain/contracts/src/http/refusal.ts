@@ -129,6 +129,7 @@ export type CommandRefusalCode =
   | 'name_required'
   | 'not_found'
   | 'forbidden'
+  | 'last_super_admin'
   | 'strategy_required'
   | 'cycle'
   | 'calendar_range'
@@ -679,7 +680,6 @@ type BareRefusalCode =
   | 'alias_mismatch'
   // A membership change that would leave the organization without a
   // super-admin (task 3.7).
-  | 'last_super_admin'
   // A project reach change or a step removal that would close a step-node
   // dependency cycle. Outside a batch, so it carries no command position.
   | 'dependency_cycle'
@@ -763,6 +763,7 @@ type SharedCommandCode =
   | 'credential_not_for_person'
   | 'not_found'
   | 'forbidden'
+  | 'last_super_admin'
   | 'name_required'
   | 'taken'
   | 'in_use'
@@ -797,6 +798,7 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     forbidden:
       undefined | { permission?: Permission } | (CommandContext & { permission?: Permission });
     name_required: undefined | CommandContext;
+    last_super_admin: undefined | CommandContext;
     /** Bare from a step PATCH's allowance; with its command context from a batch. */
     calendar_range: undefined | CommandContext;
     taken: undefined | { field?: 'markerId' } | CommandRefusalDetail['taken'];
@@ -849,7 +851,7 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
      * (`wbs-mcp-agent-surface` M7): the pool, and how many keys the revocation
      * ended before the refusal.
      */
-    persons_not_removed: { poolId: string; revokedCredentials: number };
+    persons_not_removed: { poolId: string; revokedCredentials: number; cause?: 'last_super_admin' };
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.

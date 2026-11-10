@@ -21,9 +21,8 @@ try {
   // Trusted: the parent test writes this line with JSON.stringify.
   const { userId, digest } = JSON.parse(release) as { userId: string; digest: string };
   const answer = await new InvitationRepository(connection.db, OPEN).accept(
-    userId,
+    { id: userId },
     digest,
-    userId,
     Date.now,
   );
   process.stdout.write(JSON.stringify(answer));

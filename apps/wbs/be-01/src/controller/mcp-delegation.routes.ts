@@ -81,6 +81,11 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
       if (!CREDENTIAL_ID.test(body.credentialId) || body.family === '')
         return { ok: false, status: 400, body: { error: 'invalid_body' } } as const;
       const outcome = await authority.endConsent(body.credentialId, body.family);
+      /* Proof: consent-end-http409: HTTP conflict projection; removed branch causes undeclared success representation and actual adapter500.
+       * returns a named CP14 conflict for an ended consent and preserves all backend authority
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (outcome === 'last_super_admin')
+        return { ok: false, status: 409, body: { error: 'last_super_admin' } } as const;
       // Before activation no consent credential exists to end.
       return {
         ok: true,
