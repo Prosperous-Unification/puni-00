@@ -1,9 +1,14 @@
 import {
   chmodSync,
+  closeSync,
   existsSync,
+  fstatSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -48,6 +53,74 @@ import {
   verifyTargetInventory,
   WORKSPACE,
 } from './test-levels';
+
+interface GeneratedFileOperations {
+  open: (path: string) => number;
+  write: (path: string | number) => void;
+  close: (descriptor: number) => void;
+  remove: (path: string) => void;
+}
+
+const generatedFileOperations: GeneratedFileOperations = {
+  open: (path) => openSync(path, 'wx', 0o600),
+  write: (path) => {
+    writeFileSync(path, 'export {};\n');
+  },
+  close: closeSync,
+  remove: rmSync,
+};
+
+/**
+ * Holds the exclusive diagnostic file across setup, verification and cleanup.
+ * A single failure retains its exact identity; simultaneous body/cleanup failures
+ * retain their causes in order. An existing or replaced path is never removed.
+ */
+function withGeneratedFrontendFile(
+  path: string,
+  verify: () => void,
+  operations: GeneratedFileOperations = generatedFileOperations,
+): void {
+  // Proof: wx→w overwrote the pre-existing foreign fixture; its ownership regression failed (Task22).
+  const descriptor = operations.open(path);
+  const failures: unknown[] = [];
+  // Proof: moving this write outside try left the partial-create ENOSPC fixture behind (Task22).
+  try {
+    operations.write(descriptor);
+    verify();
+  } catch (cause) {
+    failures.push(cause);
+  }
+  let ownsPath = false;
+  try {
+    const owned = fstatSync(descriptor);
+    const current = lstatSync(path);
+    // Proof: bypassing identity equality deleted the replacement's FOREIGN ORIGINAL bytes (Task22).
+    if (owned.dev !== current.dev || owned.ino !== current.ino)
+      throw new Error('generated frontend fixture identity changed');
+    ownsPath = true;
+  } catch (cause) {
+    failures.push(cause);
+  }
+  // Proof: omitting close or discarding its error independently lost the close-failure oracle (Task22).
+  try {
+    operations.close(descriptor);
+  } catch (cause) {
+    failures.push(cause);
+  }
+  if (ownsPath) {
+    // Proof: omitting removal left the normal generated fixture present (Task22).
+    try {
+      operations.remove(path);
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+  // Proof: omitting single-failure propagation swallowed the original partial-create ENOSPC (Task22).
+  if (failures.length === 1) throw failures[0];
+  // Proof: keeping only the last failure lost the body+cleanup causes; cloning them lost exact identities (Task22).
+  if (failures.length > 1)
+    throw new AggregateError(failures, 'generated frontend fixture failed with cleanup errors');
+}
 
 const SQLITE = 'libs/wbs/adapters/store-sqlite';
 const SQLITE_CONFORMANCE = 'src/testing/source-conformance.db.test.ts';
@@ -1099,11 +1172,112 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
     }
   });
 
+  it.each([
+    'normal',
+    'before-create',
+    'partial-create',
+    'body',
+    'cleanup',
+    'setup-and-cleanup',
+    'body-and-cleanup',
+    'close',
+    'close-and-remove',
+    'foreign',
+    'replaced',
+  ] as const)('generated frontend fixture cleanup preserves %s ownership and failures', (fault) => {
+    const directory = mkdtempSync(join(tmpdir(), 'frontend-fixture-owner-'));
+    const path = join(directory, 'uncollected.test.ts');
+    const setup = Object.assign(new Error('injected ENOSPC'), { code: 'ENOSPC' });
+    const body = new Error('verifier failed');
+    const cleanup = Object.assign(new Error('injected cleanup EACCES'), { code: 'EACCES' });
+    const closing = new Error('descriptor close failed');
+    let failed = false;
+    let caught: unknown;
+    try {
+      if (fault === 'foreign') writeFileSync(path, 'FOREIGN ORIGINAL');
+      const operations: GeneratedFileOperations = {
+        ...generatedFileOperations,
+        open: (name) => {
+          if (fault === 'before-create') throw setup;
+          return generatedFileOperations.open(name);
+        },
+        write: (target) => {
+          if (fault === 'before-create') throw setup;
+          if (fault === 'partial-create' || fault === 'setup-and-cleanup') {
+            writeFileSync(target, '');
+            throw setup;
+          }
+          generatedFileOperations.write(target);
+        },
+        close: (descriptor) => {
+          closeSync(descriptor);
+          if (fault === 'close' || fault === 'close-and-remove') throw closing;
+        },
+        remove: (name) => {
+          if (
+            ['cleanup', 'setup-and-cleanup', 'body-and-cleanup', 'close-and-remove'].includes(fault)
+          )
+            throw cleanup;
+          rmSync(name);
+        },
+      };
+      try {
+        withGeneratedFrontendFile(
+          path,
+          () => {
+            expect(readFileSync(path, 'utf8')).toBe('export {};\n');
+            if (fault === 'replaced') {
+              renameSync(path, `${path}.owned`);
+              writeFileSync(path, 'FOREIGN ORIGINAL');
+            }
+            if (fault === 'body' || fault === 'body-and-cleanup') throw body;
+          },
+          operations,
+        );
+      } catch (cause) {
+        failed = true;
+        caught = cause;
+      }
+      if (fault === 'foreign' || fault === 'replaced') {
+        expect(existsSync(path)).toBe(true);
+        expect(readFileSync(path, 'utf8')).toBe('FOREIGN ORIGINAL');
+      }
+      expect(failed).toBe(fault !== 'normal');
+      if (fault === 'foreign' || fault === 'replaced') {
+        if (fault === 'foreign') expect(caught).toMatchObject({ code: 'EEXIST' });
+        else expect(caught).toEqual(new Error('generated frontend fixture identity changed'));
+        expect(readFileSync(path, 'utf8')).toBe('FOREIGN ORIGINAL');
+      } else {
+        expect(existsSync(path)).toBe(
+          ['cleanup', 'setup-and-cleanup', 'body-and-cleanup', 'close-and-remove'].includes(fault),
+        );
+        if (fault === 'before-create' || fault === 'partial-create') expect(caught).toBe(setup);
+        if (fault === 'body') expect(caught).toBe(body);
+        if (fault === 'cleanup') expect(caught).toBe(cleanup);
+        if (fault === 'close') expect(caught).toBe(closing);
+        if (
+          fault === 'setup-and-cleanup' ||
+          fault === 'body-and-cleanup' ||
+          fault === 'close-and-remove'
+        ) {
+          expect(caught).toBeInstanceOf(AggregateError);
+          if (!(caught instanceof AggregateError)) throw new Error('combined failures missing');
+          expect(caught.errors).toHaveLength(2);
+          expect(caught.errors[0]).toBe(
+            fault === 'setup-and-cleanup' ? setup : fault === 'body-and-cleanup' ? body : closing,
+          );
+          expect(caught.errors[1]).toBe(cleanup);
+        }
+      }
+    } finally {
+      rmSync(directory, { recursive: true });
+    }
+  });
+
   it('refuses a frontend root suite omitted by all declared phases', () => {
     const file = `apps/wbs/fe-01/uncollected-${String(process.pid)}.test.ts`;
     const absolute = join(WORKSPACE.pathname, file);
-    writeFileSync(absolute, 'export {};\n');
-    try {
+    withGeneratedFrontendFile(absolute, () => {
       const run = Bun.spawnSync(['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts'], {
         cwd: WORKSPACE.pathname,
         stdout: 'pipe',
@@ -1111,9 +1285,7 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
       });
       expect(run.exitCode).toBe(1);
       expect(run.stderr.toString()).toContain(`wbs-fe-01 level targets do not collect ${file}`);
-    } finally {
-      rmSync(absolute);
-    }
+    });
   }, 30_000);
 
   it('names a foreign View file in a target declared Unit', async () => {

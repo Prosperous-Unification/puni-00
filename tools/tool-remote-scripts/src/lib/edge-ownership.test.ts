@@ -907,7 +907,8 @@ for (const family of ['envelope', 'raw'] as const)
         new Response(child.stdout).text(),
         new Response(child.stderr).text(),
       ]);
-      expect(code).toBe(0);
+      // Proof: an early real child sentinel still failed code0 and printed every captured diagnostic field (Task22).
+      expect(code, JSON.stringify({ code, stdout, stderr, signal: child.signalCode })).toBe(0);
       expect(stderr).toBe('');
       expect(JSON.parse(stdout)).toMatchObject({
         entered: true,
