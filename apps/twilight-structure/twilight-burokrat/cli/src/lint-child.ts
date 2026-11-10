@@ -15,7 +15,7 @@ interface Context {
 type Request = Context &
   (
     | {
-        readonly stage: 'Git version' | 'candidate root' | 'snapshotter';
+        readonly stage: 'Git version' | 'candidate root' | 'snapshotter' | 'preparation Git';
         readonly stdin: undefined;
       }
     | { readonly stage: 'validator'; readonly stdin: Uint8Array }

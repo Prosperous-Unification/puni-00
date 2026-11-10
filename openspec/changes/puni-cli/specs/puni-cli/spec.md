@@ -244,3 +244,10 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **WHEN** a preparer supplies authenticated bootstrap bytes, native external placement, protected launch capability and its interruption owner
 - **THEN** self-certification uses the existing private parent lane with a typed committed request, frozen explicit Git environment, required admission and the archive-default closure; successful certification requires all five enforce-certificate values while allowing extra report fields
 - **AND** only matching recorded first cancellation returns130/143; normal1 remains a failure with complete replayed stderr, other interrupted output is labeled as a captured prefix, and unexpected decoder/transport failures retain their original context
+
+#### Scenario: Current preparation selects source through explicit owned authority
+
+- **WHEN** a caller supplies authenticated expected toolkit identity, captured paths and independently frozen runtime authority
+- **THEN** source selection requires toolkit2 before candidate-dependent IO, checks native external placement of runtime/toolkit/descriptor/roles/closure, resolves exact full commit and HEAD equality, and requires Git-reported cleanliness through owned asynchronous Git
+- **AND** configured clean/process filters and indexed submodules at every index stage refuse before status can execute them; prior and per-query cancellation preserve controlled130/143 and cleanup, while unexpected decode/spawn/cleanup failures propagate
+- **AND** selection does not imply immutable capture, output reservation, preparer execution, archive certification or a producer-default change
