@@ -21861,5 +21861,50 @@
       "reviewerRanTestsDuringFinalAudit": false
     },
     "note": "After these logic checks only the two exact Proof labels and evidence/documentation changed. Format/OpenSpec/diff checks repeat for final records; source hash differences there are annotation-only. Earlier incremental compile zeros, interrupted broad provider run and unproven experiments are not completion evidence."
+  },
+  "stackedVerification": {
+    "sha": "a54dbcb7c1edc45d2832a1b5be845400e6677490",
+    "includesAuditCommit": "d4dce3f352e52d4dc596e84debd2228fdcdada20",
+    "argv": [
+      "bun",
+      "test",
+      "./apps/twilight-structure/twilight-burokrat/cli/src",
+      "--path-ignore-patterns",
+      "**/packaging/install.test.ts",
+      "--path-ignore-patterns",
+      "**/packaging/consumer-bootstrap.test.ts",
+      "--timeout=60000"
+    ],
+    "environment": {
+      "TOOL_WIKI_TRUSTED_NODE_MODULES": "/home/df/.codex/worktrees/6ce4/puni-00/node_modules"
+    },
+    "exitCode": 0,
+    "passed": 4183,
+    "failed": 0,
+    "assertions": 19319,
+    "files": 123,
+    "seconds": 2302.1,
+    "log": {
+      "path": "/tmp/puni-c14-stack-provider-regression.log",
+      "bytes": 2059351,
+      "sha256": "6522a4dc6b44cf4543c849f615baea20d0eaf03df2f8902866f5d3901a16201a"
+    },
+    "forcedTypes": {
+      "argv": [
+        "bun",
+        "node_modules/typescript/lib/tsc.js",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "log": {
+        "path": "/tmp/puni-c14-stack-forced-types.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "note": "The source/HEAD remained frozen for the whole run. The two named install/bootstrap files were excluded explicitly; this is not installed PUNI, current-producer switch or canonical host gate acceptance."
   }
 }
