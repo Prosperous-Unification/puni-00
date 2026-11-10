@@ -91,3 +91,37 @@ The preview testing secret was generated in private mode0600 artifacts and encry
 `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all` completed successfully (silent success), followed under `set -e` by the uncached five-project `bunx nx run-many -t test lint typecheck build -p website-fe-01 website-be-01 website-store-sqlite website-contracts website-analytics --skip-nx-cache` matrix: **20 successful tasks**, 3m44s, `/tmp/harden-website-matrix.log`. Main advanced to `a5e9dbe9f` during work; a normal merge preserved its registry changes. Website runtime trees were unchanged by that integration.
 
 Private main concurrently advanced to `36a3b4e` with an already-approved About header link in the canonical app snapshot. The corresponding two public app files were reconciled byte-for-byte to that eligible public source before snapshot refresh, preserving the concurrent site/app navigation rather than overwriting it. Its existing chrome regression passed.
+
+## Combined request hostname release
+
+Public901is merged. Approved public903and private100request-host/footer work are integrated without reverting About navigation, pure pin preparation, exact receipt/runtime origin binding or cross-host rollback refusal. The operator reset now accepts exact `dev.request.puni.dev` and legacy `dev.app.puni.dev` only with the development site, keeping production excluded.
+
+Fresh tests first failed on both new-host acceptance paths. After updating the API and frontend boundaries,30reset tests passed. Injecting prefix matching separately into each production boundary made the hostile suffix refusal fail; both restored. Persistent logs are in `.superpowers/sdd/harden-anonymous-conversation/delivery/preview-origin-*.log`.
+
+Private Fleet fixture is pinned to combined reviewed Fleet10f85c7, with exact six upstream blobs and tree identity. Its synthetic API input supplies trusted peers and the actual gateway-only API policy. The first full-policy fixture test refused the prior empty synthetic ingress policy, then186deployment/pin/registry tests passed with the corrected fixture. Both Fleet39CI checks are green. Frozen public installation restored the missing locked AWS SDK dependency; no unrelated source fix was made.
+
+Live HTTPS still serves private2c3c8e40/publicbe6923; the request hostname returns421before the combined gateway rollout. Final combined exact-SHA host gate, private full matrix/build, published images, migration snapshot/ledger capture, Fleet pin and live acceptance remain pending. Production is held and no new paid calls are authorized for these checks.
+
+## Shared lint contract restored before publication
+
+PublicCIrun42526533579failed the existing durable-contract typed-lint test:1105tool-devsync tests passed and one failed because the canonical evidence probe was globally ignored. The same existing test failed locally before the correction. This is a precise contract restoration, with no website behavior or gate command changes.
+
+The global evidence pattern now allows traversal only into the durable-contract probe directory; the explicit project-service whitelist remains one canonical file. The existing test passes all10assertions: the admitted probe gets typed lint, an injected floating promise is refused and an unlisted sibling gets a project-service fatal error. Other evidence exclusions remain in place. This follows [ESLint's directory traversal rules](https://eslint.org/docs/latest/use/configure/ignore#unignore-files-and-directories).
+
+Fresh commands: `bun test ./tools/tool-devsync/src/eslint-boundaries.test.ts --test-name-pattern 'durable-contract evidence retains'` passed; `bunx eslint --max-warnings=0 openspec/changes/cross-project-dependencies/evidence/task-7-durable-contracts/canonical-properties.ts` passed. Omitting the new traversal/admission exceptions made both production-path commands fail; restored. Logs: `.superpowers/sdd/harden-anonymous-conversation/delivery/lint-scope-*.log`.
+
+Only this source's superseded private build waiter and exactcf384gate jobs were cancelled after that deterministic failure. No other jobs were touched. Publication remains conditional on the corrected exact-SHA normal gate, required CI and full private source/image checks.
+
+## Existing-tab testing reset
+
+Actual browser acceptance on public1cc9d3 found that pasting the reset URL into an already-open exhausted chat changed only the fragment: eight scripted replies, zero remaining turns, one hashchange, no reset POST and the exhausted screen still visible. The startup-only consumer was the cause. Evidence: `delivery/reset-browser-proof/run-n6993keo/same-document-failure.json` under `.superpowers/sdd/harden-anonymous-conversation/`.
+
+The same consumer now observes hash changes, and a successful reset remounts the existing page with a fresh React key so it rereads the allowance. Normal fragments leave unsent input and mounted state intact. Initial fragment scrubbing still precedes analytics; existing exact-origin, token and sanitized-error boundaries are reused.
+
+Fresh parent verification: `bun test ./apps/website/fe-01/src/testing-reset.test.ts ./apps/website/be-01/src/testing-reset.test.ts` passed20tests,96assertions across2files. The maintained frontend regression first failed before implementation, then passed11tests/50assertions. The real mounted browser proof (`python3 .superpowers/sdd/harden-anonymous-conversation/delivery/reset-browser-proof/run.py`) passed twice after the correction, most recently `run-gdju9p87`: two same-document pastes and a fresh startup restored eight remaining turns, retained all16messages and eight ledger rows/5600simulated microUSD, rotated browser identity and made no additional provider call. The test token was scrubbed before each header-only POST and absent from request URLs/storage. All owned processes exited. These are scripted-provider results; no paid network provider call was made.
+
+Observed R5 faults, each restored before the final passing run: removing listener registration failed the maintained same-document test; removing the null guard emitted a captured window error and failed ordinary-fragment navigation; removing the React key left the actual mounted exhausted screen despite a successful reset and eight remaining API turns (`run-48_ytdrc`). Adjacent Proof comments name these checks. Logs: `delivery/hash-reset-{listener,ordinary-guard,key}-negative.log` and `delivery/hash-reset-final-{unit,browser}.log` under the same ignored evidence directory.
+
+The full frontend source suite passed174tests/584assertions and the isolated Vite production build passed. Scoped typed ESLint, Prettier and uncached `website-fe-01:typecheck` passed after mechanical void-callback/typed-array corrections; no runtime behavior changed in that cleanup. Logs: `delivery/hash-reset-{fe-tests,build,lint,format-check,types}.log`.
+
+Only the owned superseded1cc local gate and queued e35 private build were cancelled143 after this reproduction; their remaining child groups were terminated and no process remained in the isolated gate checkout. Neither is a passing gate/build. The corrected exact public source, private snapshot and full normal gate/build/CI remain required before publication.
