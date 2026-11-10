@@ -220,3 +220,9 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **WHEN** the installed root invokes a typed lint request with its independently captured lookup origin
 - **THEN** the same executable owner contains runtime-construction failures, delivers native cancellation, preserves required admission and exact output/verdict status, and reaches installed execution without reading stdin or reparsing argv
 - **AND** a lint-specific terminal exit follows ownership settlement; reusable provider APIs continue returning or throwing, and other namespaces retain ordinary output draining
+
+#### Scenario: Typed Dash execution retains validation and lazy command ownership
+
+- **WHEN** a caller supplies a typed Dash request independently of ambient argv
+- **THEN** shared cross-option coherence refuses before operation IO, the selected release/token/pool/general handler is loaded lazily, and its numeric status returns only after completion without assigning process.exitCode
+- **AND** token helpers avoid loading the heavy command graph, while generated pool helpers retain the selected protected PUNI launch followed by canonical dash/mcp/token
