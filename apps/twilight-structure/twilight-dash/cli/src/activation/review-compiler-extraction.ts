@@ -136,8 +136,9 @@ export function extractDerivativeTypeScriptPrerequisite(
       capturedRequest,
       source,
       { kind: 'bounded', limits: capturedLimits },
-      // Proof: a constant test-only installed namespace dependency, substituted only here, loses
-      // the authenticated createProgram sentinel; actual namespace control/restoration pass.
+      // Proof: both copied images load the owning absolute installed namespace and exercise its
+      // source/program constructors. Changing only this forwarding completes core without the
+      // authenticated createProgram sentinel, failing its exact rejection assertion; restoration passes.
       compiler,
       selectDerivative(provenance),
       'compatible',

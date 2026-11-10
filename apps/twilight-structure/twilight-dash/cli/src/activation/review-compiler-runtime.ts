@@ -133,7 +133,8 @@ export function withCompilerDerivative<T>(
       // Proof: omission admits an invalid zero-timeout Script invocation before native refusal;
       // phase-count assertions observe admission, not successful evaluation or publication.
       if (milliseconds <= 0) throw new Error('compiler derivative load timeout exceeded');
-      // Proof: clamp omission loses the huge-allowance positive to native timeout-range refusal.
+      // Proof: clamp omission forwards 2147483648 to all three actual Script calls;
+      // the timeout-argument oracle expects 2147483647 each. No native refusal is claimed.
       return Math.min(milliseconds, 2_147_483_647);
     };
     const lifetime: { context?: ReturnType<typeof createContext>; compiler?: TypeScriptRuntime } =

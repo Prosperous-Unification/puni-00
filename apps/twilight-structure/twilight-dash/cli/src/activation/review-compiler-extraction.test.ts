@@ -540,21 +540,85 @@ test('authenticated namespace reaches actual core program construction', async (
     const runtimePath = join(directory, 'runtime.ts');
     await writeFile(runtimePath, rewrite(corrupted, runtimeUrl.href));
     const compositionUrl = new URL('./review-compiler-extraction.ts', import.meta.url);
-    await writeFile(
-      join(directory, 'derivative.ts'),
-      rewrite(await readFile(compositionUrl, 'utf8'), compositionUrl.href, runtimePath),
+    const originalCompositionSource = rewrite(
+      await readFile(compositionUrl, 'utf8'),
+      compositionUrl.href,
+      runtimePath,
     );
+    const forwardingSite = '      compiler,\n      selectDerivative(provenance),';
+    expect(originalCompositionSource.split(forwardingSite)).toHaveLength(2);
+    const compositionSource = originalCompositionSource;
+    const installedModuleUrl = import.meta.resolve('typescript');
+    // The same owning-resolved dependency is loaded AND exercised inside both copied images.
+    const dependencyPrelude = `import installedCompiler from ${JSON.stringify(installedModuleUrl)};
+const dependencySource = installedCompiler.createSourceFile('/installed-dependency.ts', 'export const installed = 1;', installedCompiler.ScriptTarget.ES2022);
+const dependencyProgram = installedCompiler.createProgram([], { noLib: true, types: [] }, {
+  getSourceFile: () => undefined, getDefaultLibFileName: () => '/no-lib.d.ts', writeFile: () => undefined,
+  getCurrentDirectory: () => '/namespace-probe', getDirectories: () => [], fileExists: () => false,
+  readFile: () => undefined, getCanonicalFileName: path => path, useCaseSensitiveFileNames: () => true,
+  getNewLine: () => String.fromCharCode(10),
+});
+export const installedDependencyWitness = {
+  moduleUrl: ${JSON.stringify(installedModuleUrl)},
+  version: installedCompiler.version,
+  fileName: dependencySource.fileName,
+  statementCount: dependencySource.statements.length,
+  programSourceCount: dependencyProgram.getSourceFiles().length,
+  createProgramType: typeof installedCompiler.createProgram,
+};
+`;
+    await writeFile(join(directory, 'derivative.ts'), dependencyPrelude + compositionSource);
     const composition = (await import(join(directory, 'derivative.ts'))) as typeof DerivativeModule;
-    expect(() =>
-      composition.extractDerivativeTypeScriptPrerequisite(
+    const dependencyWitness: unknown = Reflect.get(composition, 'installedDependencyWitness');
+    expect(dependencyWitness).toEqual({
+      moduleUrl: installedModuleUrl,
+      version: '6.0.3',
+      fileName: '/installed-dependency.ts',
+      statementCount: 1,
+      programSourceCount: 0,
+      createProgramType: 'function',
+    });
+    console.info('namespace dependency witness', JSON.stringify(dependencyWitness));
+    let outcome:
+      | {
+          status: 'fulfilled';
+          extractorId: string;
+          imports: number;
+          reverseEdges: number;
+          publicDeclarations: number;
+        }
+      | { status: 'rejected'; name: string; message: string };
+    try {
+      const extraction = composition.extractDerivativeTypeScriptPrerequisite(
         workspace,
         request,
         fixture().source,
         limits,
         artifact(),
         monotonicClock(),
-      ),
-    ).toThrow('owned derivative core sentinel');
+      );
+      outcome = {
+        status: 'fulfilled',
+        extractorId: extraction.extractor.extractorId,
+        imports: extraction.relationships.imports.length,
+        reverseEdges: extraction.relationships.reverseEdges.length,
+        publicDeclarations: extraction.relationships.publicDeclarations.length,
+      };
+    } catch (cause) {
+      if (typeof cause !== 'object' || cause === null)
+        throw new Error('namespace witness threw a non-error', { cause });
+      const name: unknown = Reflect.get(cause, 'name');
+      const message: unknown = Reflect.get(cause, 'message');
+      if (typeof name !== 'string' || typeof message !== 'string')
+        throw new Error('namespace witness error shape differs', { cause });
+      outcome = { status: 'rejected', name, message };
+    }
+    console.info('namespace forwarding outcome', JSON.stringify(outcome));
+    expect(outcome).toEqual({
+      status: 'rejected',
+      name: 'Error',
+      message: 'owned derivative core sentinel',
+    });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

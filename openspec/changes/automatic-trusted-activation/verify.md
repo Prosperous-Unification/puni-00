@@ -6463,7 +6463,9 @@ installed-namespace test dependency, and one new explicit no-VM facade fence. Al
 mutants exit1 at intended oracles and restored controls exit0; unique site counts are one.
 Four final-form timing-ingress repeats are refreshes, not additional distinct cases. Actual
 phase/consumer/publication admission is distinguished from modeled/native error-order evidence
-for shape, nonfinite later/elapsed, rounding/clamp and invalid timeout guards. No owner entries
+for shape, nonfinite later/elapsed, fractional rounding and invalid timeout guards. Clamp instead
+fails the actual timeout argument vector:2147483647 each expected versus2147483648 each observed,
+with no native refusal. No owner entries
 or producer pins are manufactured. Initial registration-omission selection survived because its
 chosen test omitted a valid-owner positive; the retained receipt is disqualified, the oracle now
 calls the real owner reader and the same omission fails. Initial too-short scripted budgets are
@@ -6488,3 +6490,22 @@ Combined Stage3/clock review remains pending. Stage4 BOTH actual-attempt routes 
 process clock composition, Stage5 moved dependency packaging/installed execution, complete producer/
 config/reference closure, parser settlement, actual full read manifest, eleven documents,
 protected freeze and independently installed authority/unattended acceptance remain mandatory.
+
+### Combined Stage3/clock review fixround1 (9e fixbase)
+
+Review accepted37 of38 claimed ordinary clock cases: the installed-namespace receipt failed on
+unresolved bare typescript import, before its sentinel assertion. That receipt/runner/report snapshot
+are preserved in clock-fix1-evidence and explicitly superseded. The corrected copied test image uses
+its owning absolute installed module URL and exercises actual createSourceFile/createProgram in BOTH
+controls and mutant. Only the compiler forwarding argument changes. Control/restoration reject with
+EXACT owned derivative core sentinel; mutant completes actual core (one import, reverse edge and
+public declaration) and fails that exact rejection assertion. The strict runner rejects resolution,
+syntax/type/reference/earlier errors. Active qualified ordinary count returns to38, not39.
+
+The clamp receipt is a timeout-argument invariant: actual three calls receive2147483648 without
+clamp, while the oracle expects2147483647. It is neither native rejection nor a publication bypass.
+The separate ceil receipt remains a native fractional-timeout error. No clamp rerun is needed.
+
+Only namespace/valid-owner covering tests and normal scoped hooks are required for this proof-only
+repair; broad unchanged suites, native owning checks, installed/gate/CI and all Stage4/5/full-goal
+acceptance remain unverified/open. Exact commands, outputs and fix head/tree are appended to clock-report.md.
