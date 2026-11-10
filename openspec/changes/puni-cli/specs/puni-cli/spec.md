@@ -258,3 +258,10 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **THEN** it retains that commit/tree and all exact path/mode/blob tuples, reads each blob once through owned explicit Git, verifies actual Git content hashes and complete batch framing, and returns fresh metadata/file copies independent of caller or worktree mutations
 - **AND** noncanonical/duplicate/file-ancestor paths, gitlinks, absent/substituted objects and malformed/extra batch bytes refuse; cancellation settles owned queries before returning controlled130/143 without parsing partial output
 - **AND** capture does not imply physical materialization, valid native symlink/collision placement, completed preparation or producer cutover
+
+#### Scenario: Current preparation materializes captured source without altering authority or hiding partial output
+
+- **WHEN** captured source is materialized under caller-established preparation authority
+- **THEN** the existing output parent resolves natively, a fresh private root refuses existing state, candidate/toolkit/runtime/native closure and authority targets stay protected, metadata names refuse, and exclusive directory/file/link creation prevents merging or overwrite
+- **AND** exact regular bytes/modes and awaited descriptor closure precede link creation, preserved link targets must resolve natively inside the root before success, and failures retain original causes plus any owned partial root
+- **AND** recorded cancellation stops later stages and remains controlled after release, while operation/close/release failures remain errors; no dependency/build/preparer/archive completion is inferred

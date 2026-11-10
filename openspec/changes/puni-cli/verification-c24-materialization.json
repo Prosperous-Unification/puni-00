@@ -1,0 +1,1862 @@
+{
+  "schemaVersion": 1,
+  "scope": "C24 fresh native-external materialization of captured source; no dependency/build/preparer switch",
+  "sourceBase": "49a04d50217ba19bc5c7b10cc623628da50c3480",
+  "focused": {
+    "pass": 70,
+    "fail": 0,
+    "assertions": 266,
+    "files": 1,
+    "seconds": 12.15,
+    "log": "/tmp/puni-c24-materialize-green6.log"
+  },
+  "finalObserved": {
+    "pass": 232,
+    "fail": 0,
+    "assertions": 767,
+    "files": 8,
+    "seconds": 41.95
+  },
+  "checks": [
+    {
+      "id": "final-types",
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "seconds": 5.102,
+      "log": "/tmp/puni-c24-final-types.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "final-lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts"
+      ],
+      "exitCode": 0,
+      "seconds": 3.321,
+      "log": "/tmp/puni-c24-final-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "final-tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-source.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-child.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+        "--timeout=30000"
+      ],
+      "exitCode": 0,
+      "seconds": 41.968,
+      "log": "/tmp/puni-c24-final-tests.log",
+      "logSha256": "77e6bdcf18080f42230ffe964c9f9edfa7bbeb6548482ff8dd27576c7b331f23"
+    }
+  ],
+  "canonicalFaults": 51,
+  "canonicalLogs": 102,
+  "canonical": [
+    {
+      "id": "material-first-reason",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "retains first cancellation after a completed write",
+      "edits": [
+        {
+          "find": "first ??= signal;",
+          "replacement": "first = signal;"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=retains first cancellation after a completed write"
+      ],
+      "state": "killed-restored",
+      "testName": "retains first cancellation after a completed write and closes before returning",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-first-reason.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-first-reason.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "0c88aeb56f079788cb1938196a3e151b929cfdda17dd6c696ce40bd3cffa0de1",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "5f0acd498abb01dc4d7d1260ba84b61d52e51c5a69b4c8fc81d1de0ffbfae8d0",
+      "greenLogHash": "d48417d81e094a09d9429f2fb77b8f84b3f4115dc3263b861c77d0891771bc69"
+    },
+    {
+      "id": "material-cancel-status",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "honors cancellation recorded by captured metadata",
+      "edits": [
+        {
+          "find": "first === 'SIGINT' ? 130 : 143",
+          "replacement": "first === 'SIGINT' ? 143 : 130"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=honors cancellation recorded by captured metadata"
+      ],
+      "state": "killed-restored",
+      "testName": "honors cancellation recorded by captured metadata before any output reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-cancel-status.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-cancel-status.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "4116d587a252c32894cc96bbed3e739492352d3e08316c12c29eca6124b2ed13",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "ba81e49fc06c10360315cd455961fbd83f6a5482190d2d5b927a1f9506e3b1be",
+      "greenLogHash": "1871565f1625000d17dd27cf7e85aa2b1e2931eaa721f6c87b6e0dcd518c24e6"
+    },
+    {
+      "id": "material-prior-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "returns prior cancellation before reading malformed",
+      "edits": [
+        {
+          "find": "if (prior !== undefined) return prior;",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=returns prior cancellation before reading malformed"
+      ],
+      "state": "killed-restored",
+      "testName": "returns prior cancellation before reading malformed source or absent parent",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-prior-cancel.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-prior-cancel.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "c5de741f3db2e81c440f70521ed9f7adfe1e3319db3fc2527fe126e87ddbc9f5",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "15a1b3ad6e3d28dc82f58e82aadeb4253b3c557960baa94d37588e2321e5059e",
+      "greenLogHash": "f51e7c24e7ac73b1dcff365fb1b29facd1c191d14fffb1ec50bf9c2f36a9e15d"
+    },
+    {
+      "id": "material-before-root-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "honors cancellation recorded by captured metadata",
+      "edits": [
+        {
+          "find": "if (cancelledBeforeRoot !== undefined) return cancelledBeforeRoot;",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=honors cancellation recorded by captured metadata"
+      ],
+      "state": "killed-restored",
+      "testName": "honors cancellation recorded by captured metadata before any output reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-before-root-cancel.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-before-root-cancel.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "1e4d58a11ce1f7436ab9e0e8346a2103fed948c38346cf5dc8dc714fba9087e3",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "7798839557e2a0846dd45a94ddc4bc598ce5bdca3d9ffb8e2af940b3ddaf65b4",
+      "greenLogHash": "01ca5ad6acb03bbfdde380f3977cd25f2bc4c6245c455f87f0f94dc7039bc349"
+    },
+    {
+      "id": "material-terminal-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "honors a recorded control delivered while releasing",
+      "edits": [
+        {
+          "find": "if (cancelled !== undefined) return cancelled;\n  return settled.outcome;",
+          "replacement": "return settled.outcome;"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=honors a recorded control delivered while releasing"
+      ],
+      "state": "killed-restored",
+      "testName": "honors a recorded control delivered while releasing the subscription before terminal success",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-terminal-cancel.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-terminal-cancel.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "aec8f841ef60935b19c8929fa6419cfbee4a257fb129bc2d9370d5a4f65363ef",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "d97e01b22aeae0ab956880112b595dcd2f5ff7894cf8631dad286374a3e118cc",
+      "greenLogHash": "a803592cfcc512344223b9eb3d85b4f52b542c526924650f32b7e4059802d53c"
+    },
+    {
+      "id": "material-read-capability",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "captures paths, selected authority and read capability",
+      "edits": [
+        {
+          "find": "readFile = source.readFile.bind(source);",
+          "replacement": "readFile = (path:string)=>source.readFile(path);"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=captures paths, selected authority and read capability"
+      ],
+      "state": "killed-restored",
+      "testName": "captures paths, selected authority and read capability before reservation awaits",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-read-capability.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-read-capability.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "6d1fed4bc7e972e294d274de17d9380539909cf4c39fe886bd1c5daaad91d36d",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "b0414209669f842f265f0cb0db31c5e3991e120cb51bcdd072be70f57b084750",
+      "greenLogHash": "9890b8727c73ca20f0d144fa79dec17a9deb7d71a63b2b35cbeea7e18c0f6e8b"
+    },
+    {
+      "id": "material-metadata",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses Git metadata path",
+      "edits": [
+        {
+          "find": "components.some(isGitMetadata)",
+          "replacement": "false"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses Git metadata path"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses Git metadata path \".git/config\" before output writes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-metadata.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-metadata.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "2bb5583f52bdaca3b859608566ec60236a42a197cb9194af4c04ceb692d32bf6",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "ee63de50e71705427340f5acdf67cf5ffc82aa81017a19154671de43b2bdb2f8",
+      "greenLogHash": "825eeaf0b628a1d71f2155549cb670df5f64b8bf65e18d81f189dd44e741ccd1"
+    },
+    {
+      "id": "material-metadata-200c",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses declared Git HFS metadata equivalence 200c",
+      "edits": [
+        {
+          "find": "\\u200c-\\u200f",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses declared Git HFS metadata equivalence 200c"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses declared Git HFS metadata equivalence 200c",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-metadata-200c.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-metadata-200c.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "9a7fd891d0f0e40ffb8cd58e73d395605df02a18d9003510d1fa05ac709a70f1",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "b991e7f88f6af6899a20a80e630a9f73324c1a1e140339643cd72f7f9343af4d",
+      "greenLogHash": "c50770909da382032d5fe9348b66975ae8a5ba572f2e54ceb1716be044c8ccbd"
+    },
+    {
+      "id": "material-metadata-202a",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses declared Git HFS metadata equivalence 202a",
+      "edits": [
+        {
+          "find": "\\u202a-\\u202e",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses declared Git HFS metadata equivalence 202a"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses declared Git HFS metadata equivalence 202a",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-metadata-202a.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-metadata-202a.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "24b20a62c122fdc5904009a577451cedcd5455ea80ecd55bbcbf565b63a306f9",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "101b9ee6f0a29cfe442fa43a60bbc9d15eae01b2ae9d576cd217b0845db94e28",
+      "greenLogHash": "d71898f8982605b2da9f7048aa09f9e040684a10155d16654ab91c9f6928a4bb"
+    },
+    {
+      "id": "material-metadata-206a",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses declared Git HFS metadata equivalence 206a",
+      "edits": [
+        {
+          "find": "\\u206a-\\u206f",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses declared Git HFS metadata equivalence 206a"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses declared Git HFS metadata equivalence 206a",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-metadata-206a.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-metadata-206a.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "8f7d6ba284cbd83a218a29786439871413874c9d229aa4411c9e1944c3f18344",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "d9d6ba7333ea20fa726f8f858d835a68764d9512a668e915574311e4b044adea",
+      "greenLogHash": "717099e4a3df0aba9ce369b9e70bb537d359a548f961a8c3265208be56603b1e"
+    },
+    {
+      "id": "material-metadata-feff",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses declared Git HFS metadata equivalence feff",
+      "edits": [
+        {
+          "find": "\\ufeff",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses declared Git HFS metadata equivalence feff"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses declared Git HFS metadata equivalence feff",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-metadata-feff.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-metadata-feff.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "261d9a0599da0df7f5b62a8911e642420a58df8d6fb4ba3388183d24974da30b",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "d9e02ea0bd30fbeea9285c18e7ff33e69e8963adfcbf7e301c8575a1dc3fb1b0",
+      "greenLogHash": "6e55828e0abd4c6a70c660abd291df3ac4cabd0a4485b8fd48d7ec8281feb907"
+    },
+    {
+      "id": "material-metadata-case",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses Git metadata path \"folder/.GiT/HEAD\"",
+      "edits": [
+        {
+          "find": "/^[.][gG][iI][tT]$/u",
+          "replacement": "/^[.]git$/u"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses Git metadata path \"folder/.GiT/HEAD\""
+      ],
+      "state": "killed-restored",
+      "testName": "refuses Git metadata path \"folder/.GiT/HEAD\" before output writes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-metadata-case.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-metadata-case.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "775b2b8e9e6d45b73849459df27a5df0994739b88972fcb73049767ef4d92fcf",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "bdb9927a740c04573cbc1008f11b47b7ef4547b21e9ba2f07f337afbad53088a",
+      "greenLogHash": "5c3bd88f552319b05f9d76eeac0fb4b87ace70e475b84c8c8dcc6d0bdabf94e5"
+    },
+    {
+      "id": "material-link-utf8",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses invalid UTF8 link target",
+      "edits": [
+        {
+          "find": "fatal: true, ignoreBOM: true",
+          "replacement": "fatal: false, ignoreBOM: true"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses invalid UTF8 link target"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses invalid UTF8 link target before output reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-link-utf8.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-link-utf8.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "455bca8b3e4a47a10c78baab1d58ecfb3b7aec03cd22ba83732e9275aed23f19",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "d132ddbabf955167bd732a857bd226c6c3f7dc5402fde84133e391faff858e12",
+      "greenLogHash": "e6f84a61bb013979eafbe9aef215c1bd623ed1c508cf4ff6a8522f5a32f4d5bf"
+    },
+    {
+      "id": "material-link-bom",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "materializes exact binary bytes",
+      "edits": [
+        {
+          "find": "fatal: true, ignoreBOM: true",
+          "replacement": "fatal: true, ignoreBOM: false"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=materializes exact binary bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "materializes exact binary bytes, executable modes, Unicode BOM names and captured symlinks",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-link-bom.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-link-bom.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "11ca7aa37004cc8714f8628523af07c227380a7a09d9a682b38084abe6b793fa",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "9c6ed57c61dbe87647d0db87e4ba7f6bffd0d900e2b3351ece12a5faec470101",
+      "greenLogHash": "6b3175f3026702f43ad8166b905c15289287a3dacd3e0d68eb0cefbe100d3575"
+    },
+    {
+      "id": "material-link-empty",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses empty link target",
+      "edits": [
+        {
+          "find": "target === '' || ",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses empty link target"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses empty link target before output reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-link-empty.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-link-empty.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "17e92119afa37f76be497e8b112f33e86b49531e22eb1b42d59d0db70f3eb18b",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "19827fb76534676439338a6ddeec527d8d3d2fe7408f92e164557df32e007103",
+      "greenLogHash": "e0d3a2d711858ef75c1b3a4c2a3ba61d62b1d71f50a5806d4df9c770ec8e7ac5"
+    },
+    {
+      "id": "material-link-nul",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses NUL link target",
+      "edits": [
+        {
+          "find": "target.includes('\\0') || ",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses NUL link target"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses NUL link target before output reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-link-nul.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-link-nul.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "e8d5537ed31159c86fbad586c686ef0c95d68c24317bb8d1be63a71a3d2b104a",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "f90be9c1adc1bf0cc78511f211f9fd208df32b62d809a3c7dd0b5a6b2fcb41d6",
+      "greenLogHash": "80b0396ffc7eb7f36cb5dd462e19c4b8ff8dbd3755f49a3b7bcd8f27d5c52db0"
+    },
+    {
+      "id": "material-link-absolute",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses absolute link target",
+      "edits": [
+        {
+          "find": " || isAbsolute(target)",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses absolute link target"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses absolute link target before output reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-link-absolute.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-link-absolute.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "c325c39a20409641d27084115515282b22036babec23f4e641ca72e61a12e2b7",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "62cf1ee717c71a90b980e2982711d9f3adfc69e01af33bd5727e16404707117d",
+      "greenLogHash": "169d5d3773bad6720ecdee29642da044f45dbba991f1ff889452d55aa8d19292"
+    },
+    {
+      "id": "material-mode-refusal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses unsupported captured mode",
+      "edits": [
+        {
+          "find": "else throw new Error('captured source has unsupported materialization mode: ' + entry.path);",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses unsupported captured mode"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses unsupported captured mode rather than silently omitting a trusted entry",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-mode-refusal.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-mode-refusal.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "6e7e6136a370b5e53b4d00c4240b2c1e33e502402c50284fdc2246b0623123c3",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "66cf8e76e482d00c4f456c2e95ca35db6a9e0eec8c51cff3c1c3ba2d239bf3d1",
+      "greenLogHash": "36aaefdd2b02301984f26588550cdfc05b6356de58cc6a6ebd6155bb996bcba8"
+    },
+    {
+      "id": "material-destination-empty",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses invalid fresh output leaf \"\"",
+      "edits": [
+        {
+          "find": "destination === '' || ",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses invalid fresh output leaf \"\""
+      ],
+      "state": "killed-restored",
+      "testName": "refuses invalid fresh output leaf \"\"",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-destination-empty.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-destination-empty.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "06f55848089c1cc1f40003a29f4d99061f4d034256487a47300972a1a554eec5",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "b808cf79a09ef70244ebd44042931a3dbb853a4791d61728329d6f8e3a303e94",
+      "greenLogHash": "f9347f17730c02aa4214404744261190a879bc036820f58170ae97bea6a6ff1e"
+    },
+    {
+      "id": "material-leaf-empty",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses invalid fresh output leaf \"/\"",
+      "edits": [
+        {
+          "find": "leaf === '' || ",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses invalid fresh output leaf \"/\""
+      ],
+      "state": "killed-restored",
+      "testName": "refuses invalid fresh output leaf \"/\"",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-leaf-empty.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-leaf-empty.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "f8a138352ae2bd18881d806be85d8cbe4a20b1d06352ba5ceb63677324c848ba",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "4384b7105624671e8a7baabac053ebaa63e09c19652c32c5d941a12e51033963",
+      "greenLogHash": "8fca29a373e7833f088a6ef012b91c999d7378c0c9e016678c23d09d9c4f2837"
+    },
+    {
+      "id": "material-leaf-dot",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses invalid fresh output leaf \".\"",
+      "edits": [
+        {
+          "find": "leaf === '.' || ",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses invalid fresh output leaf \".\""
+      ],
+      "state": "killed-restored",
+      "testName": "refuses invalid fresh output leaf \".\"",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-leaf-dot.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-leaf-dot.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "b6fbced15b85b1551da8a07bd932c37dd805724d6359487ca037f9e18d255ae8",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "a07c1603d4f8d099b1260f87cf78004030c8ab345742fca2fd9d0f9fb66db5e0",
+      "greenLogHash": "567337e2d81dd746405dc4b92568c23cc4f609b68ea512a379e1dbbe5e00a2f3"
+    },
+    {
+      "id": "material-leaf-parent",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses invalid fresh output leaf \"..\"",
+      "edits": [
+        {
+          "find": " || leaf === '..'",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses invalid fresh output leaf \"..\""
+      ],
+      "state": "killed-restored",
+      "testName": "refuses invalid fresh output leaf \"..\"",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-leaf-parent.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-leaf-parent.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "710c82ad762693f23af9ec64c26f5e5187ed30620246f6606881cd9b05ef6277",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "5a8d12c3cfa35a652034530c1db839d648ea85c451d1dc970d231e04f67963bf",
+      "greenLogHash": "b45566106b88780d3ead19871afef09349ef5bc555d16ba508e3af038ead3494"
+    },
+    {
+      "id": "material-native-parent",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "preserves native symlink-parent output placement",
+      "edits": [
+        {
+          "find": "realpathSync.native(dirname(operand))",
+          "replacement": "realpathSync.native(dirname(join(callerDirectory,destination)))"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=preserves native symlink-parent output placement"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves native symlink-parent output placement",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-native-parent.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-native-parent.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "8aa1825607c477cb7fe960cf46cbb8a59d96c8be70799c52a5e83910277f31e0",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "8406565f3fe28eaf91c15c9f09ef3b63a5a7884f717fdeeb65258be7bdce2ffa",
+      "greenLogHash": "0bb27cbb3cee7af20907f4a60ec784de0fe33816266b16838f2a935ac74b597b"
+    },
+    {
+      "id": "material-protect-candidate",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses output beneath native protected candidate",
+      "edits": [
+        {
+          "find": "      selection.candidateDirectory,\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses output beneath native protected candidate"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses output beneath native protected candidate authority before reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-protect-candidate.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-protect-candidate.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "557bd0a3eccdca2e68f1d633e63758022429bdedf908b3dd65f899a2053cfbf1",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "8c67d45f2dfbf55b00a17be9dbd07d07b352ccbe3dee4fe53677076f7f9b3a6a",
+      "greenLogHash": "43f4a5e391fb8e1a7b13ca32fe8cde0207b6edcb1a9a9d7fcf34a2bb059f4d0e"
+    },
+    {
+      "id": "material-protect-toolkit",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses output beneath native protected toolkit",
+      "edits": [
+        {
+          "find": "      toolkit,\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses output beneath native protected toolkit"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses output beneath native protected toolkit authority before reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-protect-toolkit.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-protect-toolkit.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "dd5b6255e1f02655757e66b9804c93c63665760558d45ac4d42b377b4848035d",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "5e6153571773a76a5ae1978b817ce56b409d0885d6eee1d437b5d8e74e94f9b6",
+      "greenLogHash": "6f775272fc10ec41e89a5e3c9a6279ef494315f6cbea06939978bdc8cec5f61c"
+    },
+    {
+      "id": "material-protect-runtime",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses output beneath native protected runtime",
+      "edits": [
+        {
+          "find": "      selection.runtime.directory,\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses output beneath native protected runtime"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses output beneath native protected runtime authority before reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-protect-runtime.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-protect-runtime.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "35e4addbe570bf85206a67f98b29c166d7357d3067476a8d3b00341ad3374fbf",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "0713635f70156861322832a8f99324aabb2a568b7dddf1b4bd4703d94e23bf7d",
+      "greenLogHash": "59b68501eca989568a1ab3558a6018f0e5eda5797a5ef696edcadbdee2ae5215"
+    },
+    {
+      "id": "material-protect-closure",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses output beneath native protected closure",
+      "edits": [
+        {
+          "find": "      join(toolkit, 'trusted-node-modules'),\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses output beneath native protected closure"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses output beneath native protected closure authority before reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-protect-closure.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-protect-closure.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "d77bb6cf495e1c2dab7a6814ed31818047ab640f3192a333d2a2084f59adbd75",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "aa8f27b03250674bedb063f345f49658cffcefdf7def546def4c9b29128dc74b",
+      "greenLogHash": "b15565972919f98bebc26f22101497e77d5570730edb6d16295abdd8950d2d50"
+    },
+    {
+      "id": "material-protected-native",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses output beneath native protected closure",
+      "edits": [
+        {
+          "find": ".map((path) => realpathSync.native(path));",
+          "replacement": ".map((path) => path);"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses output beneath native protected closure"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses output beneath native protected closure authority before reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-protected-native.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-protected-native.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "91a850ad38118fc41aaf052cdc5cee3553bae18785af41c789dbffc4eb75869d",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "b14769e8aebe9eff8a3ab6dc40b61f1d0c8da76973dc67509f75a1a81f1e66c8",
+      "greenLogHash": "a91159f20e99b35107f6c12d4a573c0f9fbef868e08366315a3496a44001b05a"
+    },
+    {
+      "id": "material-protected-refusal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses output beneath native protected candidate",
+      "edits": [
+        {
+          "find": "protectedPaths.some((path) => isWithin(path, proposed))",
+          "replacement": "false"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses output beneath native protected candidate"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses output beneath native protected candidate authority before reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-protected-refusal.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-protected-refusal.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "652de6ffb0a65d1ee4bf593f6a7ad2e6371d71a33d7792053659ee022d8f866a",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "c2c5a322b7ac78ef84af11a6462e4abeaeca8b4e87e694d3ca01b6c2af471d6e",
+      "greenLogHash": "df500b0fb388afc72d25f45e79b66b7a3e8497052829141a57c9a9c5d5820f73"
+    },
+    {
+      "id": "material-descriptor-availability",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses missing selected descriptor target",
+      "edits": [
+        {
+          "find": "      join(toolkit, 'toolkit.json'),\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses missing selected descriptor target"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses missing selected descriptor target before output ownership",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-descriptor-availability.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-descriptor-availability.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "b0b1a42d5076aeb7584984e5a2622c7b5101a97ca2469452491ca0d8b70e5742",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "36fa8440474ba03ae5358bb9d2ff95bd42f04fd403f2a7657b0f817185d4b5f9",
+      "greenLogHash": "f6769df0ee9f86b2d97988a81da8193b3639bef2f5f1c68467b556db23912f32"
+    },
+    {
+      "id": "material-role-availability",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses missing selected role target",
+      "edits": [
+        {
+          "find": "      ...Object.keys(selection.toolkit.roleBytes).map((role) => join(toolkit, role)),\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses missing selected role target"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses missing selected role target before output ownership",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-role-availability.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-role-availability.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "b92dd10b0b6c78b973640bb5fddd1203ad532a049ef4b8c4592f6a77aafc77dc",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "d5ac2c05fec22b842f2d16966f8072e297f4ec475ddacbf6f4bb8c44c3c85cd1",
+      "greenLogHash": "89b6601241535b9fa31fa6bc3ef7e2b4022fe61ae6fc5288209e1f2702d2ca3e"
+    },
+    {
+      "id": "material-fresh-root",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses existing directory without replacement",
+      "edits": [
+        {
+          "find": "await mkdir(proposed, { mode: 0o700 });",
+          "replacement": "await mkdir(proposed, { recursive:true,mode: 0o700 });"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses existing directory without replacement"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses existing directory without replacement or output ownership",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-fresh-root.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-fresh-root.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "b473f6b086d392ff8e6b27c2b1bf575f22ec68656b1bbb4695bcb72907615909",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "aced0f1532f9006f52318c0e411484c41b9471ec487737fe4a83415d174038ea",
+      "greenLogHash": "9e23f0b703ece38d768f88201059b495072e7035ccc0859f474c489f0bba350b"
+    },
+    {
+      "id": "material-record-ownership",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "retains created root identity when native canonicalization fails",
+      "edits": [
+        {
+          "find": "    owned = proposed;\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=retains created root identity when native canonicalization fails"
+      ],
+      "state": "killed-restored",
+      "testName": "retains created root identity when native canonicalization fails after successful mkdir",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-record-ownership.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-record-ownership.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "c85a5d0e39e8c0d3a696c24f7d7e346f62ec6a6ea37e60a1515a67059be590a2",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "3ac774a0d4eb34c92366beb91c65c3dcc0c2e56db08f8ae0a70be8ca42810fce",
+      "greenLogHash": "da28cbfa31a783e0c6b7f81929f2ad1fba9a4b35aad6999ec1dae4375002b068"
+    },
+    {
+      "id": "material-fresh-parents",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "refuses a newly occupied logical parent",
+      "edits": [
+        {
+          "find": "await mkdir(join(root, ...directory.split('/')), { mode: 0o700 });",
+          "replacement": "await mkdir(join(root, ...directory.split('/')), {recursive:true, mode: 0o700 });"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses a newly occupied logical parent"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses a newly occupied logical parent rather than merging directories",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-fresh-parents.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-fresh-parents.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "a022e53eae14a800eb774f4dc67d56f61328e847a6e1746df10fcbcd71ecb789",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "095399dec1e5991678df8af5e3f776f2b08c2dda95ab4dff1ea0ded83e25ac32",
+      "greenLogHash": "9ab24cef5da2e404ecb7324bcc1fd650fcaeafb3b5e211c86bbfe5b8920e5621"
+    },
+    {
+      "id": "material-exclusive-file",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "exclusive file creation preserves",
+      "edits": [
+        {
+          "find": "'wx', 0o600",
+          "replacement": "'w', 0o600"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=exclusive file creation preserves"
+      ],
+      "state": "killed-restored",
+      "testName": "exclusive file creation preserves a dependency-injected collision sentinel",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-exclusive-file.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-exclusive-file.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "a03250f0d0499d3df26cd9965c79e40c41a44e1e1f41724d87ddc8ebf6db860a",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "de54209880a14beb6054add359af048a9655e6c417e6d93fcbcc3bdf027a4e2f",
+      "greenLogHash": "33616aeab48a87a805ed02eb810ec5ccb1684caf4f5de6f229e786b437ac4ebf"
+    },
+    {
+      "id": "material-file-mode",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "materializes exact binary bytes",
+      "edits": [
+        {
+          "find": "await descriptor.chmod(file.mode);",
+          "replacement": "await descriptor.chmod(0o600);"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=materializes exact binary bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "materializes exact binary bytes, executable modes, Unicode BOM names and captured symlinks",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-file-mode.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-file-mode.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "09e2f08a78d493485673f8757b6f19b0c3b3d8729a676c3391ca15b43740b7c6",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "a8dd03334a723951bf1df122f417b119262bf3c47b0aaa169733e4fb6ca1eb01",
+      "greenLogHash": "8dfff2d84728e206b9bf7effcce3504fc6b5b86a65c992c7d2195dbba8a0f366"
+    },
+    {
+      "id": "material-write-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "awaits descriptor close without payload writes",
+      "edits": [
+        {
+          "find": "if (first === undefined) await descriptor.writeFile",
+          "replacement": "if (true) await descriptor.writeFile"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=awaits descriptor close without payload writes"
+      ],
+      "state": "killed-restored",
+      "testName": "awaits descriptor close without payload writes when cancellation arrives during open",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-write-cancel.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-write-cancel.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "14ab24a026e160b4171be88d252c3cd0204083401dff900b51ef6f847dd2a3a8",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "70ad151469618ed99dd20e0590a241f33468942be2136df97cee7d36a987d1ae",
+      "greenLogHash": "a7f6e7c1f596857d0d91f0e9b5d8f4585b624d1b301b48364a9f255bf276931b"
+    },
+    {
+      "id": "material-chmod-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "retains first cancellation after a completed write",
+      "edits": [
+        {
+          "find": "if (first === undefined) await descriptor.chmod",
+          "replacement": "if (true) await descriptor.chmod"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=retains first cancellation after a completed write"
+      ],
+      "state": "killed-restored",
+      "testName": "retains first cancellation after a completed write and closes before returning",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-chmod-cancel.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-chmod-cancel.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "de997985d8e101648e4a0000112e3f130f4932889c0f6701b4115ea8cd9eb1fa",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "ae97598da425b317889c50d7bb2f1a41de2aa795de5d73de8dff5c63d563c288",
+      "greenLogHash": "d3cf76990b8aa7cd925ae29f66d6c520be79e4fe0eba2aa6ddb8d9ca79ca92dd"
+    },
+    {
+      "id": "material-await-close",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "keeps the API pending while an opened native descriptor close is gated",
+      "edits": [
+        {
+          "find": "await descriptor.close();",
+          "replacement": "void descriptor.close();"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=keeps the API pending while an opened native descriptor close is gated"
+      ],
+      "state": "killed-restored",
+      "testName": "keeps the API pending while an opened native descriptor close is gated",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-await-close.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-await-close.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "8f090949ab5f629c47b5b7631a5b3b6851190a5e6b24dddfe9fe9d9230052ae2",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "58956bb19d66336c4f337c5f0815fc55eeeddcbbf9ba313bd89b5515c3a878d7",
+      "greenLogHash": "2b3c248ad431ba7ab4ae14523f49ba9d4447f79954841d167bc97d66c2c6c574"
+    },
+    {
+      "id": "material-write-failure",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "retains partial root and original write-failure",
+      "edits": [
+        {
+          "find": "if (writeFailure !== undefined) throw writeFailure.cause;",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=retains partial root and original write-failure"
+      ],
+      "state": "killed-restored",
+      "testName": "retains partial root and original write-failure instead of returning cancellation or success",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-write-failure.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-write-failure.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "10f56ce7ee8030e97c2f057c1c625c64fc3c3e5bc0b05b1a4bee0a88145fa8e5",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "871873030bce00724859a295ca6c7d1b6a2c56493375902edcc1088def410536",
+      "greenLogHash": "6b612128d6888d6b0816b3e2c2b74a3c30c6c5d1e2d2d0cb8225c0d31f53dca4"
+    },
+    {
+      "id": "material-write-close-causes",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "preserves both write failure and later close failure",
+      "edits": [
+        {
+          "find": "if (writeFailure !== undefined)\n          throw new AggregateError(",
+          "replacement": "if (false)\n          throw new AggregateError("
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=preserves both write failure and later close failure"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves both write failure and later close failure after native descriptor settlement",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-write-close-causes.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-write-close-causes.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "4a3729e372e532cf3240489e2c85b5084c9a00107d94bd59df43fd0337f9ed03",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "f8249133f5f14d4978519d4e2846a85c3a8c8ed7a403fa71409bfc02ea4f37d5",
+      "greenLogHash": "09e6b1313a28e2947c48da8a346c83e82475ab1c10785558d60ac01916fc8072"
+    },
+    {
+      "id": "material-native-link",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "rejects an escaping native symlink chain",
+      "edits": [
+        {
+          "find": "realpathSync.native(join(root, ...link.path.split('/')))",
+          "replacement": "join(root, ...link.path.split('/'))"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=rejects an escaping native symlink chain"
+      ],
+      "state": "killed-restored",
+      "testName": "rejects an escaping native symlink chain after all regular writes without changing external bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-native-link.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-native-link.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "4d642023f183a46e43702f7675177fcb3a562660e951a8d8114b3c0277a2bb71",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "2bf0444b51f4edacbc1c866115e3e67b6deffae3056be8b36eff30c17a56528c",
+      "greenLogHash": "cb4b927174f5dddc8c10ca44f845df8c44552d8a41237629e91a942387a03f44"
+    },
+    {
+      "id": "material-link-containment",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "rejects an escaping native symlink chain",
+      "edits": [
+        {
+          "find": "if (!isWithin(root, target))",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=rejects an escaping native symlink chain"
+      ],
+      "state": "killed-restored",
+      "testName": "rejects an escaping native symlink chain after all regular writes without changing external bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-link-containment.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-link-containment.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "4b0684477e086cc0b7225a8e53220a6c1f4f8dad2f89eea8f05c412acdd8b80c",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "80b3d9f9645822260b9acde20099ec220e945af3670a15bb24ec44f7d54d7a58",
+      "greenLogHash": "f8496ef04daf0d2648e72f91b748d9b0ab0a232d48bab86115b5ba7d3baf3d9b"
+    },
+    {
+      "id": "material-release",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "preserves an interruption release failure after otherwise successful",
+      "edits": [
+        {
+          "find": "    unsubscribe();\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=preserves an interruption release failure after otherwise successful"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves an interruption release failure after otherwise successful materialization",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-release.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-release.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "7482be7944bd3678150fee5a7a4c3b7f05e4db7e67e5a564dec47595bee1b51e",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "a9c8cad4b0f236f4b15da777f08bab1ac3d381b42b41786e8468cde3c142830f",
+      "greenLogHash": "ed13ea2437d6324169ea6000944558844e934b6fd23b0c3e5cfa61b9ac08a57e"
+    },
+    {
+      "id": "material-release-causes",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "preserves both operation and release failures",
+      "edits": [
+        {
+          "find": "settled.kind === 'rejected'\n          ? new AggregateError(",
+          "replacement": "false\n          ? new AggregateError("
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=preserves both operation and release failures"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves both operation and release failures without masking either cause",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-release-causes.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-release-causes.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "a45e0b1f4521c47f5f538d055447feb811404f39f4b21434cbc7d2dc1e9d4cd9",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "bd7a6674738f734aba68e8cc115719ac4562bc72a0ac38c7c161a93f7b2df90a",
+      "greenLogHash": "8c817ca079d05aa94335e3575019804571bf949a15c91a0ab3dbeb2871bebdb7"
+    },
+    {
+      "id": "material-reject-before-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "does not mask release failure as prior controlled cancellation",
+      "edits": [
+        {
+          "find": "if (settled.kind === 'rejected') throw new MaterializationFailure(owned, settled.cause);",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=does not mask release failure as prior controlled cancellation"
+      ],
+      "state": "killed-restored",
+      "testName": "does not mask release failure as prior controlled cancellation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-reject-before-cancel.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-reject-before-cancel.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "2be50fbc5c7afac15adf3d172a37a3be954d75fe8a5e07b0f320728331c1073b",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "7404c20fae53c281c86dc522b4b093cfb4ae26a66d3b749370fab4805a5e300b",
+      "greenLogHash": "35dc5f248fc57d4427d7035911b9abbf64952236674fff76a4f5b15bfeb7cc72"
+    },
+    {
+      "id": "material-parent-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "creates no captured parent directory after cancellation",
+      "edits": [
+        {
+          "find": "    for (const directory of directories) {\n      const cancelled = readCancellation();\n      if (cancelled !== undefined) return cancelled;\n",
+          "replacement": "    for (const directory of directories) {\n"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=creates no captured parent directory after cancellation"
+      ],
+      "state": "killed-restored",
+      "testName": "creates no captured parent directory after cancellation during root reservation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-parent-cancel.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-parent-cancel.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "7cd40dc43032efd9f5352a4c21f19983a8628a420714513fd1ddef939b30fb9c",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "8f3dbd3f14baad58490862ee5cd04b46da79cc71fba12353233cf1215ecc4150",
+      "greenLogHash": "7ca5728a08fe20c77e3a2c7fc039e4318dca839757ba0b2857f3ca93db8ee9fe"
+    },
+    {
+      "id": "material-file-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "retains first cancellation after a completed write",
+      "edits": [
+        {
+          "find": "    for (const file of files) {\n      const cancelled = readCancellation();\n      if (cancelled !== undefined) return cancelled;\n",
+          "replacement": "    for (const file of files) {\n"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=retains first cancellation after a completed write"
+      ],
+      "state": "killed-restored",
+      "testName": "retains first cancellation after a completed write and closes before returning",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-file-cancel.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-file-cancel.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "ca2a7619b46af4fb7a735081f615f361c3d8af8914335baadcdd73fb81725128",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "254cf051ec16a102c58ecc511fe08c2d8af659f9a116f4048a9cdea168848799",
+      "greenLogHash": "9a3214279b2830603cad8af4b4b51e2c854e4638379e6c408bd82c99cadb7570"
+    },
+    {
+      "id": "material-link-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "creates no captured link after cancellation",
+      "edits": [
+        {
+          "find": "    for (const link of links) {\n      const cancelled = readCancellation();\n      if (cancelled !== undefined) return cancelled;\n      await symlink(link.target, join(root, ...link.path.split('/')));\n    }",
+          "replacement": "    for (const link of links) {\n      await symlink(link.target, join(root, ...link.path.split('/')));\n    }"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=creates no captured link after cancellation"
+      ],
+      "state": "killed-restored",
+      "testName": "creates no captured link after cancellation during the last regular write",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-link-cancel.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-link-cancel.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "38e9d3182d966dc99c87f651558a25880492fc58b4a640f757a787b0b0bd9c9f",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "c139933f24a06645753ecbaa3466c5662bbfad4878a8add0d7aa9fc11a2ee613",
+      "greenLogHash": "d5a9c5aab6e26a38f3714b64f84865861650d7bbd135a831c75a17608e6e9c1b"
+    },
+    {
+      "id": "material-validation-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "returns cancellation after link creation",
+      "edits": [
+        {
+          "find": "    for (const link of links) {\n      const cancelled = readCancellation();\n      if (cancelled !== undefined) return cancelled;\n      const target = realpathSync.native(join(root, ...link.path.split('/')));",
+          "replacement": "    for (const link of links) {\n      const target = realpathSync.native(join(root, ...link.path.split('/')));"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=returns cancellation after link creation"
+      ],
+      "state": "killed-restored",
+      "testName": "returns cancellation after link creation before validating an incomplete retained view",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-validation-cancel.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-validation-cancel.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "6e08e398aae4c07ab8bef03b192d39e1a4c6039808b5515155f7797509b9f3e3",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "93e99bff2b18081f722a5c631bc36ada04e7fdb1e62674c5531f86ae3e907450",
+      "greenLogHash": "929983e2daf4a948719d197c2e33d333edbd68e6b0ae271edae313e6aedbb394"
+    },
+    {
+      "id": "material-links-after-files",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "pattern": "retains link failure after every regular descriptor has closed",
+      "edits": [
+        {
+          "find": "    for (const link of links) {\n      const cancelled = readCancellation();\n      if (cancelled !== undefined) return cancelled;\n      await symlink(link.target, join(root, ...link.path.split('/')));\n    }",
+          "replacement": ""
+        },
+        {
+          "find": "    for (const file of files) {",
+          "replacement": "    for (const link of links) {\n      const cancelled = readCancellation();\n      if (cancelled !== undefined) return cancelled;\n      await symlink(link.target, join(root, ...link.path.split('/')));\n    }\n    for (const file of files) {"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=retains link failure after every regular descriptor has closed"
+      ],
+      "state": "killed-restored",
+      "testName": "retains link failure after every regular descriptor has closed",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c24-proofs/material-links-after-files.red.log",
+      "greenLog": "/tmp/puni-c24-proofs/material-links-after-files.green.log",
+      "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "mutantHash": "1de09ecb0b549d038cd138928faf4f0a8fc0dcb5f3e5126481f9ce3b0d3de8b2",
+      "afterHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "redLogHash": "0b1358fd348c6a32b85baff0f01122f1e79868fb11adf532228c4f94fe32a161",
+      "greenLogHash": "d54d3ea9f48fd359931aed6debd78d611c8cdddf9729fa7507c9a7cbcedbdef8"
+    }
+  ],
+  "excluded": [],
+  "sourceHashes": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+      "sha256": "9c95be0e9b4711e02707bc5a5ebe1b5748470a68c12c76023d3152c4754acfd2"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+      "sha256": "699d5a7e091a1582c1401f98693f0c04f0eada60ffec404479b5aecba1877950"
+    }
+  ],
+  "commentComparison": {
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.ts",
+    "beforeHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+    "afterHash": "0da819e70437c3dd73d6902826096ba8a9e1673c24df95d9c9e2399c365737fa",
+    "sameJavaScript": true,
+    "javascriptHash": "897dee4654a188c464a8ee4ce32e8a617e408896600161fa722c160f55edee94",
+    "proofs": 51,
+    "finalHash": "9c95be0e9b4711e02707bc5a5ebe1b5748470a68c12c76023d3152c4754acfd2"
+  },
+  "review": {
+    "audit": "/tmp/puni-c24-independent-audit.json",
+    "auditRecord": {
+      "canonical": 51,
+      "uniqueIds": 51,
+      "uniqueMutants": 51,
+      "errors": [],
+      "notes": 51,
+      "testBytesMatch": true,
+      "testHash": "699d5a7e091a1582c1401f98693f0c04f0eada60ffec404479b5aecba1877950",
+      "baselineHash": "42bd4ee2af7eb46489aed091e4c2c884a94c56694e8dfed310c986489319a91c",
+      "javascriptComparison": "/tmp/puni-c24-independent-js-comparison.json",
+      "checks": [
+        {
+          "id": "final-types",
+          "exitCode": 0,
+          "logHashMatches": true
+        },
+        {
+          "id": "final-lint",
+          "exitCode": 0,
+          "logHashMatches": true
+        },
+        {
+          "id": "final-tests",
+          "exitCode": 0,
+          "logHashMatches": true
+        }
+      ],
+      "qualifications": [
+        "Link decoding/target and fresh-leaf guards prove pre-reservation order or named diagnostics where later refusal remains.",
+        "Descriptor/role rows prove native required-state availability before ownership, not independent directory placement.",
+        "Directory occupation is injected native EEXIST evidence, not macOS case/normalization qualification.",
+        "Links-after-files fault proves stage progress/order via real descriptors closed before injected link failure; not independent admission.",
+        "Metadata selector includes multiple named tests; each receipt redExit1 is process status, not one failed test.",
+        "Close-await fault observes API settled while real native descriptor close is gated; finally releases and settles ownership.",
+        "No independent tests rerun or source edits."
+      ]
+    },
+    "findings": "No blocker;51 unique mutant/restoration/named outcomes,102 logs,51 notes/current test bytes reconcile; independent minified JS equality; final232/0/type0/lint0 logs confirmed. No tests independently rerun."
+  },
+  "nativeProbe": {
+    "path": "/tmp/puni-c24-native-path-probe.json",
+    "record": {
+      "platform": "linux",
+      "bun": "1.4.4",
+      "root": "/tmp/puni-c24-native-zXRdz6",
+      "directories": [
+        {
+          "name": "A",
+          "native": "/tmp/puni-c24-native-zXRdz6/A",
+          "dev": "66307",
+          "ino": "17860424"
+        },
+        {
+          "name": "a",
+          "native": "/tmp/puni-c24-native-zXRdz6/a",
+          "dev": "66307",
+          "ino": "17860425"
+        },
+        {
+          "name": "é",
+          "native": "/tmp/puni-c24-native-zXRdz6/é",
+          "dev": "66307",
+          "ino": "17860426"
+        },
+        {
+          "name": "é",
+          "native": "/tmp/puni-c24-native-zXRdz6/é",
+          "dev": "66307",
+          "ino": "17860427"
+        }
+      ],
+      "exclusive": "EEXIST",
+      "nativeParent": "/tmp/puni-c24-native-zXRdz6/physical",
+      "mode": 493,
+      "cleaned": true
+    },
+    "qualification": "Controlled Linux/Bun1.4.4 only; native temporary fixture removed. Case and NFC/NFD were distinct here; no Mac collision behavior claimed."
+  },
+  "metadataPolicy": {
+    "source": "https://raw.githubusercontent.com/git/git/v2.43.0/utf8.c",
+    "function": "next_hfs_char/is_hfs_dotgit",
+    "qualification": "Narrow Git metadata equivalence, not general Unicode normalization or NTFS policy; ordinary BOM/Unicode spelling preserved."
+  },
+  "failedChecks": [
+    {
+      "log": "/tmp/puni-c24-materialize-red1.log",
+      "observation": "initial missing module RED"
+    },
+    {
+      "log": "/tmp/puni-c24-terminal-red1.log",
+      "observation": "actual release-time control race returned materialized success; final post-release cancellation read fixed it, with errors still taking precedence"
+    },
+    {
+      "log": "/tmp/puni-c24-lint-fix1.log",
+      "observation": "six findings: test unbound methods/void matcher and production AggregateError caught-cause option; bound methods, explicit awaited rejection and cause metadata corrected"
+    },
+    {
+      "log": "/tmp/puni-c24-types1.log",
+      "observation": "two test Buffer/Uint8Array expectation overload mismatches; expected Buffer constructed from identical payload bytes"
+    },
+    {
+      "log": "/tmp/puni-c24-lint3.log",
+      "observation": "gated-close fixture invalid void resolver arguments, throw in finally and unsafe rejected reason; now explicit undefined completion and collected errors after all cleanup"
+    }
+  ],
+  "qualification": [
+    "Stable authority/private-root metadata and genuine captured source capabilities remain prerequisites; this is not a concurrent hostile-filesystem sandbox.",
+    "Actual protected closure/role/descriptor targets are resolved natively; closure may be external through an authenticated symlink.",
+    "File-authority target faults include required-state availability, not necessarily an independent directory-containment boundary.",
+    "Link decoder/leaf guards include early-order/diagnostic contracts where later native refusal may remain.",
+    "Injected directory occupation proves no EEXIST merge, not actual Mac case/normalization collision behavior. Native directory/file/link exclusivity is the implementation contract.",
+    "The gated-close oracle observes an opened native descriptor still held behind the test-controlled gate and API nonsettlement, then settles/closes it before teardown; it is not only an eventual-content assertion.",
+    "Links-after-files fault proves stage progress/descriptors settled before link failure, not an independent admission boundary.",
+    "Root ownership fault uses an actual permission change after successful mkdir; the parent mode is restored before assertion/fixture cleanup, and the retained created path remains visible.",
+    "Injected close-failure cases perform native closure before reporting the injected error; they do not claim an actual unconfirmed OS-close failure was induced.",
+    "Cancellation returns retained incomplete output explicitly; completed writes/chmod/close failures and release failures remain errors, even with recorded cancellation.",
+    "This creates no installed dependencies, built roles, activation/archive, public package or producer cutover; local Linux tests do not certify Mac, host gates or deployment."
+  ],
+  "remaining": [
+    "authenticated explicit build dependency source and protected role builders",
+    "both current Bun activation preparers and assembly/self-check/archive",
+    "owned preparation executable/root completion",
+    "bootstrap/admission/CI Bun ports and coherent current switch",
+    "public PUNI identity/registry authority",
+    "stored helper startup/platform qualification",
+    "complete client and operational script Bun conversion",
+    "whole WBS entity hierarchy and exact-SHA host gate/rollout"
+  ]
+}
