@@ -16,6 +16,7 @@ import { afterAll, expect, test } from 'bun:test';
 import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
 import {
   prepareActivation,
+  prepareBunActivation,
   readBunActivation,
   selectActivation,
   verifyActivation,
@@ -532,3 +533,29 @@ for (const damage of [
     expect(() => readBunActivation(subject.directory)).toThrow(expected);
   });
 }
+
+test('the current writer produces a complete schema4 package without changing the legacy writer', () => {
+  const subject = fixture('bunWriter');
+  const request = { ...subject.request, destination: join(subject.store, 'current') };
+  const prepared = prepareBunActivation(request);
+  expect(prepared.manifest.schemaVersion).toBe(4);
+  expect(prepared.manifest.roles.launcher).toBe('artifacts/launcher.mjs');
+  expect(readFileSync(join(prepared.directory, 'launcher-path'), 'utf8')).toBe(
+    'artifacts/launcher.mjs\n',
+  );
+  expect(readBunActivation(prepared.directory).identity).toBe(prepared.identity);
+  expect(prepareBunActivation(request).identity).toBe(prepared.identity);
+  const legacy = prepareActivation({ ...request, destination: join(subject.store, 'legacy') });
+  expect(legacy.manifest.schemaVersion).toBe(3);
+  expect(legacy.manifest.roles.launcher).toBe('artifacts/launcher.sh');
+});
+
+test('the current writer refuses a legacy package already occupying its immutable destination', () => {
+  const subject = fixture('occupiedBunWriter');
+  const request = { ...subject.request, destination: join(subject.store, 'occupied') };
+  const legacy = prepareActivation(request);
+  expect(() => prepareBunActivation(request)).toThrow(
+    'activation package already exists with different bytes',
+  );
+  expect(verifyActivation(legacy.directory).identity).toBe(legacy.identity);
+});

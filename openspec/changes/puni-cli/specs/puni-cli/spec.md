@@ -144,3 +144,52 @@ Current Bun toolkit execution SHALL use descriptor schema 2 with launcher.mjs an
 
 - **WHEN** a current artifact has a mismatched Bun runtime, unknown schema, missing or extra role, mixed legacy path, altered descriptor or changed role bytes
 - **THEN** verification or execution compatibility refuses at the relevant boundary before launch
+
+### Requirement: Installed lint preserves selected authority and process ownership
+
+Installed lint SHALL execute its verified package launcher, verify the selected activation's complete current artifact set, and execute the selected authenticated snapshotter before the captured validator. It SHALL use a separate closed version1 lint request transport with fatal UTF-8 decoding; only working, staged and committed selections SHALL parse before operation IO. Working SHALL use local observe, staged local ratchet, and committed CI with only that selection's CI binding. Snapshot and validator children SHALL retain the explicit C11 Git environment and protected Bun startup. The configured archive root SHALL supply the default closure before selecting its version, independently from the installed toolkit closure.
+
+#### Scenario: Broken configured authority cannot become optional inactivity
+
+- **WHEN** a configured root/selection/role/metadata/closure is unreadable, malformed, candidate-contained or a dangling symlink
+- **THEN** lint refuses before role execution, with no alternate flat-root or installed-closure fallback
+
+#### Scenario: Required admission judges the actual validator report
+
+- **WHEN** required lint receives validator status zero with malformed UTF-8/JSON or without schema1 enforce CI-preselected accepted certified output
+- **THEN** it preserves the original output bytes and returns78; a normal nonzero validator verdict retains its exact bytes and status
+
+#### Scenario: Cancellation retains child ownership through cleanup
+
+- **WHEN** SIGINT or SIGTERM arrives during either stage or between stages
+- **THEN** the launcher forwards cancellation to the owned stage group, escalates after bounded grace or repeated cancellation, starts no next stage, and settles group ownership and outward output waits before scratch cleanup and controlled130/143 completion; unconfirmed group cleanup instead fails and retains scratch
+
+#### Scenario: Installed and archive launchers retain distinct existing authority
+
+- **WHEN** a complete current activation's reviewed launcher differs from the verified installed package launcher
+- **THEN** installed lint retains its package launcher and selected snapshot/validator authority without recursive execution, while archive admission retains its toolkit-release join
+
+#### Scenario: Executable lookup remains fixed across stage directories
+
+- **WHEN** trusted PATH contains relative or empty components and the selected snapshotter or captured validator runs from another directory
+- **THEN** each component retains the executable identity selected against the physical trusted runtime directory, without lexical symlink/parent normalization; an unrepresentable anchored PATH refuses before role execution
+
+#### Scenario: Output failure cleans its stage and releases a stalled peer
+
+- **WHEN** stdout or stderr fails while a lint stage is live, including when its other output consumer is stalled
+- **THEN** the launcher fails, cleans the owned group and removes scratch only after confirmed absence; a later cancellation cannot replace a previously recorded output failure
+
+#### Scenario: Cancellation releases output without claiming abandoned bytes were flushed
+
+- **WHEN** an output consumer stalls and cancellation arrives
+- **THEN** both outward API waits settle with the first cancellation reason, remaining child bytes are drained without delivery, replayed cancellation does not shorten first-signal grace, and abandoned native output is unreferenced rather than described as flushed
+
+#### Scenario: Terminal reporting remains owned and bounded
+
+- **WHEN** unexpected failure encounters failed, stalled or still-pending stderr, or native output release fails
+- **THEN** the standalone executable returns a failure after at most one bounded diagnostic through the existing stderr operation tail, starts no diagnostic write/flush after abandonment or disposal, and invokes no automatic or alternate reporter
+
+#### Scenario: Ordinary output completes before executable exit
+
+- **WHEN** the validator completes normally with arbitrary binary stdout/stderr and a nonzero verdict
+- **THEN** all bytes are written and flushed before the executable returns that verdict

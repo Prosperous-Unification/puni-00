@@ -451,8 +451,9 @@ const sourceOnlyCommands = [
  * unsupported, as it always did.
  */
 const installedOnlyCommands = [
+  // Proof: grammar-lint-selection; `installed lint request boundary > the installed grammar refuses an unsupported selection before operation IO` fails with this injected fault and passes after restoration.
   typed('lint', 'Run the trusted whole-tree lint through the installed launcher.', {
-    kind: operand('SELECTION'),
+    kind: selection(),
     repository: operand('REPOSITORY'),
     revision: operand('REVISION-OR-BASE'),
   }),
