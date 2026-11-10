@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -36,8 +37,20 @@ const administrationCommon = [
     status: 403,
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
-  // A member or a viewer: only an admin registers what reports for every project.
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  // A current organization.manage_directory grant administers provider instances.
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        // Proof: removing the catalog permission validator (provider-permission-schema) failed `requires the catalog permission vocabulary at getApiOrganizationCompute-providers`; restored GREEN.
+        // Proof: removing the catalog permission validator (provider-permission-schema) failed `requires the catalog permission vocabulary at postApiOrganizationCompute-providers`; restored GREEN.
+        // Proof: removing the catalog permission validator (provider-permission-schema) failed `requires the catalog permission vocabulary at patchApiOrganizationCompute-providersById`; restored GREEN.
+        // Proof: removing the catalog permission validator (provider-permission-schema) failed `requires the catalog permission vocabulary at deleteApiOrganizationCompute-providersById`; restored GREEN.
+        permission: type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
 ] as const;
 const malformed = {
   status: 400,

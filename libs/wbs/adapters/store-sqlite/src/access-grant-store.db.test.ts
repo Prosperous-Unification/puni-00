@@ -931,13 +931,18 @@ for (const operation of [
                           : operation === 'pool-rekey'
                             ? pools.rekey(
                                 'org-a',
-                                'ada',
+                                { id: 'ada' },
                                 'unread-before-owner',
                                 { keys: [] },
                                 performed,
                               )
                             : operation === 'pool-revoke'
-                              ? pools.revoke('org-a', 'ada', 'unread-before-owner', performed)
+                              ? pools.revoke(
+                                  'org-a',
+                                  { id: 'ada' },
+                                  'unread-before-owner',
+                                  performed,
+                                )
                               : operation === 'issuer-remove'
                                 ? new TrustedIssuerAdministrationRepository(
                                     connection.db,

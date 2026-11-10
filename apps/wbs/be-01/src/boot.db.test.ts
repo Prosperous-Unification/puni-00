@@ -726,6 +726,9 @@ describe('bootBe01', () => {
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
       );
       seed.run(
+        "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('boot-limits-read','org-a','organization','org-a','user','ada','org-viewer','route',1)",
+      );
+      seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
       );
     } finally {
@@ -754,7 +757,7 @@ describe('bootBe01', () => {
     );
     if (composed?.organizationLimits === undefined)
       throw new Error('boot composed no limits store');
-    expect(await composed.organizationLimits.read('org-a', 'ada')).toEqual({
+    expect(await composed.organizationLimits.read('org-a', { id: 'ada' })).toEqual({
       source: 'default',
       limits: configured,
       usage: { agentPersons: 0, concurrentClaims: 0, capacityUnits: [] },
@@ -859,6 +862,9 @@ describe('bootBe01', () => {
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
       );
       seed.run(
+        "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('boot-pool-directory','org-a','organization','org-a','user','ada','org-admin','route',1)",
+      );
+      seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
       );
     } finally {
@@ -878,8 +884,11 @@ describe('bootBe01', () => {
       },
     });
     if (pools === undefined) throw new Error('boot did not wire agent pools');
-    expect(await pools.list('org-a', 'ada', Date.now())).toEqual([]);
-    expect(await pools.list('org-a', 'nobody', Date.now())).toBe('forbidden');
+    expect(await pools.list('org-a', { id: 'ada' }, Date.now())).toEqual([]);
+    expect(await pools.list('org-a', { id: 'nobody' }, Date.now())).toEqual({
+      kind: 'forbidden',
+      permission: 'organization.manage_directory',
+    });
   });
 
   it('serves machine credential administration from the shared database once activated', async () => {
@@ -978,6 +987,9 @@ describe('bootBe01', () => {
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
       );
       seed.run(
+        "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('boot-provider-directory','org-a','organization','org-a','user','ada','org-admin','route',1)",
+      );
+      seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
       );
     } finally {
@@ -997,8 +1009,11 @@ describe('bootBe01', () => {
       },
     });
     if (providers === undefined) throw new Error('boot did not wire compute providers');
-    expect(await providers.administration.list('org-a', 'ada')).toEqual([]);
-    expect(await providers.administration.list('org-a', 'nobody')).toBe('forbidden');
+    expect(await providers.administration.list('org-a', { id: 'ada' })).toEqual([]);
+    expect(await providers.administration.list('org-a', { id: 'nobody' })).toEqual({
+      kind: 'forbidden',
+      permission: 'organization.manage_directory',
+    });
     expect(await providers.reports.readingsOf(['absent'])).toEqual(new Map());
   });
 

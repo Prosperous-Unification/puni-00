@@ -345,9 +345,12 @@ describe('a refused creation', () => {
     for (const username of ['mem', 'vic'])
       expect(await h.call(username, 'POST', PATH, { name: 'swarm-a', size: 2 })).toEqual({
         status: 403,
-        body: { error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.manage_directory' },
       });
-    expect(await h.call('mem', 'GET', PATH)).toEqual({ status: 403, body: { error: 'forbidden' } });
+    expect(await h.call('mem', 'GET', PATH)).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect([pools(), agentPersons(), credentials(), auditCount()]).toEqual([0, 0, 0, 0]);
   });
 
@@ -543,7 +546,7 @@ describe('re-keying a pool', () => {
     });
     expect(await h.call('mem', 'POST', `${PATH}/${doc.poolId}/rekey`, {})).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
     });
   });
 });
@@ -699,7 +702,7 @@ describe('revoking a pool', () => {
     const doc = await createPool('dany', { name: 'swarm-a', size: 2 });
     expect(await h.call('mem', 'DELETE', `${PATH}/${doc.poolId}?removePersons=true`)).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
     });
     for (const agent of doc.agents)
       expect(await asAgent(agent.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
@@ -999,6 +1002,7 @@ for (const operation of ['rekey', 'revoke'] as const) {
     h.sqlite.run(
       "DELETE FROM access_grant WHERE organization_id='org-a' AND role_id='org-super-admin'",
     );
+    h.grantPermissions('org-a', 'dany', ['organization.manage_directory']);
     const snapshot = () =>
       [
         'agent_pool',

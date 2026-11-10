@@ -948,3 +948,60 @@ The old journal has no complete, joinable original-command provenance: compensat
 Legacy scoped entries without this envelope refuse with modeled 409 replay_provenance_unavailable before stale discard; malformed present envelopes throw. New metadata is detached at recording, aggregated only from actual contributors, and retained unchanged through undo→redo→undo. Current budget ownership is resolved from the package anchor at replay time, rather than retaining its original parent. The actual engagement-parent move proof waits for #698 slice 2; interim tests can prove current organization ownership resolution only. Slice 2 retains an explicit parent-move regression obligation.
 
 Deployment clarification: outgoing binaries still interpret the compatibility viewer column. Before migration, outgoing acceptance/onboarding mutations must be quiesced; before exposing upgraded grant semantics, outgoing authorization readers and existing gateway/WebSocket sessions must be retired or drained, or activation refused. This required task6.4 boundary must preserve actual read availability and rollback contracts.
+
+### Remaining server role readers (task 2.4b)
+
+Organization limits read through the actual retained authenticated principal and
+`organization.read`; their operator inspect/set/reset authority remains the host
+operator. All four public owners share the required source Gate. Personal reads
+keep BEGIN IMMEDIATE open across the awaited grant decision; inspect and writes
+keep their native synchronous owner inside that same gate. Operator input and act
+are detached before queuing; no account identity is invented for the host actor.
+The standalone operator CLI creates its own coordinator and awaits before close.
+Borrowed cap gauges acquire no gate and open no owner.
+
+Agent-pool and compute-provider administration use organization.manage_directory;
+rank movement uses organization.manage_spaces and mode changes use
+organization.manage_capacity_mode. Actual principal evidence replaces scalar
+actor-to-account reconstruction at these boundaries. Fixed credential caps and
+existing nondelegation refusals remain.
+
+Resource use follows the live package: list/history require package.read;
+registration/events require package.write. After package deletion, only an
+immutable same-organization use row supports personal orphan access: a
+nondelegated organization.manage_directory principal, with missing/foreign/hidden
+rows still404. No synthetic package chain is constructed. Runtime human binding
+and administration read require manage_directory. Exact bound-machine admission,
+ingestion and request streams retain infrastructure key/person/member/org/epoch/
+sequence authority. New live package writes additionally require package.write.
+Replay discovery follows current bound-authority checks but precedes deleted
+planning-reference resolution, returns the immutable receipt and never restamps
+projection/request revisions. Deleted-package cleanup remains own-authority
+infrastructure; ordinary workers cannot attest release.
+
+OrganizationScope and current membership evidence carry no legacy role authority.
+Public active-organization/own-membership compatibility labels may read the stored
+label only in explicit display projections for existing consumers. Never derive a
+strongest built-in label from grants. Permission-driven slots and role display
+helpers remain tasks7.1/7.2; retaining those labels does not complete permission UI.
+
+Provider report provenance is a bounded preservation change within 2.4b: retain
+actual authenticated id/authentication/delegation, validated report body and target
+scalars before resolving the original complete session evidence. The existing
+context refusal still precedes report classification. Keep the completion clock
+post-resolution and read it once before put. Put detaches exact request fields and
+its measured/unreachable outcome before the existing gate, preserving optional
+reservation absence and zero. It adds no grant check, owner, key/member policy or
+new nondelegation rule. Public readingsOf retains its selection before queuing and
+keeps its native read snapshot inside the same source Gate as administration.
+
+Pool administration borrows no writer: each public method owns the same required
+source Gate/connection through runSecurityTransaction and reads fresh authority
+inside that owner. Retain complete verified caller evidence privately for revoke's
+second resolver and directory command caller; pass a separate minimal retained
+SecurityPrincipal to pool ports. Grant copying still precedes successor-key creation,
+so borrowed cascade helpers never ask a public grant owner to admit a not-yet-live
+credential. Pool revoke and directory cleanup remain two committed owners. Preserve
+both runner admission.refusal and execution.reason forbidden outcomes as a partial409
+with the returned catalog permission; never invent a permission for an unannotated
+refusal. afterRevoke runs exactly once after committed stage one, even if cleanup fails.

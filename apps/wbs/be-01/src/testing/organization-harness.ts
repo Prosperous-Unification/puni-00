@@ -623,7 +623,12 @@ export class OrganizationHarness {
       sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(db, OPEN),
       domains,
       sessionPolicies: new SessionPolicyRepository(db, gate),
-      organizationLimits: new OrganizationLimitsRepository(db, TEST_ORGANIZATION_DEFAULT_LIMITS),
+      organizationLimits: new OrganizationLimitsRepository(
+        db,
+        TEST_ORGANIZATION_DEFAULT_LIMITS,
+        // Proof: limits-http-harness-gate-dependency failed `uses a minimal organization.read grant for limits despite a viewer membership label` with the injected fault; restored GREEN.
+        gate,
+      ),
       pendingMemberships: new ScimUserRepository(db, gate),
       enterpriseConnections: new EnterpriseConnectionRepository(db, gate),
       provisioning: {
@@ -943,6 +948,8 @@ export class OrganizationHarness {
         organizationLimits: new OrganizationLimitsRepository(
           source.db,
           TEST_ORGANIZATION_DEFAULT_LIMITS,
+          // Proof: limits-composed-gate failed `uses the composed limits gate before admitting a current organization read` with the injected fault; restored GREEN.
+          services.gate,
         ),
         ...(trustedIssuers === undefined
           ? {}

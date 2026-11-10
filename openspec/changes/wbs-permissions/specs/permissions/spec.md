@@ -538,3 +538,96 @@ A scoped standalone directory removal SHALL include its permission check, owners
 - **WHEN** a later capture or event write fails inside the owner
 - **THEN** every staged row rolls back and no announcement is delivered
 - **AND** a successful removal delivers its existing affected-project fanout only after the committed deletion is visible
+
+### Requirement: Every selected grant retains complete catalogue evidence
+
+Effective-role and readable-package statements SHALL retain every selected reaching grant even when its catalogue role is missing, and SHALL validate all selected role kind, restriction flag and full permission rows before projecting authority or package IDs. Another independently sufficient valid grant SHALL NOT hide corrupt selected state. Missing or malformed catalogue state SHALL throw; it SHALL NOT be treated as absent authority, a modeled grant denial or a successful write. Existing subject, organization, addressed-scope and P5 predicates SHALL remain unchanged.
+
+#### Scenario: An orphan catalogue row coexists with sufficient authority
+
+- **GIVEN** a current principal holds a valid sufficient grant and another selected grant whose catalogue role is missing
+- **WHEN** effective role, package listing or an admitted package mutation evaluates that principal
+- **THEN** the operation fails as unexpected trusted-state corruption, preserving mutation, audit, journal, event and publication state
+
+#### Scenario: A corrupt non-reader grant cannot disappear from listing validation
+
+- **GIVEN** valid package-read authority and a separate selected grant with malformed kind or permission state
+- **WHEN** readable package IDs are computed
+- **THEN** validation throws even when the corrupt grant would not itself admit a package
+
+### Requirement: Limits owners retain current grant and connection isolation
+
+The personal limits read SHALL require organization.read from the actual
+authenticated principal, apply the fixed credential cap and refuse delegation.
+It SHALL serialize its awaited grant check and usage snapshot with operator
+inspect/set/reset using the same required source Gate and connection owner.
+Operator inputs and audit provenance SHALL be retained before queuing, without
+requiring account membership. Borrowed cap gauges SHALL open no owner or gate.
+
+#### Scenario: An operator waits for an unsettled personal limits read
+
+- **WHEN** a personal read holds its transaction while awaiting current authority
+- **THEN** inspect/set/reset wait before entering that connection
+- **AND** a failed read rolls back and releases the next operator turn without losing its effect.
+
+#### Scenario: Legacy role does not authorize limits usage
+
+- **WHEN** a current super-admin has no effective organization.read grant
+- **THEN** HTTP403 names organization.read and contains no usage
+- **AND** a viewer with a minimal effective organization.read grant succeeds.
+
+### Requirement: Provider administration uses current grants while reporting retains infrastructure provenance
+
+Provider list/register/update/remove SHALL require current organization.manage_directory
+from the actual retained authenticated principal in the same source Gate/connection
+as effects and audit. Legacy membership labels SHALL grant no authority. A named
+HTTP403 SHALL carry organization.manage_directory without provider facts.
+Public provider readings SHALL keep their native snapshot in that same Gate and
+retain the selected resource IDs before queuing, without an additional permission
+check. Capacity reporting SHALL preserve its existing verified-machine admission,
+context-refusal ordering, mismatch, replay and latest-wins rules. It SHALL retain
+authentication and validated payload/targets before resolver awaits and exact
+request fields before the write turn. Its completion clock remains post-resolution
+and is read once; caller aliases SHALL NOT substitute reporter, target or outcome.
+
+#### Scenario: Legacy role does not administer a provider
+
+- **WHEN** a super-admin with no effective manage_directory grant uses an administration route
+- **THEN** it answers the named403 without writes or audits
+- **AND** a viewer with a minimal current grant succeeds.
+
+#### Scenario: A report cannot change its authenticated reporter while resolving organization context
+
+- **WHEN** a resolver-held caller alias changes machine person or replaces session/delegation authentication
+- **THEN** the report retains the originally verified reporter or the original not_an_agent_principal refusal
+- **AND** no substituted reporter or foreign resource receives the write.
+
+#### Scenario: A queued report retains its clock and nested outcome
+
+- **WHEN** caller aliases change organization/person/targets/time or measured/unreachable fields after invocation
+- **THEN** the original request is stored or refused with no effect on substituted targets
+- **AND** optional reservation absence and zero are preserved
+- **AND** advancing a caller alias cannot admit an originally future report.
+
+### Requirement: Pool administration retains current grants and partial cleanup denials
+
+Pool list/create/personsOf/rekey/revoke SHALL require current organization.manage_directory
+from the retained actual authenticated principal, fixed credential cap and current
+membership inside the same required source Gate and immediate connection owner as
+pool facts, key/grant effects and audit. Caller aliases SHALL NOT replace principal,
+draft, renewal, actor or stamp while queued. Routes SHALL retain principal and
+validated targets/intent before resolver awaits and preserve named HTTP403 refusals.
+
+#### Scenario: A role-only administrator has no pool authority
+
+- **WHEN** a stored super-admin without an effective directory grant administers pools
+- **THEN** it receives the named denial without pool facts or effects
+- **AND** a stored viewer with a minimal effective directory grant succeeds.
+
+#### Scenario: Cleanup authority is lost after committed pool revocation
+
+- **WHEN** pool revocation commits and its callback runs once, then directory batch admission or execution refuses a current grant
+- **THEN** the response is persons_not_removed409 with poolId, committed revokedCredentials, cause forbidden and that actual catalog permission
+- **AND** committed key/grant revocation and lifecycle audit remain committed without retry
+- **AND** people, claims, directory history and publication remain unchanged by the refused cleanup
+- **AND** existing unannotated partial causes and last_super_admin keep their modeled shapes.

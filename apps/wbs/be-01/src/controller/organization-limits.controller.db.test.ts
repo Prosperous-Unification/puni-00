@@ -1,7 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import type { CredentialAuthentication } from '@wbs/contracts';
+import { openConnection } from '@wbs/store-sqlite/db';
+import { WriteCoordinator } from '@wbs/store-sqlite/gate';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
+import { OrganizationLimitsRepository } from '@wbs/store-sqlite/organization-limits';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { generateKeyPair, SignJWT } from 'jose';
 
 import { DELEGATION_TOKEN_TYPE } from '../runtime/delegation';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
@@ -141,6 +151,9 @@ describe(PATH, () => {
     h.activate();
     seedSevenOfEight();
     for (const username of ['sue', 'adam'])
+      h.grantPermissions('org-a', username, ['organization.read']);
+    h.grantPermissions('org-b', 'bob', ['organization.read']);
+    for (const username of ['sue', 'adam'])
       expect(await h.call(username, 'GET', PATH)).toEqual({
         status: 200,
         body: {
@@ -165,6 +178,8 @@ describe(PATH, () => {
 
   it('answers the organization’s own row whatever the defaults are', async () => {
     h.activate();
+    h.grantPermissions('org-a', 'adam', ['organization.read']);
+    h.grantPermissions('org-b', 'bob', ['organization.read']);
     seedSevenOfEight();
     run(
       "INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES ('org-a', 8, 40, 64, 1)",
@@ -188,7 +203,7 @@ describe(PATH, () => {
     for (const username of ['mia', 'vic'])
       expect(await h.call(username, 'GET', PATH)).toEqual({
         status: 403,
-        body: { error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.read' },
       });
   });
 
@@ -211,6 +226,7 @@ describe(PATH, () => {
     );
     h.activate();
     seedSevenOfEight();
+    h.grantPermissions('org-a', 'sue', ['organization.read']);
     expect((await h.call('sue', 'GET', PATH)).status).toBe(200);
     const token = await new SignJWT({
       username: 'sue',
@@ -233,5 +249,131 @@ describe(PATH, () => {
       status: 403,
       body: { error: 'insufficient_scope' },
     });
+  });
+});
+
+it('uses a minimal organization.read grant for limits despite a viewer membership label', async () => {
+  h.activate();
+  h.grantPermissions('org-a', 'vic', ['organization.read']);
+  const answer = await h.call('vic', 'GET', PATH);
+  expect(answer.status).toBe(200);
+  expect(answer.body).toMatchObject({
+    source: 'default',
+    limits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+    usage: { agentPersons: 0, concurrentClaims: 0, capacityUnits: [] },
+  });
+});
+it('names organization.read when a role-only super-admin requests limits', async () => {
+  h.activate();
+  expect(await h.call('sue', 'GET', PATH)).toEqual({
+    status: 403,
+    body: { error: 'forbidden', permission: 'organization.read' },
+  });
+});
+
+for (const changed of ['id', 'authentication', 'delegation'] as const) {
+  it('retains the limits route principal before organization resolution: ' + changed, async () => {
+    h.activate();
+    h.grantPermissions('org-a', 'vic', ['organization.read']);
+    const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+    const resolve = observer.getMockImplementation();
+    if (resolve === undefined) throw new Error('resolver implementation absent');
+    let substitutions = 0;
+    observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+      const resolved = await resolve.call(this, principal);
+      if (changed === 'id') Object.assign(principal, { id: h.userId('sue') });
+      if (changed === 'authentication')
+        Object.assign(principal, {
+          authentication: { kind: 'machine', credentialId: 'replacement', personId: 'agent' },
+        });
+      if (changed === 'delegation')
+        Object.assign(principal, { delegation: { organizationId: 'org-a' } });
+      substitutions += 1;
+      return resolved;
+    });
+    try {
+      expect((await h.call('vic', 'GET', PATH)).status).toBe(200);
+      expect(substitutions).toBe(1);
+    } finally {
+      observer.mockRestore();
+    }
+  });
+}
+
+it('retains queued limits machine authentication and its contributor cap despite account read authority', async () => {
+  h.activate();
+  h.grantPermissions('org-a', 'vic', ['organization.read']);
+  const accountId = h.userId('vic');
+  addAgentPerson(h.sqlite, 'limits-agent', 'org-a', accountId);
+  const credential = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'limits-agent',
+    issuedBy: accountId,
+  });
+  grantCredential(h.sqlite, 'org-a', credential.id, 'org-admin', 'organization', 'org-a');
+  const connection = openConnection(h.sqlite.filename);
+  const gate = new WriteCoordinator();
+  const limits = new OrganizationLimitsRepository(
+    connection.db,
+    TEST_ORGANIZATION_DEFAULT_LIMITS,
+    gate,
+  );
+  const held = Promise.withResolvers<undefined>();
+  const entered = Promise.withResolvers<undefined>();
+  const blocker = gate.enter(async () => {
+    entered.resolve(undefined);
+    await held.promise;
+  });
+  await entered.promise;
+  const authentication: CredentialAuthentication = {
+    kind: 'machine',
+    credentialId: credential.id,
+    personId: 'limits-agent',
+  };
+  const principal: { id: string; authentication?: CredentialAuthentication } = {
+    id: accountId,
+    authentication,
+  };
+  const pending = limits.read('org-a', principal);
+  delete principal.authentication;
+  held.resolve(undefined);
+  await blocker;
+  try {
+    expect(await pending).toEqual({ kind: 'forbidden', permission: 'organization.read' });
+  } finally {
+    connection.close();
+  }
+});
+
+it('uses the composed limits gate before admitting a current organization read', async () => {
+  h.close();
+  h = OrganizationHarness.openComposed();
+  await h.register('reader');
+  h.organization('org-a');
+  h.member('org-a', 'reader', 'viewer');
+  h.bind('reader', 'org-a');
+  h.grantPermissions('org-a', 'reader', ['organization.read']);
+  h.activate();
+  const held = Promise.withResolvers<undefined>();
+  const entered = Promise.withResolvers<undefined>();
+  const blocker = h.holdWriteTurn(held.promise, () => {
+    entered.resolve(undefined);
+  });
+  await entered.promise;
+  let settled = false;
+  const pending = h.call('reader', 'GET', PATH).finally(() => {
+    settled = true;
+  });
+  try {
+    await Bun.sleep(20);
+    expect(settled).toBe(false);
+    h.sqlite.run('DELETE FROM access_grant WHERE subject_id=?', [h.userId('reader')]);
+  } finally {
+    held.resolve(undefined);
+    await blocker;
+  }
+  expect(await pending).toEqual({
+    status: 403,
+    body: { error: 'forbidden', permission: 'organization.read' },
   });
 });
