@@ -20,6 +20,7 @@ const RUNTIME_SURFACE = [
   'assertNarrative',
   'assertUnambiguousPath',
   'captureCompilerDerivative',
+  'listCompilerDerivativeMembers',
   'readCompilerDerivativeProvenance',
   'canonicalPaths',
   'canonicalRepository',

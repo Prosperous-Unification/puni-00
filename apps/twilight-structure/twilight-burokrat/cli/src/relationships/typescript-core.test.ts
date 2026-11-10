@@ -615,8 +615,8 @@ test('compiler configuration mode rejects unknown before source callbacks', () =
       request,
       source,
       limits,
-      // @ts-expect-error Unknown mode models an untyped caller at the public boundary.
       ts,
+      // @ts-expect-error Unknown mode models an untyped caller at the public boundary.
       'unknown',
     ),
   ).toThrow('TypeScript configuration mode invalid');

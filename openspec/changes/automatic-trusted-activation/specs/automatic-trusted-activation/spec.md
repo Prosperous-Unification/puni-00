@@ -1796,3 +1796,37 @@ and bound privately to its exact owned artifact only after complete success.
 - **AND** the internal derivative module stays absent from judge reachability until the strict
   public composition is assembled with Stage 3 ownership and both Stage 4 admission paths
 - **AND** no no-op observer, optional trusted identity or new public unverified route fills that gap
+
+### Requirement: Exact retained derivative acquisition and source preparation
+
+Retained derivative preparation SHALL acquire the four compiled members only through the exact
+owned runtime, validate all tuples before reads, and join exact candidate/runtime/namespace/source
+construction owners. It SHALL snapshot the complete shared request policy and return only internal
+non-executing preparation. Strict public extraction remains dependent on both Stage 4 admission paths.
+
+#### Scenario: Immutable member contract and pre-read tuple admission
+
+- **WHEN** a real runtime is selected for derivative acquisition
+- **THEN** all four compiler-derivative paths, roles, hashes and lengths match the immutable public
+  metadata-only contract before ANY runtime.readFile; extra unrelated closure files are permitted
+- **AND** actual runtime capture distinguishes missing files from unreadable files and roots may
+  disappear after owned capture without changing later acquired bytes
+- **AND** every returned copy consumes existing lifetime runtime limits without resets
+
+#### Scenario: Exact owner joins precede source callbacks
+
+- **WHEN** a complete derivative request is prepared
+- **THEN** caller references/getters, request arrays/paths and all existing limits are captured once
+  by the shared full-request policy before exact runtime/namespace owner checks and source creation
+- **AND** the newly constructed real source must match exact namespace/candidate/runtime owners
+  before source or compiler callbacks; equal-content foreign owners, copies and proxies refuse
+- **AND** selected compatibility retains its previous semantics; no callback/AST/Program is stored
+  in the opaque compiler binding and no prepared state is registered as successful extraction
+
+#### Scenario: Qualified length admission under inconsistent expected metadata
+
+- **WHEN** a test-only expected-hash dependency matches authentic altered-length bytes while the
+  compiled expected length remains unchanged
+- **THEN** length admission refuses without spending runtime read/copy allowances
+- **AND** removing only that guard spends an allowance before later raw-pin refusal; this proves
+  combined dependency/guard admission, not an intact-contract hostile-owner bypass

@@ -694,8 +694,10 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       and lifetime parity. Complete detached envelope bounds/freeze/private ownership are source-proven;
       exact review and owning/installed/canonical acceptance remain in g5. No strict public route
       before g3 exact retained ownership and both g4 admission paths.
-- [ ] 2.1d.1.3e6g3 Join four runtime closure tuples to the exact owned ReviewRuntime and derivative
-      envelope; prove foreign owner/role/path/getter/budget failures before compiler/source callbacks.
+- [x] 2.1d.1.3e6g3 Join four runtime closure tuples to the exact owned ReviewRuntime and derivative
+      acquisition; prepare the real source with full shared request snapshots and exact construction
+      owners. Source controls and independent faults pass; exact review and owning/installed/canonical
+      acceptance remain open. No extraction executes before both g4 admission routes.
 - [ ] 2.1d.1.3e6g4 Admit actual compiler-options attempts synchronously on both Program host and
       direct-system routes, preserving literal pre-admission, origins/order/absence and shared limits.
 - [ ] 2.1d.1.3e6g5 Package exact artifact members after dist recreation; prove installed execution
@@ -709,3 +711,8 @@ Stage 2 sequencing: e6g2 is internal and non-activating. Its required discrimina
 privately constructed from Stage 1 execution provenance; no caller supplies trusted identity or
 an alternative compiler. The strict public route remains dependent on e6g3 and both e6g4 routes.
 The existing metadata-only judge reachability invariant remains until that first public composition.
+
+Stage 3 ruling: g3 includes metadata-only compiled member expectations, real two-phase runtime
+acquisition, private exact construction-owner assertions, shared pure full-request snapshots and
+real non-executing retained source preparation. The expected-hash/length proof is explicitly
+qualified; it never repins production or manufactures ownership. Strict composition remains in g4.

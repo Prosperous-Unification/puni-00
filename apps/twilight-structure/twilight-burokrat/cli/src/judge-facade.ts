@@ -113,6 +113,7 @@ export type {
 } from './relationships/compiler-derivative-artifact';
 export {
   captureCompilerDerivative,
+  listCompilerDerivativeMembers,
   readCompilerDerivativeProvenance,
 } from './relationships/compiler-derivative-artifact';
 export {

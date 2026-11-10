@@ -163,7 +163,7 @@ export function fixture(
     resolutionPolicyIdentity: 'b'.repeat(64),
     files: runtimeFiles,
   };
-  const runtime = readReviewRuntime({
+  const runtimeInput = {
     runtimeRoot,
     candidateRoot: sourceRepository,
     closureBytes: Buffer.from(serializeCanonical(closure)),
@@ -179,6 +179,16 @@ export function fixture(
       maximumOwnedBytes: maximumRuntimeBytes,
       ...runtimeLimits,
     },
-  });
-  return { root, sourceRepository, storeBase, runtimeRoot, candidate, runtime };
+  };
+  const runtime = readReviewRuntime(runtimeInput);
+  return {
+    root,
+    sourceRepository,
+    storeBase,
+    runtimeRoot,
+    candidate,
+    runtime,
+    runtimeInput,
+    reopenCandidate: () => owner.open(request, prepared.snapshotIdentity),
+  };
 }

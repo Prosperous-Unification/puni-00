@@ -6,9 +6,11 @@ import { expect, test } from 'bun:test';
 import ts from 'typescript';
 
 import * as namespaceModule from './review-namespace';
-import { createRetainedNamespace } from './review-namespace';
+import { assertRetainedNamespaceOwners, createRetainedNamespace } from './review-namespace';
+import { readReviewRuntime } from './review-runtime';
 import { readRetainedFileIdentity } from './review-selection-objects';
 import {
+  assertRetainedTypeScriptSourceOwners,
   createRetainedTypeScriptSource,
   readRetainedTypeScriptSourceProvenance,
   sealRetainedTypeScriptReads,
@@ -1048,4 +1050,68 @@ test('byte census entry count refuses before owner copy with ledger byte headroo
   } finally {
     copy.mockRestore();
   }
+});
+
+test('exact construction joins distinguish genuine equal-content owners and legacy mixed source', () => {
+  const f = setup();
+  const candidateB = f.reopenCandidate();
+  const runtimeB = readReviewRuntime(f.runtimeInput);
+  const namespaceB = createRetainedNamespace(f.candidate, f.runtime, namespaceLimits);
+  expect(candidateB).not.toBe(f.candidate);
+  expect(candidateB.snapshot).toEqual(f.candidate.snapshot);
+  expect(runtimeB).not.toBe(f.runtime);
+  expect(runtimeB.closure).toEqual(f.runtime.closure);
+  expect(() => {
+    assertRetainedNamespaceOwners(f.namespace, f.candidate, f.runtime);
+  }).not.toThrow();
+  expect(() => {
+    assertRetainedNamespaceOwners(f.namespace, candidateB, f.runtime);
+  }).toThrow('namespace candidate owner differs');
+  expect(() => {
+    assertRetainedNamespaceOwners(f.namespace, f.candidate, runtimeB);
+  }).toThrow('namespace runtime owner differs');
+  expect(() => {
+    assertRetainedNamespaceOwners({ ...f.namespace }, f.candidate, f.runtime);
+  }).toThrow('owned retained namespace');
+  expect(() => {
+    assertRetainedTypeScriptSourceOwners(f.source, f.namespace, f.candidate, f.runtime);
+  }).not.toThrow();
+  expect(() => {
+    assertRetainedTypeScriptSourceOwners(f.source, namespaceB, f.candidate, f.runtime);
+  }).toThrow('source namespace owner differs');
+  expect(() => {
+    assertRetainedTypeScriptSourceOwners(f.source, f.namespace, candidateB, f.runtime);
+  }).toThrow('source candidate owner differs');
+  expect(() => {
+    assertRetainedTypeScriptSourceOwners(f.source, f.namespace, f.candidate, runtimeB);
+  }).toThrow('source runtime owner differs');
+  expect(() => {
+    assertRetainedTypeScriptSourceOwners({ ...f.source }, f.namespace, f.candidate, f.runtime);
+  }).toThrow('owned retained TypeScript source');
+  const namespaceProxy = new Proxy(f.namespace, {
+    get() {
+      throw new Error('namespace token touched');
+    },
+  });
+  const sourceProxy = new Proxy(f.source, {
+    get() {
+      throw new Error('source token touched');
+    },
+  });
+  expect(() => {
+    assertRetainedNamespaceOwners(namespaceProxy, f.candidate, f.runtime);
+  }).toThrow('owned retained namespace');
+  expect(() => {
+    assertRetainedTypeScriptSourceOwners(sourceProxy, f.namespace, f.candidate, f.runtime);
+  }).toThrow('owned retained TypeScript source');
+  const mixed = createRetainedTypeScriptSource(f.namespace, f.candidate, runtimeB, limits);
+  expect(readRetainedTypeScriptSourceProvenance(mixed)).toEqual(
+    readRetainedTypeScriptSourceProvenance(f.source),
+  );
+  expect(() => {
+    assertRetainedTypeScriptSourceOwners(mixed, f.namespace, f.candidate, f.runtime);
+  }).toThrow('source runtime owner differs');
+  expect(() => {
+    assertRetainedTypeScriptSourceOwners(mixed, f.namespace, f.candidate, runtimeB);
+  }).not.toThrow();
 });

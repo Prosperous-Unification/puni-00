@@ -2579,3 +2579,41 @@ The pure core and IO-free types remain reachable from judge; the VM composition 
 Stage 1 type-inclusive no-loader/no-builder facade invariant and all clock/store/network scans.
 At the first actual public executable reachability in Stages 3/4, refine only the bounded loader clock
 and explicit deny-list token interaction with independent isolation negatives. No blanket exemption.
+
+### Retained derivative acquisition/source preparation (Stage 3)
+
+Intent: acquire the exact four compiler members through the real owned ReviewRuntime and prepare
+an exact owned retained source/request without executing the derivative before both Stage 4
+admission routes exist. Preserve selected compatibility, shared lifetime budgets and unverified
+trust. No private Burokrat executable import or placeholder observer is permitted.
+
+Burokrat exposes listCompilerDerivativeMembers as a frozen metadata-only four-record contract,
+sharing existing hashes and exact manifest bytes. Expected lengths are9197/37980/9144652/526 for
+LICENSE/NOTICE/compiler/manifest. They are independent compiled expectations validated against
+actual owning-builder output, never supplied runtime values. The facade gains only this metadata
+function; its no-builder/no-VM/type-inclusive isolation checks remain intact.
+
+Dash validates every exact compiler-derivative/<member> path, role, hash and length before ANY
+runtime.readFile. Only compiler.cjs is program. Real reads retain their receiver and lifetime
+read/byte/allocation charges; captured Stage 1 limits apply additionally. A frozen opaque token
+registers exact runtime plus actual captured artifact and frozen bootstrap-acquisition metadata
+only after success. That metadata is not the complete actual CompilerReadManifestV1.
+
+Namespace and source constructors add private successful construction-reference records alongside
+existing provenance: namespace→candidate/runtime; source→namespace/candidate/runtime. Internal
+assertions use exact references, not equal hashes or provenance aliases. Selected compatibility
+retains its old hash-only admission; stricter assertions are invoked by derivative preparation.
+
+One shared pure full-request capture snapshots the existing request and all limit policies without
+rereading the caller's top-level object, preserving minima, path grammar, uniqueness, ordering and
+frozen detached state. prepareRetainedDerivativeTypeScriptSource captures all references once,
+uses that helper, requires exact derivative/runtime and namespace/candidate/runtime joins, creates
+the real source and immediately requires its exact construction join. It returns a transient
+internal source/request/limit/artifact/acquisition record; no compiler runs, no successful extraction
+is registered and no source callbacks are placed in the compiler binding/global strong cache.
+
+Length admission proof requires an explicit test-only metadata dependency fault: altered-length
+actual runtime bytes carry their real hash, and only the reader's expected hash is changed to match
+while its compiled length stays old. Hold this fault in control and mutant; removing only length
+admission must spend a real read/copy allowance before any later raw-pin error. This is a combined
+dependency/guard pre-read proof, not an independent hostile-owner bypass under unchanged hashes.

@@ -6362,3 +6362,59 @@ boundary preemptively. Mandatory exact runtime/source ownership, both actual-adm
 complete producer/config/reference closure, bounded parser process, actual read manifest, eleven
 documents, protected preparation/freeze and external-authority/installed acceptance remain required.
 No parent .3 or WBS leaf closes from this internal source checkpoint.
+
+### Stage 3 acquisition/source preparation — in progress
+
+Base cf603a74634f59bce64302f58acfe2f80ac62369/tree832924d3f9078c2c5c483f99f03d1df409d34046
+is approved for Stage 2 only. The accepted original-architect ruling permits metadata-only member
+expectations, private exact owner records and shared full-request preparation without execution.
+All Stage 4/5 and full owning/installed/canonical/closure/authority acceptance remain open.
+
+### Stage 3 source checkpoint (2026-11-10)
+
+Base: `cf603a74634f59bce64302f58acfe2f80ac62369`. The metadata-only judge addition is
+`listCompilerDerivativeMembers`; executable judge reachability/scanners remain unchanged.
+Real isolated owning CLI bytes match all four independent literal hashes/lengths. Runtime
+acquisition validates all four tuples before reads and retains exact runtime/artifact ownership.
+Real preparation shares the complete selected request policy, joins exact namespace/source
+construction inputs and publishes no extraction. Legacy mixed construction remains compatible.
+
+All commands run from native5330 with the existing bounded monitor (ordinary 900 MiB/120s;
+scoped API/lint 1500 MiB/120s). Full commands, outputs and receipts are retained beside the
+Task10 architecture ledger in `stage3-evidence/` and `stage3-report.md`.
+
+- `bun test .../review-compiler.test.ts`: 24 pass, 85 assertions; final peak 562516 KiB.
+- `bun test .../review-typescript.test.ts`: 45 pass, 2979 assertions; peak 781172 KiB.
+- `bun test .../{review-typescript-source,review-typescript-owner,review-runtime}.test.ts`:
+  126 pass, 577 assertions; peak 448208 KiB.
+- `bun test .../{compiler-derivative-artifact,judge-facade}.test.ts`:
+  48 pass, 82 assertions; peak 404008 KiB. Existing type-inclusive isolation remains active.
+- 54 independent ordinary fault/restored pairs, plus one bound-receiver pair; six final tuple/
+  receiver refreshes retain exact source faults. Every mutation site count is one; intended
+  assertions exit 1 and restored controls exit 0. Actual runtime read/copy/allocation charging,
+  all supplied limit rereads, metadata fields/freezes, genuine exact owners and request snapshots
+  are covered. The separate API `runtime: never` fault fails actual callers with TS2345/restores.
+- Role/hash and the disclosed path-prefix dependency fault spend a real sentinel allowance before
+  later pin errors. Missing-path guard removal changes the named refusal to TypeError only.
+  Length is the qualified combined expected-hash-dependency/length-guard admission proof: the
+  test dependency hash matches altered authentic bytes, old expected length remains; removing
+  only length spends the allowance. No unchanged-contract hostile owner bypass is claimed.
+- Narrow actual API roots pass (433412 KiB). Full owning typecheck is unrun.
+- Combined lint and Dash-only default-heap lint were memory-refused at the unchanged 1500 MiB
+  cap. The explicitly approved `NODE_OPTIONS=--max-old-space-size=1024` strategy preserves all
+  root rules/project graphs; Dash scoped lint passes at 1316212 KiB, Burokrat at 829160 KiB.
+- `openspec validate --all --json`: 341/341 pass. Strict selected validation is NOT green:
+  fresh exact-base/current artifacts have 25 identical issues, both exit 1.
+- The CI-discovered core test directive was moved above its unchanged `unknown` argument only.
+  The actual narrow core test root first fails TS2578+TS2345, then passes (271532 KiB).
+  Its runtime unknown-mode refusal still passes (1 test/1 assertion).
+- Known required failure: `no-ambient-clock.test.ts` still exits 1 naming unchanged private
+  loader `performance.now` at lines 90/93. This is an actual clock ownership violation;
+  no scanner exemption or clock-source change belongs to this checkpoint. Original architect
+  ruling must preserve aggregate decode/evaluation deadline while moving measurement to Dash.
+
+Normal monitored commit/hooks and exact source identities are recorded in the handoff report.
+No push, host/gate, full Nx, installed packaging, frozen install or aggregate trust acceptance
+was performed. Stage 4 BOTH actual-attempt admission paths, Stage 5, full producer/config/
+reference closure, parser settlement, actual complete read manifest, eleven documents,
+protected freeze and independent installed authority/unattended acceptance remain mandatory.
