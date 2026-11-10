@@ -1765,3 +1765,34 @@ full closure, parser settlement, preparation/freeze and external-authority accep
 - **WHEN** a compiler-options attempt escapes through either host route
 - **THEN** synchronous admission refuses before candidate IO or safe fallback
 - **AND** repeated inside attempts share the existing source/compiler/traversal limits
+
+### Requirement: Non-activating derivative identity core prerequisite
+
+The internal derivative core SHALL select its owned execution identity before hashing every import,
+reverse edge and public declaration selector. It SHALL preserve selected/serial compatibility and
+SHALL NOT activate a strict retained route before exact runtime/source ownership and both actual
+attempt-admission paths exist. Its detached envelope SHALL remain unverified, bounded, deeply frozen
+and bound privately to its exact owned artifact only after complete success.
+
+#### Scenario: Distinct owned execution reaches every selector
+
+- **WHEN** internal compilation executes the owned pinned derivative
+- **THEN** extractorId is typescript.compiler.paths-observer, version is v6.0.3.paths-observer.1,
+  and blob is the owned compilerExecutionIdentity before each selector's identity is calculated
+- **AND** the artifact/execution canonical-LF preimages and all three selector identities match
+  independent vectors; wrapper package text or matching installed version grants no authentication
+
+#### Scenario: Complete prerequisite publication and settlement
+
+- **WHEN** request or limit getters mutate, a bound is exceeded, compilation fails or freeze fails
+- **THEN** captured inputs remain stable and no incomplete owned envelope is published
+- **AND** final bounds cover request, execution provenance, extractor and every selector family;
+  forged, copied or proxied outputs and equal-content foreign artifacts fail exact owner lookup
+
+#### Scenario: Legacy compatibility and strict-route sequencing
+
+- **WHEN** the existing selected or filesystem serial entry executes
+- **THEN** its full identity, selectors and phase lifetime behavior remain unchanged
+- **AND** the internal derivative module stays absent from judge reachability until the strict
+  public composition is assembled with Stage 3 ownership and both Stage 4 admission paths
+- **AND** no no-op observer, optional trusted identity or new public unverified route fills that gap

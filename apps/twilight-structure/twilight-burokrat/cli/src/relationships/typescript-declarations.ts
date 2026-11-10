@@ -369,5 +369,6 @@ export function publicDeclaration(
   };
   // Proof: omitting public-selector charging admitted the one-byte-short observation budget.
   project.system.chargeOutput(JSON.stringify(selector));
+  // Proof: post-hash extractor replacement lost the independent public-declaration preimage digest.
   return { ...selector, identity: hashCanonical(selector) };
 }
