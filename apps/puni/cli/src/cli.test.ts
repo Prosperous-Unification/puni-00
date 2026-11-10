@@ -106,11 +106,12 @@ for (const alias of ['burokrat', 'bur', 'b'])
   it(alias + ' refuses missing installed assets without a source-validator fallback', async () => {
     const root = createRoot(),
       { context, stdout, stderr } = createContext(root);
+    mkdirSync(context.installation.directory);
     expect(
       await main([alias, 'validate-record', 'plan-reference', join(root, 'record.json')], context),
     ).toEqual({ kind: 'drain', status: 1 });
     expect(text(stdout)).toBe('');
-    expect(text(stderr)).toContain('installed package manifest is unreadable');
+    expect(text(stderr)).toContain('installed PUNI package manifest is unreadable');
     expect(text(stderr)).not.toContain('SyntaxError');
   });
 

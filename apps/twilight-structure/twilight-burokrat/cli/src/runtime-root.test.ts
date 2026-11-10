@@ -16,8 +16,8 @@ import { fileURLToPath } from 'node:url';
 import { createLaunch, createShebang } from '@shared/bun-startup';
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 
-import { buildPackage } from './packaging/build';
 import { buildLintLauncher } from './policy/build-lint-launcher';
+import { buildValidatorBundle } from './policy/trusted-modules';
 import { createInstalledLintFixture } from './testing/installed-lint-fixtures';
 import { runExitSupervisor } from './testing/unconfirmed-lint-exit';
 
@@ -49,9 +49,11 @@ beforeAll(async () => {
   if (artifact === undefined) throw new Error('root build emitted no entrypoint');
   executable = new Uint8Array(await artifact.arrayBuffer());
   launcher = await buildLintLauncher();
-  const packageRoot = createRoot();
-  await buildPackage(packageRoot);
-  ordinary = join(packageRoot, 'dist');
+  const validator = await buildValidatorBundle(join(import.meta.dir, 'cli.ts'));
+  const fixture = createInstalledLintFixture(launcher, Buffer.from(validator).toString());
+  roots.push(fixture.root);
+  fixture.writeValidator(validator);
+  ordinary = fixture.installedDirectory;
   writeRoot(ordinary);
 }, 120000);
 afterAll(() => {
@@ -83,7 +85,7 @@ function createLint(validator: string) {
 for (const alias of ['burokrat', 'bur', 'b'])
   it(
     alias +
-      ' runs actual ordinary installed template requests through the built root with toolkit1',
+      ' runs actual ordinary installed template requests through the built root with current PUNI toolkit2',
     () => {
       const child = invoke(join(ordinary, 'puni.mjs'), [alias, 'template', 'list'], createRoot());
       expect(child.exitCode, child.stderr.toString()).toBe(0);

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { assertInstalledPlacement } from './installed-placement';
 import type { LintRuntime } from './lint-runtime';
 import { readLintRuntime } from './lint-runtime';
-import { readInstalledBunToolkit } from './packaging/installed';
+import { readInstalledPuniToolkit } from './packaging/installed';
 import { readPreparationSource } from './policy/preparation-source';
 import { executePreparation } from './preparation-dispatch';
 import { type PreparationExecution, runPreparationOperation } from './preparation-execution';
@@ -57,7 +57,8 @@ export async function executeInstalledPreparation(
     selected.command === 'prepare-activation' && selected.toolkit !== undefined
       ? anchorPath(selected.toolkit, callerDirectory)
       : join(directory, 'toolkit');
-  const toolkit = readInstalledBunToolkit(directory, toolkitDirectory);
+  // Proof: c28-preparation-current-profile; Complete old package with valid toolkit2; current route must refuse before candidate/operation activity.; injected fault failed `refuses a complete old package profile with valid toolkit2 before prepare-activation candidate Git or outputs` and 1 additional named controls; restoration passed.
+  const toolkit = readInstalledPuniToolkit(directory, toolkitDirectory);
   const authority = {
     callerDirectory,
     toolkitDirectory: toolkit.directory,

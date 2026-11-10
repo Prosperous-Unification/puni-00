@@ -5,21 +5,24 @@ import { assertGitVersion, createGitEnvironment } from './git-environment';
 import type { Request } from './grammar-facade';
 import { type InstalledLintContext, readInstalledLint } from './installed-lint';
 import { runInstalledLintLauncher } from './installed-lint-launcher';
+import { assertInstalledPlacement } from './installed-placement';
 import { decodeCandidateRoot } from './inventory/read-candidate';
 import { runLintOperation } from './lint-execution';
 import type { LintDiagnostic, LintOutput } from './lint-output';
 import { lintParentMode } from './lint-parent-control';
 import type { LintRequest } from './lint-request';
 import { readLintRuntime } from './lint-runtime';
-import { readInstalledToolkit } from './packaging/installed';
+import { readInstalledPuniToolkit, readInstalledToolkit } from './packaging/installed';
 import { prepareToolkit, type Toolkit } from './policy/prepare-activation-cli';
 import { prepareRelocation } from './policy/prepare-relocation-activation-cli';
 import { toolkitRoles } from './policy/release';
+import type { BunToolkit } from './policy/toolkit';
 import { anchorPreparation } from './preparation-paths';
 import { anchorPath } from './validator-paths';
 import type { Request as ValidatorRequest } from './validator-request';
 
 export type { Request } from './grammar-facade';
+export { runInstalledPreparation } from './installed-preparation';
 export { freezePath } from './lint-runtime';
 
 /** The selected installation, caller paths, protected Bun launch and owned output streams. */
@@ -40,7 +43,8 @@ function readCandidateDirectory(
   environment: Readonly<Record<string, string>>,
 ): string | undefined {
   // Proof: bypassing this caller-root branch admitted candidate-local assets in the workflow-binding placement test.
-  if (request.command === 'validate workflow-binding') return realpathSync(context.callerDirectory);
+  if (request.command === 'validate workflow-binding')
+    return realpathSync.native(context.callerDirectory);
   const repository =
     'repository' in request
       ? request.repository
@@ -61,7 +65,7 @@ function readCandidateDirectory(
     },
   );
   // Proof: using the interior repository operand instead of the actual worktree root admitted the candidate-local installation test.
-  return realpathSync(
+  return realpathSync.native(
     decodeCandidateRoot({
       exitCode: child.exitCode,
       stdout: child.stdout,
@@ -73,7 +77,7 @@ function readCandidateDirectory(
 /** Physical placement is separate from digest verification; candidate symlinks cannot grant it. */
 function assertExternal(candidate: string, path: string, subject: string): void {
   // Proof: lexical placement admitted a validator symlink into the candidate; the validator-target placement negative failed.
-  const offset = relative(candidate, realpathSync(path));
+  const offset = relative(candidate, realpathSync.native(path));
   if (offset === '' || (offset !== '..' && !offset.startsWith('..' + sep) && !isAbsolute(offset)))
     throw new Error(
       'installed Burokrat runtime must be outside the selected candidate: ' + subject,
@@ -135,8 +139,25 @@ export function executeRequest(
   return executeValidator(request, context, toolkit);
 }
 
+/**
+ * Execute a typed current ordinary request through its independently verified PUNI0.3/toolkit2
+ * child. Native installation selection precedes child-path joining; current physical placement
+ * enumerates the verified current roles. Lint/preparation retain their separate owned routes.
+ * @throws for package/runtime/placement failures or signaled validator execution.
+ */
+export function executeCurrentRequest(request: ValidatorRequest, context: Context): number {
+  const directory = realpathSync.native(context.installedDirectory);
+  // Proof: c28-ordinary-current-profile; Old package with otherwise valid toolkit2; asserts no candidate Git or launch before diagnostic.; injected fault failed `refuses a complete old package profile with valid toolkit2 before ordinary candidate Git or launch`; restoration passed.
+  const toolkit = readInstalledPuniToolkit(directory, join(directory, 'toolkit'));
+  return executeValidator(request, { ...context, installedDirectory: directory }, toolkit);
+}
+
 /** The verified ordinary child owns process state and receives only its typed stdin request. */
-function executeValidator(request: ValidatorRequest, context: Context, toolkit: Toolkit): number {
+function executeValidator(
+  request: ValidatorRequest,
+  context: Context,
+  toolkit: Toolkit | BunToolkit,
+): number {
   const environment: Record<string, string> = {
     ...createGitEnvironment(context.path),
     TOOL_WIKI_TRUSTED_NODE_MODULES: join(toolkit.directory, 'trusted-node-modules'),
@@ -147,8 +168,11 @@ function executeValidator(request: ValidatorRequest, context: Context, toolkit: 
     environment['TOOL_WIKI_CI_TRUSTED_BINDING'] =
       binding.length === 0 ? binding : anchorPath(binding, context.callerDirectory);
   const candidate = readCandidateDirectory(request, context, toolkit.directory, environment);
-  if (candidate !== undefined)
-    assertInstallation(candidate, context.installedDirectory, toolkit.directory);
+  if (candidate !== undefined) {
+    if (toolkit.schemaVersion === 2)
+      assertInstalledPlacement(candidate, context.installedDirectory, toolkit);
+    else assertInstallation(candidate, context.installedDirectory, toolkit.directory);
+  }
   // Proof: bypassing the protected launch capability lost its prerequisite refusal; removing the typed mode, envelope caller or stdin payload failed actual dispatch.
   const argv = [...context.launch(join(toolkit.directory, 'validator.mjs')), '--puni-request-v1'];
   let child: Bun.ReadableSyncSubprocess;

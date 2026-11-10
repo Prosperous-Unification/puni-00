@@ -25,6 +25,7 @@ import { buildLintLauncher } from '../policy/build-lint-launcher';
 import { hashTrustedModules } from '../policy/trusted-modules';
 import * as installed from './installed';
 import { packageManifestBytes, packageVersion } from './manifest';
+import { createPuniManifest, puniVersion } from './puni-manifest';
 
 let launcher: Uint8Array;
 const roots: string[] = [];
@@ -63,7 +64,7 @@ function createFixture(schemaVersion: 1 | 2) {
   }
   const descriptor = {
     schemaVersion,
-    tag: 'puni-v' + packageVersion,
+    tag: 'puni-v' + (schemaVersion === 2 ? puniVersion : packageVersion),
     sourceRevision: 'a'.repeat(40),
     bunVersion: Bun.version,
     roles,
@@ -74,14 +75,20 @@ function createFixture(schemaVersion: 1 | 2) {
   writeFileSync(join(toolkit, 'toolkit.json'), descriptorBytes);
   const identity = hashBytes(new TextEncoder().encode(descriptorBytes));
   const manifest = join(directory, 'package-manifest.json');
-  writeFileSync(manifest, packageManifestBytes(descriptor.sourceRevision, identity));
+  writeFileSync(
+    manifest,
+    (schemaVersion === 2 ? createPuniManifest : packageManifestBytes)(
+      descriptor.sourceRevision,
+      identity,
+    ),
+  );
   return { root, directory, toolkit, closure, descriptor, identity, manifest };
 }
 
 describe('current installed toolkit identity', () => {
   it('reads a current package-bound toolkit carrying the actual Bun launcher', () => {
     const fixture = createFixture(2);
-    const current = installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit);
+    const current = installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit);
     expect(current.schemaVersion).toBe(2);
     expect(current.digest).toBe(fixture.identity);
     expect(current.directory).toBe(fixture.toolkit);
@@ -90,8 +97,8 @@ describe('current installed toolkit identity', () => {
 
   it('refuses historical format even when its Bun pin matches', () => {
     const fixture = createFixture(1);
-    expect(() => installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit)).toThrow(
-      'Bun execution requires toolkit schema 2',
+    expect(() => installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit)).toThrow(
+      'installed PUNI package manifest is invalid',
     );
   });
 
@@ -108,10 +115,10 @@ describe('current installed toolkit identity', () => {
     const fixture = createFixture(2);
     writeFileSync(
       fixture.manifest,
-      packageManifestBytes(fixture.descriptor.sourceRevision, 'b'.repeat(64)),
+      createPuniManifest(fixture.descriptor.sourceRevision, 'b'.repeat(64)),
     );
-    expect(() => installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit)).toThrow(
-      'installed toolkit differs from package manifest',
+    expect(() => installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit)).toThrow(
+      'installed toolkit differs from PUNI package manifest',
     );
   });
 
@@ -123,7 +130,7 @@ describe('current installed toolkit identity', () => {
     const alias = join(lexical.directory, 'alias');
     symlinkSync(child, alias);
     const selected = alias + '/..';
-    const current = installed.readInstalledBunToolkit(selected, selected + '/toolkit');
+    const current = installed.readInstalledPuniToolkit(selected, selected + '/toolkit');
     expect(current.directory).toBe(native.toolkit);
     expect(current.digest).toBe(native.identity);
     expect(current.digest).not.toBe(lexical.identity);
@@ -132,7 +139,7 @@ describe('current installed toolkit identity', () => {
 
 describe('installed package boundary failures', () => {
   for (const [label, reader] of [
-    ['current', installed.readInstalledBunToolkit],
+    ['current', installed.readInstalledPuniToolkit],
     ['legacy', installed.readInstalledToolkit],
   ] as const) {
     const schemaVersion = label === 'current' ? 2 : 1;
@@ -140,7 +147,10 @@ describe('installed package boundary failures', () => {
       const fixture = createFixture(schemaVersion);
       rmSync(fixture.manifest);
       expect(() => reader(fixture.directory, fixture.toolkit + '-absent')).toThrow(
-        'installed package manifest is unreadable: ' + fixture.manifest,
+        'installed ' +
+          (label === 'current' ? 'PUNI ' : '') +
+          'package manifest is unreadable: ' +
+          fixture.manifest,
       );
     });
     it(label + ' refuses an unreadable package manifest before reading a toolkit', () => {
@@ -148,21 +158,30 @@ describe('installed package boundary failures', () => {
       rmSync(fixture.manifest);
       mkdirSync(fixture.manifest);
       expect(() => reader(fixture.directory, fixture.toolkit + '-absent')).toThrow(
-        'installed package manifest is unreadable: ' + fixture.manifest,
+        'installed ' +
+          (label === 'current' ? 'PUNI ' : '') +
+          'package manifest is unreadable: ' +
+          fixture.manifest,
       );
     });
     it(label + ' refuses malformed package bytes before reading a toolkit', () => {
       const fixture = createFixture(schemaVersion);
       writeFileSync(fixture.manifest, '{');
       expect(() => reader(fixture.directory, fixture.toolkit + '-absent')).toThrow(
-        'installed package manifest is malformed: ' + fixture.manifest,
+        'installed ' +
+          (label === 'current' ? 'PUNI ' : '') +
+          'package manifest is malformed: ' +
+          fixture.manifest,
       );
     });
     it(label + ' refuses invalid package fields before reading a toolkit', () => {
       const fixture = createFixture(schemaVersion);
       writeFileSync(fixture.manifest, '{}');
       expect(() => reader(fixture.directory, fixture.toolkit + '-absent')).toThrow(
-        'installed package manifest is invalid: ' + fixture.manifest,
+        'installed ' +
+          (label === 'current' ? 'PUNI ' : '') +
+          'package manifest is invalid: ' +
+          fixture.manifest,
       );
     });
   }
@@ -175,9 +194,9 @@ describe('installed package boundary failures', () => {
     writeFileSync(join(fixture.toolkit, 'toolkit.json'), bytes);
     writeFileSync(
       fixture.manifest,
-      packageManifestBytes(fixture.descriptor.sourceRevision, hashBytes(bytes)),
+      createPuniManifest(fixture.descriptor.sourceRevision, hashBytes(bytes)),
     );
-    expect(() => installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit)).toThrow(
+    expect(() => installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit)).toThrow(
       'toolkit was built with another Bun',
     );
   });
@@ -192,14 +211,14 @@ describe('installed package boundary failures', () => {
     it('refuses changed current role ' + role, () => {
       const fixture = createFixture(2);
       writeFileSync(join(fixture.toolkit, role), '// substituted bytes');
-      expect(() => installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit)).toThrow(
+      expect(() => installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit)).toThrow(
         'toolkit role differs from toolkit.json: ' + role,
       );
     });
     it('refuses missing current role ' + role, () => {
       const fixture = createFixture(2);
       rmSync(join(fixture.toolkit, role));
-      expect(() => installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit)).toThrow(
+      expect(() => installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit)).toThrow(
         'toolkit role is unreadable: ' + role,
       );
     });
@@ -208,7 +227,7 @@ describe('installed package boundary failures', () => {
   it('refuses changed installed closure bytes', () => {
     const fixture = createFixture(2);
     writeFileSync(join(fixture.closure, 'typescript/package.json'), '{"changed":true}');
-    expect(() => installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit)).toThrow(
+    expect(() => installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit)).toThrow(
       'toolkit runtime closure differs from toolkit.json',
     );
   });
@@ -216,7 +235,7 @@ describe('installed package boundary failures', () => {
   it('refuses an absent closure', () => {
     const fixture = createFixture(2);
     rmSync(fixture.closure, { recursive: true });
-    expect(() => installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit)).toThrow();
+    expect(() => installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit)).toThrow();
   });
 
   it('refuses a closure file symlink even when its target bytes match', () => {
@@ -226,7 +245,7 @@ describe('installed package boundary failures', () => {
     const selected = join(fixture.closure, 'typescript/package.json');
     rmSync(selected);
     symlinkSync(target, selected);
-    expect(() => installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit)).toThrow(
+    expect(() => installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit)).toThrow(
       'trusted node modules carry a non-regular entry',
     );
   });
@@ -251,7 +270,7 @@ describe('nonblocking installed authority reads', () => {
           rmSync(selected);
           const created = Bun.spawnSync(['mkfifo', selected], { stdout: 'pipe', stderr: 'pipe' });
           expect(created.exitCode, created.stderr.toString()).toBe(0);
-          const reader = version === 1 ? 'readInstalledToolkit' : 'readInstalledBunToolkit';
+          const reader = version === 1 ? 'readInstalledToolkit' : 'readInstalledPuniToolkit';
           const program =
             'import { ' +
             reader +
@@ -281,7 +300,7 @@ describe('nonblocking installed authority reads', () => {
           expect(stdout).toBe('');
           expect(stderr).toContain(
             name === 'package-manifest.json'
-              ? 'installed package manifest is unreadable'
+              ? 'installed ' + (version === 2 ? 'PUNI ' : '') + 'package manifest is unreadable'
               : name === 'toolkit.json'
                 ? 'toolkit descriptor is not a regular file'
                 : 'toolkit role is unreadable: ' + name,
@@ -360,11 +379,11 @@ describe('current installed lint preflight', () => {
   it('keeps independent package and toolkit identities instead of substituting either', () => {
     const first = createFixture(2);
     const second = createFixture(2);
-    expect(() => installed.readInstalledBunToolkit(first.directory, second.toolkit)).toThrow(
-      'installed toolkit differs from package manifest',
+    expect(() => installed.readInstalledPuniToolkit(first.directory, second.toolkit)).toThrow(
+      'installed toolkit differs from PUNI package manifest',
     );
-    expect(() => installed.readInstalledBunToolkit(second.directory, first.toolkit)).toThrow(
-      'installed toolkit differs from package manifest',
+    expect(() => installed.readInstalledPuniToolkit(second.directory, first.toolkit)).toThrow(
+      'installed toolkit differs from PUNI package manifest',
     );
   });
 
@@ -446,7 +465,7 @@ describe('current installed lint preflight', () => {
     writeFileSync(join(fixture.toolkit, 'toolkit.json'), bytes);
     writeFileSync(
       fixture.manifest,
-      packageManifestBytes(fixture.descriptor.sourceRevision, hashBytes(bytes)),
+      createPuniManifest(fixture.descriptor.sourceRevision, hashBytes(bytes)),
     );
     await assertRefusal(
       invokePreflight(fixture, candidate),
@@ -485,7 +504,7 @@ describe('installed lint preflight ordering and cancellation', () => {
     writeFileSync(fixture.manifest, '{');
     await assertRefusal(
       invokePreflight(fixture, '/absent-candidate'),
-      'installed package manifest is malformed',
+      'installed PUNI package manifest is malformed',
     );
   });
   it('binds the preflight toolkit to the expected package identity', async () => {
@@ -493,18 +512,18 @@ describe('installed lint preflight ordering and cancellation', () => {
     const candidate = createRepository(join(fixture.root, 'candidate'));
     writeFileSync(
       fixture.manifest,
-      packageManifestBytes(fixture.descriptor.sourceRevision, 'b'.repeat(64)),
+      createPuniManifest(fixture.descriptor.sourceRevision, 'b'.repeat(64)),
     );
     await assertRefusal(
       invokePreflight(fixture, candidate),
-      'installed toolkit differs from package manifest',
+      'installed toolkit differs from PUNI package manifest',
     );
   });
   it('refuses historical execution through the preflight route', async () => {
     const fixture = createFixture(1);
     await assertRefusal(
       invokePreflight(fixture, '/absent-candidate'),
-      'Bun execution requires toolkit schema 2',
+      'installed PUNI package manifest is invalid',
     );
   });
 
@@ -606,7 +625,7 @@ it('uses the explicitly selected Git PATH for installed preflight', async () => 
 
 describe('installed authority filesystem permissions', () => {
   for (const [label, reader] of [
-    ['current', installed.readInstalledBunToolkit],
+    ['current', installed.readInstalledPuniToolkit],
     ['legacy', installed.readInstalledToolkit],
   ] as const) {
     it(label + ' refuses a permission-denied regular manifest before toolkit access', () => {
@@ -614,7 +633,7 @@ describe('installed authority filesystem permissions', () => {
       chmodSync(fixture.manifest, 0);
       try {
         expect(() => reader(fixture.directory, fixture.toolkit + '-absent')).toThrow(
-          'installed package manifest is unreadable',
+          'installed ' + (label === 'current' ? 'PUNI ' : '') + 'package manifest is unreadable',
         );
       } finally {
         chmodSync(fixture.manifest, 0o600);
@@ -626,7 +645,7 @@ describe('installed authority filesystem permissions', () => {
     const descriptor = join(fixture.toolkit, 'toolkit.json');
     chmodSync(descriptor, 0);
     try {
-      expect(() => installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit)).toThrow(
+      expect(() => installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit)).toThrow(
         /EACCES/,
       );
     } finally {
@@ -637,7 +656,7 @@ describe('installed authority filesystem permissions', () => {
     const fixture = createFixture(2);
     chmodSync(fixture.closure, 0);
     try {
-      expect(() => installed.readInstalledBunToolkit(fixture.directory, fixture.toolkit)).toThrow(
+      expect(() => installed.readInstalledPuniToolkit(fixture.directory, fixture.toolkit)).toThrow(
         /EACCES/,
       );
     } finally {

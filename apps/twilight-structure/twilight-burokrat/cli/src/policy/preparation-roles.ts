@@ -13,6 +13,7 @@ import { createShebang } from '@shared/bun-startup';
 import ts from 'typescript';
 
 import type { LintInterrupt, SubscribeLintInterrupts } from '../lint-interrupts';
+import { embedDashAssets } from '../packaging/dash-assets';
 import { type PreparationCompiler, prepareCompiler } from '../packaging/preparation-compiler';
 import { boundSource } from '../relationships/typescript-compiler';
 import type { BuildDependencies } from './build-dependencies';
@@ -151,6 +152,7 @@ function assertNoOpaqueLoads(path: string, module: Module, vendor: boolean): voi
 }
 
 interface RoleBuildContext<Role extends string> {
+  readonly packagePrograms?: boolean;
   readonly materializedDirectory: string;
   readonly entries: readonly (readonly [Role, string])[];
   readonly executableRoles: readonly Role[];
@@ -245,6 +247,59 @@ export function buildToolkitRoles(
   });
 }
 
+export type PuniProgram = BunToolkitRole | 'puni.mjs' | 'observation-service.mjs';
+
+/**
+ * Build the PUNI root, five toolkit roles and pure observation service in one sealed session.
+ * Entry paths and data embedding belong to the producer, never captured configuration. All
+ * programs share one captured source/dependency identity and compiler notices; stable virtual
+ * module paths avoid global literal rewriting while whitespace minification removes comments.
+ * This produces bytes only, without package assembly, clean-release admission or publication.
+ */
+export function buildPuniPrograms(
+  source: CommittedSource,
+  context: {
+    readonly materializedDirectory: string;
+    readonly dependencies: BuildDependencies;
+    readonly subscribeInterrupts: SubscribeLintInterrupts;
+  },
+): Promise<BuiltRoles<PuniProgram>> {
+  const provider = 'apps/twilight-structure/twilight-burokrat/cli/src/';
+  // Proof: c28-programs-capability-object; Callback changes scalar identity/directory/pins and names. No independent protectedPaths claim; that field is unused in byte-building.; injected fault failed `builds root five toolkit roles and observation once from captured programs and SQL after live source changes`; restoration passed.
+  const dependencies: BuildDependencies = {
+    ...context.dependencies,
+    // Proof: c28-programs-capability-names; Names-array alias only; other captured capability fields remain intact.; injected fault failed `builds root five toolkit roles and observation once from captured programs and SQL after live source changes`; restoration passed.
+    names: [...context.dependencies.names],
+    protectedPaths: [...context.dependencies.protectedPaths],
+  };
+  return buildSelectedRoles<PuniProgram>(source, {
+    materializedDirectory: context.materializedDirectory,
+    entries: [
+      ['launcher.mjs', provider + 'lint-cli.ts'],
+      ['snapshotter.ts', provider + 'policy/snapshot-validator.ts'],
+      ['validator.mjs', provider + 'cli.ts'],
+      ['prepare-activation.mjs', provider + 'policy/prepare-activation-entry.ts'],
+      ['prepare-relocation-activation.mjs', provider + 'policy/prepare-relocation-entry.ts'],
+      // Proof: c28-programs-root-entry; injected fault failed `builds root five toolkit roles and observation once from captured programs and SQL after live source changes`; restoration passed.
+      ['puni.mjs', 'apps/puni/cli/src/entrypoint.ts'],
+      [
+        'observation-service.mjs',
+        // Proof: c28-programs-observation-entry; injected fault failed `builds root five toolkit roles and observation once from captured programs and SQL after live source changes`; restoration passed.
+        'apps/twilight-structure/twilight-dash/cli/src/activation/observation-service-cli.ts',
+      ],
+    ],
+    executableRoles: [
+      'launcher.mjs',
+      'prepare-activation.mjs',
+      'prepare-relocation-activation.mjs',
+      'puni.mjs',
+    ],
+    readDependencies: () => dependencies,
+    subscribeInterrupts: context.subscribeInterrupts,
+    packagePrograms: true,
+  });
+}
+
 /**
  * Candidate helpers/plugins never execute: configuration is bounded and a sealed namespace
  * supplies captured modules, closed imports and the pinned compiler transform. Macro attributes
@@ -255,6 +310,7 @@ async function buildSelectedRoles<Role extends string>(
   source: CommittedSource,
   context: RoleBuildContext<Role>,
 ): Promise<BuiltRoles<Role>> {
+  const packagePrograms = context.packagePrograms === true;
   const materializedDirectory = context.materializedDirectory,
     selectedEntries = context.entries.map(([role, path]) => [role, path] as const),
     executableRoles = [...context.executableRoles],
@@ -504,7 +560,14 @@ async function buildSelectedRoles<Role extends string>(
       const path = pending.pop();
       if (path === undefined) throw new Error('preparation source queue is unexpectedly empty');
       if (captured.has(path)) continue;
-      let original: Module = { bytes: readBytes(path), loader: selectLoader(path) };
+      const capturedBytes = readBytes(path);
+      let original: Module = {
+        bytes: packagePrograms
+          ? // Proof: c28-programs-captured-assets; injected fault failed `builds root five toolkit roles and observation once from captured programs and SQL after live source changes`; restoration passed.
+            embedDashAssets(source, relative(directory, path).split(sep).join('/'), capturedBytes)
+          : capturedBytes,
+        loader: selectLoader(path),
+      };
       if (path === join(modules, '@typescript/old/lib/typescript.js')) {
         const prepared = prepareCompiler(
           new TextDecoder('utf-8', { fatal: true }).decode(original.bytes),
@@ -590,7 +653,32 @@ async function buildSelectedRoles<Role extends string>(
       JSON.stringify({ compilerOptions: { target: 'ESNext', module: 'ESNext' } }),
       { flag: 'wx', mode: 0o444 },
     );
-    async function buildRole(entry: string): Promise<Uint8Array> {
+    const virtualPaths = new Map(
+      [...captured.keys()].map((path) => [
+        path,
+        '/puni-captured/' + relative(directory, path).split(sep).join('/'),
+      ]),
+    );
+    const physicalPaths = new Map(
+      [...virtualPaths].map(([physical, virtual]) => [virtual, physical]),
+    );
+    function virtualPath(path: string): string {
+      // Proof: c28-programs-stable-metadata; One compound fault disables both forward and reverse module virtualization; exact CJS filename/directory output must detect physical paths.; injected fault failed `builds root five toolkit roles and observation once from captured programs and SQL after live source changes`; restoration passed.
+      if (!packagePrograms) return path;
+      const virtual = virtualPaths.get(path);
+      if (virtual === undefined)
+        throw new Error('package bundler requested an uncaptured physical module: ' + path);
+      return virtual;
+    }
+    function physicalPath(path: string): string {
+      // Proof: c28-programs-stable-metadata; One compound fault disables both forward and reverse module virtualization; exact CJS filename/directory output must detect physical paths.; injected fault failed `builds root five toolkit roles and observation once from captured programs and SQL after live source changes`; restoration passed.
+      if (!packagePrograms) return path;
+      const physical = physicalPaths.get(path);
+      if (physical === undefined)
+        throw new Error('package bundler requested an unplanned virtual module: ' + path);
+      return physical;
+    }
+    async function buildRole(role: Role, entry: string): Promise<Uint8Array> {
       const namespace = 'puni-captured-preparation',
         entrySpecifier = 'puni-captured-entry';
       const built = await Bun.build({
@@ -598,12 +686,17 @@ async function buildSelectedRoles<Role extends string>(
         target: 'bun',
         format: 'esm',
         env: 'disable',
+        minify: packagePrograms ? { whitespace: true } : false,
         allowUnresolved: [],
         tsconfig: buildConfig,
         // Proof: c26-build-pin; injected fault failed `delivers the producer Bun pin and one protected launcher hashbang in selected roles`; the same named test(s) passed after restoration.
         define: {
           __PUNI_LINT_BUN_VERSION__: JSON.stringify(Bun.version),
           __PUNI_PREPARATION_BUN_VERSION__: JSON.stringify(Bun.version),
+          __PUNI_STANDALONE_VALIDATOR__: JSON.stringify(
+            // Proof: c28-programs-standalone-marker; injected fault failed `runs actual installed observe policy against its emitted validator bundle and all five deterministic checks`; restoration passed.
+            role === 'validator' || role === 'validator.mjs',
+          ),
         },
         plugins: [
           {
@@ -611,17 +704,17 @@ async function buildSelectedRoles<Role extends string>(
             setup(builder) {
               builder.onResolve({ filter: /[\s\S]*/ }, ({ path, importer, kind }) => {
                 if (kind === 'entry-point-build' && importer === '' && path === entrySpecifier)
-                  return { path: entry, namespace };
-                const selected = imports.get(createImportKey(importer, path, kind));
+                  return { path: virtualPath(entry), namespace };
+                const selected = imports.get(createImportKey(physicalPath(importer), path, kind));
                 // Proof: c26-build-unplanned-import; injected fault failed `refuses an unplanned sealed import requested by the actual Bun bundler`; the same named test(s) passed after restoration.
                 if (selected === undefined)
                   throw new Error('preparation bundler requested unplanned import: ' + path);
                 return selected.isExternal
                   ? { path: selected.path, external: true }
-                  : { path: selected.path, namespace };
+                  : { path: virtualPath(selected.path), namespace };
               });
               builder.onLoad({ filter: /[\s\S]*/, namespace }, ({ path }) => {
-                const module = captured.get(path);
+                const module = captured.get(physicalPath(path));
                 // Proof: c26-build-uncaptured-load; injected fault failed `refuses an unplanned sealed load requested by the actual Bun bundler`; the same named test(s) passed after restoration.
                 if (module === undefined)
                   throw new Error('preparation bundler requested uncaptured bytes: ' + path);
@@ -644,7 +737,7 @@ async function buildSelectedRoles<Role extends string>(
     const roleBytes: [Role, Uint8Array][] = [];
     for (const [role, entry] of roleEntries) {
       // Proof: c26-build-await-validator; injected fault failed `awaits the actual in-process build after interruption and starts no later role`; the same named test(s) passed after restoration.
-      const bytes = await buildRole(entry);
+      const bytes = await buildRole(role, entry);
       const afterBuild = readCancellation();
       // Proof: c26-build-after-validator; injected fault failed `awaits the actual in-process build after interruption and starts no later role`; the same named test(s) passed after restoration.
       if (afterBuild !== undefined) return afterBuild;

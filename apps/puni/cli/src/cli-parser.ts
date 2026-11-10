@@ -13,6 +13,7 @@ import {
 } from '@puni/navigator/grammar';
 
 import { burokrat, dash, findNamespace, navigator } from './namespaces';
+import { packageVersion } from './version';
 
 /** The installed command tree; provider grammars retain their typed request shapes. */
 export const parser = or(
@@ -134,6 +135,7 @@ export function readInvocation(
   try {
     const parsed = run(parser, {
       programName: 'puni',
+      version: packageVersion,
       args,
       stdout: write,
       stderr: (chunk) => {

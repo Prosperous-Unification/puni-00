@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
 import type { LintInterrupt } from '../lint-interrupts';
 import { readLintRuntime } from '../lint-runtime';
-import { packageManifestBytes, packageVersion } from '../packaging/manifest';
+import { createPuniManifest, puniVersion } from '../packaging/puni-manifest';
 import { hashTrustedModules } from '../policy/trusted-modules';
 import type { LintContext } from '../runtime-facade';
 import { createLintFixture } from './lint-fixtures';
@@ -38,7 +38,7 @@ export function createInstalledLintFixture(
   }
   const descriptor = {
     schemaVersion: 2,
-    tag: 'puni-v' + packageVersion,
+    tag: 'puni-v' + puniVersion,
     sourceRevision: 'a'.repeat(40),
     bunVersion: Bun.version,
     roles,
@@ -50,16 +50,16 @@ export function createInstalledLintFixture(
   const manifest = join(installedDirectory, 'package-manifest.json');
   writeFileSync(
     manifest,
-    packageManifestBytes(descriptor.sourceRevision, hashBytes(descriptorBytes)),
+    createPuniManifest(descriptor.sourceRevision, hashBytes(descriptorBytes)),
   );
-  function writeLauncher(bytes: Uint8Array): void {
-    writeFileSync(join(toolkit, 'launcher.mjs'), bytes);
-    descriptor.roles['launcher.mjs'] = hashBytes(bytes);
+  function writeRole(role: 'launcher.mjs' | 'validator.mjs', bytes: Uint8Array): void {
+    writeFileSync(join(toolkit, role), bytes);
+    descriptor.roles[role] = hashBytes(bytes);
     const descriptorBytes = new TextEncoder().encode(serializeCanonical(descriptor));
     writeFileSync(join(toolkit, 'toolkit.json'), descriptorBytes);
     writeFileSync(
       manifest,
-      packageManifestBytes(descriptor.sourceRevision, hashBytes(descriptorBytes)),
+      createPuniManifest(descriptor.sourceRevision, hashBytes(descriptorBytes)),
     );
   }
   const launches: string[] = [];
@@ -104,7 +104,12 @@ export function createInstalledLintFixture(
     closure,
     manifest,
     launches,
-    writeLauncher,
+    writeLauncher: (bytes: Uint8Array) => {
+      writeRole('launcher.mjs', bytes);
+    },
+    writeValidator: (bytes: Uint8Array) => {
+      writeRole('validator.mjs', bytes);
+    },
     interrupt,
     diagnostics,
   };

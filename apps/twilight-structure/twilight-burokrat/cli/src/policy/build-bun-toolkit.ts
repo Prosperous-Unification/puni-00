@@ -5,13 +5,15 @@ import { dirname, join } from 'node:path';
 import { hashBytes } from '../evidence/content-manifest';
 import type { LintInterrupt, SubscribeLintInterrupts } from '../lint-interrupts';
 import type { LintRuntime } from '../lint-runtime';
+import { readInstalledPuniToolkit } from '../packaging/installed';
+import { createPuniManifest, puniVersion } from '../packaging/puni-manifest';
 import { readBuildDependencies } from './build-dependencies';
 import { bunToolkitRoles, planBunToolkit } from './bun-release';
 import type { CommittedSource } from './committed-source';
 import { materializeProtectedSource } from './materialized-source';
 import { reserveProtectedDirectory } from './preparation-directory';
 import { readOperatorFile } from './preparation-inputs';
-import { buildToolkitRoles } from './preparation-roles';
+import { buildPuniPrograms, buildToolkitRoles } from './preparation-roles';
 import { type BunToolkit, readBunToolkit } from './toolkit';
 import { copyTrustedModules, hashTrustedModules } from './trusted-modules';
 
@@ -60,10 +62,36 @@ export class ToolkitBuildFailure extends Error {
  * Cancellation and failed IO settle before return; owned roots are retained, never deleted.
  * @throws ToolkitBuildFailure with original/aggregate causes and every known owned root.
  */
-export async function buildBunToolkit(
+export function buildBunToolkit(
   source: CommittedSource,
   request: Request,
   context: Context,
+): Promise<Outcome> {
+  return buildAssets(source, request, context, false);
+}
+
+/**
+ * Deliver one captured PUNI0.3 asset set under a fresh package root: dist/puni.mjs,
+ * dist/observation-service.mjs and dist/package-manifest.json beside dist/toolkit/. The
+ * seven fixed programs share one sealed build; every delivered file is read back and the
+ * strict installed reader joins package/descriptor metadata before success. Caller-owned
+ * interruption covers the entire operation; executable callers must own diagnostics and
+ * terminal exit. All partial package/work roots remain owned on cancellation or failure.
+ * Package metadata, captured documentation and packing are the root assembler's work.
+ */
+export function buildPuniAssets(
+  source: CommittedSource,
+  request: Omit<Request, 'tag'>,
+  context: Context,
+): Promise<Outcome> {
+  return buildAssets(source, { ...request, tag: 'puni-v' + puniVersion }, context, true);
+}
+
+async function buildAssets(
+  source: CommittedSource,
+  request: Request,
+  context: Context,
+  packagePrograms: boolean,
 ): Promise<Outcome> {
   const selected = { ...request },
     callerDirectory = context.callerDirectory,
@@ -127,13 +155,20 @@ export async function buildBunToolkit(
         throw new Error('toolkit work reservation stopped without cancellation');
       return cancellation;
     }
-    const destination = await reserve(selected.destination);
-    if (destination === undefined) {
+    const packageRoot = await reserve(selected.destination);
+    if (packageRoot === undefined) {
       const cancellation = readCancellation();
       // Proof: c27-producer-owner-destination; injected fault failed `refuses producer destination dependency cancellation without the owning broker`; restoration passed.
       if (cancellation === undefined)
         throw new Error('toolkit destination reservation stopped without cancellation');
       return cancellation;
+    }
+    const destination = packagePrograms ? join(packageRoot, 'dist', 'toolkit') : packageRoot;
+    if (packagePrograms) {
+      const beforeLayout = readCancellation();
+      // Proof: c28-package-layout-cancel; injected fault failed `stops package layout creation after cancellation delivered by native destination reservation settlement`; restoration passed.
+      if (beforeLayout !== undefined) return beforeLayout;
+      await mkdir(destination, { recursive: true, mode: 0o700 });
     }
     const materialized = await materializeProtectedSource(source, join(work, 'source'), {
       callerDirectory,
@@ -148,18 +183,27 @@ export async function buildBunToolkit(
       return cancellation;
     }
     const provider = 'apps/twilight-structure/twilight-burokrat/cli/src/';
-    const built = await buildToolkitRoles(source, {
-      materializedDirectory: materialized.directory,
-      dependencies,
-      subscribeInterrupts,
-      entries: {
-        'launcher.mjs': provider + 'lint-cli.ts',
-        'snapshotter.ts': provider + 'policy/snapshot-validator.ts',
-        'validator.mjs': provider + 'cli.ts',
-        'prepare-activation.mjs': provider + 'policy/prepare-activation-entry.ts',
-        'prepare-relocation-activation.mjs': provider + 'policy/prepare-relocation-entry.ts',
-      },
-    });
+    const packageBuilt = packagePrograms
+      ? await buildPuniPrograms(source, {
+          materializedDirectory: materialized.directory,
+          dependencies,
+          subscribeInterrupts,
+        })
+      : undefined;
+    const built =
+      packageBuilt ??
+      (await buildToolkitRoles(source, {
+        materializedDirectory: materialized.directory,
+        dependencies,
+        subscribeInterrupts,
+        entries: {
+          'launcher.mjs': provider + 'lint-cli.ts',
+          'snapshotter.ts': provider + 'policy/snapshot-validator.ts',
+          'validator.mjs': provider + 'cli.ts',
+          'prepare-activation.mjs': provider + 'policy/prepare-activation-entry.ts',
+          'prepare-relocation-activation.mjs': provider + 'policy/prepare-relocation-entry.ts',
+        },
+      }));
     if (built.kind === 'cancelled') {
       const cancellation = readCancellation();
       // Proof: c27-producer-owner-roles; injected fault failed `refuses producer roles dependency cancellation without the owning broker`; restoration passed.
@@ -196,13 +240,37 @@ export async function buildBunToolkit(
       ...built.notices.map((notice) => ({ ...notice, executable: false })),
       { path: 'toolkit.json', bytes: plan.descriptor, executable: false },
       { path: 'SHA256SUMS', bytes: plan.checksums, executable: false },
-    ];
+    ].map((file) => ({ ...file, directory: destination }));
+    const packageFiles =
+      packageBuilt?.kind === 'built'
+        ? [
+            {
+              path: 'puni.mjs',
+              bytes: packageBuilt.roleBytes['puni.mjs'],
+              executable: true,
+              directory: join(packageRoot, 'dist'),
+            },
+            {
+              path: 'observation-service.mjs',
+              bytes: packageBuilt.roleBytes['observation-service.mjs'],
+              executable: false,
+              directory: join(packageRoot, 'dist'),
+            },
+            {
+              path: 'package-manifest.json',
+              bytes: createPuniManifest(sourceRevision, hashBytes(plan.descriptor)),
+              executable: false,
+              directory: join(packageRoot, 'dist'),
+            },
+          ]
+        : [];
     const directories = new Set<string>([destination]);
-    for (const file of files) {
+    for (const file of [...files, ...packageFiles]) {
       const cancellation = readCancellation();
       // Proof: c27s-producer-file-cancel; injected fault failed `retains producer cancellation recorded by settled delivered launcher.mjs before later delivery or success`; restoration passed.
+      // Proof: c28-package-files-cancel; injected fault failed `stops package delivery after settled puni.mjs cancellation before later files or verification`; restoration passed.
       if (cancellation !== undefined) return cancellation;
-      const path = join(destination, file.path),
+      const path = join(file.directory, file.path),
         parent = dirname(path);
       if (!directories.has(parent)) {
         await mkdir(parent, { recursive: true, mode: 0o700 });
@@ -212,13 +280,18 @@ export async function buildBunToolkit(
       await chmod(path, file.executable ? 0o555 : 0o444);
       // Proof: c27-delivered-file-readback; six actual changed/omitted license, notice and checksum controls returned built before readback and passed after restoration.
       // Proof: c27-producer-file-readback; injected fault failed `refuses changed delivered licenses/typescript-preparation/LICENSE.txt before claiming a built toolkit` and 2 additional named controls; restoration passed.
+      // Proof: c28-package-files-readback; All six observed failures are the no-final-verifier assertion: early delivery readback ordering only, without an independently reached admission claim; injected fault failed `refuses changed delivered package puni.mjs before a built package` and 5 additional named controls; restoration passed.
       if (hashBytes(readOperatorFile(path)) !== hashBytes(file.bytes))
         throw new Error('delivered toolkit file differs from planned bytes: ' + file.path);
     }
     const cancellation = readCancellation();
     // Proof: c27s-producer-final-cancel; ordering before fallible next-stage verification after recorded cancellation; injected fault failed `stops producer before fallible final verification after last delivered-file cancellation`; restoration passed.
+    // Proof: c28-package-final-cancel; injected fault failed `stops package delivery after settled package-manifest.json cancellation before later files or verification`; restoration passed.
     if (cancellation !== undefined) return cancellation;
-    const toolkit = readBunToolkit(destination);
+    const toolkit = packagePrograms
+      ? // Proof: c28-package-final-profile-join; injected fault failed `refuses a valid incompatible package manifest substituted after its delivery readback`; restoration passed.
+        readInstalledPuniToolkit(join(packageRoot, 'dist'), destination)
+      : readBunToolkit(destination);
     // Proof: c27-delivered-toolkit-identity; substituting a self-consistent descriptor during native write settlement returned success before this comparison; the focused test passed after restoration.
     // Proof: c27-producer-delivered-identity; injected fault failed `refuses a self-consistent delivered toolkit descriptor substituted after its earlier readback`; restoration passed.
     if (toolkit.digest !== hashBytes(plan.descriptor))

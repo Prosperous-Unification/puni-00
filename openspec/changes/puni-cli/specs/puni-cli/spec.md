@@ -298,3 +298,39 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **THEN** captured authority-file identities, the fixed selected dependency bytes and both copied closures must match; source, runtime, native installation/closure and authority targets remain protected by fresh disjoint output roots
 - **AND** every emitted role, notice, descriptor and checksum is read back as regular planned bytes before final descriptor-identity verification; cancellation stops before later delivery or verification and failure retains all owned roots
 - **AND** both actual produced preparers can complete current archive workflows, while public package/default cutover and clean-release admission remain separate requirements
+
+#### Scenario: Current installed execution selects a distinct PUNI package profile
+
+- **WHEN** the current PUNI root executes ordinary Burokrat, selected lint or either preparation command
+- **THEN** it requires the closed schema1 PUNI0.3.0 package profile and toolkit2, verifies the descriptor digest, and requires package/descriptor source revision and `puni-v0.3.0` tag agreement before operation inputs or executable roles
+- **AND** historical0.2.1 package bytes and verification remain explicit independent paths, without a version-union fallback or a clean-release inference
+- **AND** native installation selection precedes deriving the toolkit child, every verified role/closure obeys physical placement, and independently frozen caller runtime authority is retained
+
+#### Scenario: Current root preparation settles bounded ownership before terminal exit
+
+- **WHEN** either preparation command executes through the actual PUNI root, including absent PATH, closed/full stderr or unconfirmed child cleanup
+- **THEN** its typed operation enters the existing signal/output owner before ordinary runtime admission, preserves owned roots and exact status, and the executable exits only after that owner settles
+- **AND** ordinary commands continue to drain, while reusable entrypoints return completion without terminating their caller
+
+#### Scenario: One captured package session delivers all current programs and Dash text assets
+
+- **WHEN** the package producer builds one explicit committed source capture using an independently admitted stable installation
+- **THEN** the PUNI root, five toolkit roles and separate pure observation service share one sealed dependency/compiler session and captured program bytes, without a live-source append or runtime source lookup
+- **AND** the twelve SQL files and two unit templates replace only the fixed reviewed direct reads with captured regular valid-UTF8 strings, preserving BOM, CRLF, Unicode, exact SQL hashes and rendered template output
+- **AND** missing/duplicate/extra reads, changed encodings, shadowed bindings and imports/loaders outside those two modules' fixed direct-read/import contract refuse; this is not arbitrary JavaScript effect isolation
+- **AND** stable virtual module names preserve native filename characters and avoid global emitted-string normalization that could alter embedded asset values
+
+#### Scenario: Local Bun packing preserves installed programs closure and package metadata
+
+- **WHEN** Bun packs and installs the current local artifact into a spaced path outside its source/build checkout
+- **THEN** its sole bin is `puni`, metadata contains no install hooks, documentation comes from the same capture, and `dist/puni.mjs` has the current manifest and toolkit child beside it
+- **AND** every program, notice, checksum, manifest and documentation write is read back before success; interruption or failure retains owned package/work roots and original cleanup diagnostics
+- **AND** installed discovery and representative Navigator, Burokrat and Dash storage operations work with Bun and declared utilities under poisoned candidate startup settings; the observation service retains its independent authority boundary
+- **AND** registry publication authority, remaining script-backed client conversion and coordinated default/bootstrap/CI cutover remain separately required work
+
+#### Scenario: Installed policy binds the emitted validator while snapshots retain original input identity
+
+- **WHEN** direct installed policy lint or activation validation runs through a current producer-marked standalone validator
+- **THEN** runtime identity uses that actual installed validator file, including its native path and bytes; omitted, changed or unrelated same-bytes references refuse
+- **AND** a snapshot's authenticated original artifact manifest takes precedence over standalone output identity, preserving the original reference spelling and hash without inlining a union/source manifest into the base bundle
+- **AND** unmarked source execution retains its existing source closure, the standalone marker is producer-defined only for validator roles, and both root and standalone preparation workflows retain real full semantic certification before archive creation

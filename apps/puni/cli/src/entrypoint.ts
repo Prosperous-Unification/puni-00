@@ -4,10 +4,21 @@ import { dirname } from 'node:path';
 import { type Command, readFailureStatus, readInvocation } from './cli-parser';
 import { type Context, executeCommand } from './execute-command';
 
-/** Lint may retain bounded-failure native references; other operations use ordinary draining. */
+/** Lint/preparation may retain bounded-failure native references; other operations drain. */
 export interface Completion {
-  readonly kind: 'drain' | 'lint';
+  readonly kind: 'drain' | 'exit';
   readonly status: number;
+}
+
+function requiresExit(command: Command | undefined): boolean {
+  return (
+    command?.tool === 'burokrat' &&
+    (command.request.command === 'lint' ||
+      // Proof: c28-root-preparation-exit-normal; injected fault failed `actual root prepare-activation exits after unconfirmed Git cleanup before fixture reaping`; restoration passed.
+      command.request.command === 'prepare-activation' ||
+      // Proof: c28-root-preparation-exit-relocation; injected fault failed `actual root prepare-relocation-activation exits after unconfirmed Git cleanup before fixture reaping`; restoration passed.
+      command.request.command === 'prepare-relocation-activation')
+  );
 }
 
 /** Print one failure line without a source excerpt, stack or nested cause messages. */
@@ -29,7 +40,7 @@ function formatFailure(cause: unknown): string {
  * Parse once, return discovery without runtime loading, and await one typed provider operation.
  * Context is explicit so development tests can select real external fixture installations.
  * Usage statuses depend on the parsed invocation; unexpected Navigator failures remain1.
- * Lint's native owner uses real output; its completion tells the executable to terminate
+ * Lint/preparation native owners use real output; their completion tells the executable to terminate
  * only after that owner settles. Reusable callers receive the completion without exit.
  */
 export async function main(args: readonly string[], context: Context): Promise<Completion> {
@@ -47,13 +58,13 @@ export async function main(args: readonly string[], context: Context): Promise<C
     // Proof: root-main-status; `dash forwards actual native ops refusal status through the typed root` failed under its recorded production fault and passed after restoration.
     const status = await executeCommand(command, context);
     return {
-      kind: command.tool === 'burokrat' && command.request.command === 'lint' ? 'lint' : 'drain',
+      kind: requiresExit(command) ? 'exit' : 'drain',
       status,
     };
   } catch (cause) {
     context.stderr(formatFailure(cause));
     return {
-      kind: command?.tool === 'burokrat' && command.request.command === 'lint' ? 'lint' : 'drain',
+      kind: requiresExit(command) ? 'exit' : 'drain',
       status: readFailureStatus(cause, command),
     };
   }
@@ -79,6 +90,6 @@ if (import.meta.main) {
     },
   });
   // Proof: root-main-terminal-exit; `exits the actual root after unconfirmed lint Git preflight before fixture cleanup` failed under its recorded production fault and passed after restoration.
-  if (completion.kind === 'lint') process.exit(completion.status);
+  if (completion.kind === 'exit') process.exit(completion.status);
   process.exitCode = completion.status;
 }

@@ -282,11 +282,24 @@ async function writeExhaustiveCoverage(
 }
 
 declare const __TOOL_WIKI_BUNDLED_ARTIFACTS__: string;
+declare const __PUNI_STANDALONE_VALIDATOR__: boolean;
 
+/**
+ * Snapshot identity takes precedence because its bundle authenticates the binding's original
+ * input artifact references, not the scratch output. A marked current standalone validator
+ * instead authenticates its own installed file; source execution retains its source closure.
+ * Only the producer defines the standalone marker, never argv or environment. Do not inline a
+ * source/union artifact manifest into the base bundle: later snapshots must supply their own.
+ */
 function validatorEntryPaths(): string[] | { artifactManifest: string } {
+  // Proof: c28-policy-snapshot-precedence; injected fault failed `preserves snapshot manifest precedence over the marked standalone validator path`; restoration passed.
   if (typeof __TOOL_WIKI_BUNDLED_ARTIFACTS__ === 'string') {
     return { artifactManifest: __TOOL_WIKI_BUNDLED_ARTIFACTS__ };
   }
+  // Proof: c28-policy-standalone-profile; injected fault failed `runs actual installed observe policy against its emitted validator bundle and all five deterministic checks`; restoration passed.
+  // Proof: c28-policy-explicit-optin; injected fault failed `keeps an unmarked bundle in the source profile instead of implicitly authenticating its own file`; restoration passed.
+  if (typeof __PUNI_STANDALONE_VALIDATOR__ === 'boolean' && __PUNI_STANDALONE_VALIDATOR__)
+    return [import.meta.path];
   return [join(import.meta.dir, 'cli.ts'), join(import.meta.dir, 'policy', 'trust.ts')];
 }
 

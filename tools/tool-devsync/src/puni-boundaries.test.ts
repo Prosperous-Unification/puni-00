@@ -184,3 +184,48 @@ describe('PUNI execution boundary', () => {
     );
   }
 });
+describe('PUNI package composition boundary', () => {
+  const packager = 'apps/puni/cli/src/packaging/build.ts';
+  it('changes only the exact packaging allowance in the package composition root', async () => {
+    const options = await readBoundaryConfig(packager),
+      inherited = await readBoundaryConfig('apps/puni/cli/src/namespaces.ts');
+    expect(options['allow']).toEqual(['^@puni/burokrat/packaging$']);
+    expect({ ...options, allow: [] }).toEqual(inherited);
+  }, 30000);
+  it('admits the real captured package builder through the packaging facade', async () => {
+    const source = await readFile(new URL('../../../' + packager, import.meta.url), 'utf8');
+    expect(await findBoundaryFailures(packager, source)).toEqual([]);
+  }, 30000);
+  for (const neighbor of [
+    'apps/puni/cli/src/cli-parser.ts',
+    'apps/puni/cli/src/execute-command.ts',
+    'apps/puni/cli/src/entrypoint.ts',
+    'apps/puni/cli/src/packaging/build.test.ts',
+  ])
+    it(
+      'keeps packaging capabilities out of ' + neighbor,
+      async () => {
+        expect(
+          await findBoundaryFailures(neighbor, "await import('@puni/burokrat/packaging');"),
+        ).toHaveLength(1);
+      },
+      30000,
+    );
+  for (const alias of [
+    '@puni/burokrat/runtime',
+    '@puni/burokrat/grammar',
+    '@puni/dash/runtime',
+    '@tools/fleet-plan',
+    '@wbs/core',
+    '../../../../twilight-structure/twilight-burokrat/cli/src/policy/build-bun-toolkit',
+  ])
+    it(
+      'rejects ' + alias + ' from package composition',
+      async () => {
+        expect(
+          await findBoundaryFailures(packager, 'await import(' + JSON.stringify(alias) + ');'),
+        ).toHaveLength(1);
+      },
+      30000,
+    );
+});

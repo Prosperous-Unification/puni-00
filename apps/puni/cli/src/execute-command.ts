@@ -63,10 +63,24 @@ export async function executeCommand(command: Command, context: Context): Promis
           scratchDirectory: context.temporaryDirectory,
           launch,
         });
+      if (
+        // Proof: c28-root-preparation-route-normal; injected fault failed `actual root owns current prepare-activation through archive completion`; restoration passed.
+        // Proof: c28-root-preparation-path-owner; Reporter/sink-selection ordering only: early PATH refusal bypasses the preparation-owned Bun writer. Closed/stalled lifetime controls may still pass because the root executable exits; no independent early-PATH lifetime failure is claimed.; injected fault failed `actual root enters the bounded preparation reporter before missing PATH under stalled stderr`; restoration passed.
+        command.request.command === 'prepare-activation' ||
+        // Proof: c28-root-preparation-route-relocation; injected fault failed `actual root owns current prepare-relocation-activation through archive completion`; restoration passed.
+        command.request.command === 'prepare-relocation-activation'
+      )
+        return await runtime.runInstalledPreparation(command.request, {
+          installedDirectory: context.installation.directory,
+          callerDirectory: context.callerDirectory,
+          lookup: context.lookup,
+          launch,
+        });
       const path = context.lookup.path;
       // Proof: root-ordinary-path-refusal; `gives an absent ordinary trusted PATH its explicit refusal before installed input reads` failed under its recorded production fault and passed after restoration.
       if (path === undefined) throw new Error('trusted executable PATH is required for Burokrat');
-      return await runtime.executeRequest(command.request, {
+      // Proof: c28-root-ordinary-current-route; injected fault failed `burokrat runs actual ordinary installed template requests through the built root with current PUNI toolkit2` and 2 additional named controls; restoration passed.
+      return runtime.executeCurrentRequest(command.request, {
         installedDirectory: context.installation.directory,
         callerDirectory: context.callerDirectory,
         // Proof: root-ordinary-lookup; `freezes ordinary root Git lookup before candidate and toolkit cwd changes` failed under its recorded production fault and passed after restoration.

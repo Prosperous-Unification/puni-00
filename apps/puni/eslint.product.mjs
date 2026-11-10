@@ -10,6 +10,7 @@ export default ({
       '@nx/enforce-module-boundaries': [
         'error',
         {
+          // Proof: c28-packaging-options; Effective inherited buildable-enforcement option comparison; not an independent test of every inherited constraint.; injected fault failed `PUNI package composition boundary > changes only the exact packaging allowance in the package composition root`; restoration passed.
           enforceBuildableLibDependency: true,
           allow,
           ignoredCircularDependencies: [['wbs-core', 'wbs-store-memory']],
@@ -48,5 +49,10 @@ export default ({
       // Proof: root-executor-alias; `PUNI execution boundary > rejects @puni/dash/grammar from root runtime composition` failed under its recorded production fault and passed after restoration.
       ['^@puni/burokrat/runtime$', '^@puni/dash/runtime$', '^@puni/navigator/runtime$'],
     ),
+    // Proof: c28-packaging-allowance; Actual captured-builder admission through resolved facade is required.; injected fault failed `PUNI package composition boundary > changes only the exact packaging allowance in the package composition root` and 1 additional named controls; restoration passed.
+    // Proof: c28-packaging-consumer; Actual resolved facade import in neighboring source files must remain refused.; injected fault failed `PUNI package composition boundary > changes only the exact packaging allowance in the package composition root` and 4 additional named controls; restoration passed.
+    // Proof: c28-packaging-alias; Actual resolved runtime/grammar aliases remain refused from package composition.; injected fault failed `PUNI package composition boundary > changes only the exact packaging allowance in the package composition root` and 2 additional named controls; restoration passed.
+    // Proof: c28-packaging-anchors; Effective anchored-policy configuration proof only; no claim of Nx denial for unresolved fabricated aliases.; injected fault failed `PUNI package composition boundary > changes only the exact packaging allowance in the package composition root`; restoration passed.
+    allowFacades(['apps/puni/cli/src/packaging/build.ts'], ['^@puni/burokrat/packaging$']),
   ];
 };

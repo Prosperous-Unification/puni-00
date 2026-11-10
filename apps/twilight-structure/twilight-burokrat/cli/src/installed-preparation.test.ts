@@ -6,6 +6,7 @@ import { afterAll, expect, it, spyOn } from 'bun:test';
 
 import { executeInstalledPreparation } from './installed-preparation';
 import { packageManifestBytes } from './packaging/manifest';
+import { createPuniManifest } from './packaging/puni-manifest';
 import * as preparationSource from './policy/preparation-source';
 import { disposeRelocationFixtures } from './policy/relocation-fixtures';
 import { createRelocationFixture, createToolkitFixture } from './testing/preparation-fixtures';
@@ -53,7 +54,7 @@ for (const command of ['prepare-activation', 'prepare-relocation-activation'] as
       // its own explicit private protocol. These inert fixture roles do not establish producer usability.
       writeFileSync(
         join(fixture.root, 'package-manifest.json'),
-        packageManifestBytes('a'.repeat(40), fixture.context.expectedToolkitIdentity),
+        createPuniManifest('a'.repeat(40), fixture.context.expectedToolkitIdentity),
       );
       expect(
         await executeInstalledPreparation(fixture.request, {
@@ -80,7 +81,7 @@ it('refuses a self-consistent toolkit not bound by the installed package before 
     captured = captureOutputs();
   writeFileSync(
     join(fixture.root, 'package-manifest.json'),
-    packageManifestBytes('a'.repeat(40), 'b'.repeat(64)),
+    createPuniManifest('a'.repeat(40), 'b'.repeat(64)),
   );
   const cause: unknown = await executeInstalledPreparation(
     { ...fixture.request, candidateRepository: join(fixture.root, 'absent-candidate') },
@@ -89,7 +90,7 @@ it('refuses a self-consistent toolkit not bound by the installed package before 
     () => undefined,
     (failure: unknown) => failure,
   );
-  expect(String(cause)).toContain('installed toolkit differs from package manifest');
+  expect(String(cause)).toContain('installed toolkit differs from PUNI package manifest');
   expect(existsSync(fixture.request.work)).toBe(false);
 });
 
@@ -99,7 +100,7 @@ it('refuses candidate-targeted installed package manifest despite external toolk
   const manifest = join(fixture.request.candidateRepository, '.git', 'installed-package.json');
   writeFileSync(
     manifest,
-    packageManifestBytes('a'.repeat(40), fixture.context.expectedToolkitIdentity),
+    createPuniManifest('a'.repeat(40), fixture.context.expectedToolkitIdentity),
   );
   symlinkSync(manifest, join(fixture.root, 'package-manifest.json'));
   const cause: unknown = await executeInstalledPreparation(fixture.request, {
@@ -165,7 +166,7 @@ it('captures installed output capabilities before the subscription callback can 
     captured = captureOutputs();
   writeFileSync(
     join(fixture.root, 'package-manifest.json'),
-    packageManifestBytes('a'.repeat(40), fixture.context.expectedToolkitIdentity),
+    createPuniManifest('a'.repeat(40), fixture.context.expectedToolkitIdentity),
   );
   expect(
     await executeInstalledPreparation(fixture.request, {
@@ -188,7 +189,7 @@ it('propagates installed source preflight cancellation without invoking preparat
     captured = captureOutputs();
   writeFileSync(
     join(fixture.root, 'package-manifest.json'),
-    packageManifestBytes('a'.repeat(40), fixture.context.expectedToolkitIdentity),
+    createPuniManifest('a'.repeat(40), fixture.context.expectedToolkitIdentity),
   );
   const changed = spyOn(preparationSource, 'readPreparationSource').mockResolvedValue({
     kind: 'cancelled',
@@ -216,7 +217,7 @@ it('honors an explicit package-bound normal toolkit independently of an absent d
   mkdirSync(installation);
   writeFileSync(
     join(installation, 'package-manifest.json'),
-    packageManifestBytes('a'.repeat(40), fixture.context.expectedToolkitIdentity),
+    createPuniManifest('a'.repeat(40), fixture.context.expectedToolkitIdentity),
   );
   expect(
     await executeInstalledPreparation(
@@ -227,3 +228,41 @@ it('honors an explicit package-bound normal toolkit independently of an absent d
   expect(Buffer.concat(captured.stdout).toString()).toContain(fixture.revision);
   expect(existsSync(join(installation, 'toolkit'))).toBe(false);
 });
+
+for (const command of ['prepare-activation', 'prepare-relocation-activation'] as const) {
+  it(
+    'refuses a complete old package profile with valid toolkit2 before ' +
+      command +
+      ' candidate Git or outputs',
+    async () => {
+      const fixture =
+          command === 'prepare-activation'
+            ? await createToolkitFixture(roots)
+            : await createRelocationFixture(roots),
+        captured = captureOutputs();
+      writeFileSync(
+        join(fixture.root, 'package-manifest.json'),
+        packageManifestBytes('a'.repeat(40), fixture.context.expectedToolkitIdentity),
+      );
+      const probe = spyOn(preparationSource, 'readPreparationSource');
+      try {
+        const cause: unknown = await executeInstalledPreparation(fixture.request, {
+          ...fixture.context,
+          installedDirectory: fixture.root,
+          outputs: captured.outputs,
+        }).then(
+          () => undefined,
+          (failure: unknown) => failure,
+        );
+        expect(probe).not.toHaveBeenCalled();
+        expect(String(cause)).toContain('installed PUNI package manifest is invalid');
+        expect(existsSync(fixture.request.work)).toBe(false);
+        expect(captured.stdout).toEqual([]);
+        expect(fixture.listeners.size).toBe(0);
+      } finally {
+        probe.mockRestore();
+      }
+    },
+    60000,
+  );
+}

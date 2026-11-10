@@ -5,7 +5,7 @@ import { assertExternal, assertInstalledPlacement } from './installed-placement'
 import type { SubscribeLintInterrupts } from './lint-interrupts';
 import type { LintInvocation } from './lint-request';
 import { type LintRuntime } from './lint-runtime';
-import { readInstalledBunToolkit } from './packaging/installed';
+import { readInstalledPuniToolkit } from './packaging/installed';
 import type { BunToolkit } from './policy/toolkit';
 import { readLintCandidate } from './run-lint';
 
@@ -48,7 +48,8 @@ export async function readInstalledLint(
   // Proof: preflight-native-default; the injected fault fails derives the default toolkit only after native installation selection; restoration passes.
   const directory = realpathSync.native(context.installedDirectory);
   // Proof: preflight-expected-package; the injected fault fails binds the preflight toolkit to the expected package identity; restoration passes.
-  const toolkit = readInstalledBunToolkit(directory, join(directory, 'toolkit'));
+  // Proof: c28-lint-current-profile; Complete old package with valid toolkit2; current route must refuse before candidate/operation activity.; injected fault failed `refuses a complete old package profile with valid toolkit2 before optional lint inactivity`; restoration passed.
+  const toolkit = readInstalledPuniToolkit(directory, join(directory, 'toolkit'));
   // Proof: preflight-caller-runtime-cwd; replacing caller cwd with toolkit cwd fails retains independently selected frozen runtime configuration; restoration passes.
   // Proof: preflight-caller-runtime-origin; reconstructing relative lookup and rebasing it to the toolkit executes the candidate Git marker; keeps Git lookup bound to the caller runtime fails and restoration passes.
   const runtime = context.runtime;

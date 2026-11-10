@@ -373,3 +373,9 @@ describe('composed validation and process isolation', () => {
     });
   }
 });
+it('prints the current PUNI package version through offline root discovery', () => {
+  expect(parseArguments(['--version'])).toEqual({
+    invocation: { kind: 'printed' },
+    output: '0.3.0',
+  });
+});

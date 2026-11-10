@@ -12,7 +12,9 @@ import { join } from 'node:path';
 
 import { afterEach, beforeAll, describe, expect, it } from 'bun:test';
 
+import { hashBytes } from './evidence/content-manifest';
 import { packageManifestBytes } from './packaging/manifest';
+import { createPuniManifest } from './packaging/puni-manifest';
 import { buildLintLauncher } from './policy/build-lint-launcher';
 import * as runtime from './runtime-facade';
 import { createInstalledLintFixture } from './testing/installed-lint-fixtures';
@@ -120,10 +122,10 @@ describe('installed Bun lint typed execution', () => {
   it('refuses a substituted package identity before optional inactivity and launcher execution', async () => {
     const fixture = createFixture('throw new Error("must not execute validator");');
     fixture.context.activationRoot = undefined;
-    writeFileSync(fixture.manifest, packageManifestBytes('a'.repeat(40), 'b'.repeat(64)));
+    writeFileSync(fixture.manifest, createPuniManifest('a'.repeat(40), 'b'.repeat(64)));
     await assertRefusal(
       runtime.executeLint(fixture.invocation.request, fixture.context),
-      'installed toolkit differs from package manifest',
+      'installed toolkit differs from PUNI package manifest',
     );
     expect(fixture.launches).toEqual([]);
     expect(fixture.stdout).toEqual([]);
@@ -667,5 +669,24 @@ it('propagates a refused protected launch capability without launching the insta
   expect(refusal).toBe(failure);
   expect(captured).toBe(join(fixture.toolkit, 'launcher.mjs'));
   expect(fixture.launches).toEqual([]);
+  expect(readdirSync(fixture.scratch)).toEqual([]);
+});
+
+it('refuses a complete old package profile with valid toolkit2 before optional lint inactivity', async () => {
+  const fixture = createFixture('throw new Error("old profile must not launch validator");');
+  fixture.context.activationRoot = undefined;
+  writeFileSync(
+    fixture.manifest,
+    packageManifestBytes(
+      'a'.repeat(40),
+      hashBytes(readFileSync(join(fixture.toolkit, 'toolkit.json'))),
+    ),
+  );
+  await assertRefusal(
+    runtime.executeLint(fixture.invocation.request, fixture.context),
+    'installed PUNI package manifest is invalid',
+  );
+  expect(fixture.launches).toEqual([]);
+  expect(fixture.stdout).toEqual([]);
   expect(readdirSync(fixture.scratch)).toEqual([]);
 });
