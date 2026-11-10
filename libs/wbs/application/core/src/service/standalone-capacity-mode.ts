@@ -12,7 +12,7 @@ import type { CommittedFanoutDelivery, CommittedProjectEvent } from './committed
 /**
  * The public capacity-mode writer: one complete async write turn, as
  * {@link standaloneRankStore} is for a rank move. Authenticated evidence is
- * detached before queuing; current membership and manage_capacity_mode grants
+ * detached with the caller-owned stamp before queuing; current membership and manage_capacity_mode grants
  * are resolved on the writer before mutation. A switch tells every project of the organization, naming no
  * cause, because flipping the mode may move any of them; the event rows settle
  * with the mode and its audit row, and delivery starts after release.
@@ -28,13 +28,30 @@ export function standaloneCapacityModeSwitch(
     async switchCapacityMode(organizationId, mode, stamp, auditId, caller) {
       if (caller === undefined)
         throw new Error('capacity-mode writer lacks authenticated caller evidence');
+      // Proof: mode-owner-caller: retaining queued command-caller aliases.
+      // retains standalone mode queued caller authority and expected context
+      // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+      // Proof: mode-owner-caller-deep: shallow caller copying retains principal and expected-context aliases.
+      // retains standalone mode queued caller authority and expected context
+      // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
       caller = structuredClone(caller);
+      // Proof: mode-owner-stamp: retaining the caller-owned queued stamp.
+      // retains standalone mode queued stamp by before admitted ownership
+      // retains standalone mode queued stamp at before admitted ownership
+      // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+      stamp = { ...stamp };
       const settled = await uow.run<{
         switched: CapacityModeSwitched;
         events: readonly CommittedProjectEvent[];
       }>(async (scope) => {
         const capture = scope.fanoutCapture;
         const modes = scope.stores.projectRanks;
+        // Proof: mode-required-capture: omitting required borrowed capture before a no-op.
+        // requires capture before a standalone mode no-op
+        // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+        // Proof: mode-required-store: omitting required borrowed store preflight before authorization.
+        // requires the borrowed mode store before a standalone no-op
+        // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
         if (capture === undefined || modes === undefined)
           throw new Error('capacity-mode owner lacks borrowed authority or mode store');
         // Proof: bypassing this current-membership check made `refuses a
@@ -42,6 +59,10 @@ export function standaloneCapacityModeSwitch(
         // (`capacity-mode.controller.db.test.ts`) fail; watched 2026-10-11.
         const resolved = await commandAccess.resolve(caller);
         if (!resolved.ok)
+          // Proof: mode-modeled-context-conflict: throwing for a modeled stale expected-context refusal.
+          // preserves stale expected user as a modeled conflict at standalone mode
+          // preserves stale expected organization as a modeled conflict at standalone mode
+          // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
           return {
             commit: false,
             value: { switched: { ok: false, authority: resolved }, events: [] },
@@ -59,6 +80,10 @@ export function standaloneCapacityModeSwitch(
             commit: false,
             value: { switched: { ok: false, reason: 'forbidden' }, events: [] },
           };
+        // Proof: mode-required-grant-port: bypassing current grant evaluation before a self/no-op.
+        // requires grants before a standalone mode no-op
+        // propagates unreadable grant state before a standalone mode no-op
+        // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
         const authority = await authorize(
           scope.stores.accessDecisions,
           access.principal,
@@ -66,6 +91,9 @@ export function standaloneCapacityModeSwitch(
           'organization.manage_capacity_mode',
         );
         // Proof: mode-grant fault failed 'rechecks queued capacity mode grants' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+        // Proof: mode-current-decision: discarding the current named permission refusal.
+        // names the current mode permission before a role-only standalone no-op
+        // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
         if (!authority.ok)
           return {
             commit: false,

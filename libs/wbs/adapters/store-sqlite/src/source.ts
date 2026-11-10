@@ -20,9 +20,7 @@ import {
 } from './db';
 import {
   authorizeImportIn,
-  authorizeModeSwitchIn,
   authorizeProjectFanoutIn,
-  authorizeRankMoveIn,
   authorizeStepFanoutIn,
   readFanoutObservationIn,
   resolveDirectoryWriteIn,
@@ -230,8 +228,6 @@ function openSqliteSourceWithSeams(
                       lifetime,
                       authorizeStepFanoutIn(process.db, lifetime),
                     ),
-                    authorizeRankMove: guardRead(lifetime, authorizeRankMoveIn(process.db)),
-                    authorizeModeSwitch: guardRead(lifetime, authorizeModeSwitchIn(process.db)),
                     // Proof: removing this borrowed binding made a valid mounted
                     // scoped import answer 500 before capture rather than 201.
                     authorizeImport: guardRead(lifetime, authorizeImportIn(process.db)),

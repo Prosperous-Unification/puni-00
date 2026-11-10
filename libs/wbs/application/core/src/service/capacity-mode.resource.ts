@@ -12,33 +12,6 @@ import { authorize } from './authorize';
 export type CapacityModeRefusal =
   'organization_required' | 'forbidden' | 'insufficient_scope' | 'capacity_mode_unsupported';
 
-/**
- * Whether `access` may switch its organization's capacity mode: a super-admin
- * acting in person, never through a delegation. The one rule both the read's
- * `canSwitch` and the switch's admission use, so they cannot disagree.
- *
- * Proof: 2026-10-11, the role widened to admins failed four cases of
- * `capacity-mode.controller.db.test.ts` (admin refusals, demotion, `tells only
- * a super-admin …`); the delegation clause dropped failed the delegated read
- * and switch in `delegation.controller.db.test.ts`.
- */
-export function maySwitchCapacityMode(
-  access: Extract<ResourceAccess, { kind: 'scoped' }>,
-  delegated: boolean,
-): boolean {
-  return !delegated && roleMaySwitchCapacityMode(access.scope.role);
-}
-
-/**
- * The role half of {@link maySwitchCapacityMode}, which the write turn
- * re-checks on the writer (`authorizeModeSwitchIn`) with no delegation to see.
- */
-export function roleMaySwitchCapacityMode(
-  role: Extract<ResourceAccess, { kind: 'scoped' }>['scope']['role'],
-): boolean {
-  return role === 'super_admin';
-}
-
 export type CapacityModeOutcome<R extends CapacityModeRefusal = CapacityModeRefusal> =
   | { ok: true; sharedPeople: boolean; sharingAvailable: boolean; canSwitch: boolean }
   | { ok: false; refusal: R; readonly permission?: Permission }
@@ -71,12 +44,26 @@ export class CapacityModeResource {
   /**
    * The mode, whether the release can share people, and whether this caller may switch: the
    * same current permission {@link switch} requires, and never through a delegation.
+   * @throws when trusted scope and principal identity disagree before any fact read.
    */
   async read(
     access: ResourceAccess,
     delegated: boolean,
   ): Promise<CapacityModeOutcome<'organization_required'>> {
     if (access.kind === 'legacy') return { ok: false, refusal: 'organization_required' };
+    // Proof: mode-read-access-snapshot: retaining caller scoped-evidence aliases across an await.
+    // retains direct mode read scoped evidence before its awaited dependency
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    // Proof: mode-read-access-auth-deep: shallow scope copying retains nested authentication aliases.
+    // retains mode read scoped authentication before its awaited fact read
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    access = structuredClone(access);
+    // Proof: mode-read-identity: omitting authenticated principal identity equality.
+    // rejects direct mode read principal mismatch before grant and fact reads
+    // throws before facts for a missing direct mode read grant principal
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    if (access.scope.userId !== access.principal.id)
+      throw new Error('capacity-mode resource principal differs from its member');
     const mode = await this.opts.modes.capacityModeIn(access.scope.organizationId);
     return {
       ok: true,
@@ -95,6 +82,7 @@ export class CapacityModeResource {
     };
   }
 
+  /** Retains complete actor and scoped evidence; incoherent identities throw before authorization. */
   async switch(
     actor: AuthenticatedUser,
     access: ResourceAccess,
@@ -104,8 +92,31 @@ export class CapacityModeResource {
     if (access.kind === 'legacy') return { ok: false, refusal: 'organization_required' };
     // An organization act that moves every project's dates is a person's,
     // never a delegation's, as member administration is.
+    // Proof: mode-switch-actor-snapshot: retaining complete actor aliases across the grant await.
+    // retains direct mode switch actor id before awaited grant evaluation
+    // retains direct mode switch actor authentication before awaited grant evaluation
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    // Proof: mode-switch-actor-auth-deep: shallow actor copying retains verifier metadata aliases.
+    // retains direct mode switch actor authentication before awaited grant evaluation
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
     actor = structuredClone(actor);
     const actorId = actor.id;
+    // Proof: mode-switch-access-snapshot: retaining caller scoped-evidence aliases across an await.
+    // retains direct mode switch scoped evidence before its awaited dependency
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    // Proof: mode-switch-access-auth-deep: shallow scope copying retains nested authentication aliases.
+    // retains direct mode switch access authentication before awaited grant evaluation
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    access = structuredClone(access);
+    // Proof: mode-switch-scope-identity: omitting actor/member identity equality.
+    // rejects direct mode switch scope mismatch before grant and fact reads
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    // Proof: mode-switch-principal-identity: omitting authenticated principal identity equality.
+    // rejects direct mode switch principal mismatch before grant and fact reads
+    // throws before facts for a missing direct mode switch grant principal
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    if (access.scope.userId !== actorId || access.principal.id !== actorId)
+      throw new Error('capacity-mode resource authority differs from its actor');
     const decision = await authorize(
       this.opts.accessDecisions,
       access.principal,

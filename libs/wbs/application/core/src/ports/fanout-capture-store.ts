@@ -56,24 +56,6 @@ export type BeforeStepWrite = (
   access: ResourceAccess,
 ) => Promise<FanoutWriteAuthority>;
 
-/** Current organization rank authority on the borrowed writer; no recovery grant or audit. */
-export type BeforeRankMove = (
-  organizationId: string,
-  actorId: string,
-) => Promise<
-  | { readonly ok: true }
-  | { readonly ok: false; readonly reason: 'forbidden'; readonly permission?: Permission }
->;
-
-/** Current organization super-admin authority on the borrowed writer; no delegation, no audit. */
-export type BeforeModeSwitch = (
-  organizationId: string,
-  actorId: string,
-) => Promise<
-  | { readonly ok: true }
-  | { readonly ok: false; readonly reason: 'forbidden'; readonly permission?: Permission }
->;
-
 /** Fresh import write-role admission on the borrowed writer, before observation. */
 export type BeforeImport = (
   actorId: string,
@@ -146,8 +128,6 @@ export interface FanoutCaptureStore {
   resolveLifecycleOwner?: (projectId: string) => Promise<LifecycleOwnership>;
   authorizeProjectUpdate: BeforeProjectUpdate;
   authorizeStepRemoval: BeforeStepRemoval;
-  authorizeRankMove?: BeforeRankMove;
-  authorizeModeSwitch?: BeforeModeSwitch;
   authorizeImport?: BeforeImport;
   resolveDirectoryWrite?: (address: DirectoryWriteAddress) => Promise<DirectoryWriteResolution>;
 }

@@ -41,12 +41,28 @@ export interface ProjectRankResourceOptions {
 export class ProjectRankResource {
   constructor(private readonly opts: ProjectRankResourceOptions) {}
 
-  /** Every project of the caller's organization in rank order. */
+  /**
+   * Every project of the caller's organization in rank order.
+   * @throws when trusted actor/scope/principal evidence disagrees, before any read.
+   */
   async read(
     actorId: string,
     access: ResourceAccess,
   ): Promise<ProjectRankOutcome<'organization_required'>> {
     if (access.kind === 'legacy') return { ok: false, refusal: 'organization_required' };
+    // Proof: rank-read-access-snapshot: retaining caller scoped-evidence aliases across an await.
+    // retains direct rank read scoped evidence before its awaited dependency
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    access = structuredClone(access);
+    // Proof: rank-read-scope-identity: omitting actor/member identity equality.
+    // rejects direct rank read scope mismatch before grant and fact reads
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    // Proof: rank-read-principal-identity: omitting authenticated principal identity equality.
+    // rejects direct rank read principal mismatch before grant and fact reads
+    // throws before facts for a missing direct rank read grant principal
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    if (access.scope.userId !== actorId || access.principal.id !== actorId)
+      throw new Error('rank resource authority differs from its actor');
     const order = await this.opts.ranks.orderIn(access.scope.organizationId);
     return { ok: true, projects: await this.named(order, actorId, access) };
   }
@@ -54,10 +70,7 @@ export class ProjectRankResource {
   /**
    * Moves `projectId` directly after `afterProjectId`, or first when that is
    * null. A foreign or absent project, on either side, is `not_found`.
-   *
-   * Proof: the role check removed made `refuses a member and a viewer the
-   * move, changing nothing` in `project-rank.controller.db.test.ts` answer
-   * 200 instead of 403; watched 2026-09-29.
+   * @throws when trusted actor/scope/principal evidence disagrees before authority reads.
    */
   async move(
     actor: AuthenticatedUser,
@@ -66,8 +79,31 @@ export class ProjectRankResource {
     afterProjectId: string | null,
   ): Promise<ProjectRankOutcome> {
     if (access.kind === 'legacy') return { ok: false, refusal: 'organization_required' };
+    // Proof: rank-move-actor-snapshot: retaining complete actor aliases across the grant await.
+    // retains direct rank move actor id before awaited grant evaluation
+    // retains direct rank move actor authentication before awaited grant evaluation
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    // Proof: rank-move-actor-auth-deep: shallow actor copying retains verifier metadata aliases.
+    // retains direct rank move actor authentication before awaited grant evaluation
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
     actor = structuredClone(actor);
     const actorId = actor.id;
+    // Proof: rank-move-access-snapshot: retaining caller scoped-evidence aliases across an await.
+    // retains direct rank move scoped evidence before its awaited dependency
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    // Proof: rank-move-access-auth-deep: shallow scope copying retains nested authentication aliases.
+    // retains direct rank move access authentication before awaited grant evaluation
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    access = structuredClone(access);
+    // Proof: rank-move-scope-identity: omitting actor/member identity equality.
+    // rejects direct rank move scope mismatch before grant and fact reads
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    // Proof: rank-move-principal-identity: omitting authenticated principal identity equality.
+    // rejects direct rank move principal mismatch before grant and fact reads
+    // throws before facts for a missing direct rank move grant principal
+    // Named RED with this fault; restored GREEN (task-2.4b rank/mode receipt).
+    if (access.scope.userId !== actorId || access.principal.id !== actorId)
+      throw new Error('rank resource authority differs from its actor');
     const decision = await authorize(
       this.opts.accessDecisions,
       access.principal,
