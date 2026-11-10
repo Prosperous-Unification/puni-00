@@ -268,6 +268,8 @@ describe('JOB-CATALOGUE', () => {
   test('names an envelope below its own calibrated p95', async () => {
     const calibrated = (memoryP95: number) =>
       withJob('gate', (job) => {
+        // Proof: the repository's 10 GiB estimate lost the named 6 < 6.5 finding; this owned fixture restored it.
+        job['envelope'] = { cpuCores: 4, memoryGib: 6, tmpDiskGib: 8, exclusive: ['gate_tree'] };
         job['provenance'] = {
           kind: 'calibrated',
           hostClass: 'h2puni',

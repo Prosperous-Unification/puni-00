@@ -72,3 +72,23 @@ Nothing writes this file but a reviewed commit. The loop is:
 The commands are described in the Dash
 [host jobs guide](../../apps/twilight-structure/twilight-dash/cli/docs/resources.md#calibration-proposal-and-audit-slice-4).
 Cold, warm and two-job concurrent validation precede enabling concurrency on a host (task 6.5).
+
+## Gate memory estimate (2026-11-10)
+
+The gate now estimates 10 GiB, retaining `observe` enforcement and every other bound. H4 has
+10 GiB allocatable memory, so this reservation prevents another positive-memory native
+admission while the gate runs; it also waits for existing memory reservations to return.
+It changes only a separate caller's catalogue: the canonical launcher still gates the explicit
+frozen target in an assigned unit distinct from that caller.
+
+This is provisional, not calibrated or a whole-process guarantee. An existing H4 gate at 6 GiB
+MemoryHigh reached 7.55 GiB current/7.62 GiB peak, 2946 additional high events in 10 seconds and
+roughly 98% scope full memory pressure. Two local forced WBS typechecks passed but recorded
+single-child RSS 8,046,416 KiB and 9,676,704 KiB; neither experiment proves a full-gate bound or a
+remote tuning fix. No Go/CPU tuning is proposed. The catalogue memory rationale records these provisional observations; receipt hashes,
+scoped proof and limitations are in
+[verification](../../openspec/changes/gate-memory-estimate/verify.md). The actual full gate
+and its measured peak remain required before acceptance; no current job or host changes here.
+
+Proof: the receipt-derived profile check failed four named cases with 6 GiB and passed with
+10 GiB; 6 / 9 / 11 GiB and cap faults were observed and restored as recorded in that verification.

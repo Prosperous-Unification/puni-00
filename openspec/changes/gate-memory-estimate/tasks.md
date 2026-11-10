@@ -1,0 +1,6 @@
+- [x] Read catalogue, caller/admission/scope/tree consumers and existing tests.
+- [x] Observe old profile fail a receipt-derived fit/serialization proof.
+- [x] Revise only gate estimated memory and document provisional evidence.
+- [x] Run scoped catalogue/admission/scope checks; observe negative profile faults and restoration.
+- [x] Verify unchanged target/scripts/bounds, format and OpenSpec; obtain independent review.
+- [x] Prepare the reviewed local commit; leave full gate/host transport to the parent.

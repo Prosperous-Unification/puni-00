@@ -5,12 +5,12 @@
       "id": "gate",
       "entrypoint": "bin/h2puni-gate.sh",
       "argumentProfile": "<sha>",
-      "envelope": { "cpuCores": 4, "memoryGib": 6, "tmpDiskGib": 8, "exclusive": ["gate_tree"] },
+      "envelope": { "cpuCores": 4, "memoryGib": 10, "tmpDiskGib": 8, "exclusive": ["gate_tree"] },
       "containers": { "memoryGib": 1, "cpuCores": 1 },
       "enforcement": "observe",
       "provenance": {
         "kind": "estimated",
-        "basis": "user slice memory.current 2.0 GiB during gate:0a518a42 on h2puni, 2026-11-01; the containers bound is declared, not enforced everywhere: inside a Dash job the solver smoke's four direct docker runs (wbs-solver, registry:2 and the two clients) take it and the job label (slice 6a), but the supervisor's managed solver containers, the orphan proc tests and Caddy in mcp-body-limit.test.ts still run unbounded and unlabelled, so the type is not yet concurrency-eligible",
+        "basis": "10 GiB memory is a provisional, uncalibrated estimate from the 2026-11-10 H4 throttled scope peak of 7.62 GiB and local forced WBS typecheck single-child RSS of 7.67–9.23 GiB, not a whole-gate bound; the containers bound is declared, not enforced everywhere: inside a Dash job the solver smoke's four direct docker runs (wbs-solver, registry:2 and the two clients) take it and the job label (slice 6a), but the supervisor's managed solver containers, the orphan proc tests and Caddy in mcp-body-limit.test.ts still run unbounded and unlabelled, so the type is not yet concurrency-eligible",
         "until": "2026-12-01"
       }
     },
