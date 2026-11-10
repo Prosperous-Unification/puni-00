@@ -228,3 +228,13 @@ by the transfer reader. Public classification retains its1–12 ceiling.
 
 This amendment leaves historical version9/schema8 proof receipts unchanged. Reader
 capability does not establish write admission or complete parent tasks3.3/3.4.
+
+## StageB saved and external readers (2026-11-10)
+
+Run sparse semantic checks after stored hash/link integrity on actual saved reads and
+comparisons for8/9/10, retaining historical1–7 contracts. Normalize in memory only and
+classify expected sparse-validation failures at the existing typed integrity boundary;
+arbitrary helper/getter failures propagate. Legacy sparse declarations must be absent
+or empty before upgrades can introduce a required empty collection. Navigator consumes
+the lazy13 schema strictly and checks local leaf/step/pair membership. It retains raw
+export digest and wire13 provenance; connected families12/14 remain unsupported.

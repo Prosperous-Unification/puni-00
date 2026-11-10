@@ -9,7 +9,12 @@ import {
   type PlanTask,
   PlanTasks,
 } from '@twilight-burokrat/contracts';
-import { type PlanDocumentV11, planDocumentV11 } from '@wbs/contracts';
+import {
+  createPlanDocumentV13,
+  type PlanDocumentV11,
+  planDocumentV11,
+  type PlanDocumentV13,
+} from '@wbs/contracts';
 
 import type { NavigatorRequest } from './cli-parser';
 import {
@@ -20,7 +25,7 @@ import {
 } from './required-file';
 
 /** Explicit supported wire versions; a future WBS bump requires contract review here. */
-const NAVIGATOR_PLAN_DOCUMENT_VERSIONS = [7, 8, 9, 10, 11] as const;
+const NAVIGATOR_PLAN_DOCUMENT_VERSIONS = [7, 8, 9, 10, 11, 13] as const;
 
 const EXPORT_ROLE = 'plan export';
 const REQUIREMENTS_ROLE = 'requirements file';
@@ -142,12 +147,16 @@ const Version10PlanDocument = planDocumentV11
 // plan-reference.test.ts production dispatch (2026-10-24).
 const Version11PlanDocument = planDocumentV11.onDeepUndeclaredKey('reject');
 
+/** Strict local sparse reader; does not export policy or admit a writer. */
+// Proof: navigator-strict13 removed deep rejection; unknown sparse keys produced reference files (StageB, 2026-11-10).
+const Version13PlanDocument = createPlanDocumentV13().onDeepUndeclaredKey('reject');
+
 /**
  * Checks only direct archival facts at Navigator's external export boundary. Retained facts
  * on done nodes and negative instants are valid; progress and eligibility are not derived.
  * @throws when a direct fact has no existing leaf owner or step, repeats a pair, or has an unsafe instant.
  */
-function validateBlockageFacts(document: PlanDocumentV11): void {
+function validateBlockageFacts(document: PlanDocumentV11 | PlanDocumentV13): void {
   const owners = new Set(document.workItems.map(({ id }) => id));
   const parents = new Set(document.workItems.map(({ parentId }) => parentId));
   const steps = new Set(document.steps.map(({ id }) => id));
@@ -169,8 +178,31 @@ function validateBlockageFacts(document: PlanDocumentV11): void {
   }
 }
 
+/** Checks concrete local sparse identities before deriving tasks or creating files. */
+function validateStepParallels(document: PlanDocumentV13): void {
+  const owners = new Set(document.workItems.map(({ id }) => id));
+  const parents = new Set(document.workItems.map(({ parentId }) => parentId));
+  const steps = new Set(document.steps.map(({ id }) => id));
+  // Proof: navigator-owner-inventory and navigator-step-inventory independently admitted duplicate identities to actual CLI invocation (StageB, 2026-11-10).
+  if (owners.size !== document.workItems.length || steps.size !== document.steps.length)
+    throw new Error('sparse inventory repeats an identity');
+  const pairs = new Set<string>();
+  for (const { workItemId, stepId } of document.stepParallels) {
+    // Proof: navigator-owner removed; malformed sparse input produced reference files (StageB, 2026-11-10).
+    if (!owners.has(workItemId)) throw new Error('sparse fact names an unknown owner');
+    // Proof: navigator-leaf removed; malformed sparse input produced reference files (StageB, 2026-11-10).
+    if (parents.has(workItemId)) throw new Error('sparse fact owner is not a leaf');
+    // Proof: navigator-step removed; malformed sparse input produced reference files (StageB, 2026-11-10).
+    if (!steps.has(stepId)) throw new Error('sparse fact names an unknown step');
+    const pair = JSON.stringify([workItemId, stepId]);
+    // Proof: navigator-pair removed; malformed sparse input produced reference files (StageB, 2026-11-10).
+    if (pairs.has(pair)) throw new Error('sparse fact repeats a pair');
+    pairs.add(pair);
+  }
+}
+
 interface DecodedPlanExport {
-  document: PlanDocumentV11;
+  document: PlanDocumentV11 | PlanDocumentV13;
   wireVersion: NavigatorPlanDocumentVersion;
 }
 
@@ -209,12 +241,17 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
   // Proof: with 11 dropped from this guard and the list, `reads a v11 export carrying
   // measures, deriving the same tasks as v10` and the three v11 refusals exited on
   // "has version 11" (38 pass, 6 fail, plan-reference.test.ts); watched 2026-10-24.
+  if (header.document.version === 12 || header.document.version === 14)
+    throw new Error(
+      `${EXPORT_ROLE} ${path} has connected version ${String(header.document.version)}; connected plan exports are unsupported`,
+    );
   if (
     header.document.version !== 7 &&
     header.document.version !== 8 &&
     header.document.version !== 9 &&
     header.document.version !== 10 &&
-    header.document.version !== 11
+    header.document.version !== 11 &&
+    header.document.version !== 13
   ) {
     throw new Error(
       `${EXPORT_ROLE} ${path} has version ${String(header.document.version)}; twin reads versions ${NAVIGATOR_PLAN_DOCUMENT_VERSIONS.join(' and ')} only`,
@@ -224,6 +261,13 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
     // Proof: with version 11 parsed through the v10 shape, `reads a v11 export
     // carrying measures, deriving the same tasks as v10` (plan-reference.test.ts)
     // exited 1 as malformed (43 pass, 1 fail); watched 2026-10-24.
+    // Proof: ordinary13-through11 projected the body into the old reader; successful CLI output incorrectly reported wire11 rather than13 (StageB, 2026-11-10).
+    if (header.document.version === 13) {
+      const document = parseOrThrow(Version13PlanDocument, parsed);
+      validateBlockageFacts(document);
+      validateStepParallels(document);
+      return { document, wireVersion: 13 };
+    }
     if (header.document.version === 11) {
       const document = parseOrThrow(Version11PlanDocument, parsed);
       validateBlockageFacts(document);
@@ -295,7 +339,7 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
  * export would then not describe one tree.
  */
 export function derivePlanTasks(
-  document: PlanDocumentV11,
+  document: PlanDocumentV11 | PlanDocumentV13,
   wireVersion: NavigatorPlanDocumentVersion,
 ): PlanTasks {
   const steps = [...document.steps]

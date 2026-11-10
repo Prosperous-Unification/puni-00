@@ -1,8 +1,11 @@
 import {
+  assertLegacyStepParallels,
   type PlanInputNormaliseFailure,
+  PlanInputUpgradeError,
   readSavedConnectedScheduleBody,
   readSavedPlanInput,
   SavedHistoryError,
+  StepParallelInputError,
   validateSavedConnectedHistory,
   validateSavedConnectedTarget,
 } from '@wbs/domain';
@@ -262,9 +265,14 @@ export function verifySavedPlanBodies(
       schedule.version,
       SUPPORTED_SCHEDULE_BODY_VERSIONS,
     );
-  if (input.version < 10 && (!schedule.present || schedule.version === 1)) return null;
   let body: SavedPlanBodyKind = 'input';
   try {
+    if (input.version < 8 && (!schedule.present || schedule.version === 1)) {
+      // Proof: legacy-single-read omitted this call; mounted legacy7 nonempty policy returned200 (StageB, 2026-11-10).
+      assertLegacyStepParallels(JSON.parse(input.bytes));
+      return null;
+    }
+    // Proof: single-read-semantic-bypass skipped8/9; correctly hashed missing policy returned200 instead422 (StageB, 2026-11-10).
     const parsed = readSavedPlanInput(JSON.parse(input.bytes), input.version);
     if (parsed.project.id !== projectId) throw new SavedHistoryError('target', '$.project.id');
     body = 'schedule';
@@ -296,6 +304,18 @@ export function verifySavedPlanBodies(
       validateSavedConnectedTarget(parsed.dependencyHistory, connected, parsed.project.startDate);
     return null;
   } catch (cause) {
+    // Proof: modeled-sparse-error omission gave mounted500 instead422; widening to Error swallowed the exact unexpected reader failure (StageB, 2026-11-10).
+    if (cause instanceof StepParallelInputError)
+      return {
+        reason: 'body_invalid',
+        savedPlanId,
+        body,
+        path: '$.stepParallels',
+        code: 'local_facts',
+      };
+    // Proof: modeled-upgrade-error omission returned500 for mounted input8 shape corruption; widening to Error swallowed the unexpected reader identity (StageB, 2026-11-10).
+    if (cause instanceof PlanInputUpgradeError)
+      return { reason: 'body_invalid', savedPlanId, body, path: cause.path, code: 'shape' };
     if (cause instanceof SavedHistoryError)
       return { reason: 'body_invalid', savedPlanId, body, path: cause.path, code: cause.code };
     if (cause instanceof SyntaxError)

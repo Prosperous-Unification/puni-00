@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import * as domain from '@wbs/domain';
 import {
   canonicalisePlanInputV10,
   readSavedConnectedScheduleBody,
@@ -8,7 +9,7 @@ import {
   readSavedPlanInput,
 } from '@wbs/domain';
 import { connectedPlanFixtureRows } from '@wbs/domain/connected-history-fixture';
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, spyOn } from 'bun:test';
 
 import { verifySavedPlanBodies } from './saved-plan-integrity';
 
@@ -462,4 +463,27 @@ it.each([
     reason: 'body_invalid',
     body: 'input',
   });
+});
+
+it('stored semantic boundary propagates an unexpected reader failure by identity', () => {
+  const failure = new Error('unexpected frozen reader failure');
+  const decode = spyOn(domain, 'readSavedPlanInput').mockImplementation(() => {
+    throw failure;
+  });
+  try {
+    let thrown: unknown;
+    try {
+      verifySavedPlanBodies(
+        'saved',
+        'p',
+        { version: 9, bytes: JSON.stringify(planFixtureRows) },
+        { present: false, absentReason: 'unavailable' },
+      );
+    } catch (cause) {
+      thrown = cause;
+    }
+    expect(thrown).toBe(failure);
+  } finally {
+    decode.mockRestore();
+  }
 });

@@ -198,7 +198,7 @@ describe('twin plan-reference', () => {
     });
     expectRefusal(
       await planReference({ '--export': path }),
-      /has version 6; twin reads versions 7 and 8 and 9 and 10 and 11 only/,
+      /has version 6; twin reads versions 7 and 8 and 9 and 10 and 11 and 13 only/,
     );
   });
 
@@ -369,7 +369,7 @@ describe('twin plan-reference', () => {
     expectRefusal(
       await planReference({ '--export': path }),
       fault === 'future version'
-        ? /has version 12; twin reads versions 7 and 8 and 9 and 10 and 11 only/
+        ? /has connected version 12; connected plan exports are unsupported/
         : /plan export is malformed/,
     );
   });
@@ -481,5 +481,76 @@ describe('twin plan-reference', () => {
   test('refuses a plan reference that would not decode, before writing', async () => {
     expectRefusal(await planReference({ '--planning-commit': 'abc123' }), /planningCommit/);
     expectRefusal(await planReference({ '--change': 'Not A Change' }), /change/);
+  });
+});
+
+describe('ordinary13 sparse compatibility', () => {
+  function writeSparseExport(change?: (plan: Record<string, unknown>) => void) {
+    const plan = JSON.parse(
+      readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v11.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    const header = plan['document'] as Record<string, unknown>;
+    header['version'] = 13;
+    const rows = plan['workItems'] as { id: string; parentId: string | null }[];
+    const steps = plan['steps'] as { id: string }[];
+    const parents = new Set(rows.map((row) => row.parentId));
+    const owner = rows.find((row) => !parents.has(row.id));
+    if (owner === undefined) throw new Error('fixture leaf missing');
+    plan['stepParallels'] = [{ workItemId: owner.id, stepId: steps[0].id, maxParallel: 1 }];
+    change?.(plan);
+    const path = join(scratch.path, 'v13.json');
+    writeFileSync(path, JSON.stringify(plan));
+    return path;
+  }
+  test('actual CLI13 output retains its original digest and accepted consumer provenance', async () => {
+    const path = writeSparseExport();
+    const run = await planReference({ '--export': path });
+    expect(run.exitCode, run.stderr).toBe(0);
+    const record = PlanReferenceRecord.assert(readJson(join(output, 'plan-reference.json')));
+    expect(decodeRecord('plan-reference', record)).toEqual(record);
+    expect(record.planDocumentVersion).toBe(13);
+    expect(record.exportDigest).toBe(createHash('sha256').update(readFileSync(path)).digest('hex'));
+    expect(PlanTasks.assert(readJson(join(output, 'tasks.json'))).tasks.length).toBeGreaterThan(0);
+  });
+  test.each([
+    'missing',
+    'null',
+    'range',
+    'owner',
+    'parent',
+    'step',
+    'duplicate',
+    'extra key',
+    'owner inventory',
+    'step inventory',
+  ])('strict13 refuses sparse %s before writing', async (fault) => {
+    const path = writeSparseExport((plan) => {
+      const facts = plan['stepParallels'] as Record<string, unknown>[];
+      if (fault === 'missing') Reflect.deleteProperty(plan, 'stepParallels');
+      if (fault === 'null') plan['stepParallels'] = null;
+      if (fault === 'range') facts[0]['maxParallel'] = 1001;
+      if (fault === 'owner') facts[0]['workItemId'] = 'foreign-owner';
+      if (fault === 'parent')
+        facts[0]['workItemId'] = (plan['workItems'] as { id: string }[])[0].id;
+      if (fault === 'step') facts[0]['stepId'] = 'foreign-step';
+      if (fault === 'duplicate') facts.push({ ...facts[0] });
+      if (fault === 'extra key') facts[0]['extra'] = 'discarded';
+      if (fault === 'owner inventory')
+        (plan['workItems'] as Record<string, unknown>[]).push({
+          ...(plan['workItems'] as Record<string, unknown>[])[0],
+        });
+      if (fault === 'step inventory')
+        (plan['steps'] as Record<string, unknown>[]).push({
+          ...(plan['steps'] as Record<string, unknown>[])[0],
+          code: 'copy',
+        });
+    });
+    expectRefusal(await planReference({ '--export': path }), /plan export is malformed/);
+  });
+  test.each([12, 14])('connected version%i stays explicitly unsupported', async (version) => {
+    const path = writeSparseExport((plan) =>
+      Reflect.set(plan['document'] as object, 'version', version),
+    );
+    expectRefusal(await planReference({ '--export': path }), /connected.*unsupported/);
   });
 });

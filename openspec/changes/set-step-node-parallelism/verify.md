@@ -1699,3 +1699,135 @@ and explicit awaited rejection capture in the tests resolved those findings with
 casts or suppressions. The final two-file ESLint run exited0, child maximum RSS884152
 KiB, monitored process-tree peak900284 KiB under1500 MiB, no refusal. The final65-test
 run above includes those type/assertion adjustments. No native compiler retry ran.
+
+## StageB saved/external readers (2026-11-10)
+
+Source base: `5a0edf59bd1b9bda465929a88e6d59834e27f6e2` (independently approved
+StageA fix1). B1–B4 are the bounded reader packet only. A4,3.3/3.4, all later
+Task11 C–I and canonical installed acceptance remain open. Current output11/12,
+mounted import1–12, saved formats9/10, admission and writer paths are unchanged.
+
+Actual registered SQLite read and both comparison directions now validate sparse
+input8/9/10 with and without a schedule after hash/link checks. Missing/null,
+duplicate/range/owner/leaf/step and connected target inventory corruption refuse
+with the existing typed saved-plan integrity response. Explicit equality survives
+actual capture and comparison; absence remains absent. Connected work-item IDs are
+global, step IDs are per project. A valid same-design peer control and a separate
+whole-history-valid foreign b/design negative establish local membership.
+
+Only exact StepParallelInputError and PlanInputUpgradeError model the new expected
+stored-corruption paths. The latter brands only existing v8→9 project/measures/row
+shape guards: an actual malformed input8 originally returned500 (RED), then422
+with its exact shape path. Unexpected reader/getter Error identity propagates.
+Malformed current trusted capture still throws before writing. Historical1–7
+missing/empty policy upgrades in memory; retained nonempty or malformed policy
+refuses before7→8 can overwrite it. Memory uses real SHA256 for the new historical
+witness. Original bytes/hash/header/schema/retired schedule remain unchanged.
+
+Navigator retains7–11 and reads strict ordinary13, validates sparse local leaf/step
+references and uniqueness, and retains original wire13/digest. Connected12/14 are
+explicitly unsupported. Actual Bun CLI output is consumed by decodeRecord and
+validatePlanTasks. PlanReferenceRecord adds13 while retaining6–11; record format
+and schemaVersion do not change.
+
+All ordinary commands ran serially through bounded-monitor.py900MiB/120s, using
+`/usr/bin/time -v bun test <listed owners>`; no refusal. Exact commands/stdout and
+process-tree monitor JSON are in the root plan workspace `stageB-evidence/`.
+
+| Covering log (exact command is in log) | pass / fail | assertions | child RSS KiB | live peak KiB | seconds |
+| -------------------------------------- | ----------- | ---------- | ------------- | ------------- | ------- |
+| `stageB-covering-core-final.log`       | 92 / 0      | 217        | 497568        | 498152        | 2.433   |
+| `stageB-upgrade-shape-green.log`       | 12 / 0      | 688        | 546404        | 550032        | 8.927   |
+| `stageB-existing-db.log`               | 100 / 0     | 544        | 585108        | 589724        | 40.586  |
+| `stageB-nav-final.log`                 | 37 / 0      | 162        | 517120        | 519800        | 2.499   |
+| `stageB-final-cli-records.log`         | 17 / 0      | 33         | 551568        | 685612        | 6.469   |
+
+The filtered Navigator run reports22 filtered cases; it covers historical7–11 and
+new13 but is not the whole Navigator suite. Actual13 child execution has its own
+minimal-parent two-test suite; the17-test receipt includes15 actual record tests.
+The existing mounted saved-plan controller suite is100 tests; the new mounted
+sparse reader suite is12 table/matrix tests (688 assertions).
+
+24 independent runtime production faults each exited1 at the intended assertion;
+source restoration was SHA256-checked and each control exited0.
+`stageB-faults.json` records exact anchors and mutant/restored hashes; per-fault
+stdout is retained. Adjacent Proof comments identify the new guards. Faults:
+
+- `single-read-semantic-bypass`
+- `modeled-sparse-error`
+- `unexpected-reader-error`
+- `empty-captured-policy`
+- `drop-explicit-equality`
+- `input10-through-legacy`
+- `foreign-target-owner`
+- `legacy-single-read`
+- `legacy-upgrade-fence`
+- `legacy-smuggling`
+- `legacy-object`
+- `ordinary13-through11`
+- `navigator-strict13`
+- `navigator-owner`
+- `navigator-leaf`
+- `navigator-step`
+- `navigator-pair`
+- `navigator-owner-inventory`
+- `navigator-step-inventory`
+- `record13-consumer`
+- `decoded-comparison-policy`
+- `modeled-upgrade-error`
+- `unexpected-upgrade-error`
+- `upgrade-error-producer`
+
+The first semantic-bypass trial incorrectly moved the legacy threshold and refused
+a healthy8 body before corruption; it is disqualified. Its raw receipt remains
+`stageB-disqualified-semantic-bypass.log`. The replacement skips only8/9 validation
+and observes200 instead422 for missing required facts. Earlier peer fixture trials
+with duplicate global work-item IDs were malformed-history negatives, not sparse
+local membership proofs. A copied canonical row had the wrong context shape; a
+peer added step without its graph correctly refused graph_completeness. Corrected
+valid controls and the isolated membership mutant supply the claimed proof. An
+HTTP expectation initially omitted the actual `right:null` missing-value sentinel;
+that test assertion was corrected before the final exact capacity-diff receipt.
+An assertion-strengthening script initially missed its edit anchor and changed
+nothing; a subsequent old-baseline run is not evidence for that strengthening.
+The fault script initially required one Bun diagnostic spelling and stopped on
+the equivalent HTTP Expected/Received assertion; detection was corrected before
+continuing. Historical StageA/disqualified DataCloneError receipts stay unchanged.
+
+Matching existing locked dependencies are reused; no fresh install claimed. Native
+owning compiler acceptance remains unavailable after the earlier1500MiB refusal;
+no compiler retry, full Nx gate/type/build, complete owner lint target, host gate,
+CI for this exact head, push/deploy or public write was run. Scoped staged ESLint,
+OpenSpec, formatting and normal commit receipts follow in the external StageB
+report; exact source still requires independent Astra review.
+
+Scoped lint initially refused Navigator import ordering, then the final backend
+test's total Record index made its undefined check unnecessary. Auto-sorted imports
+and Partial<Record<string,string>> resolved those findings. Serial autofix lint
+covered the other four owning projects; the final backend-only lint exited0 with
+live peak1211884KiB under1500MiB. Formatting exited0, live peak339944KiB.
+
+Fresh OpenSpec selected strict validation exited1 with exactly the12 pre-existing
+requirement-length warnings (no new StageB warning); strict acceptance is not green.
+`bunx openspec validate --all --json` exited0:341/341 (321 changes,20 specs),
+live peak184192KiB. `git diff --check` and byte comparison of bun.lock against the
+shared dependency tree exited0; node_modules resolves to that tree. No reinstall
+or exact-head CI is claimed. Normal hooks remain required in the commit command.
+
+### StageB historical store coverage extension
+
+After local source commit ffb8bcebeb311440f1b2bde892cfd505c98a40a0, the
+actual memory-store positive matrix was extended from7–10 to1–10. Versions1–7
+each exercise both omitted and explicit-empty stepParallels;8/9/10 retain required
+empty collections. The17 stored cases use real SHA256, actual savedPlans.read and
+self-comparison, assert original schema/header/bytes/hash/retired schedule, and
+compare the complete stored snapshot after both consumers. Historical fields are
+omitted before their introduction rather than using a current-shaped version1
+fixture. This is test-only; production code remains unchanged from ffb8.
+
+Fresh command (900MiB/120s live monitor, /usr/bin/time -v):
+`bun test libs/wbs/application/core/src/module/saved-plans/module.test.ts`.
+12 tests pass,0 fail,93 assertions; child RSS533440KiB, live peak536940KiB,
+elapsed2.380s,exit0/no refusal. Raw receipt:stageB-legacy-store-extension.log.
+The external report's initial1–6 store-positive limitation is superseded by this
+receipt; codec1–7 smuggling and mounted7 negative receipts remain unchanged.
