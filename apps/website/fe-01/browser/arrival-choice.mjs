@@ -56,7 +56,7 @@ for (const classic of [false, true]) {
         page.on('pageerror', (error) => failures.push(error.message));
         await page.route('**/*', async (route) => {
           const url = new globalThis.URL(route.request().url());
-          if (url.hostname === 'dev.app.puni.dev') {
+          if (url.hostname === 'dev.request.puni.dev') {
             const path = url.pathname.startsWith('/assets/') ? url.pathname : '/index.html';
             const contentType =
               { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[
@@ -70,7 +70,7 @@ for (const classic of [false, true]) {
           } else if (url.hostname === 'dev.puni.dev' && url.pathname === '/api/analytics/region') {
             await route.fulfill({
               json: { region: 'unknown', database: null },
-              headers: { 'Access-Control-Allow-Origin': 'https://dev.app.puni.dev' },
+              headers: { 'Access-Control-Allow-Origin': 'https://dev.request.puni.dev' },
             });
           } else if (url.hostname === 'dev.api.puni.dev') {
             if (url.pathname === '/entry' && route.request().method() === 'GET')
@@ -95,7 +95,7 @@ for (const classic of [false, true]) {
           else await route.abort();
         });
         try {
-          await page.goto('https://dev.app.puni.dev/', { waitUntil: 'domcontentloaded' });
+          await page.goto('https://dev.request.puni.dev/', { waitUntil: 'domcontentloaded' });
           const thread = page.getByRole('region', { name: 'Conversation with PUNI', exact: true });
           await thread.waitFor({ state: 'attached' });
           await page.locator('[data-arrival-choice]').waitFor();
