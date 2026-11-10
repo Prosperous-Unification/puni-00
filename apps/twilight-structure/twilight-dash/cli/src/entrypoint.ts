@@ -50,7 +50,8 @@ try {
     });
   } else if (command !== undefined) {
     const { runDash, runFleetPlan } = await import('./cli');
-    await runDash(command, {
+    // Proof: dash-executable-status; `assigns the modeled native ops status only at the standalone executable` failed under the recorded source fault and passed after restoration.
+    process.exitCode = await runDash(command, {
       clock: wallClock(),
       monotonic: monotonicClock(),
       planEnrollment: runFleetPlan,

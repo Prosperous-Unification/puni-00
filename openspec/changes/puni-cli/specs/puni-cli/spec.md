@@ -32,6 +32,11 @@ The root SHALL preserve Navigator's offline behavior, Burokrat's explicit time a
 - **WHEN** malformed requests are sent through canonical names and aliases, including `dash ops` and `dash ops release`
 - **THEN** each exits with its specified status and no operation occurs, including when ambient process arguments differ from the parsed invocation
 
+#### Scenario: Typed operations return their own status
+
+- **WHEN** reusable Dash operations succeed, return a modeled nonzero status, or run sequentially or overlap in one process
+- **THEN** each returns its numeric status only after its work settles, without reading or writing the executable's global exit status; a later success returns0 independently from an earlier failure, and only the executable assigns its exit code
+
 ### Requirement: An installed artifact contains the client operations
 
 Every first-party operation exposed by current client instructions, generated helpers or a shipped executable SHALL run under its PUNI namespace from the installed artifact without a checkout, Bash, shell script or Node executable. Required external utilities SHALL be explicit prerequisites. Public help SHALL expose the installed Burokrat grammar rather than source-only commands.

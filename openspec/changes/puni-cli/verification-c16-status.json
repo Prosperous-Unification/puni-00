@@ -1,0 +1,433 @@
+{
+  "schemaVersion": 1,
+  "scope": "explicit reusable Dash statuses, partialtask1.2d; rootfacade/entrypoint and whole goal remain open",
+  "sourceBase": "0bf6c4d05c3cb2764f3d093bf6514c9dcbe1a10b",
+  "proofCount": 8,
+  "proofs": [
+    {
+      "id": "dash-ops-status",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/cli.ts",
+      "find": "return await runOps(command, {\n      clock: deps.clock,\n      monotonic: deps.monotonic,\n      environment: process.env,\n      cwd: process.cwd(),\n      stdout: (text) => deps.stdout.write(text),\n      stderr: (text) => process.stderr.write(text),\n      telemetry: linuxScopeTelemetry(),\n      host: linuxHostFacts,\n      user: userInfo().username,\n      legacyLock: productionLegacyLock,\n      connect: (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),\n    });",
+      "replacement": "await runOps(command, {\n      clock: deps.clock,\n      monotonic: deps.monotonic,\n      environment: process.env,\n      cwd: process.cwd(),\n      stdout: (text) => deps.stdout.write(text),\n      stderr: (text) => process.stderr.write(text),\n      telemetry: linuxScopeTelemetry(),\n      host: linuxHostFacts,\n      user: userInfo().username,\n      legacyLock: productionLegacyLock,\n      connect: (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),\n    }); return 0;",
+      "pattern": "explicit Dash sequential",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=explicit Dash sequential"
+      ],
+      "state": "killed-restored",
+      "testName": "returns explicit Dash sequential statuses without touching the executable exit code",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-status-proofs/dash-ops-status.red.log",
+      "greenLog": "/tmp/puni-dash-status-proofs/dash-ops-status.green.log",
+      "beforeHash": "6fe62fb7089ebbeb9a4f668e2bf60b47c1f6658a055ad57b7e399bfedef6a178",
+      "mutantHash": "c1a3150399a7fd256f66f286fa627fe82e7533267dc38e034fe1099c8ecf4d3e",
+      "afterHash": "6fe62fb7089ebbeb9a4f668e2bf60b47c1f6658a055ad57b7e399bfedef6a178",
+      "redLogHash": "e40bdf129e74d6999f092bc4c684b8848cafbee3c0258dbbca0a0a05ea0a9db6",
+      "greenLogHash": "8a77f43de4429f3e282fea031b28f578254dce1071fcc4ca2f08e89b8c4084ae"
+    },
+    {
+      "id": "dash-no-global-status",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/cli.ts",
+      "find": "return await runOps(command, {\n      clock: deps.clock,\n      monotonic: deps.monotonic,\n      environment: process.env,\n      cwd: process.cwd(),\n      stdout: (text) => deps.stdout.write(text),\n      stderr: (text) => process.stderr.write(text),\n      telemetry: linuxScopeTelemetry(),\n      host: linuxHostFacts,\n      user: userInfo().username,\n      legacyLock: productionLegacyLock,\n      connect: (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),\n    });",
+      "replacement": "const status = await runOps(command, {\n      clock: deps.clock,\n      monotonic: deps.monotonic,\n      environment: process.env,\n      cwd: process.cwd(),\n      stdout: (text) => deps.stdout.write(text),\n      stderr: (text) => process.stderr.write(text),\n      telemetry: linuxScopeTelemetry(),\n      host: linuxHostFacts,\n      user: userInfo().username,\n      legacyLock: productionLegacyLock,\n      connect: (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),\n    }); process.exitCode=status; return status;",
+      "pattern": "explicit Dash sequential",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=explicit Dash sequential"
+      ],
+      "state": "killed-restored",
+      "testName": "returns explicit Dash sequential statuses without touching the executable exit code",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-status-proofs/dash-no-global-status.red.log",
+      "greenLog": "/tmp/puni-dash-status-proofs/dash-no-global-status.green.log",
+      "beforeHash": "6fe62fb7089ebbeb9a4f668e2bf60b47c1f6658a055ad57b7e399bfedef6a178",
+      "mutantHash": "68cd574bb3a2a0ac727c82015f1e681986ccdb4db81acead9e58c96fd53788db",
+      "afterHash": "6fe62fb7089ebbeb9a4f668e2bf60b47c1f6658a055ad57b7e399bfedef6a178",
+      "redLogHash": "c1908cca7315d371f822290fbcee6b4838202b5fbc7101db6ef5d7e090de7f1c",
+      "greenLogHash": "67ca4542a282d5452b2ec391bf55e2af488f5c31c3d10c4977aafb5d6e1748de"
+    },
+    {
+      "id": "dash-await-plan",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/cli.ts",
+      "find": "    await deps.planEnrollment([",
+      "replacement": "    void deps.planEnrollment([",
+      "pattern": "explicit Dash overlap",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=explicit Dash overlap"
+      ],
+      "state": "killed-restored",
+      "testName": "returns explicit Dash overlap statuses without touching the executable exit code",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-status-proofs/dash-await-plan.red.log",
+      "greenLog": "/tmp/puni-dash-status-proofs/dash-await-plan.green.log",
+      "beforeHash": "6fe62fb7089ebbeb9a4f668e2bf60b47c1f6658a055ad57b7e399bfedef6a178",
+      "mutantHash": "953b0533de3c6ca4f43beb0dc32c049a6f3ce675f90e95e88190ef10a6a58c65",
+      "afterHash": "6fe62fb7089ebbeb9a4f668e2bf60b47c1f6658a055ad57b7e399bfedef6a178",
+      "redLogHash": "bcf0049b242eb738cced44340d05f9bbce4f25db69df60acfd6e48a1ff18edcb",
+      "greenLogHash": "6635776771c3c3735630946c9ae766873124526ae2eb5ad12cd13d0aa75fb271"
+    },
+    {
+      "id": "dash-dispatch-status",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/cli.ts",
+      "find": "  return await handler(command, deps);",
+      "replacement": "  await handler(command, deps); return 0;",
+      "pattern": "explicit Dash sequential",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=explicit Dash sequential"
+      ],
+      "state": "killed-restored",
+      "testName": "returns explicit Dash sequential statuses without touching the executable exit code",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-status-proofs/dash-dispatch-status.red.log",
+      "greenLog": "/tmp/puni-dash-status-proofs/dash-dispatch-status.green.log",
+      "beforeHash": "6fe62fb7089ebbeb9a4f668e2bf60b47c1f6658a055ad57b7e399bfedef6a178",
+      "mutantHash": "c38b5d50766024a380182f6573f6aee2dcb6aa83aacf86a6f8f8ef319f6c3596",
+      "afterHash": "6fe62fb7089ebbeb9a4f668e2bf60b47c1f6658a055ad57b7e399bfedef6a178",
+      "redLogHash": "4434685ba841450441b00da6fd547b054de78ee5e84bbedc6b6fb47997e14bfe",
+      "greenLogHash": "ba6af4c83703e0132a1387433c0434c4c4ab2fcff900b99b057abbaf3112a65d"
+    },
+    {
+      "id": "dash-executable-status",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts",
+      "find": "    process.exitCode = await runDash(command, {",
+      "replacement": "    await runDash(command, {",
+      "pattern": "assigns the modeled native ops status",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=assigns the modeled native ops status"
+      ],
+      "state": "killed-restored",
+      "testName": "assigns the modeled native ops status only at the standalone executable",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-status-proofs/dash-executable-status.red.log",
+      "greenLog": "/tmp/puni-dash-status-proofs/dash-executable-status.green.log",
+      "beforeHash": "ffab335935013176955a9761f0257c4acbe578e5022fd148539b666a602d6f82",
+      "mutantHash": "5efba83ba820eccc07dcde8bd80e30dfe45cd1b03ef09d5c30bf402bd4325cd2",
+      "afterHash": "ffab335935013176955a9761f0257c4acbe578e5022fd148539b666a602d6f82",
+      "redLogHash": "9de3ede59f28f974fc502e58a91a131ba6a5c14df5fb8b3fdd263682b6a384b5",
+      "greenLogHash": "9fe2b586d422b9b498f0cbb2d937f0c18e6b68803df238e7fcecbfedeacec8a5"
+    },
+    {
+      "id": "dash-resources-status",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/cli.ts",
+      "find": "return await runResources(\n      command,\n      deps.clock,\n      (text) => deps.stdout.write(text),\n      (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),\n      productionLegacyLock,\n    );",
+      "replacement": "await runResources(\n      command,\n      deps.clock,\n      (text) => deps.stdout.write(text),\n      (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),\n      productionLegacyLock,\n    ); return 0;",
+      "pattern": "explicit Dash resources",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=explicit Dash resources"
+      ],
+      "state": "killed-restored",
+      "testName": "returns explicit Dash resources statuses without touching the executable exit code",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-status-proofs2/dash-resources-status.red.log",
+      "greenLog": "/tmp/puni-dash-status-proofs2/dash-resources-status.green.log",
+      "beforeHash": "2152d839fbd444e85ffd7bffafb701fc795c16b2575027a190fa9dbd0b18afa6",
+      "mutantHash": "39c260d4be10a3b2eb3feb9956620ace33cd7560c2984a665e1a1fbbce7b2837",
+      "afterHash": "2152d839fbd444e85ffd7bffafb701fc795c16b2575027a190fa9dbd0b18afa6",
+      "redLogHash": "2937c3fba72635021ca1d3631465ca3055cf1b3d78eeb0a68c704295d70d9d2c",
+      "greenLogHash": "077c4be46098b21ba120cfc891e1e06a3da809590becf94a4a4b470dcfe48aae"
+    },
+    {
+      "id": "dash-resources-no-global",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/cli.ts",
+      "find": "return await runResources(\n      command,\n      deps.clock,\n      (text) => deps.stdout.write(text),\n      (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),\n      productionLegacyLock,\n    );",
+      "replacement": "const status = await runResources(\n      command,\n      deps.clock,\n      (text) => deps.stdout.write(text),\n      (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),\n      productionLegacyLock,\n    ); process.exitCode=status; return status;",
+      "pattern": "explicit Dash resources",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=explicit Dash resources"
+      ],
+      "state": "killed-restored",
+      "testName": "returns explicit Dash resources statuses without touching the executable exit code",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-status-proofs2/dash-resources-no-global.red.log",
+      "greenLog": "/tmp/puni-dash-status-proofs2/dash-resources-no-global.green.log",
+      "beforeHash": "2152d839fbd444e85ffd7bffafb701fc795c16b2575027a190fa9dbd0b18afa6",
+      "mutantHash": "c74a01e27c3bbbdf0b7779bab552021692c8120b47ac0fae5470eb58a16296d5",
+      "afterHash": "2152d839fbd444e85ffd7bffafb701fc795c16b2575027a190fa9dbd0b18afa6",
+      "redLogHash": "ad7e883ddc5602d54a2c42c3e522d2d021f8e863e1c9e3488e04b56109839217",
+      "greenLogHash": "83e5b8293d6839d36cceb177521d0253e6b428d5c355a1baf2c9c38e9c7315a3"
+    },
+    {
+      "id": "dash-arguments-status",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/cli.ts",
+      "find": "  return await runDash(command, deps);",
+      "replacement": "  await runDash(command, deps); return 0;",
+      "pattern": "explicit Dash arguments",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=explicit Dash arguments"
+      ],
+      "state": "killed-restored",
+      "testName": "returns explicit Dash arguments statuses without touching the executable exit code",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-status-proofs2/dash-arguments-status.red.log",
+      "greenLog": "/tmp/puni-dash-status-proofs2/dash-arguments-status.green.log",
+      "beforeHash": "2152d839fbd444e85ffd7bffafb701fc795c16b2575027a190fa9dbd0b18afa6",
+      "mutantHash": "2c5a125d2335ad3666f64e2b218d8b004abe60d9465b35a97c375408d97c1ca4",
+      "afterHash": "2152d839fbd444e85ffd7bffafb701fc795c16b2575027a190fa9dbd0b18afa6",
+      "redLogHash": "6bca19c52c0933665da37fffc200c833007c886699a7ce28466078a9abdf5fd2",
+      "greenLogHash": "2a00c4e0d8c9fd5c8b603a6c3e275a9dee0555bebc9a55505939dc0a321352b3"
+    }
+  ],
+  "archive": "/tmp/puni-dash-status-proofs",
+  "checks": [
+    {
+      "id": "tests2",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/cli.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/check-runs/run-activation-checks.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/ledger/account-outcomes.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/activation/observation-commands.db.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/activation/rollback.db.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/activation/units/units.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/activation/schema-golden.test.ts",
+        "--timeout=30000"
+      ],
+      "exit": 0,
+      "log": "/tmp/puni-dash-status-tests2.log",
+      "logSha256": "45da2ddf35c17fb4d505251513fb649d633cc919526db4828817d23d369436b8"
+    },
+    {
+      "id": "types2",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/typescript/lib/tsc.js",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "exit": 0,
+      "log": "/tmp/puni-dash-status-types2.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "lint1",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/eslint/bin/eslint.js",
+        "./apps/twilight-structure/twilight-dash/cli/src/cli.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/ledger/account-outcomes.test.ts"
+      ],
+      "exit": 0,
+      "log": "/tmp/puni-dash-status-lint1.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "observed": {
+    "affected": {
+      "pass": 233,
+      "fail": 0,
+      "assertions": 1004,
+      "files": 9,
+      "seconds": 236.32
+    },
+    "additionalNativeExecutableBaseline": {
+      "pass": 4,
+      "fail": 0,
+      "assertions": 11,
+      "log": "/tmp/puni-dash-status-baseline2.log"
+    },
+    "clockGuard": {
+      "pass": 2,
+      "fail": 0,
+      "assertions": 15,
+      "log": "/tmp/puni-dash-status-clock1.log"
+    },
+    "expandedStatusBaseline": {
+      "pass": 6,
+      "fail": 0,
+      "assertions": 16,
+      "log": "/tmp/puni-dash-status-baseline3.log"
+    }
+  },
+  "failedAttempts": [
+    {
+      "log": "/tmp/puni-dash-status-red1.log",
+      "observed": "0pass3fail; old API omitted numeric returns and leftglobal70"
+    },
+    {
+      "log": "/tmp/puni-dash-status-green1.log",
+      "observed": "127pass2fail; actual status/global assertions passed, incidental diagnostic expected wrong prefix"
+    },
+    {
+      "log": "/tmp/puni-dash-status-types1.log",
+      "observed": "6 TS2345 test-only uses of old Promise<void> observer; widened toPromise<unknown>"
+    },
+    {
+      "log": "/tmp/puni-dash-status-quality-final-run.log",
+      "observed": "temporary runner ReferenceError missingreadFileSync beforeanycheck/sourcewrite; preserved as setup failure, no test/behavior credit"
+    }
+  ],
+  "notes": [
+    "All8 source faults have actual named RED, restored GREEN and equal production restoration hashes",
+    "Native missing-pool operation is real filesystem-bound modeled70; planner is the existing injected enrollment port",
+    "Eight adjacent Proof comments and final test URL conversion do not change production logic; final checks recorded separately",
+    "Resource forwarding uses the existing runResources export as an isolated controlled port returning37; this proves the dispatcher return/global side effects, not allocation authority. The handler itself remains production code.",
+    "The argv adapter case performs the actual missing-pool lookup returning70. Separate source faults independently omit its returned status and the resource status/global invariant.",
+    "Final coherent10-file group includes all6status/native cases, all existing affected callers and both clock guards; prior233/0 and4/0/6/0 baselines remain historical"
+  ],
+  "remaining": [
+    "lightweight validated Dash runtime facade",
+    "root lazy selected-runtime dispatch and invocation-aware errors",
+    "allaliases through actualoperations",
+    "public PUNI package/client embedding/full Bun conversion",
+    "final canonical host gate and rollout"
+  ],
+  "archives": ["/tmp/puni-dash-status-proofs", "/tmp/puni-dash-status-proofs2"],
+  "finalChecks": [
+    {
+      "id": "openspec1",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/@fission-ai/openspec/bin/openspec.js",
+        "validate",
+        "--all",
+        "--json"
+      ],
+      "exit": 0,
+      "log": "/tmp/puni-dash-status-openspec1.log",
+      "logSha256": "b80738c6cc98b56e46e628bcc267b9b3513aa22efb1e198f80fdb80cfdeef50b"
+    },
+    {
+      "id": "diff1",
+      "argv": ["git", "diff", "--check"],
+      "exit": 0,
+      "log": "/tmp/puni-dash-status-diff1.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "tests3",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/cli.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/check-runs/run-activation-checks.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/ledger/account-outcomes.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/activation/observation-commands.db.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/activation/rollback.db.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/activation/units/units.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/activation/schema-golden.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts",
+        "--timeout=30000"
+      ],
+      "exit": 0,
+      "log": "/tmp/puni-dash-status-tests3.log",
+      "logSha256": "9bee35d6d3ea2af28b42fa0d517c36f23e3ac23bb2b2fafa849a7f775ac3322a"
+    },
+    {
+      "id": "types3",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/typescript/lib/tsc.js",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "exit": 0,
+      "log": "/tmp/puni-dash-status-types3.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "lint2",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/eslint/bin/eslint.js",
+        "./apps/twilight-structure/twilight-dash/cli/src/cli.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/ledger/account-outcomes.test.ts"
+      ],
+      "exit": 0,
+      "log": "/tmp/puni-dash-status-lint2.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "finalObserved": {
+    "pass": 238,
+    "fail": 0,
+    "assertions": 1027,
+    "files": 10,
+    "seconds": 250.53
+  },
+  "review": {
+    "audit": "/tmp/puni-dash-status-independent-audit-final.json",
+    "scope": "all8cases/16logs/source/restoration/comment reconciliation; no source defect",
+    "testsIndependentlyRerun": false
+  },
+  "sourceHashes": [
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/cli.ts",
+      "sha256": "15d2a874a7a93cedb41150481969185e5ae059acb61e8d1af4833f63048ef1d5"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts",
+      "sha256": "87fd0da72c7764c5083db1541313f59900446d1751a70ea138d6669c7686612d"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/dispatch-status.test.ts",
+      "sha256": "63e4b2ec75852fbb7004f1c22a3c834a60ba0f9270b208a98890cb088e58d4cf"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/ledger/account-outcomes.test.ts",
+      "sha256": "1314e0168c405e0ccf6bade135c359195cfc61d64a62d65a27356b0540ab910d"
+    },
+    {
+      "path": "openspec/changes/puni-cli/design.md",
+      "sha256": "d16cd7eb2fedaf7d87cb6498921a09e9280efd27b5f8e53837612c4d847b549a"
+    },
+    {
+      "path": "openspec/changes/puni-cli/specs/puni-cli/spec.md",
+      "sha256": "c7b0957519fa5f51de6d100876ce476ec68b0616a20df4d82e11b15bbde5d508"
+    },
+    {
+      "path": "openspec/changes/puni-cli/verify.md",
+      "sha256": "89d39f5790d176c38d57ef4624feb96eaef929070179b51a15e1322b63a2df8b"
+    }
+  ]
+}
