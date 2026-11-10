@@ -174,6 +174,11 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **WHEN** trusted PATH contains relative or empty components and the selected snapshotter or captured validator runs from another directory
 - **THEN** each component retains the executable identity selected against the physical trusted runtime directory, without lexical symlink/parent normalization; an unrepresentable anchored PATH refuses before role execution
 
+#### Scenario: Installed provider selection cannot rebase trusted Git lookup
+
+- **WHEN** installed preflight selects a provider toolkit using a caller-created frozen runtime, including a relative or empty original PATH component
+- **THEN** both probes and the delivered launcher retain that independently selected lookup origin; candidate-local provider files cannot become Git merely by changing the selected toolkit directory, and a candidate-contained runtime cwd refuses
+
 #### Scenario: Output failure cleans its stage and releases a stalled peer
 
 - **WHEN** stdout or stderr fails while a lint stage is live, including when its other output consumer is stalled

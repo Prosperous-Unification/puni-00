@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
@@ -70,7 +70,11 @@ export type VerifiedToolkit = LegacyToolkit | BunToolkit;
  */
 export function verifyToolkit(directory: string): VerifiedToolkit {
   const canonical = realpathSync(directory);
-  const descriptorBytes = readFileSync(join(canonical, 'toolkit.json'));
+  const descriptorPath = join(canonical, 'toolkit.json');
+  // Proof: toolkit-descriptor-regular-file; the injected fault fails refuses a format2 FIFO toolkit.json; restoration passes.
+  if (!statSync(descriptorPath).isFile())
+    throw new RelocationRefusal('R19', 'toolkit descriptor is not a regular file');
+  const descriptorBytes = readFileSync(descriptorPath);
   // Proof: disabling fatal UTF-8 admits a replacement character and fails the invalid-UTF-8 test.
   const descriptor = parseOrThrow(
     ToolkitDescriptor,
@@ -138,7 +142,10 @@ function readRole(
 ): Uint8Array {
   let bytes: Uint8Array;
   try {
-    bytes = readFileSync(join(directory, role));
+    const path = join(directory, role);
+    // Proof: toolkit-role-regular-file; the injected fault fails refuses a format2 FIFO launcher.mjs; restoration passes.
+    if (!statSync(path).isFile()) throw new Error('toolkit role is not a regular file: ' + role);
+    bytes = readFileSync(path);
   } catch (cause) {
     // Proof: renaming the installed validator made the packed-install negative observe a raw
     // ENOENT until this boundary named the unreadable toolkit role the operator must restore.

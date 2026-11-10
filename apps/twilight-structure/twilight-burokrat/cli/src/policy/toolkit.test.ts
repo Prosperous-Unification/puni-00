@@ -248,7 +248,9 @@ describe('toolkit trusted-state readability', () => {
     const fixture = createFixture(2);
     rmSync(fixture.path);
     mkdirSync(fixture.path);
-    expect(() => verifyToolkit(fixture.directory)).toThrow(/EISDIR/);
+    expect(() => verifyToolkit(fixture.directory)).toThrow(
+      'toolkit descriptor is not a regular file',
+    );
   });
 });
 
