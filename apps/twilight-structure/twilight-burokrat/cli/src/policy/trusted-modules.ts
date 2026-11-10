@@ -131,12 +131,28 @@ function resolveDependency(modulesRoot: string, importer: string, dependency: st
  * @throws Error for unreadable or malformed installed manifests.
  */
 export function trustedModuleNames(modulesRoot: string): string[] {
+  return collectModuleNames(modulesRoot, trustedDeclarationRoots);
+}
+
+/** Current provider source builds also require grammar, document readers and compiler stack support. */
+export function buildModuleNames(modulesRoot: string): string[] {
+  return collectModuleNames(modulesRoot, [
+    ...trustedDeclarationRoots,
+    '@optique/core',
+    // Proof: c26-build-roster; injected fault failed `declares Optique and the actual compiler in the authenticated current build roster`; the same named test(s) passed after restoration.
+    '@optique/run',
+    'source-map-support',
+    'parse5',
+    'mdast-util-from-markdown',
+    'mdast-util-to-string',
+    'unist-util-visit',
+  ]);
+}
+
+function collectModuleNames(modulesRoot: string, roots: readonly string[]): string[] {
   const names = new Set<string>();
   // Check the compiler first so a missing installation keeps the established compiler refusal.
-  const pending: string[] = [
-    'typescript',
-    ...trustedDeclarationRoots.filter((name) => name !== 'typescript'),
-  ];
+  const pending: string[] = ['typescript', ...roots.filter((name) => name !== 'typescript')];
   for (const name of pending) {
     if (names.has(name)) continue;
     names.add(name);

@@ -1,26 +1,22 @@
 import { Buffer } from 'node:buffer';
-import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
-import { open } from 'node:fs/promises';
-import { join } from 'node:path';
+import { realpathSync } from 'node:fs';
 
 import { parseOrThrow, type } from '@shared/validation';
 
 import type { InstalledRequest } from '../cli-parser';
 import { OpaqueId } from '../contracts/records';
 import { hashBytes } from '../evidence/content-manifest';
-import { runLintChild } from '../lint-child';
 import type { LintInterrupt } from '../lint-interrupts';
-import { extractNxRelationshipsFromSource } from '../relationships/nx-core';
 import { AuditStratum } from '../review/audit';
 import { anchorPath } from '../validator-paths';
-import { prepareBunActivation, selectActivation } from './activation';
 import { dashCheckRunAuthority } from './check-run-authority';
 import { planCheckRuns, readCheckRuns, retainCheckRuns } from './check-runs';
-import { captureCommittedSource, type CommittedSource } from './committed-source';
+import { captureCommittedSource } from './committed-source';
 import { reservePreparationDirectory } from './preparation-directory';
 import { runPreparationGit } from './preparation-git';
+import { readJson, readOperatorFile, readProjects, readSourceFile } from './preparation-inputs';
 import { type PreparationContext, readPreparationSource } from './preparation-source';
-import { checkPreparedActivation } from './prepared-self-check';
+import { assembleActivation, writeActivationRoles } from './prepared-activation';
 import {
   assertPinnedRuntime,
   deriveToolIdentity,
@@ -29,7 +25,6 @@ import {
   readRelocationPolicy,
   type RelocationSources,
 } from './relocation-activation';
-import { copyTrustedModules, hashTrustedModules } from './trusted-modules';
 
 const AuditStrataFile = type({
   strata: AuditStratum.array(),
@@ -75,43 +70,6 @@ export class PreparationFailure extends Error {
     this.name = 'PreparationFailure';
   }
 }
-function readOperatorFile(path: string): Uint8Array {
-  // Proof: prep-operator-regular; its recorded production-source fault failed `refuses a native FIFO review input within the bounded subprocess`; `refuses a native FIFO audit input within the bounded subprocess` and passed after restoration.
-  if (!statSync(path).isFile())
-    throw new Error('preparation operator input must be a regular file: ' + path);
-  return readFileSync(path);
-}
-// Proof: prep-json-utf8; its recorded production-source fault failed `preserves review fatal UTF8 decoding instead of replacement JSON parsing`; `preserves audit fatal UTF8 decoding instead of replacement JSON parsing` and passed after restoration.
-function readJson(bytes: Uint8Array): unknown {
-  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
-}
-function readSourceFile(source: CommittedSource, path: string): Uint8Array {
-  const entry = source.readSnapshot().entries.find((entry) => entry.path === path);
-  // Proof: prep-captured-regular; its recorded production-source fault failed `refuses a captured symlink nx configuration before output reservation` and passed after restoration.
-  if (entry === undefined || (entry.mode !== '100644' && entry.mode !== '100755'))
-    throw new Error('preparation input must be a captured regular file: ' + path);
-  return source.readFile(path);
-}
-function readProjects(source: CommittedSource) {
-  const entries = source.readSnapshot().entries;
-  readSourceFile(source, 'nx.json');
-  return extractNxRelationshipsFromSource({
-    projectPaths: () =>
-      entries
-        .filter(
-          (entry) =>
-            (entry.mode === '100644' || entry.mode === '100755') &&
-            entry.path.split('/').at(-1) === 'project.json' &&
-            !entry.path
-              .split('/')
-              .some((component) => component === '.git' || component === 'node_modules'),
-        )
-        .map((entry) => entry.path)
-        .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right))),
-    read: (path) => readSourceFile(source, path),
-  }).relationships.projects;
-}
-
 /**
  * Prepare a first current activation from strict toolkit2 and captured committed candidate/reviewed
  * bytes. Review and audit files are copied before owned awaits; the check ledger and its streams are judged at their later read boundary. Fresh external work and destination roots
@@ -302,25 +260,12 @@ export async function prepareBunToolkit(
       cwdIdentity: selected.cwdIdentity,
       toolIdentity: deriveToolIdentity(readSourceFile(source, 'package.json'), Bun.version),
     });
-    const roles = join(work, 'roles');
-    mkdirSync(roles, { mode: 0o700 });
-    const writeRole = (name: string, bytes: Uint8Array) => {
-      const path = join(roles, name);
-      writeFileSync(path, bytes, { flag: 'wx', mode: 0o444 });
-      return path;
+    const executables = {
+      launcher: toolkit.roleBytes['launcher.mjs'],
+      snapshotter: toolkit.roleBytes['snapshotter.ts'],
+      validator: toolkit.roleBytes['validator.mjs'],
     };
-    const roleSources = {
-      authority: writeRole('authority.json', plan.roles.authority),
-      ciBinding: writeRole('ci-binding.json', plan.roles.ciBinding),
-      evidence: writeRole('evidence.json', plan.roles.evidence),
-      launcher: writeRole('launcher.mjs', toolkit.roleBytes['launcher.mjs']),
-      localBinding: writeRole('local-binding.json', plan.roles.localBinding),
-      mapping: writeRole('mapping.json', plan.roles.mapping),
-      policy: writeRole('policy.json', plan.roles.policy),
-      reviewReceipt: writeRole('review-receipt.json', plan.roles.reviewReceipt),
-      snapshotter: writeRole('snapshotter.ts', toolkit.roleBytes['snapshotter.ts']),
-      validator: writeRole('validator.mjs', toolkit.roleBytes['validator.mjs']),
-    };
+    const roleSources = writeActivationRoles(plan, executables, work);
     const destination = await reserveDirectory(selected.destination);
     if (destination === undefined) {
       const cancelled = readCancellation();
@@ -331,153 +276,35 @@ export async function prepareBunToolkit(
     const afterDestination = readCancellation();
     // Proof: prep-after-destination-cancel; its recorded production-source fault failed `stops preparation immediately after cancellation during destination reservation` and passed after restoration.
     if (afterDestination !== undefined) return afterDestination;
-    const prepared = prepareBunActivation({
-      candidateRepository: selection.candidateDirectory,
-      destination: join(destination, 'activation-' + sha),
-      roleSources,
-      sourceRevision: sha,
-      policyIdentity: plan.identities.policy,
-      mappingIdentity: plan.identities.mapping,
-      validatorIdentity: plan.identities.validator,
-      reviewReceiptIdentity: plan.identities.reviewReceipt,
-    });
-    selectActivation(destination, prepared.directory, prepared.identity);
-    const launcher = join(destination, 'bootstrap-launcher.mjs');
-    writeFileSync(launcher, toolkit.roleBytes['launcher.mjs'], { flag: 'wx', mode: 0o555 });
-    writeFileSync(join(destination, 'launcher-path'), 'bootstrap-launcher.mjs\n', {
-      flag: 'wx',
-      mode: 0o444,
-    });
-    writeFileSync(join(destination, 'active-v1'), 'tool-wiki-active-v1\n', {
-      flag: 'wx',
-      mode: 0o444,
-    });
-    writeFileSync(join(destination, 'toolkit-release'), toolkit.tag + ' ' + toolkit.digest + '\n', {
-      flag: 'wx',
-      mode: 0o444,
-    });
-    const closure = join(destination, 'trusted-node-modules');
-    copyTrustedModules(
-      closure,
-      join(toolkit.directory, 'trusted-node-modules'),
-      toolkit.trustedNodeModules,
-    );
-    if (
-      // Proof: prep-closure-identity; its recorded production-source fault failed `refuses copied closure drift before launching self-certification` and passed after restoration.
-      hashTrustedModules(closure) !==
-      hashTrustedModules(join(toolkit.directory, 'trusted-node-modules'))
-    )
-      throw new Error('copied activation closure differs from selected toolkit');
-    // Proof: prep-bootstrap-identity; its recorded production-source fault failed `refuses changed written bootstrap bytes before launching self-certification` and passed after restoration.
-    if (hashBytes(readFileSync(launcher)) !== hashBytes(toolkit.roleBytes['launcher.mjs']))
-      throw new Error('written bootstrap differs from selected toolkit');
-    const scratch = join(work, 'scratch');
-    mkdirSync(scratch, { mode: 0o700 });
-    const certification = await checkPreparedActivation({
-      launcher,
-      callerDirectory: captured.callerDirectory,
-      lookup: { directory: selection.runtime.directory, path },
-      activationRoot: destination,
-      scratchDirectory: scratch,
-      repository: selection.candidateDirectory,
-      revision: sha,
-      launch: captured.launch,
-      subscribeInterrupts: captured.subscribeInterrupts,
-    });
-    if (certification.kind === 'cancelled') {
-      const cancelled = readCancellation();
-      // Proof: prep-self-check-cancel-owner; its recorded production-source fault failed `refuses self-check dependency cancellation without the owning broker` and passed after restoration.
-      if (cancelled === undefined)
-        throw new Error('self-check cancellation missing from preparation broker');
-      return cancelled;
-    }
-    const afterCertificate = readCancellation();
-    // Proof: prep-after-certificate-cancel; its recorded production-source fault failed `does not reserve an archive after cancellation during completed self-check release` and passed after restoration.
-    if (afterCertificate !== undefined) return afterCertificate;
-    // Proof: prep-current-archive-name; its recorded production-source fault failed `reports only the current PUNI archive namespace` and passed after restoration.
-    const proposed = join(work, 'puni-activation-' + sha.slice(0, 8) + '.tar');
-    // Proof: prep-archive-exclusive; its recorded production-source fault failed `refuses an occupied archive without replacing its sentinel` and passed after restoration.
-    const descriptor = await open(proposed, 'wx', 0o600);
-    // Proof: prep-archive-ownership; its recorded production-source fault failed `retains actual archive ownership and write failure after descriptor settlement` and passed after restoration.
-    archivePath = proposed;
-    let failure: { cause: unknown } | undefined;
-    try {
-      // The existing child owner replays prior cancellation before spawning.
-      const errors: Uint8Array[] = [];
-      const archived = await runLintChild({
-        argv: [
-          'tar',
-          '--create',
-          '--sort=name',
-          '--owner=0',
-          '--group=0',
-          '--numeric-owner',
-          '--mtime=@' + committerEpoch,
-          '--directory',
-          destination,
-          '--file',
-          '-',
-          '.',
-        ],
-        directory: selection.runtime.directory,
-        environment: selection.runtime.environment,
-        stage: 'preparation archive',
-        stdin: undefined,
-        stdout: () => ({ kind: 'written' }),
-        stderr: (bytes) => {
-          // Proof: prep-tar-diagnostics; its recorded production-source fault failed `retains failed native tar diagnostics and its closed empty archive` and passed after restoration.
-          errors.push(bytes.slice());
-          return { kind: 'written' };
-        },
+    const assembled = await assembleActivation(
+      {
+        candidateDirectory: selection.candidateDirectory,
+        sha,
+        work,
+        destination,
+        plan,
+        roleSources,
+        launcherBytes: executables.launcher,
+        toolkit,
+        committerEpoch,
+        heading: 'toolkit activation',
+        notices: [],
+      },
+      {
+        callerDirectory: captured.callerDirectory,
+        runtime: selection.runtime,
+        path,
+        launch: captured.launch,
         subscribeInterrupts: captured.subscribeInterrupts,
-      });
-      // Proof: prep-archive-cancel-owner; its recorded production-source fault failed `refuses archive dependency cancellation without the owning broker` and passed after restoration.
-      if (archived.kind === 'cancelled' && readCancellation() === undefined)
-        throw new Error('archive cancellation missing from preparation broker');
-      if (archived.kind === 'exited') {
-        // Proof: prep-tar-status; its recorded production-source fault failed `retains failed native tar diagnostics and its closed empty archive` and passed after restoration.
-        if (archived.status !== 0)
-          throw new Error('cannot create activation archive: ' + Buffer.concat(errors).toString());
-        // Proof: prep-write-cancel; its recorded production-source fault failed `skips archive payload writes after cancellation during settled tar subscription release` and passed after restoration.
-        if (readCancellation() === undefined) await descriptor.writeFile(archived.stdout);
-      }
-    } catch (cause) {
-      failure = { cause };
-    }
-    try {
-      // Proof: prep-archive-await-close; its recorded production-source fault failed `keeps preparation pending until the opened native archive descriptor closes` and passed after restoration.
-      await descriptor.close();
-    } catch (cause) {
-      // Proof: prep-archive-both-causes; its recorded production-source fault failed `retains actual archive ownership and write-and-close failure after descriptor settlement` and passed after restoration.
-      if (failure !== undefined)
-        throw new AggregateError([failure.cause, cause], 'archive operation and close failed', {
-          cause,
-        });
-      throw cause;
-    }
-    // Proof: prep-archive-failure; its recorded production-source fault failed `retains actual archive ownership and write failure after descriptor settlement` and passed after restoration.
-    if (failure !== undefined) throw failure.cause;
-    const afterArchive = readCancellation();
-    // Proof: prep-after-archive-cancel; its recorded production-source fault failed `returns cancellation after archive write and close without attempting a later unreadable hash` and passed after restoration.
-    if (afterArchive !== undefined) return afterArchive;
-    const archive = { path: proposed, digest: hashBytes(readFileSync(proposed)) };
-    const lines = [
-      'toolkit activation: ' + sha,
-      'toolkit: ' + toolkit.tag + ' ' + toolkit.sourceRevision + ' (' + toolkit.digest + ')',
-      'version directory: ' + prepared.directory,
-      'manifest identity: ' + prepared.identity,
-      'self-check: ' + Buffer.from(certification.report).toString(),
-      'archive: ' + archive.path + '   sha256: ' + archive.digest,
-    ];
-    return {
-      kind: 'prepared',
-      ownedDirectories: [...ownedDirectories],
-      versionDirectory: prepared.directory,
-      identity: prepared.identity,
-      archive,
-      report: certification.report,
-      lines,
-    };
+        readCancellation,
+        recordArchive: (path) => {
+          archivePath = path;
+        },
+      },
+    );
+    if (assembled.kind === 'cancelled')
+      return { ...assembled, ownedDirectories: [...ownedDirectories], archive: archivePath };
+    return { ...assembled, ownedDirectories: [...ownedDirectories] };
   }
   const settled = await prepareActivation().then(
     (value) => ({ kind: 'fulfilled' as const, value }),

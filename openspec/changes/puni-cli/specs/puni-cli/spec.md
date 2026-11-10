@@ -273,4 +273,13 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **AND** native check-run directory selection preserves symlink-parent semantics, required runtime state refuses before output reservation, and fresh native-external work and activation roots are mutually disjoint
 - **AND** the written activation uses schema4 and the selected Bun bootstrap/closure, whose actual bytes are checked before full enforce self-certification with required admission and archive-default closure
 - **AND** only successful certification permits an exclusive PUNI archive; GNU tar, archive writes and descriptor close settle before its digest and success report, while faults preserve causes and owned partial outputs and cancellation returns no success instructions
-- **AND** this internal path does not imply completed relocation preparation, usable released preparer roles, a public package or coordinated default cutover
+- **AND** these internal paths do not imply usable released preparer roles, a public package or coordinated default cutover
+
+#### Scenario: Current relocation uses verified lineage and selected source roles
+
+- **WHEN** internal relocation receives a verified schema3/4 base and an authenticated current toolkit
+- **THEN** every consumed base member is admitted as a native regular contained external file before full verification, and historical executable roles never execute
+- **AND** new launcher, validator and snapshotter bytes derive from the captured candidate using only authenticated copied build dependencies and bounded captured configuration, preserving effective runtime transforms and import/require conditions
+- **AND** macros, uncaptured source, unsupported opaque loaders, vendor imports into candidate source and external configuration roots refuse before a usable build, while sealed resolution/loading rejects unplanned requests
+- **AND** the narrow pinned compiler preparation transform denies language-service plugin loading before resolution and delivers verified license/modification notices in the actual archive without modifying installed or historical compiler identities
+- **AND** shared activation4 assembly requires full self-certification before archive reservation, interrupted in-process builds settle before returning, first cancellation remains controlled after release, and failures preserve original/aggregate causes and owned roots

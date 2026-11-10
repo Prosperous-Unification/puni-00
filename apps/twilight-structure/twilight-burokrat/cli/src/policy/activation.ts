@@ -433,6 +433,54 @@ function decodeManifest(bytes: string): ActivationManifest {
   return parseOrThrow(ManifestRecord, parsed);
 }
 
+/**
+ * Verify base3/4 lineage after admitting every consumed file independently. Native physical
+ * paths must remain regular, inside the base and outside the candidate, including when the
+ * base is an ancestor of that candidate. Base members are stable trusted operator inputs;
+ * this preflight prevents special-file blocking but does not claim concurrent filesystem isolation.
+ */
+export function verifyPreparationBase(
+  directory: string,
+  candidateDirectory: string,
+): VerifiedActivation {
+  // Proof: c26-base-native; injected fault failed `selects native base authority for a symlink-parent operand with two valid bases`; the same named test(s) passed after restoration.
+  const root = realpathSync.native(directory),
+    candidate = realpathSync.native(candidateDirectory);
+  function isWithin(parent: string, path: string): boolean {
+    const offset = relative(parent, path);
+    return (
+      offset === '' || (offset !== '..' && !offset.startsWith('..' + sep) && !isAbsolute(offset))
+    );
+  }
+  if (isWithin(candidate, root))
+    throw new ActivationRefusal(
+      'relocation base authority must be outside the candidate repository',
+    );
+  function admitMember(path: string): string {
+    const canonical = realpathSync.native(join(root, path));
+    // Proof: c26-base-member-external; injected fault failed `refuses candidate-owned role targets inside ancestor base3`; `refuses candidate-owned role targets inside ancestor base4`; the same named test(s) passed after restoration.
+    if (isWithin(candidate, canonical))
+      throw new ActivationRefusal(
+        'relocation base member must be outside the candidate repository: ' + path,
+      );
+    // Proof: c26-base-member-contained; injected fault failed `refuses escaped metadata inside base3`; `refuses escaped metadata inside base4`; the same named test(s) passed after restoration.
+    if (!isWithin(root, canonical))
+      throw new ActivationRefusal('relocation base member escapes activation root: ' + path);
+    // Proof: c26-base-member-regular; injected fault failed `refuses FIFO base3 member manifest.json before blocking byte reads`; `refuses FIFO base4 member manifest.json before blocking byte reads`; the same named test(s) passed after restoration.
+    if (!statSync(canonical).isFile())
+      throw new ActivationRefusal('relocation base member is not a regular file: ' + path);
+    return canonical;
+  }
+  const manifest = decodeManifest(readFileSync(admitMember('manifest.json'), 'utf8'));
+  for (const path of ['checksums.sha256', 'active-v1', ...Object.values(descriptors)])
+    admitMember(path);
+  // Proof: c26-base-schema-paths; injected fault failed `verifies external regular base3 without executing its roles`; `verifies external regular base4 without executing its roles`; the same named test(s) passed after restoration.
+  const paths = manifest.schemaVersion === 3 ? legacyRolePaths : bunRolePaths;
+  for (const path of Object.values(paths)) admitMember(path);
+  // Proof: c26-base-verification; injected fault failed `retains complete digest verification after base3 member preflight`; `retains complete digest verification after base4 member preflight`; the same named test(s) passed after restoration.
+  return verifyActivation(root);
+}
+
 /** Strictly decodes roles and recomputes every artifact and joined identity. */
 export function verifyActivation(directory: string): VerifiedActivation {
   const canonical = realpathSync(directory);
