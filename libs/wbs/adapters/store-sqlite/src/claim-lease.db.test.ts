@@ -35,7 +35,7 @@ const SLOT = 'resource-slot';
 const admin: ResourceAccess = {
   principal: { id: 'dany' },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany' },
 };
 const pinned = (personId: string): CredentialPin => ({ personId });
 
@@ -439,6 +439,10 @@ describe('revocation', () => {
 
   it('keeps the leases when one of two keys is revoked, and ends them with the last', async () => {
     const { run, claim, items, runner, projectId, leases, history } = await seeded();
+    // Explicit CP14 fixture holder for this credential-revocation scenario; no harness default.
+    source.db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('lease-revoke-cp14','org-a','organization','org-a','user','dany','org-super-admin','route',1)`,
+    );
     activate();
     const first = credential('codex');
     const second = credential('codex');
@@ -464,6 +468,10 @@ describe('revocation', () => {
 
   it('ends the leases when an MCP consent was the last live credential', async () => {
     const { run, claim, items, leases } = await seeded();
+    // Explicit CP14 fixture holder for this credential-revocation scenario; no harness default.
+    source.db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('lease-consent-cp14','org-a','organization','org-a','user','dany','org-super-admin','route',1)`,
+    );
     activate();
     const consent = credential('codex', 'mcp_consent', 'family-1');
     await run([claim(items.one, 'codex')], pinned('codex'));

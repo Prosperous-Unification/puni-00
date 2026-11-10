@@ -972,7 +972,7 @@ async function currentRuntimeActor(r: Awaited<ReturnType<typeof runtimeSetup>>) 
         cap: CONTRIBUTOR_CAP,
         organizationId: 'org-a',
         userId: principal.id,
-        role: 'super_admin',
+
         delegated: true,
       },
       principal: { id: principal.id, authentication: structuredClone(principal.authentication) },

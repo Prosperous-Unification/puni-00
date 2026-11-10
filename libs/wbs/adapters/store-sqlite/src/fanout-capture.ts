@@ -5,7 +5,6 @@ import {
   authorizePackageSettings,
   capOf,
   type DirectoryStore,
-  organizationRoleOf,
   type PlanInputReads,
   readChain,
 } from '@wbs/core';
@@ -28,7 +27,6 @@ import { type ChainSnapshotOptions, readChainSnapshotIn } from './chain-snapshot
 import { discoverConnectedTopologyIn } from './connected-plan-capture';
 import type { Drizzle } from './db';
 import { OPEN } from './gate';
-import { validateStoredRole } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
@@ -142,7 +140,7 @@ export function resolveProjectWriteScopeIn(
     // Proof: F11 removed this check; the foreign-project runtime read threw instead of returning not_found.
     if (project === null) return { ok: false, reason: 'not_found' };
     const membership = db
-      .select({ role: organizationMembership.role })
+      .select({ userId: organizationMembership.userId })
       .from(organizationMembership)
       .where(
         and(
@@ -159,11 +157,6 @@ export function resolveProjectWriteScopeIn(
       // Proof: replacing this cap with null failed `preserves the credential
       // cap when resolving a borrowed project write scope`; watched 2026-11-09.
       cap: capOf(accessSubjectOf({ id: actorId, authentication })),
-      // Proof: F14 substituted member; the malformed trusted-role runtime read succeeded.
-      // Proof: RCAP-01 passed undefined here; real-key restricted-project read and acquisition
-      // in runtime-principal-cap.db.test.ts returned 200 success instead of 403 forbidden;
-      // watched again 2026-10-29 with the key's grant forwarded as mcp-01 sends it.
-      role: organizationRoleOf(validateStoredRole(membership.role, organizationId), authentication),
     };
     // Proof: F13 bypassed this decision; a current viewer received runtime facts.
     const decision = await authorize(

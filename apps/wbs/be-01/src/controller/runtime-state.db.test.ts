@@ -37,7 +37,7 @@ const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 
 const access: ResourceAccess = {
   principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
 };
 const context: RuntimeContext = { actor, access, projectId: 'a1', personId: 'agent' };
 const stamp = { at: 2, by: 'ada' };
@@ -277,7 +277,7 @@ describe('admitted runtime observation', () => {
       access: {
         principal: { id: 'ada' },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
       },
     };
     expect(await runtime.captureRuntimeObservation(staleAdmin)).toHaveProperty(
@@ -378,22 +378,20 @@ describe('admitted runtime observation', () => {
     expect(failure).toMatchObject({ message: 'admitted runtime project disappeared' });
   });
 
-  it('throws for unreadable local facts and malformed current role', async () => {
+  it('ignores an unused compatibility label and throws for unreadable local facts', async () => {
     const { sqlite, runtime } = await seeded();
     sqlite.db.run(`PRAGMA ignore_check_constraints=ON`);
-    sqlite.db.run(
-      `UPDATE organization_membership SET role='invalid-role' WHERE organization_id='org-a' AND user_id='ada'`,
+    try {
+      sqlite.db.run(
+        `UPDATE organization_membership SET role='invalid-role' WHERE organization_id='org-a' AND user_id='ada'`,
+      );
+    } finally {
+      sqlite.db.run(`PRAGMA ignore_check_constraints=OFF`);
+    }
+    expect(await runtime.captureRuntimeObservation(context)).toHaveProperty(
+      'scope.personId',
+      'agent',
     );
-    const malformed = await runtime.captureRuntimeObservation(context).then(
-      () => null,
-      (cause: unknown) => cause,
-    );
-    expect(malformed).toBeInstanceOf(Error);
-    sqlite.db.run(
-      `UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'`,
-    );
-    sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
-    sqlite.db.run(`PRAGMA ignore_check_constraints=OFF`);
     sqlite.db.run(`ALTER TABLE step RENAME TO unavailable_step`);
     const unreadable = await runtime.captureRuntimeObservation(context).then(
       () => null,

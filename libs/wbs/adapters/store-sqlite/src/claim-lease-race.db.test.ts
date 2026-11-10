@@ -43,7 +43,7 @@ const SLOT = 'resource-slot';
 const admin: ResourceAccess = {
   principal: { id: 'dany' },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany' },
 };
 
 /** Verified-principal fixture; credential pinning remains part of each modeled act. */
@@ -401,6 +401,10 @@ describe('claim leases as a model', () => {
         now = T;
         const expiry = { read: 'turn' as ExpiryRead, snapshot: [] as ExpiredLease[] };
         const world = await seeded(expiry);
+        // Explicit CP14 fixture holder for this credential-revocation scenario; no harness default.
+        source.db.run(
+          sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('lease-model-cp14','org-a','organization','org-a','user','dany','org-super-admin','route',1)`,
+        );
         const model: Model = new Map();
         const leafOf = (n: number) => world.leafIds.at(n) ?? '';
         const personOf = (n: number) => PEOPLE.at(n) ?? 'ann';

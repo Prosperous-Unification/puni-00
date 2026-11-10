@@ -13,7 +13,6 @@ import type {
 import { createWorkingPlan } from '../module/plan-commands/working-plan.resource';
 import { StepService } from '../module/step/step.resource';
 import type { AccessDecisions } from '../ports/access-decisions';
-import type { EditAdmission } from '../ports/edit-admission';
 import { LEGACY_ACCESS } from '../ports/organization-access';
 import { createLocalDependencyContext } from '../service/dependency-context';
 import type { PlanCommand } from '../service/plan-command';
@@ -89,7 +88,7 @@ test('publishes a granted dependent write only after its unit of work commits', 
       {
         principal: { id: 'sam' },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: 'sam', role: 'super_admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: 'sam' },
       },
       'project',
       { id: 'sam', username: 'sam', scopes: ['write'] },
@@ -146,11 +145,7 @@ test('scoped step service preserves exact grant scope actor coherence and workin
         }
       },
     },
-    batch: (
-      _scope: unknown,
-      broadcast: RecoveryWriteBoundary['announcements'],
-      admission: EditAdmission,
-    ) => {
+    batch: (_scope: unknown, broadcast: RecoveryWriteBoundary['announcements']) => {
       const service = new StepService({
         accessDecisions: plan.stores.accessDecisions,
         projects,
@@ -158,7 +153,6 @@ test('scoped step service preserves exact grant scope actor coherence and workin
         broadcast,
         clock: testClock,
         dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects }),
-        recoveryAdmission: admission,
       });
       retained = service;
       return { steps: service };

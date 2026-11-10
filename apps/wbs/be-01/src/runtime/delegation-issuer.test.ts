@@ -363,7 +363,7 @@ const CLAIRE_CONSENT = {
   personId: 'claire',
   source: 'mcp_consent',
   boundAccountId: 'ada',
-  boundAccountRole: 'member',
+  boundAccountIsMember: true,
   revokedAt: null,
   expiresAt: null,
   trustedIssuerId: null,

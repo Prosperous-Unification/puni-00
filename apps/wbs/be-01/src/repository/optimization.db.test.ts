@@ -650,7 +650,6 @@ describe('Optimization SQLite adapter', () => {
             principal: { id: 'sam' },
             organizationId: 'org-a',
             actorId: 'sam',
-            role: 'member',
           },
         })
         .then(decisionOf),
@@ -735,7 +734,6 @@ describe('Optimization SQLite adapter', () => {
             principal: { id: 'sam' },
             organizationId: 'org-a',
             actorId: 'sam',
-            role: 'super_admin' as const,
           },
         })
         .then(decisionOf),

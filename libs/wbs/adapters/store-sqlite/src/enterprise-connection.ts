@@ -23,7 +23,6 @@ import { canonicalOidcEmail } from './canonical-oidc-email';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import { linkIdentityWithin } from './external-identity';
 import type { Gate } from './gate';
-import { roleIn } from './organization';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import {
@@ -36,21 +35,6 @@ import { readSessionPolicy } from './session-policy';
 
 type Transaction = SQLiteBunDatabase;
 type Reader = Pick<SQLiteBunDatabase, 'select'>;
-
-/**
- * Legacy role predicate retained only for2.4b compatibility cleanup; no security administration path calls it.
- * Whether `actorId` held the old enterprise SSO authority:
- * `inactive` before activation, `forbidden` for anyone but a current
- * super-admin, null when permitted. Read inside the caller's transaction.
- */
-export function superAdminRefusal(
-  tx: Transaction,
-  organizationId: string,
-  actorId: string,
-): 'inactive' | 'forbidden' | null {
-  if (readOrganizationActivation(tx) !== 'activated') return 'inactive';
-  return roleIn(tx, organizationId, actorId) === 'super_admin' ? null : 'forbidden';
-}
 
 const COLUMNS = {
   id: organizationSsoConnection.id,
@@ -149,7 +133,10 @@ export function hasLiveProvisioningToken(db: Reader, organizationId: string, at:
   );
 }
 
-/** {@link EnterpriseConnections} over the shared database. */
+/** {@link EnterpriseConnections} over the shared database.
+ * Proof: retired-helper-superAdminRefusal; reintroduced the retired callable.
+ * 'does not expose the retired server role helper superAdminRefusal' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
+ */
 export class EnterpriseConnectionRepository implements EnterpriseConnections {
   constructor(
     private readonly db: SQLiteBunDatabase,

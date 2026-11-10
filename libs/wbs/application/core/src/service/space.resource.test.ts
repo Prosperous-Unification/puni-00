@@ -22,7 +22,7 @@ const scoped = (
 ): ResourceAccess => ({
   principal: { id: userId },
   kind: 'scoped',
-  scope: { cap: null, organizationId, userId, role },
+  scope: { cap: null, organizationId, userId },
 });
 const MEMBER = scoped('ada', 'member');
 

@@ -51,7 +51,7 @@ const context: RuntimeContext = {
   access: {
     principal: { id: 'ada' },
     kind: 'scoped',
-    scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
   },
   projectId: 'a1',
   personId: 'agent',
@@ -350,7 +350,7 @@ const machineContext: RuntimeContext = {
   access: {
     principal: { id: 'ada' },
     kind: 'scoped',
-    scope: { organizationId: 'org-a', userId: 'ada', role: 'member', cap: CONTRIBUTOR_CAP },
+    scope: { organizationId: 'org-a', userId: 'ada', cap: CONTRIBUTOR_CAP },
   },
   actor: {
     ...actor,
@@ -959,7 +959,7 @@ describe('runtime write transaction boundaries', () => {
           access: {
             principal: { id: 'ada' },
             kind: 'scoped',
-            scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
+            scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
           },
         },
         request,

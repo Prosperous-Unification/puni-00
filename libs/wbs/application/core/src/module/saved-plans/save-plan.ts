@@ -1,7 +1,8 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
 import type { Permission } from '@wbs/domain';
+import { canEditProject } from '@wbs/domain';
 
-import { mayEditProjectWithin, type ResourceAccess } from '../../ports/organization-access';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectService } from '../project/project.resource';
 import type {
@@ -65,8 +66,9 @@ export async function savePlan(
         outcome: decision.reason,
         ...(decision.reason === 'forbidden' ? { permission: decision.permission } : {}),
       };
-  } else if (!mayEditProjectWithin(found.project, input.actor.id, input.access))
-    return { outcome: 'forbidden' };
+    // Proof: legacy-save-plan; bypassed the legacy creator refusal.
+    // 'refuses read-only, wrong-owner, and absent-project calls before save' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+  } else if (!canEditProject(found.project, input.actor.id)) return { outcome: 'forbidden' };
   const request: SavedPlanSaveRequest = {
     projectId: input.projectId,
     ...(input.name === undefined ? {} : { name: input.name }),
@@ -78,7 +80,6 @@ export async function savePlan(
           scoped: {
             organizationId: input.access.scope.organizationId,
             actorId: input.actor.id,
-            role: input.access.scope.role,
             principal: input.access.principal,
             operation: 'save' as const,
           },

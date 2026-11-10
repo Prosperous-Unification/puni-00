@@ -15,7 +15,8 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import { provenConnectionFor } from './enterprise-connection';
 import type { Gate } from './gate';
 import { type ImmediateTransaction, writeImmediately } from './immediate-write';
-import { type MembershipRemovalEvidence, removeMembershipIn, roleIn } from './organization';
+import { type MembershipRemovalEvidence, removeMembershipIn } from './organization';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import {
@@ -372,7 +373,7 @@ export class ScimUserRepository implements ScimUsers {
       // One SCIM record per person and organization: a second record for an
       // already-bound person stays pending for its directory to resolve.
       if (alreadyBound !== undefined) return [];
-      if (roleIn(tx, proven.organizationId, userId) === null)
+      if (readMembershipIn(tx, proven.organizationId, userId) === null)
         tx.insert(organizationMembership)
           .values({
             organizationId: proven.organizationId,

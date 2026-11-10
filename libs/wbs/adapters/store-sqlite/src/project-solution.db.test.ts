@@ -84,7 +84,6 @@ describe('scoped solution links', () => {
       principal: { id: 'ada' },
       actorId: 'ada',
       auditId: crypto.randomUUID(),
-      role: 'super_admin',
     });
   const insertLink = (projectId: string, organizationId: string, slug: string) =>
     raw((db) =>

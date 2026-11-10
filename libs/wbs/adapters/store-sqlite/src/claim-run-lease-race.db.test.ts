@@ -36,7 +36,7 @@ type Run = (typeof RUNS)[number];
 const admin: ResourceAccess = {
   principal: { id: 'dany' },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany' },
 };
 
 /** Verified-principal fixture: preserve the same person's optional run in command admission. */

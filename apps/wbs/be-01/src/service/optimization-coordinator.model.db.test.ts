@@ -1883,7 +1883,7 @@ class SwitchMode implements SharedCommand {
         expectedAccess: {
           kind: 'scoped',
           principal: { id: 'sam' },
-          scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin', cap: null },
+          scope: { organizationId: 'org-a', userId: 'sam', cap: null },
         },
       },
     );
@@ -1969,7 +1969,7 @@ class DemoteBeforeSwitch implements SharedCommand {
           expectedAccess: {
             kind: 'scoped',
             principal: { id: 'sam' },
-            scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin', cap: null },
+            scope: { organizationId: 'org-a', userId: 'sam', cap: null },
           },
         },
       );
@@ -2027,7 +2027,7 @@ class FailSwitchEvent implements SharedCommand {
           expectedAccess: {
             kind: 'scoped',
             principal: { id: 'sam' },
-            scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin', cap: null },
+            scope: { organizationId: 'org-a', userId: 'sam', cap: null },
           },
         },
       );
@@ -2206,7 +2206,6 @@ class SharedRetry implements SharedCommand {
           principal: { id: 'ada' },
           organizationId: 'org-a',
           actorId: 'ada',
-          role: 'super_admin' as const,
         },
       }),
       'Retry decision waited for recipient transport',

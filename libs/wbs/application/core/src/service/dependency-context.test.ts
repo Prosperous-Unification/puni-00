@@ -396,7 +396,7 @@ for (const phase of ['before-call', 'ownership-read', 'grant-read'] as const) {
         access: {
           kind: 'scoped',
           principal: { id: 'actor' },
-          scope: { userId: 'actor', organizationId: 'org', cap: null, role: 'member' },
+          scope: { userId: 'actor', organizationId: 'org', cap: null },
         },
       },
       () => undefined,

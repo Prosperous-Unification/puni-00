@@ -332,7 +332,7 @@ describe('after activation', () => {
         {
           principal: { id: h.userId('ada') },
           kind: 'scoped',
-          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada') },
         },
       ),
     ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
@@ -356,7 +356,6 @@ describe('after activation', () => {
             cap: null,
             organizationId: 'org-a',
             userId: h.userId('nell'),
-            role: 'super_admin',
           },
         },
       ),
@@ -383,7 +382,7 @@ describe('after activation', () => {
         {
           principal: { id: h.userId('ada') },
           kind: 'scoped',
-          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada') },
         },
       );
     } catch (cause) {

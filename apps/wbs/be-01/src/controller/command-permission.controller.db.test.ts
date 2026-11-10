@@ -587,7 +587,7 @@ function expectedMachineAccess(principal: {
 }): Extract<ResourceAccess, { kind: 'scoped' }> {
   return {
     kind: 'scoped',
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin', cap: null },
+    scope: { organizationId: 'org-a', userId: principal.id, cap: null },
     principal: structuredClone({ id: principal.id, authentication: principal.authentication }),
   };
 }
@@ -1121,7 +1121,7 @@ it('throws on a mismatched standalone principal before creating an owned root', 
     h.publicDirectoryService().addWithin('teams', actorId, 'Denied', {
       kind: 'scoped',
       principal: { id: 'wrong' },
-      scope: { organizationId: 'org-a', userId: actorId, role: 'viewer', cap: null },
+      scope: { organizationId: 'org-a', userId: actorId, cap: null },
     }),
     'principal differs',
   );
@@ -1463,7 +1463,7 @@ for (const [fault, authorization] of [
     const access: ResourceAccess = {
       kind: 'scoped',
       principal: { id: actor.id },
-      scope: { organizationId: 'org-a', userId: actor.id, role: 'viewer', cap: null },
+      scope: { organizationId: 'org-a', userId: actor.id, cap: null },
     };
     await rejectsWith(
       h.publicCommands().undoWithin('wp', actor, access),
@@ -1491,7 +1491,7 @@ async function borrowedWrite<T extends { readonly ok: boolean }>(
       expectedAccess: {
         kind: 'scoped',
         principal: { id: principal.id },
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'admin', cap: null },
+        scope: { organizationId: 'org-a', userId: principal.id, cap: null },
       },
     });
     if (!resolved.ok || resolved.access.kind !== 'scoped')
@@ -1643,7 +1643,7 @@ it('passes the retained actor into a queued step writer after caller identity al
   const expected: ResourceAccess = {
     kind: 'scoped',
     principal: { id: originalId },
-    scope: { organizationId: 'org-a', userId: originalId, role: 'admin', cap: null },
+    scope: { organizationId: 'org-a', userId: originalId, cap: null },
   };
   const entered = Promise.withResolvers<undefined>();
   const released = Promise.withResolvers<undefined>();
@@ -1935,7 +1935,7 @@ it('throws on a missing admitted remote dependency authorization capability with
     const expected: ResourceAccess = {
       kind: 'scoped',
       principal: { id: actor.id },
-      scope: { organizationId: 'org-a', userId: actor.id, role: 'admin', cap: null },
+      scope: { organizationId: 'org-a', userId: actor.id, cap: null },
     };
     await rejectsWith(
       h
@@ -2718,7 +2718,7 @@ it('refuses public rank authority before a broken mutation port', async () => {
   const access: ResourceAccess = {
     kind: 'scoped',
     principal: { id: principal.id },
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'admin', cap: null },
+    scope: { organizationId: 'org-a', userId: principal.id, cap: null },
   };
   const connection = openConnection(h.databasePath());
   const mutate = () => Promise.reject(new Error('rank mutation must not run'));
@@ -2744,7 +2744,7 @@ it('refuses public capacity-mode authority before a broken mutation port', async
   const access: ResourceAccess = {
     kind: 'scoped',
     principal: { id: principal.id },
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin', cap: null },
+    scope: { organizationId: 'org-a', userId: principal.id, cap: null },
   };
   const connection = openConnection(h.databasePath());
   const modes = new CapacityModeResource({

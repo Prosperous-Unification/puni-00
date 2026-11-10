@@ -36,7 +36,7 @@ import {
   readOptimizedPair,
   readOptimizedPairAndSpawn,
 } from '@wbs/store-sqlite/optimized-schedule-cache';
-import { currentMembershipAccess } from '@wbs/store-sqlite/organization-access';
+import { readMembershipIn } from '@wbs/store-sqlite/organization-access';
 import { readOrganizationActivation } from '@wbs/store-sqlite/organization-activation';
 import { ProjectRepository } from '@wbs/store-sqlite/project';
 import { project } from '@wbs/store-sqlite/schema';
@@ -83,7 +83,7 @@ export async function authorizeRetryIn(
     return readOrganizationActivation(db) === 'pre_activation' ? 'ordinary' : { kind: 'forbidden' };
   const { organizationId, actorId, principal } = ask.scoped;
   if (principal.id !== actorId) throw new Error('Retry principal differs from its actor');
-  if (!currentMembershipAccess(db, organizationId, actorId).ok) return { kind: 'forbidden' };
+  if (readMembershipIn(db, organizationId, actorId) === null) return { kind: 'forbidden' };
   const addressed = await new ProjectRepository(db, OPEN).findInOrganization(
     ask.key.projectId,
     organizationId,

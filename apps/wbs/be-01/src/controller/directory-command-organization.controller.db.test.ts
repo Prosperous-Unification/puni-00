@@ -316,7 +316,7 @@ describe('after activation', () => {
           h.removeStandaloneDirectoryWithin('people', 'orphan-person', h.userId('ada'), true, {
             principal: { id: h.userId('ada') },
             kind: 'scoped',
-            scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada') },
           }),
         )
       ).message,
@@ -346,7 +346,7 @@ describe('after activation', () => {
           h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
             principal: { id: h.userId('ada') },
             kind: 'scoped',
-            scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada') },
           }),
         )
       ).message,
@@ -446,7 +446,7 @@ describe('after activation', () => {
               h.removeStandaloneDirectoryWithin(scenario.catalog, scenario.id, actorId, true, {
                 principal: { id: actorId },
                 kind: 'scoped',
-                scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
+                scope: { cap: null, organizationId: 'org-a', userId: actorId },
               }),
             )
           ).message,
@@ -491,7 +491,7 @@ describe('after activation', () => {
             h.removeStandaloneDirectoryWithin('people', 'pe-a', actorId, true, {
               principal: { id: actorId },
               kind: 'scoped',
-              scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
+              scope: { cap: null, organizationId: 'org-a', userId: actorId },
             }),
           )
         ).message,
@@ -655,7 +655,7 @@ describe('after activation', () => {
         await h.publicDirectoryService().addPersonWithin(actorId, 'pe-a', ['tm-extra'], {
           principal: { id: actorId },
           kind: 'scoped',
-          scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: actorId },
         }),
       ).toMatchObject({ ok: true, value: { id: 'pe-a' } });
     } finally {
@@ -708,7 +708,7 @@ describe('after activation', () => {
       {
         principal: { id: aActor },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: aActor, role: 'member' },
+        scope: { cap: null, organizationId: 'org-a', userId: aActor },
       },
     );
     await firstCapture.promise;
@@ -722,7 +722,7 @@ describe('after activation', () => {
       {
         principal: { id: bActor },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-b', userId: bActor, role: 'member' },
+        scope: { cap: null, organizationId: 'org-b', userId: bActor },
       },
     );
     await secondOwner.promise;
@@ -766,7 +766,7 @@ describe('after activation', () => {
         {
           principal: { id: aActor },
           kind: 'scoped',
-          scope: { cap: null, organizationId: 'org-a', userId: aActor, role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: aActor },
         },
       );
       const second = h.publicDirectoryService().patchPersonWithin(
@@ -776,7 +776,7 @@ describe('after activation', () => {
         {
           principal: { id: bActor },
           kind: 'scoped',
-          scope: { cap: null, organizationId: 'org-b', userId: bActor, role: 'member' },
+          scope: { cap: null, organizationId: 'org-b', userId: bActor },
         },
       );
       const [firstAnswer, secondAnswer] = await Promise.all([first, second]);
@@ -869,7 +869,7 @@ describe('after activation', () => {
               {
                 principal: { id: actorId },
                 kind: 'scoped',
-                scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
+                scope: { cap: null, organizationId: 'org-a', userId: actorId },
               },
             ),
           )
@@ -925,7 +925,7 @@ describe('after activation', () => {
               {
                 principal: { id: actorId },
                 kind: 'scoped',
-                scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
+                scope: { cap: null, organizationId: 'org-a', userId: actorId },
               },
             ),
           )
@@ -1179,7 +1179,7 @@ describe('after activation', () => {
           {
             principal: { id: actorId },
             kind: 'scoped',
-            scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: actorId },
           },
         ),
       );
@@ -1218,7 +1218,7 @@ describe('after activation', () => {
       await h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
         principal: { id: h.userId('ada') },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+        scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada') },
       }),
     ).toEqual({ ok: true });
     expect(recorded().slice(count)).toContainEqual({
@@ -1264,7 +1264,7 @@ describe('after activation', () => {
       await h.removeStandaloneDirectoryWithin('people', 'pe-a', actorId, true, {
         principal: { id: actorId },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: actorId, role: 'member' },
+        scope: { cap: null, organizationId: 'org-a', userId: actorId },
       }),
     ).toEqual({ ok: true });
     const pairs = elsewhereChangedPairs();
@@ -1304,7 +1304,7 @@ describe('after activation', () => {
         h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
           principal: { id: h.userId('ada') },
           kind: 'scoped',
-          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada') },
         }),
       );
     } finally {
@@ -1337,7 +1337,7 @@ describe('after activation', () => {
     const pending = h.removeStandaloneDirectoryWithin('people', 'pe-a', h.userId('ada'), true, {
       principal: { id: h.userId('ada') },
       kind: 'scoped',
-      scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+      scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada') },
     });
     await entered.promise;
     try {

@@ -3989,12 +3989,12 @@ export class WorkItemService {
    *
    * Every project of the caller's organization is readable to its members
    * today, so none is hidden; `hiddenProjects` folds the projects
-   * `mayReadProjectWithin` denies once `wbs-permissions` grants can (task 4.1).
+   * `mayReadProjectWithin` denies once permission visibility task3.1 is wired.
    * The cap check the write will meet is task 7.1's; until it lands the
    * refusal is always null for a resource the organization owns.
    *
-   * Refused `forbidden` for every role but admin and super-admin, after
-   * `organizationRoleOf` (agents included), before the resource is looked up;
+   * Requires the actual principal's current organization.manage_directory
+   * permission before looking up the resource;
    * `not_found` for a resource the organization does not hold.
    *
    * Proof, each watched 2026-10-25 in directory-capacity.controller.db.test.ts:

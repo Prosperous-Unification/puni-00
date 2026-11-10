@@ -89,7 +89,7 @@ export async function captureSavedConnectedFixture(
       }).read('a1', {
         principal: { id: 'ada' },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
       });
       if (observed.kind !== 'connected')
         throw new Error(`expected connected fixture, received ${observed.kind}`);

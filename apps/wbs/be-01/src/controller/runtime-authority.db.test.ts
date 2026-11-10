@@ -31,7 +31,7 @@ const context: RuntimeContext = {
   access: {
     principal: { id: 'ada' },
     kind: 'scoped',
-    scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
   },
   projectId: 'a1',
   personId: 'agent',
@@ -397,7 +397,7 @@ describe('runtime authorization and request detachment', () => {
       access: {
         principal: { id: 'ada' },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
       },
     };
     expect(await receiver.acquireRuntimeAuthority(admin, acquisition)).toMatchObject({ ok: true });
@@ -515,7 +515,7 @@ describe('runtime authorization and request detachment', () => {
       access: {
         principal: { id: 'ada' },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
       },
     };
     receipt(await receiver.acquireRuntimeAuthority(admin, acquisition));
@@ -558,7 +558,7 @@ describe('runtime authorization and request detachment', () => {
       access: {
         principal: { id: 'grace' },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: 'grace', role: 'admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: 'grace' },
       },
     };
     expect(await receiver.acquireRuntimeAuthority(admin, acquisition)).toEqual(first);

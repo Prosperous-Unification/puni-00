@@ -365,28 +365,35 @@ test('missing trusted activation state throws instead of reopening legacy comman
   expect(effects()).toEqual(before);
 });
 
-test('malformed trusted membership throws before direct command effects', async () => {
+test('malformed trusted grant catalogue throws before direct command effects', async () => {
   const fixture = await open();
   const cookieValue = decodeURIComponent(fixture.cookie.slice(fixture.cookie.indexOf('=') + 1));
   const principal = await harness.authenticatedCommandPrincipal('ada', cookieValue);
   harness.sqlite.run('PRAGMA ignore_check_constraints = ON');
-  harness.sqlite.run("UPDATE organization_membership SET role='broken' WHERE user_id=?", [
-    principal.id,
-  ]);
+  try {
+    const corrupted = harness.sqlite
+      .query(
+        "INSERT INTO access_role_permission(role_id,permission) SELECT DISTINCT role_id,'broken.permission' FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
+      )
+      .run(principal.id);
+    expect(corrupted.changes).toBeGreaterThan(0);
+  } finally {
+    harness.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+  }
   const before = effects();
   const failure = await harness
     .publicCommands()
     .runWithin(fixture.projectId, principal, [], {
       principal: { id: principal.id },
       kind: 'scoped',
-      scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+      scope: { cap: null, organizationId: 'org-a', userId: principal.id },
     })
     .then(
       () => null,
       (cause: unknown) => cause,
     );
   expect(failure).toBeInstanceOf(Error);
-  expect(String(failure)).toContain('malformed role');
+  expect(String(failure)).toContain('not in the permission vocabulary');
   expect(effects()).toEqual(before);
 });
 
@@ -398,7 +405,7 @@ test('direct runner refuses a scoped expectation while current authority is lega
     await harness.publicCommands().runDirectoryWithin(principal, [], {
       principal: { id: principal.id },
       kind: 'scoped',
-      scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+      scope: { cap: null, organizationId: 'org-a', userId: principal.id },
     }),
   ).toEqual({ ok: false, refusal: 'organization_context_changed' });
 });
@@ -628,7 +635,6 @@ for (const kind of ['machine', 'consent'] as const)
             cap: CONTRIBUTOR_CAP,
             organizationId: 'org-a',
             userId: principal.id,
-            role: 'member',
           },
         }),
       ).toEqual({ ok: false, refusal: 'organization_context_changed' });
@@ -868,7 +874,6 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
           cap: CONTRIBUTOR_CAP,
           organizationId: 'org-a',
           userId: principal.id,
-          role: 'member',
         },
       })
       .then(

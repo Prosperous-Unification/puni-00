@@ -19,7 +19,7 @@ const DISK = 'resource-disk';
 const ADMIN: ResourceAccess = {
   principal: { id: F },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: F, role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: F },
 };
 const STAMP = { at: 1, by: F };
 

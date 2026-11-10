@@ -251,7 +251,6 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
           cap: null,
           organizationId: 'org-a',
           userId: harness.userId('ada'),
-          role: 'member',
         },
       },
     ),

@@ -19,7 +19,7 @@ const PRINCIPAL = { id: ACTOR, username: ACTOR, scopes: ['read', 'write'] as con
 const SCOPED: ResourceAccess = {
   principal: { id: ACTOR },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: ACTOR, role: 'super_admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: ACTOR },
 };
 
 /** Another creator's restricted project; the fixture grants this actor package.write explicitly. */

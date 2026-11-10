@@ -27,7 +27,7 @@ const DEFAULTS = {
 const SCOPED: ResourceAccess = {
   principal: { id: 'dany' },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany' },
 };
 
 let directory: string;

@@ -51,7 +51,6 @@ import { SqliteResourceUses } from '@wbs/store-sqlite';
 import {
   AgentPoolRepository,
   computeProvidersOver,
-  currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
   EnterpriseConnectionRepository,
@@ -68,6 +67,7 @@ import {
   OrganizationRepository,
   ProjectRankRepository,
   ProvisioningTokenRepository,
+  readMembershipIn,
   readOrganizationActivation,
   scheduleInputHash,
   ScimUserRepository,
@@ -690,7 +690,7 @@ export class OrganizationHarness {
                 // Membership only: the credential rules already ran for this
                 // source in `bearerContextIssuer`'s resolution.
                 (userId, organizationId) =>
-                  Promise.resolve(currentMembershipAccess(db, organizationId, userId).ok),
+                  Promise.resolve(readMembershipIn(db, organizationId, userId) !== null),
               ),
               () => readOrganizationActivation(db),
             ),
@@ -1100,7 +1100,7 @@ export class OrganizationHarness {
             objective: 'pri',
             inputHash,
             input,
-            scoped: { organizationId, actorId, role: 'super_admin', principal: { id: actorId } },
+            scoped: { organizationId, actorId, principal: { id: actorId } },
           })
         ).kind;
       },

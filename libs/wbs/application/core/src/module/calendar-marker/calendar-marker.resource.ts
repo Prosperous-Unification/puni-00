@@ -1,5 +1,6 @@
 import type { Permission } from '@wbs/domain';
 import type { IsoDate } from '@wbs/domain';
+import { canEditProject } from '@wbs/domain';
 
 import type { AccessDecisions } from '../../ports/access-decisions';
 import type {
@@ -8,11 +9,9 @@ import type {
 } from '../../ports/calendar-marker-read';
 import type { CalendarMarker, CalendarMarkerStore } from '../../ports/calendar-marker-store';
 import type { Clock } from '../../ports/clock';
-import type { EditAdmission } from '../../ports/edit-admission';
 import {
   findProjectWithin,
   LEGACY_ACCESS,
-  mayEditProjectWithin,
   type ResourceAccess,
 } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
@@ -21,8 +20,6 @@ import { authorizePackage } from '../../service/authorize';
 
 export interface CalendarMarkerServiceOptions {
   readonly accessDecisions?: AccessDecisions;
-  /** A unit-of-work grant used only for scoped recovery. */
-  recoveryAdmission?: EditAdmission;
   projects: ProjectStore;
   markers: CalendarMarkerStore;
   /** The instant every marker is dated from and the ids it mints — see {@link Clock}. */
@@ -268,8 +265,8 @@ export class CalendarMarkerService {
     // Proof: marker-resource-grant fault failed 'invisible package in the actual borrowed marker resource' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
     if (access.kind === 'scoped')
       return authorizePackage(this.opts.accessDecisions, access, project, actorId, 'package.write');
-    return mayEditProjectWithin(project, actorId, access)
-      ? { ok: true }
-      : { ok: false, reason: 'forbidden' };
+    // Proof: legacy-marker; bypassed the legacy creator refusal.
+    // 'retains the legacy restricted creator refusal at marker' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+    return canEditProject(project, actorId) ? { ok: true } : { ok: false, reason: 'forbidden' };
   }
 }

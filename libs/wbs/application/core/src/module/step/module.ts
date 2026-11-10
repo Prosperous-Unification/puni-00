@@ -1,7 +1,6 @@
 import { DiBag } from 'di-bag';
 
 import type { Clock } from '../../ports/clock';
-import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
 import type { StepStore } from '../../ports/step-store';
@@ -30,7 +29,6 @@ export const stepModule = DiBag.createBuilder()
         stepStore,
         broadcast,
         clock,
-        recoveryAdmission,
         dependencyContext,
         beforeRemove,
         beforeWrite,
@@ -40,7 +38,6 @@ export const stepModule = DiBag.createBuilder()
         stepStore: StepStore;
         broadcast: Broadcaster;
         clock: Clock;
-        recoveryAdmission: EditAdmission | undefined;
         dependencyContext: StepServiceOptions['dependencyContext'];
         beforeRemove: StepServiceOptions['beforeRemove'];
         beforeWrite: StepServiceOptions['beforeWrite'];
@@ -54,7 +51,6 @@ export const stepModule = DiBag.createBuilder()
         // failing (4 pass, 1 fail): it received `[]`.
         broadcast,
         clock,
-        recoveryAdmission,
         dependencyContext,
         beforeRemove,
         beforeWrite,

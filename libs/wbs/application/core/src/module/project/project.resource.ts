@@ -20,7 +20,6 @@ import type { BeforeProjectUpdate } from '../../ports/fanout-capture-store';
 import {
   findProjectWithin,
   LEGACY_ACCESS as LEGACY,
-  mayEditProjectWithin,
   type ResourceAccess,
 } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
@@ -93,7 +92,7 @@ export type UpdateOutcome =
         | 'dependency_cycle';
     };
 
-/** A scoped viewer may not create; legacy access and every writing role may. */
+/** Scoped creation requires current organization.create_project; legacy access retains its existing admission. */
 export type CreateOutcome =
   | { ok: true; value: ProjectWithSteps }
   | {
@@ -376,7 +375,9 @@ export class ProjectService {
     const project = await this.find(id, access);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (access.kind === 'legacy')
-      return mayEditProjectWithin(project, actorId, access)
+      // Proof: legacy-project-write; bypassed the legacy creator refusal.
+      // 'retains the legacy restricted creator refusal at project-write' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+      return canEditProject(project, actorId)
         ? { ok: true, project }
         : { ok: false, reason: 'forbidden' };
     // Proof: saved-capture-service-grant fault failed 'borrowed saved-capture authorization' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
@@ -398,7 +399,9 @@ export class ProjectService {
     const project = await this.find(id, access);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (access.kind === 'legacy')
-      return mayEditProjectWithin(project, actorId, access)
+      // Proof: legacy-project-retry; bypassed the legacy creator refusal.
+      // 'retains the legacy restricted creator refusal at project-retry' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+      return canEditProject(project, actorId)
         ? { ok: true, project }
         : { ok: false, reason: 'forbidden' };
     // Proof: retry-service-grant fault failed 'contributor retry without' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
@@ -518,8 +521,9 @@ export class ProjectService {
         patch,
       );
       if (!decision.ok) return decision;
-    } else if (!mayEditProjectWithin(found, actorId, access))
-      return { ok: false, reason: 'forbidden' };
+      // Proof: legacy-project-settings; bypassed the legacy creator refusal.
+      // 'retains the legacy restricted creator refusal at project-settings' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+    } else if (!canEditProject(found, actorId)) return { ok: false, reason: 'forbidden' };
     return withDependencyContext(
       this.opts.dependencyContext,
       id,
@@ -569,7 +573,6 @@ export class ProjectService {
                 {
                   actorId,
                   auditId: this.clock.newId(),
-                  role: access.scope.role,
                   principal: access.principal,
                 },
               );

@@ -56,7 +56,7 @@ function makeAccess(username = 'keeper'): Extract<ResourceAccess, { kind: 'scope
   const id = harness.userId(username);
   return {
     kind: 'scoped',
-    scope: { organizationId: 'org-a', userId: id, role: 'viewer', cap: null },
+    scope: { organizationId: 'org-a', userId: id, cap: null },
     principal: { id },
   };
 }

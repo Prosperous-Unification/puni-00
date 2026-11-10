@@ -5,12 +5,7 @@ import {
   type OidcCredentialRecord,
   type TrustedIssuerRegistration,
 } from '@wbs/core';
-import {
-  type MachineCredentialRecord,
-  type MachineCredentialSource,
-  ORGANIZATION_ROLES,
-  type OrganizationRole,
-} from '@wbs/domain';
+import { type MachineCredentialRecord, type MachineCredentialSource } from '@wbs/domain';
 import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -32,7 +27,7 @@ const DIGEST = /^[0-9a-f]{64}$/;
 
 /**
  * The bound account's membership in the credential's own organization: the
- * role {@link MachineCredentialRecord.boundAccountRole} reads, absent for an
+ * presence {@link MachineCredentialRecord.boundAccountIsMember} reads, absent for an
  * unbound person or a non-member account.
  */
 const boundMembership = and(
@@ -78,7 +73,7 @@ export class MachineCredentialRepository implements MachineCredentials {
       .select({
         credential: machineCredential,
         boundAccountId: person.accountId,
-        boundAccountRole: organizationMembership.role,
+        memberAccountId: organizationMembership.userId,
         poolExpiresAt: agentPool.expiresAt,
       })
       .from(machineCredential)
@@ -108,7 +103,11 @@ export class MachineCredentialRepository implements MachineCredentials {
       personId: row.credential.personId,
       source: checkedSource(row.credential),
       boundAccountId: row.boundAccountId,
-      boundAccountRole: checkedRole(row.boundAccountRole, id),
+      // Proof: api_key-membership-projection-false; forced current membership absent.
+      // 'issues a api_key grant without an unused compatibility role column' (machine-grant.controller.db.test.ts) failed; restored GREEN, 2026-11-10.
+      // Proof: api_key-membership-projection-true; forced current membership present.
+      // 'refuses a nonmember api_key from current membership identity over HTTP without recording use' (machine-grant.controller.db.test.ts) failed; restored GREEN, 2026-11-10.
+      boundAccountIsMember: row.memberAccountId !== null,
       revokedAt: checkedTime(row.credential.revokedAt, id),
       expiresAt: checkedTime(row.poolExpiresAt, id),
       trustedIssuerId: row.credential.trustedIssuerId,
@@ -157,7 +156,7 @@ export class MachineCredentialRepository implements MachineCredentials {
       .select({
         credential: machineCredential,
         boundAccountId: person.accountId,
-        boundAccountRole: organizationMembership.role,
+        memberAccountId: organizationMembership.userId,
         poolExpiresAt: agentPool.expiresAt,
       })
       .from(machineCredential)
@@ -194,7 +193,11 @@ export class MachineCredentialRepository implements MachineCredentials {
         personId: row.credential.personId,
         source: checkedSource(row.credential),
         boundAccountId: row.boundAccountId,
-        boundAccountRole: checkedRole(row.boundAccountRole, id),
+        // Proof: oidc-membership-projection-false; forced current membership absent.
+        // 'issues a oidc grant without an unused compatibility role column' (machine-grant.controller.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // Proof: oidc-membership-projection-true; forced current membership present.
+        // 'refuses a nonmember oidc from current membership identity over HTTP without recording use' (machine-grant.controller.db.test.ts) failed; restored GREEN, 2026-11-10.
+        boundAccountIsMember: row.memberAccountId !== null,
         revokedAt: checkedTime(row.credential.revokedAt, id),
         expiresAt: checkedTime(row.poolExpiresAt, id),
         trustedIssuerId: row.credential.trustedIssuerId,
@@ -272,15 +275,6 @@ function checkedSource(row: MachineCredentialRow): MachineCredentialSource {
   if (!known.includes(row.source))
     throw new Error(`machine credential ${row.id} has a malformed source`);
   return row.source;
-}
-
-/** @throws on a role outside `ORGANIZATION_ROLES`. */
-function checkedRole(value: string | null, id: string): OrganizationRole | null {
-  const roles: readonly string[] = ORGANIZATION_ROLES;
-  if (value !== null && !roles.includes(value))
-    throw new Error(`the account bound to machine credential ${id} has a malformed role`);
-  // Narrowed by the vocabulary check above, which is the boundary.
-  return value as OrganizationRole | null;
 }
 
 /** @throws on a time that is not a safe integer. */

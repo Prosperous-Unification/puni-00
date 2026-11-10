@@ -1,6 +1,6 @@
 import type { DependencyRuntimeCapability } from '@wbs/contracts/dependency-runtime';
-import type { PlanTransactionalStores, StoredTypedDependency } from '@wbs/core';
-import { clockOf } from '@wbs/core';
+import type { GrantedAdmission, PlanTransactionalStores, StoredTypedDependency } from '@wbs/core';
+import { authorize, clockOf } from '@wbs/core';
 import { grantAdmission } from '@wbs/core';
 import { createWorkingPlan } from '@wbs/core/module/plan-commands/working-plan.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
@@ -134,6 +134,7 @@ export async function runSemantic<T extends { ok: boolean }>(
   operation: (service: WorkItemService) => Promise<T>,
   configure?: (stores: PlanTransactionalStores) => PlanTransactionalStores,
   authoring: ExternalDependencyAuthoring = { state: 'inactive' },
+  beforeWrite?: (admission: GrantedAdmission) => void,
 ) {
   const boundary = harness.publicWrites();
   return boundary.uow.run(async (scope) => {
@@ -169,6 +170,7 @@ export async function runSemantic<T extends { ok: boolean }>(
         externalDependencyAuthoring: authoring,
         broadcast: new AnnouncementCollector(broadcast),
       });
+      beforeWrite?.(granted);
       const collected = await service.collect(() => operation(service));
       if (collected.result.ok)
         await service.recordCollected(
@@ -317,13 +319,34 @@ export async function requireOwnerEdit(
   stores: PlanTransactionalStores,
   fixture: Awaited<ReturnType<typeof openFixture>>,
 ): Promise<void> {
-  const admitted = await stores.projects.admitEditInOrganization(
+  const resolved = await harness.publicWrites().commandAccess.resolve({
+    kind: 'human',
+    principal: fixture.principal,
+    expectedAccess: fixture.expectedAccess,
+  });
+  if (!resolved.ok || resolved.access.kind !== 'scoped')
+    throw new Error('fixture current authority refused');
+  const access = resolved.access;
+  const project = await stores.projects.findInOrganization(
     fixture.owner.projectId,
-    fixture.expectedAccess.scope.organizationId,
-    fixture.principal.id,
-    { commands: ['createWorkItem'] },
-    fixture.expectedAccess.scope.role,
+    access.scope.organizationId,
   );
-  if (admitted === null || admitted === 'forbidden')
-    throw new Error('fixture owner admission refused');
+  if (project === null) throw new Error('fixture owner admission refused');
+  const decision = await authorize(
+    stores.accessDecisions,
+    access.principal,
+    {
+      kind: 'work_package',
+      chain: {
+        level: 'work_package',
+        organizationId: access.scope.organizationId,
+        workPackageId: project.id,
+      },
+      restricted: project.restricted,
+    },
+    'package.write',
+  );
+  // Proof: semantic-package-authorization; skipped the fixture owner current package decision.
+  // 'semantic owner lease refuses a legacy super-admin without current package write before mutation' (cross-project-dependency-lifecycle.controller.db.test.ts) failed; restored GREEN, 2026-11-10.
+  if (!decision.ok) throw new Error('fixture owner admission refused');
 }

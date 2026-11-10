@@ -1,5 +1,4 @@
 import type { Permission } from '@wbs/domain';
-import type { OrganizationRole } from '@wbs/domain';
 
 import type { ScopedPrincipal } from './access-decisions';
 
@@ -51,12 +50,11 @@ export interface SavedPlanWrite {
   readonly schedule: SavedPlanScheduleWrite;
 }
 
-/** Scoped actor and authenticated ceiling, intersected with current membership in the writer's transaction. */
+/** Actual scoped principal, rechecked against current grants in the writer's transaction. */
 export interface ScopedSavedPlanWrite {
   readonly principal: ScopedPrincipal;
   readonly organizationId: string;
   readonly actorId: string;
-  readonly role: OrganizationRole;
   readonly operation: 'save' | 'rename' | 'delete';
 }
 

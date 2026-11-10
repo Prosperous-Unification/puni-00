@@ -258,7 +258,7 @@ async function openManualMachine(logger?: Logger) {
     scope: {
       organizationId: 'org-a',
       userId: principal.id,
-      role: 'admin',
+
       cap: CONTRIBUTOR_CAP,
       delegated: true,
     },
@@ -846,7 +846,7 @@ async function openRuntimeQueue(operation: RuntimeQueueOperation, logger?: Logge
     requestedActor = {
       ...resourceUseActorOf(principal, {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'admin', cap: null },
+        scope: { organizationId: 'org-a', userId: principal.id, cap: null },
         principal: { id: principal.id, authentication: structuredClone(principal.authentication) },
       }),
       credentialId: null,
@@ -1355,7 +1355,7 @@ for (const operation of manualOperations) {
           scope: {
             organizationId: 'org-a',
             userId: principal.id,
-            role: 'admin',
+
             cap: CONTRIBUTOR_CAP,
             delegated: true,
           },

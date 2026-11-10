@@ -38,7 +38,7 @@ const context: RuntimeContext = {
   access: {
     principal: { id: 'ada' },
     kind: 'scoped',
-    scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
   },
   projectId: 'a1',
   personId: 'agent',

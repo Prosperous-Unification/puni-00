@@ -2,7 +2,6 @@ import { DiBag } from 'di-bag';
 
 import type { CalendarMarkerStore } from '../../ports/calendar-marker-store';
 import type { Clock } from '../../ports/clock';
-import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
 import {
@@ -36,14 +35,12 @@ export const calendarMarkerModule = DiBag.createBuilder()
         calendarMarkerStore,
         clock,
         broadcast,
-        recoveryAdmission,
       }: {
         projectStore: ProjectStore;
         accessDecisions: CalendarMarkerServiceOptions['accessDecisions'];
         calendarMarkerStore: CalendarMarkerStore;
         clock: Clock;
         broadcast: Broadcaster | undefined;
-        recoveryAdmission: EditAdmission | undefined;
         // Proof (2026-09-24): leaving `broadcast` out of the returned options left
         // `announces a created marker through the broadcaster installCalendarMarker wires` failing
         // (4 pass, 1 fail): the recording broadcaster received `[]`.
@@ -53,7 +50,6 @@ export const calendarMarkerModule = DiBag.createBuilder()
         markers: calendarMarkerStore,
         clock,
         broadcast,
-        recoveryAdmission,
       }),
       { factoryReturnKind: 'sync-value' },
     ),

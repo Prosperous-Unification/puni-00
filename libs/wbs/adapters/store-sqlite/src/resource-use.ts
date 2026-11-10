@@ -22,7 +22,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { AccessDecisionRepository } from './access-decisions';
 import type { Gate } from './gate';
 import type { ImmediateTransaction } from './immediate-write';
-import { currentMembershipAccess } from './organization-access';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { MACHINE_CREDENTIAL_SOURCES, PERSON_KINDS, resourceCleanupRequestRecord } from './schema';
 import { resourceUseEventRecord, resourceUseRecord } from './schema';
@@ -132,10 +132,10 @@ export async function admitResourceUseProject(
     if (active) return refused('forbidden');
   } else {
     if (!active) return refused('forbidden');
-    const member = currentMembershipAccess(tx, access.scope.organizationId, actor.principal.id);
+    const member = readMembershipIn(tx, access.scope.organizationId, actor.principal.id);
     // Proof: manual-current-member.
     // The recorded fault broke `rechecks current membership inside resource list owner after queueing`; restored GREEN.
-    if (!member.ok) return refused('forbidden');
+    if (member === null) return refused('forbidden');
     // Proof: manual-current-credential-dependency-first bypassed this current row read.
     // rechecks queued manual resource register current credential revoked despite a sufficient own grant
     // rechecks queued manual resource append current credential revoked despite a sufficient own grant

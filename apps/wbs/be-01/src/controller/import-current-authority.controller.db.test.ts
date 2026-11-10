@@ -426,7 +426,6 @@ for (const kind of ['machine', 'consent'] as const)
               cap: CONTRIBUTOR_CAP,
               organizationId: 'org-a',
               userId: principal.id,
-              role: 'member',
             },
           },
         }),
@@ -576,7 +575,6 @@ for (const kind of ['machine', 'consent'] as const)
             cap: CONTRIBUTOR_CAP,
             organizationId: 'org-a',
             userId: principal.id,
-            role: 'member',
           },
         },
       }),
@@ -620,7 +618,6 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
             cap: CONTRIBUTOR_CAP,
             organizationId: 'org-a',
             userId: principal.id,
-            role: 'member',
           },
         },
       })
@@ -712,14 +709,21 @@ test('missing trusted activation state throws instead of reopening legacy import
   expect(observedPushes).toBe(pushesBefore);
 });
 
-test('malformed trusted membership throws before direct import effects', async () => {
+test('malformed trusted grant catalogue throws before direct import effects', async () => {
   const fixture = await openHarness();
   const cookieValue = decodeURIComponent(fixture.cookie.slice(fixture.cookie.indexOf('=') + 1));
   const principal = await harness.authenticatedCommandPrincipal('ada', cookieValue);
   harness.sqlite.run('PRAGMA ignore_check_constraints = ON');
-  harness.sqlite.run("UPDATE organization_membership SET role='broken' WHERE user_id=?", [
-    principal.id,
-  ]);
+  try {
+    const corrupted = harness.sqlite
+      .query(
+        "INSERT INTO access_role_permission(role_id,permission) SELECT DISTINCT role_id,'broken.permission' FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
+      )
+      .run(principal.id);
+    expect(corrupted.changes).toBeGreaterThan(0);
+  } finally {
+    harness.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+  }
   const before = snapshotTables();
   const capturesBefore = observedCaptures;
   const pushesBefore = observedPushes;
@@ -731,7 +735,7 @@ test('malformed trusted membership throws before direct import effects', async (
       expectedAccess: {
         principal: { id: principal.id },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: principal.id },
       },
     })
     .then(
@@ -739,7 +743,7 @@ test('malformed trusted membership throws before direct import effects', async (
       (cause: unknown) => cause,
     );
   expect(failure).toBeInstanceOf(Error);
-  expect(String(failure)).toContain('malformed role');
+  expect(String(failure)).toContain('not in the permission vocabulary');
   expect(snapshotTables()).toEqual(before);
   expect(observedCaptures).toBe(capturesBefore);
   expect(observedPushes).toBe(pushesBefore);
@@ -756,7 +760,7 @@ test('direct import refuses a scoped expectation while current authority is lega
       expectedAccess: {
         principal: { id: principal.id },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: principal.id },
       },
     }),
   ).toEqual({ ok: false, refusal: 'organization_context_changed' });
@@ -844,7 +848,7 @@ test('direct read scope refuses before writer admission', async () => {
       expectedAccess: {
         principal: { id: principal.id },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: principal.id },
       },
     }),
   ).toEqual({ ok: false, error: 'insufficient_scope' });
@@ -888,7 +892,6 @@ for (const table of [
               cap: null,
               organizationId: 'org-a',
               userId: principal.id,
-              role: 'super_admin',
             },
           },
         })
@@ -931,7 +934,7 @@ test('machine import keeps the credential cap despite expected uncapped super-ad
       expectedAccess: {
         principal: { id: principal.id },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: principal.id },
       },
     }),
   ).toMatchObject({ ok: false, code: 'forbidden', permission: 'organization.create_project' });
@@ -1024,7 +1027,7 @@ for (const fault of [
         expectedAccess: {
           principal: { id: principal.id },
           kind: 'scoped',
-          scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+          scope: { cap: null, organizationId: 'org-a', userId: principal.id },
         },
       })
       .then(

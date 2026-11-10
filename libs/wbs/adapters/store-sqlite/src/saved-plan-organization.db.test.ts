@@ -180,7 +180,7 @@ describe('a saved plan belongs to its project’s organization', () => {
         principal: { id: 'sam' },
         organizationId: 'org-a',
         actorId: 'sam',
-        role: 'super_admin',
+
         operation: 'save',
       }),
     ).toEqual({ outcome: 'not_found' });
@@ -194,7 +194,7 @@ describe('a saved plan belongs to its project’s organization', () => {
         principal: { id: 'sam' },
         organizationId: 'org-a',
         actorId: 'sam',
-        role: 'super_admin',
+
         operation: 'rename',
       }),
     ).toBe('no_such_plan');
@@ -208,7 +208,7 @@ describe('a saved plan belongs to its project’s organization', () => {
         principal: { id: 'owner' },
         organizationId: 'org-a',
         actorId: 'owner',
-        role: 'super_admin',
+
         operation: 'delete',
       });
     } catch (caught) {

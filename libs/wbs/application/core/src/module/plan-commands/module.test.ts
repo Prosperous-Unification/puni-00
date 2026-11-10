@@ -157,7 +157,6 @@ describe('the Plan commands module', () => {
                 },
                 projects: new Proxy(scope.stores.projects, {
                   get: (projects, key, receiver): unknown => {
-                    if (key === 'admitEditInOrganization') return () => Promise.resolve('ordinary');
                     if (key === 'findCrossReferences') return () => Promise.resolve([]);
                     return Reflect.get(projects, key, receiver) as unknown;
                   },
@@ -173,7 +172,7 @@ describe('the Plan commands module', () => {
           await commands.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
             principal: { id: OWNER },
             kind: 'scoped',
-            scope: { cap: null, organizationId: 'org-a', userId: OWNER, role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: OWNER },
           })
         ).ok,
       ).toBe(true);
@@ -186,7 +185,7 @@ describe('the Plan commands module', () => {
         missingDelivery.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
           principal: { id: OWNER },
           kind: 'scoped',
-          scope: { cap: null, organizationId: 'org-a', userId: OWNER, role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: OWNER },
         }),
       ).rejects.toThrow('committed fan-out delivery is missing');
     },

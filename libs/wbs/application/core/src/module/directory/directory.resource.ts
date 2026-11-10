@@ -18,7 +18,6 @@ import type {
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
-  MachineCredentialReach,
   NamedCatalog,
   Person,
   PersonPatch,
@@ -231,6 +230,9 @@ type NamedRenamed<T> =
  * Scoped agent visibility is limited to own agents without that permission. Who added
  * `Platform` is exactly the question the audit columns exist to answer, and the
  * directory is the case Dany asked for by name — see ADR 0012.
+ *
+ * Proof: retired-helper-machineCredentialReachOf; reintroduced the retired callable.
+ * 'does not expose the retired server role helper machineCredentialReachOf' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
  */
 export class DirectoryService {
   private readonly clock: Clock;
@@ -649,9 +651,9 @@ export class DirectoryService {
   /**
    * States (`units`) or clears (`null`) a resource's **Directory capacity**
    * (`wbs-shared-occupancy` S1, S11), the one function both command
-   * routes take. Under scoped access only an admin or a super-admin may
-   * (`forbidden` otherwise, before the resource is looked up, as a removal is
-   * refused); every agent arrives as at most a member. A foreign or absent
+   * routes take. Scoped access requires current organization.manage_directory
+   * grants before the resource lookup. The fixed machine/consent cap excludes
+   * that permission. A foreign or absent
    * resource is `not_found`; legacy access, and a resource no organization
    * owns, is `organization_required`. The write
    * appends one `directory_capacity_changed` audit row and enters no journal;
@@ -661,14 +663,10 @@ export class DirectoryService {
    * `confirm` is carried for the clearing check of `wbs-organization-limits`
    * (S10, task 7.1), which is not built yet; nothing reads it here.
    *
-   * Proof, each watched 2026-10-25: with the role check skipped, `refuses a
-   * member and a viewer on either route`, the agent key case and the MCP
-   * consent case (directory-capacity.controller.db.test.ts) failed (8 pass,
-   * 3 fail); with the stored role answered in place of `organizationRoleOf`'s
-   * in `SqliteOrganizationAccess`, the agent key, consent and preview cases
-   * failed; with the announce skipped, `announces directory_changed to every
-   * project that states or demands the resource`
-   * (directory-capacity.test.ts) found none.
+   * Historical role-check proofs were superseded by the current grant/cap
+   * checks below. Proof: skipping announcement made 'announces directory_changed
+   * to every project that states or demands the resource' (directory-capacity.test.ts)
+   * find none, watched 2026-10-25.
    */
   async setDirectoryCapacityWithin(
     resourceId: string,
@@ -1897,17 +1895,4 @@ function isResourceInUse(rows: ResourceUsageRows): boolean {
     rows.occupancies > 0 ||
     rows.directoryCapacity !== null
   );
-}
-
-/**
- * The machine credentials a person removal through `scope` may revoke
- * (`wbs-machine-credentials` A24): none through a delegation or a machine
- * credential, every person's for an admin or super-admin, and for anyone else
- * only a person bound to their own account. The store applies it inside the
- * removal's transaction.
- */
-export function machineCredentialReachOf(scope: OrganizationScope): MachineCredentialReach {
-  if (scope.delegated === true) return { kind: 'none' };
-  if (scope.role === 'admin' || scope.role === 'super_admin') return { kind: 'every' };
-  return { kind: 'own', accountId: scope.userId };
 }

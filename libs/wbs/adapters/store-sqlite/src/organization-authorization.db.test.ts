@@ -11,17 +11,29 @@ import {
   retainSecurityPrincipal,
   type SecurityPrincipal,
 } from '@wbs/core';
+import * as authenticatedRoles from '@wbs/core/module/authentication/authentication.feature';
+import * as directoryRoles from '@wbs/core/module/directory/directory.resource';
+import * as claimRoles from '@wbs/core/module/work-item/claims';
+import * as resourceRoles from '@wbs/core/ports/organization-access';
 import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { AccessDecisionRepository } from './access-decisions';
+import { messagesOf } from './constraint';
 import { openDatabase, openDrizzle } from './db';
+import * as enterpriseRoles from './enterprise-connection';
 import { resolveProjectWriteScopeIn } from './fanout-capture';
 import { OPEN } from './gate';
 import { MachineCredentialRepository } from './machine-credential';
 import { runMigrations } from './migrate';
-import { currentMembershipAccess, SqliteOrganizationAccess } from './organization-access';
+import { OnboardingRepository } from './onboarding';
+import * as membershipRoles from './organization';
+import { OrganizationRepository } from './organization';
+import * as storedRoles from './organization-access';
+import { readMembershipIn, SqliteOrganizationAccess } from './organization-access';
+import { SqliteOrganizationSelection } from './organization-selection';
+import * as projectRoles from './project';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { admitResourceUseProject } from './resource-use';
 import { UserRepository } from './user';
@@ -102,7 +114,7 @@ describe('resolved organization authority with grants', () => {
       access: {
         principal: { id: 'ada' },
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'super_admin', cap: null },
+        scope: { organizationId: 'org-a', userId: 'ada', cap: null },
       },
     });
     expect(await authorize(decisions, human, target, 'package.write')).toEqual({
@@ -137,7 +149,6 @@ describe('resolved organization authority with grants', () => {
           scope: {
             organizationId: 'org-a',
             userId: 'ada',
-            role: 'member',
             delegated: true,
             cap: CONTRIBUTOR_CAP,
           },
@@ -189,7 +200,6 @@ describe('resolved organization authority with grants', () => {
         scope: {
           organizationId: 'org-a',
           userId: 'ada',
-          role: 'super_admin',
           delegated: true,
           cap: null,
         },
@@ -201,14 +211,70 @@ describe('resolved organization authority with grants', () => {
     });
   });
 
-  it('returns membership facts without inventing a credential cap', () => {
-    expect(currentMembershipAccess(openDrizzle(join(dir, 'test.db')), 'org-a', 'ada')).toEqual({
+  it('resolves authenticated context without interpreting the compatibility label', async () => {
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    try {
+      sqlite.run("UPDATE organization_membership SET role = 'unused-label'");
+    } finally {
+      sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    }
+    expect(await access.resolve(human)).toEqual({
       ok: true,
       access: {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'super_admin' },
+        principal: { id: 'ada' },
+        scope: { organizationId: 'org-a', userId: 'ada', cap: null },
       },
     });
+  });
+
+  it('returns credential facts without a membership authority label', async () => {
+    const answer = await access.credentialFactsOf(human, 'org-a');
+    expect(answer).toEqual({ facts: { enforced: [], policy: null, lifecycle: null } });
+  });
+
+  it('resolves borrowed package authority without interpreting the compatibility label', async () => {
+    grant('user', 'ada', 'package-contributor');
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    try {
+      sqlite.run("UPDATE organization_membership SET role = 'unused-label'");
+    } finally {
+      sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    }
+    const resolve = resolveProjectWriteScopeIn(
+      openDrizzle(join(dir, 'test.db')),
+      createReadSnapshotLifetime(),
+    );
+    expect(await resolve('wp-a', 'org-a', 'ada', undefined)).toEqual({
+      ok: true,
+      scope: { organizationId: 'org-a', userId: 'ada', cap: null },
+    });
+  });
+
+  it('returns only current membership identity without inventing authority', () => {
+    expect(readMembershipIn(openDrizzle(join(dir, 'test.db')), 'org-a', 'ada')).toEqual({
+      organizationId: 'org-a',
+      userId: 'ada',
+    });
+  });
+
+  it('reads current membership identity without interpreting the compatibility label', () => {
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    try {
+      sqlite.run("UPDATE organization_membership SET role = 'unused-label'");
+    } finally {
+      sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    }
+    expect(readMembershipIn(openDrizzle(join(dir, 'test.db')), 'org-a', 'ada')).toEqual({
+      organizationId: 'org-a',
+      userId: 'ada',
+    });
+  });
+
+  it('returns absent membership identity for a removed or foreign account', () => {
+    const db = openDrizzle(join(dir, 'test.db'));
+    expect(readMembershipIn(db, 'org-b', 'ada')).toBeNull();
+    expect(readMembershipIn(db, 'org-a', 'missing-account')).toBeNull();
   });
 
   for (const [kind, principal] of [
@@ -365,4 +431,103 @@ describe('resolved organization authority with grants', () => {
     sqlite.run('DROP TABLE access_role_permission');
     expect(authorize(decisions, human, target, 'package.read')).rejects.toThrow();
   });
+});
+
+for (const boundary of ['memberships', 'onboarding', 'selection'] as const) {
+  it(`refuses a malformed compatibility label at the explicit ${boundary} display boundary`, async () => {
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    try {
+      sqlite.run("UPDATE organization_membership SET role = 'unused-label'");
+    } finally {
+      sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    }
+    const db = openDrizzle(join(dir, 'test.db'));
+    const read = async () =>
+      boundary === 'memberships'
+        ? new OrganizationRepository(db, OPEN).listMemberships('ada')
+        : boundary === 'onboarding'
+          ? new OnboardingRepository(db, OPEN).discover('ada')
+          : new SqliteOrganizationSelection(db).list('ada');
+    const failure = await read().then(
+      () => null,
+      (failure: unknown) => failure,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure instanceof Error ? failure.message : failure).toMatch(
+      /malformed (role|membership label)/,
+    );
+  });
+}
+
+for (const [module, names] of [
+  [storedRoles, ['currentMembershipAccess', 'capStoredRole', 'validateStoredRole']],
+  [membershipRoles, ['roleIn', 'guardFinalSuperAdmin']],
+  [enterpriseRoles, ['superAdminRefusal']],
+  [authenticatedRoles, ['organizationRoleOf']],
+  [resourceRoles, ['mayEditProjectWithin']],
+  [claimRoles, ['isClaimAdmin']],
+  [directoryRoles, ['machineCredentialReachOf']],
+  [projectRoles, ['classifyProjectWriteIn']],
+] as const) {
+  for (const name of names)
+    it('does not expose the retired server role helper ' + name, () => {
+      expect(Reflect.has(module, name)).toBe(false);
+    });
+}
+
+for (const dependency of ['table', 'organization-column', 'user-column'] as const) {
+  it('throws on unreadable current membership identity at ' + dependency, () => {
+    const db = openDrizzle(join(dir, 'test.db'));
+    if (dependency === 'table')
+      sqlite.run('ALTER TABLE organization_membership RENAME TO unavailable_membership');
+    else if (dependency === 'organization-column')
+      sqlite.run(
+        'ALTER TABLE organization_membership RENAME COLUMN organization_id TO unavailable_organization',
+      );
+    else
+      sqlite.run('ALTER TABLE organization_membership RENAME COLUMN user_id TO unavailable_user');
+    let failure: unknown;
+    try {
+      readMembershipIn(db, 'org-a', 'ada');
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect(messagesOf(failure).join('\n')).toMatch(
+      dependency === 'table'
+        ? /no such table: organization_membership/
+        : dependency === 'organization-column'
+          ? /no such column:.*organization_id/
+          : /no such column:.*user_id/,
+    );
+  });
+}
+
+it('resolves context facts membership and borrowed package authority without the unused label column', async () => {
+  grant('user', 'ada', 'package-contributor');
+  sqlite.run(
+    'ALTER TABLE organization_membership RENAME COLUMN role TO unavailable_compatibility_label',
+  );
+  expect(await access.resolve(human)).toEqual({
+    ok: true,
+    access: {
+      kind: 'scoped',
+      principal: { id: 'ada' },
+      scope: { organizationId: 'org-a', userId: 'ada', cap: null },
+    },
+  });
+  expect(await access.admitTo(human, 'org-a')).toBeNull();
+  expect(await access.credentialFactsOf(human, 'org-a')).toEqual({
+    facts: { enforced: [], policy: null, lifecycle: null },
+  });
+  const db = openDrizzle(join(dir, 'test.db'));
+  expect(readMembershipIn(db, 'org-a', 'ada')).toEqual({ organizationId: 'org-a', userId: 'ada' });
+  expect(
+    await resolveProjectWriteScopeIn(db, createReadSnapshotLifetime())(
+      'wp-a',
+      'org-a',
+      'ada',
+      undefined,
+    ),
+  ).toEqual({ ok: true, scope: { organizationId: 'org-a', userId: 'ada', cap: null } });
 });

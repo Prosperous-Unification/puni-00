@@ -26,7 +26,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { AccessDecisionRepository } from './access-decisions';
 import type { Gate } from './gate';
-import { currentMembershipAccess } from './organization-access';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import {
   actorNameIn,
@@ -59,10 +59,10 @@ async function organizationOf(
   if (actor.access.kind !== 'scoped' || readOrganizationActivation(tx) !== 'activated')
     return refused('forbidden');
   const organizationId = actor.access.scope.organizationId;
-  const member = currentMembershipAccess(tx, organizationId, actor.principal.id);
+  const member = readMembershipIn(tx, organizationId, actor.principal.id);
   // Proof: runtime-current-member.
   // The recorded fault broke `rechecks current membership inside resource requests owner after queueing`; restored GREEN.
-  if (!member.ok) return refused('forbidden');
+  if (member === null) return refused('forbidden');
   // Proof: runtime-current-credential.
   // The recorded fault broke `rechecks queued runtime admission replay current source mcp_consent before effects`; restored GREEN.
   if (readResourceUseCredentialRefusal(tx, actor) !== null) return refused('forbidden');

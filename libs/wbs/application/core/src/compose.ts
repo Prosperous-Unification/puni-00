@@ -38,7 +38,7 @@ import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
 import type { CommandAccess } from './ports/command-access';
 import type { DependencyContext, ServiceDependencyContext } from './ports/dependency-context';
-import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
+import { CREATOR_ADMISSION, type EditAdmission } from './ports/edit-admission';
 import type { EnterpriseConnections } from './ports/enterprise-connections';
 import type {
   BeforeProjectUpdate,
@@ -119,8 +119,6 @@ export interface ServicesOverOptions {
   readonly schedulerMode?: 'capture';
   /** Who may write a project through the built services; see {@link EditAdmission}. */
   readonly admission: EditAdmission;
-  /** Scoped dependent writes use this only after their own unit of work grants it. */
-  readonly recoveryAdmission?: EditAdmission;
   readonly beforeProjectUpdate?: BeforeProjectUpdate;
   readonly beforeStepRemoval?: BeforeStepRemoval;
   readonly beforeStepWrite?: BeforeStepWrite;
@@ -140,7 +138,6 @@ export interface ServicesOverOptions {
  */
 export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOverOptions) {
   const { clock, broadcast, scheduler, admission } = shared;
-  const recoveryAdmission = shared.recoveryAdmission ?? NO_ADMISSION;
   return {
     projects: installProject({
       accessDecisions: stores.accessDecisions,
@@ -171,7 +168,6 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       projects: stores.projects,
       markers: stores.calendarMarkers,
       broadcast,
-      recoveryAdmission,
     }).calendarMarkers,
     priorityBands: installPriorityBand({
       clock,
@@ -186,7 +182,6 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       projects: stores.projects,
       steps: stores.steps,
       broadcast,
-      recoveryAdmission,
       dependencyContext: shared.dependencyContext,
       beforeRemove: shared.beforeStepRemoval,
       beforeWrite: shared.beforeStepWrite,
@@ -412,7 +407,6 @@ export function composeServices(
       // enter the throwing live optimizer and answer 500 instead of 200.
       schedulerMode: 'capture',
       admission,
-      recoveryAdmission: admission,
       dependencyContext: { kind: 'bound', context: dependencies },
       beforeProjectUpdate,
       beforeStepRemoval,

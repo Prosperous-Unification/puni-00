@@ -38,7 +38,7 @@ import { OPEN } from './gate';
 import { MeasureEstimateRepository } from './measure-estimate';
 import {
   type ActiveOrganizationOf,
-  currentMembershipAccess,
+  readMembershipIn,
   SqliteOrganizationAccess,
 } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
@@ -493,10 +493,10 @@ async function readLiveAggregateIn(
   // marker reset returned 200 with dates instead of 403/no_active_organization.
   if (readOrganizationActivation(db) === 'pre_activation')
     return { kind: 'access_refused', refusal: 'no_active_organization' };
-  const resolved = currentMembershipAccess(db, access.scope.organizationId, access.scope.userId);
+  const resolved = readMembershipIn(db, access.scope.organizationId, access.scope.userId);
   // Proof: bypassing this check made revocation between route admission and the
   // aggregate snapshot answer 200 with held dates instead of 403/not_a_member.
-  if (!resolved.ok) return { kind: 'access_refused', refusal: resolved.refusal };
+  if (resolved === null) return { kind: 'access_refused', refusal: 'not_a_member' };
   // Proof: reverting this dispatch made cold person load admit solver work after HTTP200 (puni-task84-fault-dispatch.log).
   if (readCapacityMode(db, access.scope.organizationId) === 'isolated')
     return readIsolatedAggregateIn(db, actorId, access, options, lifetime);
@@ -677,13 +677,9 @@ async function readLivePlanIn(
     if (readOrganizationActivation(db) === 'pre_activation')
       return { kind: 'access_refused', refusal: 'no_active_organization' };
     // Recheck the actual admitted human identity on this observation's connection.
-    const resolved = currentMembershipAccess(
-      db,
-      admitted.scope.organizationId,
-      admitted.scope.userId,
-    );
+    const resolved = readMembershipIn(db, admitted.scope.organizationId, admitted.scope.userId);
     // Proof: ignoring this refusal failed mounted six-route revocation (403 became 200 with updated upstream rows).
-    if (!resolved.ok) return { kind: 'access_refused', refusal: resolved.refusal };
+    if (resolved === null) return { kind: 'access_refused', refusal: 'not_a_member' };
   }
   return readLiveProjectIn(db, projectId, admitted, options, lifetime);
 }

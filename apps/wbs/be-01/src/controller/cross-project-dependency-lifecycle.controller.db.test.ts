@@ -1445,3 +1445,65 @@ for (const scenario of ['replay', 'stale', 'outgoing'] as const) {
     ).toEqual(remoteHistory);
   });
 }
+
+test('semantic owner lease refuses a legacy super-admin without current package write before mutation', async () => {
+  const fixture = await openFixture();
+  harness.sqlite
+    .query('DELETE FROM access_grant WHERE organization_id=? AND subject_kind=? AND subject_id=?')
+    .run('org-a', 'user', fixture.principal.id);
+  const before = readTables();
+  const failure = await runSemantic(fixture, (service) =>
+    service.create(fixture.owner.projectId, fixture.principal.id, {
+      parentId: null,
+      afterId: null,
+      name: 'Must not be written',
+    }),
+  ).then(
+    () => null,
+    (failure: unknown) => failure,
+  );
+  expect(failure).toBeInstanceOf(Error);
+  expect(failure instanceof Error ? failure.message : failure).toMatch(
+    /fixture owner admission refused/,
+  );
+  expect(readTables()).toEqual(before);
+});
+
+test('semantic source refuses an expired writer while its real owner and current package grant remain live', async () => {
+  const fixture = await openFixture();
+  const before = readTables();
+  const outcome = await runSemantic(
+    fixture,
+    (service) =>
+      service.create(fixture.owner.projectId, fixture.principal.id, {
+        parentId: null,
+        afterId: null,
+        name: 'Expired writer must not create',
+      }),
+    undefined,
+    { state: 'inactive' },
+    (admission) => {
+      admission.expire();
+    },
+  );
+  expect(readTables()).toEqual(before);
+  expect(outcome).toEqual({ ok: false, reason: 'forbidden' });
+});
+
+test('semantic source throws for missing current grant decisions before mutation', async () => {
+  const fixture = await openFixture();
+  const before = readTables();
+  const pending = harness.publicWrites().uow.run(async (scope) => {
+    await requireOwnerEdit({ ...scope.stores, accessDecisions: undefined }, fixture);
+    return { commit: true, value: undefined };
+  });
+  const failure = await pending.then(
+    () => null,
+    (failure: unknown) => failure,
+  );
+  expect(readTables()).toEqual(before);
+  expect(failure).toBeInstanceOf(Error);
+  expect(failure instanceof Error ? failure.message : failure).toContain(
+    'the catalog carries no access decisions',
+  );
+});

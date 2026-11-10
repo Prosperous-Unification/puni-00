@@ -16,7 +16,6 @@ import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
 import type { OptimizationCapture, OptimizationInput } from '@wbs/core/ports/optimization-input';
 import type { Permission } from '@wbs/domain';
 import type { ConnectedOptimizationStage } from '@wbs/domain';
-import type { OrganizationRole } from '@wbs/domain';
 import type { Schedule, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
@@ -615,7 +614,6 @@ export class OptimizationCoordinator {
     readonly scoped?: {
       readonly organizationId: string;
       readonly actorId: string;
-      readonly role: OrganizationRole;
       readonly principal: Readonly<ScopedPrincipal>;
     };
   }): Promise<OptimizationRetryResult> => {
@@ -838,7 +836,6 @@ export class OptimizationCoordinator {
     readonly scoped?: {
       readonly organizationId: string;
       readonly actorId: string;
-      readonly role: OrganizationRole;
       readonly principal: Readonly<ScopedPrincipal>;
     };
   }): Promise<OptimizationRetryResult> {

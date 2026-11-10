@@ -1,4 +1,5 @@
 import type { Permission } from '@wbs/domain';
+import { canEditProject } from '@wbs/domain';
 import {
   type AllowancePercent,
   type AssumedAssigneeFlip,
@@ -19,12 +20,10 @@ import {
   type ServiceDependencyContext,
   withDependencyContext,
 } from '../../ports/dependency-context';
-import type { EditAdmission } from '../../ports/edit-admission';
 import type { BeforeStepRemoval, BeforeStepWrite } from '../../ports/fanout-capture-store';
 import {
   findProjectWithin,
   LEGACY_ACCESS,
-  mayEditProjectWithin,
   type ResourceAccess,
 } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
@@ -34,8 +33,6 @@ import { authorizePackage } from '../../service/authorize';
 
 export interface StepServiceOptions {
   readonly accessDecisions?: AccessDecisions;
-  /** Legacy composition option retained until recovery adapters are removed; scoped writes use accessDecisions. */
-  recoveryAdmission?: EditAdmission;
   projects: ProjectStore;
   steps: StepStore;
   /**
@@ -527,8 +524,8 @@ export class StepService {
     // Proof: step-resource-grant fault failed 'named write refusal in the actual borrowed step resource' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
     if (access.kind === 'scoped')
       return authorizePackage(this.opts.accessDecisions, access, project, actorId, 'package.write');
-    return mayEditProjectWithin(project, actorId, access)
-      ? { ok: true }
-      : { ok: false, reason: 'forbidden' };
+    // Proof: legacy-step; bypassed the legacy creator refusal.
+    // 'retains the legacy restricted creator refusal at step' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+    return canEditProject(project, actorId) ? { ok: true } : { ok: false, reason: 'forbidden' };
   }
 }

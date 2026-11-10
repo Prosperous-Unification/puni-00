@@ -33,7 +33,7 @@ const SEED = 20261022;
 const accessOf = (userId: string): ResourceAccess => ({
   principal: { id: userId },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId, role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId },
 });
 
 /**

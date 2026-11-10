@@ -237,7 +237,7 @@ describe('the Plan import module', () => {
     const access: ResourceAccess = {
       principal: { id: 'importer' },
       kind: 'scoped',
-      scope: { cap: null, organizationId: 'org-a', userId: 'importer', role: 'member' },
+      scope: { cap: null, organizationId: 'org-a', userId: 'importer' },
     };
 
     const refused: unknown = await imports

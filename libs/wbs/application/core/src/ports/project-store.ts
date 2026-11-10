@@ -1,4 +1,4 @@
-import type { AllowancePercent, OrganizationRole } from '@wbs/domain';
+import type { AllowancePercent } from '@wbs/domain';
 
 import type { ScopedPrincipal } from './access-decisions';
 import type {
@@ -7,7 +7,6 @@ import type {
   ProjectCrossReference,
   ProjectPatch,
   ProjectWithAccess,
-  RecoveryAuditDetail,
 } from './project-values';
 import type { Step, StepAllowanceWritten } from './step-store';
 import type { WriteStamp } from './write-stamp';
@@ -126,8 +125,7 @@ export interface ProjectStore {
   /**
    * {@link update} by `editor.actorId` in `organizationId`, authorized against
    * the current authenticated principal's grants and membership in the write's
-   * own transaction. `editor.role` remains a compatibility field and supplies
-   * no grant. A missing, foreign or invisible project is null; a readable
+   * own transaction. A missing, foreign or invisible project is null; a readable
    * project without settings authority is `forbidden`. Neither writes.
    *
    * The only restricted recovery is an authorized exact flag-clear
@@ -150,28 +148,9 @@ export interface ProjectStore {
     editor: {
       readonly actorId: string;
       readonly auditId: string;
-      readonly role: OrganizationRole;
       readonly principal: ScopedPrincipal;
     },
   ): Promise<Project | null | 'forbidden' | 'solution_taken' | 'abbreviation_taken'>;
-  /**
-   * Authorizes `actorId`'s write to `projectId` in `organizationId` from the
-   * membership and project as they stand inside the caller's open unit of
-   * work, whose transaction must enclose the write: null, before any
-   * permission is judged, when the organization does not own the project;
-   * `forbidden` for a refused writer; `ordinary`; or `recovery`, a
-   * super-admin's write to someone else's restricted project, after appending
-   * one `organization_audit` record with `detail` to that transaction. A
-   * rollback of the unit of work takes the record back with the write.
-   * `role` is the authenticated ceiling; fresh membership may only lower it.
-   */
-  admitEditInOrganization(
-    projectId: string,
-    organizationId: string,
-    actorId: string,
-    detail: RecoveryAuditDetail,
-    role: OrganizationRole,
-  ): Promise<'ordinary' | 'recovery' | 'forbidden' | null>;
   stepsOf(projectId: string): Promise<Step[]>;
   /**
    * Sets one step's allowance, moves that step's allowance revision by one and

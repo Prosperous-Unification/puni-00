@@ -55,7 +55,7 @@ test.each(['isolated', 'shared'] as const)(
             principal: { id: 'ada' },
             organizationId: 'org-a',
             actorId: 'ada',
-            role: 'member',
+
             operation: 'save',
           },
         });

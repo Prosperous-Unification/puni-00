@@ -238,7 +238,7 @@ for (const shape of ['sparse', 'dense'] as const) {
         }).readAggregate('ada', {
           principal: { id: 'ada' },
           kind: 'scoped',
-          scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
         });
         const aggregateMs = performance.now() - started;
         expect(closed).toBe(1);

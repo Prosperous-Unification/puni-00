@@ -41,7 +41,7 @@ async function openBoundary() {
   const principal = await harness.authenticatedCommandPrincipal('keeper', '');
   const access: Extract<ResourceAccess, { kind: 'scoped' }> = {
     kind: 'scoped',
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'viewer', cap: null },
+    scope: { organizationId: 'org-a', userId: principal.id, cap: null },
     principal: {
       id: principal.id,
       authentication: structuredClone(principal.authentication),
@@ -225,7 +225,7 @@ async function makeMachineActor() {
   const principal = await harness.authenticatedMachinePrincipal(credential.key);
   const access: Extract<ResourceAccess, { kind: 'scoped' }> = {
     kind: 'scoped',
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'viewer', cap: CONTRIBUTOR_CAP },
+    scope: { organizationId: 'org-a', userId: principal.id, cap: CONTRIBUTOR_CAP },
     principal: { id: principal.id, authentication: structuredClone(principal.authentication) },
   };
   return {

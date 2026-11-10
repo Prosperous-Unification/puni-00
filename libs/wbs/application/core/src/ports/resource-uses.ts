@@ -154,7 +154,6 @@ export function retainResourceUseActor(actor: ResourceUseActor): ResourceUseActo
             scope: {
               organizationId: access.scope.organizationId,
               userId: access.scope.userId,
-              role: access.scope.role,
               cap: structuredClone(access.scope.cap),
               ...(access.scope.delegated === undefined
                 ? {}

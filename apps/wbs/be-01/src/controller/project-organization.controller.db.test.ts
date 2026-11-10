@@ -399,14 +399,25 @@ describe('after activation', () => {
     expect((await call('ada', 'PATCH', `/api/projects/${second}`, shared)).status).toBe(200);
   });
 
-  it('fails as a server error on a malformed membership role', async () => {
+  it('fails without effects on a malformed reaching grant beside sufficient valid authority', async () => {
     activate();
+    h.grant('org-a', 'vic', 'org-admin');
     h.sqlite.run('PRAGMA ignore_check_constraints = ON');
-    h.sqlite.run("UPDATE organization_membership SET role = 'owner' WHERE user_id = ?", [
-      userId('vic'),
-    ]);
-    h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    try {
+      const corrupted = h.sqlite
+        .query(
+          "INSERT INTO access_role_permission(role_id,permission) VALUES('project-viewer','broken.permission')",
+        )
+        .run();
+      expect(corrupted.changes).toBe(1);
+    } finally {
+      h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    }
+    const projectsBefore = h.sqlite.query('SELECT * FROM project ORDER BY id').all();
+    const auditsBefore = audits();
     expect((await call('vic', 'POST', '/api/projects', { name: 'Owner plan' })).status).toBe(500);
+    expect(h.sqlite.query('SELECT * FROM project ORDER BY id').all()).toEqual(projectsBefore);
+    expect(audits()).toEqual(auditsBefore);
   });
 
   it('answers 401 for a missing credential, before organization access', async () => {

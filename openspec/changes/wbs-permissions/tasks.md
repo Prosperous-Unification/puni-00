@@ -129,7 +129,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       and claim controller tests green on backfilled grants, P7's narrowing visible as
       named refusals; negatives: skip each `authorize` call against its named test;
       watched.
-- [ ] 2.4 Complete 2.4a then 2.4b; keep this parent unchecked until both are proven.
+- [x] 2.4 Complete 2.4a then 2.4b; both are proven in the current-grant checkpoints.
       **2.4a:** rewire the store-side `super_admin` reads (domains, SSO, session policy,
       provisioning, trusted issuers, shared-people restore) to `organization.manage_security`
       in the same transaction, including SSO connection proof and shared-restore approval
@@ -151,10 +151,13 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       `mayAdministerMembership`, `mayInvite`,
       `mayEditProjectWithin`, `isClaimAdmin`, `organizationRoleOf`,
       `roleMaySwitchCapacityMode` and the fixtures' `role:` helper — test: the security
-      controller tests green on grants; `git grep` for each deleted helper answers
-      nothing; `OrganizationScope.role` leaves the type; negative: skip the `authorize`
+      controller tests green on grants; the production declaration/call inventory has no
+      retired helper (negative/Proof string references are intentional); `OrganizationScope.role`
+      leaves the type; negative: skip the `authorize`
       call in `session-policy.ts` and a `project-contributor` sets the session policy;
       watched.
+      Closed by the 2.4a and bounded 2.4b receipts through final role-evidence retirement
+      in verify.md; explicit display/legacy mapping and UI7.1/7.2, #731 and rollout6.4 stay separate.
 - [x] 2.5 After 4.1's current-vocabulary audit foundation: membership routes,
       `changeMemberRole` removed, `listMembers` answers effective
       role and grant count, `removeMember` deletes grants and group memberships in the

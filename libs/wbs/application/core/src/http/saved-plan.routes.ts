@@ -156,7 +156,7 @@ export function savedPlanRoutes(
   /**
    * Why the caller may not rename or delete a saved plan at all: no
    * organization authority, a plan the organization does not own (the same 404
-   * as an absent one), or a viewer's role.
+   * as an absent one), or the actual principal's missing current permission.
    *
    * Proof: skipping the role check made `refuses a viewer every saved-plan
    * write and lets the viewer read` in
@@ -357,7 +357,6 @@ export function savedPlanRoutes(
             ? {
                 organizationId: resolved.access.scope.organizationId,
                 actorId: principal.id,
-                role: resolved.access.scope.role,
                 principal: resolved.access.principal,
                 operation: 'rename' as const,
               }
@@ -391,7 +390,6 @@ export function savedPlanRoutes(
             ? {
                 organizationId: resolved.access.scope.organizationId,
                 actorId: principal.id,
-                role: resolved.access.scope.role,
                 principal: resolved.access.principal,
                 operation: 'delete' as const,
               }

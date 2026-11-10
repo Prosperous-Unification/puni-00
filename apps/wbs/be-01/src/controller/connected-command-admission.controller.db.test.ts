@@ -1,7 +1,7 @@
 import type { DependencyRuntimeCapability } from '@wbs/contracts/dependency-runtime';
 import type { StoredTypedDependency } from '@wbs/core';
 import type { TypedDependencyStore, WritingServices } from '@wbs/core';
-import { clockOf, grantAdmission } from '@wbs/core';
+import { authorize, clockOf, grantAdmission } from '@wbs/core';
 import { commandTransaction } from '@wbs/core/module/plan-commands/composition';
 import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { createWorkingPlan } from '@wbs/core/module/plan-commands/working-plan.resource';
@@ -268,15 +268,26 @@ async function semantic<T extends { readonly ok: boolean }>(
     });
     if (!resolved.ok || resolved.access.kind !== 'scoped')
       throw new Error('fixture current authority refused');
-    const admitted = await scope.stores.projects.admitEditInOrganization(
+    const project = await scope.stores.projects.findInOrganization(
       fixture.owner.projectId,
-      'org-a',
-      fixture.principal.id,
-      { commands: ['addTypedDependency'] },
-      resolved.access.scope.role,
+      resolved.access.scope.organizationId,
     );
-    if (admitted === null || admitted === 'forbidden')
-      throw new Error('fixture owner admission refused');
+    if (project === null) throw new Error('fixture owner admission refused');
+    const decision = await authorize(
+      scope.stores.accessDecisions,
+      resolved.access.principal,
+      {
+        kind: 'work_package',
+        chain: {
+          level: 'work_package',
+          organizationId: resolved.access.scope.organizationId,
+          workPackageId: project.id,
+        },
+        restricted: project.restricted,
+      },
+      'package.write',
+    );
+    if (!decision.ok) throw new Error('fixture owner admission refused');
     const granted = grantAdmission(fixture.owner.projectId, fixture.principal.id);
     const projects =
       refusedProjectRead === undefined

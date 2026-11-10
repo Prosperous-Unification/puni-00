@@ -70,7 +70,7 @@ test.each([
             principal: { id: 'ada' },
             organizationId: 'org-a',
             actorId: 'ada',
-            role: 'member',
+
             operation: 'save',
           },
         });
@@ -142,7 +142,7 @@ test('installed connected writer refuses missing required evidence without parti
             access: {
               principal: { id: 'ada' },
               kind: 'scoped',
-              scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+              scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
             },
           });
         } catch (cause) {

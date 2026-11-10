@@ -6,7 +6,6 @@ import type {
   ClaimHolder,
   ClaimRefusal,
   OccupancyHolder,
-  OrganizationRole,
   ReleaseRefusal,
   ResourcesExhausted,
   ResourceShortage,
@@ -16,7 +15,6 @@ import type {
 } from '@wbs/domain';
 import { byTreeOrder, treeOrder } from '@wbs/domain';
 
-import type { ResourceAccess } from '../../ports/organization-access';
 import type { WorkItem } from '../../ports/work-item-store';
 
 /** What `claimWorkItem` asks of one work item once its refs are resolved. */
@@ -125,18 +123,10 @@ export interface Claimed {
   readonly acquired: readonly ResourceUnits[];
 }
 
-const ADMIN_ROLES: ReadonlySet<OrganizationRole> = new Set(['admin', 'super_admin']);
-
-/**
- * Whether the caller holds `admin` or `super_admin` in the project's
- * organization: the `person_not_bound` bypass (D5). Legacy access has no
- * organization and therefore no role, so it never bypasses.
+/** A work item's place in its tree: whether it is a leaf, and every strict ancestor and descendant.
+ * Proof: retired-helper-isClaimAdmin; reintroduced the retired callable.
+ * 'does not expose the retired server role helper isClaimAdmin' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
  */
-export function isClaimAdmin(access: ResourceAccess): boolean {
-  return access.kind === 'scoped' && ADMIN_ROLES.has(access.scope.role);
-}
-
-/** A work item's place in its tree: whether it is a leaf, and every strict ancestor and descendant. */
 export function lineageOf(
   rows: readonly Pick<WorkItem, 'id' | 'parentId'>[],
   id: string,

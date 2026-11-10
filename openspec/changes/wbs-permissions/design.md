@@ -1056,3 +1056,23 @@ incompatible stored pair is corruption, even beside sufficient valid authority o
 before an organization-role summary discards nonorganization roles. Selection SQL
 and the pure evaluator are unchanged; broader organization-scope project/package
 contributor grants remain valid.
+
+### Role-free machine grant envelope (task 2.4b)
+
+machineGrantScopesOf was the remaining live organization-membership-label reader;
+it is retired in this slice, separately from the unrelated scopesOfRoles/#731 deferral. P12/P17 require fresh machine issuance
+and admission to use the fixed read/write MACHINE_SCOPES envelope while actual
+operations use only the credential's current grants intersected with CONTRIBUTOR_CAP.
+A legacy viewer label cannot suppress an independently granted package.write, and
+an admin label supplies no grant. This explicitly modifies the older MCP M3 viewer
+scenario. MCP requested-scope narrowing and existing signed outer access-token limits
+remain; be-01's inner grant continues to carry verified identity and reread current
+state without a new scope claim/verifier contract. No editor or requested widening.
+
+Current organization scope, borrowed membership evidence and credential facts carry no
+compatibility role. Every consumer preserves its actual principal, contributor cap and
+transaction-bound grant/lease evidence. The six early-await access/selection entries retain
+the full private verified principal, including nested lifecycle binding, while public facts
+return only their declared facts. Active discovery gets its validated display label from the
+matching membership choice after current admission; display labels never enter authority.
+Legacy activation/storage and permission-driven frontend tasks 7.1/7.2 remain separate.

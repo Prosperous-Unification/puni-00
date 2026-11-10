@@ -8,7 +8,6 @@ import {
   retryProjectOptimization,
 } from '@wbs/contracts';
 import type { Permission } from '@wbs/domain';
-import type { OrganizationRole } from '@wbs/domain';
 import type { SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
@@ -40,7 +39,6 @@ export interface OptimizationRetry {
     readonly scoped?: {
       readonly organizationId: string;
       readonly actorId: string;
-      readonly role: OrganizationRole;
       readonly principal: Readonly<ScopedPrincipal>;
     };
   }): Promise<
@@ -460,7 +458,6 @@ export function projectRoutes(
                 scoped: {
                   organizationId: resolved.access.scope.organizationId,
                   actorId: principal.id,
-                  role: resolved.access.scope.role,
                   principal: resolved.access.principal,
                 },
               }

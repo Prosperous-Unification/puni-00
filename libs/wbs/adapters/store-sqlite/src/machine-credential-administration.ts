@@ -20,7 +20,7 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import { endLeasesOfUncredentialed } from './claim';
 import { drizzleOuterTransaction } from './db';
 import type { Gate } from './gate';
-import { roleIn } from './organization';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import {
@@ -60,7 +60,7 @@ async function credentialReach(
     principal.authentication?.kind === 'consent'
   )
     return 'forbidden';
-  if (roleIn(tx, organizationId, principal.id) === null) return 'forbidden';
+  if (readMembershipIn(tx, organizationId, principal.id) === null) return 'forbidden';
   const decision = await authorize(
     new AccessDecisionRepository(tx),
     { id: principal.id, authentication: principal.authentication },
@@ -564,7 +564,7 @@ function pinRefusal(
   if (pinned.accountId === null) return 'person_not_bound';
   // Proof: with this check removed, `refuses an agent bound to an account
   // that is no member` created the credential; watched 2026-10-22.
-  if (roleIn(tx, organizationId, pinned.accountId) === null) return 'account_not_member';
+  if (readMembershipIn(tx, organizationId, pinned.accountId) === null) return 'account_not_member';
   const named = tx
     .select({ id: machineCredential.id })
     .from(machineCredential)
