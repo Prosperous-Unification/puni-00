@@ -1,3 +1,4 @@
+import type { DocumentConnected } from '@wbs/contracts';
 import { expect, test } from 'bun:test';
 
 import { planDocumentFixture } from '../../testing/plan-document-fixture';
@@ -12,12 +13,12 @@ function createDocument(version: number) {
   if (version === 1)
     for (const step of plan.steps) Reflect.deleteProperty(step, 'allowancePercent');
   const isConnected = version === 12 || version === 14;
-  plan.typedDependencies = [
-    {
-      id: 'link',
-      type: 'FS',
-      predecessor: isConnected
-        ? {
+  plan.typedDependencies = isConnected
+    ? [
+        {
+          id: 'link',
+          type: 'FS',
+          predecessor: {
             kind: 'external',
             scope: 'whole',
             projectId: 'peer',
@@ -28,13 +29,18 @@ function createDocument(version: number) {
               workItemName: 'Foreign',
               address: 'PEER.1',
             },
-          }
-        : { scope: 'whole', workItem: 'row-1' },
-      successor: isConnected
-        ? { kind: 'internal', scope: 'whole', workItem: 'row-1' }
-        : { scope: 'whole', workItem: 'row-1' },
-    },
-  ];
+          },
+          successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+        },
+      ]
+    : [
+        {
+          id: 'link',
+          type: 'FS',
+          predecessor: { scope: 'whole', workItem: 'row-1' },
+          successor: { scope: 'whole', workItem: 'row-1' },
+        },
+      ];
   if (isConnected)
     plan.externalMappings = [
       {
@@ -354,14 +360,14 @@ test.each([12, 14])(
       projectId: 'peer',
       inputHash: 'input',
       questionHash: 'question',
-      objective: 'pri',
+      objective: 'pri' as const,
       contractVersion: '18',
       budgetMs: 50,
       quantum: 1,
       wireVersion: 5,
       stageBytes: canonical,
     };
-    const connected = {
+    const connected: DocumentConnected = {
       kind: 'connected',
       projectId: 'source',
       mode: 'isolated',
