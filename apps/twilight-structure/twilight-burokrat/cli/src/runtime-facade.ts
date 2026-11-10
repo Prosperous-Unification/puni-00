@@ -3,7 +3,12 @@ import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { assertGitVersion, createGitEnvironment } from './git-environment';
 import type { Request } from './grammar-facade';
+import { type InstalledLintContext, readInstalledLint } from './installed-lint';
+import { runInstalledLintLauncher } from './installed-lint-launcher';
 import { decodeCandidateRoot } from './inventory/read-candidate';
+import type { LintDiagnostic, LintOutput } from './lint-output';
+import { lintParentMode } from './lint-parent-control';
+import type { LintRequest } from './lint-request';
 import { readInstalledToolkit } from './packaging/installed';
 import { prepareToolkit, type Toolkit } from './policy/prepare-activation-cli';
 import { prepareRelocation } from './policy/prepare-relocation-activation-cli';
@@ -91,7 +96,7 @@ type ExecutableRequest = Exclude<Request, { command: 'lint' }>;
 /**
  * Verify the installation before dispatching validation or typed preparation. Ordinary requests
  * use the isolated validator child; preparation retains the provider's existing in-process
- * subprocess and normalization contracts. Lint awaits the Bun launcher port. Discovery imports
+ * subprocess and normalization contracts. Lint uses the dedicated {@link executeLint} current-format boundary. Discovery imports
  * only the separate grammar facade and never reaches this dispatcher.
  */
 export function executeRequest(
@@ -168,4 +173,57 @@ function executeValidator(request: ValidatorRequest, context: Context, toolkit: 
     throw new Error('verified Burokrat validator ended by ' + child.signalCode);
   // Proof: normalizing nonzero status to zero failed the structured nonpassing-verdict test.
   return child.exitCode;
+}
+
+/** Installed selection and independently frozen Git authority plus caller-owned output/signals. */
+export interface LintContext extends InstalledLintContext {
+  readonly callerDirectory: string;
+  readonly activationRoot: string | undefined;
+  readonly trustedNodeModules: string | undefined;
+  readonly required: boolean;
+  readonly scratchDirectory: string;
+  readonly launch: (entrypoint: string) => readonly string[];
+  readonly stdout: LintOutput;
+  readonly stderr: LintOutput;
+  readonly reportDiagnostic: (bytes: Uint8Array) => Promise<LintDiagnostic>;
+}
+
+/**
+ * Execute the typed installed lint request through its verified current package launcher.
+ * Integrity, supported Git, actual worktree and physical placement precede optional activation
+ * availability. The selected archive owns the default closure; the installation never overrides it.
+ * @throws for preflight or launcher ownership/output failures; normal verdict statuses are exact.
+ */
+export async function executeLint(request: LintRequest, context: LintContext): Promise<number> {
+  // Proof: facade-caller; `installed Bun lint typed execution > retains caller-relative repository and activation operands while launcher cwd is external` failed with the recorded source fault and passed after restoration.
+  // Proof: facade-request; `installed Bun lint typed execution > maps typed working through the actual selected snapshotter and captured validator` failed with the recorded source fault and passed after restoration.
+  const invocation = { version: 1 as const, callerDirectory: context.callerDirectory, request };
+  const selected = await readInstalledLint(invocation, context);
+  if (selected.kind === 'cancelled') return selected.status;
+  const environment: Record<string, string> = {
+    // Proof: facade-environment; `passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher` failed with the recorded source fault and passed after restoration.
+    ...selected.runtime.environment,
+    // Proof: facade-required; `installed Bun lint typed execution > preserves required certificate refusal status78 and its report bytes` failed with the recorded source fault and passed after restoration.
+    TOOL_WIKI_REQUIRE_CERTIFIED: context.required ? '1' : '0',
+    // Proof: facade-tmpdir; `passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher` failed with the recorded source fault and passed after restoration.
+    TMPDIR: anchorPath(context.scratchDirectory, context.callerDirectory),
+  };
+  if (context.activationRoot !== undefined)
+    // Proof: facade-activation; `passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher` failed with the recorded source fault and passed after restoration.
+    environment['TOOL_WIKI_ACTIVATION_ROOT'] = context.activationRoot;
+  if (context.trustedNodeModules !== undefined)
+    // Proof: facade-closure; `passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher` failed with the recorded source fault and passed after restoration.
+    environment['TOOL_WIKI_TRUSTED_NODE_MODULES'] = context.trustedNodeModules;
+  return runInstalledLintLauncher({
+    // Proof: facade-distinct-mode; `refuses a controlled v1-only launcher before its operation marker and never retries standalone mode` failed with the recorded source fault and passed after restoration.
+    argv: [...context.launch(join(selected.toolkit.directory, 'launcher.mjs')), lintParentMode],
+    // Proof: facade-cwd; `passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher` failed with the recorded source fault and passed after restoration.
+    directory: selected.toolkit.directory,
+    environment,
+    stdin: Buffer.from(JSON.stringify(invocation)),
+    stdout: context.stdout,
+    stderr: context.stderr,
+    reportDiagnostic: context.reportDiagnostic,
+    subscribeInterrupts: context.subscribeInterrupts,
+  });
 }

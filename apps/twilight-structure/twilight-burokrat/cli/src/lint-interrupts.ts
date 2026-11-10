@@ -3,6 +3,8 @@ export type SubscribeLintInterrupts = (listener: (signal: LintInterrupt) => void
 
 export interface LintInterrupts {
   readonly subscribe: SubscribeLintInterrupts;
+  /** Feed validated ordered parent controls through the same first-reason broker as native signals. */
+  recordInterrupt(signal: LintInterrupt): void;
   /** Release native listeners and subscribers; repeated disposal is harmless. */
   dispose(): void;
 }
@@ -31,6 +33,12 @@ export function createLintInterrupts(): LintInterrupts {
   process.on('SIGINT', onInterrupt);
   process.on('SIGTERM', onTermination);
   return {
+    recordInterrupt(signal) {
+      // Proof: broker-parent-closed; `refuses parent control after the executable releases its broker` failed with the recorded source fault and passed after restoration.
+      if (isDisposed) throw new Error('lint interrupt source is closed');
+      // Proof: broker-parent-delivery; `records ordered parent controls through the same first-reason broker` failed with the recorded source fault and passed after restoration.
+      recordInterrupt(signal);
+    },
     subscribe(listener) {
       // Proof: broker-close; `executable-owned lint interrupts > refuses subscription after the executable releases its signal source` fails with this injected fault and passes after restoration.
       if (isDisposed) throw new Error('lint interrupt source is closed');

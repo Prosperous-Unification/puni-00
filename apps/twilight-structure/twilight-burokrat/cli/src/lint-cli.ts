@@ -7,6 +7,11 @@ import { createLaunch } from '@shared/bun-startup';
 import { LintActivationRefusal } from './lint-activation';
 import { createLintInterrupts, type SubscribeLintInterrupts } from './lint-interrupts';
 import { createLintOutputs, type LintOutputs } from './lint-output';
+import {
+  createLintParentControl,
+  type LintParentControl,
+  lintParentMode,
+} from './lint-parent-control';
 import { decodeLintRequest, LintUsageRefusal } from './lint-request';
 import { runLint } from './run-lint';
 
@@ -129,10 +134,40 @@ export async function runLintExecutable(argv: readonly string[]): Promise<number
     return 1;
   }
   let status: number;
+  let parent: LintParentControl | undefined;
   try {
-    status = await runLintMain(argv, { outputs, subscribeInterrupts: interrupts.subscribe });
+    // Proof: executable-private-argc; `refuses extra private parent argv before handshake or request IO` failed with the recorded source fault and passed after restoration.
+    const isParent = argv.length === 1 && argv[0] === lintParentMode;
+    parent = createLintParentControl(interrupts, isParent);
+    // Proof: executable-start-gate; `does not read the typed request after pre-start cancel` failed with the recorded source fault and passed after restoration.
+    const start = parent.kind === 'connected' ? await parent.start : { kind: 'started' as const };
+    // Proof: executable-start-failure-before-io; `does not read the typed request after pre-start invalid` failed with the recorded source fault and passed after restoration.
+    if (start.kind === 'failed') throw start.cause;
+    status =
+      // Proof: executable-start-cancel-before-io; `does not read the typed request after pre-start cancel` failed with the recorded source fault and passed after restoration.
+      start.kind === 'cancelled'
+        ? start.signal === 'SIGINT'
+          ? 130
+          : 143
+        : // Proof: executable-typed-mode; `actual installed launcher ordered parent control > does not launch a stage before start and reports finished after lifecycle settlement` failed with the recorded source fault and passed after restoration.
+          await runLintMain(isParent ? ['--puni-lint-v1'] : argv, {
+            outputs,
+            subscribeInterrupts: interrupts.subscribe,
+          });
+    const failure = parent.kind === 'connected' ? parent.readFailure() : undefined;
+    // Proof: executable-read-control-failure; `actual installed launcher ordered parent control > cleans its actual live stage after duplicate-start` failed with the recorded source fault and passed after restoration.
+    if (failure !== undefined) throw failure;
   } catch (cause) {
     status = await reportFailure(cause);
+  }
+  if (parent?.kind === 'connected') {
+    try {
+      // Proof: executable-control-before-dispose; `contains actual child broker-dispose-late failures within its owned executable boundary` failed with the recorded source fault and passed after restoration.
+      // Proof: executable-release-contained; `contains actual child release failures within its owned executable boundary` failed with the recorded source fault and passed after restoration.
+      parent.releaseControl();
+    } catch (cause) {
+      status = await reportFailure(cause);
+    }
   }
   try {
     // Proof: main-terminal-disposal-contained; `contains terminal disposal failures without Bun automatic reporting` fails with this injected fault and passes after restoration.
@@ -144,6 +179,14 @@ export async function runLintExecutable(argv: readonly string[]): Promise<number
     interrupts.dispose();
   } catch (cause) {
     status = await reportFailure(cause);
+  }
+  if (parent?.kind === 'connected') {
+    try {
+      // Proof: executable-finished-contained; `contains actual child finished-late failures within its owned executable boundary` failed with the recorded source fault and passed after restoration.
+      parent.finishLifecycle();
+    } catch (cause) {
+      status = await reportFailure(cause);
+    }
   }
   return status;
 }

@@ -164,6 +164,12 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **WHEN** SIGINT or SIGTERM arrives during either stage or between stages
 - **THEN** the launcher forwards cancellation to the owned stage group, escalates after bounded grace or repeated cancellation, starts no next stage, and settles group ownership and outward output waits before scratch cleanup and controlled130/143 completion; unconfirmed group cleanup instead fails and retains scratch
 
+#### Scenario: Installed cancellation is ordered before launcher work
+
+- **WHEN** the installed parent records cancellation during launcher startup or receives repeated/mixed cancellation
+- **THEN** the distinct closed --puni-lint-parent-v1 mode requires real IPC and a ready/start handshake delivering recorded controls in order through the existing broker before operation IO, preserving the first reason without native signal coalescing; the launcher reports finished only after executable settlement
+- **AND** older v1-only launchers reject the distinct mode before request IO with no standalone retry, and missing IPC, unknown/duplicate controls or premature channel loss fail visibly and request child-owned cleanup; unsolicited launcher death leaves nested cleanup explicitly unconfirmed, normal status1 after cancellation is preserved, and no parent escalation competes with detached stage ownership
+
 #### Scenario: Installed and archive launchers retain distinct existing authority
 
 - **WHEN** a complete current activation's reviewed launcher differs from the verified installed package launcher

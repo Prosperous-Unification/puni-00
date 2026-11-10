@@ -70,3 +70,27 @@ throw new Error('closed signal source accepted a subscriber');
     expect(child.stderr.toString()).toBe('');
   });
 });
+
+it('records ordered parent controls through the same first-reason broker', () => {
+  const child = runProbe(`
+const owner=createLintInterrupts();
+const observed=[];
+const unsubscribe=owner.subscribe(signal=>observed.push(signal));
+owner.recordInterrupt('SIGINT');owner.recordInterrupt('SIGTERM');owner.recordInterrupt('SIGINT');
+const replay=[];const release=owner.subscribe(signal=>replay.push(signal));release();unsubscribe();owner.dispose();
+process.stdout.write(JSON.stringify({observed,replay}));
+`);
+  expect(child.exitCode, child.stderr.toString()).toBe(0);
+  expect(child.stdout.toString()).toBe(
+    JSON.stringify({ observed: ['SIGINT', 'SIGTERM', 'SIGINT'], replay: ['SIGINT'] }),
+  );
+});
+it('refuses parent control after the executable releases its broker', () => {
+  const child = runProbe(`
+const owner=createLintInterrupts();owner.dispose();
+try{owner.recordInterrupt('SIGTERM');}catch(cause){process.stdout.write(cause.message);process.exit(0);}
+throw new Error('closed broker accepted parent control');
+`);
+  expect(child.exitCode, child.stderr.toString()).toBe(0);
+  expect(child.stdout.toString()).toBe('lint interrupt source is closed');
+});
