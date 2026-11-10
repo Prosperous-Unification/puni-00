@@ -182,9 +182,9 @@ describe('explicit immutable sparse upgrade family', () => {
       ({ currency: _currency, rateCardDigest: _rateCardDigest, ...measure }) => measure,
     );
     const bytes = JSON.stringify(body);
-    const eight = normalisePlanInputForward(body, 7, 8);
-    expect(eight.schemaVersion).toBe(8);
-    expect(eight.stepParallels).toEqual([]);
+    const eight = normalisePlanInputForward(body, 7, 8) as unknown as Record<string, unknown>;
+    expect(eight['schemaVersion']).toBe(8);
+    expect(eight['stepParallels']).toEqual([]);
     const nine = normalisePlanInputForward(eight, 8);
     expect(nine.schemaVersion).toBe(9);
     expect(nine.stepParallels).toEqual([]);

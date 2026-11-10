@@ -302,7 +302,7 @@ describe('historical1–10 memory reads do not rewrite stored evidence', () => {
       waitingForPerson: 0,
       waitingForCapacity: 0,
     });
-    const scheduleHash = await digest.sha256(new TextEncoder().encode(scheduleBytes));
+    const scheduleHash = await digest.sha256(scheduleBytes);
     const cases = [
       ...[1, 2, 3, 4, 5, 6, 7].flatMap((version) => [
         { version, emptyPolicy: false },
@@ -335,7 +335,7 @@ describe('historical1–10 memory reads do not rewrite stored evidence', () => {
       }
       if (version === 10) body['dependencyHistory'] = { kind: 'local' };
       const bytes = JSON.stringify(body);
-      const sha256 = await digest.sha256(new TextEncoder().encode(bytes));
+      const sha256 = await digest.sha256(bytes);
       const id = `historical-${String(version)}-${emptyPolicy ? 'empty' : 'missing'}`;
       expect(
         await requirements.plans.write(
