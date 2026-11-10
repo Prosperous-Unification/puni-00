@@ -187,3 +187,33 @@ test('SMTP bundled declarations enroll only the reviewed root', () => {
   manifest(root, 'unreviewed-mail-package');
   expect(trustedModuleNames(root)).toEqual([...trustedDeclarationRoots].sort());
 });
+
+test('refuses a selected noncompiler FIFO manifest before synchronous roster reads can block', () => {
+  const root = mkdtempSync(join(tmpdir(), 'puni selected manifest FIFO '));
+  try {
+    const modules = join(root, 'node_modules');
+    mkdirSync(join(modules, 'typescript'), { recursive: true });
+    mkdirSync(join(modules, '@ark/schema'), { recursive: true });
+    writeFileSync(join(modules, 'typescript/package.json'), '{}');
+    const fifo = join(modules, '@ark/schema/package.json');
+    const created = Bun.spawnSync(['/usr/bin/mkfifo', fifo], { stdout: 'pipe', stderr: 'pipe' });
+    expect(created.exitCode, created.stderr.toString()).toBe(0);
+    const program = join(root, 'read-roster.ts');
+    writeFileSync(
+      program,
+      'import{buildModuleNames}from ' +
+        JSON.stringify(join(import.meta.dir, 'trusted-modules.ts')) +
+        ';try{buildModuleNames(' +
+        JSON.stringify(modules) +
+        ');throw new Error("FIFO admitted");}catch(cause){if(!(cause instanceof Error)||!cause.message.includes("trusted node module manifest is not a regular file: @ark/schema"))throw cause;process.stdout.write("regular-file refusal");}',
+    );
+    const child = Bun.spawnSync(
+      [process.execPath, '--no-env-file', '--config=/dev/null', program],
+      { env: { PATH: '/usr/bin:/bin' }, stdout: 'pipe', stderr: 'pipe', timeout: 1000 },
+    );
+    expect(child.exitCode, child.stderr.toString()).toBe(0);
+    expect(child.stdout.toString()).toBe('regular-file refusal');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

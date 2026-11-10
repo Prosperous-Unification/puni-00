@@ -43,6 +43,7 @@ interface ToolkitFields {
   readonly digest: string;
   readonly bunVersion: string;
   readonly trustedNodeModules: readonly string[];
+  readonly trustedNodeModulesIdentity: string;
 }
 
 export interface LegacyToolkit extends ToolkitFields {
@@ -132,6 +133,7 @@ export function verifyToolkit(directory: string): VerifiedToolkit {
     sourceRevision: descriptor.sourceRevision,
     digest: hashBytes(descriptorBytes),
     trustedNodeModules: descriptor.trustedNodeModules,
+    trustedNodeModulesIdentity: descriptor.trustedNodeModulesIdentity,
   };
 }
 

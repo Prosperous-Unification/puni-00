@@ -15,6 +15,7 @@ import { captureCommittedSource } from './committed-source';
 import { reservePreparationDirectory } from './preparation-directory';
 import { runPreparationGit } from './preparation-git';
 import { readJson, readOperatorFile, readProjects, readSourceFile } from './preparation-inputs';
+import { readPreparationNotices } from './preparation-notices';
 import { type PreparationContext, readPreparationSource } from './preparation-source';
 import { assembleActivation, writeActivationRoles } from './prepared-activation';
 import {
@@ -165,6 +166,8 @@ export async function prepareBunToolkit(
     const source = candidate.source,
       sha = selection.sourceRevision,
       toolkit = selection.toolkit;
+    // Proof: c27-normal-notice-delivery; injected fault failed `delivers derived pinned compiler notices in a normal prepared archive without trusting adjacent files`; restoration passed.
+    const notices = readPreparationNotices(toolkit).notices;
     assertPinnedRuntime(
       Bun.version,
       new TextDecoder('utf-8', { fatal: true }).decode(readSourceFile(source, '.bun-version')),
@@ -288,7 +291,7 @@ export async function prepareBunToolkit(
         toolkit,
         committerEpoch,
         heading: 'toolkit activation',
-        notices: [],
+        notices,
       },
       {
         callerDirectory: captured.callerDirectory,

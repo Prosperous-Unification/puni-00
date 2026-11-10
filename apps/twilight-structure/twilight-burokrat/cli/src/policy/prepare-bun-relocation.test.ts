@@ -1,13 +1,5 @@
 import * as synchronousFilesystem from 'node:fs';
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as filesystem from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -18,20 +10,11 @@ import { afterAll, expect, it, spyOn } from 'bun:test';
 import type { InstalledRequest } from '../cli-parser';
 import { hashBytes } from '../evidence/content-manifest';
 import { readLintRuntime } from '../lint-runtime';
-import { prepareBunActivation, verifyActivation } from './activation';
-import { buildLintLauncher } from './build-lint-launcher';
-import { planBunToolkit } from './bun-release';
-import { writeCandidateCheckRuns } from './check-run-fixtures';
+import { createRelocationFixture } from '../testing/preparation-fixtures';
+import { verifyActivation } from './activation';
 import { prepareBunRelocation } from './prepare-bun-relocation';
 import { PreparationFailure } from './prepare-bun-toolkit';
-import {
-  auditReview,
-  candidateIdentityAt,
-  createRelocationCandidate,
-  disposeRelocationFixtures,
-  prepareBaseActivation,
-} from './relocation-fixtures';
-import { hashTrustedModules } from './trusted-modules';
+import { disposeRelocationFixtures } from './relocation-fixtures';
 
 it('returns prior relocation cancellation before reading absent candidate base and operator inputs', async () => {
   const root = mkdtempSync(join(tmpdir(), 'puni relocation '));
@@ -74,190 +57,8 @@ afterAll(() => {
   disposeRelocationFixtures();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
-function commitCandidate(repository: string): string {
-  for (const args of [
-    ['add', '--all'],
-    ['commit', '-m', 'current Bun relocation roles'],
-    ['rev-parse', 'HEAD'],
-  ]) {
-    const child = Bun.spawnSync(['/usr/bin/git', '-C', repository, ...args], {
-      env: {
-        PATH: '/usr/bin:/bin',
-        GIT_CONFIG_GLOBAL: '/dev/null',
-        GIT_CONFIG_SYSTEM: '/dev/null',
-      },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    if (child.exitCode !== 0) throw new Error(child.stderr.toString());
-    if (args[0] === 'rev-parse') return child.stdout.toString().trim();
-  }
-  throw new Error('candidate revision was not read');
-}
-async function createRelocationFixture(
-  options: {
-    readonly compiler?: boolean;
-    readonly baseVersion?: 3 | 4;
-    readonly certified?: boolean;
-  } = {},
-) {
-  const fixture = createRelocationCandidate({ reproducible: true });
-  const root = mkdtempSync(join(tmpdir(), 'puni Bun relocation '));
-  roots.push(root);
-  const historicalSentinel = join(root, 'historical.executed');
-  writeFileSync(
-    join(fixture.repository, 'bin/tool-wiki-lint.sh'),
-    '#!/usr/bin/env bash\nprintf executed > ' + JSON.stringify(historicalSentinel) + '\nexit 79\n',
-  );
-  let base = prepareBaseActivation(fixture);
-  if (options.baseVersion === 4) {
-    const previous = verifyActivation(base.directory);
-    const launcher = join(root, 'historical.mjs');
-    writeFileSync(launcher, 'throw new Error("historical Bun launcher must not run");');
-    const roleSources = {
-      ...Object.fromEntries(
-        Object.entries(previous.manifest.roles).map(([role, path]) => [
-          role,
-          join(base.directory, path),
-        ]),
-      ),
-      launcher,
-    };
-    // Object.fromEntries loses the fixed manifest keys at this test fixture boundary.
-    const prepared = prepareBunActivation({
-      candidateRepository: fixture.repository,
-      destination: join(root, 'base4'),
-      sourceRevision: previous.manifest.sourceRevision,
-      policyIdentity: previous.manifest.policyIdentity,
-      mappingIdentity: previous.manifest.mappingIdentity,
-      validatorIdentity: previous.manifest.validatorIdentity,
-      reviewReceiptIdentity: previous.manifest.reviewReceiptIdentity,
-      roleSources: roleSources as Record<keyof typeof previous.manifest.roles, string>,
-    });
-    base = { root, directory: prepared.directory };
-  }
-  // The actual current launcher and snapshotter execute a controlled certificate peer. This
-  // checks relocation orchestration and lineage isolation, not semantic validator coverage.
-  writeFileSync(join(fixture.repository, 'src/new/launcher.ts'), await buildLintLauncher());
-  writeFileSync(
-    join(fixture.repository, 'src/new/policy/snapshot-validator.ts'),
-    readFileSync(join(import.meta.dir, 'snapshot-validator.ts')),
-  );
-  writeFileSync(
-    join(fixture.repository, 'src/new/cli.ts'),
-    (options.compiler === true ? 'import ts from "typescript";' : '') +
-      'process.stdout.write(JSON.stringify({schemaVersion:1,mode:"enforce",trustProvenance:"ci-preselected",accepted:true,certified:' +
-      JSON.stringify(options.certified !== false) +
-      ',source:"current-candidate"' +
-      (options.compiler === true ? ',compiler:ts.version' : '') +
-      '}));',
-  );
-  const revision = commitCandidate(fixture.repository);
-  const toolkit = join(root, 'toolkit'),
-    closure = join(toolkit, 'trusted-node-modules'),
-    runtime = join(root, 'runtime');
-  mkdirSync(closure, { recursive: true });
-  mkdirSync(runtime);
-  const workspace = resolve(import.meta.dir, '../../../../../..');
-  cpSync(join(workspace, 'node_modules/typescript'), join(closure, 'typescript'), {
-    recursive: true,
-  });
-  mkdirSync(join(closure, '@typescript'));
-  cpSync(join(workspace, 'node_modules/@typescript/old'), join(closure, '@typescript/old'), {
-    recursive: true,
-  });
-  for (const name of ['source-map-support', 'source-map', 'buffer-from'])
-    cpSync(join(workspace, 'node_modules', name), join(closure, name), { recursive: true });
-  const roleBytes = {
-    'launcher.mjs': Buffer.from('throw new Error("toolkit launcher must not run");'),
-    'snapshotter.ts': Buffer.from('throw new Error("toolkit snapshotter must not run");'),
-    'validator.mjs': Buffer.from('throw new Error("toolkit validator must not run");'),
-    'prepare-activation.mjs': Buffer.from('export{};'),
-    'prepare-relocation-activation.mjs': Buffer.from('export{};'),
-  };
-  for (const [name, bytes] of Object.entries(roleBytes)) writeFileSync(join(toolkit, name), bytes);
-  const plan = planBunToolkit({
-    tag: 'puni-v0.3.0',
-    sourceRevision: 'a'.repeat(40),
-    bunVersion: Bun.version,
-    roleBytes,
-    trustedNodeModules: [
-      'typescript',
-      '@typescript/old',
-      'source-map-support',
-      'source-map',
-      'buffer-from',
-    ],
-    trustedNodeModulesIdentity: hashTrustedModules(closure),
-  });
-  writeFileSync(join(toolkit, 'toolkit.json'), plan.descriptor);
-  const review = join(root, 'review.json'),
-    checkRuns = join(root, 'check-runs');
-  writeFileSync(
-    review,
-    JSON.stringify(
-      auditReview(
-        'review.fixture.module',
-        revision,
-        candidateIdentityAt(fixture.repository, revision),
-      ),
-    ),
-  );
-  writeCandidateCheckRuns(checkRuns, {
-    repository: fixture.repository,
-    revision,
-    policyPath: 'docs/wiki-policy/policy.json',
-  });
-  const request: InstalledRequest<'prepare-relocation-activation'> = {
-    command: 'prepare-relocation-activation',
-    candidateRepository: fixture.repository,
-    candidateSha: revision,
-    baseActivation: base.directory,
-    reviewRecord: review,
-    candidatePolicy: 'docs/wiki-policy/policy.json',
-    candidateLauncher: 'src/new/launcher.ts',
-    validatorEntry: 'src/new/cli.ts',
-    checkRuns,
-    destination: join(root, 'activation'),
-    work: join(root, 'work'),
-    resourceLane: 'lane.relocation-fixture',
-    cwdIdentity: 'cwd.relocation-fixture',
-  };
-  const listeners = new Set<(signal: 'SIGINT' | 'SIGTERM') => void>();
-  let first: 'SIGINT' | 'SIGTERM' | undefined;
-  const interrupt = (signal: 'SIGINT' | 'SIGTERM') => {
-    first ??= signal;
-    for (const listener of listeners) listener(signal);
-  };
-  const context = {
-    callerDirectory: root,
-    toolkitDirectory: toolkit,
-    expectedToolkitIdentity: hashBytes(plan.descriptor),
-    runtime: readLintRuntime('/usr/bin:/bin', runtime),
-    launch: (entry: string) => createLaunch(process.execPath, entry),
-    subscribeInterrupts: (listener: (signal: 'SIGINT' | 'SIGTERM') => void) => {
-      listeners.add(listener);
-      if (first !== undefined) listener(first);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-  };
-  return {
-    root,
-    fixture,
-    base,
-    request,
-    context,
-    historicalSentinel,
-    revision,
-    interrupt,
-    listeners,
-  };
-}
-
 it('builds and certifies candidate Bun relocation without executing historical or toolkit roles', async () => {
-  const fixture = await createRelocationFixture();
+  const fixture = await createRelocationFixture(roots);
   const prepared = await prepareBunRelocation(fixture.request, fixture.context).catch(
     (cause: unknown) => {
       if (cause instanceof PreparationFailure) throw cause.cause;
@@ -285,7 +86,7 @@ it('builds and certifies candidate Bun relocation without executing historical o
 }, 60000);
 
 it('relocates a verified current Bun base using fresh candidate roles', async () => {
-  const fixture = await createRelocationFixture({ baseVersion: 4 });
+  const fixture = await createRelocationFixture(roots, { baseVersion: 4 });
   const prepared = await prepareBunRelocation(fixture.request, fixture.context);
   expect(prepared.kind).toBe('prepared');
   if (prepared.kind !== 'prepared') throw new Error('unexpected cancellation');
@@ -300,7 +101,7 @@ it('relocates a verified current Bun base using fresh candidate roles', async ()
 }, 60000);
 
 it('delivers the prepared compiler license and modification notice inside the relocation archive', async () => {
-  const fixture = await createRelocationFixture({ compiler: true });
+  const fixture = await createRelocationFixture(roots, { compiler: true });
   const prepared = await prepareBunRelocation(fixture.request, fixture.context).catch(
     (cause: unknown) => {
       if (cause instanceof PreparationFailure) throw cause.cause;
@@ -333,7 +134,7 @@ it('delivers the prepared compiler license and modification notice inside the re
 }, 60000);
 
 it('retains relocation outputs and refuses archive creation without a full certificate', async () => {
-  const fixture = await createRelocationFixture({ certified: false });
+  const fixture = await createRelocationFixture(roots, { certified: false });
   const cause: unknown = await prepareBunRelocation(fixture.request, fixture.context).then(
     () => undefined,
     (failure: unknown) => failure,
@@ -351,7 +152,7 @@ for (const stage of ['work', 'destination'] as const) {
   it(
     'retains relocation roots and stops after interrupted ' + stage + ' reservation',
     async () => {
-      const fixture = await createRelocationFixture();
+      const fixture = await createRelocationFixture(roots);
       const target = stage === 'work' ? fixture.request.work : fixture.request.destination;
       const original = filesystem.mkdir.bind(filesystem);
       // Preserve native mkdir overloads and inject only after the real directory exists.
@@ -389,7 +190,7 @@ for (const stage of ['work', 'destination'] as const) {
 }
 
 it('retains materialized relocation source and stops after interrupted role build', async () => {
-  const fixture = await createRelocationFixture();
+  const fixture = await createRelocationFixture(roots);
   const original = Bun.build.bind(Bun);
   let calls = 0;
   const build = spyOn(Bun, 'build').mockImplementation(async (options) => {
@@ -414,7 +215,7 @@ it('retains materialized relocation source and stops after interrupted role buil
 }, 60000);
 
 it('preserves relocation subscription release failure after prior cancellation', async () => {
-  const fixture = await createRelocationFixture();
+  const fixture = await createRelocationFixture(roots);
   const release = new Error('injected relocation release failure');
   const cause: unknown = await prepareBunRelocation(fixture.request, {
     ...fixture.context,
@@ -436,7 +237,7 @@ it('preserves relocation subscription release failure after prior cancellation',
 }, 60000);
 
 it('preserves relocation input and release failures together ahead of interruption', async () => {
-  const fixture = await createRelocationFixture();
+  const fixture = await createRelocationFixture(roots);
   const release = new Error('injected relocation release failure');
   const cause: unknown = await prepareBunRelocation(
     { ...fixture.request, reviewRecord: join(fixture.root, 'absent-review') },
@@ -463,7 +264,7 @@ it('preserves relocation input and release failures together ahead of interrupti
 }, 60000);
 
 it('refuses written compiler notice drift before certification and archive reservation', async () => {
-  const fixture = await createRelocationFixture({ compiler: true });
+  const fixture = await createRelocationFixture(roots, { compiler: true });
   const original = synchronousFilesystem.writeFileSync.bind(synchronousFilesystem);
   const target = join(fixture.request.destination, 'licenses/typescript-preparation/NOTICE');
   let injected = false;
@@ -494,7 +295,7 @@ it('refuses written compiler notice drift before certification and archive reser
 }, 60000);
 
 it('honors first relocation cancellation during outer release after archive settlement', async () => {
-  const fixture = await createRelocationFixture();
+  const fixture = await createRelocationFixture(roots);
   const original = fixture.context.subscribeInterrupts;
   let subscriptions = 0;
   const prepared = await prepareBunRelocation(fixture.request, {
@@ -525,7 +326,7 @@ for (const fault of ['status', 'utf8', 'grammar', 'path'] as const) {
   it(
     'refuses invalid selected relocation ' + fault + ' authority before output reservation',
     async () => {
-      const fixture = await createRelocationFixture(),
+      const fixture = await createRelocationFixture(roots),
         modulePath = join(
           import.meta.dir,
           fault === 'path' ? 'preparation-source.ts' : 'preparation-git.ts',
@@ -617,7 +418,7 @@ for (const fault of ['status', 'utf8', 'grammar', 'path'] as const) {
 }
 
 it('captures request and runtime authority before the first broker callback can mutate aliases', async () => {
-  const fixture = await createRelocationFixture(),
+  const fixture = await createRelocationFixture(roots),
     request = { ...fixture.request },
     context = {
       ...fixture.context,
@@ -647,7 +448,7 @@ it('captures request and runtime authority before the first broker callback can 
 }, 30000);
 
 it('captures relocation review bytes before source-selection subscriptions mutate their files', async () => {
-  const fixture = await createRelocationFixture(),
+  const fixture = await createRelocationFixture(roots),
     subscribe = fixture.context.subscribeInterrupts;
   let count = 0;
   fixture.context.subscribeInterrupts = (listener) => {
@@ -673,7 +474,7 @@ for (const stage of [
   it(
     'refuses relocation ' + stage + ' dependency cancellation without the owning broker',
     async () => {
-      const fixture = await createRelocationFixture();
+      const fixture = await createRelocationFixture(roots);
       const dependency = {
         source: {
           file: 'preparation-source.ts',

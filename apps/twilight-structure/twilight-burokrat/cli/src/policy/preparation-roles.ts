@@ -15,6 +15,8 @@ import ts from 'typescript';
 import type { LintInterrupt, SubscribeLintInterrupts } from '../lint-interrupts';
 import { type PreparationCompiler, prepareCompiler } from '../packaging/preparation-compiler';
 import { boundSource } from '../relationships/typescript-compiler';
+import type { BuildDependencies } from './build-dependencies';
+import { type BunToolkitRole, bunToolkitRoles } from './bun-release';
 import type { CommittedSource } from './committed-source';
 import type { PreparationNotice } from './prepared-activation';
 import { type BunToolkit, readBunToolkit } from './toolkit';
@@ -148,34 +150,125 @@ function assertNoOpaqueLoads(path: string, module: Module, vendor: boolean): voi
   visit(parsed);
 }
 
-/**
- * Build only selected captured first-party bytes and an authenticated toolkit dependency copy.
- * Candidate build helpers/plugins never execute. Configuration reads use the bounded compiler
- * namespace; effective alias roots and resolved module targets must remain in that private view.
- * Macro attributes refuse before the bundler, whose global startup flag does not protect its API.
- * A sealed namespace supplies captured module bytes and rejects every unplanned import/load.
- * The caller owns the freshly materialized root and retains it on failure/cancellation. Build
- * settlement is awaited before cancellation returns; this in-process API owns no child group.
- */
+interface RoleBuildContext<Role extends string> {
+  readonly materializedDirectory: string;
+  readonly entries: readonly (readonly [Role, string])[];
+  readonly executableRoles: readonly Role[];
+  readonly readDependencies: () => BuildDependencies;
+  readonly subscribeInterrupts: SubscribeLintInterrupts;
+}
+type BuiltRoles<Role extends string> =
+  | { readonly kind: 'cancelled'; readonly status: 130 | 143 }
+  | {
+      readonly kind: 'built';
+      readonly roleBytes: Readonly<Record<Role, Uint8Array>>;
+      readonly compilerTransforms: readonly PreparationCompiler['manifest'][];
+      readonly notices: readonly PreparationNotice[];
+    };
+
+/** The three-role relocation adapter reauthenticates its selected toolkit inside the owned build. */
 export async function buildPreparationRoles(
   source: CommittedSource,
   context: Context,
 ): Promise<PreparationRoles> {
+  const toolkitDirectory = context.toolkit.directory,
+    toolkitIdentity = context.toolkit.digest;
+  const built = await buildSelectedRoles(source, {
+    materializedDirectory: context.materializedDirectory,
+    entries: [
+      ['validator', context.validatorEntry],
+      ['launcher', context.launcherEntry],
+      ['snapshotter', join(dirname(context.validatorEntry), 'policy/snapshot-validator.ts')],
+    ],
+    executableRoles: ['launcher'],
+    subscribeInterrupts: context.subscribeInterrupts,
+    readDependencies: () => {
+      const verified = readBunToolkit(toolkitDirectory);
+      // Proof: c26-build-toolkit; injected fault failed `refuses a changed selected toolkit identity before copying dependencies`; the same named test(s) passed after restoration.
+      if (verified.digest !== toolkitIdentity)
+        throw new Error('preparation toolkit identity changed before build');
+      return {
+        directory: join(verified.directory, 'trusted-node-modules'),
+        identity: verified.trustedNodeModulesIdentity,
+        names: verified.trustedNodeModules,
+        bunVersion: verified.bunVersion,
+        compilerVersion: ts.version,
+        protectedPaths: [verified.directory],
+      };
+    },
+  });
+  if (built.kind !== 'built') return built;
+  return {
+    kind: 'built',
+    // Proof: c26-build-validator-provenance; injected fault failed `builds selected checkout roles and aliases from captured B while live B changes`; the same named test(s) passed after restoration.
+    validator: built.roleBytes.validator,
+    // Proof: c26-build-launcher-provenance; injected fault failed `builds selected checkout roles and aliases from captured B while live B changes`; the same named test(s) passed after restoration.
+    launcher: built.roleBytes.launcher,
+    // Proof: c26-build-snapshotter-provenance; injected fault failed `builds selected checkout roles and aliases from captured B while live B changes`; the same named test(s) passed after restoration.
+    snapshotter: built.roleBytes.snapshotter,
+    compilerTransforms: built.compilerTransforms,
+    notices: built.notices,
+  };
+}
+
+/**
+ * Build every current toolkit role from one captured source and independently admitted closure.
+ * The capability comes from readBuildDependencies or an already authenticated toolkit adapter;
+ * no candidate import extends its roster. Input arrays and fields are captured before callbacks.
+ */
+export function buildToolkitRoles(
+  source: CommittedSource,
+  context: {
+    readonly materializedDirectory: string;
+    readonly dependencies: BuildDependencies;
+    readonly entries: Readonly<Record<BunToolkitRole, string>>;
+    readonly subscribeInterrupts: SubscribeLintInterrupts;
+  },
+): Promise<BuiltRoles<BunToolkitRole>> {
+  const dependencies: BuildDependencies = {
+    ...context.dependencies,
+    // Proof: c27-roles-capability-capture; names-array capture only: mutation retains that input array alias; other copied capability fields are not independently claimed; injected fault failed `captures five-role entries and dependency capability fields before subscription aliases mutate`; restoration passed.
+    names: [...context.dependencies.names],
+    protectedPaths: [...context.dependencies.protectedPaths],
+  };
+  // Proof: c27-roles-entry-capture; ordering fault: invoke the callback before copying role-entry fields; injected fault failed `captures five-role entries and dependency capability fields before subscription aliases mutate`; restoration passed.
+  return buildSelectedRoles(source, {
+    materializedDirectory: context.materializedDirectory,
+    entries: bunToolkitRoles.map((role) => [role, context.entries[role]] as const),
+    executableRoles: [
+      'launcher.mjs',
+      'prepare-activation.mjs',
+      'prepare-relocation-activation.mjs',
+    ],
+    readDependencies: () => dependencies,
+    subscribeInterrupts: context.subscribeInterrupts,
+  });
+}
+
+/**
+ * Candidate helpers/plugins never execute: configuration is bounded and a sealed namespace
+ * supplies captured modules, closed imports and the pinned compiler transform. Macro attributes
+ * refuse before Bun's API. The caller owns the fresh view and retains it on failure/cancellation.
+ * Every in-process build settles before cancellation returns; this API owns no child group.
+ */
+async function buildSelectedRoles<Role extends string>(
+  source: CommittedSource,
+  context: RoleBuildContext<Role>,
+): Promise<BuiltRoles<Role>> {
   const materializedDirectory = context.materializedDirectory,
-    toolkitDirectory = context.toolkit.directory,
-    toolkitIdentity = context.toolkit.digest,
-    validatorEntry = context.validatorEntry,
-    launcherEntry = context.launcherEntry,
+    selectedEntries = context.entries.map(([role, path]) => [role, path] as const),
+    executableRoles = [...context.executableRoles],
+    readDependencies = context.readDependencies,
     subscribe = context.subscribeInterrupts;
   let first: LintInterrupt | undefined;
   const unsubscribe = subscribe((signal) => {
     // Proof: c26-build-first-reason; injected fault failed `honors the first interruption delivered during terminal build subscription release`; the same named test(s) passed after restoration.
     first ??= signal;
   });
-  const readCancellation = (): Extract<PreparationRoles, { kind: 'cancelled' }> | undefined =>
+  const readCancellation = (): Extract<BuiltRoles<Role>, { kind: 'cancelled' }> | undefined =>
     // Proof: c26-build-status; injected fault failed `returns prior role-build cancellation before resolving absent materialization`; the same named test(s) passed after restoration.
     first === undefined ? undefined : { kind: 'cancelled', status: first === 'SIGINT' ? 130 : 143 };
-  async function buildRoles(): Promise<PreparationRoles> {
+  async function buildRoles(): Promise<BuiltRoles<Role>> {
     const prior = readCancellation();
     // Proof: c26-build-prior; injected fault failed `returns prior role-build cancellation before resolving absent materialization`; the same named test(s) passed after restoration.
     if (prior !== undefined) return prior;
@@ -185,22 +278,18 @@ export async function buildPreparationRoles(
     // Proof: c26-build-captured-modules; injected fault failed `refuses captured node_modules before copying any preparation dependencies`; the same named test(s) passed after restoration.
     if (snapshot.entries.some((entry) => entry.path.split('/').includes('node_modules')))
       throw new Error('captured node_modules is not preparation dependency authority');
-    const verified = readBunToolkit(toolkitDirectory);
-    // Proof: c26-build-toolkit; injected fault failed `refuses a changed selected toolkit identity before copying dependencies`; the same named test(s) passed after restoration.
-    if (verified.digest !== toolkitIdentity)
-      throw new Error('preparation toolkit identity changed before build');
+    const dependencies = readDependencies();
+    // Proof: c27-roles-capability-pins; injected fault failed `refuses a dependency capability with a different bunVersion before copying` and 1 additional named controls; restoration passed.
+    if (dependencies.bunVersion !== Bun.version || dependencies.compilerVersion !== ts.version)
+      throw new Error(
+        'preparation build dependency capability has different runtime or compiler pins',
+      );
     const modules = join(directory, 'node_modules');
     mkdirSync(modules, { mode: 0o700 });
-    copyTrustedModules(
-      modules,
-      join(verified.directory, 'trusted-node-modules'),
-      verified.trustedNodeModules,
-    );
-    if (
-      // Proof: c26-build-copy; injected fault failed `refuses changed dependency copy bytes before building executable roles`; the same named test(s) passed after restoration.
-      hashTrustedModules(modules) !==
-      hashTrustedModules(join(verified.directory, 'trusted-node-modules'))
-    )
+    copyTrustedModules(modules, dependencies.directory, dependencies.names);
+    // Proof: c26-build-copy; injected fault failed `refuses changed dependency copy bytes before building executable roles`; the same named test(s) passed after restoration.
+    // Proof: c27-roles-admitted-copy; injected fault failed `refuses dependency bytes changed after capability admission and before the private copy`; restoration passed.
+    if (hashTrustedModules(modules) !== dependencies.identity)
       throw new Error('preparation build dependency copy differs from toolkit');
     const manifest: unknown = JSON.parse(
       readFileSync(join(modules, '@typescript/old/package.json'), 'utf8'),
@@ -400,19 +489,17 @@ export async function buildPreparationRoles(
         throw new Error('preparation dependency imports first-party source: ' + specifier);
       return { path: selected, isExternal: false };
     }
-    const validator = realpathSync.native(admitPath(join(directory, validatorEntry))),
-      launcher = realpathSync.native(admitPath(join(directory, launcherEntry))),
-      snapshotter = realpathSync.native(
-        admitPath(join(directory, dirname(validatorEntry), 'policy/snapshot-validator.ts')),
-      );
+    const roleEntries = selectedEntries.map(
+      ([role, path]) => [role, realpathSync.native(admitPath(join(directory, path)))] as const,
+    );
     // Proof: c26-build-role-source; injected fault failed `refuses an executable role selected from authenticated dependencies`; the same named test(s) passed after restoration.
-    if ([validator, launcher, snapshotter].some((path) => isWithin(modules, path)))
+    if (roleEntries.some(([, path]) => isWithin(modules, path)))
       throw new Error('preparation executable role must be selected first-party source');
     const compilerTransforms: PreparationCompiler['manifest'][] = [];
     const notices: PreparationNotice[] = [];
     const captured = new Map<string, Module>(),
       imports = new Map<string, { path: string; isExternal: boolean }>(),
-      pending = [validator, launcher, snapshotter];
+      pending = roleEntries.map(([, path]) => path);
     while (pending.length > 0) {
       const path = pending.pop();
       if (path === undefined) throw new Error('preparation source queue is unexpectedly empty');
@@ -514,7 +601,10 @@ export async function buildPreparationRoles(
         allowUnresolved: [],
         tsconfig: buildConfig,
         // Proof: c26-build-pin; injected fault failed `delivers the producer Bun pin and one protected launcher hashbang in selected roles`; the same named test(s) passed after restoration.
-        define: { __PUNI_LINT_BUN_VERSION__: JSON.stringify(Bun.version) },
+        define: {
+          __PUNI_LINT_BUN_VERSION__: JSON.stringify(Bun.version),
+          __PUNI_PREPARATION_BUN_VERSION__: JSON.stringify(Bun.version),
+        },
         plugins: [
           {
             name: namespace,
@@ -551,26 +641,26 @@ export async function buildPreparationRoles(
       if (artifact === undefined) throw new Error('preparation role build output disappeared');
       return new Uint8Array(await artifact.arrayBuffer());
     }
-    // Proof: c26-build-await-validator; injected fault failed `awaits the actual in-process build after interruption and starts no later role`; the same named test(s) passed after restoration.
-    const validatorBytes = await buildRole(validator);
-    const afterValidator = readCancellation();
-    // Proof: c26-build-after-validator; injected fault failed `awaits the actual in-process build after interruption and starts no later role`; the same named test(s) passed after restoration.
-    if (afterValidator !== undefined) return afterValidator;
-    const launcherBytes = await buildRole(launcher);
-    const afterLauncher = readCancellation();
-    if (afterLauncher !== undefined) return afterLauncher;
-    const snapshotterBytes = await buildRole(snapshotter);
-    const afterSnapshotter = readCancellation();
-    if (afterSnapshotter !== undefined) return afterSnapshotter;
+    const roleBytes: [Role, Uint8Array][] = [];
+    for (const [role, entry] of roleEntries) {
+      // Proof: c26-build-await-validator; injected fault failed `awaits the actual in-process build after interruption and starts no later role`; the same named test(s) passed after restoration.
+      const bytes = await buildRole(entry);
+      const afterBuild = readCancellation();
+      // Proof: c26-build-after-validator; injected fault failed `awaits the actual in-process build after interruption and starts no later role`; the same named test(s) passed after restoration.
+      if (afterBuild !== undefined) return afterBuild;
+      // Proof: c26-build-hashbang; injected fault failed `delivers the producer Bun pin and one protected launcher hashbang in selected roles`; the same named test(s) passed after restoration.
+      roleBytes.push([
+        role,
+        executableRoles.includes(role)
+          ? Buffer.concat([Buffer.from(createShebang() + '\n'), bytes])
+          : bytes,
+      ]);
+    }
     return {
       kind: 'built',
-      // Proof: c26-build-validator-provenance; injected fault failed `builds selected checkout roles and aliases from captured B while live B changes`; the same named test(s) passed after restoration.
-      validator: validatorBytes,
-      // Proof: c26-build-launcher-provenance; injected fault failed `builds selected checkout roles and aliases from captured B while live B changes`; the same named test(s) passed after restoration.
-      // Proof: c26-build-hashbang; injected fault failed `delivers the producer Bun pin and one protected launcher hashbang in selected roles`; the same named test(s) passed after restoration.
-      launcher: Buffer.concat([Buffer.from(createShebang() + '\n'), Buffer.from(launcherBytes)]),
-      // Proof: c26-build-snapshotter-provenance; injected fault failed `builds selected checkout roles and aliases from captured B while live B changes`; the same named test(s) passed after restoration.
-      snapshotter: snapshotterBytes,
+      // The private adapters supply each closed Role exactly once, and this settled loop maps
+      // those captured entries one-to-one; Object.fromEntries widens that discharged key set.
+      roleBytes: Object.fromEntries(roleBytes) as Readonly<Record<Role, Uint8Array>>,
       compilerTransforms: compilerTransforms.map((manifest) => ({ ...manifest })),
       notices: notices.map((notice) => ({ path: notice.path, bytes: notice.bytes.slice() })),
     };

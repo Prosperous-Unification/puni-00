@@ -18,7 +18,7 @@ import { readLintRuntime } from '../lint-runtime';
 import { planBunToolkit } from './bun-release';
 import { captureCommittedSource } from './committed-source';
 import { materializeSource } from './materialized-source';
-import { buildPreparationRoles } from './preparation-roles';
+import { buildPreparationRoles, buildToolkitRoles } from './preparation-roles';
 import { readPreparationSource } from './preparation-source';
 import * as trustedModuleAuthority from './trusted-modules';
 import { buildModuleNames, hashTrustedModules } from './trusted-modules';
@@ -1027,3 +1027,156 @@ it('delivers the producer Bun pin and one protected launcher hashbang in selecte
   expect(launcher.startsWith('#!/usr/bin/env -S -u BUN_OPTIONS')).toBe(true);
   expect(launcher.match(/^#!/gmu)?.length).toBe(1);
 }, 30000);
+
+it('builds all five selected roles from one capture and a separately pinned dependency capability', async () => {
+  const fixture = await createFixture({
+    configure(repository) {
+      write(
+        join(repository, 'src/prepare.ts'),
+        'console.log("prepare:"+__PUNI_PREPARATION_BUN_VERSION__);',
+      );
+      write(
+        join(repository, 'src/relocate.ts'),
+        'console.log("relocate:"+__PUNI_PREPARATION_BUN_VERSION__);',
+      );
+    },
+  });
+  const closure = join(fixture.toolkit, 'trusted-node-modules');
+  const built = await buildToolkitRoles(fixture.source, {
+    materializedDirectory: fixture.directory,
+    dependencies: {
+      directory: closure,
+      identity: hashTrustedModules(closure),
+      names: fixture.selection.toolkit.trustedNodeModules,
+      bunVersion: Bun.version,
+      compilerVersion: '6.0.3',
+      protectedPaths: [fixture.toolkit],
+    },
+    entries: {
+      'validator.mjs': 'src/validator.ts',
+      'launcher.mjs': 'src/launcher.ts',
+      'snapshotter.ts': 'src/policy/snapshot-validator.ts',
+      'prepare-activation.mjs': 'src/prepare.ts',
+      'prepare-relocation-activation.mjs': 'src/relocate.ts',
+    },
+    subscribeInterrupts: () => () => undefined,
+  });
+  if (built.kind !== 'built') throw new Error('unexpected five-role build cancellation');
+  expect(Object.keys(built.roleBytes).sort()).toEqual([
+    'launcher.mjs',
+    'prepare-activation.mjs',
+    'prepare-relocation-activation.mjs',
+    'snapshotter.ts',
+    'validator.mjs',
+  ]);
+  for (const role of [
+    'launcher.mjs',
+    'prepare-activation.mjs',
+    'prepare-relocation-activation.mjs',
+  ] as const) {
+    expect(
+      new TextDecoder()
+        .decode(built.roleBytes[role])
+        .split('\n')
+        .filter((line) => line.startsWith('#!')),
+    ).toHaveLength(1);
+  }
+  expect(
+    runRole(fixture.root, 'five-validator', built.roleBytes['validator.mjs'], fixture.root),
+  ).toBe('validator:selected-B:authenticated');
+  expect(
+    runRole(fixture.root, 'five-prepare', built.roleBytes['prepare-activation.mjs'], fixture.root),
+  ).toBe('prepare:' + Bun.version);
+  expect(
+    runRole(
+      fixture.root,
+      'five-relocate',
+      built.roleBytes['prepare-relocation-activation.mjs'],
+      fixture.root,
+    ),
+  ).toBe('relocate:' + Bun.version);
+});
+
+function toolkitBuildContext(fixture: Awaited<ReturnType<typeof createFixture>>) {
+  const directory = join(fixture.toolkit, 'trusted-node-modules');
+  return {
+    materializedDirectory: fixture.directory,
+    dependencies: {
+      directory,
+      identity: hashTrustedModules(directory),
+      names: [...fixture.selection.toolkit.trustedNodeModules],
+      bunVersion: Bun.version,
+      compilerVersion: '6.0.3',
+      protectedPaths: [fixture.toolkit],
+    },
+    entries: {
+      'launcher.mjs': 'src/launcher.ts',
+      'validator.mjs': 'src/validator.ts',
+      'snapshotter.ts': 'src/policy/snapshot-validator.ts',
+      'prepare-activation.mjs': 'src/launcher.ts',
+      'prepare-relocation-activation.mjs': 'src/launcher.ts',
+    },
+    subscribeInterrupts: () => () => undefined,
+  };
+}
+
+for (const field of ['bunVersion', 'compilerVersion'] as const) {
+  it('refuses a dependency capability with a different ' + field + ' before copying', async () => {
+    const fixture = await createFixture(),
+      context = toolkitBuildContext(fixture);
+    context.dependencies[field] = '0.0.0';
+    const cause: unknown = await buildToolkitRoles(fixture.source, context).then(
+      () => undefined,
+      (failure: unknown) => failure,
+    );
+    expect(String(cause)).toContain('dependency capability has different runtime or compiler pins');
+    expect(existsSync(join(fixture.directory, 'node_modules'))).toBe(false);
+  });
+}
+
+it('captures five-role entries and dependency capability fields before subscription aliases mutate', async () => {
+  const fixture = await createFixture(),
+    context = toolkitBuildContext(fixture);
+  context.subscribeInterrupts = () => {
+    context.entries['validator.mjs'] = 'src/absent.ts';
+    context.entries['prepare-activation.mjs'] = 'src/absent.ts';
+    context.dependencies.directory = join(fixture.root, 'absent-dependencies');
+    context.dependencies.identity = '0'.repeat(64);
+    context.dependencies.names.length = 0;
+    context.dependencies.protectedPaths.length = 0;
+    context.dependencies.bunVersion = '0.0.0';
+    context.dependencies.compilerVersion = '0.0.0';
+    return () => undefined;
+  };
+  const built = await buildToolkitRoles(fixture.source, context);
+  if (built.kind !== 'built') throw new Error('unexpected aliased build cancellation');
+  expect(
+    runRole(fixture.root, 'captured-validator', built.roleBytes['validator.mjs'], fixture.root),
+  ).toBe('validator:selected-B:authenticated');
+  expect(
+    runRole(
+      fixture.root,
+      'captured-prepare',
+      built.roleBytes['prepare-activation.mjs'],
+      fixture.root,
+    ),
+  ).toBe('launcher:selected-B');
+});
+
+it('refuses dependency bytes changed after capability admission and before the private copy', async () => {
+  const fixture = await createFixture(),
+    context = toolkitBuildContext(fixture);
+  const dependency = join(context.dependencies.directory, '@fixture/dependency/index.js');
+  context.subscribeInterrupts = () => {
+    writeFileSync(dependency, 'export const dependency="changed-after-admission";');
+    return () => undefined;
+  };
+  const cause: unknown = await buildToolkitRoles(fixture.source, context).then(
+    () => undefined,
+    (failure: unknown) => failure,
+  );
+  expect(String(cause)).toContain('preparation build dependency copy differs from toolkit');
+  expect(
+    readFileSync(join(fixture.directory, 'node_modules/@fixture/dependency/index.js'), 'utf8'),
+  ).toContain('changed-after-admission');
+});

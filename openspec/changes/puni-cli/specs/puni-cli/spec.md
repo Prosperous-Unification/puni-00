@@ -283,3 +283,18 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **AND** macros, uncaptured source, unsupported opaque loaders, vendor imports into candidate source and external configuration roots refuse before a usable build, while sealed resolution/loading rejects unplanned requests
 - **AND** the narrow pinned compiler preparation transform denies language-service plugin loading before resolution and delivers verified license/modification notices in the actual archive without modifying installed or historical compiler identities
 - **AND** shared activation4 assembly requires full self-certification before archive reservation, interrupted in-process builds settle before returning, first cancellation remains controlled after release, and failures preserve original/aggregate causes and owned roots
+
+#### Scenario: Current preparation entries share typed execution and own their lifetime
+
+- **WHEN** either current preparation role receives its closed versioned invocation
+- **THEN** malformed UTF8/JSON, unknown fields, invalid invocation context and command/role mismatch refuse before operation IO without retaining request secrets
+- **AND** it dispatches the typed request without argv reconstruction under a signal/output/report owner that covers input, runtime/package selection, Git, in-process builds and archive settlement
+- **AND** input cancellation settles, first interruption controls cancellation, original and cleanup failures retain their diagnostics and owned outputs, and the executable exits only after owner settlement
+- **AND** usable five-role assets derive from one captured source and explicit verified dependencies, with compiler notices on both activation paths; no public/default cutover or release provenance is inferred from internal asset assembly
+
+#### Scenario: Internal asset delivery binds independent installation and every written artifact
+
+- **WHEN** the internal producer builds a current toolkit from one committed capture and an explicitly trusted stable operator installation
+- **THEN** captured authority-file identities, the fixed selected dependency bytes and both copied closures must match; source, runtime, native installation/closure and authority targets remain protected by fresh disjoint output roots
+- **AND** every emitted role, notice, descriptor and checksum is read back as regular planned bytes before final descriptor-identity verification; cancellation stops before later delivery or verification and failure retains all owned roots
+- **AND** both actual produced preparers can complete current archive workflows, while public package/default cutover and clean-release admission remain separate requirements

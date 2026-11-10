@@ -4,12 +4,17 @@ import { isAbsolute, join, relative, sep } from 'node:path';
 
 import type { LintInterrupt, SubscribeLintInterrupts } from '../lint-interrupts';
 import type { CommittedSource } from './committed-source';
-import { reservePreparationDirectory } from './preparation-directory';
+import { reserveProtectedDirectory, selectPreparationPaths } from './preparation-directory';
 import type { PreparationSource } from './preparation-source';
 
 export interface MaterializationContext {
   readonly callerDirectory: string;
   readonly selection: Extract<PreparationSource, { kind: 'ready' }>;
+  readonly subscribeInterrupts: SubscribeLintInterrupts;
+}
+export interface ProtectedMaterializationContext {
+  readonly callerDirectory: string;
+  readonly protectedPaths: readonly string[];
   readonly subscribeInterrupts: SubscribeLintInterrupts;
 }
 export type MaterializationOutcome =
@@ -74,13 +79,14 @@ function isWithin(root: string, path: string): boolean {
  * Interruption-registration failures propagate before ownership. No dependency installation,
  * source build, activation or archive is performed here.
  */
-export async function materializeSource(
+export async function materializeProtectedSource(
   source: CommittedSource,
   destination: string,
-  context: MaterializationContext,
+  context: ProtectedMaterializationContext,
 ): Promise<MaterializationOutcome> {
   const callerDirectory = context.callerDirectory,
-    selection = context.selection,
+    // Proof: c27-materialization-path-capture; propagation/protection presence: fault supplies an empty protection list; not a copy-versus-alias snapshot proof; injected fault failed `refuses generic materialization inside its explicit captured source authority`; restoration passed.
+    protectedPaths = [...context.protectedPaths],
     subscribeInterrupts = context.subscribeInterrupts;
   let first: LintInterrupt | undefined, owned: string | undefined;
   const unsubscribe = subscribeInterrupts((signal) => {
@@ -136,9 +142,9 @@ export async function materializeSource(
       // Proof: material-mode-refusal; `refuses unsupported captured mode rather than silently omitting a trusted entry` failed under its recorded source fault and passed after restoration.
       else throw new Error('captured source has unsupported materialization mode: ' + entry.path);
     }
-    const reserved = await reservePreparationDirectory(destination, {
+    const reserved = await reserveProtectedDirectory(destination, {
       callerDirectory,
-      selection,
+      protectedPaths,
       readCancellation,
       otherDirectories: [],
       recordOwnership: (directory) => {
@@ -244,4 +250,17 @@ export async function materializeSource(
   // Proof: material-terminal-cancel; `honors a recorded control delivered while releasing the subscription before terminal success` failed under its recorded source fault and passed after restoration.
   if (cancelled !== undefined) return cancelled;
   return settled.outcome;
+}
+
+/** Preserve preparation's complete authority enumeration over the shared captured-byte writer. */
+export async function materializeSource(
+  source: CommittedSource,
+  destination: string,
+  context: MaterializationContext,
+): Promise<MaterializationOutcome> {
+  return await materializeProtectedSource(source, destination, {
+    callerDirectory: context.callerDirectory,
+    protectedPaths: selectPreparationPaths(context.selection),
+    subscribeInterrupts: context.subscribeInterrupts,
+  });
 }

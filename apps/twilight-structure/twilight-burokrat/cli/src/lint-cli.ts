@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 
 import { createLaunch } from '@shared/bun-startup';
 
+import { readExecutionInput } from './execution-input';
 import { LintActivationRefusal } from './lint-activation';
 import { runLintOperation } from './lint-execution';
 import type { SubscribeLintInterrupts } from './lint-interrupts';
@@ -13,38 +14,6 @@ import { decodeLintRequest, LintUsageRefusal } from './lint-request';
 import { runLint } from './run-lint';
 
 declare const __PUNI_LINT_BUN_VERSION__: string;
-
-type Input =
-  | { readonly kind: 'input'; readonly bytes: Uint8Array }
-  | { readonly kind: 'cancelled'; readonly status: 130 | 143 };
-
-async function readInput(subscribe: SubscribeLintInterrupts): Promise<Input> {
-  const reader = Bun.stdin.stream().getReader();
-  const cancellation = Promise.withResolvers<Input>();
-  const unsubscribe = subscribe((signal) => {
-    cancellation.resolve({ kind: 'cancelled', status: signal === 'SIGINT' ? 130 : 143 });
-  });
-  const input = (async (): Promise<Input> => {
-    const chunks: Uint8Array[] = [];
-    for (;;) {
-      const next = await reader.read();
-      if (next.done) return { kind: 'input', bytes: Buffer.concat(chunks) };
-      chunks.push(next.value);
-    }
-  })();
-  try {
-    // Proof: main-stdin-cancel; `standalone Bun lint boundary > cancels the executable boundary while stdin remains open` fails with this injected fault and passes after restoration.
-    const selected = await Promise.race([input, cancellation.promise]);
-    if (selected.kind === 'cancelled') {
-      await reader.cancel();
-      await input;
-    }
-    return selected;
-  } finally {
-    unsubscribe();
-    reader.releaseLock();
-  }
-}
 
 /**
  * Read the standalone launcher's stdin and environment boundary with caller-owned signals/output. Only the closed
@@ -70,7 +39,7 @@ export async function runLintMain(
     // Proof: main-mode; `standalone Bun lint boundary > refuses unsupported argv ["working"] as usage` fails with this injected fault and passes after restoration.
     if (argv.length !== 1 || argv[0] !== '--puni-lint-v1')
       throw new LintUsageRefusal('expected --puni-lint-v1');
-    const source = await readInput(context.subscribeInterrupts);
+    const source = await readExecutionInput(context.subscribeInterrupts);
     if (source.kind === 'cancelled') return source.status;
     const invocation = decodeLintRequest(source.bytes);
     const required = process.env['TOOL_WIKI_REQUIRE_CERTIFIED'];
