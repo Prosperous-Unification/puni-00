@@ -232,3 +232,9 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **WHEN** the root executes an already parsed namespace request
 - **THEN** only the selected provider runtime is imported, ordinary executable lookup retains its independently captured origin, returned status waits for dispatch, and usage status follows the supplied invocation independently of ambient argv
 - **AND** missing Burokrat installation assets refuse without checkout/source fallback; an absent lint PATH refuses through bounded owned reporting while an explicitly empty PATH remains valid lookup at the trusted origin
+
+#### Scenario: Current toolkit metadata is planned without relabeling historical producers
+
+- **WHEN** the current planner receives valid explicit PUNI release metadata and the five reviewed role byte sequences
+- **THEN** it emits a canonical schema2 descriptor naming launcher.mjs, pins every role and the supplied closure identity, and emits ordered checksums for those five roles and the descriptor with a final LF
+- **AND** malformed claimed metadata refuses before output, dependency arrays validate before normalization, and the legacy planner retains its original descriptor and checksum bytes without implying a completed producer switch
