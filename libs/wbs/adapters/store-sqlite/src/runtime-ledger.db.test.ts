@@ -63,6 +63,7 @@ describe('runtime ledger lifecycle', () => {
       '20261028100000_add_agent_pool',
       // Reads `machine_credential` for its P17 backfill, likewise.
       '20261102120000_add_access_grants',
+      '20261102130000_widen_organization_audit_access',
     ]);
     for (const name of readdirSync(migrations)) {
       if (mainAdditions.has(name)) continue;

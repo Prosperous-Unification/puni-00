@@ -3684,7 +3684,9 @@ export const savedPlanOrganization = sqliteTable(
  * `20261028100100_widen_organization_audit_agent_pools` the agent pool acts,
  * recreating those two indexes after its rebuild; and
  * `20261101100000_widen_organization_audit_directory_capacity` the
- * directory capacity changes, recreating the same two indexes.
+ * directory capacity changes, recreating the same two indexes;
+ * `20261102130000_widen_organization_audit_access` adds access grants/groups and
+ * aggregate membership removals while preserving current project vocabulary and all indexes.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3703,11 +3705,11 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed', 'machine_token_issued', 'machine_token_issued_overflow', 'agent_pool_created', 'agent_pool_revoked', 'agent_pool_rekeyed', 'directory_capacity_changed')`,
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed', 'machine_token_issued', 'machine_token_issued_overflow', 'agent_pool_created', 'agent_pool_revoked', 'agent_pool_rekeyed', 'directory_capacity_changed', 'access_granted', 'access_revoked', 'access_group_created', 'access_group_renamed', 'access_group_deleted', 'access_group_member_added', 'access_group_member_removed', 'organization_member_removed')`,
     ),
     check(
       'organization_audit_subject_kind',
-      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider', 'agent_pool', 'resource')`,
+      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider', 'agent_pool', 'resource', 'access_grant', 'access_group', 'organization_member')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
     uniqueIndex('organization_audit_machine_token_issued_run')

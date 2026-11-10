@@ -448,6 +448,20 @@ describe('removing a trusted issuer', () => {
     expect(
       h.sqlite.query("SELECT id FROM access_grant WHERE subject_kind = 'machine_credential'").all(),
     ).toEqual([]);
+
+    const revokedAudits = readGrantAudits().filter(({ action }) => action === 'access_revoked');
+    expect(revokedAudits).toHaveLength(1);
+    expect(revokedAudits).toMatchObject([
+      {
+        actor_id: h.userId('dany'),
+        organization_id: 'org-a',
+        origin: 'cascade',
+        role_id: 'project-contributor',
+        grant_subject_kind: 'machine_credential',
+        grant_subject_id: credential,
+      },
+    ]);
+    expect(revokedAudits.every(({ id, subject_id }) => id !== subject_id)).toBe(true);
   });
 
   it("answers another organization's issuer not_found", async () => {
@@ -623,3 +637,48 @@ for (const operation of ['list', 'register', 'remove'] as const) {
     );
   }
 }
+
+function readGrantAudits() {
+  return h.sqlite
+    .query<
+      {
+        id: string;
+        organization_id: string;
+        actor_id: string;
+        action: string;
+        subject_id: string;
+        grant_subject_id: string;
+        grant_subject_kind: string;
+        scope_kind: string;
+        scope_id: string;
+        role_id: string;
+        origin: string;
+      },
+      []
+    >(
+      "SELECT id,organization_id,actor_id,action,subject_id,json_extract(detail,'$.subjectId') AS grant_subject_id,json_extract(detail,'$.subjectKind') AS grant_subject_kind,json_extract(detail,'$.scopeKind') AS scope_kind,json_extract(detail,'$.scopeId') AS scope_id,json_extract(detail,'$.roleId') AS role_id,json_extract(detail,'$.origin') AS origin FROM organization_audit WHERE subject_kind='access_grant' ORDER BY rowid",
+    )
+    .all();
+}
+
+it('rolls stale issuer grant removal back when the required cascade audit fails', async () => {
+  const id = ((await register('dany', { issuer: ci.url })).body as { id: string }).id;
+  const credential = await createOidc(id, 'repo:acme/wbs:ref:refs/heads/main', 'main');
+  expect(
+    (await h.call('dany', 'DELETE', '/api/organization/machine-credentials/' + credential)).status,
+  ).toBe(204);
+  h.sqlite.run(
+    "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES (?,'org-a','organization','org-a','machine_credential',?,'project-contributor','backfill',1)",
+    [crypto.randomUUID(), credential],
+  );
+  const snapshot = () =>
+    ['organization_trusted_issuer', 'machine_credential', 'access_grant', 'organization_audit'].map(
+      (table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all(),
+    );
+  const before = snapshot();
+  h.sqlite.run(
+    "CREATE TRIGGER fail_issuer_access_audit BEFORE INSERT ON organization_audit WHEN NEW.action='access_revoked' BEGIN SELECT RAISE(ABORT,'issuer access audit unavailable'); END",
+  );
+  expect((await h.call('dany', 'DELETE', PATH + '/' + id)).status).toBe(500);
+  expect(snapshot()).toEqual(before);
+});

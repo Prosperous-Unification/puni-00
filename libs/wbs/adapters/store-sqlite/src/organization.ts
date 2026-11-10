@@ -1,6 +1,8 @@
 import type {
+  AuditedAct,
   MembershipAdministered,
   MembershipAdministration,
+  MembershipRemovalSource,
   MembersListed,
   WriteStamp,
 } from '@wbs/core';
@@ -17,7 +19,14 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
-import { organization, organizationMembership, users } from './schema';
+import { appendOrganizationAudit } from './organization-audit-log';
+import {
+  accessGrant,
+  accessGroupMember,
+  organization,
+  organizationMembership,
+  users,
+} from './schema';
 
 /** One of a user's current memberships. */
 export interface Membership {
@@ -29,12 +38,142 @@ export interface Membership {
 export type MembershipChange = 'changed' | 'not-member' | 'last-super-admin';
 export type MembershipRemoval = 'removed' | 'not-member' | 'last-super-admin';
 
-type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+/** Actual authority removed by one borrowed membership mutation. */
+export interface MembershipRemovalEvidence {
+  readonly membershipRemoved: boolean;
+  readonly removedUserGrantCount: number;
+  readonly removedGroupMembershipCount: number;
+}
 
 /**
- * Organizations and their current memberships. Inert until the onboarding and
- * role slices (tasks 3.7, 4.3) put a service boundary in front of it; this
- * class decides only what the database must decide atomically, not who may ask.
+ * Removes current membership authority on the caller's already-owned connection.
+ * The current final-super-admin guard precedes every delete. This body owns no
+ * transaction or audit: the owner appends either its aggregate account event or
+ * its existing SCIM lifecycle event with the returned actual counts. Only select/delete
+ * are borrowed, so both native transactions and plain connections already owned by an
+ * async admission compose without acquiring transaction/rollback capabilities.
+ */
+export function removeMembershipIn(
+  tx: Pick<Drizzle, 'select' | 'delete'>,
+  organizationId: string,
+  userId: string,
+):
+  | { readonly kind: 'removed' | 'not-member'; readonly evidence: MembershipRemovalEvidence }
+  | { readonly kind: 'last-super-admin' } {
+  // Proof: borrowed-member-no-owner: injecting a native transaction wrapper failed `borrows grant and membership writes from an already-owned plain connection without audit or nested owners`;
+  // observed native owner count 1 instead of 0, then restored GREEN (task-4.1 guard-faults receipt, 2026-11-10).
+  const guarded = guardFinalSuperAdmin(tx, organizationId, userId, null);
+  // Proof: member-last-admin: removing this boundary failed `refuses to deprovision the last super-admin with 409 mutability, changing nothing`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  if (guarded === 'last-super-admin') return { kind: guarded };
+  // Proof: member-not-member: removing this boundary failed `lets one of two super-admins step down, and adds and removes ordinary members`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  if (guarded === 'not-member')
+    return {
+      kind: guarded,
+      evidence: {
+        membershipRemoved: false,
+        removedUserGrantCount: 0,
+        removedGroupMembershipCount: 0,
+      },
+    };
+  // Proof: member-grant-cleanup: removing this boundary failed `removes user grants and group memberships with one aggregate route audit, fencing other organizations`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  const removedUserGrantCount = tx
+    .delete(accessGrant)
+    .where(
+      and(
+        // Proof: member-grant-fence-organization: removing this boundary failed `removes user grants and group memberships with one aggregate route audit, fencing other organizations`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        eq(accessGrant.organizationId, organizationId),
+        // Proof: member-grant-fence-subject-kind: removing this boundary failed `retains other users and polymorphic group grants during account membership cleanup`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        eq(accessGrant.subjectKind, 'user'),
+        // Proof: member-grant-fence-subject-id: removing this boundary failed `retains other users and polymorphic group grants during account membership cleanup`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        eq(accessGrant.subjectId, userId),
+      ),
+    )
+    .returning({ id: accessGrant.id })
+    .all().length;
+  // Proof: member-group-cleanup: removing this boundary failed `removes user grants and group memberships with one aggregate route audit, fencing other organizations`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  const removedGroupMembershipCount = tx
+    .delete(accessGroupMember)
+    .where(
+      and(
+        // Proof: member-group-fence-organization: removing this boundary failed `removes user grants and group memberships with one aggregate route audit, fencing other organizations`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        eq(accessGroupMember.organizationId, organizationId),
+        // Proof: member-group-fence-user: removing this boundary failed `retains other users and polymorphic group grants during account membership cleanup`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        eq(accessGroupMember.userId, userId),
+      ),
+    )
+    .returning({ groupId: accessGroupMember.groupId })
+    .all().length;
+  // Proof: member-physical-cleanup: removing this boundary failed `ends browser, gateway and MCP access to A at once, leaving B unchanged`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  tx.delete(organizationMembership).where(membershipOf(organizationId, userId)).run();
+  return {
+    kind: 'removed',
+    evidence: { membershipRemoved: true, removedUserGrantCount, removedGroupMembershipCount },
+  };
+}
+
+/** Appends the direct owner's single aggregate; SCIM supplies its own lifecycle event. */
+function appendMembershipRemoval(
+  tx: Pick<Drizzle, 'insert'>,
+  organizationId: string,
+  userId: string,
+  act: AuditedAct,
+  source: MembershipRemovalSource,
+  evidence: MembershipRemovalEvidence,
+): void {
+  appendOrganizationAudit(tx, {
+    id: act.auditId,
+    organizationId,
+    actorId: act.actor,
+    action: 'organization_member_removed',
+    subjectKind: 'organization_member',
+    subjectId: userId,
+    detail: {
+      source,
+      removedUserGrantCount: evidence.removedUserGrantCount,
+      removedGroupMembershipCount: evidence.removedGroupMembershipCount,
+    },
+    at: act.stamp.at,
+  });
+}
+
+/** Retains the explicit human owner; self-leave cannot name another target. */
+function retainMembershipAct(
+  actorId: string,
+  targetUserId: string,
+  act: AuditedAct,
+  source: MembershipRemovalSource,
+): AuditedAct {
+  // Proof: member-identity-actor: removing this boundary failed `refuses inconsistent trusted membership removal provenance before owner entry at actor`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  // Proof: member-identity-stamp: removing this boundary failed `refuses inconsistent trusted membership removal provenance before owner entry at stamp`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  if (act.actor !== actorId || act.stamp.by !== actorId)
+    throw new Error('membership audit identity differs from its actor');
+  // Proof: member-source: removing this boundary failed `refuses inconsistent trusted membership removal provenance before owner entry at source`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  const sources: readonly string[] = ['route', 'self_leave'];
+  if (!sources.includes(source)) throw new Error('membership removal source is malformed');
+  // Proof: member-self-leave: removing this boundary failed `refuses inconsistent trusted membership removal provenance before owner entry at self-leave`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  if (source === 'self_leave' && actorId !== targetUserId)
+    throw new Error('self-leave actor differs from its target');
+  return structuredClone(act);
+}
+
+/**
+ * Organizations and their current memberships. Administration retains the legacy
+ * role matrix until permission task2.5. Direct removals clean up authority and
+ * append one aggregate audit in the same owner; SCIM borrows the cleanup body.
  *
  * Every write is an immediate transaction: SQLite's write lock is taken before
  * the reads a guard depends on, so blue and green cannot both pass the same
@@ -140,15 +279,30 @@ export class OrganizationRepository implements MembershipAdministration {
     });
   }
 
-  /** Removes a membership unless it is the organization's final super-admin. */
-  async removeMember(organizationId: string, userId: string): Promise<MembershipRemoval> {
+  /**
+   * Removes a membership unless it is the organization's final super-admin, with
+   * direct grants, group memberships and one aggregate audit committed atomically.
+   * This raw internal owner requires explicit human provenance and source; it is
+   * not the public authorization boundary. Inputs are detached before its gate.
+   */
+  async removeMember(
+    organizationId: string,
+    userId: string,
+    act: AuditedAct,
+    source: MembershipRemovalSource,
+  ): Promise<MembershipRemoval> {
+    // Proof: member-owner-snapshot-raw: removing this boundary failed `retains the actual membership audit owner before the queue at raw`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = retainMembershipAct(act.actor, userId, act, source);
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction(
         (tx) => {
-          const refusal = guardFinalSuperAdmin(tx, organizationId, userId, null);
-          if (refusal !== null) return refusal;
-          tx.delete(organizationMembership).where(membershipOf(organizationId, userId)).run();
+          const removed = removeMembershipIn(tx, organizationId, userId);
+          if (removed.kind !== 'removed') return removed.kind;
+          // Proof: aggregate-raw-append: removing this boundary failed `retains the actual membership audit owner before the queue at raw`;
+          // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+          appendMembershipRemoval(tx, organizationId, userId, act, source, removed.evidence);
           return 'removed';
         },
         { behavior: 'immediate' },
@@ -185,8 +339,12 @@ export class OrganizationRepository implements MembershipAdministration {
     actorId: string,
     targetUserId: string,
     requested: OrganizationRole | null,
-    stamp: WriteStamp,
+    act: AuditedAct,
+    source: MembershipRemovalSource,
   ): Promise<MembershipAdministered> {
+    // Proof: member-owner-snapshot-administer: removing this boundary failed `retains the actual membership audit owner before the queue at administer`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = retainMembershipAct(actorId, targetUserId, act, source);
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction(
@@ -203,13 +361,25 @@ export class OrganizationRepository implements MembershipAdministration {
           if (guarded === 'last-super-admin') return { ok: false, refusal: 'last_super_admin' };
           if (guarded === 'not-member') return { ok: false, refusal: 'not_found' };
           if (requested === null) {
-            tx.delete(organizationMembership)
-              .where(membershipOf(organizationId, targetUserId))
-              .run();
+            const removed = removeMembershipIn(tx, organizationId, targetUserId);
+            // Proof: member-borrowed-state-invariant: removing this boundary failed `throws and rolls back when borrowed membership state disappears after the owning admission`;
+            // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+            if (removed.kind !== 'removed')
+              throw new Error('guarded membership removal changed inside its owner');
+            // Proof: aggregate-route-append: removing this boundary failed `removes user grants and group memberships with one aggregate route audit, fencing other organizations`;
+            // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+            appendMembershipRemoval(
+              tx,
+              organizationId,
+              targetUserId,
+              act,
+              source,
+              removed.evidence,
+            );
             return { ok: true, membership: null };
           }
           tx.update(organizationMembership)
-            .set({ role: requested, ...auditOnUpdate(stamp) })
+            .set({ role: requested, ...auditOnUpdate(act.stamp) })
             .where(membershipOf(organizationId, targetUserId))
             .run();
           return { ok: true, membership: { userId: targetUserId, role: requested } };
@@ -322,7 +492,7 @@ export function membershipOf(organizationId: string, userId: string) {
  * (`Received: "changed"`). Observed 2026-09-27.
  */
 export function guardFinalSuperAdmin(
-  tx: Transaction,
+  tx: Pick<Drizzle, 'select'>,
   organizationId: string,
   userId: string,
   role: OrganizationRole | null,

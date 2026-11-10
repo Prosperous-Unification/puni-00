@@ -14,6 +14,7 @@ import { type OrganizationLimitValues, refuseLimit } from '@wbs/domain';
 import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { appendGrantAudit } from './access-audit';
 import { copyGrantsOfCredential, deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { endLeasesOfUncredentialed } from './claim';
@@ -242,10 +243,21 @@ function revokePoolKeys(
   // Proof: with this call removed, `deletes the grants naming each revoked
   // key (wbs-permissions P17)` in `agent-pool.controller.db.test.ts` kept
   // both keys' grant rows; watched 2026-11-08.
-  deleteGrantsOfCredentials(
+  const removedGrants = deleteGrantsOfCredentials(
     tx,
     rows.map((row) => row.id),
   );
+  for (const grant of removedGrants)
+    // Proof: cascade-agent-pool-revokePoolKeys: removing this boundary failed `deletes the grants naming each revoked key (wbs-permissions P17)`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    appendGrantAudit(tx, {
+      grant,
+      action: 'access_revoked',
+      auditId: crypto.randomUUID(),
+      actorId: act.actor,
+      at,
+      origin: 'cascade',
+    });
   for (const row of rows) {
     tx.update(machineCredential)
       .set({ revokedAt: at, ...auditOnUpdate(act.stamp) })
@@ -443,6 +455,18 @@ export class AgentPoolRepository implements AgentPools {
     renewal: AgentPoolRenewal,
     act: AuditedAct,
   ): ReturnType<AgentPools['rekey']> {
+    // Proof: owner-identity-pool-rekey-actor: removing this boundary failed `rejects a pool audit actor mismatch before owner entry at rekey`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    // Proof: owner-identity-pool-rekey-stamp: removing this boundary failed `rejects a pool audit stamp mismatch before owner entry at rekey`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    if (act.actor !== actorId || act.stamp.by !== actorId)
+      throw new Error('pool audit identity differs from its actor');
+    // Proof: owner-act-pool-rekey: removing this boundary failed `retains the actual queued pool cascade owner at rekey`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = structuredClone(act);
+    // Proof: pool-renewal-snapshot: removing this boundary failed `retains the deep renewal keys before the queued pool re-key owner`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    renewal = structuredClone(renewal);
     const { keys } = renewal;
     assertDigests(keys);
     return this.write((tx) => {
@@ -485,8 +509,20 @@ export class AgentPoolRepository implements AgentPools {
       // watched 2026-11-08.
       for (const key of keys)
         for (const old of previous)
-          if (old.personId === key.personId)
-            copyGrantsOfCredential(tx, old.id, key.credentialId, act.stamp.at);
+          if (old.personId === key.personId) {
+            const copied = copyGrantsOfCredential(tx, old.id, key.credentialId, act.stamp.at);
+            for (const grant of copied)
+              // Proof: cascade-agent-pool-rekey: removing this boundary failed `a re-keyed agent keeps its grants on its new key (wbs-permissions P17, amended)`;
+              // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+              appendGrantAudit(tx, {
+                grant,
+                action: 'access_granted',
+                auditId: crypto.randomUUID(),
+                actorId: act.actor,
+                at: act.stamp.at,
+                origin: 'cascade',
+              });
+          }
       revokePoolKeys(tx, organizationId, poolId, previous, act);
       const nameOf = new Map(persons.map((each) => [each.personId, each.personName]));
       const agents: AgentPoolAgent[] = [];
@@ -524,6 +560,15 @@ export class AgentPoolRepository implements AgentPools {
     poolId: string,
     act: AuditedAct,
   ): ReturnType<AgentPools['revoke']> {
+    // Proof: owner-identity-pool-revoke-actor: removing this boundary failed `rejects a pool audit actor mismatch before owner entry at revoke`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    // Proof: owner-identity-pool-revoke-stamp: removing this boundary failed `rejects a pool audit stamp mismatch before owner entry at revoke`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    if (act.actor !== actorId || act.stamp.by !== actorId)
+      throw new Error('pool audit identity differs from its actor');
+    // Proof: owner-act-pool-revoke: removing this boundary failed `retains the actual queued pool cascade owner at revoke`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = structuredClone(act);
     return this.write((tx) => {
       const refused = poolAdministratorRefusal(tx, organizationId, actorId);
       if (refused !== null) return { kind: refused };

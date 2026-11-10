@@ -5,11 +5,12 @@ import { join } from 'node:path';
 import { type AgentPoolDraft, type AuditedAct, digestMachineSecret } from '@wbs/core';
 import type { OrganizationLimitValues } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 
 import { AgentPoolRepository } from './agent-pool';
-import { openDatabase, openDrizzle } from './db';
-import { WriteCoordinator } from './gate';
+import { openConnection, openDatabase, openDrizzle } from './db';
+import { OPEN, WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -234,4 +235,202 @@ describe('re-keying a pool', () => {
     ).toBe('rekeyed');
     expect(agentPersons()).toBe(2);
   });
+});
+
+for (const operation of ['rekey', 'revoke'] as const) {
+  it('retains the actual queued pool cascade owner at ' + operation, async () => {
+    freshStore();
+    const connection = openConnection(path);
+    connection.db.run(sql`INSERT INTO users(id,username,created_at) VALUES ('other','other',1)`);
+    try {
+      const original = await draftOf(1);
+      const setup = new AgentPoolRepository(connection.db, OPEN, DEFAULTS);
+      expect((await setup.create('org-a', 'dany', original, act())).kind).toBe('created');
+      const person = original.agents.at(0);
+      if (person === undefined) throw new Error('pool fixture has no person');
+      connection.db.run(
+        sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at,created_by) VALUES ('old-pool-grant','org-a','organization','org-a','machine_credential',${person.credentialId},'project-contributor','route',1,'dany')`,
+      );
+      const keys = [
+        {
+          ...person,
+          credentialId: crypto.randomUUID(),
+          secretId: crypto.randomUUID(),
+          digest: await digestMachineSecret('renewal-' + crypto.randomUUID()),
+        },
+      ];
+      const gate = new WriteCoordinator();
+      const repository = new AgentPoolRepository(connection.db, gate, DEFAULTS);
+      const held = Promise.withResolvers<undefined>();
+      const entered = Promise.withResolvers<undefined>();
+      const blocker = gate.enter(async () => {
+        entered.resolve(undefined);
+        await held.promise;
+      });
+      await entered.promise;
+      const performed = {
+        ...act(),
+        stamp: { at: 1_900_000_000_100, by: 'dany' },
+        auditId: 'queued-pool',
+      };
+      const pending =
+        operation === 'rekey'
+          ? repository.rekey('org-a', 'dany', original.id, { keys }, performed)
+          : repository.revoke('org-a', 'dany', original.id, performed);
+      Object.assign(performed, { actor: 'other', auditId: 'replacement' });
+      Object.assign(performed.stamp, { at: 999, by: 'other' });
+      held.resolve(undefined);
+      await blocker;
+      expect((await pending).kind).toBe(operation === 'rekey' ? 'rekeyed' : 'revoked');
+      expect(
+        connection.db.get<{ actor_id: string; created_at: number }>(
+          sql`SELECT actor_id,created_at FROM organization_audit WHERE id='queued-pool'`,
+        ),
+      ).toEqual({ actor_id: 'dany', created_at: 1_900_000_000_100 });
+      const rows = connection.db.all<{ actor_id: string; created_at: number }>(
+        sql`SELECT actor_id,created_at FROM organization_audit WHERE action IN ('access_granted','access_revoked')`,
+      );
+      expect(rows.length).toBe(operation === 'rekey' ? 2 : 1);
+      expect(
+        rows.every(
+          ({ actor_id, created_at }) => actor_id === 'dany' && created_at === 1_900_000_000_100,
+        ),
+      ).toBe(true);
+    } finally {
+      connection.close();
+    }
+  });
+}
+
+it('retains the deep renewal keys before the queued pool re-key owner', async () => {
+  freshStore();
+  const connection = openConnection(path);
+  try {
+    const original = await draftOf(1);
+    const setup = new AgentPoolRepository(connection.db, OPEN, DEFAULTS);
+    expect((await setup.create('org-a', 'dany', original, act())).kind).toBe('created');
+    const person = original.agents.at(0);
+    if (person === undefined) throw new Error('pool fixture has no person');
+    const key = {
+      ...person,
+      credentialId: crypto.randomUUID(),
+      secretId: crypto.randomUUID(),
+      digest: await digestMachineSecret('renewal-' + crypto.randomUUID()),
+    };
+    const credentialId = key.credentialId;
+    const renewal = { keys: [key] };
+    const gate = new WriteCoordinator();
+    const repository = new AgentPoolRepository(connection.db, gate, DEFAULTS);
+    const held = Promise.withResolvers<undefined>();
+    const entered = Promise.withResolvers<undefined>();
+    const blocker = gate.enter(async () => {
+      entered.resolve(undefined);
+      await held.promise;
+    });
+    await entered.promise;
+    const pending = repository.rekey('org-a', 'dany', original.id, renewal, act());
+    Object.assign(key, { credentialId: crypto.randomUUID(), secretId: crypto.randomUUID() });
+    held.resolve(undefined);
+    await blocker;
+    const outcome = await pending;
+    if (outcome.kind !== 'rekeyed') throw new Error('re-key fixture refused: ' + outcome.kind);
+    expect(outcome.issued.agents.map((agent) => agent.credentialId)).toEqual([credentialId]);
+  } finally {
+    connection.close();
+  }
+});
+
+for (const operation of ['rekey', 'revoke'] as const) {
+  for (const mismatch of ['actor', 'stamp']) {
+    it(
+      'rejects a pool audit ' + mismatch + ' mismatch before owner entry at ' + operation,
+      async () => {
+        freshStore();
+        const connection = openConnection(path);
+        try {
+          const original = await draftOf(1);
+          const key = original.agents.at(0);
+          if (key === undefined) throw new Error('pool fixture has no key');
+          const repository = new AgentPoolRepository(
+            connection.db,
+            {
+              enter: () => {
+                throw new Error('unexpected pool owner entry');
+              },
+            },
+            DEFAULTS,
+          );
+          const performed = {
+            actor: mismatch === 'actor' ? 'other' : 'dany',
+            stamp: { at: 30, by: mismatch === 'stamp' ? 'other' : 'dany' },
+            auditId: 'mismatched',
+          };
+          expect(() =>
+            operation === 'rekey'
+              ? repository.rekey('org-a', 'dany', original.id, { keys: [key] }, performed)
+              : repository.revoke('org-a', 'dany', original.id, performed),
+          ).toThrow('pool audit identity differs from its actor');
+          expect(connection.db.all(sql`SELECT * FROM organization_audit`)).toEqual([]);
+        } finally {
+          connection.close();
+        }
+      },
+    );
+  }
+}
+
+it('audits only actually inserted pool grant copies when old keys overlap', async () => {
+  freshStore();
+  const connection = openConnection(path);
+  try {
+    const original = await draftOf(1);
+    const repository = new AgentPoolRepository(connection.db, OPEN, DEFAULTS);
+    expect((await repository.create('org-a', 'dany', original, act())).kind).toBe('created');
+    const person = original.agents.at(0);
+    if (person === undefined) throw new Error('pool person absent');
+    const second = crypto.randomUUID();
+    connection.db.run(
+      sql`INSERT INTO machine_credential(id,organization_id,person_id,issued_by,source,name,agent_pool_id,created_at) VALUES (${second},'org-a',${person.personId},'dany','api_key','overlapping-old',${original.id},1)`,
+    );
+    for (const id of [person.credentialId, second])
+      connection.db.run(
+        sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES (${crypto.randomUUID()},'org-a','organization','org-a','machine_credential',${id},'project-contributor','backfill',1)`,
+      );
+    const credentialId = crypto.randomUUID();
+    const outcome = await repository.rekey(
+      'org-a',
+      'dany',
+      original.id,
+      {
+        keys: [
+          {
+            ...person,
+            credentialId,
+            secretId: crypto.randomUUID(),
+            digest: await digestMachineSecret('overlap-renewal'),
+          },
+        ],
+      },
+      act(),
+    );
+    expect(outcome.kind).toBe('rekeyed');
+    expect(connection.db.all(sql`SELECT subject_id,origin,created_by FROM access_grant`)).toEqual([
+      { subject_id: credentialId, origin: 'backfill', created_by: null },
+    ]);
+    const rows = connection.db.all<{ action: string; detail: string }>(
+      sql`SELECT action,detail FROM organization_audit WHERE action IN ('access_granted','access_revoked')`,
+    );
+    expect(rows.map((row) => row.action).sort()).toEqual([
+      'access_granted',
+      'access_revoked',
+      'access_revoked',
+    ]);
+    expect(
+      rows.every(
+        (row) => (JSON.parse(row.detail) as Record<string, unknown>)['origin'] === 'cascade',
+      ),
+    ).toBe(true);
+  } finally {
+    connection.close();
+  }
 });

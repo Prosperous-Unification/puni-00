@@ -1,6 +1,7 @@
 import { JwksTokenVerifier } from '@wbs/auth';
 import { digestMachineSecret } from '@wbs/core';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { exportJWK, generateKeyPair } from 'jose';
 
 import { addAgentPerson, MACHINE_BEARER_NOT_ACCEPTED } from '../testing/machine-credential-fixture';
@@ -591,6 +592,22 @@ describe("a credential's person", () => {
     expect(rows("SELECT id FROM access_grant WHERE subject_kind = 'machine_credential'")).toEqual(
       [],
     );
+
+    const revokedAudits = readGrantAudits().filter(({ action }) => action === 'access_revoked');
+    expect(revokedAudits).toHaveLength(2);
+    expect(revokedAudits.map(({ grant_subject_id }) => grant_subject_id).sort()).toEqual(
+      [live.id, revoked.id].sort(),
+    );
+    expect(
+      revokedAudits.every(
+        ({ actor_id, organization_id, origin, grant_subject_kind, id, subject_id }) =>
+          actor_id === h.userId('dany') &&
+          organization_id === 'org-a' &&
+          origin === 'cascade' &&
+          grant_subject_kind === 'machine_credential' &&
+          id !== subject_id,
+      ),
+    ).toBe(true);
   });
 
   it('removes a person whose credentials are all revoked, their rows with it', async () => {
@@ -686,4 +703,93 @@ describe("a credential's person", () => {
     expect(credentialCount()).toBe(1);
     expect((await asAgent(created.key, 'GET', '/api/projects')).status).toBe(200);
   });
+});
+
+function readGrantAudits() {
+  return h.sqlite
+    .query<
+      {
+        id: string;
+        organization_id: string;
+        actor_id: string;
+        action: string;
+        subject_id: string;
+        grant_subject_id: string;
+        grant_subject_kind: string;
+        scope_kind: string;
+        scope_id: string;
+        role_id: string;
+        origin: string;
+      },
+      []
+    >(
+      "SELECT id,organization_id,actor_id,action,subject_id,json_extract(detail,'$.subjectId') AS grant_subject_id,json_extract(detail,'$.subjectKind') AS grant_subject_kind,json_extract(detail,'$.scopeKind') AS scope_kind,json_extract(detail,'$.scopeId') AS scope_id,json_extract(detail,'$.roleId') AS role_id,json_extract(detail,'$.origin') AS origin FROM organization_audit WHERE subject_kind='access_grant' ORDER BY rowid",
+    )
+    .all();
+}
+
+for (const substitution of ['id', 'authentication', 'delegation']) {
+  it('retains the machine revoke route actor across resolution: ' + substitution, async () => {
+    const created = await create('dany', 'claire');
+    expect(created.answer.status).toBe(201);
+    const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+    const resolve = observer.getMockImplementation();
+    if (resolve === undefined) throw new Error('machine resolver lost its implementation');
+    observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+      const admitted = await resolve.call(this, principal);
+      if (substitution === 'id') Object.assign(principal, { id: h.userId('mem') });
+      if (substitution === 'authentication')
+        Object.assign(principal, {
+          authentication: { kind: 'machine', credentialId: 'replacement', personId: 'loose' },
+        });
+      if (substitution === 'delegation')
+        Object.assign(principal, { delegation: { organizationId: 'org-a' } });
+      return admitted;
+    });
+    try {
+      expect(await h.call('dany', 'DELETE', PATH + '/' + created.id)).toEqual({
+        status: 204,
+        body: null,
+      });
+      expect(
+        auditRows()
+          .filter((row) => row.action === 'machine_credential_revoked')
+          .map((row) => row.actor_id),
+      ).toEqual([h.userId('dany')]);
+    } finally {
+      observer.mockRestore();
+    }
+  });
+}
+
+it('rolls directory person credential and grant removal back when its cascade audit fails', async () => {
+  const created = await create('dany', 'claire');
+  expect(created.answer.status).toBe(201);
+  h.sqlite.run(
+    "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES (?,'org-a','organization','org-a','machine_credential',?,'project-contributor','backfill',1)",
+    [crypto.randomUUID(), created.id],
+  );
+  const snapshot = () =>
+    [
+      'person',
+      'person_organization',
+      'machine_credential',
+      'machine_credential_secret',
+      'access_grant',
+      'organization_audit',
+      'event_log',
+      'command_journal',
+    ].map((table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
+  const before = snapshot();
+  h.sqlite.run(
+    "CREATE TRIGGER fail_directory_access_audit BEFORE INSERT ON organization_audit WHEN NEW.action='access_revoked' BEGIN SELECT RAISE(ABORT,'directory access audit unavailable'); END",
+  );
+  expect(
+    (
+      await h.call('dany', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'deletePerson', personId: 'claire', cascade: true }],
+      })
+    ).status,
+  ).toBe(500);
+  expect(snapshot()).toEqual(before);
 });

@@ -9,13 +9,16 @@ import type {
   GrantScope,
   GrantSubject,
 } from '@wbs/core';
+import { retainAccessAct } from '@wbs/core';
 import { type AccessObjectKind, type GrantSubjectKind, roleFitsScope } from '@wbs/domain';
 import { and, asc, count, eq, inArray, isNull, ne, or, type SQL } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { appendGrantAudit, readAccessActorId, readAccessOperationOrigin } from './access-audit';
 import { auditOnCreate, auditOnOperatorCreate, auditOnUpdate } from './audit';
 import type { Gate } from './gate';
 import { type ImmediateTransaction, writeImmediately } from './immediate-write';
+import { appendOrganizationAudit } from './organization-audit-log';
 import {
   accessGrant,
   type AccessGrantRow,
@@ -45,74 +48,73 @@ export class AccessGrantRepository implements AccessGrants {
     private readonly gate: Gate,
   ) {}
 
-  grant(
+  async grant(
     organizationId: string,
     draft: GrantDraft,
     act: AccessAct,
   ): Promise<{ readonly kind: 'granted'; readonly grant: AccessGrantRecord } | GrantRefusal> {
-    // Proof: with this check made `if (false)`, `refuses an origin its actor
-    // does not pair with, writing nothing` in `access-grant-store.db.test.ts`
-    // stored a user's grant as `operator`; watched 2026-11-08.
-    if ((draft.origin === 'operator') !== (act.actor.kind === 'operator'))
-      return Promise.reject(
-        new Error(`${act.actor.kind} actors may not write a grant of origin ${draft.origin}`),
-      );
-    return this.write((tx) => {
-      const refusal = grantRefusal(tx, organizationId, draft);
-      if (refusal !== null) return refusal;
-      const { scopeKind, scopeId } = scopeColumns(organizationId, draft.scope);
-      const { subjectKind, subjectId } = subjectColumns(organizationId, draft.subject);
-      const by = authorOf(act);
-      tx.insert(accessGrant)
-        .values({
-          id: draft.id,
-          organizationId,
-          scopeKind,
-          scopeId,
-          subjectKind,
-          subjectId,
-          roleId: draft.roleId,
-          origin: draft.origin,
-          // `access_grant` has no `updated_at`: `auditOnCreate`'s `updatedAt`
-          // names no column and drizzle writes declared columns only. The
-          // helper is what `audit.test.ts`' write-site scan requires.
-          ...(by === null ? auditOnOperatorCreate(act.at) : auditOnCreate({ at: act.at, by })),
-        })
-        .run();
-      return { kind: 'granted', grant: recordOf(grantRow(tx, organizationId, draft.id)) } as const;
+    // Proof: act-snapshot-grant: removing this boundary failed `retains the actual audit act before the queued access owner at grant`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = retainAccessAct(act);
+    // Proof: grant-draft-snapshot: removing this boundary failed `retains the detached queued access draft at grant`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    draft = structuredClone(draft);
+    assertGrantOrigin(draft, act);
+    return await this.write((tx) => {
+      const outcome = writeGrantIn(tx, organizationId, draft, act);
+      if (typeof outcome === 'string') return outcome;
+      // Proof: append-grant-access_granted: removing this boundary failed `audits an actual grant with its authenticated actor, addressed scope, subject and origin`;
+      // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+      appendGrantAudit(tx, {
+        grant: outcome.grant,
+        action: 'access_granted',
+        auditId: act.auditId,
+        actorId: readAccessActorId(act.actor),
+        at: act.at,
+        origin: draft.origin,
+      });
+      return outcome;
     });
   }
 
   revoke(
     organizationId: string,
     grantId: string,
-    _act: AccessAct,
+    act: AccessAct,
   ): Promise<
     | { readonly kind: 'revoked'; readonly grant: AccessGrantRecord }
     | 'not_found'
     | 'last_super_admin'
   > {
+    // Proof: act-snapshot-revoke: removing this boundary failed `retains the actual audit act before the queued access owner at revoke`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = retainAccessAct(act);
     return this.write((tx) => {
       const row = findGrant(tx, organizationId, grantId);
       if (row === undefined) return 'not_found';
-      // CP14: the count is read in this transaction, so of two super-admins
-      // revoking each other's grant on two connections the second sees one
-      // holder left, itself, and is refused.
-      // Proof: with this check made `false &&`, `refuses revoking the last
-      // direct super-admin grant, even while a group of members holds the
-      // role` in `access-grant-store.db.test.ts` answered revoked and left
-      // the organization with none, and `lets exactly one of two super-admins
-      // revoke their own grant across two connections` revoked both (15 pass,
-      // 2 fail); watched 2026-11-08.
+      // Proof: bypassing the CP14 guard admitted the last direct human revoke and both racing self-revokes in access-grant-store.db.test.ts (2026-11-08).
       if (
         countsAsSuperAdmin(tx, row) &&
         directSuperAdminCount(tx, organizationId, { besides: row.id }) === 0
       )
         return 'last_super_admin';
+      const grant = recordOf(row);
       tx.delete(accessGrant)
         .where(and(eq(accessGrant.id, grantId), eq(accessGrant.organizationId, organizationId)))
         .run();
-      return { kind: 'revoked', grant: recordOf(row) } as const;
+      // Proof: append-revoke-access_revoked: removing this boundary failed `audits revoke provenance from the current actor rather than the grant creator or stored origin`;
+      // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+      // Proof: operator-revoke-audit: removing this boundary failed `revokes after a hand-over and prints the count left`;
+      // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+      appendGrantAudit(tx, {
+        grant,
+        action: 'access_revoked',
+        auditId: act.auditId,
+        actorId: readAccessActorId(act.actor),
+        at: act.at,
+        origin: readAccessOperationOrigin(act.actor),
+      });
+      return { kind: 'revoked', grant } as const;
     });
   }
 
@@ -157,23 +159,38 @@ export class AccessGrantRepository implements AccessGrants {
     group: { readonly id: string; readonly name: string },
     act: AccessAct,
   ): Promise<{ readonly kind: 'created'; readonly group: AccessGroupRecord } | 'name_taken'> {
+    // Proof: act-snapshot-group-create: removing this boundary failed `retains the actual audit act before the queued access owner at group-create`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = retainAccessAct(act);
+    // Proof: group-draft-snapshot: removing this boundary failed `retains the detached queued access draft at group-create`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    group = structuredClone(group);
     return this.write((tx) => {
-      // Proof: with this check removed, `creates, renames and lists groups,
-      // refusing a taken name` in `access-grant-store.db.test.ts` threw the
-      // UNIQUE constraint instead of the refusal; watched 2026-11-08.
+      // Proof: dropping this check made creates/renames/taken-name return a UNIQUE failure in access-grant-store.db.test.ts (2026-11-08).
       if (groupNamed(tx, organizationId, group.name) !== undefined) return 'name_taken';
       const by = authorOf(act);
       tx.insert(accessGroup)
         .values({
-          id: group.id,
+          ...group,
           organizationId,
-          name: group.name,
           ...(by === null ? auditOnOperatorCreate(act.at) : auditOnCreate({ at: act.at, by })),
         })
         .run();
+      // Proof: append-createGroup-access_group_created: removing this boundary failed `audits group creation on its actual owning connection`;
+      // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+      appendOrganizationAudit(tx, {
+        id: act.auditId,
+        organizationId,
+        actorId: readAccessActorId(act.actor),
+        action: 'access_group_created',
+        subjectKind: 'access_group',
+        subjectId: group.id,
+        detail: { name: group.name, origin: readAccessOperationOrigin(act.actor) },
+        at: act.at,
+      });
       return {
         kind: 'created',
-        group: { id: group.id, organizationId, name: group.name, memberIds: [], createdAt: act.at },
+        group: { ...group, organizationId, memberIds: [], createdAt: act.at },
       } as const;
     });
   }
@@ -184,14 +201,34 @@ export class AccessGrantRepository implements AccessGrants {
     name: string,
     act: AccessAct,
   ): Promise<'renamed' | 'unknown_group' | 'name_taken'> {
+    // Proof: act-snapshot-group-rename: removing this boundary failed `retains the actual audit act before the queued access owner at group-rename`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = retainAccessAct(act);
     return this.write((tx) => {
-      if (!isGroupOf(tx, organizationId, groupId)) return 'unknown_group';
+      const group = readGroup(tx, organizationId, groupId);
+      if (group === undefined) return 'unknown_group';
       const holder = groupNamed(tx, organizationId, name);
       if (holder !== undefined && holder !== groupId) return 'name_taken';
       tx.update(accessGroup)
         .set({ name, ...auditOnUpdate({ at: act.at }) })
         .where(and(eq(accessGroup.id, groupId), eq(accessGroup.organizationId, organizationId)))
         .run();
+      // Proof: append-renameGroup-access_group_renamed: removing this boundary failed `audits a successful group rename even when the accepted name is Ops`;
+      // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+      appendOrganizationAudit(tx, {
+        id: act.auditId,
+        organizationId,
+        actorId: readAccessActorId(act.actor),
+        action: 'access_group_renamed',
+        subjectKind: 'access_group',
+        subjectId: groupId,
+        detail: {
+          oldName: group.name,
+          newName: name,
+          origin: readAccessOperationOrigin(act.actor),
+        },
+        at: act.at,
+      });
       return 'renamed' as const;
     });
   }
@@ -199,40 +236,63 @@ export class AccessGrantRepository implements AccessGrants {
   deleteGroup(
     organizationId: string,
     groupId: string,
-    _act: AccessAct,
+    act: AccessAct,
   ): Promise<
     | { readonly kind: 'deleted'; readonly grantsDeleted: number; readonly membersRemoved: number }
     | 'unknown_group'
   > {
+    // Proof: act-snapshot-group-delete: removing this boundary failed `retains the actual audit act before the queued access owner at group-delete`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = retainAccessAct(act);
     return this.write((tx) => {
-      if (!isGroupOf(tx, organizationId, groupId)) return 'unknown_group';
-      // Proof: with this delete matching no group, `deletes a group with its
-      // grants and members, and nothing of another group` in
-      // `access-grant-store.db.test.ts` left the group's grant behind;
-      // watched 2026-11-08.
-      const grantsDeleted = tx
-        .delete(accessGrant)
-        .where(
-          and(
-            eq(accessGrant.organizationId, organizationId),
-            eq(accessGrant.subjectKind, 'group'),
-            eq(accessGrant.subjectId, groupId),
-          ),
-        )
-        .run().changes;
-      const membersRemoved = tx
-        .delete(accessGroupMember)
-        .where(
-          and(
-            eq(accessGroupMember.organizationId, organizationId),
-            eq(accessGroupMember.groupId, groupId),
-          ),
-        )
-        .run().changes;
-      tx.delete(accessGroup)
-        .where(and(eq(accessGroup.id, groupId), eq(accessGroup.organizationId, organizationId)))
-        .run();
-      return { kind: 'deleted', grantsDeleted, membersRemoved } as const;
+      const removed = deleteGroupAccessIn(tx, organizationId, groupId);
+      if (removed === null) return 'unknown_group';
+      for (const grant of removed.grants)
+        // Proof: append-deleteGroup-access_revoked: removing this boundary failed `audits group deletion as exactly N grant revokes plus M member removals plus one group deletion`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        appendGrantAudit(tx, {
+          grant,
+          action: 'access_revoked',
+          auditId: crypto.randomUUID(),
+          actorId: readAccessActorId(act.actor),
+          at: act.at,
+          origin: 'cascade',
+        });
+      for (const userId of removed.memberIds)
+        // Proof: append-deleteGroup-access_group_member_removed: removing this boundary failed `audits group deletion as exactly N grant revokes plus M member removals plus one group deletion`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        appendOrganizationAudit(tx, {
+          id: crypto.randomUUID(),
+          organizationId,
+          actorId: readAccessActorId(act.actor),
+          action: 'access_group_member_removed',
+          subjectKind: 'access_group',
+          subjectId: groupId,
+          detail: { name: removed.name, userId, origin: 'cascade' },
+          at: act.at,
+        });
+      // Proof: append-deleteGroup-access_group_deleted: removing this boundary failed `audits group deletion as exactly N grant revokes plus M member removals plus one group deletion`;
+      // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+      appendOrganizationAudit(tx, {
+        id: act.auditId,
+        organizationId,
+        actorId: readAccessActorId(act.actor),
+        action: 'access_group_deleted',
+        subjectKind: 'access_group',
+        subjectId: groupId,
+        detail: {
+          name: removed.name,
+          removedGrantCount: removed.grants.length,
+          removedMemberCount: removed.memberIds.length,
+          origin: readAccessOperationOrigin(act.actor),
+        },
+        at: act.at,
+      });
+      return {
+        kind: 'deleted',
+        grantsDeleted: removed.grants.length,
+        membersRemoved: removed.memberIds.length,
+      } as const;
     });
   }
 
@@ -242,15 +302,14 @@ export class AccessGrantRepository implements AccessGrants {
     userId: string,
     act: AccessAct,
   ): Promise<'added' | 'unknown_group' | 'not_a_member' | 'already_in_group'> {
+    // Proof: act-snapshot-member-add: removing this boundary failed `retains the actual audit act before the queued access owner at member-add`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = retainAccessAct(act);
     return this.write((tx) => {
-      if (!isGroupOf(tx, organizationId, groupId)) return 'unknown_group';
-      // Proof: with this check removed, `adds only current members, once, and
-      // removes them` in `access-grant-store.db.test.ts` threw the composite
-      // membership key instead of the refusal; watched 2026-11-08.
+      const group = readGroup(tx, organizationId, groupId);
+      if (group === undefined) return 'unknown_group';
+      // Proof: bypassing membership/group-duplicate checks made adds-only-current-members-once throw restrictive keys in access-grant-store.db.test.ts (2026-11-08).
       if (!isMemberOf(tx, organizationId, userId)) return 'not_a_member';
-      // Proof: with this read removed, `adds only current members, once, and
-      // removes them` threw the primary key instead of `already_in_group`;
-      // watched 2026-11-08.
       if (isInGroup(tx, organizationId, groupId, userId)) return 'already_in_group';
       const by = authorOf(act);
       tx.insert(accessGroupMember)
@@ -258,10 +317,21 @@ export class AccessGrantRepository implements AccessGrants {
           organizationId,
           groupId,
           userId,
-          // No `updated_at` on `access_group_member` either, as in `grant`.
           ...(by === null ? auditOnOperatorCreate(act.at) : auditOnCreate({ at: act.at, by })),
         })
         .run();
+      // Proof: append-addGroupMember-access_group_member_added: removing this boundary failed `audits actual group-member addition and removal without duplicating refused acts`;
+      // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+      appendOrganizationAudit(tx, {
+        id: act.auditId,
+        organizationId,
+        actorId: readAccessActorId(act.actor),
+        action: 'access_group_member_added',
+        subjectKind: 'access_group',
+        subjectId: groupId,
+        detail: { name: group.name, userId, origin: readAccessOperationOrigin(act.actor) },
+        at: act.at,
+      });
       return 'added' as const;
     });
   }
@@ -270,10 +340,14 @@ export class AccessGrantRepository implements AccessGrants {
     organizationId: string,
     groupId: string,
     userId: string,
-    _act: AccessAct,
+    act: AccessAct,
   ): Promise<'removed' | 'unknown_group' | 'not_in_group'> {
+    // Proof: act-snapshot-member-remove: removing this boundary failed `retains the actual audit act before the queued access owner at member-remove`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = retainAccessAct(act);
     return this.write((tx) => {
-      if (!isGroupOf(tx, organizationId, groupId)) return 'unknown_group';
+      const group = readGroup(tx, organizationId, groupId);
+      if (group === undefined) return 'unknown_group';
       const removed = tx
         .delete(accessGroupMember)
         .where(
@@ -284,27 +358,143 @@ export class AccessGrantRepository implements AccessGrants {
           ),
         )
         .run().changes;
-      return removed === 0 ? 'not_in_group' : 'removed';
+      if (removed === 0) return 'not_in_group';
+      // Proof: append-removeGroupMember-access_group_member_removed: removing this boundary failed `audits actual group-member addition and removal without duplicating refused acts`;
+      // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+      appendOrganizationAudit(tx, {
+        id: act.auditId,
+        organizationId,
+        actorId: readAccessActorId(act.actor),
+        action: 'access_group_member_removed',
+        subjectKind: 'access_group',
+        subjectId: groupId,
+        detail: { name: group.name, userId, origin: readAccessOperationOrigin(act.actor) },
+        at: act.at,
+      });
+      return 'removed' as const;
     });
   }
 
   private write<T>(work: (tx: Transaction) => T): Promise<T> {
+    // Proof: access-atomic-owner: removing this boundary failed `rolls every group cascade mutation and earlier audit row back when a later member audit fails`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
     return writeImmediately(this.db, this.gate, work);
   }
+}
+
+/** Checks the actual retained actor/origin pair before any domain read. */
+function assertGrantOrigin(draft: GrantDraft, act: AccessAct): void {
+  // Proof: bypassing this check stored a user grant as operator in the origin/actor refusal of access-grant-store.db.test.ts (2026-11-08).
+  if ((draft.origin === 'operator') !== (act.actor.kind === 'operator'))
+    throw new Error(act.actor.kind + ' actors may not write a grant of origin ' + draft.origin);
+}
+
+/**
+ * Writes one grant in the caller's already owned transaction and returns actual-row evidence.
+ * Owns no gate, transaction or audit; the owner must append its access_granted row before commit.
+ * Caller retains draft/act before any queued await. Scope/subject/role guards run on this connection.
+ * Only select/insert are borrowed: an async owner may supply its already-owned plain
+ * connection, and this body never needs native transaction or rollback methods.
+ * The actual plain-connection composition test rejects a native-only parameter at compile
+ * time (TS2345) and proves rollback/no nested owner at runtime.
+ */
+export function writeGrantIn(
+  tx: Pick<SQLiteBunDatabase, 'select' | 'insert'>,
+  organizationId: string,
+  draft: GrantDraft,
+  act: AccessAct,
+): { readonly kind: 'granted'; readonly grant: AccessGrantRecord } | GrantRefusal {
+  // Proof: borrowed-grant-no-owner: injecting a native transaction wrapper failed `borrows grant and membership writes from an already-owned plain connection without audit or nested owners`;
+  // observed native owner count 1 instead of 0, then restored GREEN (task-4.1 guard-faults receipt, 2026-11-10).
+  assertGrantOrigin(draft, act);
+  const refusal = grantRefusal(tx, organizationId, draft);
+  if (refusal !== null) return refusal;
+  const { scopeKind, scopeId } = scopeColumns(organizationId, draft.scope);
+  const { subjectKind, subjectId } = subjectColumns(organizationId, draft.subject);
+  const by = authorOf(act);
+  // access_grant has no updated_at; Drizzle writes only the declared auditOnCreate columns.
+  tx.insert(accessGrant)
+    .values({
+      id: draft.id,
+      organizationId,
+      scopeKind,
+      scopeId,
+      subjectKind,
+      subjectId,
+      roleId: draft.roleId,
+      origin: draft.origin,
+      ...(by === null ? auditOnOperatorCreate(act.at) : auditOnCreate({ at: act.at, by })),
+    })
+    .run();
+  return { kind: 'granted', grant: recordOf(grantRow(tx, organizationId, draft.id)) };
+}
+
+/** Deletes one addressed group's authority, returning actual removed rows; the owner audits N+M+1 events. */
+function deleteGroupAccessIn(
+  tx: Pick<SQLiteBunDatabase, 'select' | 'delete'>,
+  organizationId: string,
+  groupId: string,
+): {
+  readonly name: string;
+  readonly grants: readonly AccessGrantRecord[];
+  readonly memberIds: readonly string[];
+} | null {
+  const group = readGroup(tx, organizationId, groupId);
+  if (group === undefined) return null;
+  const grants = tx
+    .delete(accessGrant)
+    .where(
+      and(
+        eq(accessGrant.organizationId, organizationId),
+        eq(accessGrant.subjectKind, 'group'),
+        eq(accessGrant.subjectId, groupId),
+      ),
+    )
+    .returning()
+    .all()
+    .map(recordOf);
+  const memberIds = tx
+    .delete(accessGroupMember)
+    .where(
+      and(
+        eq(accessGroupMember.organizationId, organizationId),
+        eq(accessGroupMember.groupId, groupId),
+      ),
+    )
+    .returning({ userId: accessGroupMember.userId })
+    .all()
+    .map(({ userId }) => userId);
+  tx.delete(accessGroup)
+    .where(and(eq(accessGroup.id, groupId), eq(accessGroup.organizationId, organizationId)))
+    .run();
+  return { name: group.name, grants, memberIds };
+}
+
+/** The addressed group's local name, or undefined for absent/foreign. */
+function readGroup(
+  tx: Reader,
+  organizationId: string,
+  groupId: string,
+): { readonly name: string } | undefined {
+  return tx
+    .select({ name: accessGroup.name })
+    .from(accessGroup)
+    .where(and(eq(accessGroup.id, groupId), eq(accessGroup.organizationId, organizationId)))
+    .get();
 }
 
 /**
  * Deletes every grant naming one of `credentialIds` as its subject
  * (`wbs-permissions` P17): a revoked or removed credential holds nothing, so
  * no later reuse of its row can read a grant back. Runs inside the caller's
- * revocation or removal transaction. Answers how many grants went; no
- * `access_revoked` audit row is written before task 4.1 admits the action.
+ * revocation or removal transaction. Returns actual deleted grant evidence; owns no
+ * transaction/audit. The owner appends one access_revoked per row before commit.
  */
 export function deleteGrantsOfCredentials(
   tx: Pick<SQLiteBunDatabase, 'delete'>,
   credentialIds: readonly string[],
-): number {
-  if (credentialIds.length === 0) return 0;
+): readonly AccessGrantRecord[] {
+  if (credentialIds.length === 0) return [];
   return tx
     .delete(accessGrant)
     .where(
@@ -313,7 +503,9 @@ export function deleteGrantsOfCredentials(
         inArray(accessGrant.subjectId, [...credentialIds]),
       ),
     )
-    .run().changes;
+    .returning()
+    .all()
+    .map(recordOf);
 }
 
 /**
@@ -323,14 +515,16 @@ export function deleteGrantsOfCredentials(
  * scope, role and origin; the creator is carried, the instant is `at`. Runs
  * inside the re-key's transaction before the old key's grants are deleted.
  * A grant `toId` already holds is skipped, so two old keys of one person
- * holding the same grant copy it once. Answers how many rows were written.
+ * holding the same grant copy it once. Returns only actually inserted grant evidence;
+ * skipped duplicates produce no evidence/audit. The successor credential is deliberately
+ * created later in this same owner, so ordinary live-subject grant admission cannot run here.
  */
 export function copyGrantsOfCredential(
   tx: Pick<SQLiteBunDatabase, 'select' | 'insert'>,
   fromId: string,
   toId: string,
   at: number,
-): number {
+): readonly AccessGrantRecord[] {
   const held = tx
     .select()
     .from(accessGrant)
@@ -338,29 +532,31 @@ export function copyGrantsOfCredential(
       and(eq(accessGrant.subjectKind, 'machine_credential'), eq(accessGrant.subjectId, fromId)),
     )
     .all();
-  let copied = 0;
+  const copied: AccessGrantRecord[] = [];
   for (const row of held)
-    copied += tx
-      .insert(accessGrant)
-      .values({
-        id: crypto.randomUUID(),
-        organizationId: row.organizationId,
-        scopeKind: row.scopeKind,
-        scopeId: row.scopeId,
-        subjectKind: 'machine_credential',
-        subjectId: toId,
-        roleId: row.roleId,
-        origin: row.origin,
-        // The copy keeps its source's creator: a backfilled or operator row
-        // has none. `auditOnCreate`'s `updatedAt` names no column of
-        // `access_grant`, drizzle writes only declared columns, and the call
-        // is what `audit.test.ts`' write-site scan requires.
-        ...(row.createdBy === null
-          ? auditOnOperatorCreate(at)
-          : auditOnCreate({ at, by: row.createdBy })),
-      })
-      .onConflictDoNothing()
-      .run().changes;
+    copied.push(
+      ...tx
+        .insert(accessGrant)
+        .values({
+          id: crypto.randomUUID(),
+          organizationId: row.organizationId,
+          scopeKind: row.scopeKind,
+          scopeId: row.scopeId,
+          subjectKind: 'machine_credential',
+          subjectId: toId,
+          roleId: row.roleId,
+          origin: row.origin,
+          ...(row.createdBy === null
+            ? auditOnOperatorCreate(at)
+            : auditOnCreate({ at, by: row.createdBy })),
+        })
+        // Proof: pool-copy-dedup: removing this boundary failed `audits only actually inserted pool grant copies when old keys overlap`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        .onConflictDoNothing()
+        .returning()
+        .all()
+        .map(recordOf),
+    );
   return copied;
 }
 
@@ -433,11 +629,7 @@ export function operatorSubjectRefusal(
 }
 
 /** The first rule `draft` breaks in `organizationId`, read in the write's transaction, or null. */
-function grantRefusal(
-  tx: Transaction,
-  organizationId: string,
-  draft: GrantDraft,
-): GrantRefusal | null {
+function grantRefusal(tx: Reader, organizationId: string, draft: GrantDraft): GrantRefusal | null {
   const role = tx
     .select({ objectKind: accessRole.objectKind })
     .from(accessRole)
@@ -488,7 +680,7 @@ function grantRefusal(
  * "Tables": `work_package_organization` after `wbs-work-packages` slice 1).
  * No project entity exists yet, so a project scope never does.
  */
-function isScopeOf(tx: Transaction, organizationId: string, scope: GrantScope): boolean {
+function isScopeOf(tx: Reader, organizationId: string, scope: GrantScope): boolean {
   switch (scope.kind) {
     case 'organization':
       return (
@@ -524,7 +716,7 @@ function isScopeOf(tx: Transaction, organizationId: string, scope: GrantScope): 
 
 /** Why `subject` may not hold a grant in `organizationId`, or null. */
 function subjectRefusalOf(
-  tx: Transaction,
+  tx: Reader,
   organizationId: string,
   subject: GrantSubject,
 ): 'not_a_member' | 'unknown_group' | 'unknown_credential' | null {
@@ -564,7 +756,7 @@ function subjectRefusalOf(
 }
 
 /** Whether `row` is a direct organization-scope `org-super-admin` grant of a current member. */
-function countsAsSuperAdmin(tx: Transaction, row: AccessGrantRow): boolean {
+function countsAsSuperAdmin(tx: Reader, row: AccessGrantRow): boolean {
   return (
     row.scopeKind === 'organization' &&
     row.subjectKind === 'user' &&
@@ -586,7 +778,7 @@ function superAdminGrantOf(organizationId: string): SQL {
   return condition;
 }
 
-function isMemberOf(tx: Transaction, organizationId: string, userId: string): boolean {
+function isMemberOf(tx: Reader, organizationId: string, userId: string): boolean {
   return (
     tx
       .select({ userId: organizationMembership.userId })
@@ -601,12 +793,7 @@ function isMemberOf(tx: Transaction, organizationId: string, userId: string): bo
   );
 }
 
-function isInGroup(
-  tx: Transaction,
-  organizationId: string,
-  groupId: string,
-  userId: string,
-): boolean {
+function isInGroup(tx: Reader, organizationId: string, groupId: string, userId: string): boolean {
   return (
     tx
       .select({ userId: accessGroupMember.userId })
@@ -622,7 +809,7 @@ function isInGroup(
   );
 }
 
-function isGroupOf(tx: Transaction, organizationId: string, groupId: string): boolean {
+function isGroupOf(tx: Reader, organizationId: string, groupId: string): boolean {
   return (
     tx
       .select({ id: accessGroup.id })
@@ -633,7 +820,7 @@ function isGroupOf(tx: Transaction, organizationId: string, groupId: string): bo
 }
 
 /** The id of the organization's group named exactly `name`, or undefined. */
-function groupNamed(tx: Transaction, organizationId: string, name: string): string | undefined {
+function groupNamed(tx: Reader, organizationId: string, name: string): string | undefined {
   return tx
     .select({ id: accessGroup.id })
     .from(accessGroup)

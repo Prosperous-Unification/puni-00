@@ -74,6 +74,11 @@ const ORGANIZATION_TABLES = [
 ];
 
 const stamp = (by: string, at = 10): WriteStamp => ({ at, by });
+const membershipAct = (actor: string) => ({
+  stamp: stamp(actor),
+  actor,
+  auditId: crypto.randomUUID(),
+});
 
 let dir: string;
 let path: string;
@@ -231,7 +236,9 @@ describe('OrganizationRepository', () => {
     expect(await organizations.changeRole('org-a', 'u-a', 'admin', stamp('u-a'))).toBe(
       'last-super-admin',
     );
-    expect(await organizations.removeMember('org-a', 'u-a')).toBe('last-super-admin');
+    expect(await organizations.removeMember('org-a', 'u-a', membershipAct('u-a'), 'route')).toBe(
+      'last-super-admin',
+    );
     expect(await organizations.listMemberships('u-a')).toEqual([
       { organizationId: 'org-a', role: 'super_admin' },
     ]);
@@ -244,8 +251,12 @@ describe('OrganizationRepository', () => {
     await organizations.addMember('org-a', 'u-c', 'viewer', stamp('u-a'));
 
     expect(await organizations.changeRole('org-a', 'u-a', 'member', stamp('u-b'))).toBe('changed');
-    expect(await organizations.removeMember('org-a', 'u-c')).toBe('removed');
-    expect(await organizations.removeMember('org-a', 'u-c')).toBe('not-member');
+    expect(await organizations.removeMember('org-a', 'u-c', membershipAct('u-a'), 'route')).toBe(
+      'removed',
+    );
+    expect(await organizations.removeMember('org-a', 'u-c', membershipAct('u-a'), 'route')).toBe(
+      'not-member',
+    );
     expect(await organizations.changeRole('org-a', 'u-c', 'member', stamp('u-b'))).toBe(
       'not-member',
     );
@@ -282,13 +293,14 @@ describe('OrganizationRepository.administer', () => {
     const other = openConnection(path);
     try {
       const outcomes = await Promise.all([
-        organizations.administer('org-a', 'u-a', 'u-a', null, stamp('u-a')),
+        organizations.administer('org-a', 'u-a', 'u-a', null, membershipAct('u-a'), 'route'),
         new OrganizationRepository(other.db, OPEN).administer(
           'org-a',
           'u-b',
           'u-b',
           null,
-          stamp('u-b'),
+          membershipAct('u-b'),
+          'route',
         ),
       ]);
       expect(outcomes.map((each) => (each.ok ? 'removed' : each.refusal)).sort()).toEqual([
@@ -309,11 +321,19 @@ describe('OrganizationRepository.administer', () => {
         'u-b',
         'u-a',
         'member',
-        stamp('u-b'),
+        membershipAct('u-b'),
+        'route',
       );
-      expect(await organizations.administer('org-a', 'u-a', 'u-c', 'viewer', stamp('u-a'))).toEqual(
-        { ok: false, refusal: 'forbidden' },
-      );
+      expect(
+        await organizations.administer(
+          'org-a',
+          'u-a',
+          'u-c',
+          'viewer',
+          membershipAct('u-a'),
+          'route',
+        ),
+      ).toEqual({ ok: false, refusal: 'forbidden' });
     } finally {
       other.close();
     }
@@ -321,16 +341,26 @@ describe('OrganizationRepository.administer', () => {
 
   it('changes and removes only the membership in the given organization', async () => {
     const organizations = await seeded();
-    expect((await organizations.administer('org-a', 'u-a', 'u-c', 'viewer', stamp('u-a'))).ok).toBe(
-      true,
-    );
+    expect(
+      (
+        await organizations.administer(
+          'org-a',
+          'u-a',
+          'u-c',
+          'viewer',
+          membershipAct('u-a'),
+          'route',
+        )
+      ).ok,
+    ).toBe(true);
     expect(await organizations.listMemberships('u-c')).toEqual([
       { organizationId: 'org-a', role: 'viewer' },
       { organizationId: 'org-b', role: 'member' },
     ]);
-    expect((await organizations.administer('org-a', 'u-a', 'u-c', null, stamp('u-a'))).ok).toBe(
-      true,
-    );
+    expect(
+      (await organizations.administer('org-a', 'u-a', 'u-c', null, membershipAct('u-a'), 'route'))
+        .ok,
+    ).toBe(true);
     expect(await organizations.listMemberships('u-c')).toEqual([
       { organizationId: 'org-b', role: 'member' },
     ]);
@@ -752,6 +782,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -884,3 +915,125 @@ describe('20260927120000_add_organization_records', () => {
     connection = openConnection(path);
   });
 });
+
+for (const fault of ['actor', 'stamp', 'source', 'self-leave']) {
+  it(
+    'refuses inconsistent trusted membership removal provenance before owner entry at ' + fault,
+    async () => {
+      const performed = membershipAct('u-a');
+      if (fault === 'actor') performed.actor = 'u-b';
+      if (fault === 'stamp') Object.assign(performed.stamp, { by: 'u-b' });
+      const repository = new OrganizationRepository(connection.db, {
+        enter: () => {
+          throw new Error('unexpected membership owner entry');
+        },
+      });
+      const pending = repository.administer(
+        'org-a',
+        'u-a',
+        'u-c',
+        null,
+        performed,
+        fault === 'source'
+          ? ('unknown' as 'route')
+          : fault === 'self-leave'
+            ? 'self_leave'
+            : 'route',
+      );
+      expect((await rejectionOf(pending)).message).toContain(
+        fault === 'source'
+          ? 'membership removal source is malformed'
+          : fault === 'self-leave'
+            ? 'self-leave actor differs from its target'
+            : 'membership audit identity differs from its actor',
+      );
+    },
+  );
+}
+for (const operation of ['raw', 'administer']) {
+  it('retains the actual membership audit owner before the queue at ' + operation, async () => {
+    const setup = new OrganizationRepository(connection.db, OPEN);
+    await setup.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    await setup.addMember('org-a', 'u-c', 'member', stamp('u-a'));
+    const gate = new WriteCoordinator();
+    const repository = new OrganizationRepository(connection.db, gate);
+    const held = Promise.withResolvers<undefined>();
+    const entered = Promise.withResolvers<undefined>();
+    const blocker = gate.enter(async () => {
+      entered.resolve(undefined);
+      await held.promise;
+    });
+    await entered.promise;
+    const performed = membershipAct('u-a');
+    const expectedId = performed.auditId;
+    const pending =
+      operation === 'raw'
+        ? repository.removeMember('org-a', 'u-c', performed, 'route')
+        : repository.administer('org-a', 'u-a', 'u-c', null, performed, 'route');
+    Object.assign(performed, { actor: 'u-b', auditId: 'replacement' });
+    Object.assign(performed.stamp, { at: 999, by: 'u-b' });
+    held.resolve(undefined);
+    await blocker;
+    await pending;
+    expect(
+      connection.db.get<{ id: string; actor_id: string; created_at: number }>(
+        sql`SELECT id,actor_id,created_at FROM organization_audit WHERE action='organization_member_removed'`,
+      ),
+    ).toEqual({ id: expectedId, actor_id: 'u-a', created_at: 10 });
+  });
+}
+
+it('throws and rolls back when borrowed membership state disappears after the owning admission', async () => {
+  const setup = new OrganizationRepository(connection.db, OPEN);
+  await setup.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+  await setup.addMember('org-a', 'u-b', 'super_admin', stamp('u-a'));
+  const before = connection.db.all(sql`SELECT * FROM organization_membership ORDER BY user_id`);
+  let injected = false;
+  const observed: Connection = openConnection(path, {
+    logQuery(query) {
+      if (
+        !injected &&
+        query.startsWith('select count(') &&
+        query.includes('organization_membership')
+      ) {
+        injected = true;
+        observed.db.run(
+          sql`DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id='u-b'`,
+        );
+      }
+    },
+  });
+  try {
+    expect(
+      (
+        await rejectionOf(
+          new OrganizationRepository(observed.db, OPEN).administer(
+            'org-a',
+            'u-a',
+            'u-b',
+            null,
+            membershipAct('u-a'),
+            'route',
+          ),
+        )
+      ).message,
+    ).toContain('guarded membership removal changed inside its owner');
+    expect(injected).toBe(true);
+    expect(connection.db.all(sql`SELECT * FROM organization_membership ORDER BY user_id`)).toEqual(
+      before,
+    );
+    expect(connection.db.all(sql`SELECT * FROM organization_audit`)).toEqual([]);
+  } finally {
+    observed.close();
+  }
+});
+
+async function rejectionOf(pending: Promise<unknown>): Promise<Error> {
+  const failure: unknown = await pending.then(
+    () => null,
+    (failure: unknown) => failure,
+  );
+  if (!(failure instanceof Error))
+    throw new Error('expected the production operation to reject', { cause: failure });
+  return failure;
+}

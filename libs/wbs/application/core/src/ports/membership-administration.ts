@@ -1,6 +1,9 @@
 import type { OrganizationRole } from '@wbs/domain';
 
-import type { WriteStamp } from './write-stamp';
+import type { AuditedAct } from './organization-audit';
+
+/** The explicit owning entrypoint of a membership removal. */
+export type MembershipRemovalSource = 'route' | 'self_leave';
 
 /** What one membership administration answered. */
 export type MembershipAdministered =
@@ -53,14 +56,18 @@ export interface MembershipAdministration {
   /**
    * Sets `targetUserId`'s role in `organizationId` to `requested`, or removes
    * the membership when `requested` is null, when `actorId`'s current role
-   * there permits it.
+   * there permits it. A removal cleans up direct user grants and access-group
+   * memberships and records one aggregate audit in that same owner. `source`
+   * names the owning entrypoint, even when an admin route targets its actor.
+   * The legacy role matrix remains until permission task2.5.
    */
   administer(
     organizationId: string,
     actorId: string,
     targetUserId: string,
     requested: OrganizationRole | null,
-    stamp: WriteStamp,
+    act: AuditedAct,
+    source: MembershipRemovalSource,
   ): Promise<MembershipAdministered>;
 
   /**

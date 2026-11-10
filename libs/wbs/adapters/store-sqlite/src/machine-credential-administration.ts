@@ -13,6 +13,7 @@ import type { MachineCredentialSource } from '@wbs/domain';
 import { and, asc, eq, gt, inArray, isNull, or, type SQL } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { appendGrantAudit } from './access-audit';
 import { AccessDecisionRepository } from './access-decisions';
 import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -428,6 +429,15 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
   ): Promise<'revoked' | MachineCredentialActorRefusal | 'not_found'> {
     principal = structuredClone(principal);
     const actorId = principal.id;
+    // Proof: owner-identity-machine-actor: removing this boundary failed `rejects a machine-revoke audit actor mismatch before owner entry`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    // Proof: owner-identity-machine-stamp: removing this boundary failed `rejects a machine-revoke audit stamp mismatch before owner entry`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    if (act.actor !== actorId || act.stamp.by !== actorId)
+      throw new Error('credential audit identity differs from its actor');
+    // Proof: owner-act-machine: removing this boundary failed `retains actual queued cascade audit provenance at machine-revoke`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = structuredClone(act);
     return this.write(async (tx) => {
       const role = await credentialReach(tx, organizationId, principal);
       if (role === 'inactive' || role === 'forbidden') return role;
@@ -455,7 +465,18 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
       // revocation, and no other credential’s` in
       // `access-grant-store.db.test.ts` kept the revoked key's grant row;
       // watched 2026-11-08.
-      deleteGrantsOfCredentials(tx, [credentialId]);
+      const removedGrants = deleteGrantsOfCredentials(tx, [credentialId]);
+      for (const grant of removedGrants)
+        // Proof: cascade-machine-credential-administration-revoke: removing this boundary failed `are deleted with an administrator’s revocation, and no other credential’s`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        appendGrantAudit(tx, {
+          grant,
+          action: 'access_revoked',
+          auditId: crypto.randomUUID(),
+          actorId: act.actor,
+          at,
+          origin: 'cascade',
+        });
       appendOrganizationAudit(tx, {
         id: act.auditId,
         organizationId,

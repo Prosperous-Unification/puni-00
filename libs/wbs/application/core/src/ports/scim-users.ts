@@ -59,6 +59,12 @@ export interface PendingMembershipActivation {
  * (`active=false` or delete of a bound record) deletes that user's membership
  * in this organization only, with the same final-super-admin guard as a
  * super-admin removal, and writes the audit row, in one immediate transaction.
+ * The borrowed cleanup removes direct user grants and group memberships first.
+ * The existing lifecycle event includes membershipRemoved, nullable boundUserId,
+ * removedUserGrantCount and removedGroupMembershipCount; it emits no separate
+ * member-removal or grant-revocation events. Inactive no-op updates remain silent.
+ * Queued deprovisioning retains its act and change, preserving the distinct SCIM
+ * service actor and token issuer stamp.
  * Membership deletion is the revocation: every resolution, delegation
  * verification and gateway lease rechecks current membership.
  *

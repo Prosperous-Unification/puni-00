@@ -212,11 +212,14 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
 
 ## 4. Grant commands and audit
 
-- [ ] 4.1 Before 2.5 and #698 slice 1: audit widening `widen_organization_audit_access`
+- [x] 4.1 Before 2.5 and #698 slice 1: audit widening `widen_organization_audit_access`
       using current project vocabulary (the later rename preserves every access action,
       subject and index); complete deferred atomic grant-store/operator audit writes.
       Include `organization_member_removed`/`organization_member` and SCIM aggregate
-      exceptions from the organization-audit delta spec. Compatible rebuild, precedent
+      exceptions from the organization-audit delta spec; group deletion emits N grant
+      revokes + M group-member removals + one group-deleted event, and an accepted same-name
+      rename emits one event. Variable cascades use fresh owner-local event IDs; borrowed
+      mutations return evidence without their own owner/audit. Compatible rebuild, precedent
       `20261012090200`; `ORGANIZATION_AUDIT_ACTIONS` and subject kinds, `down.sql`
       refusing while a new-action row exists — test: the migration test forward, back
       and refusal; negative: `CHECK (1)` in place of the guard and `migration-lint.test.ts`

@@ -17,6 +17,18 @@ values SHALL keep the table's columns and rows, keep every existing action writa
 outgoing release, and refuse rollback while a row of a new action exists. The backfill
 SHALL NOT write audit rows.
 
+Deleting an access group SHALL append one `access_revoked` row per actually deleted
+grant, one `access_group_member_removed` row per actually deleted membership, and one
+`access_group_deleted` row, all in the same owner and with distinct event IDs. Cascade
+rows SHALL use the owning actor and operation origin `cascade`. A successful rename to
+the same name SHALL still append one renamed row. Refusals SHALL append no success row.
+Agent-pool re-key SHALL audit only actually inserted successor grants; duplicate copies
+SHALL append no grant event. Stored grant origin/creator SHALL remain preserved while
+the new audit records the actual pool owner, current act time and origin `cascade`.
+Borrowed grant mutation functions SHALL return actual-row evidence without opening an
+owner or appending audit; the authenticated owning operation SHALL append the evidence
+on its same connection, with fresh per-row IDs for variable cascades.
+
 Direct authenticated member removal SHALL instead write exactly one aggregate
 `organization_member_removed` row with subject kind `organization_member`, subject id
 the removed account id in the row's organization, and detail `source`,
@@ -80,3 +92,18 @@ appending its own audit.
 
 - **WHEN** an `access_granted` row exists and the widening migration's `down.sql` runs
 - **THEN** it fails and the table and its rows are unchanged
+
+#### Scenario: Group deletion audits every cascade and its root
+
+- **WHEN** the owning operation deletes a group holding two grants and three members
+- **THEN** exactly two access-revoked, three group-member-removed and one group-deleted rows commit with the deletion, each with its own audit ID and the actual owner's actor
+
+#### Scenario: An accepted same-name rename is an audited act
+
+- **WHEN** the owning operation successfully renames an access group to its current name
+- **THEN** exactly one access-group-renamed row records the equal old and new names
+
+#### Scenario: Duplicate re-key copies do not invent grant events
+
+- **WHEN** two old pool credentials contribute the same scoped role to one successor credential
+- **THEN** only the actually inserted successor grant has an access-granted event; each actually deleted old grant still has its own access-revoked event, and all existing credential/pool lifecycle rows remain atomic

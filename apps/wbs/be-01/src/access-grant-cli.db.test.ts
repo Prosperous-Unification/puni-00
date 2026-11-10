@@ -158,7 +158,7 @@ describe('grant-super-admin', () => {
       roleId: 'org-super-admin',
       origin: 'operator',
       actor: ACTOR,
-      audit: 'deferred to wbs-permissions 4.1',
+      audit: 'recorded',
       superAdminCount: 2,
     });
     expect(grantRows()).toEqual([
@@ -172,8 +172,24 @@ describe('grant-super-admin', () => {
       ADA_VIEWER,
       SAM,
     ]);
-    // The audit rows are task 4.1's (design.md P21, amended 2026-11-08).
-    expect(auditCount()).toBe(0);
+    expect(auditCount()).toBe(1);
+    expect(readAccessAudits()).toMatchObject([
+      {
+        organization_id: 'org-a',
+        actor_id: ACTOR,
+        action: 'access_granted',
+        subject_kind: 'access_grant',
+        subject_id: printed['grantId'],
+        detail: {
+          roleId: 'org-super-admin',
+          scopeKind: 'organization',
+          scopeId: 'org-a',
+          subjectKind: 'user',
+          subjectId: 'ada',
+          origin: 'operator',
+        },
+      },
+    ]);
   });
 
   it('refuses a user who is not a current member, writing nothing', () => {
@@ -221,9 +237,18 @@ describe('revoke-super-admin', () => {
       roleId: 'org-super-admin',
       origin: 'operator',
       actor: ACTOR,
-      audit: 'deferred to wbs-permissions 4.1',
+      audit: 'recorded',
       superAdminCount: 1,
     });
+    expect(readAccessAudits()).toMatchObject([
+      { actor_id: ACTOR, action: 'access_granted', detail: { origin: 'operator' } },
+      {
+        actor_id: ACTOR,
+        action: 'access_revoked',
+        subject_id: 'g-sam',
+        detail: { roleId: 'org-super-admin', subjectId: 'sam', origin: 'operator' },
+      },
+    ]);
     expect(grantRows().map((row) => [row.subject_id, row.role_id])).toEqual([
       ['ada', 'org-super-admin'],
       ['ada', 'org-viewer'],
@@ -330,3 +355,59 @@ describe('both commands', () => {
     expect(grantRows()).toEqual(FIXTURE_GRANTS);
   });
 });
+
+function readAccessAudits() {
+  const db = openDatabase(path);
+  try {
+    return db
+      .query<
+        {
+          id: string;
+          organization_id: string;
+          actor_id: string;
+          action: string;
+          subject_kind: string;
+          subject_id: string;
+          detail: string;
+          created_at: number;
+        },
+        []
+      >('SELECT * FROM organization_audit ORDER BY created_at,rowid')
+      .all()
+      .map((row) => ({ ...row, detail: JSON.parse(row.detail) as unknown }));
+  } finally {
+    db.close();
+  }
+}
+
+for (const command of ['grant', 'revoke'] as const) {
+  it(
+    'rolls the operator ' +
+      command +
+      ' back and prints no success when its access audit cannot be written',
+    () => {
+      const db = openDatabase(path);
+      try {
+        if (command === 'revoke')
+          db.run(
+            "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at,created_by) VALUES ('g-ada-admin','org-a','organization','org-a','user','ada','org-super-admin','route',1,'sam')",
+          );
+        db.run(
+          "CREATE TRIGGER reject_operator_access_audit BEFORE INSERT ON organization_audit WHEN NEW.action='" +
+            (command === 'grant' ? 'access_granted' : 'access_revoked') +
+            "' BEGIN SELECT RAISE(ABORT,'injected operator access audit failure'); END",
+        );
+      } finally {
+        db.close();
+      }
+      const before = grantRows();
+      const audits = readAccessAudits();
+      const outcome = run(command === 'grant' ? grant('org-a', 'ada') : revoke('org-a', 'sam'));
+      expect(outcome.exitCode).toBe(1);
+      expect(outcome.stdout).toBe('');
+      expect(outcome.stderr).toContain('injected operator access audit failure');
+      expect(grantRows()).toEqual(before);
+      expect(readAccessAudits()).toEqual(audits);
+    },
+  );
+}

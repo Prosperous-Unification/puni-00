@@ -1,6 +1,7 @@
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { digestMachineSecret } from '@wbs/core';
 import { CLAIM_LEASE_MS } from '@wbs/domain';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import {
@@ -482,7 +483,7 @@ describe('re-keying a pool', () => {
           h.userId('dany'),
         ],
       );
-    const answer = await h.call('dany', 'POST', `${PATH}/${doc.poolId}/rekey`, {});
+    const answer = await h.call('ada', 'POST', `${PATH}/${doc.poolId}/rekey`, {});
     expect(answer.status).toBe(201);
     const fresh = answer.body as KeysDocument;
     const grantsOf = (credentialId: string) =>
@@ -503,6 +504,30 @@ describe('re-keying a pool', () => {
         },
       ]);
     }
+
+    const grantAudits = readGrantAudits();
+    expect(grantAudits).toHaveLength(4);
+    expect(
+      grantAudits.every(
+        ({ actor_id, organization_id, origin, id, subject_id }) =>
+          actor_id === h.userId('ada') &&
+          organization_id === 'org-a' &&
+          origin === 'cascade' &&
+          id !== subject_id,
+      ),
+    ).toBe(true);
+    expect(
+      grantAudits
+        .filter(({ action }) => action === 'access_granted')
+        .map(({ grant_subject_id }) => grant_subject_id)
+        .sort(),
+    ).toEqual(fresh.agents.map(({ credentialId }) => credentialId).sort());
+    expect(
+      grantAudits
+        .filter(({ action }) => action === 'access_revoked')
+        .map(({ grant_subject_id }) => grant_subject_id)
+        .sort(),
+    ).toEqual(doc.agents.map(({ credentialId }) => credentialId).sort());
   });
 
   it('answers not_found for a revoked pool, another organization’s, and to an admin of B', async () => {
@@ -581,6 +606,18 @@ describe('revoking a pool', () => {
     expect(credentialGrants()).toBe(2);
     expect(await h.call('dany', 'DELETE', `${PATH}/${doc.poolId}`)).toMatchObject({ status: 200 });
     expect(credentialGrants()).toBe(0);
+
+    const revokedAudits = readGrantAudits().filter(({ action }) => action === 'access_revoked');
+    expect(revokedAudits).toHaveLength(2);
+    expect(revokedAudits.map(({ grant_subject_id }) => grant_subject_id).sort()).toEqual(
+      doc.agents.map(({ credentialId }) => credentialId).sort(),
+    );
+    expect(
+      revokedAudits.every(
+        ({ actor_id, origin, id, subject_id }) =>
+          actor_id === h.userId('dany') && origin === 'cascade' && id !== subject_id,
+      ),
+    ).toBe(true);
   });
 
   // Proof: with the route's directory batch skipped, this answered
@@ -773,3 +810,152 @@ describe('re-keying, the review fixes', () => {
     ).toBe(0);
   });
 });
+
+function readGrantAudits() {
+  return h.sqlite
+    .query<
+      {
+        id: string;
+        organization_id: string;
+        actor_id: string;
+        action: string;
+        subject_id: string;
+        grant_subject_id: string;
+        grant_subject_kind: string;
+        scope_kind: string;
+        scope_id: string;
+        role_id: string;
+        origin: string;
+      },
+      []
+    >(
+      "SELECT id,organization_id,actor_id,action,subject_id,json_extract(detail,'$.subjectId') AS grant_subject_id,json_extract(detail,'$.subjectKind') AS grant_subject_kind,json_extract(detail,'$.scopeKind') AS scope_kind,json_extract(detail,'$.scopeId') AS scope_id,json_extract(detail,'$.roleId') AS role_id,json_extract(detail,'$.origin') AS origin FROM organization_audit WHERE subject_kind='access_grant' ORDER BY rowid",
+    )
+    .all();
+}
+
+for (const operation of ['rekey', 'revoke'] as const) {
+  it('retains the pool route audit actor across resolution at ' + operation, async () => {
+    const doc = await createPool('dany', { name: 'retained-route', size: 1 });
+    const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+    const resolve = observer.getMockImplementation();
+    if (resolve === undefined) throw new Error('pool resolver lost its implementation');
+    observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+      const admitted = await resolve.call(this, principal);
+      Object.assign(principal, { id: h.userId('ada') });
+      return admitted;
+    });
+    try {
+      const answered = await h.call(
+        'dany',
+        operation === 'rekey' ? 'POST' : 'DELETE',
+        PATH + '/' + doc.poolId + (operation === 'rekey' ? '/rekey' : ''),
+        operation === 'rekey' ? {} : undefined,
+      );
+      expect(answered.status).toBe(operation === 'rekey' ? 201 : 200);
+      const actions =
+        operation === 'rekey'
+          ? ['agent_pool_rekeyed', 'machine_credential_revoked', 'machine_credential_issued']
+          : ['agent_pool_revoked', 'machine_credential_revoked'];
+      const rows = h.sqlite
+        .query<{ actor_id: string }, [number]>(
+          'SELECT actor_id FROM organization_audit WHERE rowid > ? AND action IN (' +
+            actions.map((action) => "'" + action + "'").join(',') +
+            ')',
+        )
+        .all(0);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every((row) => row.actor_id === h.userId('dany'))).toBe(true);
+    } finally {
+      observer.mockRestore();
+    }
+  });
+}
+
+for (const operation of ['rekey', 'revoke'] as const) {
+  it(
+    'rolls pool ' +
+      operation +
+      ' and all access audit evidence back on a late lifecycle audit failure',
+    async () => {
+      const doc = await createPool('dany', { name: 'rollback-pool', size: 2 });
+      for (const agent of doc.agents)
+        grantCredential(
+          h.sqlite,
+          'org-a',
+          agent.credentialId,
+          'project-contributor',
+          'organization',
+          'org-a',
+        );
+      const snapshot = () =>
+        [
+          'agent_pool',
+          'machine_credential',
+          'machine_credential_secret',
+          'access_grant',
+          'organization_audit',
+          'person',
+          'claim',
+        ].map((table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
+      const before = snapshot();
+      h.sqlite.run(
+        "CREATE TRIGGER fail_late_pool_audit BEFORE INSERT ON organization_audit WHEN NEW.action='agent_pool_" +
+          (operation === 'rekey' ? 'rekeyed' : 'revoked') +
+          "' BEGIN SELECT RAISE(ABORT,'late pool audit unavailable'); END",
+      );
+      const answered = await h.call(
+        'dany',
+        operation === 'rekey' ? 'POST' : 'DELETE',
+        PATH + '/' + doc.poolId + (operation === 'rekey' ? '/rekey' : ''),
+        operation === 'rekey' ? {} : undefined,
+      );
+      expect(answered.status).toBe(500);
+      expect(snapshot()).toEqual(before);
+    },
+  );
+}
+
+for (const substitution of ['authentication', 'delegation']) {
+  it(
+    'retains the original pool removal principal through directory cleanup: ' + substitution,
+    async () => {
+      const doc = await createPool('dany', { name: 'retained-cleanup', size: 1 });
+      const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+      const resolve = observer.getMockImplementation();
+      if (resolve === undefined) throw new Error('pool cleanup resolver lost implementation');
+      let calls = 0;
+      observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+        const admitted = await resolve.call(this, principal);
+        if (calls++ < 2) {
+          if (substitution === 'authentication')
+            Object.assign(principal, {
+              authentication: {
+                kind: 'machine',
+                credentialId: 'replacement',
+                personId: 'replacement',
+              },
+            });
+          else Object.assign(principal, { delegation: { organizationId: 'org-a' } });
+        }
+        return admitted;
+      });
+      try {
+        expect(
+          await h.call('dany', 'DELETE', PATH + '/' + doc.poolId + '?removePersons=true'),
+        ).toEqual({
+          status: 200,
+          body: { poolId: doc.poolId, revokedCredentials: 1, removedPersons: 1 },
+        });
+        expect(calls).toBeGreaterThan(1);
+        expect(
+          h.sqlite
+            .query('SELECT id FROM person WHERE id=?')
+            .get(doc.agents[0]?.personId ?? 'missing'),
+        ).toBeNull();
+      } finally {
+        observer.mockRestore();
+      }
+    },
+  );
+}

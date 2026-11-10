@@ -11,6 +11,7 @@ import {
 import { and, asc, count, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { appendGrantAudit } from './access-audit';
 import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate } from './audit';
 import type { Gate } from './gate';
@@ -309,7 +310,18 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
         // left on a revoked credential with the issuer (wbs-permissions P17)`
         // in `trusted-issuer.controller.db.test.ts` kept the grant row;
         // watched 2026-11-08.
-        deleteGrantsOfCredentials(tx, revoked);
+        const removedGrants = deleteGrantsOfCredentials(tx, revoked);
+        for (const grant of removedGrants)
+          // Proof: cascade-trusted-issuer-administration-remove: removing this boundary failed `deletes a grant an older release left on a revoked credential with the issuer (wbs-permissions P17)`;
+          // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+          appendGrantAudit(tx, {
+            grant,
+            action: 'access_revoked',
+            auditId: crypto.randomUUID(),
+            actorId: act.actor,
+            at: act.stamp.at,
+            origin: 'cascade',
+          });
         tx.delete(machineCredentialSecret)
           .where(inArray(machineCredentialSecret.credentialId, revoked))
           .run();

@@ -77,7 +77,12 @@ export function organizationRoutes(
           principal.id,
           params.userId,
           body.role,
-          { at: clock.now(), by: principal.id },
+          {
+            stamp: { at: clock.now(), by: principal.id },
+            actor: principal.id,
+            auditId: crypto.randomUUID(),
+          },
+          'route',
         );
         if (!outcome.ok) return refused(outcome.refusal);
         if (outcome.membership === null) {
@@ -92,15 +97,19 @@ export function organizationRoutes(
       // removed.
       if (principal.delegation !== undefined)
         return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
+      const actorId = principal.id;
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
       if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
       const outcome = await memberships.administer(
         resolved.access.scope.organizationId,
-        principal.id,
+        // Proof: member-route-snapshot: removing this boundary failed `retains the authenticated membership removal actor before organization resolution`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        actorId,
         params.userId,
         null,
-        { at: clock.now(), by: principal.id },
+        { stamp: { at: clock.now(), by: actorId }, actor: actorId, auditId: crypto.randomUUID() },
+        'route',
       );
       if (!outcome.ok) return refused(outcome.refusal);
       return { ok: true, status: 204, body: EMPTY };
