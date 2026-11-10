@@ -49,14 +49,15 @@ async function waitOwned<T>(pending: Promise<T>, milliseconds: number, label: st
     if (timer !== undefined) clearTimeout(timer);
   }
 }
-interface Configuration {
+export interface Configuration {
   entrypoint: string;
   candidate: string;
-  archive: string;
   scratch: string;
   stagePath: string;
   bornPath: string;
-  invocation: unknown;
+  args: readonly string[];
+  environment: Readonly<Record<string, string>>;
+  input: string;
 }
 function parentOf(pid: number): number {
   const match = /^PPid:\s+(\d+)$/m.exec(readFileSync('/proc/' + String(pid) + '/status', 'utf8'));
@@ -141,14 +142,10 @@ async function superviseLauncher(configuration: Configuration): Promise<unknown>
     armed = true;
     if (libc.symbols.prctl(37, BigInt(ptr(state)), 0n, 0n, 0n) !== 0 || state[0] !== 1)
       throw new Error('subreaper was not armed');
-    const owned = Bun.spawn([...launch(configuration.entrypoint), '--puni-lint-v1'], {
+    const owned = Bun.spawn([...launch(configuration.entrypoint), ...configuration.args], {
       cwd: configuration.candidate,
-      env: {
-        PATH: '/usr/bin:/bin',
-        TOOL_WIKI_ACTIVATION_ROOT: configuration.archive,
-        TMPDIR: configuration.scratch,
-      },
-      stdin: Buffer.from(JSON.stringify(configuration.invocation)),
+      env: configuration.environment,
+      stdin: Buffer.from(configuration.input),
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -287,33 +284,18 @@ export async function runUnconfirmedExitFixture(removeNativeExit = false): Promi
     const configuration = {
       entrypoint,
       candidate: fixture.candidate,
-      archive: fixture.archive,
       scratch: fixture.scratch,
       stagePath,
       bornPath,
-      invocation: fixture.invocation,
-    };
-    const configurationPath = join(fixture.root, 'supervisor.json');
-    writeFileSync(configurationPath, JSON.stringify(configuration));
-    const child = Bun.spawn(
-      [...launch(fileURLToPath(import.meta.url)), '--supervise', configurationPath],
-      {
-        cwd: configuration.candidate,
-        env: { PATH: '/usr/bin:/bin' },
-        stdin: 'ignore',
-        stdout: 'pipe',
-        stderr: 'pipe',
+      args: ['--puni-lint-v1'],
+      environment: {
+        PATH: '/usr/bin:/bin',
+        TOOL_WIKI_ACTIVATION_ROOT: fixture.archive,
+        TMPDIR: fixture.scratch,
       },
-    );
-    const stdout = new Response(child.stdout).text(),
-      stderr = new Response(child.stderr).text();
-    const status = await child.exited;
-    const diagnostic = await stderr;
-    if (status !== 0)
-      throw new Error(
-        'isolated supervisor failed; retained fixture ' + fixture.root + ': ' + diagnostic,
-      );
-    const observed: unknown = JSON.parse(await stdout);
+      input: JSON.stringify(fixture.invocation),
+    };
+    const observed = await runExitSupervisor(configuration, fixture.root);
     hasCleaned = true;
     return {
       observation: observed,
@@ -327,6 +309,35 @@ export async function runUnconfirmedExitFixture(removeNativeExit = false): Promi
   } finally {
     if (hasCleaned) rmSync(fixture.root, { recursive: true, force: true });
   }
+}
+
+/** Execute an isolated native ownership probe; fixture cleanup starts after its observation. */
+export async function runExitSupervisor(
+  configuration: Configuration,
+  directory: string,
+): Promise<unknown> {
+  const configurationPath = join(directory, 'supervisor.json');
+  writeFileSync(configurationPath, JSON.stringify(configuration));
+  const child = Bun.spawn(
+    [...launch(fileURLToPath(import.meta.url)), '--supervise', configurationPath],
+    {
+      cwd: configuration.candidate,
+      env: { PATH: '/usr/bin:/bin' },
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+  const stdout = new Response(child.stdout).text(),
+    stderr = new Response(child.stderr).text();
+  const status = await child.exited,
+    diagnostic = await stderr;
+  if (status !== 0)
+    throw new Error(
+      'isolated supervisor failed; retained fixture ' + directory + ': ' + diagnostic,
+    );
+  const observed: unknown = JSON.parse(await stdout);
+  return observed;
 }
 
 if (import.meta.main && process.argv[2] === '--supervise') {

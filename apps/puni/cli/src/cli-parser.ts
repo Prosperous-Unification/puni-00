@@ -1,8 +1,16 @@
 import { command, type InferValue, map, message, or } from '@optique/core';
 import { run } from '@optique/run';
 import { parser as burokratParser } from '@puni/burokrat/grammar';
-import { findRefusal as findDashRefusal, parser as dashParser } from '@puni/dash/grammar';
-import { parser as navigatorParser } from '@puni/navigator/grammar';
+import {
+  findRefusal as findDashRefusal,
+  isReleaseCommand,
+  parser as dashParser,
+  UsageRefusal as DashUsageRefusal,
+} from '@puni/dash/grammar';
+import {
+  parser as navigatorParser,
+  UsageRefusal as NavigatorUsageRefusal,
+} from '@puni/navigator/grammar';
 
 import { burokrat, dash, findNamespace, navigator } from './namespaces';
 
@@ -156,4 +164,18 @@ export function readInvocation(
     if (cause instanceof Printed) return { kind: 'printed' };
     throw cause;
   }
+}
+
+/** Attribute a failure to its parsed invocation, never the executable's ambient argv. */
+export function readFailureStatus(cause: unknown, command: Command | undefined): 1 | 2 | 64 {
+  // Proof: root-usage-selected-status; `[] keeps invocation-aware usage status under misleading ambient argv` failed under its recorded production fault and passed after restoration.
+  if (cause instanceof UsageRefusal) return cause.exitCode;
+  // Proof: root-navigator-usage; `navigator-usage classifies the selected public provider refusal independently of ambient argv` failed under its recorded production fault and passed after restoration.
+  if (command?.tool === 'navigator' && cause instanceof NavigatorUsageRefusal) return 2;
+  if (command?.tool === 'dash' && cause instanceof DashUsageRefusal)
+    // Proof: root-ops-usage; `ops-usage classifies the selected public provider refusal independently of ambient argv` failed under its recorded production fault and passed after restoration.
+    // Proof: root-release-usage; `release-usage classifies the selected public provider refusal independently of ambient argv` failed under its recorded production fault and passed after restoration.
+    return command.request.command === 'ops' && !isReleaseCommand(command.request) ? 64 : 1;
+  // Proof: root-unexpected-failure; `navigator-unexpected classifies the selected public provider refusal independently of ambient argv` failed under its recorded production fault and passed after restoration.
+  return 1;
 }

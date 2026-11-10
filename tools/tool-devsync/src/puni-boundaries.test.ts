@@ -139,3 +139,48 @@ describe('shared Bun startup boundary', () => {
     );
   }
 });
+
+describe('PUNI execution boundary', () => {
+  const executor = 'apps/puni/cli/src/execute-command.ts';
+  const runtimes = ['@puni/burokrat/runtime', '@puni/dash/runtime', '@puni/navigator/runtime'];
+  it('changes only exact runtime allowances in the dedicated executor', async () => {
+    const options = await readBoundaryConfig(executor);
+    const inherited = await readBoundaryConfig('apps/puni/cli/src/namespaces.ts');
+    expect(options['allow']).toEqual(runtimes.map((alias) => '^' + alias + '$'));
+    expect({ ...options, allow: [] }).toEqual(inherited);
+  }, 30_000);
+  it('admits the real lazy executor through only provider runtime facades', async () => {
+    const source = await readFile(new URL('../../../' + executor, import.meta.url), 'utf8');
+    expect(await findBoundaryFailures(executor, source)).toEqual([]);
+  }, 30_000);
+  for (const alias of runtimes) {
+    it(
+      'keeps ' + alias + ' out of neighboring root execution files',
+      async () => {
+        expect(
+          await findBoundaryFailures(
+            'apps/puni/cli/src/entrypoint.ts',
+            `await import('${alias}');`,
+          ),
+        ).toHaveLength(1);
+      },
+      30_000,
+    );
+  }
+  for (const alias of [
+    '@puni/burokrat/grammar',
+    '@puni/dash/grammar',
+    '@puni/navigator/grammar',
+    '@tools/fleet-plan',
+    '@wbs/core',
+    '../../../twilight-structure/twilight-dash/cli/src/cli',
+  ]) {
+    it(
+      'rejects ' + alias + ' from root runtime composition',
+      async () => {
+        expect(await findBoundaryFailures(executor, `await import('${alias}');`)).toHaveLength(1);
+      },
+      30_000,
+    );
+  }
+});

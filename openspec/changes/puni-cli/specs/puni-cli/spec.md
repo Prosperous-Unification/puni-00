@@ -226,3 +226,9 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **WHEN** a caller supplies a typed Dash request independently of ambient argv
 - **THEN** shared cross-option coherence refuses before operation IO, the selected release/token/pool/general handler is loaded lazily, and its numeric status returns only after completion without assigning process.exitCode
 - **AND** token helpers avoid loading the heavy command graph, while generated pool helpers retain the selected protected PUNI launch followed by canonical dash/mcp/token
+
+#### Scenario: Root execution uses captured installation and invocation context
+
+- **WHEN** the root executes an already parsed namespace request
+- **THEN** only the selected provider runtime is imported, ordinary executable lookup retains its independently captured origin, returned status waits for dispatch, and usage status follows the supplied invocation independently of ambient argv
+- **AND** missing Burokrat installation assets refuse without checkout/source fallback; an absent lint PATH refuses through bounded owned reporting while an explicitly empty PATH remains valid lookup at the trusted origin

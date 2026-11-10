@@ -20,6 +20,7 @@ import { anchorPath } from './validator-paths';
 import type { Request as ValidatorRequest } from './validator-request';
 
 export type { Request } from './grammar-facade';
+export { freezePath } from './lint-runtime';
 
 /** The selected installation, caller paths, protected Bun launch and owned output streams. */
 export interface Context {
@@ -235,7 +236,7 @@ export interface LintExecutableContext extends Omit<
   LintContext,
   'runtime' | 'stdout' | 'stderr' | 'reportDiagnostic' | 'subscribeInterrupts'
 > {
-  readonly lookup: { readonly directory: string; readonly path: string };
+  readonly lookup: { readonly directory: string; readonly path: string | undefined };
 }
 
 /**
@@ -253,7 +254,11 @@ export function runInstalledLint(
   // Proof: typed-no-stdin; reading Bun.stdin.stream here failed `owns typed installed execution without stdin or argv re-entry and preserves binary verdict37`; restoration passed.
   return runLintOperation(({ outputs, subscribeInterrupts }) => {
     // Proof: typed-lookup-origin; rebasing lookup onto the provider failed `freezes relative Git lookup at the independently captured origin instead of provider directories`; restoration passed.
-    const runtime = readLintRuntime(context.lookup.path, context.lookup.directory);
+    const path = context.lookup.path;
+    // Proof: root-lint-empty-path; `preserves explicitly empty root lint PATH as the selected trusted directory` failed under its recorded production fault and passed after restoration.
+    // Proof: root-lint-path-refusal; `reports absent root lint PATH inside its bounded executable reporter` failed under its recorded production fault and passed after restoration.
+    if (path === undefined) throw new Error('trusted executable PATH is required for Burokrat');
+    const runtime = readLintRuntime(path, context.lookup.directory);
     return executeLint(request, {
       // Proof: typed-required-setting; overriding required to false failed `preserves required admission status78 through the typed executable owner`; restoration passed.
       ...context,
