@@ -97,6 +97,7 @@ describe(MIGRATION, () => {
   // read no definitions for either existing organization; watched 2026-10-23.
   it('seeds the five definitions for every organization that existed before it', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -246,7 +247,8 @@ describe(MIGRATION, () => {
           name !== MEASURE_FACTS &&
           name !== MEASURE_ESTIMATES &&
           name !== WORK_ITEM_BUDGETS &&
-          name !== ACCESS_GRANTS,
+          name !== ACCESS_GRANTS &&
+          name !== '20261102130000_widen_organization_audit_access',
       ),
     );
   });
@@ -254,6 +256,7 @@ describe(MIGRATION, () => {
   it('rolls back over untouched seeded definitions, and comes forward seeding again', () => {
     organization('org-a', 5);
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',

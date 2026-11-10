@@ -437,6 +437,7 @@ test('unused rollback and valid reinstall change the pin before replay or absenc
   const folder = new URL('../../drizzle', import.meta.url).pathname;
   h.sqlite.run("DELETE FROM access_grant WHERE origin='route'");
   expect(rollbackTo(h.databasePath(), folder, '20261020130000_add_claim_occupancy')).toEqual([
+    '20261102130000_widen_organization_audit_access',
     '20261102120000_add_access_grants',
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',

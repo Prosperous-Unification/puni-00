@@ -235,14 +235,12 @@ export function machineCredentialRoutes(
     bind(
       revokeMachineCredential,
       async ({ principal, params }): Promise<HttpReply<typeof revokeMachineCredential>> => {
+        // Proof: route-snapshot-machine: removing this boundary failed `retains the machine revoke route actor across resolution: id`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        const actor = structuredClone(principal);
         const organizationId = await sessionOrganization(principal);
         if (typeof organizationId !== 'string') return organizationId;
-        const revoked = await credentials.revoke(
-          organizationId,
-          principal,
-          params.id,
-          act(principal.id),
-        );
+        const revoked = await credentials.revoke(organizationId, actor, params.id, act(actor.id));
         switch (revoked) {
           case 'inactive':
             return organizationRefusal('no_active_organization');

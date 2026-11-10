@@ -195,17 +195,20 @@ export function agentPoolRoutes(
           !isAgentPoolExpiryWithinBounds(body.expiresAt, clock.now())
         )
           return invalidBody;
+        // Proof: route-snapshot-pool-rekey: removing this boundary failed `retains the pool route audit actor across resolution at rekey`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        const actor = structuredClone(principal);
         const organizationId = await sessionOrganizationOf(organizations, principal);
         if (typeof organizationId !== 'string') return organizationId;
-        const persons = await pools.personsOf(organizationId, principal.id, params.id);
+        const persons = await pools.personsOf(organizationId, actor.id, params.id);
         if (persons === 'inactive') return organizationRefusal('no_active_organization');
         if (persons === 'forbidden') return forbidden;
         if (persons === 'not_found') return notFound;
         const minted = await Promise.all(persons.map((each) => mintKey(each.personId)));
-        const stamped = act(principal.id);
+        const stamped = act(actor.id);
         const rekeyed = await pools.rekey(
           organizationId,
-          principal.id,
+          actor.id,
           params.id,
           {
             keys: minted.map((each) => each.draft),
@@ -241,14 +244,12 @@ export function agentPoolRoutes(
     bind(
       revokeAgentPool,
       async ({ principal, params, query }): Promise<HttpReply<typeof revokeAgentPool>> => {
+        // Proof: route-snapshot-pool-revoke: removing this boundary failed `retains the pool route audit actor across resolution at revoke`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        const actor = structuredClone(principal);
         const organizationId = await sessionOrganizationOf(organizations, principal);
         if (typeof organizationId !== 'string') return organizationId;
-        const revoked = await pools.revoke(
-          organizationId,
-          principal.id,
-          params.id,
-          act(principal.id),
-        );
+        const revoked = await pools.revoke(organizationId, actor.id, params.id, act(actor.id));
         switch (revoked.kind) {
           case 'inactive':
             return organizationRefusal('no_active_organization');
@@ -270,7 +271,9 @@ export function agentPoolRoutes(
         };
         if (query.removePersons !== 'true' || revoked.personIds.length === 0)
           return { ok: true, status: 200, body: answer };
-        const resolved = await organizations.resolve(principal);
+        // Proof: pool-cleanup-resolver-alias: removing this boundary failed `retains the original pool removal principal through directory cleanup: authentication`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        const resolved = await organizations.resolve(structuredClone(actor));
         if (!resolved.ok) return organizationRefusal(resolved);
         // One directory batch through the `deletePerson` cascade (A24): the
         // persons, their claims, assignments and credentials go together.
@@ -279,7 +282,9 @@ export function agentPoolRoutes(
         // answered `removedPersons: 0`, the eight persons kept; watched
         // 2026-10-28.
         const removed = await runner.runDirectoryWithin(
-          principal,
+          // Proof: pool-cleanup-runner-principal: removing this boundary failed `retains the original pool removal principal through directory cleanup: authentication`;
+          // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+          actor,
           revoked.personIds.map((personId) => ({
             kind: 'deletePerson' as const,
             personId,

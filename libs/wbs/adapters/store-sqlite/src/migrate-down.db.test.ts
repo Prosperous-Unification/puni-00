@@ -714,6 +714,7 @@ describe('readMigrationFolders', () => {
       '20261101100100_add_resource_directory_capacity',
       '20261101120000_add_host_job_projection',
       '20261102120000_add_access_grants',
+      '20261102130000_widen_organization_audit_access',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -789,7 +790,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261102120000_add_access_grants');
+      expect(originalNames.at(-1)).toBe('20261102130000_widen_organization_audit_access');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -930,11 +931,13 @@ describe('rollbackTo, against a real database', () => {
         '20261101100100_add_resource_directory_capacity',
         '20261101120000_add_host_job_projection',
         '20261102120000_add_access_grants',
+        '20261102130000_widen_organization_audit_access',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -1173,6 +1176,7 @@ describe('rollbackTo, against a real database', () => {
         '20261101100100_add_resource_directory_capacity',
         '20261101120000_add_host_job_projection',
         '20261102120000_add_access_grants',
+        '20261102130000_widen_organization_audit_access',
       ]);
     } finally {
       db.cleanup();
@@ -1244,6 +1248,7 @@ describe('rollbackTo, against a real database', () => {
 
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -1397,6 +1402,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -1535,6 +1541,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',

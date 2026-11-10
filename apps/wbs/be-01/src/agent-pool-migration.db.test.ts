@@ -28,6 +28,7 @@ const LATER = [
   '20261101100000_widen_organization_audit_directory_capacity',
   '20261101100100_add_resource_directory_capacity',
   '20261102120000_add_access_grants',
+  '20261102130000_widen_organization_audit_access',
 ];
 /** 2026-10-28T09:00:00Z, a real-epoch instant, as task 1.2's own test uses. */
 const MORNING = Date.UTC(2026, 9, 28, 9, 0, 0);

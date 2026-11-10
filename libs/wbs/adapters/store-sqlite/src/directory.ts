@@ -44,6 +44,7 @@ import type { MeasureDefinition, MeasureUsage, ResourceCapacity } from '@wbs/dom
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { appendGrantAudit } from './access-audit';
 import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
@@ -2124,7 +2125,8 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
-   * Counts, decides and deletes in **one** transaction.
+   * Counts, decides and deletes in **one** transaction. The raw stamp and reach
+   * capability are detached before the write turn; reach is not an actor identity.
    *
    * The count is inside because it *is* the decision, not a report about it —
    * the rule `StepRepository.remove` sets out at length. An assignment written
@@ -2151,6 +2153,12 @@ export class DirectoryRepository implements DirectoryStore {
     stamp: WriteStamp,
     reach: MachineCredentialReach,
   ): Promise<PersonRemoved> {
+    // Proof: directory-stamp-snapshot: removing this boundary failed `retains raw directory stamp and reach before the queued removal owner`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    stamp = structuredClone(stamp);
+    // Proof: directory-reach-snapshot: removing this boundary failed `refuses raw directory reach escalation while its removal waits for the owner`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    reach = structuredClone(reach);
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction((tx) => {
@@ -2639,7 +2647,18 @@ function removeMachineCredentialsOf(
   // person’s credentials (wbs-permissions P17)` in
   // `machine-credential-admin.controller.db.test.ts` kept both grant rows;
   // watched 2026-11-08.
-  deleteGrantsOfCredentials(tx, credentialIds);
+  const removedGrants = deleteGrantsOfCredentials(tx, credentialIds);
+  for (const grant of removedGrants)
+    // Proof: cascade-directory-removeMachineCredentialsOf: removing this boundary failed `deletes every grant naming the removed person’s credentials (wbs-permissions P17)`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    appendGrantAudit(tx, {
+      grant,
+      action: 'access_revoked',
+      auditId: crypto.randomUUID(),
+      actorId: stamp.by,
+      at: stamp.at,
+      origin: 'cascade',
+    });
   tx.delete(machineCredentialSecret)
     .where(inArray(machineCredentialSecret.credentialId, credentialIds))
     .run();

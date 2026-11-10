@@ -412,7 +412,10 @@ rows are deferred to task 4.1 (`widen_organization_audit_access`), because
 `organization_audit`'s CHECK admits no `access_*` action yet and the grant store of 1.4
 writes none for the same reason. Until then the CLI writes the grant (origin `operator`,
 `created_by` null) or deletes it in the store's one transaction, and its JSON output names
-the actor `operator:<os login>` the row will carry. A machine credential's id is refused
+the actor `operator:<os login>` the row will carry. Task4.1 closes this deferral: the
+compatible widening admits the rows, the existing grant owner appends them atomically,
+and successful CLI JSON says `audit: recorded`; audit failure rolls back the act.
+A machine credential's id is refused
 `machine_credential`; `already_granted` and revoke's `not_granted` are refusals too.
 
 ## Tables
@@ -834,7 +837,18 @@ foreign one is.
 
 Actions `access_granted`, `access_revoked`, `access_group_created`,
 `access_group_renamed`, `access_group_deleted`, `access_group_member_added`,
-`access_group_member_removed`; subject kinds `access_grant`, `access_group`. Direct
+`access_group_member_removed`; subject kinds `access_grant`, `access_group`. Deleting
+an access group appends one revoke for each deleted grant, one member-removal row for
+each deleted group membership, and one group-deleted row (N+M+1); its cascades use the
+actual owning actor and origin `cascade`. A successful rename to the existing name still
+appends one renamed row, matching its accepted UPDATE outcome. Refusals and skipped
+duplicate re-key copies append no success event. Re-key copies preserve the stored
+source origin/creator, but each actually inserted grant is audited with the current
+pool owner's actor/time and operation origin `cascade`, before old grants' revoke rows.
+Borrowed mutation functions return typed actual-row evidence without an owner or audit;
+existing owners append on their same connection. A singular access act supplies its
+required audit ID; variable cascade rows receive distinct fresh IDs minted by that owner,
+never the root lifecycle audit ID reused. Direct
 member removal has one aggregate `organization_member_removed` event, subject kind
 `organization_member`, subject id the removed account id within the row's organization.
 Its detail is `source`, `removedUserGrantCount` and `removedGroupMembershipCount`; source

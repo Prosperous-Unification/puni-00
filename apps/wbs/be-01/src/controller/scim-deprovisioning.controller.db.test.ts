@@ -1,8 +1,8 @@
 import { ScimUserRepository } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { openDrizzle } from '../repository/db';
-import { OPEN } from '../repository/gate';
+import { openConnection, openDrizzle } from '../repository/db';
+import { OPEN, WriteCoordinator } from '../repository/gate';
 import {
   delegationFor,
   issueToken,
@@ -369,4 +369,195 @@ it('ends a real selected-organization cookie’s browser and gateway access at o
   } finally {
     cookieWorld.h.close();
   }
+});
+
+for (const method of ['PATCH', 'DELETE'] as const) {
+  it(
+    'enriches the single SCIM ' +
+      method +
+      ' lifecycle audit with actual authority removal evidence',
+    async () => {
+      const { h } = world;
+      const id = await bound('carol', 'carol@acme.test');
+      const userId = h.userId('carol');
+      const beforeGrants = h.sqlite
+        .query<{ n: number }, [string]>(
+          "SELECT count(*) n FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
+        )
+        .get(userId);
+      if (beforeGrants === null) throw new Error('grant count absent');
+      const groupId = crypto.randomUUID();
+      h.sqlite.run(
+        "INSERT INTO access_group (id,organization_id,name,created_at) VALUES (?,'org-a',?,1)",
+        [groupId, groupId],
+      );
+      h.sqlite.run(
+        "INSERT INTO access_group_member (organization_id,group_id,user_id,created_at) VALUES ('org-a',?,?,1)",
+        [groupId, userId],
+      );
+      const auditCount = snapshot().audits.length;
+      const answered = await scim(
+        h,
+        token.token,
+        method,
+        '/scim/v2/Users/' + id,
+        method === 'PATCH' ? replace({ path: 'active', value: false }) : undefined,
+      );
+      expect(answered.status).toBe(method === 'PATCH' ? 200 : 204);
+      expect(
+        h.sqlite
+          .query(
+            "SELECT id FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
+          )
+          .all(userId),
+      ).toEqual([]);
+      expect(
+        h.sqlite.query('SELECT * FROM access_group_member WHERE user_id=?').all(userId),
+      ).toEqual([]);
+      const audits = snapshot().audits as { action: string; actor_id: string; detail: string }[];
+      expect(audits).toHaveLength(auditCount + 1);
+      const row = audits.at(-1);
+      if (row === undefined) throw new Error('SCIM lifecycle audit missing');
+      expect(row.action).toBe('scim_user_deprovisioned');
+      expect(row.actor_id).toBe('scim:' + token.id);
+      expect(JSON.parse(row.detail)).toEqual({
+        ...(method === 'PATCH' ? { changed: ['active'], active: false } : { deleted: true }),
+        membershipRemoved: true,
+        boundUserId: userId,
+        removedUserGrantCount: beforeGrants.n,
+        removedGroupMembershipCount: 1,
+      });
+      expect(roleIn('org-b', 'carol')).toBe('member');
+    },
+  );
+}
+it('records false and zero SCIM removal evidence for a never-bound pending deletion', async () => {
+  const { h } = world;
+  const created = await scim(
+    h,
+    token.token,
+    'POST',
+    '/scim/v2/Users',
+    scimUser('pending@acme.test'),
+  );
+  const id = (created.body as { id: string }).id;
+  expect((await scim(h, token.token, 'DELETE', '/scim/v2/Users/' + id)).status).toBe(204);
+  const audits = snapshot().audits as { detail: string }[];
+  const row = audits.at(-1);
+  if (row === undefined) throw new Error('SCIM lifecycle audit missing');
+  expect(JSON.parse(row.detail)).toEqual({
+    deleted: true,
+    membershipRemoved: false,
+    boundUserId: null,
+    removedUserGrantCount: 0,
+    removedGroupMembershipCount: 0,
+  });
+});
+
+for (const operation of ['update', 'remove'] as const) {
+  it('retains unequal SCIM audit actor and stamp before the queue at ' + operation, async () => {
+    const { h, clock } = world;
+    const id = await bound('carol', 'carol@acme.test');
+    const connection = openConnection(h.databasePath());
+    try {
+      const gate = new WriteCoordinator();
+      const repository = new ScimUserRepository(connection.db, gate);
+      const held = Promise.withResolvers<undefined>();
+      const entered = Promise.withResolvers<undefined>();
+      const blocker = gate.enter(async () => {
+        entered.resolve(undefined);
+        await held.promise;
+      });
+      await entered.promise;
+      const performed = {
+        actor: 'scim:' + token.id,
+        stamp: { at: clock.at, by: h.userId('ada') },
+        auditId: 'retained-scim',
+      };
+      const pending =
+        operation === 'update'
+          ? repository.update('org-a', id, { active: false }, performed)
+          : repository.remove('org-a', id, performed);
+      Object.assign(performed, { actor: 'replacement', auditId: 'replacement' });
+      Object.assign(performed.stamp, { at: 999, by: 'replacement' });
+      held.resolve(undefined);
+      await blocker;
+      await pending;
+      expect(
+        h.sqlite
+          .query('SELECT actor_id,created_at FROM organization_audit WHERE id=?')
+          .get('retained-scim'),
+      ).toEqual({ actor_id: 'scim:' + token.id, created_at: clock.at });
+    } finally {
+      connection.close();
+    }
+  });
+}
+it('retains the selected SCIM deprovisioning change before its queued owner', async () => {
+  const { h, clock } = world;
+  const id = await bound('carol', 'carol@acme.test');
+  const connection = openConnection(h.databasePath());
+  try {
+    const gate = new WriteCoordinator();
+    const repository = new ScimUserRepository(connection.db, gate);
+    const held = Promise.withResolvers<undefined>();
+    const entered = Promise.withResolvers<undefined>();
+    const blocker = gate.enter(async () => {
+      entered.resolve(undefined);
+      await held.promise;
+    });
+    await entered.promise;
+    const change = { active: false };
+    const pending = repository.update('org-a', id, change, {
+      actor: 'scim:' + token.id,
+      stamp: { at: clock.at, by: h.userId('ada') },
+      auditId: 'selected-scim',
+    });
+    change.active = true;
+    held.resolve(undefined);
+    await blocker;
+    await pending;
+    expect(roleIn('org-a', 'carol')).toBeNull();
+    expect(
+      h.sqlite.query('SELECT action FROM organization_audit WHERE id=?').get('selected-scim'),
+    ).toEqual({ action: 'scim_user_deprovisioned' });
+  } finally {
+    connection.close();
+  }
+});
+it('preserves inactive SCIM no-op and external update semantics before zero-removal deletion', async () => {
+  const { h } = world;
+  const id = await bound('carol', 'carol@acme.test');
+  const path = '/scim/v2/Users/' + id;
+  expect(
+    (await scim(h, token.token, 'PATCH', path, replace({ path: 'active', value: false }))).status,
+  ).toBe(200);
+  const before = snapshot().audits.length;
+  expect(
+    (await scim(h, token.token, 'PATCH', path, replace({ path: 'active', value: false }))).status,
+  ).toBe(200);
+  expect(snapshot().audits).toHaveLength(before);
+  expect(
+    (
+      await scim(
+        h,
+        token.token,
+        'PATCH',
+        path,
+        replace({ path: 'externalId', value: 'new-external' }),
+      )
+    ).status,
+  ).toBe(200);
+  let rows = snapshot().audits as { action: string; detail: string }[];
+  expect(rows.at(-1)?.action).toBe('scim_user_updated');
+  expect(JSON.parse(rows.at(-1)?.detail ?? 'null')).toEqual({ changed: ['externalId'] });
+  expect((await scim(h, token.token, 'DELETE', path)).status).toBe(204);
+  rows = snapshot().audits as { action: string; detail: string }[];
+  expect(JSON.parse(rows.at(-1)?.detail ?? 'null')).toEqual({
+    deleted: true,
+    membershipRemoved: false,
+    boundUserId: h.userId('carol'),
+    removedUserGrantCount: 0,
+    removedGroupMembershipCount: 0,
+  });
 });

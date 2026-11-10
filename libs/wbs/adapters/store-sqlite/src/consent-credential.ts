@@ -9,6 +9,7 @@ import type {
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { appendGrantAudit } from './access-audit';
 import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { endLeasesOfUncredentialed } from './claim';
@@ -109,6 +110,10 @@ export class ConsentCredentialRepository implements ConsentCredentials {
   }
 
   end(credentialId: string, familyId: string, act: AuditedAct): Promise<ConsentEndOutcome> {
+    // The caller is the authenticated MCP service, not the credential's account.
+    // Proof: owner-act-consent: removing this boundary failed `retains actual queued cascade audit provenance at consent-end`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = structuredClone(act);
     return writeImmediately(this.db, this.gate, (tx) => {
       const row = tx
         .select()
@@ -141,7 +146,18 @@ export class ConsentCredentialRepository implements ConsentCredentials {
       // Proof: with this call removed, `are deleted when an MCP consent ends`
       // in `access-grant-store.db.test.ts` kept the consent's grant row;
       // watched 2026-11-08.
-      deleteGrantsOfCredentials(tx, [credentialId]);
+      const removedGrants = deleteGrantsOfCredentials(tx, [credentialId]);
+      for (const grant of removedGrants)
+        // Proof: cascade-consent-credential-end: removing this boundary failed `are deleted when an MCP consent ends`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        appendGrantAudit(tx, {
+          grant,
+          action: 'access_revoked',
+          auditId: crypto.randomUUID(),
+          actorId: act.actor,
+          at,
+          origin: 'cascade',
+        });
       appendOrganizationAudit(tx, {
         id: act.auditId,
         organizationId: row.organizationId,

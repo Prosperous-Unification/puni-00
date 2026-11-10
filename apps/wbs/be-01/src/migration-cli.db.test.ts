@@ -388,7 +388,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261102120000_add_access_grants');
+    expect(baselineLedger.at(-1)?.name).toBe('20261102130000_widen_organization_audit_access');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1256,7 +1256,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261101100000_widen_organization_audit_directory_capacity' &&
           name !== '20261101100100_add_resource_directory_capacity' &&
           name !== '20261101120000_add_host_job_projection' &&
-          name !== '20261102120000_add_access_grants',
+          name !== '20261102120000_add_access_grants' &&
+          name !== '20261102130000_widen_organization_audit_access',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1340,7 +1341,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261101100000_widen_organization_audit_directory_capacity' &&
           name !== '20261101100100_add_resource_directory_capacity' &&
           name !== '20261101120000_add_host_job_projection' &&
-          name !== '20261102120000_add_access_grants',
+          name !== '20261102120000_add_access_grants' &&
+          name !== '20261102130000_widen_organization_audit_access',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1376,7 +1378,9 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261102120000_add_access_grants');
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(
+      '20261102130000_widen_organization_audit_access',
+    );
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 
