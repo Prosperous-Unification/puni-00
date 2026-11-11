@@ -5740,3 +5740,94 @@ specs, tests and scenario allocation, restored 263+88 passing tests, the 35-warn
 strict baseline and the full-range whitespace check. This closes only Task 4.1c.3.
 Parent 4.1, T2, source reconciliation, certification and WBS080.39 remain open;
 coordinator release/CI/host acceptance and external WBS synchronization remain separate.
+
+## Bun report observation exact-candidate preparation — 4.1b.18d (2026-11-09)
+
+This evidence-only continuation starts at current main
+`d87afb94a6362d345480f665b6e3b5d20d787686` in managed isolated worktree
+`/home/df/.codex/worktrees/d6d4/puni-00`, branch
+`evidence/wbs08039-bun-report-18d-20261109`. The selected work is the outstanding
+independent exact-commit review and coordinator acceptance of the existing Bun report
+observation. No production code, tests, scenario allocation, target, contract or task
+checkbox changes here. Task 4.1b.18d remains pending review and coordinator acceptance.
+
+The [fresh receipts](evidence/bun-reports-2026-11-09/manifest.json) bind commands,
+exit statuses, sampled process-tree memory, complete captured output and runtime provenance.
+Bun is 1.4.4. Pinned OpenSpec is 1.14.3. An ignored node_modules symlink reuses the
+existing root dependencies; this is **not** fresh frozen-install evidence. Every check
+ran serially. Ordinary checks used a 900 MiB sampled process-tree ceiling; installed
+and scoped checks used 1400 MiB, with `NODE_OPTIONS=--max-old-space-size=1024`.
+The monitor and current fault script are retained with the receipts.
+
+| Fresh check                                                                           | Observed output                                                                                      |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Owning ordinary Bun report cases                                                      | Exit 0; 16 pass, 2 filtered, 239 assertions                                                          |
+| Owning faulted-reader selection case                                                  | Exit 0; 1 pass, 17 filtered, 6 assertions                                                            |
+| Real built installed Bun report executable                                            | Exit 0; 1 pass, 17 filtered, 9 assertions                                                            |
+| Shared test-evidence and full devsync test-levels caller suites                       | Exit 0; 118 pass, 451 assertions                                                                     |
+| Complete adjacent Browser report suite, including built installed membership dispatch | Exit 0; 20 pass, 185 assertions                                                                      |
+| Restored ordinary owning suite after current grammar faults                           | Exit 0; 16 pass, 239 assertions                                                                      |
+| Production source scenario provenance                                                 | Exit 0; `{"unidentified":[]}`                                                                        |
+| Pinned all-artifact OpenSpec validation                                               | Exit 0; 341/341 valid (321 changes, 20 specs)                                                        |
+| Pinned strict selected OpenSpec validation                                            | Exit 1; 35 existing requirement-length warnings, zero errors                                         |
+| Uncached Nx Burokrat source lint                                                      | **Unverified:** monitor stopped process at 1,436,100 KiB against 1,433,600 KiB cap; no target output |
+
+The three owning partitions account for all 18 cases without treating filtered cases
+as passes. Their complete current-source suite, parser callers and Browser regression
+cover 156 distinct passing tests and 890 assertions. Failed/skipped fixture outcomes
+remain valid observations; selected fixture code never executes. Missing and unreadable
+external files, wrong selected sources despite working repairs, strict authority/report
+schemas, duplicate/outcome refusal and full canonical identity remain exercised.
+
+### Historical source binding and changed CLI proofs
+
+[Exact bindings](evidence/bun-reports-2026-11-09/historical-bindings.json) show that
+`bun-test-reports.ts`, its complete owning test file and the shared `bun-junit.ts` parser
+are byte-identical to original implementation commit
+`2063dd9ac5a646bdeba33869769a0481257f2853`, an ancestor of this candidate base. The
+historical proof manifest is also byte-identical at that commit. All **114** archived
+gzip hashes, decompressed raw hashes and byte counts were independently recomputed and
+match. Its **40** fault receipts record exit 1 and observed assertion failures.
+
+Thirty-nine inspector/parser fault proofs are retained as **historical watched evidence**
+for unchanged source seams; they were not rerun here. Current dependencies are exercised
+by the fresh owning/caller regressions, without attributing a fresh mutation execution
+to those historical receipts. Existing adjacent `Proof:` comments remain unchanged.
+
+The handwritten CLI has since moved into the shared Optique grammar. Two
+[fresh current-seam faults](evidence/bun-reports-2026-11-09/current-faults.json)
+therefore exercise production source and built dispatch:
+
+- Making `REPORT-AUTHORITY` optional fails TEST-AXES-151's named malformed-operands
+  assertion: the handler emits an undefined-path error instead of the required usage.
+- Removing the Bun report command's grammar registration fails TEST-AXES-152's actual
+  built installed executable assertion: its valid invocation exits 1 as unsupported.
+
+Both runs fail their intended assertions, rather than timing out or exceeding memory.
+The grammar file is restored in `finally` and independently equals its base Git blob.
+The restored owning ordinary suite passes all 16 cases, including malformed operands.
+The successful installed parity receipt precedes those temporary faults; it is not
+misrepresented as a post-fault rerun.
+
+### Review, integration and limits
+
+The original worker recorded durable Astra review of staged bytes, while explicitly
+leaving exact-commit review open. Git proves original source commit `2063dd9ac` is
+already integrated through PR #565 merge
+`53dfef620fa8f065dbddb9a2d9184c3469829475`, an ancestor of this base. Integration
+ancestry does not reconstruct missing exact-commit review, gate or release receipts.
+This packet supplies a concrete current candidate for independent Astra review.
+
+The [strict baseline](evidence/bun-reports-2026-11-09/strict-baseline.json) records the
+entire spec byte-identical to the selected base: 35 warnings and zero errors are
+preexisting. Strict validation is not green. Warning cleanup is outside this evidence
+slice. Ordinary all-artifact validation is independently green.
+
+The coordinator explicitly deferred scoped lint/typecheck/build to the canonical host
+gate after the memory-limited lint attempt. Typecheck/build were **not attempted locally**;
+no full Burokrat test target, repository gate, fresh dependency installation, host gate,
+hosted CI, actual Browser/SQLite target, live deployment or trusted execution receipt ran
+in this worker. No push or transfer is authorized for this packet. Independent review,
+canonical exact-SHA gate, exact-head CI and integration remain coordinator work.
+Parent 2.1/2.2a/2.2/4.1, T2 enforcement, source reconciliation, structural/capability-chain
+coverage, admission, certification and WBS080.39 completion remain open.
