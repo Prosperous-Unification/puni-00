@@ -195,6 +195,26 @@ async function requireCommand(argv: string[]): Promise<string> {
   return result.stdout.trim();
 }
 
+/** Copies the real committed tree onto the fixture filesystem before the loader's local clone. */
+async function copyRepository(root: string): Promise<{ source: string; head: string }> {
+  const repository = new URL('../../../', import.meta.url).pathname;
+  const head = await requireCommand(['git', '-C', repository, 'rev-parse', 'HEAD']);
+  const source = join(root, 'source');
+  // Proof: using the real repository directly made both real-deployer cases fail
+  // with exit 128 across devices; the complete-tree case reported EXDEV (2026-11-11).
+  await requireCommand([
+    'git',
+    'clone',
+    '--quiet',
+    '--no-hardlinks',
+    '--no-checkout',
+    repository,
+    source,
+  ]);
+  await requireCommand(['git', '-C', source, 'checkout', '--quiet', '--detach', head]);
+  return { source, head };
+}
+
 const HELPER = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
 const DEPLOYER = 'tools/tool-devsync/src/sync.ts';
 
@@ -917,8 +937,7 @@ esac
     const root = await scratchAsync('wbs-dev-poller-repository-');
     const installed = join(root, 'bin');
     const out = join(root, 'out');
-    const repository = new URL('../../../', import.meta.url).pathname;
-    const head = await requireCommand(['git', '-C', repository, 'rev-parse', 'HEAD']);
+    const { source, head } = await copyRepository(root);
     // Resolves the whole import graph of the candidate's deployer without
     // running it: an alias whose target the clone does not carry fails the
     // build. `build` is forwarded verbatim because the loader now runs its
@@ -938,7 +957,7 @@ exec ${process.execPath} build --target=bun --outdir=${out} "$1"
     const built = await command([
       'bash',
       HELPER,
-      repository,
+      source,
       installed,
       bundlingBun,
       head,
@@ -1133,8 +1152,7 @@ echo deployed >> ${ran}
     const root = await scratchAsync('wbs-dev-poller-build-tree-');
     const installed = join(root, 'bin');
     const probe = join(root, 'probe');
-    const repository = new URL('../../../', import.meta.url).pathname;
-    const head = await requireCommand(['git', '-C', repository, 'rev-parse', 'HEAD']);
+    const { source, head } = await copyRepository(root);
     // Two contracts meet on the candidate. TASK-326 needs the target's whole
     // build context — Dockerfile, publisher, supervisor unit, lockfile — at
     // the target SHA, clean, with the deployer's cwd at its root. TASK-376
@@ -1165,10 +1183,9 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
     );
     await chmod(probingBun, 0o755);
 
-    const run = await command(
-      ['bash', HELPER, repository, installed, probingBun, head, Bun.version],
-      { POLL_TARGET_PROBE: probe },
-    );
+    const run = await command(['bash', HELPER, source, installed, probingBun, head, Bun.version], {
+      POLL_TARGET_PROBE: probe,
+    });
 
     // Proof, each watched failing on the merged loader (2026-09-09), all as
     // `Received` stderr on the `toEqual` below: the pre-TASK-326 `git archive`
