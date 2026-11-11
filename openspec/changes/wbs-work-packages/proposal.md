@@ -43,7 +43,9 @@ or document version alive.
 
 - Slices 1, 2 and 3a are a documented exception to the additive-migration rule: explicit
   waivers, the application stopped, a backup report proving source, snapshot and ledger,
-  the snapshot as rollback.
+  the snapshot as rollback. New report mode deliberately retains staging artifacts on
+  success and failure, reports their observed locations separately from its eight-field
+  report, and leaves cleanup to an operator holding exclusive namespace control.
 - Ids stay stable; one project per work package, one organization per project; no
   per-project access invented.
 - The rename is a rerunnable script under `tools/`; residuals are listed. Old

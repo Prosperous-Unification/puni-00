@@ -31,27 +31,33 @@
       `lint`, `typecheck`. R5 faults: the allow-list made to match every path; `check` stops
       failing on the injected residual; watched. The `ScopeChain` pattern removed; `apply`
       renames `ScopeChain.projectId` to a second `workPackageId` and typecheck fails; watched.
-- [ ] 1.2 Red: `migration-lint.test.ts` with one fixture per window migration of design
+- [x] 1.2 Red: `migration-lint.test.ts` with one fixture per window migration of design
       E39, each carrying that migration's complete planned statement shape (passes with its
       waiver and gate script; refused with the waiver entry removed; the two-drop shapes
       refused under the compatible-rebuild marker instead of a waiver; every waived folder
-      refused without `bin/assert-rename-window.sh`); `backup-report.db.test.ts` for
+      refused without `bin/assert-rename-window.ts`); `backup-report.db.test.ts` for
       `backup-db-cli.ts --report` (E37: checkpoint `busy = 0` required, empty `-wal`, source
-      and snapshot hashes, name and hash ledger, never over an existing file);
+      and snapshot hashes, name and hash ledger, never over an existing file; separate
+      retained-artifact metadata and stderr on success/failure; no stage deletion or report
+      unlink under pathname replacement; usable retained snapshot and post-link failure
+      preservation; no-flag protocol unchanged);
       `assert-window-cli.db.test.ts` fed the real CLI's report (passes), then a WAL-only
       write with the writer connection kept open, a checkpointed write, a report naming
       another database, a malformed report, an unreadable report, a changed ledger hash and
-      a missing snapshot (each refused naming the field); `assert-rename-window.test.ts`
+      a missing snapshot (each refused naming the field); `tools/tool-remote-scripts/src/lib/rename-window.test.ts`
       (an unreadable state directory with a valid report refuses; a running container
       refuses). Green: `backup-db-cli.ts --report`, `assert-window-cli.ts`,
-      `bin/assert-rename-window.sh` and the five `WAIVERS` entries. R5 faults: the
+      `bin/assert-rename-window.ts` and four new exact `WAIVERS` entries (five total including the historical waiver). R5 faults: the
       `existsSync` requirement removed; the `-wal` size check removed (the WAL-only write
       passes); the sha comparison removed (the checkpointed write passes); the ledger
       comparison by name only (the changed hash passes); the state-directory arm made to
-      pass on a valid report; each watched.
+      pass on a valid report; destructive stage/report cleanup reintroduced after a reached
+      pathname substitution; post-link failure incorrectly removing evidence; each watched.
 - [ ] 1.3 Red: `rename-project-to-work-package.db.test.ts` over a dev-shaped fixture store:
-      every table, column, index and trigger renamed (no index or trigger in `sqlite_master`
-      names `project` in name or body), audit rows rewritten while preserving the earlier
+      fresh inventory/report includes all old-level tables, columns, indexes, triggers and the
+      abbreviation allocator view; each is renamed with no old-level name/body residual outside
+      explicit new-sense permission/scope literals. Real allocator operations prove the renamed
+      view and its callers work (ALTER TABLE body rewriting alone is insufficient); audit rows rewritten while preserving the earlier
       access/member actions, subjects and indexes from permissions 4.1, trees, startable, history,
       saved-plan compare, budget headroom and undo answer the same, the guard refuses an
       unmapped work package; a replay of every journal kind proves no payload names
@@ -152,7 +158,7 @@ executed on dev.
       `widen-organization-audit-projects.db.test.ts` (subject kind `project` and the actions
       `project_created`, `project_renamed`, `project_deleted`, `work_package_moved`
       admitted). Green: `<merge-date>100000_add_project` with its `WAIVERS` entry
-      (`DROP TABLE`, gate `bin/assert-rename-window.sh`; no compatible-rebuild marker, E39;
+      (`DROP TABLE`, gate `bin/assert-rename-window.ts`; no compatible-rebuild marker, E39;
       the uuid generation follows the organization back-fill precedent) and
       `<merge-date>100100_widen_organization_audit_projects` in the
       `widen_organization_audit_*` compatible rebuild shape (WP-7). R5 faults: the trigger

@@ -55,6 +55,9 @@
       "@wbs/auth": ["./libs/wbs/adapters/auth/src/index.ts"],
       "@wbs/config": ["./libs/wbs/adapters/config/src/index.ts"],
       "@wbs/contracts/logger": ["./libs/wbs/domain/contracts/src/logger.ts"],
+      "@wbs/contracts/window-backup-report": [
+        "./libs/wbs/domain/contracts/src/window-backup-report.ts"
+      ],
       "@wbs/contracts/dependency-claim": ["./libs/wbs/domain/contracts/src/dependency-claim.ts"],
       "@wbs/contracts/mcp-authorization-server": [
         "./libs/wbs/domain/contracts/src/mcp-authorization-server.ts"

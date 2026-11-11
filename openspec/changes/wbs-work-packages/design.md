@@ -195,13 +195,19 @@ was also "a space-level override of anything", now allowed where E18 says._
   prettier wrapping) go in a separate commit after it and are reviewed as an ordinary diff.
   Rejected: a one-off sed in a PR description (not
   rerunnable, not testable).
-- **E13. Slice 1 migration.** One `migration.sql`: `ALTER TABLE … RENAME TO` for the nine
-  tables, `ALTER TABLE … RENAME COLUMN project_id TO work_package_id` for the nineteen, `DROP
-INDEX`/`CREATE INDEX` and `DROP TRIGGER`/`CREATE TRIGGER` for the 25 indexes and 9
-  triggers whose name carries `project`, under their new names (the bodies of all 16 triggers
-  that name `project` follow SQLite's own rename rewriting; task 1.3 asserts no index or
-  trigger in `sqlite_master` still names `project` in name or body; counts per WP-6 at
-  `0b1dddaa0`, re-derived by `report`), a rebuild of `organization_audit` with the renamed CHECK
+- **E13. Slice 1 migration.** One `migration.sql`: `ALTER TABLE … RENAME TO` for the
+  thirteen old-level tables, `ALTER TABLE … RENAME COLUMN` for 28 old-level columns
+  (26 exact `project_id` plus external dependency `predecessor_project_id` and
+  `successor_project_id`), `DROP INDEX`/`CREATE INDEX` and `DROP TRIGGER`/`CREATE TRIGGER`
+  for the 23 explicit indexes and 13 triggers whose names carry `project`, under their new
+  names, plus DROP VIEW/CREATE VIEW for the allocator view
+  `project_abbreviation_candidate` → `work_package_abbreviation_candidate` (the bodies of all 25 triggers
+  that name the old level follow SQLite's rename rewriting; task 1.3 checks explicit and
+  automatic indexes and every trigger name/body for old-level residuals, preserving new-sense
+  permission/scope literals). Counts come from the complete 110-migration schema at local
+  `b0d2df4eb608827a4933f0840b05300e06158d8a` (latest
+  `20261103110000_add_initial_access_offers`, observed 2026-11-10); earlier 9/19 counts remain
+  dated historical evidence rather than active expectations. The migration also includes a rebuild of `organization_audit` with the renamed CHECK
   vocabulary (the `widen_organization_audit_*` shape) and `UPDATE`s of its `subject_kind` and
   `action` values; a `CHECK (violations = 0)` guard table refuses while any work package lacks
   an organization row. Stored JSON is not rewritten: `command_journal` and `plan_event` keep
@@ -214,7 +220,7 @@ INDEX`/`CREATE INDEX` and `DROP TRIGGER`/`CREATE TRIGGER` for the 25 indexes and
   `down.sql` exists because the lint and `migrate-down-cli.ts` require one, and it refuses
   (E38); the rollback of record is the snapshot (E14, E38). Lint: a `WAIVERS` entry for the
   folder with labels `ALTER TABLE ... RENAME COLUMN` and `DROP TABLE` (the audit rebuild) and
-  gate script `bin/assert-rename-window.sh` (E39). _Revised 2026-10-25 after the Codex review
+  gate script `bin/assert-rename-window.ts` (E39). _Revised 2026-10-25 after the Codex review
   (F1, F3): was a `down.sql` reversing every rename and a waiver for `RENAME COLUMN` only._ Rejected: expand/contract with views and `INSTEAD OF`
   triggers (`steps-schema-rename` D2): nine views and dozens of triggers alive for one
   release, for nobody (E8).
@@ -224,7 +230,7 @@ INDEX`/`CREATE INDEX` and `DROP TRIGGER`/`CREATE TRIGGER` for the 25 indexes and
   rollback by file copy, a prod path through the ordinary swap tooling, and slices 2 and 3a
   under the compatible-rebuild exemption._ The windows of slices 1, 2 and 3a (and 3b, once
   `wbs-step-catalogue` defines it) are a documented exception to the additive rule (E36).
-  `bin/assert-rename-window.sh <state-dir> --backup-report=<file> --container=<name>` passes
+  `bin/assert-rename-window.ts <state-dir> --backup-report=<file> --snapshot-path=<file> --db-path=<file> --container=<name> --candidate-image=<image>` passes
   only when all hold: `bin/assert-no-prod-release.sh <state-dir>` passes (prod is not in
   scope until an activation change defines its window, E36), the named container is not
   running (the writer barrier, E36), and `assert-window-cli.ts` accepts the report against
@@ -696,19 +702,20 @@ by adopting the recommendation).
   application stopped, and the gate proves it rather than assuming it. On dev, under the
   heavy lock, the window pauses the poller: puni1's crontab line for `poll.sh` is saved and
   removed, so neither the checkout reset nor devsync's `docker restart wbs-dev-src` can start
-  a writer. Then it stops `wbs-dev-src`. `assert-rename-window.sh` refuses unless
-  `docker inspect -f '{{.State.Running}}' <container>` answers `false`, and the backup's
-  checkpoint refuses while another connection holds the file (E37). Prod is out of scope
-  until an activation change defines its own window. The gate refuses whenever
-  `bin/assert-no-prod-release.sh <state-dir>` refuses, so a recorded release, or a state
-  directory that cannot be read, blocks the window whatever the backup says. No window
-  migration ever runs under the blue/green swap.
+  a writer. Then it stops `wbs-dev-src`. `assert-rename-window.ts` refuses unless
+  full Docker inspection identifies exactly one nonrunning, nonpaused, nonrestarting exited
+  container; the backup checkpoint refuses a blocking reader/writer (E37), not an idle connection. Prod is out of scope
+  until an activation change defines its own window. The Bun gate reads release state directly;
+  it never calls Bash or inherits the historical skeleton override. Every be/gw/fe record,
+  missing state directory or unreadable directory blocks the window whatever the report says.
+  No window migration ever runs under the blue/green swap.
 - **E37. The backup report proves the source, the snapshot and the ledger** (F2).
   `backup-db-cli.ts --report=<file> <snapshot-path>` is a new mode; without the flag the CLI
   prints what it prints today, and the swap's `backup-db` step is unchanged. The new mode
   opens `DB_PATH` and runs `PRAGMA wal_checkpoint(TRUNCATE)`. It refuses unless the pragma
-  answers `busy = 0` and the `-wal` file is afterwards absent or empty, which proves that
-  the WAL content is in the main file and that no other connection is open. It hashes the
+  answers `busy = 0` and the `-wal` file is afterwards absent or empty. This proves
+  checkpoint completion, not the absence of idle connections or future writers; E36's
+  stopped application, paused poller and held heavy lock remain the process barrier. It hashes the
   main file, takes and verifies the `VACUUM INTO` snapshot (`snapshotDatabase`), and writes
   one JSON object atomically, never over an existing file, with the fields `version` (1),
   `sourcePath`, `sourceSha256`, `sourceBytes`, `snapshotPath`, `snapshotSha256`,
@@ -721,10 +728,73 @@ by adopting the recommendation).
   - the report is missing, unreadable or malformed (ArkType at the boundary; an unknown
     `version` counts as malformed);
   - `sourcePath` differs from `DB_PATH`;
-  - the `-wal` file is not empty;
+  - the source or snapshot `-wal` file is nonempty or nonregular;
   - the live main file's sha256 differs from `sourceSha256`;
   - the live ledger's name and hash set differs from `migrations`;
   - the snapshot is absent, or its sha256 differs from `snapshotSha256`.
+
+  The checkpoint owner settles and closes before the existing VACUUM INTO snapshot owner
+  starts. Source bytes/hash/WAL and the complete name/hash ledger are compared again after
+  snapshot completion; source and snapshot ledgers must both match. The verifier checks source
+  and snapshot WAL before opening the corresponding SQLite file and after readonly observations,
+  and never checkpoints either. Version1 source/snapshot wire paths must be absolute. Artifact
+  destinations must not overlap either SQLite namespace (main, -wal, -shm, -journal), including
+  existing parent aliases. Missing/unreadable source/snapshot acquisition names its report field
+  and preserves the native cause.
+  Source ledger observations use a specifically named window-only immutable readonly opener,
+  with empty/nonregular-WAL guards immediately before acquisition and after close. This lets
+  a WAL-header source with absent sidecars be read on readonly media; it never retries a normal
+  reader or acquires a creating/writable mode. Snapshot and ordinary/capture readers keep their
+  existing recovery behavior. SQLite immutable skips locking/change detection, so it asserts
+  E36's independently held process barrier and cannot establish that barrier or replace the
+  before/after file/WAL/ledger checks. URI paths use URL encoding, preserving ?, #, % and spaces.
+  See [SQLite immutable semantics](https://sqlite.org/uri.html#uriimmutable) and
+  [Bun readonly acquisition](https://bun.sh/docs/runtime/sqlite).
+
+  A narrow borrowed applied-identity reader supplies no owner or fabricated deployment identity;
+  reports reject absent/empty/malformed ledgers even though empty capture remains valid for
+  the older migration-capture protocol.
+
+  In report mode both requested destinations use exclusive publication. A private staging
+  directory on the destination filesystem isolates the unchanged snapshot helper's partial
+  file; only a successfully settled, verified snapshot is linked without replacement to its
+  requested path and its parent synced. Report staging is exclusive, synced, published without
+  replacement and parent-synced. An existing or competing destination is never overwritten.
+  A report failure retains the verified snapshot. The new wrapper never removes staging
+  directories/links or unlinks a report, on success or failure: a pathname can be rebound after
+  any identity observation, and ordinary Bun filesystem deletion cannot condition removal on
+  that observed inode. Descriptor owners still close each acquired descriptor once and preserve
+  paired operation/close failures. Publication is unknown before a final-link attempt until its
+  sync/close settles; failures never promise absence. A lower SnapshotCleanupUnknown propagates
+  unchanged, with its possibly live staging evidence.
+  The operation returns the unchanged report plus separate artifact metadata, and report-mode
+  CLI stderr prints that metadata even on success. Stage records describe observed created or
+  possibly retained locations (including an acquisition parent when no pathname was returned),
+  not current inode ownership or deletion authority. Successful snapshots remain usable.
+  Retained staging hard links do not copy DB blocks, but prevent reclamation after a final link
+  is deleted; an operator must reconcile and clean them only under exclusive namespace control.
+  The eight-field report/stdout and no-flag snapshot protocol remain unchanged. See
+  [window operations](../../../docs/runbook-work-package-windows.md).
+  No window is invoked after a nonzero backup command, even if an uncertain artifact remains.
+
+  The new gate is import-safe Bun, with required state directory, stopped container, candidate
+  image, DB_PATH, snapshot path and report arguments. It does not call Bash or inherit the historical skeleton
+  override. The named container's actual DB/report/snapshot mounts are pinned readonly into a
+  one-off candidate verifier; the source bind is not copied with --volumes-from. Resolve the
+  candidate image to an immutable ID, use /usr/local/bin/bun as entrypoint and
+  /app/apps/wbs/be-01 as workdir, and run src/assert-window-cli.ts without the app CMD.
+  Select the deepest segment-boundary mount covering each artifact, narrow to its directory
+  and deduplicate only identical source coverage. Conflicting overlap, unsupported/file-only
+  mounts and destinations equal/below/above protected candidate roots (/app, /usr, /bin, /sbin,
+  /lib, /lib64, /etc, /proc, /sys, /dev, /run) refuse. Unknown inspect state/mounts/images/tools
+  refuse; stopped state, selected mappings and release records are rechecked after verification.
+  Verified source/snapshot paths must equal the explicit arguments. Fake-Docker controls
+  prove argv and refusal flow, not a live host/mount/barrier certificate.
+  This point-in-time proof does not replace the enduring E36 process barrier.
+
+  SQLite's [checkpoint contract](https://sqlite.org/pragma.html#pragma_wal_checkpoint) does
+  not exclude idle connections; its [VACUUM contract](https://sqlite.org/lang_vacuum.html)
+  excludes a transaction on the connection performing VACUUM. No nested transaction is added.
 
   Tests run in task 1.2:
   - the pass case feeds the real CLI's output to the gate; no report is written by hand;
@@ -766,17 +836,24 @@ by adopting the recommendation).
   `-- migration-lint: compatible-table-rebuild` marker says that the outgoing colour can
   still read the table. These migrations make no such claim, so none carries the marker;
   each keeps the migrator's `-- foreign-keys-off-rebuild` marker and has an explicit
-  `WAIVERS` entry whose gate is `bin/assert-rename-window.sh`. `ALTER TABLE … RENAME TO`,
+  `WAIVERS` entry whose gate is `bin/assert-rename-window.ts`. `ALTER TABLE … RENAME TO`,
   `DROP INDEX` and `DROP TRIGGER` are not on the lint's forbidden list.
 
-  | Slice | Folder                                                 | Forbidden statements                                                                                | Waiver labels                                 | `down.sql`                                                      |
-  | ----- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------- |
-  | 1     | `<merge-date>100000_rename_project_to_work_package`    | 19 `RENAME COLUMN`; `DROP TABLE organization_audit` (CHECK rebuild)                                 | `ALTER TABLE ... RENAME COLUMN`, `DROP TABLE` | refuses (E38)                                                   |
-  | 2     | `<merge-date>100000_add_project`                       | `DROP TABLE work_package` (rebuild: `owner_id` out, `project_id NOT NULL` in)                       | `DROP TABLE`                                  | refuses (E38)                                                   |
-  | 2     | `<merge-date>100100_widen_organization_audit_projects` | `DROP TABLE organization_audit`, in the compatible rebuild form: it only widens a CHECK             | none; the exemption holds                     | refuses while a new-vocabulary row exists (the `widen_*` shape) |
-  | 3a    | `<merge-date>100000_add_setting_value`                 | `DROP TABLE work_package` (five columns out), `DROP TABLE calendar_marker` (re-scoped)              | `DROP TABLE`                                  | refuses (E38)                                                   |
-  | 3a    | `<merge-date>100100_space_holds_projects_people_teams` | `DROP TABLE project` (rebuild adding `space_id`, `space_position`), `DROP TABLE space_work_package` | `DROP TABLE`                                  | refuses (E38)                                                   |
-  | 3b    | `<merge-date>100000_lift_steps_to_project`             | blocked (E21); listed when `wbs-step-catalogue` lands                                               | —                                             | —                                                               |
+  | Slice | Folder                                             | Forbidden statements                                                                                | Waiver labels                                 | `down.sql`                                                      |
+  | ----- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------- |
+  | 1     | `20261110100000_rename_project_to_work_package`    | 28 `RENAME COLUMN`; `DROP TABLE organization_audit` (CHECK rebuild)                                 | `ALTER TABLE ... RENAME COLUMN`, `DROP TABLE` | refuses (E38)                                                   |
+  | 2     | `20261110110000_add_project`                       | `DROP TABLE work_package` (rebuild: `owner_id` out, `project_id NOT NULL` in)                       | `DROP TABLE`                                  | refuses (E38)                                                   |
+  | 2     | `20261110110100_widen_organization_audit_projects` | `DROP TABLE organization_audit`, in the compatible rebuild form: it only widens a CHECK             | none; the exemption holds                     | refuses while a new-vocabulary row exists (the `widen_*` shape) |
+  | 3a    | `20261110120000_add_setting_value`                 | `DROP TABLE work_package` (five columns out), `DROP TABLE calendar_marker` (re-scoped)              | `DROP TABLE`                                  | refuses (E38)                                                   |
+  | 3a    | `20261110120100_space_holds_projects_people_teams` | `DROP TABLE project` (rebuild adding `space_id`, `space_position`), `DROP TABLE space_work_package` | `DROP TABLE`                                  | refuses (E38)                                                   |
+  | 3b    | `<merge-date>100000_lift_steps_to_project`         | blocked (E21); listed when `wbs-step-catalogue` lands                                               | —                                             | —                                                               |
+
+  These exact task 1.2 fixture/waiver reservations create no semantic migration. At actual
+  materialization, recheck current applied ordering and the real merge date (E10); a required
+  stamp change updates the exact waiver/fixture and repeats its proofs, never a suffix wildcard.
+  Compatible audit widening has no waiver, and the step lift stays deferred. Full SQL-shape
+  fixtures preserve current complete DDL/constraints and planned rebuild/backfill/audit/index/
+  trigger operations; they prove lint classification, not migration execution or a live window.
 
   `migration-lint.test.ts` gains one fixture per folder, each with that migration's
   complete planned statement shape. Each fixture passes with its waiver and gate script

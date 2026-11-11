@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { clearCaches } from '@typescript-eslint/parser';
 import { describe, expect, it } from 'bun:test';
 import { ESLint } from 'eslint';
+import ts from 'typescript';
 import tseslint from 'typescript-eslint';
 
 import { createPolicyWorkspace, runLint, writeProject } from './testing/lint-workspace';
@@ -2526,3 +2527,117 @@ it('durable-contract evidence retains typed lint without admitting sibling paths
     true,
   );
 }, 30_000);
+
+describe('window report decoder import boundary', () => {
+  const owner = 'tools/tool-remote-scripts/src/lib/rename-window.ts';
+  const alias = '@wbs/contracts/window-backup-report';
+  async function readWindowBoundaryMessages(path: string, source: string) {
+    const reports = await lint.lintText(source, { filePath: path });
+    expect(reports).toHaveLength(1);
+    const report = reports[0];
+    expect(report.fatalErrorCount).toBe(0);
+    expect(
+      report.messages.filter((message) => message.fatal === true || message.ruleId === null),
+    ).toEqual([]);
+    return report.messages.map((message) => message.ruleId);
+  }
+  it('admits the runtime full report decoder at the exact host owner', async () => {
+    const source =
+      "import {readWindowBackupReport} from '" + alias + "';export{readWindowBackupReport};";
+    expect(await readWindowBoundaryMessages(owner, source)).not.toContain(
+      '@nx/enforce-module-boundaries',
+    );
+  }, 30000);
+  it('refuses actual resolvable window decoder siblings barrels adapter and relative bypasses', async () => {
+    for (const target of [
+      'tools/tool-remote-scripts/src/lib/docker.ts',
+      'tools/tool-remote-scripts/src/lib/rename-window.test.ts',
+      'tools/tool-smoke/src/color.ts',
+    ]) {
+      const source =
+        "import {readWindowBackupReport} from '" + alias + "';export{readWindowBackupReport};";
+      expect(await readWindowBoundaryMessages(target, source), target).toContain(
+        '@nx/enforce-module-boundaries',
+      );
+    }
+    for (const forbidden of [
+      '@wbs/contracts/dependency-runtime',
+      '@wbs/contracts/dependency-claim',
+      '@wbs/contracts',
+      '@wbs/store-sqlite',
+      '@wbs/store-sqlite/db',
+      '@wbs/store-sqlite/migrate',
+      relative(dirname(owner), 'libs/wbs/domain/contracts/src/window-backup-report.ts'),
+    ]) {
+      for (const source of [
+        "import * as Leaf from '" + forbidden + "';export{Leaf};",
+        "await import('" + forbidden + "');",
+      ])
+        expect(await readWindowBoundaryMessages(owner, source), forbidden).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+    }
+  }, 30000);
+  // Proof: window-policy-exact-leaf-resolution changes the exact tsconfig.base.json alias; observed named RED: window report decoder import boundary compiler refuses unresolved window decoder suffix and subpath imports. Strict JSON configuration keeps its proof beside this actual compiler consumer.
+  // Proof: window-policy-required-leaf-resolution changes the exact tsconfig.base.json alias; observed named RED: window report decoder import boundary compiler refuses unresolved window decoder suffix and subpath imports. Strict JSON configuration keeps its proof beside this actual compiler consumer.
+  it('compiler refuses unresolved window decoder suffix and subpath imports', () => {
+    const configPath = join(workspace, 'tsconfig.base.json');
+    const config = ts.readConfigFile(configPath, ts.sys.readFile.bind(ts.sys));
+    if (config.error !== undefined)
+      throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'));
+    const parsed = ts.parseJsonConfigFileContent(
+      config.config,
+      ts.sys,
+      workspace,
+      { noEmit: true },
+      configPath,
+    );
+    expect(parsed.errors).toEqual([]);
+    const aliases = [alias + '/foreign', alias + '-extra', '@wbs/contracts/foreign' + alias];
+    const unresolved = aliases
+      .map(
+        (specifier, index) =>
+          'import * as Foreign' +
+          String(index) +
+          " from '" +
+          specifier +
+          "';export{Foreign" +
+          String(index) +
+          '};',
+      )
+      .join('\n');
+    const contents =
+      'import {readWindowBackupReport as actualDecoder} from "' +
+      alias +
+      '";export{actualDecoder};\n' +
+      unresolved;
+    const filename = join(workspace, owner);
+    const host = ts.createCompilerHost(parsed.options);
+    const readSource = host.getSourceFile.bind(host);
+    host.getSourceFile = (path, languageVersion, onError, shouldCreateNewSourceFile) =>
+      path === filename
+        ? ts.createSourceFile(path, contents, languageVersion, true)
+        : readSource(path, languageVersion, onError, shouldCreateNewSourceFile);
+    const program = ts.createProgram([filename], parsed.options, host);
+    const diagnostics = ts.getPreEmitDiagnostics(program);
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([2307, 2307, 2307]);
+    const messages = diagnostics.map((diagnostic) =>
+      ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+    );
+    for (const specifier of aliases)
+      expect(messages.some((message) => message.includes(specifier))).toBe(true);
+  }, 30000);
+  it('preserves every peer Nx option except one exact window decoder allowance', async () => {
+    const options = boundaryOf(await lint.calculateConfigForFile(owner))[1];
+    const peer = boundaryOf(
+      await lint.calculateConfigForFile('tools/tool-remote-scripts/src/lib/docker.ts'),
+    )[1];
+    if (!isRecord(options) || !isRecord(peer)) throw new Error('window boundary options malformed');
+    expect(options['allow']).toEqual([...PENDING_INFRA_TO_PRODUCT_ALIASES, '^' + alias + '$']);
+    const retained: Readonly<Record<string, unknown>> = {
+      ...options,
+      allow: [...PENDING_INFRA_TO_PRODUCT_ALIASES],
+    };
+    expect(retained).toEqual(peer);
+  }, 30000);
+});

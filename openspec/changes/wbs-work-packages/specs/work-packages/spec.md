@@ -3,7 +3,7 @@
 ### Requirement: No surface names the old level "project"
 
 After slice 1, no route path, operationId, MCP tool name, realtime subscription or event
-name, audit vocabulary value, plan document field, saved-plan input key, SQLite table, column,
+name, audit vocabulary value, plan document field, saved-plan input key, SQLite table, view, column,
 index or trigger, fe-01 user-visible word or `CONTEXT.md` term SHALL use "project" for one
 WBS. The committed `tool-rename-work-package check` SHALL exit 0 on the tree and SHALL exit 1
 listing every residual outside its allow-list.
@@ -52,10 +52,17 @@ entries, history events and saved plans SHALL keep working.
 - **WHEN** one work package has no organization row
 - **THEN** the migration fails on its guard naming the count, and nothing is renamed
 
+#### Scenario: Renamed allocator uses its renamed view
+
+- **GIVEN** a migrated store with allocated abbreviations and a valid next counter
+- **WHEN** actual work-package creation allocates another abbreviation
+- **THEN** the allocator uses `work_package_abbreviation_candidate` with renamed table references
+- **AND** existing codes remain unchanged and no old allocator view or old-level schema reference survives
+
 ### Requirement: A window migration runs only inside a proven window
 
 Every non-additive migration of this change (design E39) SHALL carry an explicit
-`WAIVERS` entry naming its forbidden statements and the gate `bin/assert-rename-window.sh`,
+`WAIVERS` entry naming its forbidden statements and the gate `bin/assert-rename-window.ts`,
 and `migration-lint` SHALL refuse it while that script is absent. None SHALL rely on the
 compatible-rebuild exemption. The gate SHALL pass only when no prod release is recorded,
 the application container is stopped, and a backup report written by
@@ -65,6 +72,59 @@ ledger by name and hash. It SHALL refuse a missing, unreadable or malformed repo
 mismatch, and a missing or unreadable state directory, whatever the report says. Every
 window migration's `down.sql` SHALL refuse; the rollback is the snapshot restored with the
 previous code.
+
+#### Scenario: An idle connection does not impersonate a checkpoint blocker
+
+- **WHEN** another connection is idle, the checkpoint completes and the WAL is empty
+- **THEN** report generation may succeed after the source and complete ledger rechecks
+- **AND** the stopped application and paused poller/heavy-lock procedure still supply the lasting writer barrier
+
+#### Scenario: Report publication preserves competing evidence
+
+- **WHEN** a snapshot or report destination exists or another producer wins its exclusive publication
+- **THEN** the competing bytes remain unchanged and the command fails without a successful report
+- **AND** a verified snapshot remains available if report publication later fails
+
+#### Scenario: A post-publication failure cannot erase another owner
+
+- **WHEN** report sync or close fails after its final link exists
+- **THEN** the wrapper performs no stage deletion or report unlink and preserves the operation and descriptor-close failures
+- **AND** possibly published/unknown artifacts and observed staging locations are returned as separate diagnostics, never as success or a promise of absence
+- **AND** an unknown snapshot-helper cleanup retains its staging evidence and exact original failure
+
+#### Scenario: Successful report mode makes retained storage visible
+
+- **WHEN** a window backup succeeds
+- **THEN** stdout and the report file contain the unchanged eight-field report
+- **AND** the operation returns separate artifact metadata and the CLI prints retention diagnostics to stderr for both snapshot and report staging locations
+- **AND** the verified snapshot remains usable; retained hard links keep its blocks allocated until explicit operator cleanup under exclusive namespace control
+- **AND** reported paths identify created or possibly retained locations, not current ownership or authority to delete a rebound pathname
+
+#### Scenario: A staging pathname is replaced by another actor
+
+- **WHEN** a competing directory replaces an observed staging pathname during publication
+- **THEN** the wrapper preserves the competing directory and its bytes without destructive pathname cleanup
+- **AND** it reports the observed location conservatively, without claiming that the original inode still occupies it
+- **AND** no-flag backup behavior remains unchanged
+
+#### Scenario: Verification never erases WAL evidence
+
+- **WHEN** the readonly verifier encounters a nonempty WAL
+- **THEN** it refuses before opening SQLite and does not checkpoint or truncate the WAL
+
+#### Scenario: Snapshot sidecar evidence refuses without changing the report
+
+- **GIVEN** an actual generated backup report and unchanged main source/snapshot files
+- **AND** deliberately nonempty snapshot WAL sidecar evidence
+- **WHEN** the readonly verifier observes the report
+- **THEN** it refuses naming snapshot WAL before opening snapshot SQLite and preserves all evidence bytes
+- **AND** this physical artifact rule makes no claim that an ordinary writer leaves a VACUUM snapshot main-file header unchanged
+
+#### Scenario: The candidate verifier cannot be shadowed by dev source
+
+- **WHEN** the Bun gate launches the one-off verification
+- **THEN** it uses the explicit immutable candidate image and only pinned readonly DB/report/snapshot mounts with the Bun entrypoint
+- **AND** a source bind, unknown image or mount, restarted application, malformed inspection or absent tool refuses the window
 
 #### Scenario: A WAL-only write after the backup refuses the window
 
@@ -101,7 +161,7 @@ previous code.
 
 #### Scenario: The waiver needs its gate
 
-- **WHEN** `bin/assert-rename-window.sh` is deleted from the tree
+- **WHEN** `bin/assert-rename-window.ts` is deleted from the tree
 - **THEN** `migration-lint` refuses every waived window migration
 
 #### Scenario: A window migration's down script refuses

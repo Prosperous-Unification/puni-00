@@ -1,5 +1,6 @@
 import { doesNotReject, rejects } from 'node:assert/strict';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -465,5 +466,154 @@ describe('the access audit rebuild', () => {
       'apps/wbs/be-01/drizzle/20261102130000_widen_organization_audit_access/migration.sql',
     );
     expect(await lintMigration(file, root)).toBeNull();
+  });
+});
+
+describe('work-package window full SQL shapes', () => {
+  const roots: string[] = [];
+  afterAll(() => {
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+  const cases = [
+    ['20261110100000_rename_project_to_work_package', 'rename-project-to-work-package', 1],
+    ['20261110110000_add_project', 'add-project', 1],
+    ['20261110120000_add_setting_value', 'add-setting-value', 2],
+    ['20261110120100_space_holds_projects_people_teams', 'space-holds-projects-people-teams', 2],
+  ] as const;
+  function readShape(file: string): string {
+    return readFileSync(
+      new URL('./fixtures/window-migrations/' + file + '.sql', import.meta.url),
+      'utf8',
+    );
+  }
+  function checkout(folder: string, sql: string, gate: boolean) {
+    const root = scratchSync('wbs-window-full-shape-');
+    roots.push(root);
+    const migration = join(root, 'apps/wbs/be-01/drizzle', folder);
+    mkdirSync(migration, { recursive: true });
+    const file = join(migration, 'migration.sql');
+    writeFileSync(file, sql);
+    writeFileSync(
+      join(migration, 'down.sql'),
+      'CREATE TEMP TABLE window_restore_required (violations INTEGER CHECK (violations = 0)); INSERT INTO window_restore_required VALUES (1);',
+    );
+    if (gate) {
+      mkdirSync(join(root, 'bin'));
+      writeFileSync(
+        join(root, 'bin/assert-rename-window.ts'),
+        '#!/usr/bin/env bun\nthrow new Error("presence fixture only");\n',
+      );
+    }
+    return { root, file };
+  }
+  it('pins complete historical 110-ledger schema provenance and every full SQL footprint', () => {
+    const inventory = JSON.parse(
+      readFileSync(new URL('./fixtures/window-migrations/inventory.json', import.meta.url), 'utf8'),
+    ) as {
+      sourceCommit: string;
+      ledger: { name: string; hash: string }[];
+      counts: {
+        tables: number;
+        columns: number;
+        exactProjectIdColumns: number;
+        indexes: number;
+        triggers: number;
+        views: number;
+        triggerBodies: number;
+      };
+      fixtures: { folder: string; file: string; sha256: string }[];
+      tables: string[];
+      columns: { tableName: string; columnName: string }[];
+      indexes: string[];
+      triggers: string[];
+      views: string[];
+    };
+    expect(inventory.sourceCommit).toBe('b0d2df4eb608827a4933f0840b05300e06158d8a');
+    expect(inventory.ledger).toHaveLength(110);
+    expect(inventory.ledger.at(-1)?.name).toBe('20261103110000_add_initial_access_offers');
+    expect(inventory.counts).toEqual({
+      tables: 13,
+      columns: 28,
+      exactProjectIdColumns: 26,
+      indexes: 23,
+      triggers: 13,
+      views: 1,
+      triggerBodies: 25,
+    });
+    for (const identity of inventory.ledger) {
+      const bytes = readFileSync(
+        new URL('apps/wbs/be-01/drizzle/' + identity.name + '/migration.sql', WORKSPACE),
+      );
+      expect(createHash('sha256').update(bytes).digest('hex'), identity.name).toBe(identity.hash);
+    }
+    for (const fixture of inventory.fixtures)
+      expect(createHash('sha256').update(readShape(fixture.file)).digest('hex'), fixture.file).toBe(
+        fixture.sha256,
+      );
+    const rename = readShape('rename-project-to-work-package');
+    expect([...rename.matchAll(/ALTER TABLE\s+\S+\s+RENAME COLUMN/g)]).toHaveLength(28);
+    const quote = (name: string) => String.fromCharCode(96) + name + String.fromCharCode(96);
+    for (const table of inventory.tables)
+      expect(rename).toContain(
+        'ALTER TABLE ' +
+          quote(table) +
+          ' RENAME TO ' +
+          quote(table.replaceAll('project', 'work_package')),
+      );
+    for (const index of inventory.indexes) expect(rename).toContain('DROP INDEX ' + quote(index));
+    for (const trigger of inventory.triggers)
+      expect(rename).toContain('DROP TRIGGER ' + quote(trigger));
+    expect(rename).toContain('DROP VIEW ' + quote('project_abbreviation_candidate'));
+    expect(rename).toContain('CREATE VIEW work_package_abbreviation_candidate');
+    for (const [, file, drops] of cases)
+      expect([...readShape(file).matchAll(/DROP TABLE/g)], file).toHaveLength(drops);
+  });
+  for (const [folder, name] of cases) {
+    it('admits the complete ' + folder + ' shape only with its exact waiver and gate', async () => {
+      const fixture = checkout(folder, readShape(name), true);
+      expect(await lintMigration(fixture.file, fixture.root)).toBeNull();
+    });
+    it('refuses complete ' + folder + ' shape when its Bun gate is absent', async () => {
+      const fixture = checkout(folder, readShape(name), false);
+      expect((await lintMigration(fixture.file, fixture.root))?.reason).toContain(
+        'assert-rename-window.ts',
+      );
+    });
+    it('refuses the complete ' + folder + ' shape under an unwaived folder name', async () => {
+      const fixture = checkout(folder + '-not-waived', readShape(name), true);
+      expect((await lintMigration(fixture.file, fixture.root))?.reason).toMatch(
+        /DROP TABLE|RENAME COLUMN/,
+      );
+    });
+    it('keeps unrelated forbidden statements closed inside ' + folder, async () => {
+      const fixture = checkout(
+        folder,
+        readShape(name) + '\nTRUNCATE TABLE directory_control;',
+        true,
+      );
+      expect((await lintMigration(fixture.file, fixture.root))?.reason).toContain('TRUNCATE');
+    });
+  }
+  for (const [folder, name, drops] of cases.filter(([, , drops]) => drops === 2)) {
+    it(
+      'refuses full two-drop ' + folder + ' shape pretending to be a compatible rebuild',
+      async () => {
+        expect(drops).toBe(2);
+        const fixture = checkout(
+          folder + '-not-waived',
+          '-- migration-lint: compatible-table-rebuild\n' + readShape(name),
+          true,
+        );
+        expect((await lintMigration(fixture.file, fixture.root))?.reason).toContain('DROP TABLE');
+      },
+    );
+  }
+  it('keeps complete audit CHECK widening unwaived in compatible rebuild form', async () => {
+    const fixture = checkout(
+      '20261110110100_widen_organization_audit_projects',
+      readShape('widen-organization-audit-projects'),
+      false,
+    );
+    expect(await lintMigration(fixture.file, fixture.root)).toBeNull();
   });
 });

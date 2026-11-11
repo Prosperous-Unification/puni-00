@@ -1,4 +1,6 @@
-import { Database, SQLiteError } from 'bun:sqlite';
+import { pathToFileURL } from 'node:url';
+
+import { constants, Database, SQLiteError } from 'bun:sqlite';
 import type { Logger } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -412,6 +414,26 @@ export function drizzleReadTransaction(db: Drizzle): {
 export function openReadOnlyConnection(dbPath: string, logger?: Logger): Connection {
   const client = openReadOnlyDatabase(dbPath);
   return wrapConnection(client, () => drizzle({ client, logger }));
+}
+
+/**
+ * Acquires only the E37 stopped-window SOURCE on readonly media with no creating/writable mode.
+ * The window owner must reject nonempty/nonregular WAL immediately before acquisition and after
+ * close, and retain digest/full-ledger rechecks plus E36's external stopped-writer/poller/lock barrier.
+ * SQLite immutable bypasses locking/change detection: this asserts that barrier, never proves it.
+ * {@link https://sqlite.org/uri.html#uriimmutable}
+ * The URL API preserves literal ?, #, % and spaces. Snapshots/capture/ordinary readers keep their
+ * existing acquisition/recovery behavior. The caller owns one close, including close failure.
+ */
+export function openWindowSourceDatabase(dbPath: string): Database {
+  // Proof: window-native-url-encoding changes/removes this production behavior boundary; observed named RED: opens the exact immutable source whose native filename contains URI delimiters. Actual production-path negative; no broader host/deployment claim.
+  const uri = pathToFileURL(dbPath);
+  // Proof: window-native-readonly-mode-tuple changes/removes this native mode tuple boundary; observed named RED: window native source acquisition refuses SQL writes without changing evidence; window native source acquisition never creates an absent escaped path. One combined mode proof: immutable alone also enforces readonly, so both assertions must be compromised to admit the real DELETE. No independent-bit write-bypass claim.
+  // Proof: window-native-immutable-readonly-media changes/removes this native capability prerequisite boundary; observed named RED: verifies a WAL-header report with absent source sidecars and denied artifact writes. Reached WAL2/2, absent source sidecars, and real EACCES directory controls. Earlier writable/existing-sidecar positives are insufficient.
+  uri.searchParams.set('immutable', '1');
+  // Proof: window-native-readonly-flag-prerequisite changes/removes this native dependency prerequisite boundary; observed named RED: opens the exact immutable source whose native filename contains URI delimiters. Removing the access-mode bit invalidates native flags. It does not demonstrate writable admission; immutable also forces readonly.
+  // Proof: window-native-uri-flag changes/removes this native dependency prerequisite boundary; observed named RED: opens the exact immutable source whose native filename contains URI delimiters. Installed Bun requires URI interpretation for this escaped file URL. This is an acquisition prerequisite fault, not evidence of a successful write bypass.
+  return new Database(uri.href, constants.SQLITE_OPEN_READONLY | constants.SQLITE_OPEN_URI);
 }
 
 /** Open an existing SQLite file without creating it or changing its journal mode. */
