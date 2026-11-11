@@ -352,6 +352,10 @@ const unprivileged =
   'Uid:\t59001\t59001\t59001\t59001\nCapInh:\t0000000000000000\n' +
   'CapPrm:\t0000000000000000\nCapEff:\t0000000000000000\n' +
   'CapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\n';
+/**
+ * Keep modeled root/cwd on the host root filesystem even when scratch uses another device.
+ * The empty-view guard checks real descriptor identities against the actual host root.
+ */
 async function createIsolatedView() {
   const proof = await fixture();
   // Model a distinct audited device using the real proc mount; native chroot proofs use enforced tmpfs storage.
@@ -360,8 +364,8 @@ async function createIsolatedView() {
     await readFile('/proc/self/mountinfo', 'utf8'),
   );
   await writeFile(join(proof.proc, '42/mountinfo'), '');
-  await symlink(proof.directory, join(proof.proc, '42/root'));
-  await symlink(proof.directory, join(proof.proc, '42/cwd'));
+  await symlink('/', join(proof.proc, '42/root'));
+  await symlink('/', join(proof.proc, '42/cwd'));
   await writeFile(
     join(proof.proc, '42/status'),
     unprivileged + 'State:\tS (sleeping)\nThreads:\t1\n',
