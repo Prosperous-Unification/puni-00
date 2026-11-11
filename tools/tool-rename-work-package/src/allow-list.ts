@@ -76,12 +76,33 @@ export const EXCLUDED_PATHS: readonly ExcludedPath[] = [
   },
   { glob: '**/CONTEXT.md', reason: 'terms keep the word in its new sense (E24), edited by hand' },
   {
+    // Proof: span-corpus-manifest removing the manifest exclusion failed "reserves only JSON golden corpus paths for explicit version edits, never neighboring TypeScript helpers" (solver-protection.test.ts); restored GREEN. Structural exclusion proof; the current corpus has no old package keys.
+    glob: 'libs/wbs/domain/contracts/solver/fixtures/manifest.json',
+    reason:
+      'golden wire corpus manifest; explicit scheduler-prefix edits belong to E26, not mechanical rename',
+  },
+  {
+    // Proof: span-corpus-narrowness excluding a neighboring TypeScript helper failed "controlled connected corpus JSON keeps frozen wire spellings through actual apply while sibling helper rewrites" (solver-protection.test.ts); restored GREEN.
+    // Proof: span-corpus-request removing the request JSON corpus boundary failed "controlled connected corpus JSON keeps frozen wire spellings through actual apply while sibling helper rewrites" (solver-protection.test.ts); restored GREEN.
+    glob: 'libs/wbs/domain/contracts/solver/fixtures/request/*.json',
+    reason:
+      'fixed Python-consumed request corpus paths and wire keys; version metadata changes explicitly in E26',
+  },
+  {
+    // Proof: span-corpus-response removing the response JSON exclusion failed "reserves only JSON golden corpus paths for explicit version edits, never neighboring TypeScript helpers" (solver-protection.test.ts); restored GREEN. Structural exclusion proof; the current corpus has no old package keys.
+    glob: 'libs/wbs/domain/contracts/solver/fixtures/response/*.json',
+    reason: 'fixed Python-consumed response corpus paths and wire keys (E26)',
+  },
+  {
+    // Proof: span-schema-copy removing the frozen wire-schema boundary failed "actual apply leaves all tracked Python release and schema bytes unchanged while renaming host DTOs" (solver-protection.test.ts); restored GREEN.
     glob: 'libs/wbs/domain/contracts/solver/solver-wire.v*.json',
     reason: 'solver wire schemas: comments reworded with the next wire version (E26, WP-13)',
   },
   {
-    glob: 'libs/wbs/adapters/solver-py/src/wbs_solver/solver-wire.v*.json',
-    reason: 'byte-identical solver-py copies of the wire schemas (E26)',
+    // Proof: span-python removing the Python release boundary failed "actual apply leaves all tracked Python release and schema bytes unchanged while renaming host DTOs" (solver-protection.test.ts); restored GREEN.
+    glob: 'libs/wbs/adapters/solver-py/**',
+    reason:
+      'frozen Python 0.4.0 implementation, package, dependencies, tests and schema copies (E26)',
   },
 ];
 
@@ -91,11 +112,8 @@ export const EXCLUDED_PATHS: readonly ExcludedPath[] = [
  * `allow-list.test.ts` enforces, so a pattern outlived by its code fails a test instead of
  * silently widening the allow-list (E12).
  *
- * Not yet listed: the `wbs-permissions` identifiers E11 names (`ScopeChain.projectId`,
- * `organization.create_project`, the `project.*` permission ids, the project role names,
- * `{ kind: 'project'; chain }` and project-scoped grant rows). They have not landed on `main`;
- * the permissions slices add their patterns here when they do, and the test then holds them to
- * the code.
+ * Permission and wire exceptions are qualified character spans in protection.ts; a new token
+ * never exempts unrelated old planning identifiers on its line.
  */
 export const PROTECTED_LINES: readonly ProtectedLine[] = [
   {
@@ -112,41 +130,6 @@ export const PROTECTED_LINES: readonly ProtectedLine[] = [
   { pattern: /\bnx (?:run|show|graph|affected)\b/, sense: 'other', reason: 'Nx command lines' },
   { pattern: /\bNx projects?\b/, sense: 'other', reason: 'prose naming Nx projects' },
   { pattern: /\bcollaborative font projects\b/, sense: 'other', reason: 'SIL Open Font License' },
-  {
-    pattern: /'work_package'/,
-    sense: 'new',
-    reason:
-      "wbs-permissions object and scope kind literal: the package level named in the new sense ahead of the rename; a 'project' beside it is the project entity",
-  },
-  {
-    pattern: /\bwork_package: \d+,/,
-    sense: 'new',
-    reason: 'the BREADTH rank of the package level in @wbs/domain access-role',
-  },
-  {
-    pattern: /\breadonly workPackageId: string;/,
-    sense: 'new',
-    reason:
-      'the package level id of ScopeChain in @wbs/domain access-role, named ahead of the rename so apply never makes a second workPackageId',
-  },
-  {
-    pattern: /\bconst packageId = scope\.workPackageId;/,
-    sense: 'new',
-    reason:
-      'the grant store (wbs-permissions 1.4) reading the package id of a GrantScope, named ahead of the rename',
-  },
-  {
-    pattern: /\bwork_package: 'package\.read',/,
-    sense: 'new',
-    reason:
-      "the package level's read permission in @wbs/domain access-role's READ_PERMISSION_OF (wbs-permissions 1.3)",
-  },
-  {
-    pattern: /^\s*workPackageId: packageId,$/,
-    sense: 'new',
-    reason:
-      'an InterimPackageChain built from a package id in the access-decisions adapter and its conformance case (wbs-permissions 1.3)',
-  },
   {
     pattern: /`wbs-work-packages`/,
     sense: 'new',

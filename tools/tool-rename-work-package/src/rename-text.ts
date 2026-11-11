@@ -1,8 +1,10 @@
-import { protectionOf } from './allow-list';
+import ts from 'typescript';
+
+import { isProtectedSpan, readProtectedSpans } from './protection';
 import { constantSpellingOf, type OldWord, RENAME_MAP, type Spellings } from './rename-map';
 
 /** What a character is part of, as far as choosing a spelling needs to know. */
-type Site = 'code' | 'inline' | 'string' | 'comment' | 'prose';
+type Site = 'code' | 'inline' | 'string' | 'sql' | 'comment' | 'prose';
 
 /** How a file is read: its comment syntax, quote characters and whether it is Markdown. */
 interface Syntax {
@@ -20,6 +22,13 @@ interface StringSpan {
   readonly start: number;
   readonly end: number;
 }
+
+interface SyntaxRegions {
+  readonly sqlTemplates: ReadonlySet<number>;
+  readonly regularExpressions: ReadonlyMap<number, number>;
+}
+
+const NO_SYNTAX_REGIONS: SyntaxRegions = { sqlTemplates: new Set(), regularExpressions: new Map() };
 
 interface Lexed {
   readonly sites: Site[];
@@ -66,7 +75,7 @@ export function syntaxOf(path: string): Syntax {
 
 /**
  * Marks every character of `text` with its {@link Site}. A heuristic lexer, not a parser:
- * regular-expression literals read as code, and an unterminated `'` or `"` string ends at its
+ * regular-expression bodies are code spans rather than string delimiters, and an unterminated `'` or `"` string ends at its
  * line's end. Backtick spans inside comments and Markdown prose read as code, the way they
  * render. A Markdown HTML comment (the `module-index` envelope) reads as JSON.
  */
@@ -78,8 +87,45 @@ function lex(text: string, syntax: Syntax): Lexed {
     lexMarkdown(text, sites, spanOf, spans);
     return { sites, spanOf, spans };
   }
-  lexCode(text, 0, text.length, syntax, sites, spanOf, spans);
+  lexCode(
+    text,
+    0,
+    text.length,
+    syntax,
+    sites,
+    spanOf,
+    spans,
+    syntax.templates ? readSyntaxRegions(text, syntax.jsx) : NO_SYNTAX_REGIONS,
+  );
   return { sites, spanOf, spans };
+}
+
+/**
+ * Syntax-only SQL tag positions, including generic and nested templates. The raw-text API
+ * also accepts fragments: this classifies recovered tagged nodes, not program validity.
+ * Required model enclosures validate complete syntax separately in protection.ts.
+ */
+function readSyntaxRegions(text: string, jsx: boolean): SyntaxRegions {
+  const source = ts.createSourceFile(
+    'rename-fragment.ts',
+    text,
+    ts.ScriptTarget.Latest,
+    false,
+    jsx ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const starts = new Set<number>();
+  const regularExpressions = new Map<number, number>();
+  const visit = (node: ts.Node): void => {
+    // Proof: span-sql-tag ignoring the SQL template tag failed "uses SQL vocabulary in a tagged predicate without SQL statement keywords" (rename-map.test.ts); restored GREEN.
+    if (ts.isTaggedTemplateExpression(node) && ts.isIdentifier(node.tag) && node.tag.text === 'sql')
+      starts.add(node.template.getStart(source));
+    // Proof: span-regex-frame treating regex backticks as template delimiters failed "regex backticks cannot leak a template site into later real object literals" (rename-map.test.ts); restored GREEN.
+    if (ts.isRegularExpressionLiteral(node))
+      regularExpressions.set(node.getStart(source), node.getEnd());
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return { sqlTemplates: starts, regularExpressions };
 }
 
 function lexMarkdown(text: string, sites: Site[], spanOf: Int32Array, spans: StringSpan[]): void {
@@ -99,7 +145,16 @@ function lexMarkdown(text: string, sites: Site[], spanOf: Int32Array, spans: Str
         if (text.startsWith('<!--', index)) {
           const close = text.indexOf('-->', index);
           const stop = close === -1 || close > end ? end : close + 3;
-          lexCode(text, index, stop, { ...PLAIN, quotes: '"' }, sites, spanOf, spans);
+          lexCode(
+            text,
+            index,
+            stop,
+            { ...PLAIN, quotes: '"' },
+            sites,
+            spanOf,
+            spans,
+            NO_SYNTAX_REGIONS,
+          );
           index = stop;
           continue;
         }
@@ -120,20 +175,26 @@ function lexCode(
   sites: Site[],
   spanOf: Int32Array,
   spans: StringSpan[],
+  regions: SyntaxRegions,
 ): void {
   // Template-expression depths: a `}` at depth 0 of the innermost one resumes its template.
-  const templateDepths: number[] = [];
+  const templateFrames: { depth: number; readonly site: 'string' | 'sql' }[] = [];
   let index = from;
-  const markString = (start: number, quote: string, template: boolean): number => {
+  const markString = (
+    start: number,
+    quote: string,
+    template: boolean,
+    site: 'string' | 'sql',
+  ): number => {
     const span = spans.length;
     spans.push({ start: start + 1, end: start + 1 });
-    sites[start] = 'string';
+    sites[start] = site;
     let cursor = start + 1;
     while (cursor < to) {
       const char = text[cursor];
       if (char === '\\') {
-        sites[cursor] = 'string';
-        sites[cursor + 1] = 'string';
+        sites[cursor] = site;
+        sites[cursor + 1] = site;
         spanOf[cursor] = span;
         spanOf[cursor + 1] = span;
         cursor += 2;
@@ -142,20 +203,26 @@ function lexCode(
       if (char === quote || (!template && char === '\n')) break;
       if (template && char === '$' && text[cursor + 1] === '{') {
         spans[span] = { start: start + 1, end: cursor };
-        templateDepths.push(0);
+        templateFrames.push({ depth: 0, site });
         sites[cursor] = 'code';
         sites[cursor + 1] = 'code';
         return cursor + 2;
       }
-      sites[cursor] = 'string';
+      sites[cursor] = site;
       spanOf[cursor] = span;
       cursor += 1;
     }
     spans[span] = { start: start + 1, end: cursor };
-    if (cursor < to) sites[cursor] = 'string';
+    if (cursor < to) sites[cursor] = site;
     return cursor + 1;
   };
   while (index < to) {
+    const regexEnd = regions.regularExpressions.get(index);
+    if (regexEnd !== undefined) {
+      sites.fill('code', index, regexEnd);
+      index = regexEnd;
+      continue;
+    }
     const char = text[index] ?? '';
     if (syntax.lineComment !== undefined && text.startsWith(syntax.lineComment, index)) {
       const newline = text.indexOf('\n', index);
@@ -171,23 +238,24 @@ function lexCode(
       index = stop;
       continue;
     }
-    const depth = templateDepths.at(-1);
-    if (depth !== undefined && char === '}') {
-      if (depth === 0) {
-        templateDepths.pop();
-        index = markString(index, '`', true);
+    const frame = templateFrames.at(-1);
+    if (frame !== undefined && char === '}') {
+      if (frame.depth === 0) {
+        templateFrames.pop();
+        // Proof: span-sql-frame losing SQL context after a nested template failed "retains the outer SQL site across a nested ordinary template interpolation" (rename-map.test.ts); restored GREEN.
+        index = markString(index, '`', true, frame.site);
         continue;
       }
-      templateDepths[templateDepths.length - 1] = depth - 1;
-    } else if (depth !== undefined && char === '{') {
-      templateDepths[templateDepths.length - 1] = depth + 1;
+      frame.depth -= 1;
+    } else if (frame !== undefined && char === '{') {
+      frame.depth += 1;
     }
     if (syntax.quotes.includes(char) && char !== '') {
-      index = markString(index, char, false);
+      index = markString(index, char, false, 'string');
       continue;
     }
     if (syntax.templates && char === '`') {
-      index = markString(index, '`', true);
+      index = markString(index, '`', true, regions.sqlTemplates.has(index) ? 'sql' : 'string');
       continue;
     }
     sites[index] = 'code';
@@ -281,6 +349,7 @@ function replacementAt(
     (after === '-' && isAlphanumeric(charAt(text, end + 1)));
   const precedesExtension = FILE_EXTENSION.test(text.slice(end, end + 12));
   const prose = kind === 'lower' ? spellings.prose : capitalized(spellings.prose);
+  if (site === 'sql') return kind === 'lower' ? spellings.sql : named;
   if (site === 'comment' || site === 'prose') {
     if (IDENTIFIER_HINT.test(text.slice(Math.max(0, start - 40), start))) return named;
     if (adjoinsPath || precedesExtension) return path;
@@ -310,30 +379,32 @@ function replacementAt(
 }
 
 /**
- * `text` with every old word respelled (design E11), lines a {@link protectionOf} pattern
- * matches left byte-identical. Idempotent: no target spelling contains an old word, so a second
+ * `text` with every old word respelled (design E11), only qualified {@link readProtectedSpans} intervals
+ * left byte-identical. Idempotent: no target spelling contains an old word, so a second
  * pass finds nothing to replace.
  */
 export function renameText(text: string, path: string): string {
   const syntax = syntaxOf(path);
   const lexed = lex(text, syntax);
+  const protectedSpans = readProtectedSpans(text, path);
   const pieces: string[] = [];
   let offset = 0;
   for (const line of text.split('\n')) {
     const lineEnd = offset + line.length;
-    if (protectionOf(line) !== undefined) {
-      pieces.push(line);
-    } else {
-      let cursor = offset;
-      let rewritten = '';
-      for (const match of line.matchAll(OLD_WORD)) {
-        const start = offset + match.index;
-        const end = start + match[0].length;
-        rewritten += text.slice(cursor, start) + replacementAt(text, start, end, lexed, syntax);
-        cursor = end;
-      }
-      pieces.push(rewritten + text.slice(cursor, lineEnd));
+    let cursor = offset;
+    let rewritten = '';
+    for (const match of line.matchAll(OLD_WORD)) {
+      const start = offset + match.index;
+      const end = start + match[0].length;
+      rewritten +=
+        text.slice(cursor, start) +
+        // Proof: span-apply-use ignoring protected spans during apply failed "preserves a catalogue permission while renaming an old package argument on the same line" (allow-list.test.ts); restored GREEN.
+        (isProtectedSpan(protectedSpans, start, end)
+          ? text.slice(start, end)
+          : replacementAt(text, start, end, lexed, syntax));
+      cursor = end;
     }
+    pieces.push(rewritten + text.slice(cursor, lineEnd));
     offset = lineEnd + 1;
   }
   return pieces.join('\n');

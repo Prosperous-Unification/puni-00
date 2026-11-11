@@ -9,7 +9,8 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { exclusionOf, protectionOf } from './allow-list';
+import { exclusionOf } from './allow-list';
+import { isProtectedSpan, readProtectedSpans } from './protection';
 import { renamePath, renameText } from './rename-text';
 
 /** The residual pattern `check` reports (design E12), matched per line and per path. */
@@ -62,14 +63,18 @@ export function residualsIn(root: string): Residual[] {
     if (!isRegularFile(root, path)) continue;
     const bytes = readFileSync(join(root, path));
     if (isBinary(bytes)) continue;
-    bytes
-      .toString('utf8')
-      .split('\n')
-      .forEach((text, index) => {
-        if (RESIDUAL.test(text) && protectionOf(text) === undefined) {
-          found.push({ path, line: index + 1, text });
-        }
-      });
+    const source = bytes.toString('utf8');
+    const spans = readProtectedSpans(source, path);
+    let offset = 0;
+    source.split('\n').forEach((text, index) => {
+      const unprotected = [...text.matchAll(new RegExp(RESIDUAL.source, 'g'))].some(
+        (match) =>
+          // Proof: span-check-use ignoring protected spans during residual checking failed "apply and check share token protection without hiding a mixed-line residual" (cli.test.ts); restored GREEN.
+          !isProtectedSpan(spans, offset + match.index, offset + match.index + match[0].length),
+      );
+      if (unprotected) found.push({ path, line: index + 1, text });
+      offset += text.length + 1;
+    });
   }
   return found;
 }
@@ -91,12 +96,21 @@ export interface ApplySummary {
  * path through `git mv` ({@link renamePath}), then every text file's content
  * ({@link renameText}). Running it again changes nothing.
  *
- * @throws when `scopes` is empty, when a move's target already exists, or when git fails.
+ * Required qualified witnesses are validated before path moves or content writes; this does
+ * not promise rollback of a later filesystem/git failure.
+ * @throws when `scopes` is empty, a required witness is stale, a move's target exists, or git fails.
  */
 export function applyRename(root: string, scopes: readonly string[]): ApplySummary {
   if (scopes.length === 0) throw new Error('apply needs at least one path to rename under');
   const inScope = (path: string): boolean => scopes.some((scope) => isWithin(path, scope));
   const tracked = new Set(git(root, ['ls-files', '-z']).split('\0').filter(Boolean));
+  // Required semantic witnesses are observed before this owner starts moving paths.
+  for (const path of trackedPaths(root).filter(inScope)) {
+    if (!isRegularFile(root, path)) continue;
+    const bytes = readFileSync(join(root, path));
+    // Proof: span-apply-preflight skipping the before-move witness preflight failed "refuses a stale required span witness before changing paths or file bytes" (cli.test.ts); restored GREEN.
+    if (!isBinary(bytes)) renameText(bytes.toString('utf8'), renamePath(path));
+  }
   let moved = 0;
   const emptied = new Set<string>();
   for (const path of trackedPaths(root).filter(inScope)) {

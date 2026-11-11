@@ -126,11 +126,7 @@ was also "a space-level override of anything", now allowed where E18 says._
   _Plan document versions revised 2026-10-24 after review:_ the budgets change (#663,
   `wbs-measure-budgets`) holds version 11 (`PLAN_DOCUMENT_VERSION = 11`,
   `LEGACY_PLAN_DOCUMENT_VERSION = 10`) and has landed on `main` (`1bb1cb392`); this change
-  keeps its v11 classifier branch and builds on it. `feat/cross-project-dependencies` is still at 10 and renumbers when
-  it lands. The same branch also holds `CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 9`, so the
-  saved-plan input goes 9 → 10 at slice 1, → 11 at slice 2 and → 12 at slice 3a (assumed by
-  the same reasoning; overturn with E10). _Revised 2026-10-25 after the Codex review (F4):
-  slice 2's owner removal takes 11 (E40); was 11 at slice 3a._ `SOLVER_WIRE_VERSION` stays 5 through explicit internal boundary mapping (E26).
+  keeps its v11 classifier branch and builds on it. _Current-code reconciliation2026-11-11:_ base canonical input9 and published stored input10 (the dependencyHistory wrapper) both already exist. Slice1 emits fresh stored/current input11, slice2 takes12 for owner retirement and the new project parent, and slice3a takes13 for resolved settings. The legacy1–9→legacy9→published10 chain stays frozen; an explicit10→11 conversion performs the rename without rewriting original bytes/hashes. Historical types and the legacy normalizer ceiling9 do not inherit renamed current types or defaults. Current11 assembly requires explicit captured dependencyHistory, including known-local evidence. The observed production saved-plan capture is version10; reusing10 for renamed fields was rejected. SOLVER_WIRE_VERSION remains5 through explicit internal boundary mapping (E26).
   `SCHEDULER_CONTRACT_VERSION` advances 18 → 19 because current elsewhere and connected-stage
   canonical host inputs carry project keys that the rename changes. Numerical scheduling
   behavior and quantum stay unchanged; canonical hashes and cache identities change. Landing order: budgets #663 before slice
@@ -166,12 +162,7 @@ was also "a space-level override of anything", now allowed where E18 says._
   (`project.read`, `project.manage_packages`, …), the project role names, the access target
   `{ kind: 'project'; chain }` and grant rows whose scope kind is `project`, plus anything
   else those slices add (listed from their landed code on the slice 1 branch); each is a
-  per-line pattern in `allow-list.ts` (E12), never a path exclusion. (WP-13) the solver wire
-  schemas `libs/wbs/domain/contracts/solver/solver-wire.v1–v5.json` and their byte-identical
-  copies under `libs/wbs/adapters/solver-py/src/wbs_solver/`: "project" appears in their
-  `$comment` strings only (v4 lines 149, 156, 304, 318), and rewriting the solver-py copy
-  would change solver-py, which E26 keeps untouched; the comments are reworded with the next
-  wire version. (WP-8) the scenario ids `[PROJECT-ASSIGNMENT-READS-00n]`, which tests in
+  path/context-qualified protected character span in `allow-list.ts` (E12), never a blanket permission-file or mixed-line exclusion. (WP-13) the frozen Python0.4.0 implementation, package metadata/locks/tests and solver-image build inputs, plus solver-wire.v1–v5 JSON and both schema copies, remain byte-identical. The Python implementation and TypeScript wire boundary contain live `projectId`/`projects`/`foreignProjectId` keys, not merely comments. TypeScript host DTOs still rename; only exact wire occurrences remain protected and host-to-wire mappings make the distinction (E26). (WP-8) the scenario ids `[PROJECT-ASSIGNMENT-READS-00n]`, which tests in
   store-sqlite and core cite by id.
 - **E12. The rename is a committed, rerunnable script**: Nx project `tool-rename-work-package`
   under `tools/tool-rename-work-package/` with `src/rename-map.ts` (the map above, as data),
@@ -183,18 +174,14 @@ was also "a space-level override of anything", now allowed where E18 says._
   (every key has all five spellings and none collides with an existing identifier); `check`
   fails on an injected residual in a non-excluded file and passes on an excluded one (R5
   negative, watched); `apply` twice equals `apply` once. _New-sense rule added 2026-10-24
-  after the Fable review (WP-2):_ `allow-list.ts` carries, beside excluded paths, per-line
-  patterns for identifiers already in the new sense (E11's list); `apply` leaves a matching
-  line untouched (so `ScopeChain.projectId` never becomes a second `workPackageId`) and
-  `check` does not report it (so `check` can reach exit 0). The rename-map test asserts that
-  each listed pattern still matches at least one line of the tree, so a pattern outlived by
-  its code fails the test instead of silently widening the allow-list. The reviewer reruns `check` on the PR
+  after the Fable review (WP-2), refined from current permission callers in2026-11:_ genuine prose/Nx whole-line rules remain; permission and frozen-wire exceptions use explicit protected character spans. A closed permission/role literal or exact new identifier is protected without protecting unrelated old tokens on its line. Overloaded parent fields and kind tokens require an exact path plus named structural enclosure and captured token offsets; arbitrary chain/scope property access is never exempt. Both original and moved paths select the same intended rule. Missing or ambiguous required witnesses refuse. Apply, residual checking and target-collision detection consume the same spans. Each rule has actual tracked witnesses, mixed old/new-line controls and removed-rule negatives; an outlived witness fails instead of silently widening protection. Whole-line permission guards were rejected because a `work_package` kind could hide an old planning argument; global property guards were rejected because an unrelated captured.chain.projectId still means the old package. This bounded lexical qualification does not introduce a semantic TypeScript refactoring engine. The reviewer reruns `check` on the PR
   head. _Review rule added 2026-10-24 after review:_ the mechanical commit is reproducible: the
   reviewer runs `tool-rename-work-package apply` on that commit's parent and the resulting
   diff is byte-identical to the commit; hand fixes (articles, plural grammar, sorted fields,
   prettier wrapping) go in a separate commit after it and are reviewed as an ordinary diff.
   Rejected: a one-off sed in a PR description (not
   rerunnable, not testable).
+  **Readiness boundary:** tasks1.3–1.6 are coupled. The exact-parent mechanical checkpoint may record dependent REDs, but saved-plan/import compatibility requires the explicit legacy9/10→current11 and document11→12 upgrades, preserving historical reader keys/bytes. Solver compatibility also requires current-host→frozen-wire mapping and stored connected DTO upgrades. Scheduler18→19 and old-cache rejection do not substitute for those boundaries. ScheduleBody advances only if its actual serialized timing shape changes. Database JSON rewrites address owned old-package keys, never global text replacement or stable grant/replay permission meanings.
 - **E13. Slice 1 migration.** One `migration.sql`: `ALTER TABLE … RENAME TO` for the
   thirteen old-level tables, `ALTER TABLE … RENAME COLUMN` for 28 old-level columns
   (26 exact `project_id` plus external dependency `predecessor_project_id` and
@@ -204,19 +191,19 @@ was also "a space-level override of anything", now allowed where E18 says._
   `project_abbreviation_candidate` → `work_package_abbreviation_candidate` (the bodies of all 25 triggers
   that name the old level follow SQLite's rename rewriting; task 1.3 checks explicit and
   automatic indexes and every trigger name/body for old-level residuals, preserving new-sense
-  permission/scope literals). Counts come from the complete 110-migration schema at local
+  permission/scope literals). Historical inline FK/CHECK labels are the exact object+constraint-token set in fixtures/schema-exceptions.json (22 tokens across17 tables), plus one exact dated stored comment; these metadata tokens alone stay old. No whole-line or project_* pattern is allowed, and an old table/column reference under an allowed label still fails. SQLite ALTER does not rename these labels; rebuilding the tables solely for metadata names and writable_schema were rejected. Four additional blockage/parallel triggers retain their predicates/FK behavior but change active RAISE prose to work package mismatch. Actual invalid inserts, FK integrity and row preservation are checked. Counts come from the complete 110-migration schema at local
   `b0d2df4eb608827a4933f0840b05300e06158d8a` (latest
   `20261103110000_add_initial_access_offers`, observed 2026-11-10); earlier 9/19 counts remain
   dated historical evidence rather than active expectations. The migration also includes a rebuild of `organization_audit` with the renamed CHECK
   vocabulary (the `widen_organization_audit_*` shape) and `UPDATE`s of its `subject_kind` and
   `action` values; a `CHECK (violations = 0)` guard table refuses while any work package lacks
-  an organization row. Stored JSON is not rewritten: `command_journal` and `plan_event` keep
-  their payloads (their `project_id` is a column), and the saved-plan input body stays
-  at schema ≤ 9 bytes (`saved_plan_body.bytes`, kind `input`) read through a new 9 → 10 upgrade step in the saved-plan reader (the
-  established reader-side chain; a stored body is not rewritten here, and since E33 is superseded by `wbs-step-catalogue` SC13 no migration touches one either; corrected 2026-10-24,
-  WP-5, to agree with E10). Task 1.3 proves by
-  replaying every journal kind through a migrated fixture that no payload names `projectId`;
-  if one does, the migration rewrites it with `json_set` and the test proves that instead.
+  an organization row. _Reconciled against current typed-dependency/incident callers in2026-11:_ stored commands now contain package identities. The SQL rewrite owns only command_journal.payload.forward, command_journal.inverse and plan_event.before/after command roots; it follows batch.steps and transition_incident_nodes.structural. It renames transition.projectId, typed dependency owner and predecessor/successor projectId fields (when present), transition receipt from/to dependency fields, and restore_subtree.rows[*].projectId. It separately renames preconditions.externalRevisions expected/from entry projectId fields. Legacy dependency endpoints without an explicit package stay absent. Recognized owned shapes and old/new-key collisions are validated before writes; malformed/unknown command shapes refuse the whole migration with the stored row identity. Null or non-command historical event roots require their own explicit current-writer classification, not recursive key guessing.
+
+  The rewrite preserves payload.authorization (including policy version1 and stable workPackageId requirements), project permission/role/scope literals, labels, user text, opaque references and revision-map tuple keys. It never recursively renames arbitrary JSON keys. Saved-plan input bodies remain their original schema1–10 bytes and hashes; the reader preserves legacy1–9→9→published10 meaning, then explicitly upgrades10→renamed11 without rewriting persisted bodies (E10; E33 is superseded by wbs-step-catalogue SC13).
+
+  Transport replay is a one-time namespace reset, not a frame migration. Old project:* event_log and event_sequencer rows remain byte-identical under their old keys, subject to normal retention. New work-package:* subscriptions start independently; no old sequence number is copied or translated and no old frame is relabeled. The gateway refuses the old prefix. The current client ignores obsolete full-subscription tracker keys and establishes a fresh anchored full read before new replay, including the old-seq0/new-seq0 collision and denied resume/refetch controls. plan_event durable user history remains separate and preserved. This reset is part of readiness, not proved by inaccessible old keys alone.
+
+  Historical runtime identity-bearing representations are outside this SQL command rewrite. Immutable runtime declarations/fingerprints, version1 canonical runtime requests, digests, accepted envelopes and original receipts stay exact. Named persisted codecs map old projections to current internal names and compare current requests in the retained row's actual format; mixed/unknown shapes refuse. A changed current public/canonical wire shape gets an explicit next version with version1 decoding, never a reinterpretation/re-hash of version1. Manual resource-use fingerprints and runtime rb1 bases are positional and do not change solely because host property names change. Resource-use stored snapshots/original responses are decoded as their historical projections without consulting a current plan or changing revision/state/attribution. These changes are part of the coupled1.3–1.6 readiness boundary and must be proved before claiming replay/storage compatibility; they are not permanent lexical exemptions. The physical runtime schema capability check changes to the new table/column names while retaining original applied-migration hashes.
   `down.sql` exists because the lint and `migrate-down-cli.ts` require one, and it refuses
   (E38); the rollback of record is the snapshot (E14, E38). Lint: a `WAIVERS` entry for the
   folder with labels `ALTER TABLE ... RENAME COLUMN` and `DROP TABLE` (the audit rebuild) and
@@ -224,6 +211,7 @@ was also "a space-level override of anything", now allowed where E18 says._
   (F1, F3): was a `down.sql` reversing every rename and a waiver for `RENAME COLUMN` only._ Rejected: expand/contract with views and `INSTEAD OF`
   triggers (`steps-schema-rename` D2): nine views and dozens of triggers alive for one
   release, for nobody (E8).
+
 - **E14. Stop-the-world window with the backup as rollback.** _Revised 2026-10-25 after the
   Codex review (F1, F2): was a gate passing when no prod release was recorded **or** a backup
   report named the live `DB_PATH` with an equal hash, a report the CLI did not produce, a
@@ -231,7 +219,7 @@ was also "a space-level override of anything", now allowed where E18 says._
   under the compatible-rebuild exemption._ The windows of slices 1, 2 and 3a (and 3b, once
   `wbs-step-catalogue` defines it) are a documented exception to the additive rule (E36).
   `bin/assert-rename-window.ts <state-dir> --backup-report=<file> --snapshot-path=<file> --db-path=<file> --container=<name> --candidate-image=<image>` passes
-  only when all hold: `bin/assert-no-prod-release.sh <state-dir>` passes (prod is not in
+  only when all hold: the Bun host gate directly reads an existing readable state directory and finds no be/gw/fe release record (prod is not in
   scope until an activation change defines its window, E36), the named container is not
   running (the writer barrier, E36), and `assert-window-cli.ts` accepts the report against
   the live database (E37). The report is always required. Procedure, dev (`wbs-dev-src`,
@@ -572,6 +560,8 @@ organization_id, position, …)`, back-filled by mapping each space's work packa
   advances 18 → 19 and current cache identities change. Complete request bytes are not
   unchanged: `contractVersion`, connected `inputHash` and `questionHash` legitimately
   change; ordinary wire fields and numerical scheduling/quantization semantics do not.
+  The mechanical pass leaves only the golden corpus manifest and request/response JSON paths outside its map; no neighboring TypeScript helper is excluded. Unchanged Python tests consume the manifest and fixed filenames. This is not an immutable-byte claim for the corpus: explicit owned metadata updates and both consumer suites govern the next step. The current25-file corpus contains no project-named filename or projectId/projects/foreignProjectId key, so controlled future-shaped cases are distinguished from actual current witnesses.
+
   Corpus contract prefixes become `19+0.4.0`. Old contract-18 cache rows miss before
   current codec decoding, including plans whose input hash happens to remain equal.
 
@@ -886,17 +876,16 @@ by adopting the recommendation).
   carries no owner (no `owner` appears in its contracts), so versions 12 to 14 are
   unaffected.
 
-  Saved plans: slice 2 takes `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` 11, allocated here, and
-  slice 3a's version becomes 12. `CanonicalWorkPackage` loses `ownerId`. The reader's 10 → 11
+  Saved plans: slice2 takes current input12, and slice3a takes13. `CanonicalWorkPackage` loses `ownerId`. The reader's11→12
   step moves a stored `ownerId` into `retired: { ownerId }`. `diff-plans.ts` compares a
   `retired` key only when both sides carry it and reports a difference under a new category,
   `retired-field`. A key that only one side carries is no change: a body saved after the
   removal never carries it, and no owner is invented for one. The `ownership` category stays,
   because assignments, person teams, team services, work item teams and services use it.
   Tests:
-  - a v10 body upgraded to 11 compares equal to its 11 re-save;
-  - two v10 bodies with different `ownerId` report `retired-field`;
-  - a v10 body and an 11 body of the same package report nothing.
+  - a current11 body upgraded to12 compares equal to its12 re-save (legacy10 first upgrades through11);
+  - two pre-retirement bodies with different `ownerId` report `retired-field`;
+  - a pre-retirement body and a12 body of the same package report nothing.
 
   Negatives, each watched: dropping the `retired` move makes the two-owner case report
   nothing; dropping the one-side rule makes the v10 and 11 case report a change.
@@ -1099,11 +1088,8 @@ script text; none in Dash, Burokrat or a puni-plan script.
 - Version 14 (slice 3a): `workPackage.settings` carries each catalogue key as `{ value,
 provenance }`; import writes only the work package's own overrides and leaves inherited
   values inherited.
-- Saved plans: `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` 9 (budgets) → 10 (`CanonicalProject` →
-  `CanonicalWorkPackage`, keys renamed; a stored ≤ 9 body upgrades on read), → 11 at slice 2
-  (`ownerId` retired, E40), → 12 at slice 3a (resolved settings with provenance in the
-  input). _Revised 2026-10-25 after the Codex review (F4); was 11 at slice 3a._ `SCHEDULE_BODY_SCHEMA_VERSION` stays 1
-  (it keys dates by work item id; task 1.3 checks).
+- Saved inputs: legacy base9 and published dependencyHistory body10 remain frozen; renamed current input11 is followed by12 at slice2 (owner retired, E40) and13 at slice3a (resolved settings). Original body/header hashes are validated before explicit read-time projection and remain unchanged.
+- Saved schedules: the actual engine→body serializer emits plain1 with slices.boundBy:projectStart and elsewhereHolder.projectId, so this rename changes its serialized shape. Connected2 is already published and also contains old owner fields. Allocate current plain3 and connected4; freeze original1/2 readers/bytes/hashes, with separate1→3 and2→4 projections. Only owned boundBy/holder and connected-evidence names change; numerical timing, calendar projection, ordering and algorithm identity stay unchanged. Do not route connected2 through the plain3 decoder or reuse2 for a new plain format. This allocation is separate from input11, document12 and scheduler19.
 
 ## Slice 1 migration and deploy (c)
 
@@ -1141,7 +1127,7 @@ resolve (E18). Spaces stay flat.
 - `project:<id>` subscriptions and the two event names; an old fe-01 tab reconnects to
   nothing and must reload.
 - Plan documents: an exported file is version 12; the running import still reads older files.
-- Saved plans read through the upgrade to 10; nothing is lost.
+- Saved plans read through the explicit legacy10→current11 upgrade; nothing is lost.
 - Navigator: `document.project.id` becomes `document.workPackage.id` at 12; the v7–v11
   readers stay. Dash and Burokrat: nothing (their `projectId` is Nx's).
 - The solver wire: nothing (E26).
@@ -1160,7 +1146,7 @@ resolve (E18). Spaces stay flat.
   `projectId`, so an agent lists projects first. A new organization starts with no project.
 - `work_package.owner_id` and the owner word go (slice 2); edit on a restricted work package
   comes from grants only (E25). `ownerId` leaves the work package read and `ownerName` the
-  list and space rows, replaced by `createdByName`; saved-plan input 11 retires `ownerId`
+  list and space rows, replaced by `createdByName`; saved-plan input12 retires `ownerId`
   (E40).
 
 ## Dev cleanup (g)

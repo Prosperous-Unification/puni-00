@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
 
-import { protectionOf } from './allow-list';
+import { isProtectedSpan, readProtectedSpans } from './protection';
 import { constantSpellingOf, NAMED_RENAMES, PATH_MOVES, RENAME_MAP } from './rename-map';
 import { renamePath, renameText } from './rename-text';
 import { git, residualsIn, trackedPaths } from './tree';
@@ -53,6 +55,10 @@ describe('the rename map', () => {
       constantSpellingOf(spellings),
     ]);
     const inScope = new Set(trackedPaths(REPO));
+    const documents = new Map<
+      string,
+      { text: string; spans: ReturnType<typeof readProtectedSpans> }
+    >();
     const collisions = [...new Set([...targets, ...NAMED_RENAMES.map(({ to }) => to)])].flatMap(
       (target) => {
         const run = Bun.spawnSync(['git', 'grep', '-n', '-w', '-F', '-e', target], {
@@ -67,8 +73,28 @@ describe('the rename map', () => {
           .toString()
           .split('\n')
           .filter((hit) => {
-            const [path = '', , ...line] = hit.split(':');
-            return inScope.has(path) && protectionOf(line.join(':')) === undefined;
+            const [path = '', ordinal = '', ...line] = hit.split(':');
+            if (!inScope.has(path)) return false;
+            let document = documents.get(path);
+            if (document === undefined) {
+              const text = readFileSync(join(REPO, path), 'utf8');
+              document = { text, spans: readProtectedSpans(text, path) };
+              documents.set(path, document);
+            }
+            const index = Number(ordinal) - 1;
+            if (!Number.isSafeInteger(index) || index < 0) throw new Error('invalid git grep line');
+            const offset =
+              index === 0 ? 0 : document.text.split('\n').slice(0, index).join('\n').length + 1;
+            const text = line.join(':');
+            const word = new RegExp('(?<![A-Za-z0-9_])' + target + '(?![A-Za-z0-9_])', 'g');
+            return [...text.matchAll(word)].some(
+              (match) =>
+                !isProtectedSpan(
+                  document.spans,
+                  offset + match.index,
+                  offset + match.index + target.length,
+                ),
+            );
           })
           .map((hit) => `${target}: ${hit}`);
       },
@@ -153,4 +179,36 @@ describe('the respelling', () => {
       'libs/adapters/solver-py/pyproject.toml',
     );
   });
+});
+
+describe('SQL template spellings', () => {
+  it('uses SQL vocabulary in a tagged predicate without SQL statement keywords', () => {
+    expect(renameText("const clause = sql`${row.kind} IN ('project')`;", 'a.ts')).toBe(
+      "const clause = sql`${row.kind} IN ('work_package')`;",
+    );
+  });
+  it('recognizes a generic SQL tag without changing interpolation identifiers to SQL spelling', () => {
+    expect(renameText("sql<Promise<number>>`${projectId} = 'project'`", 'a.ts')).toBe(
+      "sql<Promise<number>>`${workPackageId} = 'work_package'`",
+    );
+  });
+  it('retains the outer SQL site across a nested ordinary template interpolation', () => {
+    expect(renameText("sql`${`planning project ${projectId}`} = 'project'`", 'a.ts')).toBe(
+      "sql`${`planning work package ${workPackageId}`} = 'work_package'`",
+    );
+  });
+  it('leaves an ordinary IN template and an unrelated tag in prose vocabulary', () => {
+    expect(renameText('`IN project`', 'a.ts')).toBe('`IN work package`');
+    expect(renameText('not_sql`${projectId} IN project`', 'a.ts')).toBe(
+      'not_sql`${workPackageId} IN work package`',
+    );
+  });
+});
+
+it('regex backticks cannot leak a template site into later real object literals', () => {
+  const source =
+    "const capture = /^\\| `([^`]+)`/.exec(line);\nconst legacy = {kind: 'project', projectId: 'old'};";
+  expect(renameText(source, 'a.ts')).toBe(
+    "const capture = /^\\| `([^`]+)`/.exec(line);\nconst legacy = {kind: 'work_package', workPackageId: 'old'};",
+  );
 });

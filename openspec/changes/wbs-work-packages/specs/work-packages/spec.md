@@ -27,12 +27,25 @@ listing every residual outside its allow-list.
 - **THEN** it exits 1 and lists that path and line; with the line in an allow-listed path it
   exits 0
 
+#### Scenario: New permission tokens do not hide an old argument
+
+- **GIVEN** one line contains a current catalogue permission or new work-package kind and an old planning projectId argument
+- **WHEN** the committed rename tool applies and checks that file
+- **THEN** only the qualified new-sense character spans remain unchanged; the old argument renames and an injected old residual remains reportable
+- **AND** missing or ambiguous required qualified witnesses refuse before path moves or file writes rather than widening a rule
+
+#### Scenario: The parent chain and frozen wire keep their identities
+
+- **WHEN** the current permission ScopeChain and solver boundary pass through the tool
+- **THEN** ProjectChain.projectId and WorkPackageChain.projectId remain parent fields distinct from workPackageId, while unrelated old captured planning fields rename
+- **AND** both frozen schema copies and the Python0.4.0 implementation/package/image inputs remain byte-identical; mixed TypeScript host-to-wire producers preserve only exact wire keys
+
 ### Requirement: Live data migrates in place through the rename
 
 The slice 1 migration SHALL rename every table, column, index and trigger, rewrite
 `organization_audit` subject kinds and actions, refuse while a work package lacks an
-organization row, and leave every row's content otherwise unchanged. Existing journal
-entries, history events and saved plans SHALL keep working.
+organization row, and preserve existing content except for explicitly owned package-key projections and audit vocabulary. Existing journal
+entries, history events and saved plans SHALL keep working. Command rewriting SHALL follow only recognized compensating-command roots and their owned batch/incident paths; replay authorization, user text and opaque identities SHALL remain unchanged. Malformed owned shapes or old/new-key collisions SHALL refuse the whole migration naming the stored row.
 
 #### Scenario: A migrated dev-shaped store reads the same
 
@@ -58,6 +71,44 @@ entries, history events and saved plans SHALL keep working.
 - **WHEN** actual work-package creation allocates another abbreviation
 - **THEN** the allocator uses `work_package_abbreviation_candidate` with renamed table references
 - **AND** existing codes remain unchanged and no old allocator view or old-level schema reference survives
+
+#### Scenario: Owned historical commands change keys without changing authority
+
+- **GIVEN** typed-dependency, incident-transition and subtree-restore commands nested in a batch, external revision preconditions, stable version1 replay requirements, and user text containing projectId
+- **WHEN** the store migrates
+- **THEN** only the recognized command/dependency/row and external-revision package keys use workPackageId
+- **AND** absent legacy endpoint package fields stay absent, replay requirements and user text stay exact, and undo/redo still address the original packages
+
+#### Scenario: Mixed or malformed stored command keys refuse atomically
+
+- **WHEN** an owned historical command has both projectId and workPackageId, lacks a required shape, or uses an unknown command discriminator
+- **THEN** migration refuses naming that stored row, with the original schema, complete ledger and all row bytes preserved
+
+### Requirement: Transport replay resets at the subscription namespace boundary
+
+The gateway SHALL refuse legacy project:* subscriptions and authorize current work-package:* subscriptions normally. Existing event_log/event_sequencer rows SHALL remain unchanged under the legacy keys; current subscriptions SHALL NOT inherit their cursors or frames. The client SHALL establish fresh anchored state and then use only the current full-subscription sequence key. Durable plan_event user history SHALL remain preserved independently of the transport buffer.
+
+#### Scenario: A persisted old cursor cannot satisfy a new subscription
+
+- **GIVEN** a persisted project:* cursor and old cached frames, including sequence0
+- **WHEN** the current client opens the same work package under work-package:*
+- **THEN** it obtains a fresh anchored full state, ignores the old cursor even when the new sequence is also0, and later replays only current frames
+- **AND** a denied resume/refetch cannot publish or install state as a successful replay
+
+### Requirement: Persisted runtime identities survive the host rename
+
+Historical runtime declarations, fingerprints, version1 canonical request bytes/digests, accepted envelopes and original receipt bytes SHALL remain unchanged. Named persisted codecs SHALL validate the original format before projecting current internal names and compare retries in the retained record's format. Mixed or unknown formats SHALL refuse. A changed current canonical/public receipt shape SHALL use an explicit next version while retaining version1 decoding and equality. Positional manual-use actor fingerprints and rb1 basis bytes SHALL remain unchanged solely by the property rename. Historical resource-use snapshots/original responses SHALL retain their original state, revision and attribution when projected into current field names.
+
+#### Scenario: A retained runtime retry keeps its original identity
+
+- **GIVEN** a pre-rename admission, event or version1 command acceptance with recorded canonical bytes and digest
+- **WHEN** the corresponding current request retries after migration
+- **THEN** equality uses the original record's validated format and returns its original receipt without rewriting its digest or consulting deleted planning references
+
+#### Scenario: Runtime formats are validated before projection
+
+- **WHEN** a retained record mixes old and current package keys, has an unknown version or fails its original integrity check
+- **THEN** the persisted boundary refuses before replay, mutation or receipt acknowledgement
 
 ### Requirement: A window migration runs only inside a proven window
 
@@ -199,9 +250,8 @@ shapes on read, and SHALL refuse a newer one with `400 unsupported_version`.
 
 ### Requirement: Saved plans read across the input schema bump
 
-`CANONICAL_PLAN_INPUT_SCHEMA_VERSION` SHALL be 10 after slice 1, 11 after slice 2 and 12
-after slice 3a. A body stored at an earlier version SHALL upgrade on read and compare equal to
-itself re-saved; no stored body SHALL be rewritten. From 11 the input SHALL carry no owner; a
+Current canonical/stored input SHALL be11 after slice1,12 after slice2 and13 after slice3a. Published base9 and stored dependency-history body10 SHALL retain their original meanings through frozen legacy decoders and an explicit10→11 rename projection. The legacy normalizer ceiling SHALL remain9; current11 emission SHALL require captured dependencyHistory, including known-local evidence. A body stored at an earlier version SHALL upgrade on read and compare equal to
+itself re-saved; no stored body SHALL be rewritten. From12 the input SHALL carry no owner; a
 stored `ownerId` SHALL be kept as a retired field, compared only when both sides carry it,
 and never invented for a body that lacks it.
 
@@ -213,8 +263,8 @@ and never invented for a body that lacks it.
 
 #### Scenario: A retired owner is compared only on both sides
 
-- **WHEN** two version 10 bodies of one work package carry different `ownerId` values, and
-  one of them is compared with a version 11 body of the same package
+- **WHEN** two pre-retirement bodies of one work package carry different `ownerId` values, and
+  one of them is compared with a version12 body of the same package
 - **THEN** the first compare reports a `retired-field` difference and the second reports no
   difference
 
@@ -722,6 +772,16 @@ Current canonical host scheduler bytes SHALL use work-package fields, and schedu
 
 - **WHEN** corresponding pre/post-rename plans are scheduled through contract 19 with unchanged Python 0.4.0
 - **THEN** corpus request differences are attributable to the renamed canonical host keys and resulting contract/input/question identities, and numerical scheduling and quantization outcomes remain equivalent
+
+### Requirement: Changed saved schedule bodies receive unoccupied versions
+
+Renamed plain schedule bodies SHALL use version3 and connected bodies version4. Published plain1 and connected2 bytes/hashes SHALL remain unchanged and validate with frozen historical readers before separate1→3 and2→4 projections. Only owned boundBy/elsewhereHolder and connected-evidence names SHALL change; numerical timing, calendar projection, ordering and algorithm identity SHALL remain unchanged. Mixed or unknown versions SHALL refuse, and connected2 SHALL NOT be interpreted as plain3.
+
+#### Scenario: Actual engine timings survive schedule projection
+
+- **GIVEN** actual engine-generated plain1 local/elsewhere bodies and a connected2 body with their original hashes
+- **WHEN** they are read or compared against current plain3/connected4 captures
+- **THEN** package field names and format versions change while timings, dates, attribution and original stored bytes/hashes stay unchanged
 
 ### Requirement: Changed connected host formats have explicit versions
 

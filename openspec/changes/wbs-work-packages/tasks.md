@@ -53,6 +53,8 @@
       comparison by name only (the changed hash passes); the state-directory arm made to
       pass on a valid report; destructive stage/report cleanup reintroduced after a reached
       pathname substitution; post-link failure incorrectly removing evidence; each watched.
+      _Current-code refinement:_ before apply, replace blanket permission-line guards with shared path/context-qualified character spans and actual mixed-line/ScopeChain/wire witnesses. Freeze the complete Python release boundary. Tasks1.3–1.6 form one readiness boundary; mechanical checkpoints alone do not prove saved-plan/import/solver compatibility.
+
 - [ ] 1.3 Red: `rename-project-to-work-package.db.test.ts` over a dev-shaped fixture store:
       fresh inventory/report includes all old-level tables, columns, indexes, triggers and the
       abbreviation allocator view; each is renamed with no old-level name/body residual outside
@@ -60,9 +62,14 @@
       view and its callers work (ALTER TABLE body rewriting alone is insufficient); audit rows rewritten while preserving the earlier
       access/member actions, subjects and indexes from permissions 4.1, trees, startable, history,
       saved-plan compare, budget headroom and undo answer the same, the guard refuses an
-      unmapped work package; a replay of every journal kind proves no payload names
-      `projectId` (or the migration's `json_set` rewrite is proven instead);
-      `SCHEDULE_BODY_SCHEMA_VERSION` is checked against its actual changed shape;
+      unmapped work package; recognized compensating-command and external-revision paths
+      receive shape-checked package-key rewrites while stable replay requirements, user text,
+      opaque identities and absent legacy endpoint anchors stay exact; malformed/colliding
+      owned shapes refuse atomically naming the stored row. Replay every journal kind.
+      Preserve historical runtime declarations/fingerprints/version1 canonical bytes, digests
+      and receipts; named historical codecs and explicit current-format versions prove exact
+      replay and deleted-reference independence without re-hashing old identities;
+      actual engine-generated schedule1 local/elsewhere and connected2 fixtures prove the changed serialized fields: current plain3/connected4, frozen1/2 readers and separate projections, unchanged timings/dates/order/algorithm and original stored hashes;
       scheduler contract 18 → 19 and renamed current canonical host inputs are proven,
       with unchanged numerical scheduling and quantum; old contract-18 cache rows miss
       before current-codec decoding and old saved-plan bytes/hashes stay intact; `down.sql` refuses and leaves schema and ledger unchanged (E38). Green:
@@ -80,14 +87,13 @@
       suite under the new names, the OpenAPI scenario (no `projects` segment, no `Project`
       operationId, no `projectId` property; `GET /api/work-packages/:id/budget-headroom`
       answers as `GET /api/projects/:id/budget-headroom` did), the gateway subscription
-      scenario (`project:<id>` refused, `work-package:<id>` admitted); mcp-01's README count
+      scenario (`project:<id>` refused, `work-package:<id>` admitted), with retained old event_log/event_sequencer bytes and a fresh independent current namespace: actual client/gateway old persisted cursor→anchored full state→new replay, seq0 collision and denied resume/refetch. Never relabel old frames or translate cursors; mcp-01's README count
       ("91 tools in all") unchanged and still asserted by `openapi-tools.test.ts`. R5 fault:
       `project:` left admitted in `ws.controller.ts`; the subscription test fails; watched.
-- [ ] 1.5 Plan document 12 and saved-plan input 10 (on top of budgets' 11 and 9):
+- [ ] 1.5 Plan document12 and current saved input11 (base9 and published dependencyHistory10 already exist):
       `plan-document-shapes.test.ts` (export is 12 with `workPackage`; 10 and 11 files convert
       on read, budgets' v11 branch kept, `settings.budgetFactor` carried; 13 refused
-      `unsupported_version`), `canonical-plan-input.test.ts` (9 → 10 upgrade; a 9 body
-      compares equal to its 10 re-save). R5 faults: the 11 → 12 converter dropped (import of
+      `unsupported_version`), `canonical-plan-input.test.ts` and actual stored fixtures (freeze legacy1–9→9→published10, explicit10→11 rename; old9 local and old10 local/connected compare equal to current11 re-saves; original bytes/hashes untouched; mixed/future versions refuse; current11 requires captured dependencyHistory). R5 faults: the 11 → 12 converter dropped (import of
       the v11 fixture fails); the upgrade step removed (`input_version_unreadable`); watched.
 - [ ] 1.6 Frozen solver wire v5 with explicit host mapping (E26): rename host fields
       everywhere, mapping current work-package ownership/member/fixed/occupancy/boundary
@@ -215,11 +221,11 @@ executed on dev.
       list metadata (`project-shapes.ts`), the space rows (`space-shapes.ts`), the port and
       the store's `users` join on `created_by`; `ProjectResource.create` and plan import
       take the actor as `createdBy`; fe-01's picker entry meta and hover card show the
-      creator; `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` 11 with the 10 → 11 step moving
+      creator; current input12 with the11→12 step moving
       `ownerId` into `retired`, and `diff-plans.ts`' `retired-field` category. Tests: the
       mounted list-metadata test (`createdByName` required); `canonical-plan-input.test.ts`
-      (a v10 body upgrades and compares equal to its 11 re-save; two v10 bodies with
-      different owners report `retired-field`; a v10 and an 11 body report nothing); the
+      (a current11 body upgrades and compares equal to its12 re-save; legacy10 first upgrades through11; pre-retirement bodies with
+      different owners report `retired-field`; a pre-retirement and a12 body report nothing); the
       picker's unit test; `git grep -n -E 'ownerId|ownerName|owner_id'` over
       `libs/wbs` and `apps/wbs` outside migrations, tests of the old migrations and the
       optimization `ownerId` (another sense) answers nothing. R5 faults: `createdByName`
@@ -337,7 +343,7 @@ Precondition (design "Dependency graph"): 3.8 executed and `wbs-permissions` 3.4
       second add silently moves the project); the organization scope on `space_team`
       removed (a service team of another organization is linked); each watched.
 - [ ] 4.7 Plan document 14 (settings with provenance, markers as the union with provenance;
-      import writes only `work_package` provenance values) and saved-plan input 12; tests as
+      import writes only `work_package` provenance values) and saved-plan input13; tests as
       in 1.5.
 - [ ] 4.8 fe-01: provenance in the settings modal ("inherited from space S", "inherited from
       project X", one provenance per calendar marker, clear override), project-level and

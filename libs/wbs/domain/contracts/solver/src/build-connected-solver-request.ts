@@ -30,6 +30,7 @@ import {
   type ConnectedSolverRequest,
   SOLVER_WIRE_VERSION,
   type SolverBoundary,
+  type SolverConnectedScope,
   type SolverEdge,
   type SolverObjective,
   type SolverOffsetMap,
@@ -134,14 +135,8 @@ export function buildConnectedSolverRequest(
       .filter((slice) => durationOf(slice) > 0 && slice.personId !== null)
       .map((slice) => slice.personId),
   );
-  const fixed: { projectId: string; key: string; start: number; finish: number }[] = [];
-  const occupancy: {
-    personId: string;
-    projectId: string;
-    key: string;
-    start: number;
-    finish: number;
-  }[] = [];
+  const fixed: SolverConnectedScope['fixed'][number][] = [];
+  const occupancy: SolverConnectedScope['occupancy'][number][] = [];
   const elsewhere = new Map<string, ElsewhereBooking[]>();
   for (const slice of stage.input.slices) {
     const projectId = ownership.get(slice.workItemId);
@@ -152,11 +147,11 @@ export function buildConnectedSolverRequest(
     const finish = stage.finishes.get(key);
     if (start === undefined || finish === undefined)
       throw new Error(`fixed slice ${key} has no placement`);
-    fixed.push({ projectId, key, start, finish });
+    fixed.push({ projectId: projectId, key, start, finish });
     if (stage.mode !== 'shared' || slice.personId === null || finish <= start) continue;
     // Proof: omitting the holder while leaving the booking in place made the
     // provenance assertion fail (11 pass / 1 fail).
-    occupancy.push({ personId: slice.personId, projectId, key, start, finish });
+    occupancy.push({ personId: slice.personId, projectId: projectId, key, start, finish });
     if (namedLocalPeople.has(slice.personId)) {
       const bookings = elsewhere.get(slice.personId) ?? [];
       bookings.push({ start, end: finish, projectId, workItemId: slice.workItemId });
@@ -247,7 +242,11 @@ export function buildConnectedSolverRequest(
       inputHash: identity.inputHash,
       questionHash: identity.questionHash,
       originOrdinal: stage.originOrdinal,
-      projects: stage.projects,
+      projects: stage.projects.map((entry) => ({
+        projectId: entry.projectId,
+        rank: entry.rank,
+        anchorOrdinal: entry.anchorOrdinal,
+      })),
       fixed,
       boundaries,
       occupancy,

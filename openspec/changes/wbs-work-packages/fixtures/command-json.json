@@ -1,0 +1,316 @@
+{
+  "cases": [
+    {
+      "name": "nested incident batches, typed endpoint owners and restore rows",
+      "before": {
+        "do": "batch",
+        "steps": [
+          {
+            "do": "transition_incident_nodes",
+            "projectId": "owner",
+            "fromWorkItemId": "left",
+            "toWorkItemId": "right",
+            "structural": {
+              "do": "restore_subtree",
+              "rows": [
+                {
+                  "id": "right",
+                  "projectId": "owner",
+                  "notes": "projectId remains user text"
+                }
+              ]
+            },
+            "receipts": [
+              {
+                "from": {
+                  "dependency": {
+                    "id": "captured-dependency",
+                    "projectId": "owner",
+                    "predecessor": {
+                      "scope": "whole",
+                      "workItemId": "left"
+                    },
+                    "successor": {
+                      "scope": "whole",
+                      "projectId": "owner",
+                      "workItemId": "right"
+                    },
+                    "type": "FS"
+                  },
+                  "createdAt": null,
+                  "createdBy": null
+                },
+                "to": {
+                  "dependency": {
+                    "id": "captured-dependency",
+                    "projectId": "owner",
+                    "predecessor": {
+                      "scope": "whole",
+                      "workItemId": "left"
+                    },
+                    "successor": {
+                      "scope": "whole",
+                      "projectId": "owner",
+                      "workItemId": "right"
+                    },
+                    "type": "FS"
+                  },
+                  "createdAt": 2,
+                  "createdBy": "actor"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "after": {
+        "do": "batch",
+        "steps": [
+          {
+            "do": "transition_incident_nodes",
+            "workPackageId": "owner",
+            "fromWorkItemId": "left",
+            "toWorkItemId": "right",
+            "structural": {
+              "do": "restore_subtree",
+              "rows": [
+                {
+                  "id": "right",
+                  "workPackageId": "owner",
+                  "notes": "projectId remains user text"
+                }
+              ]
+            },
+            "receipts": [
+              {
+                "from": {
+                  "dependency": {
+                    "id": "captured-dependency",
+                    "workPackageId": "owner",
+                    "predecessor": {
+                      "scope": "whole",
+                      "workItemId": "left"
+                    },
+                    "successor": {
+                      "scope": "whole",
+                      "workPackageId": "owner",
+                      "workItemId": "right"
+                    },
+                    "type": "FS"
+                  },
+                  "createdAt": null,
+                  "createdBy": null
+                },
+                "to": {
+                  "dependency": {
+                    "id": "captured-dependency",
+                    "workPackageId": "owner",
+                    "predecessor": {
+                      "scope": "whole",
+                      "workItemId": "left"
+                    },
+                    "successor": {
+                      "scope": "whole",
+                      "workPackageId": "owner",
+                      "workItemId": "right"
+                    },
+                    "type": "FS"
+                  },
+                  "createdAt": 2,
+                  "createdBy": "actor"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "typed updates preserve absent legacy endpoint scopes",
+      "before": {
+        "do": "update_typed_dependency",
+        "from": {
+          "id": "captured-dependency",
+          "projectId": "owner",
+          "predecessor": {
+            "scope": "whole",
+            "workItemId": "left"
+          },
+          "successor": {
+            "scope": "whole",
+            "projectId": "owner",
+            "workItemId": "right"
+          },
+          "type": "FS"
+        },
+        "to": {
+          "id": "captured-dependency",
+          "projectId": "owner",
+          "predecessor": {
+            "scope": "whole",
+            "workItemId": "left"
+          },
+          "successor": {
+            "scope": "whole",
+            "projectId": "owner",
+            "workItemId": "right"
+          },
+          "type": "FS"
+        }
+      },
+      "after": {
+        "do": "update_typed_dependency",
+        "from": {
+          "id": "captured-dependency",
+          "workPackageId": "owner",
+          "predecessor": {
+            "scope": "whole",
+            "workItemId": "left"
+          },
+          "successor": {
+            "scope": "whole",
+            "workPackageId": "owner",
+            "workItemId": "right"
+          },
+          "type": "FS"
+        },
+        "to": {
+          "id": "captured-dependency",
+          "workPackageId": "owner",
+          "predecessor": {
+            "scope": "whole",
+            "workItemId": "left"
+          },
+          "successor": {
+            "scope": "whole",
+            "workPackageId": "owner",
+            "workItemId": "right"
+          },
+          "type": "FS"
+        }
+      }
+    },
+    {
+      "name": "unowned patch fields and opaque reference text stay exact",
+      "before": {
+        "do": "patch",
+        "workItemId": "right",
+        "patch": {
+          "notes": "projectId",
+          "externalRefs": [
+            {
+              "systemId": "refs",
+              "value": "projectId:12"
+            }
+          ]
+        }
+      },
+      "after": {
+        "do": "patch",
+        "workItemId": "right",
+        "patch": {
+          "notes": "projectId",
+          "externalRefs": [
+            {
+              "systemId": "refs",
+              "value": "projectId:12"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "corruptions": [
+    {
+      "name": "unknown nested command",
+      "command": {
+        "do": "batch",
+        "steps": [
+          {
+            "do": "future_unknown"
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing owned root identifier",
+      "command": {
+        "do": "restore_subtree",
+        "rows": [
+          {
+            "id": "row"
+          }
+        ]
+      }
+    },
+    {
+      "name": "old and current identifier collision",
+      "command": {
+        "do": "restore_subtree",
+        "rows": [
+          {
+            "id": "row",
+            "projectId": "old",
+            "workPackageId": "current"
+          }
+        ]
+      }
+    },
+    {
+      "name": "malformed batch container",
+      "command": {
+        "do": "batch",
+        "steps": {
+          "do": "patch"
+        }
+      }
+    },
+    {
+      "name": "null incident receipt",
+      "command": {
+        "do": "transition_incident_nodes",
+        "projectId": "owner",
+        "fromWorkItemId": "left",
+        "toWorkItemId": "right",
+        "structural": {
+          "do": "patch"
+        },
+        "receipts": [null]
+      }
+    }
+  ],
+  "preconditions": {
+    "before": {
+      "expected": {
+        "opaque:projectId": 2
+      },
+      "from": {},
+      "externalRevisions": {
+        "expected": [
+          {
+            "projectId": "remote",
+            "workItemId": "row",
+            "revision": 2
+          }
+        ],
+        "from": []
+      }
+    },
+    "after": {
+      "expected": {
+        "opaque:projectId": 2
+      },
+      "from": {},
+      "externalRevisions": {
+        "expected": [
+          {
+            "workPackageId": "remote",
+            "workItemId": "row",
+            "revision": 2
+          }
+        ],
+        "from": []
+      }
+    }
+  }
+}
