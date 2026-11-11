@@ -186,3 +186,66 @@ Dash's durable host hold SHALL use a fixed private versioned operation in the se
 - **WHEN** the native helper is queued behind another canonical owner, its frontend ends, and queued demand remains while another watcher starts
 - **THEN** the watcher retains that pending helper and its queue position without publishing retirement merely because its frontend ended
 - **AND** after the blocker releases, the helper publishes Ready and the watcher records the same full birth; a pending generation with no remaining demand can instead be retired under the settled-release fence
+
+### Requirement: Gate checkout is an admitted owned transaction
+
+The internal Bun checkout transaction SHALL accept an already-available immutable full commit and a captured trusted Git executable/lookup environment, bind Git's effective working-tree root to its selected canonical directory and verify actual HEAD before work. It SHALL retain a referenced executable owner through work, launched direct-child termination, owned IO, recovery and release/report settlement. Native admission SHALL remain through required work, recovery and IO inside the admitted callback; post-release reporting SHALL NOT imply continued mutex ownership. Dirty state SHALL refuse65 without deletion. Tracked regular files SHALL have others-read, and tracked directories others-read/search, or refuse66 unless explicit no-follow tracked-only repair succeeds. Controlled Git discovery/checkout/status/recovery SHALL disable executable hooks/fsmonitor and ambient overrides and refuse effective executable filters and unsupported committed original/target gitlinks before helper-sensitive operations. Failed exact restoration SHALL return74 and preserve independent failures. A release failure after settlement SHALL remain nonpassing without Git mutation outside ownership. This primitive SHALL NOT imply protected installed-worker, full process-tree, default-cutover or host qualification.
+
+#### Scenario: Selected directory differs from Git's effective tree
+
+- **WHEN** a canonical directory is a repository subdirectory or Git configuration redirects its effective working tree elsewhere
+- **THEN** the operation refuses before status or candidate checkout without changing either tree; required or malformed root-query failures do not select a fallback
+- **AND** legitimate spaced pathnames retain their exact identity
+
+#### Scenario: Candidate Git helpers cannot execute before certification
+
+- **WHEN** effective executable filters or committed original/target gitlinks are present
+- **THEN** the transaction refuses before helper-sensitive status/checkout, while controlled Git settings disable configured hooks/fsmonitor and remove ambient redirection
+- **AND** submodule-ignored status does not claim recursive or independent index validation
+
+#### Scenario: Pending work has no other native event-loop handle
+
+- **WHEN** admitted work or an owned report remains unresolved with no active child or independently referenced event-loop handle
+- **THEN** the operation remains referenced until controlled settlement, retaining native admission for work/reports inside the admitted callback; it cannot exit successfully or leave required recovery unperformed merely because the event loop became empty
+- **AND** a pending report about late admission cleanup remains process-owned without claiming that an already-closed mutex is still held
+
+#### Scenario: Work finishes before its direct child
+
+- **WHEN** admitted work returns or throws after launching a direct child without trustworthy native termination
+- **THEN** the launch capability closes and the transaction keeps admission, postponing recovery until that child supplies trustworthy termination; numeric completion or a deadline cannot release it
+- **AND** this grants no descendant-absence inference
+
+#### Scenario: The original branch moves or disappears
+
+- **WHEN** the saved symbolic branch changes before restoration
+- **THEN** recovery preserves that branch change, attempts to leave the saved commit detached and returns74 with original work and recovery causes retained
+
+#### Scenario: Admission cleanup fails after settlement
+
+- **WHEN** successful keep-mode work settles and admission cleanup then fails
+- **THEN** the selected checkout remains, completion reports70 with its release cause and no Git recovery begins after release
+- **AND** restore-mode success restores before that same late failure; a restoration74 plus release failure retains74 and both causes
+
+#### Scenario: First interruption coexists with work or late-release failure
+
+- **WHEN** work exits37 or restoration fails74 while a native interruption is recorded
+- **THEN** the modeled outcome preserves37 or74 respectively and exposes that first recorded native interruption independently
+- **AND** a first interruption recorded only after callback settlement returns130/143 when no higher-priority failure exists, keeps the already-settled tree and causes no Git operation after release
+- **AND** independent external cancellation retains its original reason without being relabeled a native signal
+
+#### Scenario: Explicit repair stays within tracked ownership
+
+- **WHEN** inaccessible supported tracked files/directories are found and repair is explicitly enabled
+- **THEN** repair binds inspected physical entries without following symlinks, preserves untracked targets and rechecks required mode bits before work
+- **AND** the caller's original umask is restored after settlement
+
+#### Scenario: The final admitted checkpoint records the first interruption
+
+- **WHEN** successful keep-mode work has finished and the final checkpoint still inside the admitted callback records the first interruption
+- **THEN** the owner rechecks one-shot recovery and restores the saved commit/reference before callback capture and native release
+- **AND** an actual restoration failure retains74 over reporting failure; callback settlement is not moved earlier to avoid required recovery
+
+#### Scenario: A later failed child remains independent evidence
+
+- **WHEN** work returns37 with a tracked child42, or work returns0 with tracked children42 and43
+- **THEN** the final failure list retains every child observation while status remains37 or42 respectively, until a higher-priority operational/report/recovery failure applies
