@@ -81,7 +81,7 @@
       mechanical commit; its R5 faults are watched after 1.4.
 - [ ] 1.4 Run `tool-rename-work-package apply` over store-sqlite, store-memory, conformance,
       core, contracts, domain, validation, adapters, be-01, gw-01, mcp-01, fe-01 as one
-      mechanical commit (this greens 1.3); hand fixes in a separate commit after it; `check`
+      mechanical commit with the pinned deterministic formatting phase and exact generated path list (E12); semantic/codec hand fixes in a separate commit after it; `check`
       exits 0. Review rule: the reviewer runs `apply` on the mechanical commit's parent and
       the diff must be byte-identical to that commit. Tests that prove it: the whole existing
       suite under the new names, the OpenAPI scenario (no `projects` segment, no `Project`
