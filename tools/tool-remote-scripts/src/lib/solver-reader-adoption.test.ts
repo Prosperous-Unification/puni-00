@@ -15,9 +15,9 @@ import {
 import { hostname, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
-import { scratchSync } from '@tools/test-scratch';
 import { expect, spyOn, test } from 'bun:test';
 
+import { createSolverScratch, readSolverChild } from '../fixtures/solver-scratch';
 import {
   adoptLegacyReaderInstallation,
   readLegacyReaderAdoptionSelection,
@@ -31,8 +31,7 @@ import {
 import { readPrivateReceipt, runSolverReaderTransport } from './solver-reader-preparation';
 import { captureSolverReaderArtifact } from './solver-reader-preparation';
 
-async function fixture() {
-  const root = scratchSync('legacy-adoption-');
+async function fixture(root: string) {
   const paths = {
     home: root,
     cache: join(root, '.cache'),
@@ -141,15 +140,20 @@ async function fixture() {
 const digest = '1'.repeat(64);
 
 test('actual legacy adoption preserves tuple and mode and never invokes old reader', async () => {
-  const { layout, selection, originals, staging } = await fixture();
+  await using scratch = createSolverScratch('legacy-adoption-');
+  const { layout, selection, originals, staging } = await fixture(scratch.root);
   const boundaries: string[] = [];
   await adoptLegacySolverReader(selection, digest, layout, {
     staging,
     observe: async (boundary) => {
       boundaries.push(boundary);
       if (boundary === 'sibling-ready') {
-        const contender = Bun.spawn(['flock', '-n', join(layout.state, 'edge.lock'), 'true']);
-        expect(await contender.exited).toBe(1);
+        const contender = await readSolverChild(scratch, () =>
+          Bun.spawn(['flock', '-n', join(layout.state, 'edge.lock'), 'true'], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+          }),
+        );
+        expect(contender.code).toBe(1);
       }
     },
   });
@@ -181,7 +185,15 @@ test('actual legacy adoption preserves tuple and mode and never invokes old read
   expect((await captureSolverReaderArtifact(layout.reader)).artifact.sha256).toBe(
     selection.reader.sha256,
   );
-  expect(await Bun.spawn(['flock', '-n', join(layout.state, 'edge.lock'), 'true']).exited).toBe(0);
+  expect(
+    (
+      await readSolverChild(scratch, () =>
+        Bun.spawn(['flock', '-n', join(layout.state, 'edge.lock'), 'true'], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }),
+      )
+    ).code,
+  ).toBe(0);
 }, 30000);
 
 for (const fault of [
@@ -197,7 +209,8 @@ for (const fault of [
   'unknown-selection',
 ] as const)
   test(`legacy adoption refuses ${fault} before publication`, async () => {
-    const { layout, selection, originals, staging } = await fixture();
+    await using scratch = createSolverScratch('legacy-adoption-');
+    const { layout, selection, originals, staging } = await fixture(scratch.root);
     let input: unknown = selection;
     if (fault === 'policy') await writeFile(join(layout.state, 'edge-policy.json'), 'malformed');
     if (fault === 'pending') await mkdir(join(layout.state, 'edge-owner.pending'));
@@ -235,7 +248,8 @@ for (const fault of [
   'installed-capability',
 ] as const)
   test(`legacy adoption retains failure state for ${fault}`, async () => {
-    const { layout, selection, originals, staging } = await fixture();
+    await using scratch = createSolverScratch('legacy-adoption-');
+    const { layout, selection, originals, staging } = await fixture(scratch.root);
     const old = originals.find((observation) => observation.artifact.path === layout.reader);
     if (old === undefined) throw new Error('test original reader missing');
     await rejects(
@@ -280,7 +294,8 @@ for (const fault of [
   });
 
 test('explicit generated adoption dry-run has no effects and its execute transport adopts only reader', async () => {
-  const { layout, selection, originals } = await fixture();
+  await using scratch = createSolverScratch('legacy-adoption-');
+  const { layout, selection, originals } = await fixture(scratch.root);
   const localReader = join(layout.parents.home, 'selected-reader');
   await rename(selection.reader.path, localReader);
   await rmdir(layout.staging);
@@ -347,7 +362,8 @@ for (const fault of [
   'rebound-lock-receipt',
 ] as const)
   test(`legacy adoption exact custody refuses ${fault}`, async () => {
-    const { layout, selection, originals, staging } = await fixture();
+    await using scratch = createSolverScratch('legacy-adoption-');
+    const { layout, selection, originals, staging } = await fixture(scratch.root);
     const retained = join(layout.parents.home, 'retained');
     if (fault === 'created-staging') staging.inode = '1';
     await rejects(
@@ -448,7 +464,8 @@ for (const fault of [
   });
 
 test('created staging replacement between transport steps refuses before copy or execution', async () => {
-  const { layout, selection, originals } = await fixture();
+  await using scratch = createSolverScratch('legacy-adoption-');
+  const { layout, selection, originals } = await fixture(scratch.root);
   const localReader = join(layout.parents.home, 'local-selected-reader');
   await rename(selection.reader.path, localReader);
   await rmdir(layout.staging);
@@ -507,7 +524,8 @@ for (const flags of [
   ['--selection=/again'],
 ] as const)
   test(`adoption CLI closed arguments ${flags.join(' ')}`, async () => {
-    const { layout, selection } = await fixture();
+    await using scratch = createSolverScratch('legacy-adoption-');
+    const { layout, selection } = await fixture(scratch.root);
     const path = join(layout.parents.home, 'closed-selection.json');
     await writeFile(path, JSON.stringify(selection));
     const argv =
@@ -519,7 +537,8 @@ for (const flags of [
   });
 
 test('actual staged singleton nonzero preserves reader after ordinary initialization', async () => {
-  const { layout, selection, originals, staging } = await fixture();
+  await using scratch = createSolverScratch('legacy-adoption-');
+  const { layout, selection, originals, staging } = await fixture(scratch.root);
   await writeFile(selection.reader.path, 'process.exit(29);');
   const refused = {
     ...selection,
@@ -541,7 +560,8 @@ for (const fault of [
   'created-staging-shape',
 ] as const)
   test(`legacy adoption boundary ${fault}`, async () => {
-    const { layout, selection, originals, staging } = await fixture();
+    await using scratch = createSolverScratch('legacy-adoption-');
+    const { layout, selection, originals, staging } = await fixture(scratch.root);
     let input: unknown = selection;
     if (fault === 'identity') input = { ...selection, attemptId: 'not-an-attempt' };
     if (fault === 'unsafe-parent')
@@ -588,7 +608,8 @@ for (const fault of [
   });
 
 test('created lock unsafe mode refuses at original metadata boundary', async () => {
-  const { layout, selection, staging } = await fixture();
+  await using scratch = createSolverScratch('legacy-adoption-');
+  const { layout, selection, staging } = await fixture(scratch.root);
   const mask = process.umask(0o022);
   try {
     await rejects(
@@ -609,7 +630,8 @@ test('created lock unsafe mode refuses at original metadata boundary', async () 
 
 for (const fault of ['absent', 'unreadable', 'oversized', 'malformed', 'alias'] as const)
   test(`selection input refuses ${fault} at original boundary`, async () => {
-    const root = scratchSync('adoption-input-');
+    await using scratch = createSolverScratch('adoption-input-');
+    const root = scratch.root;
     const path = join(root, 'selection.json');
     if (fault !== 'absent')
       await writeFile(path, fault === 'oversized' ? ' '.repeat(32769) : '{}', { mode: 0o600 });
@@ -629,7 +651,8 @@ for (const fault of ['absent', 'unreadable', 'oversized', 'malformed', 'alias'] 
   });
 
 test('selection original descriptor metadata drift refuses after actual read', async () => {
-  const { layout, selection } = await fixture();
+  await using scratch = createSolverScratch('legacy-adoption-');
+  const { layout, selection } = await fixture(scratch.root);
   const path = join(layout.parents.home, 'drift-selection.json');
   const bytes = JSON.stringify(selection);
   await writeFile(path, bytes);
@@ -660,7 +683,8 @@ test('selection original descriptor metadata drift refuses after actual read', a
 });
 
 test('selection original short read refuses even when the received JSON is complete', async () => {
-  const { layout, selection } = await fixture();
+  await using scratch = createSolverScratch('legacy-adoption-');
+  const { layout, selection } = await fixture(scratch.root);
   const path = join(layout.parents.home, 'short-selection.json');
   await writeFile(path, `${JSON.stringify(selection)}\n`);
   const nativeOpen = filesystem.open;
@@ -689,7 +713,8 @@ test('selection original short read refuses even when the received JSON is compl
 });
 
 test('adoption default production account refuses a different independently selected account', async () => {
-  const { layout, selection } = await fixture();
+  await using scratch = createSolverScratch('legacy-adoption-');
+  const { layout, selection } = await fixture(scratch.root);
   const path = join(layout.parents.home, 'wrong-account-selection.json');
   await writeFile(
     path,
@@ -712,7 +737,8 @@ test('adoption default production account refuses a different independently sele
 });
 
 test('adoption dry-run refuses changed independently pinned local candidate', async () => {
-  const { layout, selection } = await fixture();
+  await using scratch = createSolverScratch('legacy-adoption-');
+  const { layout, selection } = await fixture(scratch.root);
   const path = join(layout.parents.home, 'wrong-candidate-selection.json');
   await writeFile(
     path,
@@ -729,7 +755,8 @@ test('adoption dry-run refuses changed independently pinned local candidate', as
 });
 
 test('selected parent replacement during original open refuses at captured descriptor boundary', async () => {
-  const { layout, selection, staging } = await fixture();
+  await using scratch = createSolverScratch('legacy-adoption-');
+  const { layout, selection, staging } = await fixture(scratch.root);
   const retained = join(layout.parents.home, 'retained-selected-parent');
   const nativeOpen = filesystem.open;
   let injected = false;

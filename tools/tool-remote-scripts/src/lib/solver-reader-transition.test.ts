@@ -15,9 +15,9 @@ import {
 import { hostname, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { scratchSync } from '@tools/test-scratch';
 import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 
+import { createSolverScratch, readSolverChild } from '../fixtures/solver-scratch';
 import { initializeOrdinaryEdgePolicy } from './edge-policy';
 import { withExistingCanonicalLock } from './lock';
 import { captureSolverReaderArtifact } from './solver-reader-preparation';
@@ -84,8 +84,7 @@ function materializeHistoricalBundle(bundle: Buffer, state: string): Buffer {
   return materialized;
 }
 
-async function transitionFixture() {
-  const root = scratchSync('reader-transition-');
+async function transitionFixture(root: string) {
   const state = join(root, 'state');
   const staging = join(root, 'stage');
   const installed = join(root, 'installed');
@@ -172,7 +171,8 @@ async function transitionFixture() {
 }
 
 test('reader-only transition runs actual old authority then staged and installed checks on the original edge description', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   const beforeBun = await captureSolverReaderArtifact(fixture.layout.bun);
   const beforeReader = await captureSolverReaderArtifact(fixture.layout.reader);
   console.log(
@@ -201,13 +201,13 @@ test('reader-only transition runs actual old authority then staged and installed
     await transitionSolverReader(fixture.selection, fixture.layout, {
       observe: async (boundary) => {
         boundaries.push(boundary);
-        const contender = Bun.spawn(
-          ['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'],
-          { stdout: 'pipe', stderr: 'pipe' },
+        const contender = await readSolverChild(scratch, () =>
+          Bun.spawn(
+            ['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'],
+            { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+          ),
         );
-        await new Response(contender.stdout).text();
-        await new Response(contender.stderr).text();
-        expect(await contender.exited).toBe(1);
+        expect(contender.code).toBe(1);
       },
     });
   } finally {
@@ -255,15 +255,12 @@ test('reader-only transition runs actual old authority then staged and installed
   expect(await Bun.file(join(fixture.layout.state, 'edge-owner.pending')).exists()).toBe(false);
   expect(await readFile(join(fixture.root, 'config'), 'utf8')).toBe('configuration sentinel');
   expect(await readFile(join(fixture.root, 'unit'), 'utf8')).toBe('service sentinel');
-  const contender = Bun.spawn([
-    'flock',
-    '-n',
-    join(fixture.layout.state, 'edge.lock'),
-    'sh',
-    '-c',
-    'exit 0',
-  ]);
-  expect(await contender.exited).toBe(0);
+  const contender = await readSolverChild(scratch, () =>
+    Bun.spawn(['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }),
+  );
+  expect(contender.code).toBe(0);
 });
 
 for (const fault of [
@@ -274,7 +271,8 @@ for (const fault of [
   'postpublication-marker',
 ] as const) {
   test(`reader-only transition refuses ${fault} without Bun/config/unit replacement`, async () => {
-    const fixture = await transitionFixture();
+    await using scratch = createSolverScratch('reader-transition-');
+    const fixture = await transitionFixture(scratch.root);
     const beforeBun = await captureSolverReaderArtifact(fixture.layout.bun);
     const beforeReader = await captureSolverReaderArtifact(fixture.layout.reader);
     if (fault === 'wrong-old-pin') fixture.selection.oldReader.sha256 = '0'.repeat(64);
@@ -322,7 +320,8 @@ for (const fault of [
 }
 
 test('actual generated transition transport executes pinned operation using unchanged fixed Bun', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   const { transitionSolverReaderInstallation } = await import('../install-solver-supervisor');
   const { runSolverReaderTransport } = await import('./solver-reader-preparation');
   const before = await captureSolverReaderArtifact(fixture.layout.bun);
@@ -423,20 +422,22 @@ test('actual generated transition transport executes pinned operation using unch
     },
     { code: 0, signal: null },
   ]);
-  const released = Bun.spawn(
-    ['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'],
-    { stdio: ['ignore', 'pipe', 'pipe'] },
-  );
-  expect((await observeCompatibilityChild(released)).code).toBe(0);
+  const released = () =>
+    Bun.spawn(['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  expect((await observeCompatibilityChild(scratch, released)).code).toBe(0);
   expect(await captureSolverReaderArtifact(fixture.layout.bun)).toEqual(before);
   expect(await readFile(join(fixture.root, 'config'), 'utf8')).toBe('configuration sentinel');
   expect(await readFile(join(fixture.root, 'unit'), 'utf8')).toBe('service sentinel');
 });
 
 test('unknown original reader read retains the real target edge interval until explicit fixture teardown', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   const beforeReader = await captureSolverReaderArtifact(fixture.layout.reader);
   const program = `import { transitionSolverReader } from ${JSON.stringify(new URL('./solver-reader-transition.ts', import.meta.url).pathname)}; await transitionSolverReader(${JSON.stringify(fixture.selection)}, ${JSON.stringify(fixture.layout)}, { afterRead(stream) { if (stream === 'stdout') throw new Error('injected actual read observation failure'); } });`;
+  const observeRetirement = scratch.requireRetirement();
   const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
   let stderr = '';
   const errorTask = (async () => {
@@ -448,20 +449,18 @@ test('unknown original reader read retains the real target edge interval until e
     settled = true;
     return code;
   });
+  const retirement = observeRetirement([child.exited, outputTask, errorTask, waitTask]);
   try {
     for (let attempt = 0; attempt < 400 && !stderr.includes('HOLD:'); attempt++)
       await Bun.sleep(10);
     expect(stderr).toContain('HOLD: original child/read/EOF remains unknown');
     expect(settled).toBe(false);
-    const contender = Bun.spawn([
-      'flock',
-      '-n',
-      join(fixture.layout.state, 'edge.lock'),
-      'sh',
-      '-c',
-      'exit 0',
-    ]);
-    expect(await contender.exited).toBe(1);
+    const contender = await readSolverChild(scratch, () =>
+      Bun.spawn(['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }),
+    );
+    expect(contender.code).toBe(1);
     expect(await captureSolverReaderArtifact(fixture.layout.reader)).toEqual(beforeReader);
     expect(await readFile(join(fixture.root, 'config'), 'utf8')).toBe('configuration sentinel');
   } finally {
@@ -470,17 +469,25 @@ test('unknown original reader read retains the real target edge interval until e
     await waitTask;
     await outputTask;
     await errorTask;
+    await retirement;
   }
 }, 10000);
 
 test('actual sibling sync failure refuses before the sole reader publication', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   const before = await captureSolverReaderArtifact(fixture.layout.reader);
   const program = `import * as fs from 'node:fs/promises';import{mock}from'bun:test';const open=fs.open;mock.module('node:fs/promises',()=>({...fs,open:async(path,...options)=>{const descriptor=await open(path,...options);if(String(path).includes('/.reader-transition-'))descriptor.sync=async()=>{await fs.writeFile(${JSON.stringify(join(fixture.root, 'sync-fault-delivered'))},'delivered');throw new Error('injected actual sibling sync failure');};return descriptor;}}));const{transitionSolverReader}=await import(${JSON.stringify(new URL('./solver-reader-transition.ts', import.meta.url).pathname)});let refused=false;try{await transitionSolverReader(${JSON.stringify(fixture.selection)},${JSON.stringify(fixture.layout)});}catch(cause){if(!String(cause).includes('injected actual sibling sync failure'))throw cause;refused=true;}if(!refused)throw new Error('sync failure was not refused');`;
-  const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
-  const stdout = await new Response(child.stdout).text();
-  const stderr = await new Response(child.stderr).text();
-  expect(await child.exited).toBe(0);
+  const child = await readSolverChild(scratch, () =>
+    Bun.spawn([process.execPath, '-e', program], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }),
+  );
+  const stdout = child.stdout;
+  const stderr = child.stderr;
+  expect(child.code).toBe(0);
   expect(stdout + stderr).toBe('');
   expect(await readFile(join(fixture.root, 'sync-fault-delivered'), 'utf8')).toBe('delivered');
   expect(await captureSolverReaderArtifact(fixture.layout.reader)).toEqual(before);
@@ -489,7 +496,8 @@ test('actual sibling sync failure refuses before the sole reader publication', a
 });
 
 test('retained original reader evidence drift refuses before publication without rebasing its bytes', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   const before = await captureSolverReaderArtifact(fixture.layout.reader);
   let delivered = false;
   await rejects(
@@ -511,27 +519,30 @@ test('retained original reader evidence drift refuses before publication without
 });
 
 test('actual fixed reader distinguishes legacy and required absence and rejects every non-singleton form before runtime effects', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   await copyFile(fixture.selection.reader.path, fixture.layout.reader);
   const fs = await import('node:fs/promises');
   await fs.unlink(join(fixture.layout.state, 'edge-policy.json'));
   const { withExistingCanonicalLock } = await import('./lock');
   await withExistingCanonicalLock(join(fixture.layout.state, 'edge.lock'), async (descriptor) => {
     for (const mode of ['legacy', 'required'] as const) {
-      const child = Bun.spawn(
-        [
-          fixture.layout.bun,
-          fixture.layout.reader,
-          `--check-controller-admission-inherited=${mode}`,
-        ],
-        {
-          env: { ...process.env, WBS_EDGE_STATE: fixture.layout.state, WBS_EDGE_LOCK_FD: '3' },
-          stdio: ['ignore', 'pipe', 'pipe', descriptor],
-        },
+      const child = await readSolverChild(scratch, () =>
+        Bun.spawn(
+          [
+            fixture.layout.bun,
+            fixture.layout.reader,
+            `--check-controller-admission-inherited=${mode}`,
+          ],
+          {
+            env: { ...process.env, WBS_EDGE_STATE: fixture.layout.state, WBS_EDGE_LOCK_FD: '3' },
+            stdio: ['ignore', 'pipe', 'pipe', descriptor],
+          },
+        ),
       );
-      const stdout = await new Response(child.stdout).text();
-      const stderr = await new Response(child.stderr).text();
-      const code = await child.exited;
+      const stdout = child.stdout;
+      const stderr = child.stderr;
+      const code = child.code;
       expect(stdout).toBe('');
       expect(code === 0).toBe(mode === 'legacy');
       if (mode === 'required') expect(stderr).toContain('ordinary controller requires edge policy');
@@ -558,13 +569,14 @@ test('actual fixed reader distinguishes legacy and required absence and rejects 
         `--solver-image=registry/solver@sha256:${'a'.repeat(64)}`,
       ],
     ]) {
-      const child = Bun.spawn([fixture.layout.bun, fixture.layout.reader, ...argv], {
-        env: { ...process.env, WBS_EDGE_STATE: fixture.layout.state, WBS_EDGE_LOCK_FD: '3' },
-        stdio: ['ignore', 'pipe', 'pipe', descriptor],
-      });
-      await new Response(child.stdout).text();
-      const stderr = await new Response(child.stderr).text();
-      expect(await child.exited).toBe(1);
+      const child = await readSolverChild(scratch, () =>
+        Bun.spawn([fixture.layout.bun, fixture.layout.reader, ...argv], {
+          env: { ...process.env, WBS_EDGE_STATE: fixture.layout.state, WBS_EDGE_LOCK_FD: '3' },
+          stdio: ['ignore', 'pipe', 'pipe', descriptor],
+        }),
+      );
+      const stderr = child.stderr;
+      expect(child.code).toBe(1);
       expect(stderr).toMatch(/expected exactly|unknown argument/);
       expect(stderr).not.toContain('ENOENT');
     }
@@ -575,7 +587,8 @@ test('actual fixed reader distinguishes legacy and required absence and rejects 
 
 for (const mode of ['legacy', 'required'] as const) {
   test(`actual fixed ${mode} reader refuses missing foreign independent and conflicting-state descriptions`, async () => {
-    const fixture = await transitionFixture();
+    await using scratch = createSolverScratch('reader-transition-');
+    const fixture = await transitionFixture(scratch.root);
     await copyFile(fixture.selection.reader.path, fixture.layout.reader);
     const fs = await import('node:fs/promises');
     const { withExistingCanonicalLock } = await import('./lock');
@@ -595,17 +608,18 @@ for (const mode of ['legacy', 'required'] as const) {
             WBS_EDGE_STATE: shape === 'conflicting-state' ? fixture.root : fixture.layout.state,
             WBS_EDGE_LOCK_FD: shape === 'missing' ? undefined : '3',
           };
-          const child = Bun.spawn(
-            [
-              fixture.layout.bun,
-              fixture.layout.reader,
-              `--check-controller-admission-inherited=${mode}`,
-            ],
-            { env: environment, stdio: ['ignore', 'pipe', 'pipe', inherited] },
+          const child = await readSolverChild(scratch, () =>
+            Bun.spawn(
+              [
+                fixture.layout.bun,
+                fixture.layout.reader,
+                `--check-controller-admission-inherited=${mode}`,
+              ],
+              { env: environment, stdio: ['ignore', 'pipe', 'pipe', inherited] },
+            ),
           );
-          await new Response(child.stdout).text();
-          const stderr = await new Response(child.stderr).text();
-          expect(await child.exited).not.toBe(0);
+          const stderr = child.stderr;
+          expect(child.code).not.toBe(0);
           expect(stderr).toMatch(
             /inherited shared edge descriptor|does not name|shared edge lock held|fixed canonical state/,
           );
@@ -631,7 +645,8 @@ for (const fault of [
   'marker',
 ] as const) {
   test(`reader-only transition refuses ${fault} and retains installed or foreign bytes`, async () => {
-    const fixture = await transitionFixture();
+    await using scratch = createSolverScratch('reader-transition-');
+    const fixture = await transitionFixture(scratch.root);
     const before = await captureSolverReaderArtifact(fixture.layout.reader);
     const beforeBun = await captureSolverReaderArtifact(fixture.layout.bun);
     const fs = await import('node:fs/promises');
@@ -726,7 +741,8 @@ for (const fault of [
 }
 
 test('reader transition original operation deadline cannot renew after its actual old child settles', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   let now = 0;
   const boundaries: string[] = [];
   await rejects(
@@ -747,16 +763,21 @@ test('reader transition original operation deadline cannot renew after its actua
 });
 
 test('same-byte sibling replacement during actual sync refuses before reader publication', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   const before = await captureSolverReaderArtifact(fixture.layout.reader);
   const fault = join(fixture.root, 'same-byte-sync-fault');
   const program = `import * as fs from 'node:fs/promises';import{mock}from'bun:test';const open=fs.open;mock.module('node:fs/promises',()=>({...fs,open:async(path,...options)=>{const descriptor=await open(path,...options);if(String(path).includes('/.reader-transition-')){const sync=descriptor.sync.bind(descriptor);descriptor.sync=async()=>{await sync();await fs.rename(path,String(path)+'.original');await fs.copyFile(${JSON.stringify(fixture.selection.reader.path)},path);await fs.chmod(path,0o755);await fs.writeFile(${JSON.stringify(fault)},'delivered');};}return descriptor;}}));const{transitionSolverReader}=await import(${JSON.stringify(new URL('./solver-reader-transition.ts', import.meta.url).pathname)});try{await transitionSolverReader(${JSON.stringify(fixture.selection)},${JSON.stringify(fixture.layout)});}catch(cause){console.error(String(cause));process.exitCode=1;}`;
+  const observeRetirement = scratch.requireRetirement();
   const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
-  const observations = await Promise.allSettled([
+  const originals = [
+    child.exited,
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
-    child.exited,
-  ]);
+  ] as const;
+  const retirement = observeRetirement(originals);
+  const observations = await Promise.allSettled(originals);
+  await retirement;
   for (const observation of observations)
     if (observation.status === 'rejected') throw observation.reason;
   expect(await readFile(fault, 'utf8')).toBe('delivered');
@@ -770,7 +791,8 @@ test('transition transport refuses invalid old runtime identity before executing
   const { runSolverReaderTransport } = await import('./solver-reader-preparation');
   const outcomes: { fault: string; delivered: boolean; executed: boolean; refused: boolean }[] = [];
   for (const fault of ['mode', 'ancestor'] as const) {
-    const fixture = await transitionFixture();
+    await using scratch = createSolverScratch('reader-transition-');
+    const fixture = await transitionFixture(scratch.root);
     const marker = join(fixture.root, 'old-runtime-executed');
     const preload = join(fixture.root, 'observe-runtime.ts');
     await writeFile(preload, `await Bun.write(${JSON.stringify(marker)}, 'executed');`);
@@ -825,12 +847,20 @@ test('transition transport refuses invalid old runtime identity before executing
   ]);
 });
 
-async function observeCompatibilityChild(child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>) {
-  const [stdout, stderr, code] = await Promise.allSettled([
+async function observeCompatibilityChild(
+  scratch: ReturnType<typeof createSolverScratch>,
+  launch: () => Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+) {
+  const observeRetirement = scratch.requireRetirement();
+  const child = launch();
+  const originals = [
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
     child.exited,
-  ] as const);
+  ] as const;
+  const retirement = observeRetirement([originals[2], originals[0], originals[1]]);
+  const [stdout, stderr, code] = await Promise.allSettled(originals);
+  await retirement;
   if (
     stdout.status !== 'fulfilled' ||
     stderr.status !== 'fulfilled' ||
@@ -844,7 +874,8 @@ async function observeCompatibilityChild(child: Bun.Subprocess<'ignore', 'pipe',
 }
 
 test('historical reader accepts only its old inherited authority under the original edge description', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   const opening = await captureSolverReaderArtifact(fixture.layout.reader);
   await withExistingCanonicalLock(join(fixture.layout.state, 'edge.lock'), async (descriptor) => {
     for (const [flag, admitted] of [
@@ -852,26 +883,27 @@ test('historical reader accepts only its old inherited authority under the origi
       ['--check-controller-admission-inherited=legacy', false],
       ['--check-controller-admission-inherited=required', false],
     ] as const) {
-      const child = Bun.spawn([fixture.layout.bun, fixture.layout.reader, flag], {
-        env: {
-          ...process.env,
-          WBS_ENV: 'prod',
-          WBS_EDGE_STATE: fixture.layout.state,
-          WBS_EDGE_LOCK_FD: '3',
-        },
-        stdio: ['ignore', 'pipe', 'pipe', descriptor],
-      });
-      const observed = await observeCompatibilityChild(child);
+      const child = () =>
+        Bun.spawn([fixture.layout.bun, fixture.layout.reader, flag], {
+          env: {
+            ...process.env,
+            WBS_ENV: 'prod',
+            WBS_EDGE_STATE: fixture.layout.state,
+            WBS_EDGE_LOCK_FD: '3',
+          },
+          stdio: ['ignore', 'pipe', 'pipe', descriptor],
+        });
+      const observed = await observeCompatibilityChild(scratch, child);
       expect(observed.code === 0).toBe(admitted);
       if (!admitted)
         expect(observed.stderr).toContain(
           'solver supervisor: expected exactly --config=/absolute/path',
         );
-      const contender = Bun.spawn(
-        ['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'],
-        { stdio: ['ignore', 'pipe', 'pipe'] },
-      );
-      expect((await observeCompatibilityChild(contender)).code).toBe(1);
+      const contender = () =>
+        Bun.spawn(['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      expect((await observeCompatibilityChild(scratch, contender)).code).toBe(1);
     }
     const policy = join(fixture.layout.state, 'edge-policy.json');
     const ordinary = await readFile(policy);
@@ -904,9 +936,8 @@ test('historical reader accepts only its old inherited authority under the origi
           }),
         );
       try {
-        const child = Bun.spawn(
-          [fixture.layout.bun, fixture.layout.reader, '--check-edge-policy-inherited'],
-          {
+        const child = () =>
+          Bun.spawn([fixture.layout.bun, fixture.layout.reader, '--check-edge-policy-inherited'], {
             env: {
               ...process.env,
               WBS_ENV: 'prod',
@@ -914,14 +945,14 @@ test('historical reader accepts only its old inherited authority under the origi
               WBS_EDGE_LOCK_FD: '3',
             },
             stdio: ['ignore', 'pipe', 'pipe', descriptor],
-          },
-        );
-        expect((await observeCompatibilityChild(child)).code).not.toBe(0);
-        const contender = Bun.spawn(
-          ['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'],
-          { stdio: ['ignore', 'pipe', 'pipe'] },
-        );
-        expect((await observeCompatibilityChild(contender)).code).toBe(1);
+          });
+        expect((await observeCompatibilityChild(scratch, child)).code).not.toBe(0);
+        const contender = () =>
+          Bun.spawn(
+            ['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'],
+            { stdio: ['ignore', 'pipe', 'pipe'] },
+          );
+        expect((await observeCompatibilityChild(scratch, contender)).code).toBe(1);
       } finally {
         await writeFile(policy, ordinary);
         if (fault === 'marker') await unlink(join(fixture.layout.state, 'edge-owner.pending'));
@@ -934,16 +965,16 @@ test('historical reader accepts only its old inherited authority under the origi
 });
 
 test('historical reader refuses missing foreign and independently opened descriptors under a real holder', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   const foreign = join(fixture.root, 'foreign.lock');
   await writeFile(foreign, '');
   await withExistingCanonicalLock(join(fixture.layout.state, 'edge.lock'), async () => {
     for (const path of [undefined, foreign, join(fixture.layout.state, 'edge.lock')]) {
       const independentlyOpened = path === undefined ? undefined : await open(path, 'r');
       try {
-        const child = Bun.spawn(
-          [fixture.layout.bun, fixture.layout.reader, '--check-edge-policy-inherited'],
-          {
+        const child = () =>
+          Bun.spawn([fixture.layout.bun, fixture.layout.reader, '--check-edge-policy-inherited'], {
             env: {
               ...process.env,
               WBS_ENV: 'prod',
@@ -951,9 +982,8 @@ test('historical reader refuses missing foreign and independently opened descrip
               WBS_EDGE_LOCK_FD: independentlyOpened === undefined ? undefined : '3',
             },
             stdio: ['ignore', 'pipe', 'pipe', independentlyOpened?.fd ?? 'ignore'],
-          },
-        );
-        const observed = await observeCompatibilityChild(child);
+          });
+        const observed = await observeCompatibilityChild(scratch, child);
         expect(observed.code).not.toBe(0);
         expect(observed.stderr).toContain(
           path === undefined
@@ -962,11 +992,12 @@ test('historical reader refuses missing foreign and independently opened descrip
               ? 'inherited shared edge lock does not name'
               : 'shared edge lock held:',
         );
-        const contender = Bun.spawn(
-          ['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'],
-          { stdio: ['ignore', 'pipe', 'pipe'] },
-        );
-        expect((await observeCompatibilityChild(contender)).code).toBe(1);
+        const contender = () =>
+          Bun.spawn(
+            ['flock', '-n', join(fixture.layout.state, 'edge.lock'), 'sh', '-c', 'exit 0'],
+            { stdio: ['ignore', 'pipe', 'pipe'] },
+          );
+        expect((await observeCompatibilityChild(scratch, contender)).code).toBe(1);
       } finally {
         await independentlyOpened?.close();
       }
@@ -975,7 +1006,8 @@ test('historical reader refuses missing foreign and independently opened descrip
 });
 
 test('historical reader fixture corruption refuses before any child', async () => {
-  const fixture = await transitionFixture();
+  await using scratch = createSolverScratch('reader-transition-');
+  const fixture = await transitionFixture(scratch.root);
   const container = await readFile(HISTORICAL_FIXTURE);
   const corruptContainer = Buffer.from(container);
   corruptContainer.writeUInt8(corruptContainer.readUInt8(0) ^ 1, 0);
