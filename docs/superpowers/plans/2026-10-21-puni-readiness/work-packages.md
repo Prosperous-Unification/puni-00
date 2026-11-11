@@ -76,6 +76,8 @@ bounded diagnostic and keep service protection unresolved. All-store completion 
 
 ### W03 — Reconcile the production release identity
 
+Current read-only diagnosis: [November 11 evidence and replacement prerequisites](../../../findings/production-provenance-2026-11-11/report.md). The diagnosis does not close this package.
+
 **Work:** investigation, contract reconciliation and required narrow repair.
 **Start from:** [production evidence](../../../findings/puni-assessment-2026-10-21/live-evidence.md),
 [prod readiness tasks](../../../../openspec/changes/prod-deploy-readiness/tasks.md),
