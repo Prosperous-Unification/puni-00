@@ -3,6 +3,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { isAlias, isNode, isPair, isScalar, parseAllDocuments, visit } from 'yaml';
 
+import { readInstalledRequest, type ValidatorRequest } from './cli-parser';
 import { acceptWorkflowBinding, checkWorkflowBinding } from './contracts/validate-workflow-binding';
 import {
   decodeWorkflowBinding,
@@ -151,38 +152,17 @@ export function readWorkflowBinding(
  * Returns the accepted digest without writing output; prompt paths use the supplied root.
  * @throws {WorkflowBindingError} for invalid CLI grammar or binding acceptance failures.
  */
-/**
- * The usage line of `validate workflow-binding`; `cli-parser.ts`'s help shows the same grammar
- * (cli.test.ts).
- */
-export const workflowBindingUsage =
-  'usage: twilight-burokrat validate workflow-binding <file> --steps <comma-list>';
-
 export function runWorkflowBindingCommand(args: readonly string[], repositoryRoot: string): string {
-  const refuseArguments = () => {
-    throw new WorkflowBindingError('invalid_arguments', 'arguments', workflowBindingUsage);
-  };
-  // Proof: removing exact arity let the spawned extra-operand command succeed; its refusal test failed.
-  if (args.length !== 5) refuseArguments();
-  const [command, kind, file, flag, codes] = args;
-  // Proof: independently removing command/kind checks accepted the wrong helper prefix.
-  // Removing either filename check replaced invalid_arguments with a filesystem refusal.
-  // Removing flag equality let the spawned wrong-flag command succeed.
-  // Proof: removing repeated-value refusal changed invalid_arguments to unknown_step
-  // in `refuses malformed CLI repeated flag as value before filesystem access`.
-  if (
-    command !== 'validate' ||
-    kind !== 'workflow-binding' ||
-    file.length === 0 ||
-    file.startsWith('-') ||
-    flag !== '--steps' ||
-    codes === '--steps'
-  )
-    refuseArguments();
-  const steps = codes.split(',');
-  // Proof: separately bypassing segment shape and uniqueness changed invalid_arguments
-  // to invalid_project_steps in the empty/whitespace and duplicate CLI refusal tests.
-  if (steps.some((step) => !/^\S+$/.test(step)) || new Set(steps).size !== steps.length)
-    refuseArguments();
-  return readWorkflowBinding(repositoryRoot, file, steps).bindingDigest;
+  return validateWorkflowBinding(
+    readInstalledRequest('validate workflow-binding', args),
+    repositoryRoot,
+  );
+}
+
+/** Resolve a binding against the caller-selected ordered step catalogue. */
+export function validateWorkflowBinding(
+  request: ValidatorRequest<'validate workflow-binding'>,
+  repositoryRoot: string,
+): string {
+  return readWorkflowBinding(repositoryRoot, request.file, request.steps).bindingDigest;
 }

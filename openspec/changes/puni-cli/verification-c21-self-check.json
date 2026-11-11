@@ -1,0 +1,2098 @@
+{
+  "schemaVersion": 1,
+  "scope": "C21 private prepared self-certification foundation; no producer/default switch",
+  "sourceBase": "a57dec5e675f29311419e27126cbf2abe9c27769",
+  "initialFocused": {
+    "pass": 77,
+    "fail": 0,
+    "assertions": 208,
+    "files": 5,
+    "seconds": 6.67,
+    "log": "/tmp/puni-c21-focused-green1.log"
+  },
+  "finalObserved": {
+    "pass": 194,
+    "fail": 0,
+    "assertions": 694,
+    "files": 12,
+    "duration": "87.61s"
+  },
+  "checks": [
+    {
+      "id": "final-types",
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "seconds": 5.379,
+      "log": "/tmp/puni-c21-final-types.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "final-openspec",
+      "argv": ["bunx", "openspec", "validate", "--all", "--json"],
+      "exitCode": 0,
+      "seconds": 1.253,
+      "log": "/tmp/puni-c21-final-openspec.log",
+      "logSha256": "36e73de6b2693d290709778e37207df18d1752ddace91123c8c31aee53950674"
+    },
+    {
+      "id": "final-lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts"
+      ],
+      "exitCode": 0,
+      "seconds": 3.727,
+      "log": "/tmp/puni-c21-final-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "final-tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+        "--timeout=30000"
+      ],
+      "exitCode": 0,
+      "seconds": 87.64,
+      "log": "/tmp/puni-c21-final-tests.log",
+      "logSha256": "66b4f1c3ddec8b551574463fee538f62f256a049a675e6dcb16c5b747812dbf4"
+    }
+  ],
+  "canonical": [
+    {
+      "id": "certificate-required-schemaVersion",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "refuses a certificate missing schemaVersion",
+      "edits": [
+        {
+          "find": "schemaVersion: '",
+          "replacement": "'schemaVersion?': '"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses a certificate missing schemaVersion"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses a certificate missing schemaVersion",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-required-schemaVersion.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-required-schemaVersion.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "3d7eedc3ba5a2f074c95b50fbc0ac7ea5b57f453303665d3ed2d935f202e5c26",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "39628f8a2c83df7d06f6ebc208dd1be71c642bfec8148f1d8ecb55e07c75af50",
+      "greenLogHash": "74058e739609b608be4bbfe95aac53ce42e84223221ffc5de8202d3c7a1bf27b"
+    },
+    {
+      "id": "certificate-value-schemaVersion",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "refuses an incorrect certificate schemaVersion",
+      "edits": [
+        {
+          "find": "schemaVersion: '1',",
+          "replacement": "schemaVersion: 'unknown',"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses an incorrect certificate schemaVersion"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses an incorrect certificate schemaVersion",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-value-schemaVersion.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-value-schemaVersion.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "72bb592a3682a455e816528e89819d9d44e2ccd038907e9a938f4f6b0c673272",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "a9e072f4c16178695116d568c2bd2aaf1fa52dd9f25406602fd8a7ab093db908",
+      "greenLogHash": "7bb6be9814a4444d9e06bef2d19b3ae3d4a5969c44cafcce79894a654ceee95d"
+    },
+    {
+      "id": "certificate-required-mode",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "refuses a certificate missing mode",
+      "edits": [
+        {
+          "find": "mode: '",
+          "replacement": "'mode?': '"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses a certificate missing mode"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses a certificate missing mode",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-required-mode.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-required-mode.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "8df90f8c718bdda7125d33952744eabd64990a0e4357d0e3bb247878a399d5ff",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "9b2d06d2edf3b2cfc6976fbab759462f3c72d4faccdb2b9c327d3775d1a95b96",
+      "greenLogHash": "5c9671b088a55bb24cb87f1d8cd97d6f1ba0558b43c5906765da835150183b41"
+    },
+    {
+      "id": "certificate-value-mode",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "refuses an incorrect certificate mode",
+      "edits": [
+        {
+          "find": "mode: '\"enforce\"',",
+          "replacement": "mode: 'unknown',"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses an incorrect certificate mode"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses an incorrect certificate mode",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-value-mode.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-value-mode.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "21d2f3e56e4af5ecc412d5654ec7b88e8ac96e4fbb0ab7b88f191eaf8c2760c3",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "0cd1eee6c2d498caf81a0aeafd310e9ab638b0f4fe8bf0185cc92c47fce7cdb7",
+      "greenLogHash": "d48c6496b869f2fb6140ae56720a82d06d10b59180f5195a7b0093e3b358cfd5"
+    },
+    {
+      "id": "certificate-required-trustProvenance",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "refuses a certificate missing trustProvenance",
+      "edits": [
+        {
+          "find": "trustProvenance: '",
+          "replacement": "'trustProvenance?': '"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses a certificate missing trustProvenance"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses a certificate missing trustProvenance",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-required-trustProvenance.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-required-trustProvenance.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "0446889a31dfa210195730cc8aeeeb1761fdcac4cdc6b4bf318722cff3d2b111",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "04b732e06d3092dd7b759e9b49458e00671d8853774b18a887b6a3a70b7d1c0d",
+      "greenLogHash": "911916c66ad946c5655e8fd03f45e3be82aedcfb2c607c038faaca11a4b80a09"
+    },
+    {
+      "id": "certificate-value-trustProvenance",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "refuses an incorrect certificate trustProvenance",
+      "edits": [
+        {
+          "find": "trustProvenance: '\"ci-preselected\"',",
+          "replacement": "trustProvenance: 'unknown',"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses an incorrect certificate trustProvenance"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses an incorrect certificate trustProvenance",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-value-trustProvenance.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-value-trustProvenance.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "4ccff5ac01f473d6afdcd6fc7e6837fc91f3692773b08b6172c6de1f55c84437",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "b9c475ba7f546b7b9750346b7d95337f65c356c4cd001cddd2f7041bf60a4cf8",
+      "greenLogHash": "96fa93baf1b3f59df79a3a3853068d4198613642e3bca7fac99b2a3721ce2671"
+    },
+    {
+      "id": "certificate-required-accepted",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "refuses a certificate missing accepted",
+      "edits": [
+        {
+          "find": "accepted: '",
+          "replacement": "'accepted?': '"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses a certificate missing accepted"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses a certificate missing accepted",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-required-accepted.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-required-accepted.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "1fe5c70489f5fe0a1ba87e8c174e5f4cca55bafb1ecf580ccbd9959e522667a2",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "59fcc1052fc4f62f6d67af305de2b702be06c86b79351a4d773f97f7d42f2cf4",
+      "greenLogHash": "16d5443d0be2549da3f33fe0c9d8052759a20cebc8b9846a84b31ee6196b40d1"
+    },
+    {
+      "id": "certificate-value-accepted",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "refuses an incorrect certificate accepted",
+      "edits": [
+        {
+          "find": "accepted: 'true',",
+          "replacement": "accepted: 'unknown',"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses an incorrect certificate accepted"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses an incorrect certificate accepted",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-value-accepted.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-value-accepted.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "a279a92a0a7c54ab6edff2ff189f7a574d625c57bb6bee34f8671b4486d797f1",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "479b7620efb585a041a8abf912ee071e239b7fb664fce98bb0a8d723ee015fb2",
+      "greenLogHash": "8d0c0d8964033d1e4cd15351a9b77ae4356fe86ed609fab5e735d228e8f472b0"
+    },
+    {
+      "id": "certificate-required-certified",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "refuses a certificate missing certified",
+      "edits": [
+        {
+          "find": "certified: '",
+          "replacement": "'certified?': '"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses a certificate missing certified"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses a certificate missing certified",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-required-certified.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-required-certified.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "b04021b8724e4d626d4f7a2a8f85a3b52555a9bfd6f3e5330e7b947191f5c8bc",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "624795c6bedf47c866d079f15938f0cf8036d2ae58aa091a0d215ab4f0d7bd18",
+      "greenLogHash": "85a3a60f3fa5372a390c4a4cf284ad088b64bfcfbfff0dfcabb8f8d05bad1b93"
+    },
+    {
+      "id": "certificate-value-certified",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "refuses an incorrect certificate certified",
+      "edits": [
+        {
+          "find": "certified: 'true',",
+          "replacement": "certified: 'unknown',"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses an incorrect certificate certified"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses an incorrect certificate certified",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-value-certified.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-value-certified.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "87079b9ad21414f1c4148782f0ecf8fe72b9f23934a87165dabdbe25fb1b28e1",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "700f325d38546a74b820c17939e0648411c9ba8d7ae0b777184c8f6f041d2616",
+      "greenLogHash": "749c3c0b65b4b0642719198e189ccdc497ddd2d3239b7cbbff7b7a8fb218c452"
+    },
+    {
+      "id": "certificate-decoder-classifier",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "pattern": "preserves unexpected certificate decoder failure identity",
+      "edits": [
+        {
+          "find": "    if (!(cause instanceof JsonInputRefusal)) throw cause;\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=preserves unexpected certificate decoder failure identity"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves unexpected certificate decoder failure identity",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-decoder-classifier.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-decoder-classifier.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "4bbf5646674ea7690b461277507ad3384d7f3201f2a16bf7148f6c03265467eb",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "80fabbbdaf02c0064d6bbd0d07a8cc593316fc10e30af9835e3421fc8f6823f0",
+      "greenLogHash": "957b78a3c3e3e871f966eb9614e89e53bff3c44015156a60d170522724990169"
+    },
+    {
+      "id": "certificate-schema-classifier",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+      "pattern": "preserves internal certificate schema TypeErrors",
+      "edits": [
+        {
+          "find": "    if (!(cause instanceof ValidationError)) throw cause;\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=preserves internal certificate schema TypeErrors"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves internal certificate schema TypeErrors",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/certificate-schema-classifier.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/certificate-schema-classifier.green.log",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "mutantHash": "f06229c983287e561721a580e0fc05943a6f8e0deff372826ce641338e2019a9",
+      "afterHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "redLogHash": "85edd89d0b7e38f2ab586ec665064d7e4a1142f471736c1a0f6d8dfc39eafecc",
+      "greenLogHash": "74c7ff1224861273fecce51d87064c32e3484cfc93b96f038ed2b2b0d2fc4f72"
+    },
+    {
+      "id": "selfcheck-parent-lane",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+      "pattern": "runs committed self-certification",
+      "edits": [
+        {
+          "find": "argv: [...context.launch(context.launcher), lintParentMode],",
+          "replacement": "argv: [...context.launch(context.launcher), \"wrong-private-mode\"],"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=runs committed self-certification"
+      ],
+      "state": "killed-restored",
+      "testName": "runs committed self-certification through the actual delivered launcher and archive-default closure",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-parent-lane.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-parent-lane.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "fe60dfef475e0348a57f303d11764e08087b81f7bedf8af0fab736fbf41dfd69",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "fa0404eeca10ccd0002f78c29ef0a144a792eb33c8e674ac5b4b086db8419786",
+      "greenLogHash": "f98b95caf6f9afa705787cc5f33ebf7b84bf4e97a7285c4ad765b4ee3bbdd620"
+    },
+    {
+      "id": "selfcheck-protected-launch",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "uses the protected launch capability",
+      "edits": [
+        {
+          "find": "...context.launch(context.launcher)",
+          "replacement": "...([process.execPath, context.launcher])"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=uses the protected launch capability"
+      ],
+      "state": "killed-restored",
+      "testName": "uses the protected launch capability and does not inherit a closure override",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-protected-launch.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-protected-launch.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "2c345164807724b8716ab1b3f60fd2298c8da42856a4352f6fcc36f4ee2d5456",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "8ad8d07bc065f23fae31cb54d9ce1fe992de308da3180c55601b8eedbad2fcba",
+      "greenLogHash": "300eb52c1916629ffa7afd6264311f6725dcd3fbc96217bd6aa80a77925e7eda"
+    },
+    {
+      "id": "selfcheck-activation-root",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "edits": [
+        {
+          "find": "anchorPath(context.activationRoot, context.callerDirectory)",
+          "replacement": "context.activationRoot"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=certifies the real IPC peer only from a complete report with exact captured bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-activation-root.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-activation-root.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "a40f656c4030ec1ab859b3303e6b492ad58b87a76bdbe9200424c72996ab3631",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "4743c4d41991d0638abf762923a332a3bff6478326b27f7ce2ec3cad79c132f4",
+      "greenLogHash": "31b263c9f8fb36b5cdc5527efbfdd2bb66924be3fda8e33c2f510c24852677c5"
+    },
+    {
+      "id": "selfcheck-scratch-root",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "edits": [
+        {
+          "find": "anchorPath(context.scratchDirectory, context.callerDirectory)",
+          "replacement": "context.scratchDirectory"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=certifies the real IPC peer only from a complete report with exact captured bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-scratch-root.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-scratch-root.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "7a74326f3ec8d15f198aa8950916089f739458dcc696308d4b8b89f55498af0e",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "efd223bb024fd617a2b38aa35f70ce66ac07f06b3375fe04994ae3b9c376d520",
+      "greenLogHash": "95a61adf195525d8b56268ef45a265f649972636db48c833dee0730bbd2695ff"
+    },
+    {
+      "id": "selfcheck-required-admission",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+      "pattern": "requires admission78",
+      "edits": [
+        {
+          "find": "TOOL_WIKI_REQUIRE_CERTIFIED: '1',",
+          "replacement": "TOOL_WIKI_REQUIRE_CERTIFIED: '0',"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=requires admission78"
+      ],
+      "state": "killed-restored",
+      "testName": "requires admission78 from the actual launcher when its validator reports only certified true",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-required-admission.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-required-admission.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "e5d40e15b496efb8dba6f028993a88b29062d1d06c30c0f3e41de739e587177a",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "127fcbae307db35ff025e2fa359978577e026f1434c6ca3ccc23797679613660",
+      "greenLogHash": "e6dea59496890619d3a6f2f3608d79d682abc7ffb33f30c9f5e39e2e9e87851a"
+    },
+    {
+      "id": "selfcheck-closure-isolation",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "uses the protected launch capability",
+      "edits": [
+        {
+          "find": "...runtime.environment,",
+          "replacement": "...runtime.environment, TOOL_WIKI_TRUSTED_NODE_MODULES: process.env[\"TOOL_WIKI_TRUSTED_NODE_MODULES\"],"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=uses the protected launch capability"
+      ],
+      "state": "killed-restored",
+      "testName": "uses the protected launch capability and does not inherit a closure override",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-closure-isolation.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-closure-isolation.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "b225300f88672f5c2476522807dc7ecccc9a6ef334acdcd3301e04a70b529579",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "f052b6a26cbd4537b8042dc9674983638bc07ee1f288042d0ebf028458bbb68f",
+      "greenLogHash": "e03ffc0affdc0c43eec0e03ba4a9304aeb846e4388c633949ce31135c119f0ba"
+    },
+    {
+      "id": "selfcheck-request-version",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "edits": [
+        {
+          "find": "version: 1,",
+          "replacement": "version: 2,"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=certifies the real IPC peer only from a complete report with exact captured bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-request-version.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-request-version.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "74ad97905da373efa1d92b70883a95288f8258e8b397dc27e95148e41255c1fb",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "977bb11f2806544087549407cde1d9a32d1a4731c1497daf956be8f7e080ed39",
+      "greenLogHash": "1898b1b13d475fda6df405247d20d63006bf0c37667fb2037ea5bf31ea273b39"
+    },
+    {
+      "id": "selfcheck-request-caller",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "edits": [
+        {
+          "find": "callerDirectory: context.callerDirectory,",
+          "replacement": "callerDirectory: context.lookup.directory + \"/wrong\","
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=certifies the real IPC peer only from a complete report with exact captured bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-request-caller.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-request-caller.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "4e7299d7b56f552b40584a517a09d872608fafa513f61dc6aafcc2296ee1afda",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "2fcbb7ba3ca3fa0eaaac7c6e99a20a9b53087dcf00ae0b2039b344dafe36ffdb",
+      "greenLogHash": "f37eae2aaf576fa032c2666ade10fe06b77ab196a970fdb77da764d515c5e87f"
+    },
+    {
+      "id": "selfcheck-request-command",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "edits": [
+        {
+          "find": "command: 'lint',",
+          "replacement": "command: 'lint-ci',"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=certifies the real IPC peer only from a complete report with exact captured bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-request-command.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-request-command.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "3806f56e84fdc8d148e47486673be8f2ab39b2139ed7b30886782ec62a9853e0",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "1c07ee5593c20a168809564e34091d1e2946150c459779fbf2b1559eedea2460",
+      "greenLogHash": "df1f9855e26e906af277cd64eb3fedc505213d6b24372f20c7e31cccf6d266fc"
+    },
+    {
+      "id": "selfcheck-request-committed",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "edits": [
+        {
+          "find": "kind: 'committed',",
+          "replacement": "kind: 'working',"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=certifies the real IPC peer only from a complete report with exact captured bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-request-committed.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-request-committed.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "e0452e3b78ad3d5bdffd10565993b0dc569a33af973d7880ea86d710c65d4b84",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "f304574b31e51c6fbba5a6a74f128ae4d247f43a9569d0fb42981b74df2d8e92",
+      "greenLogHash": "cfab087711447973c8e7c90fea91a2f76c8c0f8030d6fa24a4ad523cafdd37a6"
+    },
+    {
+      "id": "selfcheck-request-repository",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "edits": [
+        {
+          "find": "repository: context.repository,",
+          "replacement": "repository: \"wrong-repository\","
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=certifies the real IPC peer only from a complete report with exact captured bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-request-repository.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-request-repository.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "bc838aaab174a3d3405100ad6f07ff627c78785dc01337cff81faa66377f33e1",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "d07b3a530cb3a229ddfcc6b99ec75860befbe6a9a0f3db0e4955ad8fad11d648",
+      "greenLogHash": "185a2fbb3bf659e4f1e32f9e429c6020a5bd2685817d632db7027ddb8051e409"
+    },
+    {
+      "id": "selfcheck-request-revision",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "edits": [
+        {
+          "find": "revision: context.revision,",
+          "replacement": "revision: \"wrong-revision\","
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=certifies the real IPC peer only from a complete report with exact captured bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-request-revision.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-request-revision.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "530882bb207c490afbcb46122840bdb48fdeba37ef73aaeb6df3a0b2bdc3ca0d",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "e3d8e969381c97793a8f9a5ab1c16e6ee2684073201981a05c67898c326cfabe",
+      "greenLogHash": "fe14bf962770d369336b5a641389c540406e3d7ae87eef90dc499122437af961"
+    },
+    {
+      "id": "selfcheck-captured-report",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "edits": [
+        {
+          "find": "stdout.push(bytes.slice());",
+          "replacement": "stdout.push(new Uint8Array());"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=certifies the real IPC peer only from a complete report with exact captured bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-captured-report.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-captured-report.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "ecc14363c34229b804b8eeb226362a1fbdea3ceee8769d32f8140fc47204aaa9",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "2441d0d9a13ff26d6632e3a9bfb9110416e6cf7a111f451c6d6ded9f94facce7",
+      "greenLogHash": "503400f70d4c53bca74cbfb4117add2f857560ea31abb55d865b54dbd5a23ca3"
+    },
+    {
+      "id": "selfcheck-captured-diagnostic",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "edits": [
+        {
+          "find": "stderr.push(bytes.slice());\n      return { kind: 'written' };",
+          "replacement": "stderr.push(new Uint8Array());\n      return { kind: 'written' };"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=certifies the real IPC peer only from a complete report with exact captured bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "certifies the real IPC peer only from a complete report with exact captured bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-captured-diagnostic.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-captured-diagnostic.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "d2b39ebb61d72d565c7ba8460255535ee62570c24967e430c664557c9a77310d",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "4e6842055e4b3826ac05d44f55b85e6df725b768ec9db42ee24435d618502d0f",
+      "greenLogHash": "95ccf0bd7e020f14856ac6dff256f702d23dc990b3ad64cf247568f45b13c75b"
+    },
+    {
+      "id": "selfcheck-complete-diagnostic-replay",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "retains complete status1 diagnostics",
+      "edits": [
+        {
+          "find": "stderr.push(bytes.slice());\n      return Promise.resolve",
+          "replacement": "stderr.push(new Uint8Array());\n      return Promise.resolve"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=retains complete status1 diagnostics"
+      ],
+      "state": "killed-restored",
+      "testName": "retains complete status1 diagnostics after cancellation without manufacturing cleanup success",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-complete-diagnostic-replay.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-complete-diagnostic-replay.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "68249b0f5366120a13dcb90a16ec40b315cc7060f076438f7ab5c41d12d68588",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "407f1e2ebca0aa7c0a7d646efba9f3449582edff7acc1637aabbde14e0077f7f",
+      "greenLogHash": "b8fc1f233ce4913f7a2ba58544e6d0a655982c9ea30bdf42a65932005774c361"
+    },
+    {
+      "id": "selfcheck-first-signal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "returns recorded first cancellation",
+      "edits": [
+        {
+          "find": "interruption.first ??= signal;",
+          "replacement": "interruption.first = signal;"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=returns recorded first cancellation"
+      ],
+      "state": "killed-restored",
+      "testName": "returns recorded first cancellation and releases its only controller subscription",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-first-signal.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-first-signal.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "a7224887a0a3ab89d347aeb5e20adf183a5fda6df54ed841cd35274bc245f243",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "01cafb4f97949d04a50b765dde16c1a79da143327cba06fe91dd6b813e0a49f2",
+      "greenLogHash": "aacbd0b81a19458f52268032bb8ccae80ceee8b0ba3dcc474b79a2050e7841fc"
+    },
+    {
+      "id": "selfcheck-signal-forwarding",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+      "pattern": "delivers first cancellation",
+      "edits": [
+        {
+          "find": "        listener(signal);",
+          "replacement": "        listener(\"SIGTERM\");"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=delivers first cancellation"
+      ],
+      "state": "killed-restored",
+      "testName": "delivers first cancellation through the actual self-check chain and confirms stage cleanup",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-signal-forwarding.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-signal-forwarding.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "80cc141f85bcabb25a85e516c68ad1df4c0f568fd5360ba464ba526f1d338923",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "b75dc1eab1e5b959d734f320c2a59d1162530f27ee50b5c414454155794d2190",
+      "greenLogHash": "7757585c7f07ac1a1fdefb89ddee1672216bd07491b197d065f1e84239ccee9e"
+    },
+    {
+      "id": "selfcheck-cancel-match",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "refuses a nonzero peer status that does not match",
+      "edits": [
+        {
+          "find": "if (status === expected)",
+          "replacement": "if (true)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses a nonzero peer status that does not match"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses a nonzero peer status that does not match the recorded first signal",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-cancel-match.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-cancel-match.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "c3f4d52df696265de3bce6539805fec574a629c74502abad37e5daae23975ad1",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "c427d57d0b7b3b26721a2bb1311b48db0dad7aca0b91ac46470c8f1054b8272b",
+      "greenLogHash": "bda79ca31a3fc239ff6e41f2a1f7b0621331dfce6a3483d6bbe07a67f2a101a4"
+    },
+    {
+      "id": "selfcheck-cancel-reason",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "returns recorded first cancellation",
+      "edits": [
+        {
+          "find": "first === 'SIGINT' ? 130 : 143",
+          "replacement": "first === 'SIGINT' ? 143 : 130"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=returns recorded first cancellation"
+      ],
+      "state": "killed-restored",
+      "testName": "returns recorded first cancellation and releases its only controller subscription",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-cancel-reason.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-cancel-reason.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "441cc600d60dd5eb6f06c4b382d2dd3a1b14f75810bee4b3f257521c9ce1cdfa",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "c5545d0220b13d0b3e11bb47c054db8998fd11ba74a6aa6c12f5a4f39313022d",
+      "greenLogHash": "7c47189f0caa63b057b03169796c91d5749ea22161dc1763f78195e533cf7e3d"
+    },
+    {
+      "id": "selfcheck-normal-nonzero",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "does not interpret an unrequested normal130",
+      "edits": [
+        {
+          "find": "status !== 0 || !hasEnforceCertificate(report)",
+          "replacement": "!hasEnforceCertificate(report)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=does not interpret an unrequested normal130"
+      ],
+      "state": "killed-restored",
+      "testName": "does not interpret an unrequested normal130 peer status as cancellation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-normal-nonzero.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-normal-nonzero.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "c81412a56c3cf2a9c511e45e8af2fc89d4cc53359d1eee544701b133fece72b6",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "7d5dd79fcb4b86e93d72454f1abddc01a42791f0ebe42283d50332cf67d71bb7",
+      "greenLogHash": "2be0720cdadc1a2bf31ff664e3a6bf8fe2390fcd706fc67317a660292dd9212c"
+    },
+    {
+      "id": "selfcheck-certificate",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "refuses zero peer status missing certificate",
+      "edits": [
+        {
+          "find": "status !== 0 || !hasEnforceCertificate(report)",
+          "replacement": "status !== 0"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=refuses zero peer status missing certificate"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses zero peer status missing certificate schemaVersion",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-certificate.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-certificate.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "cd068c60acd1f21cc49df380ef0c05437c118adfe2ae5db974251fa11ae685b3",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "eccaad4882ccc6f88014b606f3d0bffdea2d24717b3fa237a58d7fe419487084",
+      "greenLogHash": "7979272b311332b1a96cdcc9a2813948e2ca0df8b4b37bd4196ac0253478cc3e"
+    },
+    {
+      "id": "selfcheck-normal1-refusal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "retains complete status1 diagnostics",
+      "edits": [
+        {
+          "find": "throw new PreparedSelfCheckFailure(status, report, diagnostics, true);",
+          "replacement": "return {kind:'cancelled',status:expected,report:{kind:'prefix',bytes:report},diagnostics:{kind:'prefix',bytes:diagnostics}};"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=retains complete status1 diagnostics"
+      ],
+      "state": "killed-restored",
+      "testName": "retains complete status1 diagnostics after cancellation without manufacturing cleanup success",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-normal1-refusal.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-normal1-refusal.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "3c6b1f157ff4501b06fad63f6a2054cca6fa51b0bffacd91723535df41b0b3e2",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "d887cab6d2922b474fdd1c2559c9aa82eecc690412a91de0a784f5bb23a47259",
+      "greenLogHash": "590a89e65ec48077180d514cb806dc8ec635954a67e1506bee8d121217390377"
+    },
+    {
+      "id": "selfcheck-report-completeness",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "retains complete status1 diagnostics",
+      "edits": [
+        {
+          "find": "const reportKind = isInterrupted ? 'prefix' : 'complete';",
+          "replacement": "const reportKind = 'complete';"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=retains complete status1 diagnostics"
+      ],
+      "state": "killed-restored",
+      "testName": "retains complete status1 diagnostics after cancellation without manufacturing cleanup success",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-report-completeness.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-report-completeness.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "f5ddd947ca948805fee8078913373f43be0e8767422c114480eca452c2b693ae",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "826cef2d59c4af035869b0703995f5b95832ffb34f086305919fe3bf118f7e0e",
+      "greenLogHash": "0ca0554eee67fa39b04b7dcd78f21e894c67e232da29ddbf2b093c4190fae3ef"
+    },
+    {
+      "id": "selfcheck-status1-completeness",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "retains complete status1 diagnostics",
+      "edits": [
+        {
+          "find": "isInterrupted && status !== 1 ? 'prefix' : 'complete'",
+          "replacement": "isInterrupted ? 'prefix' : 'complete'"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=retains complete status1 diagnostics"
+      ],
+      "state": "killed-restored",
+      "testName": "retains complete status1 diagnostics after cancellation without manufacturing cleanup success",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-status1-completeness.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-status1-completeness.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "7cdb664b2248d5cb619a698c13286044d9a8dbf0cc5d26c0aac1c4d8537fda3b",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "ba94c452fd60bd02d52fb8a8916d8e66e463f62cb849cd6d9d41ce5ec6d58c0a",
+      "greenLogHash": "6cd5a416096ff4ca83f4dec1fdfc0c9a81f72918bb851523ea8074c8bb1a0665"
+    },
+    {
+      "id": "selfcheck-other-prefix",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "pattern": "preserves other interrupted verdict diagnostics",
+      "edits": [
+        {
+          "find": "isInterrupted && status !== 1 ? 'prefix' : 'complete'",
+          "replacement": "'complete'"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+        "--timeout=15000",
+        "--test-name-pattern=preserves other interrupted verdict diagnostics"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves other interrupted verdict diagnostics as a captured prefix",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-c21-proofs/selfcheck-other-prefix.red.log",
+      "greenLog": "/tmp/puni-c21-proofs/selfcheck-other-prefix.green.log",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "mutantHash": "91798eb2d26b9a82fc7bbc22bbe56eb5c6c406fa7ad6471196d4880bfc21de3c",
+      "afterHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "redLogHash": "6392a71489120c3eadc89b66f2620e821c8680a9ca7ba717efc7c988fbc54c3b",
+      "greenLogHash": "44740df60ee7d98b2daeac3a28a6650bb9a058047356a99539255bf45afee3ab"
+    }
+  ],
+  "canonicalFaults": 37,
+  "canonicalLogs": 74,
+  "excluded": [],
+  "extraction": {
+    "bodyUnchangedAfterPublicRename": true
+  },
+  "commentComparison": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+      "afterHash": "bd1aa3066c04393c09b8ea27d135f2e3f5b594bc5ec732c3228cdfdbdf7dfd28",
+      "sameJavaScript": true,
+      "javascriptHash": "2688cac4cd23b994a465436f8815c48ecd427679f6eb0e5e8be00a2c9053b118",
+      "finalHash": "0487f2c674cab25bb7545262ab0662281b58c8b0416d0aec1f2e90c3b28f36e0"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+      "afterHash": "9620bbe2f33677f778023a7c6b095e4621bbf3960efbda387acdafe7b9e8495e",
+      "sameJavaScript": true,
+      "javascriptHash": "328e5b92768943eebc5eb63ac76ebe33370a63aefb85da8bf2bbabdf4ea71345",
+      "finalHash": "b217335a6dfcd3dbea3db7ec5b781426d187a4860ce9565e842e25ce0db9e540"
+    }
+  ],
+  "sourceHashes": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+      "sha256": "ee4b7f2de5166e361f220b480bdc9e64805dd82db768e3385efcab67de58615a"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+      "sha256": "0487f2c674cab25bb7545262ab0662281b58c8b0416d0aec1f2e90c3b28f36e0"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+      "sha256": "be20fa173e922fa05a7ddd2b51604f630897510423e12ee73cd4cd899096d1d4"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+      "sha256": "b217335a6dfcd3dbea3db7ec5b781426d187a4860ce9565e842e25ce0db9e540"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+      "sha256": "74b5a0b6517d7a72481d73e06ebdbbbd113c51979efe2a0173ef971ba3ef015f"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+      "sha256": "a6e52bb458116c4c1b01757d5d496bf5ff2f6111644c7911f21a692b753d4326"
+    }
+  ],
+  "review": {
+    "source": "Astra read-only source review clear before mutations; no tests independently rerun",
+    "evidence": {
+      "audit": "/tmp/puni-c21-independent-audit.json",
+      "findings": "Clear:37 archived mutants/restorations,74 loghashes,named outcomes,archived tests and adjacent notes reconcile. Source hashes in preformat receipt are qualified; independent current minified transpilation equality verified.",
+      "independentTests": false,
+      "auditRecord": {
+        "scope": "Read-only source/receipt/log/archive/Proof-note audit; no tests/mutations. Independently ran Bun.Transpiler minifyWhitespace equality, current==archived JavaScript for both sources.",
+        "cases": 37,
+        "logs": 74,
+        "observations": [
+          {
+            "id": "certificate-required-schemaVersion",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-value-schemaVersion",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-required-mode",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-value-mode",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-required-trustProvenance",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-value-trustProvenance",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-required-accepted",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-value-accepted",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-required-certified",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-value-certified",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-decoder-classifier",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "certificate-schema-classifier",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-parent-lane",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-protected-launch",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-activation-root",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-scratch-root",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-required-admission",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-closure-isolation",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-request-version",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-request-caller",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-request-command",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-request-committed",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-request-repository",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-request-revision",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-captured-report",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-captured-diagnostic",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-complete-diagnostic-replay",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-first-signal",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-signal-forwarding",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-cancel-match",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-cancel-reason",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-normal-nonzero",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-certificate",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-normal1-refusal",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-report-completeness",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-status1-completeness",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          },
+          {
+            "id": "selfcheck-other-prefix",
+            "checks": {
+              "before": true,
+              "restore": true,
+              "anchor0": true,
+              "mutant": true,
+              "testArchive": true,
+              "redHash": true,
+              "redNamed": true,
+              "redOutcome": true,
+              "greenHash": true,
+              "greenNamed": true,
+              "greenOutcome": true,
+              "adjacentNamedNote": true
+            }
+          }
+        ],
+        "commentComparison": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+            "beforeHash": "42cb92eb0265072a22473524768bebf0f380531d28018f8b152bc29d14799f27",
+            "afterHash": "bd1aa3066c04393c09b8ea27d135f2e3f5b594bc5ec732c3228cdfdbdf7dfd28",
+            "sameJavaScript": true,
+            "javascriptHash": "2688cac4cd23b994a465436f8815c48ecd427679f6eb0e5e8be00a2c9053b118",
+            "currentSourceHash": "0487f2c674cab25bb7545262ab0662281b58c8b0416d0aec1f2e90c3b28f36e0",
+            "currentMinifiedJavaScriptEqualIndependentlyObserved": true
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+            "beforeHash": "1d4ee805446fc0948405718818f9868e6efa66565cf415d638c1450c234990c5",
+            "afterHash": "9620bbe2f33677f778023a7c6b095e4621bbf3960efbda387acdafe7b9e8495e",
+            "sameJavaScript": true,
+            "javascriptHash": "328e5b92768943eebc5eb63ac76ebe33370a63aefb85da8bf2bbabdf4ea71345",
+            "currentSourceHash": "b217335a6dfcd3dbea3db7ec5b781426d187a4860ce9565e842e25ce0db9e540",
+            "currentMinifiedJavaScriptEqualIndependentlyObserved": true
+          }
+        ],
+        "qualifications": [
+          "Recorded comment-comparison afterHash predates current Prettier; current hashes separately recorded.",
+          "Controlled-peer normal1/PID/scratch replay proves diagnostic completeness, not real unconfirmed-stage ownership.",
+          "Actual delivered C14 chain covers private lane,required admission,default closure and native first cancellation.",
+          "Caller-authenticated bootstrap and native external placement remain prerequisites; no full preparer/archive-admission claim."
+        ],
+        "checkSnapshot": {
+          "checks": [
+            {
+              "id": "final-types",
+              "argv": [
+                "bunx",
+                "tsc",
+                "--build",
+                "--force",
+                "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+                "apps/puni/cli/tsconfig.json"
+              ],
+              "exitCode": 0,
+              "seconds": 5.379,
+              "log": "/tmp/puni-c21-final-types.log",
+              "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            {
+              "id": "final-openspec",
+              "argv": ["bunx", "openspec", "validate", "--all", "--json"],
+              "exitCode": 0,
+              "seconds": 1.253,
+              "log": "/tmp/puni-c21-final-openspec.log",
+              "logSha256": "36e73de6b2693d290709778e37207df18d1752ddace91123c8c31aee53950674"
+            },
+            {
+              "id": "final-lint",
+              "argv": [
+                "bunx",
+                "eslint",
+                "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+                "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.ts",
+                "apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+                "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.ts",
+                "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+                "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts"
+              ],
+              "exitCode": 0,
+              "seconds": 3.727,
+              "log": "/tmp/puni-c21-final-lint.log",
+              "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            {
+              "id": "final-tests",
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/lint-certificate.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-output.test.ts",
+                "./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+                "--timeout=30000"
+              ],
+              "exitCode": 0,
+              "seconds": 87.64,
+              "log": "/tmp/puni-c21-final-tests.log",
+              "logSha256": "66b4f1c3ddec8b551574463fee538f62f256a049a675e6dcb16c5b747812dbf4"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "failedChecks": [
+    {
+      "log": "/tmp/puni-c21-certificate-red1.log",
+      "observation": "initial missing certificate module RED"
+    },
+    {
+      "log": "/tmp/puni-c21-selfcheck-red1.log",
+      "observation": "initial missing self-check helper RED"
+    },
+    {
+      "log": "/tmp/puni-c21-lint2.log",
+      "observation": "one runtime-test import-order error; autofix applied then canonical lint3 and final lint passed"
+    },
+    {
+      "log": "/tmp/puni-c21-proof-notes.log",
+      "observation": "nonminified transpiler byte comparison changed only array wrapping after comments; failed comparison retained, minifyWhitespace comparison proves identical executable output"
+    }
+  ],
+  "qualification": [
+    "Controlled IPC peer status1 diagnostics test proves byte retention and completeness, not actual unconfirmed detached-stage cleanup.",
+    "Actual C14-chain tests separately prove committed request/default closure, required admission78 and delivered cancellation with group absence/scratch cleanup.",
+    "The caller authenticates assembled bootstrap bytes and native external placement; certificate contents authenticate neither executable identity nor archive admission.",
+    "Only current helper execution/certificate extraction is covered; legacy preparation/defaults remain unchanged.",
+    "Local Linux/Bun1.4.4 evidence does not qualify macOS, the canonical host gate, installed PUNI package or live deployment."
+  ],
+  "remaining": [
+    "both current Bun activation preparers",
+    "one-source current role and actual copied-closure assets",
+    "bootstrap/admission/CI Bun ports and coherent producer/default switch",
+    "public PUNI identity/registry authority",
+    "stored helper startup/platform qualification",
+    "full client/script Bun inventory",
+    "combined WBS integration and canonical host gate/rollout"
+  ]
+}

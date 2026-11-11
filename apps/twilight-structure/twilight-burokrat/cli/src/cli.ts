@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { parseOrThrow } from '@shared/validation';
 
 import {
-  delegatedArityRefusal,
   type exhaustiveDocumentNames,
   readInvocation,
   UsageRefusal,
@@ -41,7 +40,9 @@ import {
   readInvocationJournal,
   validateReviewProvenance,
 } from './review/invocation-journal';
-import { runWorkflowBindingCommand } from './workflow-binding';
+import { anchorRequest } from './validator-paths';
+import { decodeRequest } from './validator-request';
+import { validateWorkflowBinding } from './workflow-binding';
 
 interface JsonDocument {
   bytes: Uint8Array;
@@ -294,16 +295,22 @@ async function readInstant(value: string): Promise<Date> {
   return readEvaluationInstant(value);
 }
 
+/** Invocation-owned paths remain explicit when the validator runs outside the caller's tree. */
+export interface ExecutionContext {
+  readonly callerDirectory: string;
+}
+
 type Handlers = {
   readonly [Name in ValidatorCommand['command']]: (
     command: ValidatorRequest<Name>,
+    context: ExecutionContext,
   ) => Promise<void> | void;
 };
 
 /**
  * One handler per validator command. A handler receives operands `cli-parser.ts` already
- * counted, typed and, for the dated commands, found `--now` among; the delegated commands
- * receive the words after their name and parse them in their own modules.
+ * counted and typed, including every nested leaf. Dated commands carry explicit evaluation time;
+ * check retains its optional now until the selected rules decide whether it is required.
  */
 export const validatorHandlers: Handlers = {
   'validate-progress-receipt': ({ receipt, planReference, tasks }) => {
@@ -323,17 +330,13 @@ export const validatorHandlers: Handlers = {
   },
   'validate-record': validateRecord,
   validate: validateRecord,
-  'validate workflow-binding': ({ argv }) => {
-    const digest = runWorkflowBindingCommand(
-      ['validate', 'workflow-binding', ...argv],
-      process.cwd(),
-    );
-    process.stdout.write(`${digest}\n`);
+  'validate workflow-binding': (request, context) => {
+    process.stdout.write(validateWorkflowBinding(request, context.callerDirectory) + '\n');
   },
   'read-candidate': readSelectedCandidate,
-  'candidate-identity': async ({ kind, repository, revision }) => {
+  'candidate-identity': async (request) => {
     const { writeCandidateIdentityCommand } = await import('./rules/check');
-    writeCandidateIdentityCommand(['candidate-identity', kind, repository, revision]);
+    writeCandidateIdentityCommand(request);
   },
   'classify-candidate': classifyCandidate,
   'content-manifest': writeContentManifest,
@@ -379,32 +382,22 @@ export const validatorHandlers: Handlers = {
       validatorEntryPaths(),
     );
   },
-  check: async ({ argv }) => {
-    // The module reads its flags in pairs after four operands.
-    // Proof: dropping this guard made `check refuses an odd flag tail and explain a two-word tail
-    // before reading` run the check with `--rule` but no rule, which read the repository: `not a
-    // readable Git repository` (2026-11-02).
-    if (argv.length !== 4 && argv.length !== 6 && argv.length !== 8)
-      throw delegatedArityRefusal(
-        'check',
-        `takes 4 operands and up to 2 flags, got ${String(argv.length)} words`,
-      );
-    const { writeCheckCommand } = await import('./rules/check');
-    writeCheckCommand(['check', ...argv]);
+  check: async (request) => {
+    const { writeCheck } = await import('./rules/check');
+    writeCheck(request);
   },
-  explain: async ({ argv }) => {
-    if (argv.length !== 1 && argv.length !== 3)
-      throw delegatedArityRefusal('explain', `takes 1 or 3 words, got ${String(argv.length)}`);
-    const { writeExplainCommand } = await import('./rules/check');
-    writeExplainCommand(['explain', ...argv]);
+  explain: async (request) => {
+    const { writeExplanation } = await import('./rules/check');
+    writeExplanation(request);
   },
-  scenario: async ({ argv }) => {
-    const { writeScenarioCommand } = await import('./rules/scenario-command');
-    writeScenarioCommand(['scenario', ...argv]);
+  scenario: async (request) => {
+    const { writeScenario } = await import('./rules/scenario-command');
+    writeScenario(request);
   },
-  template: async ({ argv }) => {
-    const { writeTemplateCommand } = await import('./templates/verify');
-    writeTemplateCommand(['template', ...argv]);
+  // Proof: invoking writeTemplateCommand here fails the child test whose argv adapter is broken.
+  template: async (request) => {
+    const { writeTemplate } = await import('./templates/verify');
+    writeTemplate(request);
   },
   'inspect-evaluation-coverage': async (command) => {
     const { inspectEvaluationCoverage } = await import('./evidence/evaluation-coverage');
@@ -668,7 +661,10 @@ export const validatorHandlers: Handlers = {
  * @throws Error `Unsupported Burokrat command: <name>` for a command no handler takes, which only
  * a JavaScript caller bypassing the parser can pass.
  */
-export function runCli(command: ValidatorCommand): Promise<void> | void {
+export function runCli(
+  command: ValidatorCommand,
+  context: ExecutionContext = { callerDirectory: process.cwd() },
+): Promise<void> | void {
   const name: string = command.command;
   // Proof: deleting this guard made `runCli refuses a command no handler takes` call `undefined`
   // and throw a TypeError instead of the Burokrat refusal (2026-11-02).
@@ -678,8 +674,9 @@ export function runCli(command: ValidatorCommand): Promise<void> | void {
   // TypeScript cannot follow through an indexed access; the mapped type above checks each entry.
   const handler = validatorHandlers[command.command] as (
     command: ValidatorCommand,
+    context: ExecutionContext,
   ) => Promise<void> | void;
-  return handler(command);
+  return handler(command, context);
 }
 
 function fail(cause: unknown): void {
@@ -715,4 +712,24 @@ export async function executeCli(argv: readonly string[]): Promise<void> {
   }
 }
 
-if (import.meta.main) void executeCli(process.argv.slice(2));
+/** Execute one installed-only JSON request without entering either argv parser. */
+export async function executeRequest(source: string | Uint8Array): Promise<void> {
+  try {
+    const invocation = decodeRequest(source);
+    // Proof: broken argv adapters still dispatch here; re-entering executeCli fails that child test.
+    // Bypassing anchoring or changing the caller root fails the actual host/binding IO cases.
+    await runCli(anchorRequest(invocation.request, invocation.callerDirectory), {
+      callerDirectory: invocation.callerDirectory,
+    });
+  } catch (cause) {
+    fail(cause);
+  }
+}
+
+if (import.meta.main) {
+  const argv = process.argv.slice(2);
+  if (argv.length === 1 && argv[0] === '--puni-request-v1')
+    // Proof: reading stdin.text instead dispatches replaced invalid UTF-8 in the actual byte test.
+    await executeRequest(await Bun.stdin.bytes());
+  else await executeCli(argv);
+}

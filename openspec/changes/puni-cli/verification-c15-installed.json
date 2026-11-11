@@ -1,0 +1,3565 @@
+{
+  "scope": "Strict current installed reader and async installed-lint identity/placement helper. The facade, optional activation absence, nested launcher owner, package producer switch and complete PUNI surface remain pending.",
+  "uniqueSuccessfulFaults": 32,
+  "rawMutationAttempts": 62,
+  "excludedFailedMutationAttempts": 0,
+  "setupRefusals": [
+    {
+      "phase": "v2 after30 restored successes",
+      "reason": "ESLint inline type import differed from the planned type-only import anchor; the31st mutation was not applied. Resume selects only the remaining2 rows.",
+      "log": {
+        "path": "/tmp/puni-installed-faults-v2-run.log",
+        "bytes": 2489,
+        "sha256": "652cf7a2ff472185208101d43c91bb3b82c9ffd2fe299506cba121de890730a2"
+      },
+      "resume": {
+        "path": "/tmp/puni-installed-faults-v2-resume-run.log",
+        "bytes": 105,
+        "sha256": "c53af123dcaf131144bc6c212231e23d12852c4662bb2ea9e8473c49d9b32f60"
+      }
+    }
+  ],
+  "canonical": {
+    "scope": "Final independently supplied caller runtime;32 exact-source restored proofs supersede original30, retaining all original receipts. One original runtime-factory-wiring proof retired; two original placement diagnostic-only proofs strengthened to independent necessity.29 repeated+3new. Minimal fixture roles except actual launcher; no producer flip or nested-parent claim.",
+    "baselineHashes": [
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+        "sha256": "57d63c74aa8be394848b7f78d6c051352ff695f7c3757a16ea403cdacb82fab6"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+        "sha256": "c2948a78e715fa8dfab2cc06844ddc18805f5578316ebdbddb3107e4dccad5d8"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+        "sha256": "4a5625338188f17253a5fb9c851c32d17d774b5d3d5b82fea63dbb1fc000b4fc"
+      }
+    ],
+    "testHash": "140d2f98604db047cf95bcce4636d1f8f0b8d91cdc825047c75d77d55c627178",
+    "records": [
+      {
+        "id": "reader-native-package",
+        "pattern": "preserves native symlink-parent authority",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "from": "readPackageManifest(realpathSync.native(distDirectory))",
+            "to": "readPackageManifest(distDirectory)"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "sha256": "856442a3a987739a6561a35ed3230d92f2ed264282aeb7d66680ab588282f91e"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "preserves native symlink-parent authority"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-reader-native-package-red.log",
+            "bytes": 1383,
+            "sha256": "a938890498599f652f6c7dab9331709f650f952a52e1f3259a1e4e3f660293d7"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "preserves native symlink-parent authority"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-reader-native-package-green.log",
+            "bytes": 332,
+            "sha256": "0ae1c1cd549cf6b2b653390152797cb3d65c878e2aed1d135e23f7634e8f16bb"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "reader-native-toolkit",
+        "pattern": "preserves native symlink-parent authority",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "from": "readBunToolkit(realpathSync.native(toolkitDirectory))",
+            "to": "readBunToolkit(toolkitDirectory)"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "sha256": "757b8444c4c2f8238d02bb80e67905da9ffe8ba99aa38b7bb431d54465c972bd"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "preserves native symlink-parent authority"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-reader-native-toolkit-red.log",
+            "bytes": 1383,
+            "sha256": "ad84da38ede5c8eecfee9b534158700e3bf46601b18e465bc0e2157a2f43a5cc"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "preserves native symlink-parent authority"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-reader-native-toolkit-green.log",
+            "bytes": 332,
+            "sha256": "c361d8d07171e23305aed65c808486692c4d9441dbb3f59f8e62be7dba905bf8"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "reader-current-format-runtime",
+        "pattern": "refuses historical format even|refuses a current toolkit built by another runtime",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "from": "  readBunToolkit,",
+            "to": "  readBunToolkit,\n  verifyToolkit,"
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "from": "const toolkit = readBunToolkit(realpathSync.native(toolkitDirectory));",
+            "to": "const toolkit = verifyToolkit(realpathSync.native(toolkitDirectory));"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "sha256": "e8b932d3cede7d7ca82a12b4eba6b482dc8c53c20ebb0f202cf4b667f9cc241c"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses historical format even|refuses a current toolkit built by another runtime"
+          ],
+          "exitCode": 1,
+          "failed": 2,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-reader-current-format-runtime-red.log",
+            "bytes": 4593,
+            "sha256": "3b382799755afa78b1bdfea65e854334145d93d0a0c332107ca5e1c64174cb56"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses historical format even|refuses a current toolkit built by another runtime"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 2,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-reader-current-format-runtime-green.log",
+            "bytes": 420,
+            "sha256": "a8c3d9605e4cd51b9c55097b62ff453c9d1c5d6a7dff27d77a96a5e1402b35a9"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "reader-package-binding",
+        "pattern": "refuses a current toolkit different",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "from": "  const toolkit = readBunToolkit(realpathSync.native(toolkitDirectory));\n  assertToolkitIdentity(manifest, toolkit);",
+            "to": "  const toolkit = readBunToolkit(realpathSync.native(toolkitDirectory));"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "sha256": "8557188908490fe646a208997beb3d7018e0fe153711f352d07b0e23b07a1828"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a current toolkit different"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-reader-package-binding-red.log",
+            "bytes": 2409,
+            "sha256": "52f5f37beb91a89d286f46c0b5b28b4901e4c3e0622f679830fbdd8f2ce42656"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a current toolkit different"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-reader-package-binding-green.log",
+            "bytes": 334,
+            "sha256": "c097cdfeced90d06a4f160ac99c274ca475da1f08bbda7628c11a5f4efc2f4e0"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "package-unreadable-context",
+        "pattern": "current refuses an absent package manifest|current refuses an unreadable package manifest",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "from": "throw new Error(`installed package manifest is unreadable: ${manifestPath}`, { cause });",
+            "to": "throw cause;"
+          }
+        ],
+        "note": "Context diagnostic proof; underlying filesystem state still refuses.",
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "sha256": "63c44997d6249e957260d5454cd08aedeaf690cb51562f120e69a33370465045"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "current refuses an absent package manifest|current refuses an unreadable package manifest"
+          ],
+          "exitCode": 1,
+          "failed": 2,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-package-unreadable-context-red.log",
+            "bytes": 2163,
+            "sha256": "5f74f2d76e9fddd581ceefbc250b9e46bac11188c11695f55ce2be62c4f1b05a"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "current refuses an absent package manifest|current refuses an unreadable package manifest"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 2,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-package-unreadable-context-green.log",
+            "bytes": 454,
+            "sha256": "eb830ccccb4d466217d3e8707bc7b4048736d4a7cd21e8ff1610e261bb52c40e"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "package-malformed-context",
+        "pattern": "current refuses malformed package bytes",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "from": "throw new Error(`installed package manifest is malformed: ${manifestPath}`, { cause });",
+            "to": "throw cause;"
+          }
+        ],
+        "note": "Context diagnostic proof; malformed JSON still refuses.",
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "sha256": "6f445524f703709097cb9ae93e773c0088d1f33313a197c231e3be5a7ae4cf7d"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "current refuses malformed package bytes"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-package-malformed-context-red.log",
+            "bytes": 1099,
+            "sha256": "cf9fcc7333964a3b63e5f0444afea9884236510d8acbfa685e67c5f9ccb749f4"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "current refuses malformed package bytes"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-package-malformed-context-green.log",
+            "bytes": 324,
+            "sha256": "f900459fbb647e213923dee41e2f457dc6b144bc98376c17bf8845b39feee989"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "package-schema-boundary",
+        "pattern": "current refuses invalid package fields",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "from": "manifest = parseOrThrow(PackageManifest, input);",
+            "to": "manifest = input as typeof PackageManifest.infer;"
+          }
+        ],
+        "note": "Bypass schema; absent toolkit then exposes a different phase, proving invalid-package-before-toolkit refusal.",
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "sha256": "3f9b6b5a5349406974b6a6c808b77591960526b0a276f74a881406c9952d7e79"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "current refuses invalid package fields"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-package-schema-boundary-red.log",
+            "bytes": 1166,
+            "sha256": "b98d6425c1c2617a42958991b950cbbfff8559e51796e7f38087f7acf9960cfd"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "current refuses invalid package fields"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-package-schema-boundary-green.log",
+            "bytes": 323,
+            "sha256": "1f14de4da2c360f817157bbf10b6e8b32a10d52b9edd248fb286ce5894b06922"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "package-invalid-context",
+        "pattern": "current refuses invalid package fields",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "from": "throw new Error(`installed package manifest is invalid: ${manifestPath}`, { cause });",
+            "to": "throw cause;"
+          }
+        ],
+        "note": "Context diagnostic proof; schema mismatch still refuses.",
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "sha256": "b0a405f6811faf8e8e49beaf10ebb13b6779e8a5582f74001f92d0dd4f605a0b"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "current refuses invalid package fields"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-package-invalid-context-red.log",
+            "bytes": 1265,
+            "sha256": "a42afb8f5ad5b1bb6a3ad4939534de865dd58a9b708f2f8ddab6d2aa91cb8fcc"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "current refuses invalid package fields"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-package-invalid-context-green.log",
+            "bytes": 323,
+            "sha256": "7ef9a80c80688c53f81ebe5e8e8d9b51d477c43a678d7725c9d3bb559dd93635"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "package-regular-file",
+        "pattern": "refuses a format2 FIFO package-manifest\\.json",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "from": "    if (!statSync(manifestPath).isFile())\n      throw new Error('installed package manifest is not a regular file');\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+            "sha256": "3283d0412f037c11815194c992df199b84a90d77b17ad64f86e6411666849e2e"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a format2 FIFO package-manifest\\.json"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-package-regular-file-red.log",
+            "bytes": 872,
+            "sha256": "78f7c66f0dbf175a756a83d84931aa80a401a3a4f311cd06bfe03b5c1a0e4bbb"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a format2 FIFO package-manifest\\.json"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-package-regular-file-green.log",
+            "bytes": 329,
+            "sha256": "1f3d3b2c1226868f4b608e423eeb06ff8c881e14071c457915dcf727f3d958d6"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "toolkit-descriptor-regular-file",
+        "pattern": "refuses a format2 FIFO toolkit\\.json",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+            "from": "  if (!statSync(descriptorPath).isFile())\n    throw new RelocationRefusal('R19', 'toolkit descriptor is not a regular file');\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+            "sha256": "b6d87070951703cfde970e64303c64165662bc48f1781f2d89c2562e8894186e"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a format2 FIFO toolkit\\.json"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-toolkit-descriptor-regular-file-red.log",
+            "bytes": 863,
+            "sha256": "74ea86e912091e0ebaeabf8e73a3e37ea73fd66e72f5a9f1dcc5bf6eaf48e224"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a format2 FIFO toolkit\\.json"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-toolkit-descriptor-regular-file-green.log",
+            "bytes": 320,
+            "sha256": "14ea0a0a287dcd6eda3b5a21806d25e6829e329dfa0f84f20be50bb77f0de252"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "toolkit-role-regular-file",
+        "pattern": "refuses a format2 FIFO launcher\\.mjs",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+            "from": "    if (!statSync(path).isFile()) throw new Error('toolkit role is not a regular file: ' + role);\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+            "sha256": "5c7213fa1e0925cda5421441dd90775fab4484ede68b4f01f5c5ff4501a3bf2f"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a format2 FIFO launcher\\.mjs"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-toolkit-role-regular-file-red.log",
+            "bytes": 863,
+            "sha256": "97192dfb11c099241e8c4f5bbb2e8e38aa606d810974fd00cfe2796afe76bdd2"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a format2 FIFO launcher\\.mjs"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-toolkit-role-regular-file-green.log",
+            "bytes": 320,
+            "sha256": "d5cf86a893f717ed8176a36f05eb578fc9628ea0510b176a566dfb847575613c"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "preflight-prior-cancel",
+        "pattern": "returns prior cancellation before touching",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "  if (cancellation.status !== undefined) return { kind: 'cancelled', status: cancellation.status };\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "9f2a9addf97a7ed87c33d5cffdab44ef068cf90a7ba04d6b0bd2a222f81faf90"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "returns prior cancellation before touching"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-prior-cancel-red.log",
+            "bytes": 1259,
+            "sha256": "046d05f76a2e23991f188e81dbdf47ca5f2b2b3b7f0446419cea330ea5950555"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "returns prior cancellation before touching"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-prior-cancel-green.log",
+            "bytes": 322,
+            "sha256": "432f198722c550847b86f00d1053ec0866d74708515fbfb55f07900ce77250e9"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "preflight-native-default",
+        "pattern": "derives the default toolkit only after native installation selection",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "const directory = realpathSync.native(context.installedDirectory);",
+            "to": "const directory = context.installedDirectory;"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "8922bcd30dd4a701829da0b6e1c4e46412930d374b01056edc9d555f60c7b066"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "derives the default toolkit only after native installation selection"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-native-default-red.log",
+            "bytes": 1537,
+            "sha256": "bdb252e11cda92a740e35ed0be3f9817f202cb592db503f7ad53fb37b38fd630"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "derives the default toolkit only after native installation selection"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-native-default-green.log",
+            "bytes": 326,
+            "sha256": "9d29b1de82abe59d90c962c4e2f368b22f1ee3abbcd4133ab9afb9fb50a0f650"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "preflight-expected-package",
+        "pattern": "binds the preflight toolkit to the expected package identity",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "import { readInstalledBunToolkit } from './packaging/installed';",
+            "to": "import { readBunToolkit } from './policy/toolkit';"
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "readInstalledBunToolkit(directory, join(directory, 'toolkit'))",
+            "to": "readBunToolkit(join(directory, 'toolkit'))"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "c99cff4a1e48b9cc8185bbdf87db5b2cd0cdac603b6976b326ee111f2715e724"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "binds the preflight toolkit to the expected package identity"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-expected-package-red.log",
+            "bytes": 1085,
+            "sha256": "d86a6b283e898a7ff05786ff46a0f90d0fa732e7e6abe09f361cf389054b3bae"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "binds the preflight toolkit to the expected package identity"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-expected-package-green.log",
+            "bytes": 335,
+            "sha256": "93ada70ba8f029b302d92819f471449d05d315c1b832451c895ca1ec75c5eb9a"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "preflight-candidate-cancel",
+        "pattern": "propagates cancellation during the installed (version|root) Git probe",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "  if (candidate.kind === 'cancelled') return candidate;\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "a426cb87d33256573908242158ae1cc97524ec2141e528da144492724f543cad"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "propagates cancellation during the installed (version|root) Git probe"
+          ],
+          "exitCode": 1,
+          "failed": 2,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-candidate-cancel-red.log",
+            "bytes": 2291,
+            "sha256": "ba4a4886f2a07dbcede6ed4d68397cf7a16641584ccf0cd25763fe431554998b"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "propagates cancellation during the installed (version|root) Git probe"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 2,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-candidate-cancel-green.log",
+            "bytes": 469,
+            "sha256": "0f209f8c58984f903aa7b0a56aad2d193f670465e1be957a61728cceb508a1fc"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "preflight-placement-delivery",
+        "pattern": "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "  assertInstallation(candidate.directory, directory, toolkit);\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "70e0021dd464d3e23116eb983821dc8b843eee42b7aba47ff0ff0e3e1b49677b"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd"
+          ],
+          "exitCode": 1,
+          "failed": 10,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-placement-delivery-red.log",
+            "bytes": 8938,
+            "sha256": "4e45bab7731d487c5f637c970c141f1a839fdaa19e349d0b11bc7e9a485a87d7"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 10,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-placement-delivery-green.log",
+            "bytes": 1449,
+            "sha256": "936be616232f879184afef3175219222f76171fb7d52abeb55cfb3f929fa5e48"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-physical-target",
+        "pattern": "refuses candidate-targeted",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "const canonical = realpathSync.native(path);",
+            "to": "const canonical = path;"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "6102e02171e8124f5a88582e5de995b871874ad606dbf84c03dd34255c059b64"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted"
+          ],
+          "exitCode": 1,
+          "failed": 8,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-physical-target-red.log",
+            "bytes": 7211,
+            "sha256": "6a9e52ec050d26b820d5d85b643d61ea687d665b4a72b45d106c73959cd3f22d"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 8,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-physical-target-green.log",
+            "bytes": 1219,
+            "sha256": "2807bdc5dc2ba31224bb3eb215e8410bb527eb5335158beee0eed78051f6f6fd"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-candidate-refusal",
+        "pattern": "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "if (isWithin(candidate, canonical))",
+            "to": "if (false)"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "fa7e19cafc5941b0ceeec3ae01f7e249ba4b1bdacd82c41ef2347a98cf199064"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd"
+          ],
+          "exitCode": 1,
+          "failed": 10,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-candidate-refusal-red.log",
+            "bytes": 8938,
+            "sha256": "22f7668453783c8549ef036e221b40c174e374f23f9defe733ef892dfea30883"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 10,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-candidate-refusal-green.log",
+            "bytes": 1448,
+            "sha256": "93b51be291d70880f5eff662fd196cab9d1d9f72a893b0787b6537f5d4c88ea9"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-installation",
+        "pattern": "independently refuses a local installation",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "  assertExternal(candidate, directory, 'installation');\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "5bb30baff76c0c19a7b1c7924228ca3cf5446f4f81e08c67719352206b8b6c47"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "independently refuses a local installation"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-installation-red.log",
+            "bytes": 1092,
+            "sha256": "56c9dca987ccdc98aada169407afdfb5e0b6120a512a1b0cc63255ea2a27249f"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "independently refuses a local installation"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-installation-green.log",
+            "bytes": 343,
+            "sha256": "8abf656c03dc8741286ef73425eee8c456f55e112339b470dff718ae007ca87f"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-toolkit-cwd",
+        "pattern": "independently refuses a local toolkit cwd",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "  assertExternal(candidate, toolkit.directory, 'toolkit cwd');\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "699d189a100eca37148ef9b3268c448b773dc8ec5fc8ddf0ce0f5753b0d3fe08"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "independently refuses a local toolkit cwd"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-toolkit-cwd-red.log",
+            "bytes": 1091,
+            "sha256": "bb082ea542f151bb8f4497ad00a0a955ac859ebcf872ecee2dc04be8ef4a88d2"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "independently refuses a local toolkit cwd"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-toolkit-cwd-green.log",
+            "bytes": 342,
+            "sha256": "9957a8354d39555534a05c20c35188123db7001557e23eb2d3ee07f8bcb82cf5"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-package-manifest",
+        "pattern": "refuses candidate-targeted package-manifest\\.json",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "  assertExternal(candidate, join(directory, 'package-manifest.json'), 'package manifest');\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "c900f601fc3b40255a8a15d606245b6990f012abb6a9cc0f62890c6785053e5d"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted package-manifest\\.json"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-package-manifest-red.log",
+            "bytes": 1084,
+            "sha256": "bee977a645ab2f3cf89b7ea53ca86dc5e52f8011cb69f8f2f2a2e9848220a2e8"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted package-manifest\\.json"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-package-manifest-green.log",
+            "bytes": 335,
+            "sha256": "e7c5d5f156cd0872a09e84d6787957cb40a5f1d64e5e1c35aa3b55ef3ce752a7"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-toolkit-descriptor",
+        "pattern": "refuses candidate-targeted toolkit\\.json",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "  assertExternal(candidate, join(toolkit.directory, 'toolkit.json'), 'toolkit descriptor');\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "3ec0992cb6c02c211aaf4ca0e3ee8256131f750b671982b84cc1529c929c149e"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted toolkit\\.json"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-toolkit-descriptor-red.log",
+            "bytes": 1075,
+            "sha256": "28c5a482c62d30105ddcb6a52c6dfacb3916e05ebd0ca5632cf44f1e166d9111"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted toolkit\\.json"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-toolkit-descriptor-green.log",
+            "bytes": 326,
+            "sha256": "f3cd67289cea680354a0a83679f285d59420f1d8d67d65a657c4945bd17549f1"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-role-launcher.mjs",
+        "pattern": "refuses candidate-targeted launcher\\.mjs",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "for (const role of Object.keys(toolkit.roleBytes))",
+            "to": "for (const role of Object.keys(toolkit.roleBytes).filter(role => role !== \"launcher.mjs\"))"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "ad1a672b90a05e2194dce3f7fb18884e7ff9e2d321e0948beba4def2b3e7caf8"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted launcher\\.mjs"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-role-launcher.mjs-red.log",
+            "bytes": 1075,
+            "sha256": "03f5921a678ac5022eea8d39e3cae79e3b0b3f29728aa7e15c4d65c580141420"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted launcher\\.mjs"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-role-launcher.mjs-green.log",
+            "bytes": 326,
+            "sha256": "06d56c74a3335596db9cf864a73d65ce0c68c4f456d0d192883e5cadec90e872"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-role-snapshotter.ts",
+        "pattern": "refuses candidate-targeted snapshotter\\.ts",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "for (const role of Object.keys(toolkit.roleBytes))",
+            "to": "for (const role of Object.keys(toolkit.roleBytes).filter(role => role !== \"snapshotter.ts\"))"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "101736538df6895761b105edde40db99904c0c96e9da49fc3525f5014ca7ab54"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted snapshotter\\.ts"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-role-snapshotter.ts-red.log",
+            "bytes": 1077,
+            "sha256": "949869ce489718e10e22cd3f384da426456aef9c05044e90f657278650a67b5d"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted snapshotter\\.ts"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-role-snapshotter.ts-green.log",
+            "bytes": 328,
+            "sha256": "ecf6b410a7c5581f7653ced474ff719dd49a4d2fb05011f5a6ad9cfd181883b7"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-role-validator.mjs",
+        "pattern": "refuses candidate-targeted validator\\.mjs",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "for (const role of Object.keys(toolkit.roleBytes))",
+            "to": "for (const role of Object.keys(toolkit.roleBytes).filter(role => role !== \"validator.mjs\"))"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "7da8ddf5813211b023b3b5e793dbc0aa3497ac8463c3734ae4ad469c12d70111"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted validator\\.mjs"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-role-validator.mjs-red.log",
+            "bytes": 1076,
+            "sha256": "e3d87df0c687db572f87214b06a3c34cfa348d32f9dbf0c1238b1dcb661a0c32"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted validator\\.mjs"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-role-validator.mjs-green.log",
+            "bytes": 327,
+            "sha256": "4e52177809df48660fbc2bcf377b33ebeae5095e6c198ea3ca2ea580298d3c51"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-role-prepare-activation.mjs",
+        "pattern": "refuses candidate-targeted prepare-activation\\.mjs",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "for (const role of Object.keys(toolkit.roleBytes))",
+            "to": "for (const role of Object.keys(toolkit.roleBytes).filter(role => role !== \"prepare-activation.mjs\"))"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "42e15625ea1eeaf7471022b64ecf59344773114b6b97875400ecebad94bed756"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted prepare-activation\\.mjs"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-role-prepare-activation.mjs-red.log",
+            "bytes": 1085,
+            "sha256": "e707893af1c659f0f2fed85ddd4343b754069d1f97713d2739eebbe2ef17b1e9"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted prepare-activation\\.mjs"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-role-prepare-activation.mjs-green.log",
+            "bytes": 336,
+            "sha256": "7f2f177969b0522008c3bf2f0d0d33171c246a15cf6c48ef74a595637090687c"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-role-prepare-relocation-activation.mjs",
+        "pattern": "refuses candidate-targeted prepare-relocation-activation\\.mjs",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "for (const role of Object.keys(toolkit.roleBytes))",
+            "to": "for (const role of Object.keys(toolkit.roleBytes).filter(role => role !== \"prepare-relocation-activation.mjs\"))"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "4c7f3b81d34fe7429c8fe003dd0626bbde41b85cc8dffe0c18f866a48a396a06"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted prepare-relocation-activation\\.mjs"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-role-prepare-relocation-activation.mjs-red.log",
+            "bytes": 1096,
+            "sha256": "9aca50e65a89339e88596c9e8f34c6d51ae24bace576f65a6b6d911b026fe2d2"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted prepare-relocation-activation\\.mjs"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-role-prepare-relocation-activation.mjs-green.log",
+            "bytes": 347,
+            "sha256": "bd1b3f0c08b9af878b687f2138cf37c89baaa2a1ecaff3404a1c480f0bf21e3c"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-closure-target",
+        "pattern": "refuses candidate-targeted trusted-node-modules",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "  const closure = assertExternal(\n    candidate,\n    join(toolkit.directory, 'trusted-node-modules'),\n    'runtime closure',\n  );",
+            "to": "  const closure = realpathSync.native(join(toolkit.directory, 'trusted-node-modules'));"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "11ec18444d80ab891d3a38ede1c01fc07e9534575fc83e10bfce410aeade758a"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted trusted-node-modules"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-closure-target-red.log",
+            "bytes": 1083,
+            "sha256": "223a680c6f075fe8c031b8d4ea3c338d13cfde803130a1ceca847755a69bab73"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses candidate-targeted trusted-node-modules"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-closure-target-green.log",
+            "bytes": 334,
+            "sha256": "cb2bb9589e4c6a8337af9c1c1887be1d86036436e822dafc28fcbc1ce509612d"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "placement-closure-ancestor",
+        "pattern": "refuses a closure ancestor containing the candidate",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "  if (isWithin(closure, candidate))\n    throw new Error('runtime closure overlaps the candidate repository');\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "c6197609b795bbffe6906ae6e45b4b8b89cb18e3177dc2480329e78098cdf4c3"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a closure ancestor containing the candidate"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-closure-ancestor-red.log",
+            "bytes": 1096,
+            "sha256": "df56de875ef983969f0add567086c940496c282b85c9215606e200764fba47da"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a closure ancestor containing the candidate"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-placement-closure-ancestor-green.log",
+            "bytes": 347,
+            "sha256": "09c0c3bb9641fa886e557017371f36d576ca183d4e55d443533786a85da09120"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "preflight-caller-runtime-cwd",
+        "pattern": "retains independently selected frozen runtime configuration",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "const runtime = context.runtime;",
+            "to": "const runtime = {...context.runtime, directory: toolkit.directory};"
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "0dd5fd975dc265f602263a33b398a626fcbbd112aead991e9e4e08eb1693b3d7"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "retains independently selected frozen runtime configuration"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-caller-runtime-cwd-red.log",
+            "bytes": 1914,
+            "sha256": "318fd4fbc990d055ab2ec47c7f3131530051bee04170d00ce5236558fa5c759d"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "retains independently selected frozen runtime configuration"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-caller-runtime-cwd-green.log",
+            "bytes": 282,
+            "sha256": "f4e2934e4b8240ae750f44ea2cf750cb8afe851e774c059ce45bd2f3826ac4c2"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "preflight-caller-runtime-origin",
+        "pattern": "keeps Git lookup bound to the caller runtime",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "import { type LintRuntime } from './lint-runtime';",
+            "to": "import { readLintRuntime, type LintRuntime } from './lint-runtime';"
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "import { isAbsolute, join, relative, sep } from 'node:path';",
+            "to": "import { delimiter, isAbsolute, join, relative, sep } from 'node:path';"
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "const runtime = context.runtime;",
+            "to": "const runtime = readLintRuntime(context.runtime.environment['PATH'].split(delimiter).map(component => component.startsWith(context.runtime.directory + sep) ? relative(context.runtime.directory, component) : component).join(delimiter), toolkit.directory);"
+          }
+        ],
+        "note": "Reconstruct the relative component from its independently frozen origin and rebase it to the selected toolkit. RED must fail candidate-marker absence before checking diagnostic; restored GREEN observes trusted marker only.",
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "072784b2aca939b18c76036aed541d7c3d75b0931b4644e052e2ea07aedbfa44"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "keeps Git lookup bound to the caller runtime"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-caller-runtime-origin-red.log",
+            "bytes": 805,
+            "sha256": "c9e9a25bb89c4dd40b53d9945f49ead79d9cb2d936114350db4e4b74090035fe"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "keeps Git lookup bound to the caller runtime"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-caller-runtime-origin-green.log",
+            "bytes": 351,
+            "sha256": "be1dcde645ae428227a8254eff9809d11a08bb214a6825d33b6a3b0a1dc057d3"
+          }
+        },
+        "restored": true,
+        "valid": true
+      },
+      {
+        "id": "preflight-runtime-cwd-external",
+        "pattern": "refuses a Git runtime cwd inside the actual candidate",
+        "edits": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "from": "  assertExternal(candidate.directory, runtime.directory, 'Git runtime cwd');\n",
+            "to": ""
+          }
+        ],
+        "mutantHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+            "sha256": "cd700a13a27d8eff637806cccfac9f898b829367d0cfa5f60891b223c39b865d"
+          }
+        ],
+        "red": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a Git runtime cwd inside the actual candidate"
+          ],
+          "exitCode": 1,
+          "failed": 1,
+          "passed": 0,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-runtime-cwd-external-red.log",
+            "bytes": 1024,
+            "sha256": "0bb3b6fc220783b7cb4845e280f7c0c2e3d2c9e256bed0fb922ed88c1ce768cf"
+          }
+        },
+        "green": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "-t",
+            "refuses a Git runtime cwd inside the actual candidate"
+          ],
+          "exitCode": 0,
+          "failed": 0,
+          "passed": 1,
+          "log": {
+            "path": "/tmp/puni-installed-fault-v2-preflight-runtime-cwd-external-green.log",
+            "bytes": 276,
+            "sha256": "62da530f621e21b1c740a16cdbec52dd1f7e54c390695a71f4a463c4b338915f"
+          }
+        },
+        "restored": true,
+        "valid": true
+      }
+    ]
+  },
+  "superseded": {
+    "original": {
+      "scope": "Current installed reader, shared regular-file boundary hardening and async current preflight. Minimal fixture roles except actual delivered launcher; no producer flip or nested-parent claim.",
+      "baselineHashes": [
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+          "sha256": "1fb4eb9ca9201808759a4394243a611af6a58ae22651448196b7625e18667070"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+          "sha256": "d322710a2ff4cf789a9b869aeac1e68548fe4ec910f2a24431216ef5f231cadd"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+          "sha256": "621fe26f2a86e9d951eecbfd5e88775eb359c3698a489f1053ae4c65014894d2"
+        }
+      ],
+      "testHash": "f9d1c3317365c8c556fc0034c80eaa77f492b7eec27c011e9986ee2ff2526518",
+      "records": [
+        {
+          "id": "reader-native-package",
+          "pattern": "preserves native symlink-parent authority",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "from": "readPackageManifest(realpathSync.native(distDirectory))",
+              "to": "readPackageManifest(distDirectory)"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "sha256": "0c302657f406d591aec111274877bdec08938b55f2f86198106bef8c612cb1c6"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "preserves native symlink-parent authority"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-reader-native-package-red.log",
+              "bytes": 1383,
+              "sha256": "f5c157cb2c696cd81076738a95d8ec547ee2f521a5aa60c6e029d6e7834a6644"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "preserves native symlink-parent authority"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-reader-native-package-green.log",
+              "bytes": 332,
+              "sha256": "032a1d0694724f9242aa3d8046173a2c448f54b5f23819d514fdefe9ac9d5dbe"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "reader-native-toolkit",
+          "pattern": "preserves native symlink-parent authority",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "from": "readBunToolkit(realpathSync.native(toolkitDirectory))",
+              "to": "readBunToolkit(toolkitDirectory)"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "sha256": "370bd4504bbf469dc30b9d54f574742a7e8523c24b5fb18784c37573249a9ae2"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "preserves native symlink-parent authority"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-reader-native-toolkit-red.log",
+              "bytes": 1383,
+              "sha256": "67412e9888ce9204ab4df0910b50651a558ff864585e6c446dc4da6478c32bd2"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "preserves native symlink-parent authority"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-reader-native-toolkit-green.log",
+              "bytes": 332,
+              "sha256": "36c9d9fbb3b4b9f6ac3035fdd6a73ee97b35c2f7b38c92c5229fdc3ad69e0210"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "reader-current-format-runtime",
+          "pattern": "refuses historical format even|refuses a current toolkit built by another runtime",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "from": "  readBunToolkit,",
+              "to": "  readBunToolkit,\n  verifyToolkit,"
+            },
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "from": "const toolkit = readBunToolkit(realpathSync.native(toolkitDirectory));",
+              "to": "const toolkit = verifyToolkit(realpathSync.native(toolkitDirectory));"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "sha256": "85fc467453a287f3d1be7b5f422d6743e06eb053e0699bb35f6827f816878146"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses historical format even|refuses a current toolkit built by another runtime"
+            ],
+            "exitCode": 1,
+            "failed": 2,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-reader-current-format-runtime-red.log",
+              "bytes": 4593,
+              "sha256": "ffab621a8a5b6c5f151a606fdfa8b376f9e48e2c961db39252acd182087e0689"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses historical format even|refuses a current toolkit built by another runtime"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 2,
+            "log": {
+              "path": "/tmp/puni-installed-fault-reader-current-format-runtime-green.log",
+              "bytes": 420,
+              "sha256": "11364eb6499493fb72e9eec656d34a68ee409637830dda0331885f0bb67d36b8"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "reader-package-binding",
+          "pattern": "refuses a current toolkit different",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "from": "  const toolkit = readBunToolkit(realpathSync.native(toolkitDirectory));\n  assertToolkitIdentity(manifest, toolkit);",
+              "to": "  const toolkit = readBunToolkit(realpathSync.native(toolkitDirectory));"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "sha256": "ec959b6d0c71e434a3cdc21d0a030fe4128d4097c2159b560db578878d4a20f9"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a current toolkit different"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-reader-package-binding-red.log",
+              "bytes": 2409,
+              "sha256": "7681958e8c3a16cc90c1f8ee9ea4b1800a50dadc80d38c99755f0f3d23684898"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a current toolkit different"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-reader-package-binding-green.log",
+              "bytes": 334,
+              "sha256": "e517f569bd9790714323a8bb61f45ce4da4554b8536b190b8b2f6cb636bf556f"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "package-unreadable-context",
+          "pattern": "current refuses an absent package manifest|current refuses an unreadable package manifest",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "from": "throw new Error(`installed package manifest is unreadable: ${manifestPath}`, { cause });",
+              "to": "throw cause;"
+            }
+          ],
+          "note": "Context diagnostic proof; underlying filesystem state still refuses.",
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "sha256": "891b9f117fb1fcfe81e25d6f46332bab73b886e623f7653ca699b36e9799befd"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "current refuses an absent package manifest|current refuses an unreadable package manifest"
+            ],
+            "exitCode": 1,
+            "failed": 2,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-package-unreadable-context-red.log",
+              "bytes": 2163,
+              "sha256": "fa8950f2490a9c6cdbf946b7ec25f80d757330c24ebf4955b64fd8b9d55dfe8b"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "current refuses an absent package manifest|current refuses an unreadable package manifest"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 2,
+            "log": {
+              "path": "/tmp/puni-installed-fault-package-unreadable-context-green.log",
+              "bytes": 454,
+              "sha256": "e4cc95f6c074f73c1f8ad55416bb978ee75671a47255998c8f9de91dd3cda6bc"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "package-malformed-context",
+          "pattern": "current refuses malformed package bytes",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "from": "throw new Error(`installed package manifest is malformed: ${manifestPath}`, { cause });",
+              "to": "throw cause;"
+            }
+          ],
+          "note": "Context diagnostic proof; malformed JSON still refuses.",
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "sha256": "911f00fe036febe855d5a0528d652028479b0946f98cb421c5e3e0a3fe3e651f"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "current refuses malformed package bytes"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-package-malformed-context-red.log",
+              "bytes": 1099,
+              "sha256": "fe4097178cc229caaaf4563e85b704a9c60f4d3260fec7a458316f690c32ba0e"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "current refuses malformed package bytes"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-package-malformed-context-green.log",
+              "bytes": 324,
+              "sha256": "07e8388badc31d9bfb6cb76a2ca340d976e0fd54c157af1f427f16aeb36d0299"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "package-schema-boundary",
+          "pattern": "current refuses invalid package fields",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "from": "manifest = parseOrThrow(PackageManifest, input);",
+              "to": "manifest = input as typeof PackageManifest.infer;"
+            }
+          ],
+          "note": "Bypass schema; absent toolkit then exposes a different phase, proving invalid-package-before-toolkit refusal.",
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "sha256": "e88ea90eaf3e2d5221e724ce3e9d6ef5f16a05f242acb95364da9704c1d73acd"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "current refuses invalid package fields"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-package-schema-boundary-red.log",
+              "bytes": 1166,
+              "sha256": "0af342d277b79421b518243cad92ed81d0c615a69a1d8f30eeb38616aa9dfb3f"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "current refuses invalid package fields"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-package-schema-boundary-green.log",
+              "bytes": 323,
+              "sha256": "135706c8eef5688b60407309883423cc8a61515de1ff9149de52f9a7ed65024f"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "package-invalid-context",
+          "pattern": "current refuses invalid package fields",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "from": "throw new Error(`installed package manifest is invalid: ${manifestPath}`, { cause });",
+              "to": "throw cause;"
+            }
+          ],
+          "note": "Context diagnostic proof; schema mismatch still refuses.",
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "sha256": "a7288b72132d116ec4e812783bc901421a3f63dc4bfde6f5709a938db3af5070"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "current refuses invalid package fields"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-package-invalid-context-red.log",
+              "bytes": 1265,
+              "sha256": "db261bf742aa37580742dfd249074c8dbf1f61c285ce9454c86c8aa7270d358e"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "current refuses invalid package fields"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-package-invalid-context-green.log",
+              "bytes": 323,
+              "sha256": "23881fd6f3d84e17f43abb3be3841b5e6c6613b78bb8cfc60699e138809e3874"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "package-regular-file",
+          "pattern": "refuses a format2 FIFO package-manifest\\.json",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "from": "    if (!statSync(manifestPath).isFile())\n      throw new Error('installed package manifest is not a regular file');\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+              "sha256": "9538cf57ead3bcace3fe61c93e7714989043009c146b8f328ed6b81a2bd35600"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a format2 FIFO package-manifest\\.json"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-package-regular-file-red.log",
+              "bytes": 872,
+              "sha256": "f18517ea50331d30cbd1fd84b84f0c6efe7367211eab2ff2d068378f0fe764bf"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a format2 FIFO package-manifest\\.json"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-package-regular-file-green.log",
+              "bytes": 329,
+              "sha256": "f6cd39ee4501d881bf8c8653c82e925d595daf7720073c54f9b35941c2b8d00a"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "toolkit-descriptor-regular-file",
+          "pattern": "refuses a format2 FIFO toolkit\\.json",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+              "from": "  if (!statSync(descriptorPath).isFile())\n    throw new RelocationRefusal('R19', 'toolkit descriptor is not a regular file');\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+              "sha256": "f4ccd844e41c8ad710959151fb25b8c90c720089bac19e01031c8a2ce15cc118"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a format2 FIFO toolkit\\.json"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-toolkit-descriptor-regular-file-red.log",
+              "bytes": 863,
+              "sha256": "aee1084775596c33f13b8391e8433ee8272976fbdf6d56fb30607408313b92f0"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a format2 FIFO toolkit\\.json"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-toolkit-descriptor-regular-file-green.log",
+              "bytes": 320,
+              "sha256": "3b8e1c5e1894ae7c286bd205f04188d76de5bea0a28e452dfd90869901dd8708"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "toolkit-role-regular-file",
+          "pattern": "refuses a format2 FIFO launcher\\.mjs",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+              "from": "    if (!statSync(path).isFile()) throw new Error('toolkit role is not a regular file: ' + role);\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+              "sha256": "155c06d38d0c397ec809ad2bedd7b2b08970ccad0e24bb8f53aeea5046fcf903"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a format2 FIFO launcher\\.mjs"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-toolkit-role-regular-file-red.log",
+              "bytes": 863,
+              "sha256": "545ffb91f7eae00f673d51d16ea578ea75d3f41aef04bcc820a905f80cba2b0a"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a format2 FIFO launcher\\.mjs"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-toolkit-role-regular-file-green.log",
+              "bytes": 320,
+              "sha256": "abc853b2040bffe355973c1a8dc80748e30c7360cf8684c7d5fe5bceac8393f2"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "preflight-prior-cancel",
+          "pattern": "returns prior cancellation before touching",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "  if (cancellation.status !== undefined) return { kind: 'cancelled', status: cancellation.status };\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "bed5d56ddad06df580abdbd46b9aa1326d89004f156b9055ffc8e7200eb6b839"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "returns prior cancellation before touching"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-prior-cancel-red.log",
+              "bytes": 1126,
+              "sha256": "6ddcc10b47798edf6412058d8c0286bb2edb892e3bd072e52d24827ee55d1894"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "returns prior cancellation before touching"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-prior-cancel-green.log",
+              "bytes": 322,
+              "sha256": "93889cb5b1b3fb58d3e5f8342ecf23a6090c5b4d6e88145b55a78c6d8960bc72"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "preflight-native-default",
+          "pattern": "derives the default toolkit only after native installation selection",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "const directory = realpathSync.native(context.installedDirectory);",
+              "to": "const directory = context.installedDirectory;"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "f254a8bf3077474a91d4ffb185ce688fb0fabb6883f762b8b26fefd9fc3fc001"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "derives the default toolkit only after native installation selection"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-native-default-red.log",
+              "bytes": 1538,
+              "sha256": "b8d8f5a17942b3d457263872a216b9cbf9c3829169ad8838291662094babd418"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "derives the default toolkit only after native installation selection"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-native-default-green.log",
+              "bytes": 326,
+              "sha256": "d1dc538b40021840488ca7538da38f9343dbecb6eda0ca3398d1c1ec430c7778"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "preflight-expected-package",
+          "pattern": "binds the preflight toolkit to the expected package identity",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "import { readInstalledBunToolkit } from './packaging/installed';",
+              "to": "import { readBunToolkit } from './policy/toolkit';"
+            },
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "readInstalledBunToolkit(directory, join(directory, 'toolkit'))",
+              "to": "readBunToolkit(join(directory, 'toolkit'))"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "a871a467127ab0b3a2e54f36f93e3f49ec309641ef4b99b7012520d30676c55c"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "binds the preflight toolkit to the expected package identity"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-expected-package-red.log",
+              "bytes": 1085,
+              "sha256": "55ad0fe32ce3b97b8a59fdf3024ff8e42b6e528dc1bbfb88ba67fa1052c1185c"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "binds the preflight toolkit to the expected package identity"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-expected-package-green.log",
+              "bytes": 335,
+              "sha256": "01b93866f5f46d0118f10792c939f3d952b8f908f11b2caab24fb298bd1ca2fe"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "preflight-explicit-path",
+          "pattern": "uses the explicitly selected Git PATH",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "readLintRuntime(context.path, toolkit.directory)",
+              "to": "readLintRuntime('/usr/bin:/bin', toolkit.directory)"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "adfa1edb8e7e70f069e2edba6dd954c347d15d9a89fa3ea177605ff53b33e256"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "uses the explicitly selected Git PATH"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-explicit-path-red.log",
+              "bytes": 1032,
+              "sha256": "adc2e0a97717a9e62d44904232edb04ebb95f1e6c9ca066ad1fa2cd87b4c59a5"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "uses the explicitly selected Git PATH"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-explicit-path-green.log",
+              "bytes": 284,
+              "sha256": "24eda9c96ab3d73d09ed276ddcdce63ca904aa21b9e0209c2b7e99789cf7cd9e"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "preflight-candidate-cancel",
+          "pattern": "propagates cancellation during the installed (version|root) Git probe",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "  if (candidate.kind === 'cancelled') return candidate;\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "28ea63a633fba8212f3fa889fab7673999d9b91eb71b77227194cdfd46b8744d"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "propagates cancellation during the installed (version|root) Git probe"
+            ],
+            "exitCode": 1,
+            "failed": 2,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-candidate-cancel-red.log",
+              "bytes": 2575,
+              "sha256": "8c4c2334272688904daa877d156470f6a1156254cb413970dcd4ab3628ad5d16"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "propagates cancellation during the installed (version|root) Git probe"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 2,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-candidate-cancel-green.log",
+              "bytes": 469,
+              "sha256": "786f9ad115948f68b776b11fa67f154019532f579d24f4f7c73840d06dc911b5"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "preflight-placement-delivery",
+          "pattern": "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "  assertInstallation(candidate.directory, directory, toolkit);\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "d260d6314cc9130277295996a2d6571ed18c132d9d9851742000038dcb466e4a"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd"
+            ],
+            "exitCode": 1,
+            "failed": 10,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-placement-delivery-red.log",
+              "bytes": 8945,
+              "sha256": "aac9a96461d7d363c67fa6eaba3ecf661a9fa1ee12d22f236d3b8bd92bdd0467"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 10,
+            "log": {
+              "path": "/tmp/puni-installed-fault-preflight-placement-delivery-green.log",
+              "bytes": 1457,
+              "sha256": "1bcfb5570c1a9d216f231210d4e4a4a97b5ace19f98246044fa300007d860710"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-physical-target",
+          "pattern": "refuses candidate-targeted",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "const canonical = realpathSync.native(path);",
+              "to": "const canonical = path;"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "ef33f242ed450c4bb4411dd57e383017acaa02e3c1ac95d143a5b4b354b4c2be"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted"
+            ],
+            "exitCode": 1,
+            "failed": 8,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-physical-target-red.log",
+              "bytes": 7218,
+              "sha256": "3287305b9fe582e107559f59f2a52bd73583e6c9c21b8f6799ef03e01fef2eca"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 8,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-physical-target-green.log",
+              "bytes": 1219,
+              "sha256": "537103cc4dd250e61529d04ab8cf1077eb3bca90057c82d48137a83a92549991"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-candidate-refusal",
+          "pattern": "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "if (isWithin(candidate, canonical))",
+              "to": "if (false)"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "d272edcc775618456e87ab2db3bff5f1889437382f2610100c4d1b7863c258cb"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd"
+            ],
+            "exitCode": 1,
+            "failed": 10,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-candidate-refusal-red.log",
+              "bytes": 8938,
+              "sha256": "c953f85554747e477a9eef1e7043944d13a8eee3eaef497824c68fd8f2e3de2b"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted|refuses installation equality|refuses a toolkit cwd"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 10,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-candidate-refusal-green.log",
+              "bytes": 1448,
+              "sha256": "7af0bb76735a3bd55669906e8c760bfb4accffa5d9d73610f3c05cd268b97dbb"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-installation",
+          "pattern": "refuses installation equality",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "  assertExternal(candidate, directory, 'installation');\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "a0720c38c9cefd7ce06f1a57d55c1de2915802e1b8c63970d03af14d6bed4ff8"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses installation equality"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-installation-red.log",
+              "bytes": 1179,
+              "sha256": "ff3b120649db702dc946fa306400a7feab0f072322081a0629cee32edf568eba"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses installation equality"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-installation-green.log",
+              "bytes": 313,
+              "sha256": "09db2da20c66d5685962ff3b6c4ee64371db9114a099e4c2cfcae2528fb6a0d6"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-toolkit-cwd",
+          "pattern": "refuses a toolkit cwd",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "  assertExternal(candidate, toolkit.directory, 'toolkit cwd');\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "2f9b97f1f6fad2be141741d0d177926eded9be49ab9a65dfe5a376d01b931acb"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a toolkit cwd"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-toolkit-cwd-red.log",
+              "bytes": 1198,
+              "sha256": "08325811d297880a82410387f1cd6295614afbb3dfac558a3ba669226c3737b1"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a toolkit cwd"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-toolkit-cwd-green.log",
+              "bytes": 326,
+              "sha256": "dcaf0afa40b8e86c314be0711b93a634a84923f26839b648c5a034136ba718a7"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-package-manifest",
+          "pattern": "refuses candidate-targeted package-manifest\\.json",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "  assertExternal(candidate, join(directory, 'package-manifest.json'), 'package manifest');\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "4a650097532e1b56528ab48e6b06654cd8156fde0a37f4aa53242f3fe1153699"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted package-manifest\\.json"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-package-manifest-red.log",
+              "bytes": 1084,
+              "sha256": "535dbf278eb2f0d4abf75ff17a2aadee5cab004b37f92e9403b218e0163a4c85"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted package-manifest\\.json"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-package-manifest-green.log",
+              "bytes": 334,
+              "sha256": "3ae345c2c4bd746c958f585e995d5ff9e7e10329682421acd0ef3f6203403644"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-toolkit-descriptor",
+          "pattern": "refuses candidate-targeted toolkit\\.json",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "  assertExternal(candidate, join(toolkit.directory, 'toolkit.json'), 'toolkit descriptor');\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "19b67bea78323d325d202fe904d553c562d3ff890cb23189e7316eafde436686"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted toolkit\\.json"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-toolkit-descriptor-red.log",
+              "bytes": 1075,
+              "sha256": "149120b821d4b802c02ff05066ace194f6011bb4b3a28e3199521956eb1f61c5"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted toolkit\\.json"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-toolkit-descriptor-green.log",
+              "bytes": 326,
+              "sha256": "ab87a1475d58f375193062072c5396598446a8c4f79d3eefef7b6f1937e8b204"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-role-launcher.mjs",
+          "pattern": "refuses candidate-targeted launcher\\.mjs",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "for (const role of Object.keys(toolkit.roleBytes))",
+              "to": "for (const role of Object.keys(toolkit.roleBytes).filter(role => role !== \"launcher.mjs\"))"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "d42fa6107725df50221957edb26e8cf4226644a00d4401a5b9e62337e25139cf"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted launcher\\.mjs"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-role-launcher.mjs-red.log",
+              "bytes": 1075,
+              "sha256": "a363fb0c1731090d5c51b18f8f756f4128b56ae0be4a16f18ac0f91780d412ea"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted launcher\\.mjs"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-role-launcher.mjs-green.log",
+              "bytes": 326,
+              "sha256": "37b8b8d57b4a7d40b0ecc84434b6b25ba2c7450a9dda079ca57d8249379ed490"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-role-snapshotter.ts",
+          "pattern": "refuses candidate-targeted snapshotter\\.ts",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "for (const role of Object.keys(toolkit.roleBytes))",
+              "to": "for (const role of Object.keys(toolkit.roleBytes).filter(role => role !== \"snapshotter.ts\"))"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "5a45fbd563ffd479f68db003c0048b6cc4289b6924bd3895a7c5cedaefdb29e8"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted snapshotter\\.ts"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-role-snapshotter.ts-red.log",
+              "bytes": 1076,
+              "sha256": "359b1a07db7625f063ca54ba9e0eced3aef200314c1b0cde062c311b91229f51"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted snapshotter\\.ts"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-role-snapshotter.ts-green.log",
+              "bytes": 328,
+              "sha256": "3972969cfc3f455d10fe80b6864314b22c865266876dc2a0c22e7ddce403028f"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-role-validator.mjs",
+          "pattern": "refuses candidate-targeted validator\\.mjs",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "for (const role of Object.keys(toolkit.roleBytes))",
+              "to": "for (const role of Object.keys(toolkit.roleBytes).filter(role => role !== \"validator.mjs\"))"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "e07d019d9fcce7f57952362b1b7e2856b28d8cec64f29a67043afbefa193db4e"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted validator\\.mjs"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-role-validator.mjs-red.log",
+              "bytes": 1075,
+              "sha256": "6e126c1c91a7f0e4e02ee5b0f7e749a8c0ec42949ab299346fba29be848ad1de"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted validator\\.mjs"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-role-validator.mjs-green.log",
+              "bytes": 326,
+              "sha256": "46c37428b44853004d3ed20cc9a5e036c9d9c6b11cb0ae00f25f4dc8108dc1b0"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-role-prepare-activation.mjs",
+          "pattern": "refuses candidate-targeted prepare-activation\\.mjs",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "for (const role of Object.keys(toolkit.roleBytes))",
+              "to": "for (const role of Object.keys(toolkit.roleBytes).filter(role => role !== \"prepare-activation.mjs\"))"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "da960d90b4482dd22805a0b3defebf6bb1b1b105c22dfc65c829f57ad977587b"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted prepare-activation\\.mjs"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-role-prepare-activation.mjs-red.log",
+              "bytes": 1084,
+              "sha256": "b5895892dc0d807d0ec56c1e29f522ddacd0bc14c0600c9fd7e1987fc1a47d51"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted prepare-activation\\.mjs"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-role-prepare-activation.mjs-green.log",
+              "bytes": 336,
+              "sha256": "f92a9ef18dac5ac55f4a8fb972ef773926a9362aa51a113fcb4ce0e1621acbb6"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-role-prepare-relocation-activation.mjs",
+          "pattern": "refuses candidate-targeted prepare-relocation-activation\\.mjs",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "for (const role of Object.keys(toolkit.roleBytes))",
+              "to": "for (const role of Object.keys(toolkit.roleBytes).filter(role => role !== \"prepare-relocation-activation.mjs\"))"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "af70efb3d312dc8f300fc6b3da3f8183ff99dd7c86f0bda408cfab9e6b4e5219"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted prepare-relocation-activation\\.mjs"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-role-prepare-relocation-activation.mjs-red.log",
+              "bytes": 1095,
+              "sha256": "bbc0d4fa7382e7c5e7fec31dd1bd2e7de904406e080c2faa63888f172a2d2a3e"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted prepare-relocation-activation\\.mjs"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-role-prepare-relocation-activation.mjs-green.log",
+              "bytes": 347,
+              "sha256": "e6ccde460c463e10bf1b84438e358fe0f387f64598ed72ae7556c1891971729d"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-closure-target",
+          "pattern": "refuses candidate-targeted trusted-node-modules",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "  const closure = assertExternal(\n    candidate,\n    join(toolkit.directory, 'trusted-node-modules'),\n    'runtime closure',\n  );",
+              "to": "  const closure = realpathSync.native(join(toolkit.directory, 'trusted-node-modules'));"
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "917542cdb3c572c0c04cb73f6e38a0cec00c60795425904b3c36b909ee8b590b"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted trusted-node-modules"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-closure-target-red.log",
+              "bytes": 1082,
+              "sha256": "745371b3e5b5be3aea068e7a08da04b8a8140cd91d3639f88833d5d92dfd79a7"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses candidate-targeted trusted-node-modules"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-closure-target-green.log",
+              "bytes": 333,
+              "sha256": "e9bf6ef2ae8c9e6f30e04cb1c8bec440cf56c2ded25b8d6312706e94b94de7ea"
+            }
+          },
+          "restored": true,
+          "valid": true
+        },
+        {
+          "id": "placement-closure-ancestor",
+          "pattern": "refuses a closure ancestor containing the candidate",
+          "edits": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "from": "  if (isWithin(closure, candidate))\n    throw new Error('runtime closure overlaps the candidate repository');\n",
+              "to": ""
+            }
+          ],
+          "mutantHashes": [
+            {
+              "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+              "sha256": "024c28cb0bce9565b56bfb1daec4f07a9533e05e95a89688929df017b9d00834"
+            }
+          ],
+          "red": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a closure ancestor containing the candidate"
+            ],
+            "exitCode": 1,
+            "failed": 1,
+            "passed": 0,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-closure-ancestor-red.log",
+              "bytes": 1096,
+              "sha256": "a456e7461c79f499aec4932070524aa3ab2e71bbc94afddf287ba041709633a8"
+            }
+          },
+          "green": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+              "-t",
+              "refuses a closure ancestor containing the candidate"
+            ],
+            "exitCode": 0,
+            "failed": 0,
+            "passed": 1,
+            "log": {
+              "path": "/tmp/puni-installed-fault-placement-closure-ancestor-green.log",
+              "bytes": 346,
+              "sha256": "0b95e9d245915ad7a4e62a2f23b199bb3901ef69d6f126ac7c32b2ad78dd2b68"
+            }
+          },
+          "restored": true,
+          "valid": true
+        }
+      ]
+    },
+    "note": "Original30/60logs retained.29 retained IDs replayed against final API;1 old toolkit-relative PATH-factory wiring proof retired. Two original placement tests established diagnostic order; final same IDs independently admit invalid placement under their individual guard removals. Final set adds3 caller-runtime proofs."
+  },
+  "historicalBehavior": "Accepted historical regular-file bytes and digests remain unchanged. Nonregular trusted manifest, descriptor and role inputs now refuse before synchronous reads instead of potentially blocking. stat/read verification relies on stable operator-owned state; it is not concurrent-write isolation.",
+  "fixture": "Every current fixture carries the actual bundled runtime-pinned lint launcher. Other roles are minimal valid byte fixtures; these tests verify identity and preflight, not a complete executable package or a producer flip.",
+  "trust": "The trusted caller creates frozen LintRuntime independently from provider selection. Current preflight reuses it for both owned probes and checks its cwd plus all installed physical assets after actual root discovery. Git, frozen PATH and its origin remain trusted stable prerequisites, not a general Git sandbox.",
+  "developmentReceipts": [
+    {
+      "phase": "strict reader missing API",
+      "passed": 1,
+      "failed": 4,
+      "log": {
+        "path": "/tmp/puni-installed-current-red.log",
+        "bytes": 4077,
+        "sha256": "460234d28bb0946241e198be1449e86ecc08ac42b2232f045fe7df0eda372af9"
+      }
+    },
+    {
+      "phase": "strict reader initial green",
+      "passed": 5,
+      "failed": 0,
+      "log": {
+        "path": "/tmp/puni-installed-current-green1.log",
+        "bytes": 808,
+        "sha256": "6de65ed1e5fa78cc94d09fb81143d3153d7eb7a0650dc172d659a6d2c4b72fde"
+      }
+    },
+    {
+      "phase": "actualFIFO red",
+      "passed": 0,
+      "failed": 14,
+      "seconds": 21.54,
+      "log": {
+        "path": "/tmp/puni-installed-fifo-red.log",
+        "bytes": 10988,
+        "sha256": "e50bb2ddbacec275eb99f225244b1e090c49b25c3c1814f4c1c56e568ce7a905"
+      }
+    },
+    {
+      "phase": "preflight missing module import",
+      "note": "Unnamed import error, not counted as a named test or mutation proof.",
+      "log": {
+        "path": "/tmp/puni-installed-preflight-red.log",
+        "bytes": 454,
+        "sha256": "0bff25d33c84c7e2b4d0e886a5e79981b32ddbc6c7f4da08f5564ae3c14f1669"
+      }
+    },
+    {
+      "phase": "preflight empty module named red",
+      "passed": 1,
+      "failed": 16,
+      "log": {
+        "path": "/tmp/puni-installed-preflight-red2.log",
+        "bytes": 24040,
+        "sha256": "84ce35ea2bc57b4db26a0b47d0a3a95b20a76f7cb95947c2e472fec979da0851"
+      }
+    },
+    {
+      "phase": "directory descriptor expected old EISDIR",
+      "passed": 107,
+      "failed": 1,
+      "log": {
+        "path": "/tmp/puni-installed-current-regular-green.log",
+        "bytes": 14128,
+        "sha256": "4ff79a76f2cfd56fcdaac3426734380b533b84ea28a49f356959e43dcba3ebda"
+      }
+    },
+    {
+      "phase": "unsupported Git oracle expected wrong floor diagnostic",
+      "passed": 63,
+      "failed": 1,
+      "log": {
+        "path": "/tmp/puni-installed-proof-baseline.log",
+        "bytes": 8675,
+        "sha256": "9e3c28c3cf6a5894b502c246861a73088ad81cc99c42691723422442ebfa4823"
+      }
+    },
+    {
+      "phase": "initial lookup-origin reproduction",
+      "passed": 0,
+      "failed": 1,
+      "observed": "candidate Git marker expectedfalse/receivedtrue",
+      "log": {
+        "path": "/tmp/puni-installed-runtime-origin-red.log",
+        "bytes": 1216,
+        "sha256": "1e968a70c5ec30d8e5ed3d1be93b44eeae1d601fd7eb002df054486dda5520bf"
+      }
+    }
+  ],
+  "review": {
+    "audit": {
+      "path": "/tmp/puni-installed-independent-audit-v2.json",
+      "bytes": 22555,
+      "sha256": "97183ac5f6d78d56117f77305dbfa298da9004afb4ae3008efdaca42d3d20d12"
+    },
+    "independentlyReranTests": false,
+    "sourceReconstruction": "/tmp/puni-installed-final-annotate.ts reverses the2 changed existing comments and3 new comments to reproduce v2 baseline hashes; all32 mutants and current test hash audited."
+  },
+  "finalVerification": {
+    "sourceHashes": [
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint.ts",
+        "sha256": "7d05a58dbab318cd4268413bab48a3fe1dcd5e49959e3028d2b6469f008aa261"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed.ts",
+        "sha256": "57d63c74aa8be394848b7f78d6c051352ff695f7c3757a16ea403cdacb82fab6"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+        "sha256": "140d2f98604db047cf95bcce4636d1f8f0b8d91cdc825047c75d77d55c627178"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+        "sha256": "c2948a78e715fa8dfab2cc06844ddc18805f5578316ebdbddb3107e4dccad5d8"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.test.ts",
+        "sha256": "780d36c9bdba509dc2755866f71df7b72a31802118d03a1e57bb2ba2e0b1d08d"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "seven actual suite files",
+        "exitCode": 0,
+        "passed": 257,
+        "failed": 0,
+        "assertions": 888,
+        "seconds": 106.59,
+        "log": {
+          "path": "/tmp/puni-installed-final-tests.log",
+          "bytes": 32208,
+          "sha256": "321a9a11b55f0634c72c6cea9771c9039123273c5658b7e4a4ad324745650089"
+        }
+      },
+      {
+        "kind": "both full roots tsc --build --force",
+        "exitCode": 0,
+        "log": {
+          "path": "/tmp/puni-installed-final-types.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "kind": "five changed TypeScript ESLint",
+        "exitCode": 0,
+        "log": {
+          "path": "/tmp/puni-installed-final-lint.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    ],
+    "earlierPartialRegression": {
+      "passed": 190,
+      "failed": 0,
+      "actualFiles": 3,
+      "note": "Two nonexistent preparation filenames were not collected; no preparation verification claimed from this command. They were located and replaced with the4 real suites, separately62/0; final combined7-file257/0 includes them all.",
+      "log": {
+        "path": "/tmp/puni-installed-regression1.log",
+        "bytes": 23338,
+        "sha256": "396a009afbb2f7ba31fccadabeb3c45652d521cb67ad05b9f419e1c55c216df9"
+      },
+      "actualPreparation": {
+        "path": "/tmp/puni-installed-preparer-regression.log",
+        "bytes": 8407,
+        "sha256": "06f8e7f39a344248dd5f3c89437d9393251389691bf9fec7b652124be3f42d41"
+      }
+    }
+  },
+  "remaining": [
+    "Actual executeLint facade wiring and optional-inactivity ordering",
+    "Parent launcher-group forwarding, no competing escalation, nested detached-stage ownership and unsolicited-death diagnostics",
+    "Coherent toolkit2/activation4 producer/bootstrap/CI/package switch",
+    "Full script/client inventory and Bun conversion, packaged aliases and helpers",
+    "Canonical exact-commit gate and rollout"
+  ]
+}

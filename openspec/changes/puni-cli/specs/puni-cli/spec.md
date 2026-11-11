@@ -32,6 +32,11 @@ The root SHALL preserve Navigator's offline behavior, Burokrat's explicit time a
 - **WHEN** malformed requests are sent through canonical names and aliases, including `dash ops` and `dash ops release`
 - **THEN** each exits with its specified status and no operation occurs, including when ambient process arguments differ from the parsed invocation
 
+#### Scenario: Typed operations return their own status
+
+- **WHEN** reusable Dash operations succeed, return a modeled nonzero status, or run sequentially or overlap in one process
+- **THEN** each returns its numeric status only after its work settles, without reading or writing the executable's global exit status; a later success returns0 independently from an earlier failure, and only the executable assigns its exit code
+
 ### Requirement: An installed artifact contains the client operations
 
 Every first-party operation exposed by current client instructions, generated helpers or a shipped executable SHALL run under its PUNI namespace from the installed artifact without a checkout, Bash, shell script or Node executable. Required external utilities SHALL be explicit prerequisites. Public help SHALL expose the installed Burokrat grammar rather than source-only commands.
@@ -43,7 +48,7 @@ Every first-party operation exposed by current client instructions, generated he
 
 ### Requirement: MCP helpers preserve installed invocation and startup obligations
 
-The MCP token command SHALL load only its required execution modules and retain the existing 10-second helper budget. Pool import SHALL generate an installed `puni dash mcp token` invocation, using canonical `dash` even when import used `d`, preserving argument boundaries and existing secret handling.
+The MCP token command SHALL use the same protected startup as the installed entrypoint, load only its required execution modules and retain the existing 10-second helper budget. Pool import SHALL generate an installed `puni dash mcp token` invocation, using canonical `dash` even when import used `d`, preserving argument boundaries and existing secret handling.
 
 #### Scenario: A generated helper executes from an installed path
 
@@ -67,3 +72,229 @@ Root grammar composition SHALL import only the designated provider grammar facad
 
 - **WHEN** controlled files import an approved facade, a provider-private path, a runtime from the grammar consumer, or a facade from an unapproved neighboring file
 - **THEN** only the approved consumer/facade combinations pass the actual production lint policy, without parser errors concealing a boundary failure
+
+### Requirement: Burokrat typed execution preserves the verified process boundary
+
+Ordinary installed Burokrat operations SHALL verify the package and toolkit before starting a Bun validator child from the hashed validator role. A versioned transport SHALL validate an installed-validator-only request once, reject unknown fields and source-only operations, and invoke typed handlers without calling an argv parser. The child SHALL run outside the candidate with explicit trusted environment and dependency closure, preserving caller-relative host paths and repository-relative selectors. Lint SHALL retain external activation selection and the verified immutable validator snapshot; direct installed-validator dispatch SHALL NOT replace that authority path.
+
+#### Scenario: Typed requests do not bypass toolkit authority or reparse argv
+
+- **WHEN** a valid installed request reaches the verified child while its argv adapter is deliberately broken
+- **THEN** the typed operation succeeds with its original output and verdict status, while a malformed transport, source-only request or missing/tampered toolkit fails before operation input access
+
+#### Scenario: Candidate startup settings cannot execute in the trusted child
+
+- **WHEN** the candidate supplies hostile Bun configuration, env files, preload options or dependency overrides and the caller uses relative paths
+- **THEN** no candidate startup code runs, the verified closure remains selected, caller-relative inputs retain their meaning, and repository-relative selectors remain anchored to the selected candidate
+
+### Requirement: Initial startup excludes candidate-controlled Bun hooks
+
+The installed entrypoint and every generated helper SHALL remove the declared Bun startup controls before the Bun runtime interprets application code and SHALL disable candidate config and dotenv autoload. Helpers SHALL use the selected Bun executable with the shared sanitizer and canonical namespace; they SHALL NOT bypass executable shebang protection through a bare Bun-plus-entrypoint invocation. The OS env utility, an absolute selected Bun path without an equals sign, and supported invocation behavior SHALL be explicit installation prerequisites, with visible refusal when unavailable. Compilation alone SHALL NOT be treated as startup isolation.
+
+#### Scenario: Startup hooks cannot precede PUNI code
+
+- **WHEN** an installed invocation or generated helper starts inside a candidate with preload config, dotenv and hostile startup controls, including BUN_INSPECT_PRELOAD
+- **THEN** no candidate preload runs and no candidate dotenv contaminates the application, while installed paths, selected Bun paths and operand paths containing spaces retain their boundaries
+
+### Requirement: Installed Burokrat has an explicit external runtime and Git trust boundary
+
+Ordinary validator execution SHALL require a verified, physically external installation, executed role and dependency closure relative to the selected candidate. A symlink SHALL NOT establish external placement. Installation and operator-owned Git metadata, including worktree/common and included configuration, SHALL remain trusted and stable throughout execution; protection against a concurrent hostile metadata writer is outside this contract.
+
+The ordinary child SHALL use a trusted executable search path and supported Git release version at least 2.36.0 before repository operations. Plain upstream and canonical Apple/Windows vendor forms SHALL be accepted; release candidates and unknown suffixes SHALL refuse. Its explicit environment SHALL exclude ambient global/system Git configuration, disable hooks and fsmonitor, replacement objects, interactive prompts and remote transport protocols. The shared working-selection boundary SHALL refuse any loaded nonempty clean/process filter definition before freezing bytes, including definitions not selected by current attributes or overridden by later empty values, rather than changing their semantics silently. Other operator environment and dependency overrides SHALL NOT reach this child. Only lint-ci SHALL receive the selected caller-anchored CI binding.
+
+#### Scenario: Candidate-local or symlinked runtime assets refuse
+
+- **WHEN** a candidate-local installation or an external toolkit whose executed validator resolves into the candidate is selected
+- **THEN** execution refuses before candidate-controlled code or operation inputs run; a verified external installation retains its declared output and status
+
+#### Scenario: Configured Git execution cannot run candidate programs
+
+- **WHEN** working selection encounters loaded nonempty clean/process commands, or the repository supplies fsmonitor/index-change hooks or ambient global/system configuration
+- **THEN** filters receive a named pre-freeze refusal, hooks and ambient configuration do not execute, and marker files remain absent
+
+#### Scenario: Git prerequisites and protocol denial remain enforced
+
+- **WHEN** Git is missing, malformed or below the supported minimum, or a missing promised object would invoke a configured remote helper
+- **THEN** the operation fails visibly before unsupported Git behavior or the helper executes, without converting failure into an empty or passing observation
+
+### Requirement: Preparation retains caller context and installed toolkit authority
+
+Preparation SHALL consume the typed request without another argv parse. Host inputs SHALL retain the captured caller context while repository selectors and opaque identities remain unchanged. Unselected parser options SHALL preserve provider defaults. Toolkit preparation SHALL use the verified installed toolkit by default and SHALL retain its expected identity when an explicit toolkit is selected. Package/toolkit verification SHALL precede operation input reads. Returned report lines SHALL use LF separation and a final LF; asynchronous preparation SHALL complete before its status is returned. Provider refusals and existing partial-destination behavior SHALL remain visible.
+
+#### Scenario: An explicit toolkit cannot replace installed authority
+
+- **WHEN** toolkit preparation selects a self-consistent toolkit whose descriptor identity differs from the verified installation
+- **THEN** preparation refuses with the package identity mismatch before candidate policy work, rather than accepting the selected toolkit as its own authority
+
+#### Scenario: Preparation uses captured caller paths
+
+- **WHEN** preparation runs with a captured caller directory different from the process directory and relative host inputs
+- **THEN** it resolves those inputs against the caller, preserves repository selectors and SHA/lane/cwd identities, and retains unselected defaults
+
+#### Scenario: Preparation output follows completed work
+
+- **WHEN** the typed preparation operation completes with report lines
+- **THEN** the caller receives those lines separated and terminated by LF, and asynchronous work completes before the returned status
+
+### Requirement: Bun execution formats preserve historical verification
+
+Current Bun toolkit execution SHALL use descriptor schema 2 with launcher.mjs and activation manifest schema 4 with artifacts/launcher.mjs. Supported historical toolkit schema 1 (the pre-migration five-role layout with launcher.sh and a verified trustedNodeModulesIdentity) and activation schema 3 SHALL retain original-byte/hash verification without requiring the current Bun to equal the historical build runtime. Earlier four-role or closure-unbound toolkit layouts SHALL remain unsupported without synthesizing missing authority. Historical role maps SHALL reject additional keys, including those ignored by the former permissive reader. New Bun execution SHALL refuse historical formats before launching a role, retain the current format's exact runtime pin, and reject unknown versions, extra/missing roles and mixed layouts. It SHALL NOT select an interpreter from artifact text or fall back to Bash. Schema 1 package manifests and selection descriptors, the active-v1 marker, and validator request transport v1 SHALL retain their meanings.
+
+#### Scenario: Historical bytes verify but cannot enter Bun execution
+
+- **WHEN** an unchanged supported historical toolkit or activation is verified using a different current Bun runtime
+- **THEN** its original identity verifies, while requesting current Bun execution refuses before a launcher or validator can run
+
+#### Scenario: Current version and fixed layout govern execution
+
+- **WHEN** a current artifact has a mismatched Bun runtime, unknown schema, missing or extra role, mixed legacy path, altered descriptor or changed role bytes
+- **THEN** verification or execution compatibility refuses at the relevant boundary before launch
+
+### Requirement: Installed lint preserves selected authority and process ownership
+
+Installed lint SHALL execute its verified package launcher, verify the selected activation's complete current artifact set, and execute the selected authenticated snapshotter before the captured validator. It SHALL use a separate closed version1 lint request transport with fatal UTF-8 decoding; only working, staged and committed selections SHALL parse before operation IO. Working SHALL use local observe, staged local ratchet, and committed CI with only that selection's CI binding. Snapshot and validator children SHALL retain the explicit C11 Git environment and protected Bun startup. The configured archive root SHALL supply the default closure before selecting its version, independently from the installed toolkit closure.
+
+#### Scenario: Broken configured authority cannot become optional inactivity
+
+- **WHEN** a configured root/selection/role/metadata/closure is unreadable, malformed, candidate-contained or a dangling symlink
+- **THEN** lint refuses before role execution, with no alternate flat-root or installed-closure fallback
+
+#### Scenario: Required admission judges the actual validator report
+
+- **WHEN** required lint receives validator status zero with malformed UTF-8/JSON or without schema1 enforce CI-preselected accepted certified output
+- **THEN** it preserves the original output bytes and returns78; a normal nonzero validator verdict retains its exact bytes and status
+
+#### Scenario: Cancellation retains child ownership through cleanup
+
+- **WHEN** SIGINT or SIGTERM arrives during either stage or between stages
+- **THEN** the launcher forwards cancellation to the owned stage group, escalates after bounded grace or repeated cancellation, starts no next stage, and settles group ownership and outward output waits before scratch cleanup and controlled130/143 completion; unconfirmed group cleanup instead fails and retains scratch
+
+#### Scenario: Installed cancellation is ordered before launcher work
+
+- **WHEN** the installed parent records cancellation during launcher startup or receives repeated/mixed cancellation
+- **THEN** the distinct closed --puni-lint-parent-v1 mode requires real IPC and a ready/start handshake delivering recorded controls in order through the existing broker before operation IO, preserving the first reason without native signal coalescing; the launcher reports finished only after executable settlement
+- **AND** older v1-only launchers reject the distinct mode before request IO with no standalone retry, and missing IPC, unknown/duplicate controls or premature channel loss fail visibly and request child-owned cleanup; unsolicited launcher death leaves nested cleanup explicitly unconfirmed, normal status1 after cancellation is preserved, and no parent escalation competes with detached stage ownership
+
+#### Scenario: Installed and archive launchers retain distinct existing authority
+
+- **WHEN** a complete current activation's reviewed launcher differs from the verified installed package launcher
+- **THEN** installed lint retains its package launcher and selected snapshot/validator authority without recursive execution, while archive admission retains its toolkit-release join
+
+#### Scenario: Executable lookup remains fixed across stage directories
+
+- **WHEN** trusted PATH contains relative or empty components and the selected snapshotter or captured validator runs from another directory
+- **THEN** each component retains the executable identity selected against the physical trusted runtime directory, without lexical symlink/parent normalization; an unrepresentable anchored PATH refuses before role execution
+
+#### Scenario: Installed provider selection cannot rebase trusted Git lookup
+
+- **WHEN** installed preflight selects a provider toolkit using a caller-created frozen runtime, including a relative or empty original PATH component
+- **THEN** both probes and the delivered launcher retain that independently selected lookup origin; candidate-local provider files cannot become Git merely by changing the selected toolkit directory, and a candidate-contained runtime cwd refuses
+
+#### Scenario: Output failure cleans its stage and releases a stalled peer
+
+- **WHEN** stdout or stderr fails while a lint stage is live, including when its other output consumer is stalled
+- **THEN** the launcher fails, cleans the owned group and removes scratch only after confirmed absence; a later cancellation cannot replace a previously recorded output failure
+
+#### Scenario: Cancellation releases output without claiming abandoned bytes were flushed
+
+- **WHEN** an output consumer stalls and cancellation arrives
+- **THEN** both outward API waits settle with the first cancellation reason, remaining child bytes are drained without delivery, replayed cancellation does not shorten first-signal grace, and abandoned native output is unreferenced rather than described as flushed
+
+#### Scenario: Terminal reporting remains owned and bounded
+
+- **WHEN** unexpected failure encounters failed, stalled or still-pending stderr, or native output release fails
+- **THEN** the standalone executable returns a failure after at most one bounded diagnostic through the existing stderr operation tail, starts no diagnostic write/flush after abandonment or disposal, and invokes no automatic or alternate reporter
+
+#### Scenario: Ordinary output completes before executable exit
+
+- **WHEN** the validator completes normally with arbitrary binary stdout/stderr and a nonzero verdict
+- **THEN** all bytes are written and flushed before the executable returns that verdict
+
+#### Scenario: Git preflight participates in owned cancellation
+
+- **WHEN** cancellation arrives while the required Git version or actual-worktree-root query is still running, including a child that ignores the first signal
+- **THEN** the launcher forwards the signal to that probe's owned group, escalates only through its bounded owner or repeated signal, returns the first controlled130/143 after cleanup, and starts no subsequent probe or activation role
+
+#### Scenario: Typed installed lint shares executable ownership without transport re-entry
+
+- **WHEN** the installed root invokes a typed lint request with its independently captured lookup origin
+- **THEN** the same executable owner contains runtime-construction failures, delivers native cancellation, preserves required admission and exact output/verdict status, and reaches installed execution without reading stdin or reparsing argv
+- **AND** a lint-specific terminal exit follows ownership settlement; reusable provider APIs continue returning or throwing, and other namespaces retain ordinary output draining
+
+#### Scenario: Typed Dash execution retains validation and lazy command ownership
+
+- **WHEN** a caller supplies a typed Dash request independently of ambient argv
+- **THEN** shared cross-option coherence refuses before operation IO, the selected release/token/pool/general handler is loaded lazily, and its numeric status returns only after completion without assigning process.exitCode
+- **AND** token helpers avoid loading the heavy command graph, while generated pool helpers retain the selected protected PUNI launch followed by canonical dash/mcp/token
+
+#### Scenario: Root execution uses captured installation and invocation context
+
+- **WHEN** the root executes an already parsed namespace request
+- **THEN** only the selected provider runtime is imported, ordinary executable lookup retains its independently captured origin, returned status waits for dispatch, and usage status follows the supplied invocation independently of ambient argv
+- **AND** missing Burokrat installation assets refuse without checkout/source fallback; an absent lint PATH refuses through bounded owned reporting while an explicitly empty PATH remains valid lookup at the trusted origin
+
+#### Scenario: Current toolkit metadata is planned without relabeling historical producers
+
+- **WHEN** the current planner receives valid explicit PUNI release metadata and the five reviewed role byte sequences
+- **THEN** it emits a canonical schema2 descriptor naming launcher.mjs, pins every role and the supplied closure identity, and emits ordered checksums for those five roles and the descriptor with a final LF
+- **AND** malformed claimed metadata refuses before output, dependency arrays validate before normalization, and the legacy planner retains its original descriptor and checksum bytes without implying a completed producer switch
+
+#### Scenario: Prepared activation self-certification retains execution authority and failure evidence
+
+- **WHEN** a preparer supplies authenticated bootstrap bytes, native external placement, protected launch capability and its interruption owner
+- **THEN** self-certification uses the existing private parent lane with a typed committed request, frozen explicit Git environment, required admission and the archive-default closure; successful certification requires all five enforce-certificate values while allowing extra report fields
+- **AND** only matching recorded first cancellation returns130/143; normal1 remains a failure with complete replayed stderr, other interrupted output is labeled as a captured prefix, and unexpected decoder/transport failures retain their original context
+
+#### Scenario: Current preparation selects source through explicit owned authority
+
+- **WHEN** a caller supplies authenticated expected toolkit identity, captured paths and independently frozen runtime authority
+- **THEN** source selection requires toolkit2 before candidate-dependent IO, checks native external placement of runtime/toolkit/descriptor/roles/closure, resolves exact full commit and HEAD equality, and requires Git-reported cleanliness through owned asynchronous Git
+- **AND** configured clean/process filters and indexed submodules at every index stage refuse before status can execute them; prior and per-query cancellation preserve controlled130/143 and cleanup, while unexpected decode/spawn/cleanup failures propagate
+- **AND** selection does not imply immutable capture, output reservation, preparer execution, archive certification or a producer-default change
+
+#### Scenario: Current preparation captures selected committed bytes without live-tree substitution
+
+- **WHEN** current preparation captures an explicitly selected full commit, including an earlier reviewed commit
+- **THEN** it retains that commit/tree and all exact path/mode/blob tuples, reads each blob once through owned explicit Git, verifies actual Git content hashes and complete batch framing, and returns fresh metadata/file copies independent of caller or worktree mutations
+- **AND** noncanonical/duplicate/file-ancestor paths, gitlinks, absent/substituted objects and malformed/extra batch bytes refuse; cancellation settles owned queries before returning controlled130/143 without parsing partial output
+- **AND** capture does not imply physical materialization, valid native symlink/collision placement, completed preparation or producer cutover
+
+#### Scenario: Current preparation materializes captured source without altering authority or hiding partial output
+
+- **WHEN** captured source is materialized under caller-established preparation authority
+- **THEN** the existing output parent resolves natively, a fresh private root refuses existing state, candidate/toolkit/runtime/native closure and authority targets stay protected, metadata names refuse, and exclusive directory/file/link creation prevents merging or overwrite
+- **AND** exact regular bytes/modes and awaited descriptor closure precede link creation, preserved link targets must resolve natively inside the root before success, and failures retain original causes plus any owned partial root
+- **AND** recorded cancellation stops later stages and remains controlled after release, while operation/close/release failures remain errors; no dependency/build/preparer/archive completion is inferred
+
+#### Scenario: Current toolkit preparation assembles and certifies before publishing an archive
+
+- **WHEN** an internal current toolkit preparation receives authenticated installed identity, explicit runtime authority and operator review/check inputs
+- **THEN** it captures exact candidate and reviewed commits through owned Git, derives plans from regular captured source/Nx bytes, and refuses nonregular operator/check-record files without blocking on FIFOs
+- **AND** native check-run directory selection preserves symlink-parent semantics, required runtime state refuses before output reservation, and fresh native-external work and activation roots are mutually disjoint
+- **AND** the written activation uses schema4 and the selected Bun bootstrap/closure, whose actual bytes are checked before full enforce self-certification with required admission and archive-default closure
+- **AND** only successful certification permits an exclusive PUNI archive; GNU tar, archive writes and descriptor close settle before its digest and success report, while faults preserve causes and owned partial outputs and cancellation returns no success instructions
+- **AND** these internal paths do not imply usable released preparer roles, a public package or coordinated default cutover
+
+#### Scenario: Current relocation uses verified lineage and selected source roles
+
+- **WHEN** internal relocation receives a verified schema3/4 base and an authenticated current toolkit
+- **THEN** every consumed base member is admitted as a native regular contained external file before full verification, and historical executable roles never execute
+- **AND** new launcher, validator and snapshotter bytes derive from the captured candidate using only authenticated copied build dependencies and bounded captured configuration, preserving effective runtime transforms and import/require conditions
+- **AND** macros, uncaptured source, unsupported opaque loaders, vendor imports into candidate source and external configuration roots refuse before a usable build, while sealed resolution/loading rejects unplanned requests
+- **AND** the narrow pinned compiler preparation transform denies language-service plugin loading before resolution and delivers verified license/modification notices in the actual archive without modifying installed or historical compiler identities
+- **AND** shared activation4 assembly requires full self-certification before archive reservation, interrupted in-process builds settle before returning, first cancellation remains controlled after release, and failures preserve original/aggregate causes and owned roots
+
+#### Scenario: Current preparation entries share typed execution and own their lifetime
+
+- **WHEN** either current preparation role receives its closed versioned invocation
+- **THEN** malformed UTF8/JSON, unknown fields, invalid invocation context and command/role mismatch refuse before operation IO without retaining request secrets
+- **AND** it dispatches the typed request without argv reconstruction under a signal/output/report owner that covers input, runtime/package selection, Git, in-process builds and archive settlement
+- **AND** input cancellation settles, first interruption controls cancellation, original and cleanup failures retain their diagnostics and owned outputs, and the executable exits only after owner settlement
+- **AND** usable five-role assets derive from one captured source and explicit verified dependencies, with compiler notices on both activation paths; no public/default cutover or release provenance is inferred from internal asset assembly
+
+#### Scenario: Internal asset delivery binds independent installation and every written artifact
+
+- **WHEN** the internal producer builds a current toolkit from one committed capture and an explicitly trusted stable operator installation
+- **THEN** captured authority-file identities, the fixed selected dependency bytes and both copied closures must match; source, runtime, native installation/closure and authority targets remain protected by fresh disjoint output roots
+- **AND** every emitted role, notice, descriptor and checksum is read back as regular planned bytes before final descriptor-identity verification; cancellation stops before later delivery or verification and failure retains all owned roots
+- **AND** both actual produced preparers can complete current archive workflows, while public package/default cutover and clean-release admission remain separate requirements

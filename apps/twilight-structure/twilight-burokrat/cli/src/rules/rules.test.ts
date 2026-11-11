@@ -1459,9 +1459,7 @@ describe('check production CLI', () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy(everyRuleObserving);
     const badKind = await runCli(['check', 'bogus', repository, revision, policyPath]);
-    expect(stderrOf(badKind)).toContain(
-      'usage: twilight-burokrat check <committed|staged|working>',
-    );
+    expect(stderrOf(badKind)).toContain('usage: twilight-burokrat check [--rule RULE]');
     expect(badKind.exitCode).toBe(1);
 
     const badFlag = await runCli([
@@ -1473,7 +1471,7 @@ describe('check production CLI', () => {
       '--only',
       'MOD-INDEX',
     ]);
-    expect(stderrOf(badFlag)).toContain('invalid or duplicate check flag: --only');
+    expect(stderrOf(badFlag)).toContain('Unexpected option or subcommand: `--only`.');
     expect(badFlag.exitCode).toBe(1);
 
     const badRule = await runCli([

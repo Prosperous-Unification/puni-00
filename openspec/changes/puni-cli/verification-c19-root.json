@@ -1,0 +1,2720 @@
+{
+  "schemaVersion": 1,
+  "scope": "root lazy typed dispatch/executable composition and shared trusted lookup; task1.2d",
+  "sourceBase": "5cc14ddc5533f6bdf2f0a273d9088eacc87ac6f9",
+  "proofCount": 38,
+  "proofs": [
+    {
+      "id": "root-navigator-selection",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "await import('@puni/navigator/runtime')",
+          "replacement": "await import('@puni/dash/runtime')"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "navigator executes actual planning",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=navigator executes actual planning"
+      ],
+      "state": "killed-restored",
+      "testName": "navigator executes actual planning files through the typed root",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-navigator-selection.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-navigator-selection.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "16803c57d12072bfd4909fc21baf9d7118ba322f64809beefa928babba2519dd",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "daaf53c64897d097575fa7f5173ba92c15809d787c308833b34c78599338b296",
+      "greenLogHash": "09beaab6ee91d22e049f6ca1d2b3d18b52a35d8ef797425b9371d771cc11703d"
+    },
+    {
+      "id": "root-navigator-lf",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "context.stdout((await executeRequest(command.request)) + '\\n');",
+          "replacement": "context.stdout((await executeRequest(command.request)) + '\\\\n');"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "navigator executes actual planning",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=navigator executes actual planning"
+      ],
+      "state": "killed-restored",
+      "testName": "navigator executes actual planning files through the typed root",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-navigator-lf.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-navigator-lf.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "f7ba7765614959515f743957439d918d65a50966ac2ad999649f5550d9e80d5d",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "df9248afc8f1ba988a0bf998fb9f4991cf41b71ed64bbb75a2a04677b82a60df",
+      "greenLogHash": "90f0320b5591899083fd1ae7bae1182fbfc592586a31902590e983e4603696c8"
+    },
+    {
+      "id": "root-dash-status",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "      return await executeRequest(command.request, {",
+          "replacement": "      await executeRequest(command.request, {"
+        },
+        {
+          "find": "        helperPrefix: createLaunch(context.runtime, context.installation.entrypoint),\n      });",
+          "replacement": "        helperPrefix: createLaunch(context.runtime, context.installation.entrypoint),\n      }); return 0;"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "dash forwards actual native ops",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=dash forwards actual native ops"
+      ],
+      "state": "killed-restored",
+      "testName": "dash forwards actual native ops refusal status through the typed root",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-dash-status.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-dash-status.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "c6daabe0282aadcc5f7a433975e7359d19cef2f09eb23059dd2dbcc6f592e5d4",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "28ac6b653cefc9aa4cca7db60a3d7a3b57e75d9e57b04259026e4735bebd071d",
+      "greenLogHash": "397d57c81bc73a5dac640231b554192862ff48cc130349cdb00c5a1f9d816765"
+    },
+    {
+      "id": "root-burokrat-selection",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "await import('@puni/burokrat/runtime')",
+          "replacement": "await import('@puni/navigator/runtime')"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "pattern": "burokrat runs actual ordinary",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=burokrat runs actual ordinary"
+      ],
+      "state": "killed-restored",
+      "testName": "burokrat runs actual ordinary installed template requests through the built root with toolkit1",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-burokrat-selection.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-burokrat-selection.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "19e17ee75e9fa5a7f135162895c952104ef4614607eda76af190b4b660a98d21",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "93a1a8ce9d0bc42615b625f5cbd79a999bd689fcf1fbd31599ec8281d76c7c6b",
+      "greenLogHash": "61a19e9fba9df168b1b2e1b34ac622c38da117d541c19c315775b5aa5017b524"
+    },
+    {
+      "id": "root-lint-dedicated-route",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "if (command.request.command === 'lint')",
+          "replacement": "if (false)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "pattern": "burokrat runs actual selected installed lint",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=burokrat runs actual selected installed lint"
+      ],
+      "state": "killed-restored",
+      "testName": "burokrat runs actual selected installed lint through the built root with toolkit2",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-lint-dedicated-route.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-lint-dedicated-route.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "1d944ceb5ef7806d9a01ed6c7b2ae0b86d2f169fcb6d1c7c0fa9ac191a2dc13b",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "b2bc6664257a4e6ed9a47f1e3bab89bbdab389cf6caf0cf17f119a90288c5bd0",
+      "greenLogHash": "d8b29c43ec2adcc350618797e9a38728cdbbd99e4a4f6c68d2b8c4d63dc40b8d"
+    },
+    {
+      "id": "root-lint-caller",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "          callerDirectory: context.callerDirectory,",
+          "replacement": "          callerDirectory: context.installation.directory,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "pattern": "required installed lint admission78",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=required installed lint admission78"
+      ],
+      "state": "killed-restored",
+      "testName": "keeps required installed lint admission78 and caller-relative activation operands through the root",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-lint-caller.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-lint-caller.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "96dfdaaf688547bdf14d2390b8b8fdcc0197dce7089fc9208da7287993ba6ab1",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "6e7ff3b915e7c26f796308713a5bce1424e27cf15d82c6466a8c38f648bb6b69",
+      "greenLogHash": "d31649b4709a06140e61d4645b86c9b426be2f8ad99403f08cdff0fd3c7b5170"
+    },
+    {
+      "id": "root-lint-required",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "required: context.environment['TOOL_WIKI_REQUIRE_CERTIFIED'] === '1',",
+          "replacement": "required: false,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "pattern": "required installed lint admission78",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=required installed lint admission78"
+      ],
+      "state": "killed-restored",
+      "testName": "keeps required installed lint admission78 and caller-relative activation operands through the root",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-lint-required.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-lint-required.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "88a2ed5ada769416323bf26d8dd40f374b47d3ce902da0341b47dc7c7f68d551",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "a0cc201630294a78e0347ddbad479f73907be62d7b7375d0e5e3b582df8c5830",
+      "greenLogHash": "cd19dfadabdd74645bec5eed8cfc12b25464fea2ee32bd531393a4b6296e9db3"
+    },
+    {
+      "id": "root-lint-activation",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "activationRoot: context.environment['TOOL_WIKI_ACTIVATION_ROOT'],",
+          "replacement": "activationRoot: undefined,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "pattern": "required installed lint admission78",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=required installed lint admission78"
+      ],
+      "state": "killed-restored",
+      "testName": "keeps required installed lint admission78 and caller-relative activation operands through the root",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-lint-activation.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-lint-activation.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "e87465ddebcf1f435c3d56c9043e73317b92605a96bc2acaaa3998942792b8cc",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "2dae01487cb25f1f5ac42956e9f274bb81044b313c3053bf51fd5d84e3218c44",
+      "greenLogHash": "d9ce0899db225312df70c2b29a65414cf365f00862f58725ac5593a2633b2aba"
+    },
+    {
+      "id": "root-ordinary-lookup",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "path: runtime.freezePath(path, context.lookup.directory),",
+          "replacement": "path,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "pattern": "freezes ordinary root Git lookup",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=freezes ordinary root Git lookup"
+      ],
+      "state": "killed-restored",
+      "testName": "freezes ordinary root Git lookup before candidate and toolkit cwd changes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-ordinary-lookup.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-ordinary-lookup.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "fa3d86d26a98ac72d43389d9a626a45202b7de12271b0044f11eec1361afe67e",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "94572b6b655ac93a01ba82491be4cba53ba82cdda46e9d30e3a3226e53ed4b1e",
+      "greenLogHash": "1638fb5fec139ff3c435fa6cc0f8d4706880187992188bbd68f70e32f18f58df"
+    },
+    {
+      "id": "root-ordinary-path-refusal",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "      if (path === undefined) throw new Error('trusted executable PATH is required for Burokrat');",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "absent ordinary trusted PATH",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=absent ordinary trusted PATH"
+      ],
+      "state": "killed-restored",
+      "testName": "gives an absent ordinary trusted PATH its explicit refusal before installed input reads",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-ordinary-path-refusal.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-ordinary-path-refusal.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "55e4c4dc31356178fceff072a7d57dd15798a76f5aae770e20cf10fe79b81f42",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "e933227a4055bd4db97b79fa89d527e98775968edb46266f2b7e2b019e3c991a",
+      "greenLogHash": "641aa74c0329731e1a8a5232424a8dbe8456ed2f2b0a982b2c17fa27462abb1a"
+    },
+    {
+      "id": "root-lint-path-owner",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "edits": [
+        {
+          "find": "      if (command.request.command === 'lint')",
+          "replacement": "      if (context.lookup.path === undefined) throw new Error('trusted executable PATH is required for Burokrat');\n      if (command.request.command === 'lint')"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "pattern": "reports absent root lint PATH",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=reports absent root lint PATH"
+      ],
+      "state": "killed-restored",
+      "testName": "reports absent root lint PATH inside its bounded executable reporter",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-lint-path-owner.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-lint-path-owner.green.log",
+      "beforeHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "mutantHash": "51c2be87154b714d6ed6797c3440106c16f9ad17b88cd6abe3453137acfeac69",
+      "afterHash": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb",
+      "redLogHash": "4aafb828e752c0203674a0deef129cccdb0e4dde13b10ee5c3e2a003c48c7e86",
+      "greenLogHash": "16f364d247f9ec841cf0a08c8131794f7765c18430b13572ab5a056fa534bdbe"
+    },
+    {
+      "id": "root-lint-empty-path",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "if (path === undefined) throw new Error('trusted executable PATH is required for Burokrat');",
+          "replacement": "if (!path) throw new Error('trusted executable PATH is required for Burokrat');"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "pattern": "explicitly empty root lint PATH",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=explicitly empty root lint PATH"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves explicitly empty root lint PATH as the selected trusted directory",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-lint-empty-path.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-lint-empty-path.green.log",
+      "beforeHash": "e6ef059e178a02ea80605f413380bf921059f8e316e374a5ba72558ebb84d185",
+      "mutantHash": "6ec7f305422154333b746d95a3182353fd2362f3790cb09dfe23798532a9b81d",
+      "afterHash": "e6ef059e178a02ea80605f413380bf921059f8e316e374a5ba72558ebb84d185",
+      "redLogHash": "294f5f4c054c8323604be76139778f8e831bbc7f4310eeb4c2516637870772a1",
+      "greenLogHash": "aaae5d25bf5521769fc46c10c151667cc94fb4045de0d5ff25bcf425af466eb0"
+    },
+    {
+      "id": "root-lint-path-refusal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "    if (path === undefined) throw new Error('trusted executable PATH is required for Burokrat');",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "pattern": "reports absent root lint PATH",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=reports absent root lint PATH"
+      ],
+      "state": "killed-restored",
+      "testName": "reports absent root lint PATH inside its bounded executable reporter",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-lint-path-refusal.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-lint-path-refusal.green.log",
+      "beforeHash": "e6ef059e178a02ea80605f413380bf921059f8e316e374a5ba72558ebb84d185",
+      "mutantHash": "568c49f8b702dac1eff011972891d227330707193493b70197da588d9e8ce7a1",
+      "afterHash": "e6ef059e178a02ea80605f413380bf921059f8e316e374a5ba72558ebb84d185",
+      "redLogHash": "b8084c11512e9c3c18173511518a8318bdf796fedcc2dbc5c55010e8c7d3e38e",
+      "greenLogHash": "95f6326cdd70eea06021fbb1e3b390a648d15020daf79c52757b54f112bbaf5e"
+    },
+    {
+      "id": "root-main-await",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "edits": [
+        {
+          "find": "const status = await executeCommand(command, context);",
+          "replacement": "const status = executeCommand(command, context);"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "awaits the selected typed operation",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=awaits the selected typed operation"
+      ],
+      "state": "killed-restored",
+      "testName": "awaits the selected typed operation without changing global status or reparsing ambient argv",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-main-await.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-main-await.green.log",
+      "beforeHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "mutantHash": "09a55823ff4c50fc1dd45035407ab5878265763c38ade73bef72ed39345864d4",
+      "afterHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "redLogHash": "ca1e3e17bf879039bfa2bd26904cf4d8489c4951256a444129884a81564774ce",
+      "greenLogHash": "c71119faf2c7a119fa015dd5e027005bc3f8f623f4eb79779a427c434d39b08e"
+    },
+    {
+      "id": "root-main-lazy",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "edits": [
+        {
+          "find": "    const invocation = readInvocation(args, (chunk) => {",
+          "replacement": "    await import('@puni/dash/runtime');\n    const invocation = readInvocation(args, (chunk) => {"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "discovers through the actual root",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=discovers through the actual root"
+      ],
+      "state": "killed-restored",
+      "testName": "[\"--help\"] discovers through the actual root without provider runtimes, clock, network or PATH",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-main-lazy.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-main-lazy.green.log",
+      "beforeHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "mutantHash": "cda883b2bbbbcaf3bb69edac8682b60b7a861d23cfb56005d4bece7a8930467d",
+      "afterHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "redLogHash": "023214ddd9a931d899e2f9b7ff3687911949cae93fc49bd9e0ed5cd9b9932550",
+      "greenLogHash": "a0cdeb88cd74780bc2ebf3f516cdfebda27be54e89355d813d2f2394159a7e91"
+    },
+    {
+      "id": "root-main-discovery",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "edits": [
+        {
+          "find": "if (invocation.kind === 'printed') return { kind: 'drain', status: 0 };",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "discovers through the actual root",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=discovers through the actual root"
+      ],
+      "state": "killed-restored",
+      "testName": "[\"--help\"] discovers through the actual root without provider runtimes, clock, network or PATH",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-main-discovery.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-main-discovery.green.log",
+      "beforeHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "mutantHash": "1bee0a5957332e076b980a59df91fbd9e84d699722b6796d0c87cad2941b1003",
+      "afterHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "redLogHash": "d6bde4749d53d2f92ed8763b4059dbd9ce23e607becf916cfb1b485f31dcc1b2",
+      "greenLogHash": "0f0c1d1753f34e47eb6b3220a2df2cf83c811c508171ff82be5dd03b1d60ef37"
+    },
+    {
+      "id": "root-main-args",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "edits": [
+        {
+          "find": "readInvocation(args, (chunk) => {",
+          "replacement": "readInvocation(process.argv.slice(2), (chunk) => {"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "keeps invocation-aware usage status",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=keeps invocation-aware usage status"
+      ],
+      "state": "killed-restored",
+      "testName": "[] keeps invocation-aware usage status under misleading ambient argv",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-main-args.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-main-args.green.log",
+      "beforeHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "mutantHash": "40e42021951201559d4f80fdf210fe78e2582911a62d5da3573e9d3850fa3627",
+      "afterHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "redLogHash": "ebad4ead6b58fb1ed7b677540829f06147d913d385def57cfd787ace7d3f9c54",
+      "greenLogHash": "cd1ac2a5c70398243f24fced54a4a78975ccd3d5ed886384f2e2075b7f999046"
+    },
+    {
+      "id": "root-main-status",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "edits": [
+        {
+          "find": "const status = await executeCommand(command, context);",
+          "replacement": "await executeCommand(command, context); const status = 0;"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "dash forwards actual native ops",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=dash forwards actual native ops"
+      ],
+      "state": "killed-restored",
+      "testName": "dash forwards actual native ops refusal status through the typed root",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-main-status.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-main-status.green.log",
+      "beforeHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "mutantHash": "e5df4f572d7f489b782a6cd9d52bcaa27e4992457739382c01a2f8c5a33165f5",
+      "afterHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "redLogHash": "b79ed0aea7f6d1be900d2bc45cadda97fb20c3c2d23e9fa23b5dea310529c365",
+      "greenLogHash": "ed7b3e5825933861782c6d1a5e986ea366dc6d0f761183a47e0cd2bd5670cb08"
+    },
+    {
+      "id": "root-main-terminal-exit",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "edits": [
+        {
+          "find": "if (completion.kind === 'lint') process.exit(completion.status);",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "pattern": "unconfirmed lint Git preflight",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=unconfirmed lint Git preflight"
+      ],
+      "state": "killed-restored",
+      "testName": "exits the actual root after unconfirmed lint Git preflight before fixture cleanup",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-main-terminal-exit.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-main-terminal-exit.green.log",
+      "beforeHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "mutantHash": "4c2114df30de3a3e9a00006fd3908db481c3fb249c66a4191638660a647dc9a4",
+      "afterHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "redLogHash": "dcfc8a4bd05e5ad0c643a9458953e29db7eb9967ed9d2b90edee690e6227f65e",
+      "greenLogHash": "60c11f470ba852237d91b18a988a3433e2241e45131a4a5c0b3fe5c00721d1b8"
+    },
+    {
+      "id": "root-main-import-guard",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "edits": [
+        {
+          "find": "if (import.meta.main) {",
+          "replacement": "if (true) {"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "imports the root executable",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=imports the root executable"
+      ],
+      "state": "killed-restored",
+      "testName": "imports the root executable without running ambient argv or assigning global status",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-main-import-guard.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-main-import-guard.green.log",
+      "beforeHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "mutantHash": "9e21d1c405f99fe32453ad5171b5b66e166b5e419d3fedc250006bc833e2a966",
+      "afterHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "redLogHash": "1b0c524ba7e45dd375f82e97df0d656d525256e3bc93bda3403881099911aa16",
+      "greenLogHash": "095c9bc6095a342df00e5d3f8a17d96ae2d6d9ca1434f706026c12dd92576e55"
+    },
+    {
+      "id": "root-error-controls",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "edits": [
+        {
+          "find": "      .replace(/[\\p{Cc}\\p{Cf}]/gu, ' ')",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "formats an operation error",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=formats an operation error"
+      ],
+      "state": "killed-restored",
+      "testName": "formats an operation error as one plain line without nested cause messages",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-error-controls.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-error-controls.green.log",
+      "beforeHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "mutantHash": "f6c23b96d716fa0318016eeb82e14723de8b3cef006713fbfc59411eab37ed4d",
+      "afterHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "redLogHash": "a2ee7a4d92cbc23c932b5926c4f41d9b5c6692cb6be7f180e962043a43d43e1b",
+      "greenLogHash": "eb4c8de74dec4ef0de5574434202d3b772ae75ee8c3eafe48be35cc19e68b790"
+    },
+    {
+      "id": "root-error-whitespace",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "edits": [
+        {
+          "find": "      .replace(/\\s+/gu, ' ')",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "formats an operation error",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=formats an operation error"
+      ],
+      "state": "killed-restored",
+      "testName": "formats an operation error as one plain line without nested cause messages",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-error-whitespace.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-error-whitespace.green.log",
+      "beforeHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "mutantHash": "025afbf32cde84b9b35391f3b85b543542473bc7d79d2cf44cd7f4e80b3e747c",
+      "afterHash": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9",
+      "redLogHash": "8672fe5ffe478b6fb6e3b0e7a1abcbe83da6030d0b724406d7be21bc9fd73219",
+      "greenLogHash": "87af0e352bb302a39479985823003cefe2af97f91f63c73181b48dd922aadd17"
+    },
+    {
+      "id": "root-usage-selected-status",
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "edits": [
+        {
+          "find": "if (cause instanceof UsageRefusal) return cause.exitCode;",
+          "replacement": "if (cause instanceof UsageRefusal) return 64;"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "keeps invocation-aware usage status",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=keeps invocation-aware usage status"
+      ],
+      "state": "killed-restored",
+      "testName": "[] keeps invocation-aware usage status under misleading ambient argv",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-usage-selected-status.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-usage-selected-status.green.log",
+      "beforeHash": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122",
+      "mutantHash": "0c216ccf43d1290ed8e6725ffc84e13cd90e71df47aab5cdc6a3cd6c6f1e36a9",
+      "afterHash": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122",
+      "redLogHash": "e8e2204020366ba07c28822f206c2db75634a16f293e24579f65759c4ee01b57",
+      "greenLogHash": "0ef06b19761a9625cc1f11a5066d4e8c4cbea371a5ddbfcc2bf7cb68a275b669"
+    },
+    {
+      "id": "root-navigator-usage",
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "edits": [
+        {
+          "find": "if (command?.tool === 'navigator' && cause instanceof NavigatorUsageRefusal) return 2;",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "navigator-usage classifies",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=navigator-usage classifies"
+      ],
+      "state": "killed-restored",
+      "testName": "navigator-usage classifies the selected public provider refusal independently of ambient argv",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-navigator-usage.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-navigator-usage.green.log",
+      "beforeHash": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122",
+      "mutantHash": "0d9d7e3fa0371ddcfb3bf1be2a8b4c49d148df571d8eed34d3cbab52bece31e1",
+      "afterHash": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122",
+      "redLogHash": "80d39b0182fa3973a2d12712925ac4b4f088cb3a41ff8058d5d3ab4a310ade53",
+      "greenLogHash": "0fe7a78240f38d78e31a41aa68208ca1ea6cf75402f28552cc01cab3ee22bfee"
+    },
+    {
+      "id": "root-ops-usage",
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "edits": [
+        {
+          "find": "return command.request.command === 'ops' && !isReleaseCommand(command.request) ? 64 : 1;",
+          "replacement": "return 1;"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "ops-usage classifies",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=ops-usage classifies"
+      ],
+      "state": "killed-restored",
+      "testName": "ops-usage classifies the selected public provider refusal independently of ambient argv",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-ops-usage.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-ops-usage.green.log",
+      "beforeHash": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122",
+      "mutantHash": "34838e1fa3265c9193de1633466977c4ae28c4948e6642523bfa35f8540de725",
+      "afterHash": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122",
+      "redLogHash": "d298676fd68dfa146a74b50079f8fad04c00dd9f21ef2b6f87922054db3163e4",
+      "greenLogHash": "773a17c84badba4549c6da8aec37babcef363b23966d693e49b00db37d8c5c0d"
+    },
+    {
+      "id": "root-release-usage",
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "edits": [
+        {
+          "find": "return command.request.command === 'ops' && !isReleaseCommand(command.request) ? 64 : 1;",
+          "replacement": "return command.request.command === 'ops' ? 64 : 1;"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "release-usage classifies",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=release-usage classifies"
+      ],
+      "state": "killed-restored",
+      "testName": "release-usage classifies the selected public provider refusal independently of ambient argv",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-release-usage.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-release-usage.green.log",
+      "beforeHash": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122",
+      "mutantHash": "303092f55064032d9476b563e0d1b4ef4c3c64cef5226f2329b947364bb8621e",
+      "afterHash": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122",
+      "redLogHash": "0709c95948bc941d60272714de0d9a2ff3276adbd2706aaa81d220be2c1f018f",
+      "greenLogHash": "e8d9f43444e4a57702fb359a3c1755768351b451c5e07853c81935bd1981bd4b"
+    },
+    {
+      "id": "root-unexpected-failure",
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "edits": [
+        {
+          "find": "  return 1;\n}",
+          "replacement": "  return 2;\n}"
+        }
+      ],
+      "test": "./apps/puni/cli/src/cli.test.ts",
+      "pattern": "navigator-unexpected classifies",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/puni/cli/src/cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=navigator-unexpected classifies"
+      ],
+      "state": "killed-restored",
+      "testName": "navigator-unexpected classifies the selected public provider refusal independently of ambient argv",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-unexpected-failure.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-unexpected-failure.green.log",
+      "beforeHash": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122",
+      "mutantHash": "05f227c52f6bbeabe20028956448556d04f3e70b06b63e5f62facbfcb16750da",
+      "afterHash": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122",
+      "redLogHash": "5a54deed9256292afb8c723b2fa5cb68f3d94b43276cce329006a2b12d3a4609",
+      "greenLogHash": "304e01f4373e907c6767b3f93f61c964f350304f9434966d946c76eaaf130dec"
+    },
+    {
+      "id": "root-executor-allowance",
+      "path": "apps/puni/eslint.product.mjs",
+      "edits": [
+        {
+          "find": "['^@puni/burokrat/runtime$', '^@puni/dash/runtime$', '^@puni/navigator/runtime$']",
+          "replacement": "[]"
+        }
+      ],
+      "test": "./tools/tool-devsync/src/puni-boundaries.test.ts",
+      "pattern": "admits the real lazy executor",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./tools/tool-devsync/src/puni-boundaries.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=admits the real lazy executor"
+      ],
+      "state": "killed-restored",
+      "testName": "PUNI execution boundary > admits the real lazy executor through only provider runtime facades",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-executor-allowance.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-executor-allowance.green.log",
+      "beforeHash": "dc05dad0230d2c3b8e1504359b77ce67ad31adf3118e911212de9c62e9e2d53e",
+      "mutantHash": "1e146c3ca7be80f738a3c44ef0c47a07b67656883e7b6fefdf25c5ae4bc9a378",
+      "afterHash": "dc05dad0230d2c3b8e1504359b77ce67ad31adf3118e911212de9c62e9e2d53e",
+      "redLogHash": "8780f4567e76e949af0f367f02fc82eb2d0850ccc48a91c7073edab53fef0ae0",
+      "greenLogHash": "ae14fed2f792cd0462c7ceabd5fdeac794a6c8e56a098a2db285841893e7b45f"
+    },
+    {
+      "id": "root-executor-consumer",
+      "path": "apps/puni/eslint.product.mjs",
+      "edits": [
+        {
+          "find": "['apps/puni/cli/src/execute-command.ts']",
+          "replacement": "['apps/puni/cli/src/execute-command.ts', 'apps/puni/cli/src/entrypoint.ts']"
+        }
+      ],
+      "test": "./tools/tool-devsync/src/puni-boundaries.test.ts",
+      "pattern": "out of neighboring root execution files",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./tools/tool-devsync/src/puni-boundaries.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=out of neighboring root execution files"
+      ],
+      "state": "killed-restored",
+      "testName": "PUNI execution boundary > keeps @puni/burokrat/runtime out of neighboring root execution files",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-executor-consumer.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-executor-consumer.green.log",
+      "beforeHash": "dc05dad0230d2c3b8e1504359b77ce67ad31adf3118e911212de9c62e9e2d53e",
+      "mutantHash": "fcc6945bd9f4fce1d5a1ed8ac2387fa372eecf74b09b8da76a016a59d4b0c874",
+      "afterHash": "dc05dad0230d2c3b8e1504359b77ce67ad31adf3118e911212de9c62e9e2d53e",
+      "redLogHash": "05aebd4ad8a81cde4de0892d56dbd270b552c62a0fc6246f761e90653ccd3dd7",
+      "greenLogHash": "1570abc2eb8be473272cad971c032af4ab837f0bce5f343fa114be7782401ae9"
+    },
+    {
+      "id": "root-executor-alias",
+      "path": "apps/puni/eslint.product.mjs",
+      "edits": [
+        {
+          "find": "'^@puni/dash/runtime$'",
+          "replacement": "'^@puni/dash/.*$'"
+        }
+      ],
+      "test": "./tools/tool-devsync/src/puni-boundaries.test.ts",
+      "pattern": "rejects @puni/dash/grammar from root runtime composition",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./tools/tool-devsync/src/puni-boundaries.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=rejects @puni/dash/grammar from root runtime composition"
+      ],
+      "state": "killed-restored",
+      "testName": "PUNI execution boundary > rejects @puni/dash/grammar from root runtime composition",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-executor-alias.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-executor-alias.green.log",
+      "beforeHash": "dc05dad0230d2c3b8e1504359b77ce67ad31adf3118e911212de9c62e9e2d53e",
+      "mutantHash": "0b7a611c1f01cfe8baf07f82f300c114978174a89eb988c21b3558471fbcc7ba",
+      "afterHash": "dc05dad0230d2c3b8e1504359b77ce67ad31adf3118e911212de9c62e9e2d53e",
+      "redLogHash": "2c7439a8db61fb4fa8575c6fd9a35a55eac1b19a509354138b005d2179ccd7bc",
+      "greenLogHash": "5a8bba702e405d8c2f2279cb298a600371997eaf15a90ba2c5cb30420e23d764"
+    },
+    {
+      "id": "root-executor-inherited-policy",
+      "path": "apps/puni/eslint.product.mjs",
+      "edits": [
+        {
+          "find": "            ...productRules,",
+          "replacement": ""
+        }
+      ],
+      "test": "./tools/tool-devsync/src/puni-boundaries.test.ts",
+      "pattern": "changes only exact runtime allowances",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./tools/tool-devsync/src/puni-boundaries.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=changes only exact runtime allowances"
+      ],
+      "state": "killed-restored",
+      "testName": "PUNI execution boundary > changes only exact runtime allowances in the dedicated executor",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/root-executor-inherited-policy.red.log",
+      "greenLog": "/tmp/puni-root-proofs/root-executor-inherited-policy.green.log",
+      "beforeHash": "dc05dad0230d2c3b8e1504359b77ce67ad31adf3118e911212de9c62e9e2d53e",
+      "mutantHash": "e30d64d533480a2de5b0de33c264537902e081626e783e971f771337cb8cfdc2",
+      "afterHash": "dc05dad0230d2c3b8e1504359b77ce67ad31adf3118e911212de9c62e9e2d53e",
+      "redLogHash": "34310ad6b15563ed1a779f58a2f799558caccf1c46af4033f83e5a436f8c642b",
+      "greenLogHash": "b3363d14fd2f765d2fb9672c1a278b0bcb1d84906f80dcae550d8134280ae667"
+    },
+    {
+      "id": "shared-runtime-native-cwd",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "edits": [
+        {
+          "find": "realpathSync.native(runtimeDirectory)",
+          "replacement": "realpathSync(runtimeDirectory)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+      "pattern": "native symlink and parent semantics",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=native symlink and parent semantics"
+      ],
+      "state": "killed-restored",
+      "testName": "stable lint executable lookup > canonicalizes the trusted cwd with native symlink and parent semantics",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/shared-runtime-native-cwd.red.log",
+      "greenLog": "/tmp/puni-root-proofs/shared-runtime-native-cwd.green.log",
+      "beforeHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "mutantHash": "d35bb452b7ba62c67108841692bd835bb20fccbd7a84bf9eba5c90bd21bf6413",
+      "afterHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "redLogHash": "f547d61714289b897693a1dbbed99bb1af2d9b145ed39e0a15b4ba5106046f36",
+      "greenLogHash": "917474094bfa4931a6c6ecea96a4fcb681d48b48969368ac49e2977c797c73ba"
+    },
+    {
+      "id": "shared-runtime-relative-path-freeze",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "edits": [
+        {
+          "find": "return directory + (directory.endsWith(sep) ? '' : sep) + component;",
+          "replacement": "return component;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+      "pattern": "selected Git PATH identity",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=selected Git PATH identity"
+      ],
+      "state": "killed-restored",
+      "testName": "keeps the selected Git PATH identity when the captured validator changes cwd",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/shared-runtime-relative-path-freeze.red.log",
+      "greenLog": "/tmp/puni-root-proofs/shared-runtime-relative-path-freeze.green.log",
+      "beforeHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "mutantHash": "a5b14ecd4343d562c358ee99069bb369cfc91346f84cdbef7e557a67faf5f617",
+      "afterHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "redLogHash": "058b9da3d40c660e4e18a5bc029fcf18f61fdc002a479835a101233fe7bdefca",
+      "greenLogHash": "f625ac849eb137c78508bc25e8dd64ee6b182b09f2a7b69ec3f9fc7ad56bc6ab"
+    },
+    {
+      "id": "shared-runtime-absolute-path-preserved",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "edits": [
+        {
+          "find": "if (isAbsolute(component)) return component;",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+      "pattern": "absolute components verbatim",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=absolute components verbatim"
+      ],
+      "state": "killed-restored",
+      "testName": "stable lint executable lookup > preserves absolute components verbatim including native parent segments",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/shared-runtime-absolute-path-preserved.red.log",
+      "greenLog": "/tmp/puni-root-proofs/shared-runtime-absolute-path-preserved.green.log",
+      "beforeHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "mutantHash": "b170f34c935b9a1d7bc3e7f9f81e05b21e421acf55e3284b6c03b140cdfbb494",
+      "afterHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "redLogHash": "92c4e0bfb68ea6286400ec13d9d9032707762e450caa4d306c1cdc23d05427eb",
+      "greenLogHash": "a03e1773dad06dcbe3febd7fc3ce78901bf9664d7def95da8bd73f862621dacc"
+    },
+    {
+      "id": "shared-runtime-delimiter-refusal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "edits": [
+        {
+          "find": "if (directory.includes(delimiter))",
+          "replacement": "if (false)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+      "pattern": "unrepresentable anchored PATH",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=unrepresentable anchored PATH"
+      ],
+      "state": "killed-restored",
+      "testName": "stable lint executable lookup > refuses an unrepresentable anchored PATH \"\"",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/shared-runtime-delimiter-refusal.red.log",
+      "greenLog": "/tmp/puni-root-proofs/shared-runtime-delimiter-refusal.green.log",
+      "beforeHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "mutantHash": "e8ea2367d0994a9fdd89c57a8f4c39c215569647a092e7d55a86c4fd6e42e048",
+      "afterHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "redLogHash": "f461c9a7b4997c65fa5f4971d10e02d87b00f79d1b1d36a808727405cc25a1b1",
+      "greenLogHash": "0a0135f803cc495dfeb1afbe4ba2ee4695f0c5b7e4a7ca0ee7acebf1d439570a"
+    },
+    {
+      "id": "shared-runtime-empty-path-confined",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "edits": [
+        {
+          "find": "if (component === '') return directory;",
+          "replacement": "if (component === '') return '';"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+      "pattern": "wholly empty PATH",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=wholly empty PATH"
+      ],
+      "state": "killed-restored",
+      "testName": "stable lint executable lookup > keeps a wholly empty PATH confined to the trusted runtime cwd",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/shared-runtime-empty-path-confined.red.log",
+      "greenLog": "/tmp/puni-root-proofs/shared-runtime-empty-path-confined.green.log",
+      "beforeHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "mutantHash": "92d428ac5f7001e1d77f929659b8cc291f1e413a931574e9cca92164911f9f1d",
+      "afterHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "redLogHash": "0696606d438db24fcb292891eebf5156a794a9ba8cec4c31d56d52a2a748e6ed",
+      "greenLogHash": "f545863a03ca87dc324a74277d53af4ff5ef93e99982d9e2c9431532ff0e27d0"
+    },
+    {
+      "id": "shared-runtime-controlled-environment",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "edits": [
+        {
+          "find": "environment: createGitEnvironment(lookup.path)",
+          "replacement": "environment: { PATH: lookup.path }"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+      "pattern": "freezes ordered relative",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=freezes ordered relative"
+      ],
+      "state": "killed-restored",
+      "testName": "stable lint executable lookup > freezes ordered relative and empty components against the trusted runtime cwd",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/shared-runtime-controlled-environment.red.log",
+      "greenLog": "/tmp/puni-root-proofs/shared-runtime-controlled-environment.green.log",
+      "beforeHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "mutantHash": "ae880e88624b5d50018a44e09d399ad61db9a25da5ceb169f37025962af4c49f",
+      "afterHash": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc",
+      "redLogHash": "85e86c91585cf7cafe49d5c0289c22e33244fe1070a2f3b00dc7e468981f74a2",
+      "greenLogHash": "635c2ea2ff5c42a1d7d26cee59417de94875dfa0575df77b47972f421b5a4fe0"
+    },
+    {
+      "id": "shared-native-exit-fixture-replay",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "process.exit(await runLintExecutable(process.argv.slice(2)))",
+          "replacement": "process.exitCode = await runLintExecutable(process.argv.slice(2))"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+      "pattern": "unconfirmed group cleanup",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=unconfirmed group cleanup"
+      ],
+      "state": "killed-restored",
+      "testName": "exits after unconfirmed group cleanup with PID diagnostics and retained scratch",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-root-proofs/shared-native-exit-fixture-replay.red.log",
+      "greenLog": "/tmp/puni-root-proofs/shared-native-exit-fixture-replay.green.log",
+      "beforeHash": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e",
+      "mutantHash": "3a88302bd9cc5f2c2c0e153aa4c731f0ddccfd658c9b976059fa57d0c7ebeb5b",
+      "afterHash": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e",
+      "redLogHash": "39c9f8ea8e7545d2651637a544930e4148318c55e5197f957b85ecff7ac9af0e",
+      "greenLogHash": "7a302acdfb44fd13788a2d02bd72c64581d652ce495bda9c03e767209c9d6881"
+    }
+  ],
+  "archive": "/tmp/puni-root-proofs",
+  "checks": [
+    {
+      "id": "coherent-tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-child.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-death.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "./apps/puni/cli/src",
+        "./tools/tool-devsync/src/puni-boundaries.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts",
+        "--timeout=30000"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-root-regression-final.log",
+      "logSha256": "fd5a80970c930690c3359e2545adf35b060517d3f7d2d6067e50be454141b4e9"
+    },
+    {
+      "id": "canonical-forced-types",
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "apps/puni/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-navigator/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "libs/wbs/application/core/tsconfig.json",
+        "libs/wbs/adapters/store-sqlite/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-root-final-types.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/puni/cli/src",
+        "apps/puni/eslint.product.mjs",
+        "tools/tool-devsync/src/puni-boundaries.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts",
+        "apps/twilight-structure/twilight-navigator/cli/src/grammar-facade.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-root-final-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "observed": {
+    "pass": 769,
+    "fail": 0,
+    "assertions": 2633,
+    "files": 24,
+    "seconds": 170.35
+  },
+  "testEpochSourceHashes": [
+    {
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "sha256": "4aeef722c4cf6b19c8060cd20a18754ef2ca911b0c06fa648da7b4d7a310d122"
+    },
+    {
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "sha256": "7a0ab8b20a31e120ac9052df0e01039c22e4be9303b1f9f25df894c8f328cce9"
+    },
+    {
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "sha256": "2f1db4e85ee56431dc66e7de05f046fbb467ac061b2c3793ca6a513c9a0675fb"
+    },
+    {
+      "path": "apps/puni/cli/src/cli.test.ts",
+      "sha256": "c57449271cfd205d8cfa1a6112656d0ca77c398de19e72835a99e1f4f7df6098"
+    },
+    {
+      "path": "apps/puni/eslint.product.mjs",
+      "sha256": "dc05dad0230d2c3b8e1504359b77ce67ad31adf3118e911212de9c62e9e2d53e"
+    },
+    {
+      "path": "tools/tool-devsync/src/puni-boundaries.test.ts",
+      "sha256": "dff2fb1b2367228d68ac1b85ab7c443fdb672a07a4364ca94508792de3d25beb"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "sha256": "731f0acd22cde8a87961fcbe2b9c1876e18e1b4d733b71b702e6010f74c932cc"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "sha256": "e6ef059e178a02ea80605f413380bf921059f8e316e374a5ba72558ebb84d185"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "sha256": "f2c214a386f7e41cb1e9882a34c4e9cda4bbfa323b2abd0d3921e401750be9c7"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts",
+      "sha256": "de60fdf6bd06f4581c531cd1171ddc56939bca28c09db1e2bd073a8c4cc26b49"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-navigator/cli/src/grammar-facade.ts",
+      "sha256": "cc4825632a4d088bedb953c70695e23ce6ba12d6614efa77ed5eb42b1b00f35f"
+    }
+  ],
+  "adjacentProofNotes": [
+    {
+      "id": "root-navigator-selection",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "navigator executes actual planning files through the typed root"
+    },
+    {
+      "id": "root-navigator-lf",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "navigator executes actual planning files through the typed root"
+    },
+    {
+      "id": "root-dash-status",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "dash forwards actual native ops refusal status through the typed root"
+    },
+    {
+      "id": "root-burokrat-selection",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "burokrat runs actual ordinary installed template requests through the built root with toolkit1"
+    },
+    {
+      "id": "root-lint-dedicated-route",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "burokrat runs actual selected installed lint through the built root with toolkit2"
+    },
+    {
+      "id": "root-lint-caller",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "keeps required installed lint admission78 and caller-relative activation operands through the root"
+    },
+    {
+      "id": "root-lint-required",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "keeps required installed lint admission78 and caller-relative activation operands through the root"
+    },
+    {
+      "id": "root-lint-activation",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "keeps required installed lint admission78 and caller-relative activation operands through the root"
+    },
+    {
+      "id": "root-ordinary-lookup",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "freezes ordinary root Git lookup before candidate and toolkit cwd changes"
+    },
+    {
+      "id": "root-ordinary-path-refusal",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "gives an absent ordinary trusted PATH its explicit refusal before installed input reads"
+    },
+    {
+      "id": "root-lint-path-owner",
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "testName": "reports absent root lint PATH inside its bounded executable reporter"
+    },
+    {
+      "id": "root-lint-empty-path",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "testName": "preserves explicitly empty root lint PATH as the selected trusted directory"
+    },
+    {
+      "id": "root-lint-path-refusal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "testName": "reports absent root lint PATH inside its bounded executable reporter"
+    },
+    {
+      "id": "root-main-await",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "testName": "awaits the selected typed operation without changing global status or reparsing ambient argv"
+    },
+    {
+      "id": "root-main-lazy",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "testName": "[\"--help\"] discovers through the actual root without provider runtimes, clock, network or PATH"
+    },
+    {
+      "id": "root-main-discovery",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "testName": "[\"--help\"] discovers through the actual root without provider runtimes, clock, network or PATH"
+    },
+    {
+      "id": "root-main-args",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "testName": "[] keeps invocation-aware usage status under misleading ambient argv"
+    },
+    {
+      "id": "root-main-status",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "testName": "dash forwards actual native ops refusal status through the typed root"
+    },
+    {
+      "id": "root-main-terminal-exit",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "testName": "exits the actual root after unconfirmed lint Git preflight before fixture cleanup"
+    },
+    {
+      "id": "root-main-import-guard",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "testName": "imports the root executable without running ambient argv or assigning global status"
+    },
+    {
+      "id": "root-error-controls",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "testName": "formats an operation error as one plain line without nested cause messages"
+    },
+    {
+      "id": "root-error-whitespace",
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "testName": "formats an operation error as one plain line without nested cause messages"
+    },
+    {
+      "id": "root-usage-selected-status",
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "testName": "[] keeps invocation-aware usage status under misleading ambient argv"
+    },
+    {
+      "id": "root-navigator-usage",
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "testName": "navigator-usage classifies the selected public provider refusal independently of ambient argv"
+    },
+    {
+      "id": "root-ops-usage",
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "testName": "ops-usage classifies the selected public provider refusal independently of ambient argv"
+    },
+    {
+      "id": "root-release-usage",
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "testName": "release-usage classifies the selected public provider refusal independently of ambient argv"
+    },
+    {
+      "id": "root-unexpected-failure",
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "testName": "navigator-unexpected classifies the selected public provider refusal independently of ambient argv"
+    },
+    {
+      "id": "root-executor-allowance",
+      "path": "apps/puni/eslint.product.mjs",
+      "testName": "PUNI execution boundary > admits the real lazy executor through only provider runtime facades"
+    },
+    {
+      "id": "root-executor-consumer",
+      "path": "apps/puni/eslint.product.mjs",
+      "testName": "PUNI execution boundary > keeps @puni/burokrat/runtime out of neighboring root execution files"
+    },
+    {
+      "id": "root-executor-alias",
+      "path": "apps/puni/eslint.product.mjs",
+      "testName": "PUNI execution boundary > rejects @puni/dash/grammar from root runtime composition"
+    },
+    {
+      "id": "root-executor-inherited-policy",
+      "path": "apps/puni/eslint.product.mjs",
+      "testName": "PUNI execution boundary > changes only exact runtime allowances in the dedicated executor"
+    },
+    {
+      "id": "shared-runtime-native-cwd",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "testName": "stable lint executable lookup > canonicalizes the trusted cwd with native symlink and parent semantics"
+    },
+    {
+      "id": "shared-runtime-relative-path-freeze",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "testName": "keeps the selected Git PATH identity when the captured validator changes cwd"
+    },
+    {
+      "id": "shared-runtime-absolute-path-preserved",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "testName": "stable lint executable lookup > preserves absolute components verbatim including native parent segments"
+    },
+    {
+      "id": "shared-runtime-delimiter-refusal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "testName": "stable lint executable lookup > refuses an unrepresentable anchored PATH \"\""
+    },
+    {
+      "id": "shared-runtime-empty-path-confined",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "testName": "stable lint executable lookup > keeps a wholly empty PATH confined to the trusted runtime cwd"
+    },
+    {
+      "id": "shared-runtime-controlled-environment",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "testName": "stable lint executable lookup > freezes ordered relative and empty components against the trusted runtime cwd"
+    }
+  ],
+  "erasedEquality": [
+    {
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "equal": true,
+      "beforeHash": "2bcdc67b9256420dc1ae232190de8fa890afae0b7df7d99b183f7a19dd88e02e",
+      "afterHash": "2bcdc67b9256420dc1ae232190de8fa890afae0b7df7d99b183f7a19dd88e02e"
+    },
+    {
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "equal": true,
+      "beforeHash": "305312858c7136ded58017528a2ce2065b0c2ad4cab3a9fa849da8bd5593eb6b",
+      "afterHash": "305312858c7136ded58017528a2ce2065b0c2ad4cab3a9fa849da8bd5593eb6b"
+    },
+    {
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "equal": true,
+      "beforeHash": "5afe79e549b6dfa703930d118fe6962084efea778bfac64f20fef6daeedd0ab6",
+      "afterHash": "5afe79e549b6dfa703930d118fe6962084efea778bfac64f20fef6daeedd0ab6"
+    },
+    {
+      "path": "apps/puni/cli/src/cli.test.ts",
+      "equal": true,
+      "beforeHash": "04cdc0c29c93b5ccfb1c62ee023e3dca102295a6e1e1a48c82f0059d83587bb0",
+      "afterHash": "04cdc0c29c93b5ccfb1c62ee023e3dca102295a6e1e1a48c82f0059d83587bb0"
+    },
+    {
+      "path": "apps/puni/eslint.product.mjs",
+      "equal": true,
+      "beforeHash": "c09e7dc6365f984b9fd1d337d393dbc2c2400df426eec133487725e095ffeada",
+      "afterHash": "c09e7dc6365f984b9fd1d337d393dbc2c2400df426eec133487725e095ffeada"
+    },
+    {
+      "path": "tools/tool-devsync/src/puni-boundaries.test.ts",
+      "equal": true,
+      "beforeHash": "5b4ba8741ae25aef86192b910c16c2b4284b85a8c68362cef4ba5d2f3b0fab6f",
+      "afterHash": "5b4ba8741ae25aef86192b910c16c2b4284b85a8c68362cef4ba5d2f3b0fab6f"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "equal": true,
+      "beforeHash": "c8709676a51f276bb85149697a8bc4203ca63b57110159439d08ba171f8c2be2",
+      "afterHash": "c8709676a51f276bb85149697a8bc4203ca63b57110159439d08ba171f8c2be2"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "equal": true,
+      "beforeHash": "2047181586e9e28e9f44ad0ad673eb20bf3b688aa12185f0a59ce007126255b7",
+      "afterHash": "2047181586e9e28e9f44ad0ad673eb20bf3b688aa12185f0a59ce007126255b7"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "equal": true,
+      "beforeHash": "e69f6c4c0cc3505ae34d45a97791764f14e723a9514b6540f09227e16a9ebdd0",
+      "afterHash": "e69f6c4c0cc3505ae34d45a97791764f14e723a9514b6540f09227e16a9ebdd0"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts",
+      "equal": true,
+      "beforeHash": "c497239fad2cad7bd24cda543b20197eceb48522eac1335cef704bac3457913f",
+      "afterHash": "c497239fad2cad7bd24cda543b20197eceb48522eac1335cef704bac3457913f"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-navigator/cli/src/grammar-facade.ts",
+      "equal": true,
+      "beforeHash": "13dc651e1ac753a00fa881d3f253be799aabb902056f87ecf63c73d92ac93849",
+      "afterHash": "13dc651e1ac753a00fa881d3f253be799aabb902056f87ecf63c73d92ac93849"
+    }
+  ],
+  "review": {
+    "audit": "/tmp/puni-root-independent-audit.json",
+    "scope": "Read-only source/log/hash/archive audit; reviewer ran no tests or mutations. Adjacent new proof notes still pending. Not whole-goal/package clearance.",
+    "observations": [
+      {
+        "id": "root-navigator-selection",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-navigator-lf",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-dash-status",
+        "checks": {
+          "anchor0": true,
+          "anchor1": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-burokrat-selection",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-lint-dedicated-route",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-lint-caller",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-lint-required",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-lint-activation",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-ordinary-lookup",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-ordinary-path-refusal",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-lint-path-owner",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-lint-empty-path",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-lint-path-refusal",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-main-await",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-main-lazy",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 5,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 5
+        }
+      },
+      {
+        "id": "root-main-discovery",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 5,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 5
+        }
+      },
+      {
+        "id": "root-main-args",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 4,
+          "redPass": 1,
+          "greenFail": 0,
+          "greenPass": 5
+        }
+      },
+      {
+        "id": "root-main-status",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-main-terminal-exit",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-main-import-guard",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-error-controls",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-error-whitespace",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-usage-selected-status",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 4,
+          "redPass": 1,
+          "greenFail": 0,
+          "greenPass": 5
+        }
+      },
+      {
+        "id": "root-navigator-usage",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-ops-usage",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-release-usage",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-unexpected-failure",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-executor-allowance",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-executor-consumer",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 3,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 3
+        }
+      },
+      {
+        "id": "root-executor-alias",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "root-executor-inherited-policy",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "shared-runtime-native-cwd",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "shared-runtime-relative-path-freeze",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "shared-runtime-absolute-path-preserved",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "shared-runtime-delimiter-refusal",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 3,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 3
+        }
+      },
+      {
+        "id": "shared-runtime-empty-path-confined",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "shared-runtime-controlled-environment",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      },
+      {
+        "id": "shared-native-exit-fixture-replay",
+        "checks": {
+          "anchor0": true,
+          "beforeCurrent": true,
+          "restoration": true,
+          "mutant": true,
+          "sourceArchive": true,
+          "testArchive": true,
+          "redHash": true,
+          "redNamed": true,
+          "redOutcome": true,
+          "greenHash": true,
+          "greenNamed": true,
+          "greenOutcome": true,
+          "exitCodes": true
+        },
+        "counts": {
+          "redFail": 1,
+          "redPass": 0,
+          "greenFail": 0,
+          "greenPass": 1
+        }
+      }
+    ],
+    "cases": 38,
+    "uniqueMutantPairs": 38,
+    "problems": [],
+    "qualifications": {
+      "root-lint-path-owner": "Diagnostic reporter-prefix oracle, not closed/stalled cleanup failure oracle.",
+      "root-main-await": "Fails on dispatch completion before selected lazy runtime entry; positive also observes live gate.",
+      "nativeExit": "RED saves false/null/stage-alive observation before manual cleanup; Linux x64 reaping qualification."
+    },
+    "testsIndependentlyRerun": false
+  },
+  "proofQualifications": [
+    "root-lint-path-owner proves owned diagnostic selection rather than failing a closed/stalled lifetime oracle; the actual closed/stalled built-root tests pass separately.",
+    "root-main-await RED occurs before lazy runtime entry, proving dispatch awaiting rather than a live-operation gate race.",
+    "Some selectors cover several named cases; every proof requires RED exit1, a matching named failure and restored GREEN0, not exactly one failed test.",
+    "Both native-exit guard faults record unsettled/null-status execution and a live stage before fixture cleanup; exact reaping follows those measurements."
+  ],
+  "failedOrUncreditedAttempts": [
+    {
+      "log": "/tmp/puni-root-red1.log",
+      "observation": "initial root entrypoint missing;0pass1fail1error"
+    },
+    {
+      "log": "/tmp/puni-root-boundary-red1.log",
+      "observation": "28pass2fail required executor allowance absent before policy implementation"
+    },
+    {
+      "log": "/tmp/puni-root-provider-green1.log",
+      "observation": "7pass1fail relative-PATH fixture lacked required HEAD; added its own empty commit and moved observation markers outside candidate"
+    },
+    {
+      "log": "/tmp/puni-root-path-owner-red1.log",
+      "observation": "actual missing-PATH refusal routed through root error instead of owned lint reporter; expected RED before owner fix"
+    },
+    {
+      "log": "/tmp/puni-root-entry-boundary-green1.log",
+      "observation": "1pass1fail test program contained literal NUL in exec argv; replaced fixture with runtime String.fromCharCode, no production change"
+    },
+    {
+      "log": "/tmp/puni-root-lint1.log",
+      "observation": "4 type/style/import test diagnostics corrected"
+    },
+    {
+      "log": "/tmp/puni-root-lint3.log",
+      "observation": "2 provider-test import/unsafe-finally issues corrected with sequential aggregated cleanup"
+    }
+  ],
+  "historicalChecks": [
+    {
+      "log": "/tmp/puni-root-green1.log",
+      "observation": "19pass0fail63assertions before later root control/classifier cases"
+    },
+    {
+      "log": "/tmp/puni-root-provider-green2.log",
+      "observation": "8pass0fail30assertions before native preflight/missing-PATH cases"
+    },
+    {
+      "log": "/tmp/puni-root-provider-green3.log",
+      "observation": "13pass0fail55assertions25.75s including actual precleanup native observations and absent/emptyPATH/closed/fullstderr"
+    },
+    {
+      "log": "/tmp/puni-root-native-helper-green1.log",
+      "observation": "original standalone native-exit baseline1pass0fail5assertions3.04s after generic supervisor extraction"
+    },
+    {
+      "log": "/tmp/puni-root-classification-green2.log",
+      "observation": "26pass0fail77assertions7.14s before final two import/formatter tests"
+    },
+    {
+      "log": "/tmp/puni-root-entry-boundary-green2.log",
+      "observation": "final two import/formatter cases pass after fixture repair"
+    }
+  ],
+  "notes": [
+    "Actual root source runs every Navigator/Dash alias; provider-owned integration builds the actual root artifact and executes all Burokrat aliases next to explicit external fixture installations without private cross-product implementation imports.",
+    "Toolkit1 ordinary-operation and toolkit2 lint fixtures are separate; this does not establish one coherent installed distribution or switch producer defaults.",
+    "Ordinary PATH uses shared native lookup freezing before toolkit/candidate cwd changes. Lint freezing and absent-PATH refusal stay inside its owner; explicitly empty PATH remains the trusted origin.",
+    "Context composition, parsing and provider import failures remain outside the owned lint reporter; claims cover admitted typed lint prerequisites and operation lifecycle.",
+    "Linux x64 native adoption/reaping is qualified here; closed/full FIFO tests are explicitly Linux-only. No Mac startup or reaping qualification inferred.",
+    "Release children and heavy Dash operations retain native IO/adapters; main uses injected context streams for grammar/Nav/ordinary Burokrat, and real owned lint output for lint.",
+    "No canonical host gate, deployed rollout, registry publication or full Bun conversion claimed."
+  ],
+  "remaining": [
+    "coherent PUNI package/provider assets and producer switch",
+    "all seven delegated leaf operations through installed package",
+    "stored helper startup budget and actual generated helper execution",
+    "complete client/operational script inventory and Bun ports",
+    "canonical host gate and rollout"
+  ],
+  "sourceHashes": [
+    {
+      "path": "apps/puni/cli/src/cli-parser.ts",
+      "sha256": "32c0a9d4cecb25a8cb443ca190be3c2c0f4677b6f5827573462ada47a1563720"
+    },
+    {
+      "path": "apps/puni/cli/src/entrypoint.ts",
+      "sha256": "ccaec44f54bd3f9c2bd2d0088b147d8f9d229faa7b7526de77a3ce1116acadb5"
+    },
+    {
+      "path": "apps/puni/cli/src/execute-command.ts",
+      "sha256": "db00aaf1e1eb1427f4fb92b5a9e9d0ffbeb14f7f556e4dc44143a238115e9a29"
+    },
+    {
+      "path": "apps/puni/cli/src/cli.test.ts",
+      "sha256": "c57449271cfd205d8cfa1a6112656d0ca77c398de19e72835a99e1f4f7df6098"
+    },
+    {
+      "path": "apps/puni/eslint.product.mjs",
+      "sha256": "fcf5dc6d33ec46b1565e5b96ed920d154e0265f6605e0efac2af8deec55462e7"
+    },
+    {
+      "path": "tools/tool-devsync/src/puni-boundaries.test.ts",
+      "sha256": "dff2fb1b2367228d68ac1b85ab7c443fdb672a07a4364ca94508792de3d25beb"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+      "sha256": "9686b2875b18c285f7f7355fa831ec5a8012edba6f81c3af11224442afbdc696"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "sha256": "95a930d56c76fb58ab054b3d86b2a31310e7f73299ba53665b162cb52d628b96"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+      "sha256": "f2c214a386f7e41cb1e9882a34c4e9cda4bbfa323b2abd0d3921e401750be9c7"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts",
+      "sha256": "de60fdf6bd06f4581c531cd1171ddc56939bca28c09db1e2bd073a8c4cc26b49"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-navigator/cli/src/grammar-facade.ts",
+      "sha256": "cc4825632a4d088bedb953c70695e23ce6ba12d6614efa77ed5eb42b1b00f35f"
+    }
+  ],
+  "finalChecks": [
+    {
+      "id": "post-comment-lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/puni/cli/src",
+        "apps/puni/eslint.product.mjs",
+        "tools/tool-devsync/src/puni-boundaries.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts",
+        "apps/twilight-structure/twilight-navigator/cli/src/grammar-facade.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-c19-final-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "openspec",
+      "argv": ["bunx", "openspec", "validate", "--all", "--json"],
+      "exitCode": 0,
+      "log": "/tmp/puni-c19-final-openspec.json",
+      "logSha256": "2740df50ba31794c9daf7d77e4e06ee4094712d8a92a8b7946e0d554967c2279"
+    },
+    {
+      "id": "diff",
+      "argv": ["git", "diff", "--check"],
+      "exitCode": 0,
+      "log": "/tmp/puni-c19-final-diff.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "format-write",
+      "argv": [
+        "bunx",
+        "prettier",
+        "--write",
+        "apps/puni/cli/src/cli-parser.ts",
+        "apps/puni/cli/src/entrypoint.ts",
+        "apps/puni/cli/src/execute-command.ts",
+        "apps/puni/cli/src/cli.test.ts",
+        "apps/puni/eslint.product.mjs",
+        "tools/tool-devsync/src/puni-boundaries.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-runtime.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-root.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts",
+        "apps/twilight-structure/twilight-navigator/cli/src/grammar-facade.ts",
+        "openspec/changes/puni-cli/design.md",
+        "openspec/changes/puni-cli/specs/puni-cli/spec.md",
+        "openspec/changes/puni-cli/tasks.md",
+        "openspec/changes/puni-cli/verify.md",
+        "openspec/changes/puni-cli/verification-c19-root.json"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-c19-format-write.log",
+      "logSha256": "4f97b398f302d17c5986a583a768e34e2314107ca90d528aba9b2a5b354e0bcf"
+    }
+  ]
+}

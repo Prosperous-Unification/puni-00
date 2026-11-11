@@ -131,19 +131,40 @@ function resolveDependency(modulesRoot: string, importer: string, dependency: st
  * @throws Error for unreadable or malformed installed manifests.
  */
 export function trustedModuleNames(modulesRoot: string): string[] {
+  return collectModuleNames(modulesRoot, trustedDeclarationRoots);
+}
+
+/** Current provider source builds also require grammar, document readers and compiler stack support. */
+export function buildModuleNames(modulesRoot: string): string[] {
+  return collectModuleNames(modulesRoot, [
+    ...trustedDeclarationRoots,
+    '@optique/core',
+    // Proof: c26-build-roster; injected fault failed `declares Optique and the actual compiler in the authenticated current build roster`; the same named test(s) passed after restoration.
+    '@optique/run',
+    'source-map-support',
+    'parse5',
+    'mdast-util-from-markdown',
+    'mdast-util-to-string',
+    'unist-util-visit',
+  ]);
+}
+
+function collectModuleNames(modulesRoot: string, roots: readonly string[]): string[] {
   const names = new Set<string>();
   // Check the compiler first so a missing installation keeps the established compiler refusal.
-  const pending: string[] = [
-    'typescript',
-    ...trustedDeclarationRoots.filter((name) => name !== 'typescript'),
-  ];
+  const pending: string[] = ['typescript', ...roots.filter((name) => name !== 'typescript')];
   for (const name of pending) {
     if (names.has(name)) continue;
     names.add(name);
     const directory = packageDirectory(modulesRoot, name);
     // Installed package manifests are a package-manager boundary. Only `dependencies` is
     // consumed; JSON shape and dependency names are checked before they become filesystem paths.
-    const manifest: unknown = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
+    const manifestPath = join(directory, 'package.json');
+    // Proof: c27-selected-manifest-regular; the actual noncompiler FIFO test timed out before this admission and returned its named refusal after restoration.
+    // Proof: c27-module-manifest-regular; injected fault failed `refuses a selected noncompiler FIFO manifest before synchronous roster reads can block`; restoration passed.
+    if (!lstatSync(manifestPath).isFile())
+      throw new Error('trusted node module manifest is not a regular file: ' + name);
+    const manifest: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'));
     // Proof: bypassing manifest shape admitted [] and lost the named null refusal in
     // trusted-modules.test.ts; both malformed-manifest negatives failed.
     if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
@@ -264,13 +285,7 @@ export function copyTrustedModules(
     cpSync(source, target, {
       dereference: false,
       recursive: true,
-      // Proof: copying nested node_modules wholesale admitted unrelated; the topology
-      // production-path test failed its expected missing unrelated/package.json assertion.
-      filter: (path) =>
-        !relative(source, path).split('/').includes('node_modules') &&
-        // Proof: retaining Bun-only metadata broke the packed-command closure digest; the
-        // canonical-copy test first failed because elysia/bunfig.toml remained present.
-        !omittedPackageMetadata.has(relative(modulesRoot, path)),
+      filter: (path) => isCopiedModulePath(modulesRoot, source, path),
     });
   }
 }
@@ -335,4 +350,44 @@ export async function buildValidatorBundle(
     );
   }
   return new Uint8Array(await built.outputs[0].arrayBuffer());
+}
+
+function isCopiedModulePath(modulesRoot: string, source: string, path: string): boolean {
+  // Proof: copying nested node_modules wholesale admitted unrelated; the topology
+  // production-path test failed its expected missing unrelated/package.json assertion.
+  return (
+    !relative(source, path).split('/').includes('node_modules') &&
+    // Proof: retaining Bun-only metadata broke the packed-command closure digest; the
+    // canonical-copy test first failed because elysia/bunfig.toml remained present.
+    !omittedPackageMetadata.has(relative(modulesRoot, path))
+  );
+}
+
+/**
+ * Pin the validated selected roster before copying from a stable operator-owned installation.
+ * Nested instances retain their exact paths; unselected packages and copier-omitted metadata
+ * contribute no bytes. The digest matches hashTrustedModules on the resulting exact closure,
+ * allowing the caller to detect copy drift without hashing unrelated installed packages.
+ * @throws for missing, unreadable or nonregular selected state; caller owns roster validation.
+ */
+export function hashSelectedModules(modulesRoot: string, names: readonly string[]): string {
+  const lines: string[] = [];
+  for (const name of [...names].sort()) {
+    const source = packageDirectory(modulesRoot, name);
+    function walk(directory: string, prefix: string): void {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const path = join(directory, entry.name),
+          reference = prefix + '/' + entry.name;
+        if (!isCopiedModulePath(modulesRoot, source, path)) continue;
+        if (entry.isDirectory()) walk(path, reference);
+        // Proof: c27s-selected-byte-binding; selected byte fingerprint dependency fault, checked against the actual private copied closure; injected fault failed `pins exactly the selected copied dependency bytes and nested instance topology`; restoration passed.
+        else if (entry.isFile()) lines.push(reference + ':' + hashBytes(readFileSync(path)));
+        // Proof: c27s-selected-nonregular; injected fault failed `refuses a selected dependency symlink rather than pinning an external target`; restoration passed.
+        else throw new Error('selected node modules carry a non-regular entry: ' + reference);
+      }
+    }
+    // Proof: c27s-selected-topology-binding; selected installed-instance path fingerprint fault, checked against the actual nested copied topology; injected fault failed `pins exactly the selected copied dependency bytes and nested instance topology`; restoration passed.
+    walk(source, name);
+  }
+  return hashBytes(new TextEncoder().encode(lines.sort().join('\n') + '\n'));
 }

@@ -5,8 +5,6 @@ import {
   constant,
   formatUsage,
   type InferValue,
-  lineBreak,
-  type Message,
   message,
   type NonEmptyString,
   object,
@@ -14,11 +12,20 @@ import {
   optional,
   or,
   type Parser,
-  passThrough,
   string,
   text,
 } from '@optique/core';
 import { run } from '@optique/run';
+
+import {
+  activationParser,
+  checkParser,
+  explainParser,
+  relocationParser,
+  scenarioParser,
+  templateParser,
+  workflowBindingParser,
+} from './policy-parser';
 
 const programName = 'twilight-burokrat';
 
@@ -30,20 +37,24 @@ export class UsageRefusal extends Error {
   override readonly name = 'UsageRefusal';
 }
 
-/** One positional operand, a word as the shell passed it. */
-const operand = (metavar: NonEmptyString) => argument(string({ metavar }));
+/**
+ * One nonblank positional operand, preserving its original spelling.
+ * Proof: removing the pattern fails root Burokrat read-candidate whitespace-only input refusal.
+ */
+const operand = (metavar: NonEmptyString) => argument(string({ metavar, pattern: /\S/u }));
 
 /**
  * A JSON input path of the two plan-consistency commands: non-empty and not flag-shaped, as their
  * hand-written guards required.
  * Proof: dropping `pattern` made `refuses invalid operands before reading` (plan-tasks.test.ts)
  * accept the empty path `''` and read it instead of refusing the usage (2026-11-02).
+ * Proof: removing the nonblank lookahead fails root Burokrat validate-plan-tasks blank input refusal.
  */
 const jsonPath = (metavar: NonEmptyString) =>
   argument(
     string({
       metavar,
-      pattern: /^(?!-)[\s\S]+$/u,
+      pattern: /^(?!-)(?!\s*$)[\s\S]+$/u,
       errors: { patternMismatch: (input) => [text(`not a JSON input path: '${input}'`)] },
     }),
   );
@@ -87,47 +98,6 @@ function typed<const Name extends string, const Fields extends Record<string, Pa
   return command(name, object({ command: constant(name), ...fields }), {
     brief: [text(brief)],
   });
-}
-
-/**
- * The grammar each delegated command's module parses itself, shown by `help <command>` and the
- * help footer. A delegated command's words reach its module verbatim, so its refusal wording
- * stays where it is documented and tested. Each is the tail of its module's exported usage line;
- * `cli.test.ts` compares the two, so a module grammar changed alone fails a test. The parser does
- * not import those modules: they pull their command graphs into every invocation's start.
- */
-export const delegatedGrammars = {
-  check:
-    '<committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>] [--now <UTC instant>]',
-  explain: '<rule-id> [<repository> <rule-policy-json>]',
-  scenario: '<import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]',
-  template:
-    '<list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>',
-  'validate workflow-binding': '<file> --steps <comma-list>',
-  'prepare-activation':
-    '--candidate-repository <value> --candidate-sha <value> --toolkit <value> --candidate-policy <value> --candidate-mapping <value> --review-record <value> --audit-strata <value> --destination <value> --work <value> --resource-lane <value> --cwd-identity <value> --check-runs <value>',
-  'prepare-relocation-activation':
-    '--candidate-repository <value> --candidate-sha <value> --base-activation <value> --review-record <value> --destination <value> --work <value> [--candidate-policy <value>] [--candidate-launcher <value>] [--validator-entry <value>] --resource-lane <value> --cwd-identity <value> --check-runs <value>',
-} as const;
-
-type DelegatedWords = keyof typeof delegatedGrammars;
-
-function described(words: DelegatedWords, brief: string) {
-  return {
-    brief: [text(brief)],
-    description: [
-      text(brief),
-      ...wrapGrammar(`${programName} ${words} ${delegatedGrammars[words]}`),
-    ],
-  };
-}
-
-function delegated<const Name extends DelegatedWords>(name: Name, brief: string) {
-  return command(
-    name,
-    object({ command: constant(name), argv: passThrough({ format: 'greedy' }) }),
-    described(name, brief),
-  );
 }
 
 /** The eleven named input documents of the exhaustive census commands, in operand order. */
@@ -195,14 +165,7 @@ const recordCommands = [
   command(
     'validate',
     or(
-      command(
-        'workflow-binding',
-        object({
-          command: constant('validate workflow-binding'),
-          argv: passThrough({ format: 'greedy' }),
-        }),
-        described('validate workflow-binding', 'Validate a workflow binding and print its digest.'),
-      ),
+      workflowBindingParser,
       object({ command: constant('validate'), kind: operand('KIND'), record: operand('JSON') }),
     ),
     {
@@ -309,10 +272,10 @@ const policyCommands = [
       nextBinding: operand('NEXT-BINDING'),
     },
   ),
-  delegated('check', 'Evaluate the registered rules over one candidate and print a verdict.'),
-  delegated('explain', "Print a rule's registry record and, with a rule policy, its mode."),
-  delegated('scenario', 'Import, allocate or validate OpenSpec scenario identities.'),
-  delegated('template', 'List, show or verify module templates.'),
+  checkParser,
+  explainParser,
+  scenarioParser,
+  templateParser,
 ] as const;
 
 const evidenceCommands = [
@@ -488,13 +451,14 @@ const sourceOnlyCommands = [
  * unsupported, as it always did.
  */
 const installedOnlyCommands = [
+  // Proof: grammar-lint-selection; `installed lint request boundary > the installed grammar refuses an unsupported selection before operation IO` fails with this injected fault and passes after restoration.
   typed('lint', 'Run the trusted whole-tree lint through the installed launcher.', {
-    kind: operand('SELECTION'),
+    kind: selection(),
     repository: operand('REPOSITORY'),
     revision: operand('REVISION-OR-BASE'),
   }),
-  delegated('prepare-activation', 'Prepare a toolkit activation from the installed toolkit.'),
-  delegated('prepare-relocation-activation', 'Prepare a relocation activation.'),
+  activationParser,
+  relocationParser,
 ] as const;
 
 function commandNames(parser: Parser): string[] {
@@ -585,14 +549,6 @@ function usageOf(commands: readonly Parser[], name: string): string | undefined 
 }
 
 /**
- * The refusal of a delegated command whose word count its module cannot take: the module's
- * documented grammar, then why.
- */
-export function delegatedArityRefusal(name: 'check' | 'explain', reason: string): UsageRefusal {
-  return new UsageRefusal(`usage: ${programName} ${name} ${delegatedGrammars[name]} (${reason})`);
-}
-
-/**
  * One refusal line from Optique's error text, which `help <unknown>` prefixes with the whole
  * usage, so only the text after its last `Error: ` is the reason. An argv whose first word names
  * none of `commands` refuses `Unsupported Burokrat command: <word>`; any other refusal starts with
@@ -621,36 +577,6 @@ function refusalOf(
   // (2026-11-02).
   if (usage === undefined) return `Unsupported Burokrat command: ${name ?? '<missing>'}`;
   return `${usage} (${reason})`;
-}
-
-/**
- * The help footer: each delegated command of `grammar` with its module's documented grammar,
- * which the generated usage shows only as `[...]`.
- * Proof: dropping the footer failed `buildPackage > builds the canonical executable for use
- * outside the repository` (packaging/build.test.ts), whose help lacked
- * `twilight-burokrat check <committed|staged|working>` (2026-11-02).
- */
-function delegatedFooter(grammar: Grammar<Parser>): Message {
-  const names = new Set(commandNamesOf(grammar));
-  const lines = Object.entries(delegatedGrammars)
-    .filter(([words]) => names.has(words.split(' ')[0]))
-    .flatMap(([words, grammarText]) => wrapGrammar(`${programName} ${words} ${grammarText}`));
-  return [text('Commands that parse their own arguments:'), ...lines];
-}
-
-/**
- * One grammar as footer lines of at most 100 columns, broken between words and continued with a
- * deeper indent, so `run`'s own wrapping at 120 never splits a line and leaves a trailing space.
- */
-function wrapGrammar(grammarLine: string): Message {
-  const lines: string[] = [];
-  for (const word of grammarLine.split(' ')) {
-    const last = lines.at(-1);
-    if (last !== undefined && last.length + 1 + word.length <= 100)
-      lines[lines.length - 1] = `${last} ${word}`;
-    else lines.push(last === undefined ? `  ${word}` : `      ${word}`);
-  }
-  return lines.flatMap((line) => [lineBreak(), text(line)]);
 }
 
 /** The exit that ends `run` after it printed help, a version or a completion script. */
@@ -711,23 +637,12 @@ export function registerShortName(shell: string, script: string): string {
   return rewritten;
 }
 
-/** The command words of a parsed delegated command whose only word is `--help`, else undefined. */
-function delegatedHelpWords(parsed: unknown): string[] | undefined {
-  if (typeof parsed !== 'object' || parsed === null) return undefined;
-  if (!('command' in parsed) || !('argv' in parsed)) return undefined;
-  const { command: words, argv } = parsed;
-  if (typeof words !== 'string' || !Object.hasOwn(delegatedGrammars, words)) return undefined;
-  if (!Array.isArray(argv) || argv.length !== 1 || argv[0] !== '--help') return undefined;
-  return words.split(' ');
-}
-
 /**
  * Parses one Burokrat command line of `grammar` through Optique's `run` with every sink
  * injected: help, `--version` and completion scripts go to `stdout` and return
  * `{ kind: 'printed' }`; a refusal throws {@link UsageRefusal} and writes nothing. Never calls
- * `process.exit` and reads no clock. A delegated command whose only word is `--help` prints that
- * command's help, as `help <command>` does; any other words, `--help` among them, reach its
- * module. Completion scripts register `twib` beside `twilight-burokrat`.
+ * `process.exit` and reads no clock. Every leaf's discovery derives from its typed grammar.
+ * Completion scripts register `twib` beside `twilight-burokrat`.
  *
  * @throws UsageRefusal with one line: `Unsupported Burokrat command: <name>` or `usage: …`.
  */
@@ -773,13 +688,8 @@ export function readInvocation<T extends Parser>(
       aboveError: 'none',
       help: 'both',
       completion: 'command',
-      footer: delegatedFooter(grammar),
       ...(options.version === undefined ? {} : { version: options.version }),
     });
-    const helpWords = delegatedHelpWords(parsed);
-    // Proof: dropping this branch made `<delegated command> --help prints its help; other words
-    // reach the module` receive a parsed `check` command instead of printed help (2026-11-03).
-    if (helpWords !== undefined) return readInvocation(grammar, ['help', ...helpWords], options);
     return { kind: 'command', command: parsed };
   } catch (cause) {
     // Proof: rethrowing `Printed` here failed `help, help <command> and bash, zsh and fish
@@ -787,4 +697,34 @@ export function readInvocation<T extends Parser>(
     if (cause instanceof Printed) return { kind: 'printed' };
     throw cause;
   }
+}
+
+/** One installed operation's request, including installed-only activation preparation. */
+export type InstalledRequest<Name extends InstalledCommand['command']> = Extract<
+  InstalledCommand,
+  { readonly command: Name }
+>;
+
+function selectsRequest<Name extends InstalledCommand['command']>(
+  request: InstalledCommand,
+  name: Name,
+): request is InstalledRequest<Name> {
+  return request.command === name;
+}
+
+/**
+ * Transitional programmatic argv adapters share the installed grammar; typed handlers do not parse again.
+ * @throws UsageRefusal for malformed arguments or a request for another operation or discovery.
+ */
+export function readInstalledRequest<Name extends InstalledCommand['command']>(
+  name: Name,
+  args: readonly string[],
+): InstalledRequest<Name> {
+  const invocation = readInvocation(installedGrammar, args, { stdout: () => undefined });
+  // Proof: removing this check loses the named refusal when writeExplainCommand receives help.
+  if (invocation.kind !== 'command') throw new UsageRefusal(`expected an operation for ${name}`);
+  // Proof: removing this check loses the named refusal for template list passed to writeExplainCommand.
+  if (!selectsRequest(invocation.command, name))
+    throw new UsageRefusal(`expected ${name}, received ${invocation.command.command}`);
+  return invocation.command;
 }

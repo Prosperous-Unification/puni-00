@@ -907,7 +907,7 @@ function refusalOf(args: readonly string[], errorText: string): string {
  * What a parsed command line states that no single option can refuse: the cross-option rules
  * the hand-written loops checked before any read. Undefined when the line is coherent.
  */
-function incoherenceOf(command: DashCommand): string | undefined {
+export function findIncoherence(command: DashCommand): string | undefined {
   if (isReleaseCommand(command)) {
     // Proof: replacing this condition with false ran an adapter in `production dev-fast cannot execute`.
     return command.profile === 'dev-fast' && command.environment !== 'development'
@@ -972,7 +972,7 @@ export function readDashInvocation(
     if (cause instanceof Printed) return { kind: 'printed' };
     throw cause;
   }
-  const incoherence = incoherenceOf(parsed);
+  const incoherence = findIncoherence(parsed);
   if (incoherence !== undefined) {
     const path = commandPathOf(args);
     if (path === undefined) throw new Error(`parsed ${parsed.command} names no Dash command`);

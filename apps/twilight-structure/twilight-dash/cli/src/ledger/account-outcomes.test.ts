@@ -96,7 +96,7 @@ const deps = {
   stdout: { write: () => true },
 };
 
-async function refusal(run: Promise<void>): Promise<string> {
+async function refusal(run: Promise<unknown>): Promise<string> {
   try {
     await run;
   } catch (cause) {

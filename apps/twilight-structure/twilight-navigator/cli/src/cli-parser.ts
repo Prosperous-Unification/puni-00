@@ -24,7 +24,7 @@ export class UsageRefusal extends Error {
 }
 
 /**
- * One required flag, each once with a nonempty value that is not itself a flag, refusing in the
+ * One required flag, each once with a nonblank value that is not itself a flag, refusing in the
  * wording the hand-written loop used.
  * Proof: dropping `pattern` made `refuses a valueless flag before any read` reach the reader
  * (`plan export is missing`) for an empty `--output` instead of refusing (2026-11-02).
@@ -36,7 +36,8 @@ function requiredFlag(
   metavar: 'PATH' | 'DIR' | 'URL' | 'NAME' | 'SHA',
   description: string,
 ) {
-  return option(name, string({ metavar, pattern: /^(?!--)[\s\S]+$/u }), {
+  // Proof: removing the nonblank lookahead fails every root Navigator whitespace-only flag case.
+  return option(name, string({ metavar, pattern: /^(?!--)(?!\s*$)[\s\S]+$/u }), {
     description: [text(description)],
     errors: {
       // Proof: dropping `duplicate` made `refuses a duplicate flag before any read` see Optique's

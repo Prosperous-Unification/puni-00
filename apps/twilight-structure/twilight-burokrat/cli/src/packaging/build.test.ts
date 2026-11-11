@@ -204,9 +204,11 @@ describe('buildPackage', () => {
     const ruleHelp = invoke(executable, ['--help'], externalRoot);
     expect(ruleHelp.exitCode, ruleHelp.stderr.toString()).toBe(0);
     expect(ruleHelp.stdout.toString()).toContain(
-      'twilight-burokrat check <committed|staged|working>',
+      'twilight-burokrat check [--rule RULE] [--performance-evidence PATH] [--now INSTANT]',
     );
-    expect(ruleHelp.stdout.toString()).toContain('twilight-burokrat explain <rule-id>');
+    expect(ruleHelp.stdout.toString()).toContain(
+      'twilight-burokrat explain RULE [REPOSITORY RULE-POLICY]',
+    );
     expect(ruleHelp.stdout.toString()).toContain(
       'twilight-burokrat validate-plan-tasks PLAN-REFERENCE-JSON TASKS-JSON',
     );
@@ -217,7 +219,12 @@ describe('buildPackage', () => {
 
     const templateHelp = invoke(executable, ['--help'], externalRoot);
     expect(templateHelp.exitCode, templateHelp.stderr.toString()).toBe(0);
-    expect(templateHelp.stdout.toString()).toContain('twilight-burokrat template <list|show');
+    for (const operation of [
+      'list',
+      'show TEMPLATE',
+      'verify TEMPLATE SELECTION REPOSITORY REVISION-OR-BASE SUBJECT',
+    ])
+      expect(templateHelp.stdout.toString()).toContain('twilight-burokrat template ' + operation);
 
     const listed = invoke(executable, ['template', 'list'], externalRoot);
     expect(listed.exitCode, listed.stderr.toString()).toBe(0);
@@ -364,12 +371,12 @@ describe('buildPackage', () => {
 
     const preparer = invoke(executable, ['prepare-activation'], externalRoot);
     expect(preparer.exitCode).not.toBe(0);
-    expect(preparer.stderr.toString()).toContain('missing required flag: --candidate-repository');
+    expect(preparer.stderr.toString()).toContain('Missing option `--candidate-repository`.');
 
     const relocationPreparer = invoke(executable, ['prepare-relocation-activation'], externalRoot);
     expect(relocationPreparer.exitCode).not.toBe(0);
     expect(relocationPreparer.stderr.toString()).toContain(
-      'missing required flag: --candidate-repository',
+      'Missing option `--candidate-repository`.',
     );
 
     await writeFile(join(packageRoot, 'dist/toolkit/validator.mjs'), '\ncorrupted\n', {

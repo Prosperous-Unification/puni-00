@@ -1,0 +1,3273 @@
+{
+  "schemaVersion": 1,
+  "scope": "C23 exact committed-source capture and shared verified batch decoder; no materialization or producer switch",
+  "sourceBase": "eb15d19b523f5187537ffca87ba899119b20d0b8",
+  "focused": {
+    "pass": 46,
+    "fail": 0,
+    "assertions": 101,
+    "files": 1,
+    "seconds": 7.77,
+    "log": "/tmp/puni-c23-capture-green5.log"
+  },
+  "finalObserved": {
+    "pass": 162,
+    "fail": 0,
+    "assertions": 501,
+    "files": 7,
+    "seconds": 28.07
+  },
+  "checks": [
+    {
+      "id": "final2-types",
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "seconds": 5.873,
+      "log": "/tmp/puni-c23-final2-types.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "final2-lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-child.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-source.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts"
+      ],
+      "exitCode": 0,
+      "seconds": 3.676,
+      "log": "/tmp/puni-c23-final2-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "final2-tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-source.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-child.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+        "--timeout=30000"
+      ],
+      "exitCode": 0,
+      "seconds": 28.083,
+      "log": "/tmp/puni-c23-final2-tests.log",
+      "logSha256": "bd6f6ac68e38b82116196c51f7f1b368b22f71eeed27a18b35de70587f9300ba"
+    }
+  ],
+  "proofSet": {
+    "canonical": [
+      {
+        "id": "capture-prior-cancel",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns prior cancellation before malformed",
+        "edits": [
+          {
+            "find": "if (cancellation.status !== undefined)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns prior cancellation before malformed"
+        ],
+        "state": "killed-restored",
+        "testName": "returns prior cancellation before malformed capture revision validation",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-prior-cancel.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-prior-cancel.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "4799cd5c75aaafb327c6b896c002cb3d4ce3e9a2031d026885d445742d64bbb1",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "de31beca2e945ca9434dc7e2ad1913922cb13751d8134b6dbaa1e47ac780efcd",
+        "greenLogHash": "3b9aee0ac90a079ad5a196a7744b00a0264c0b1cb74589b22313b853cec2d683"
+      },
+      {
+        "id": "capture-prior-unsubscribe",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns prior cancellation before malformed",
+        "edits": [
+          {
+            "find": "  unsubscribe();",
+            "replacement": ""
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns prior cancellation before malformed"
+        ],
+        "state": "killed-restored",
+        "testName": "returns prior cancellation before malformed capture revision validation",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-prior-unsubscribe.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-prior-unsubscribe.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "213c6623c2e9c0b88eb79bd41eb59ea9034fde89082c73db8508f0a4012e1cdf",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "651d16d2a9c0945c9b27b5f5fa7ee1bc001f2a024f81a85f41faf47834a10952",
+        "greenLogHash": "e2091afb7ac27c113dc3e6a2b447ddfa8a40e9402bfd01feefbda793c1103f66"
+      },
+      {
+        "id": "capture-full-revision",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses nonfull capture revision",
+        "edits": [
+          {
+            "find": "if (!/^[0-9a-f]{40}$/u.test(revision))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses nonfull capture revision"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses nonfull capture revision \"HEAD\" before Git",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-full-revision.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-full-revision.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "f2cdac0650ef601b1bd7d89ce161df2e768b6fcb1c1aa4e2aab47bbcf9d82754",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "d4ab6e77689a6fef96156e14004ff69c7064985287c1a6acf8cf43088c30d6d4",
+        "greenLogHash": "49cee23e83c82f78ac92934290f01a9f8ee58a8c8727599c64b2cbb1b450721b"
+      },
+      {
+        "id": "capture-identity-utf8",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "preserves invalid UTF8 tree identity",
+        "edits": [
+          {
+            "find": "new TextDecoder('utf-8', { fatal: true })",
+            "replacement": "new TextDecoder('utf-8')"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=preserves invalid UTF8 tree identity"
+        ],
+        "state": "killed-restored",
+        "testName": "preserves invalid UTF8 tree identity decoding failure",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-identity-utf8.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-identity-utf8.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "c3b72b468552bc8cc4d062d3a2b8d8266626e84f5fa01fa570583bab2358e329",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "83cafd2e8d039d634338bd6f865511b3b09ed30f80f3efb57a8de1c1cce799ca",
+        "greenLogHash": "4e2772d2f9a4835f2ee2e99080e96aff4ee90c59988bbc056c28ccb0ad77ca12"
+      },
+      {
+        "id": "capture-commit-status",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses failed commit capture query",
+        "edits": [
+          {
+            "find": "if (commit.status !== 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses failed commit capture query"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses failed commit capture query with original diagnostics",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-commit-status.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-commit-status.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "1371321c2fcc23d58fd2de6ff20d94575fc63024a9fc867c378caef22c4ec95d",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "9541c4f574641e333124d3ce73f144e86b3185bb12ac7dbf39054532b5135895",
+        "greenLogHash": "c46554427265236743e9995b763aed7b2232eeb40edb6ce8e25f39510049f38a"
+      },
+      {
+        "id": "capture-commit-identity",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses substituted resolved commit",
+        "edits": [
+          {
+            "find": "if (readIdentity(commit.stdout) !== revision)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses substituted resolved commit"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses substituted resolved commit before tree capture",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-commit-identity.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-commit-identity.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "987644df296a79d7c60b46e6b3324ecd6e1e27ac600e299c0bd39ba920d13405",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "64506b77784944ba0f76dd184ae8fb94e7fb01aaf77b40db4c04992a08527a00",
+        "greenLogHash": "c28830037abd1d5de4f67722350c83807dea82cf8d78c1a9c255bf8d5b56bf05"
+      },
+      {
+        "id": "capture-tree-status",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses failed tree capture query",
+        "edits": [
+          {
+            "find": "if (selected.status !== 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses failed tree capture query"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses failed tree capture query with original diagnostics",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-tree-status.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-tree-status.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "de49af25363ad0339c6876a7d4c97845166162b78aa2677e0d67c4b67ad428ff",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "20154557b2ed59ea138ffbd0e8b73e8fcf1324aa9bf415e1a5def1f84570c52b",
+        "greenLogHash": "1d6316cf5d7a438253700aae9632c44b21ee1b7e5807fe24cf5e6f67df8a8be9"
+      },
+      {
+        "id": "capture-entries-status",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses failed entries capture query",
+        "edits": [
+          {
+            "find": "if (listed.status !== 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses failed entries capture query"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses failed entries capture query with original diagnostics",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-entries-status.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-entries-status.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "8691d13436b923057bb77ef2e213f8187c91f19cde03b938cfcf0cc368d7fa01",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "b95d8feeda710c1ca45c7ac261360a0986a3868fa3770c8dc18019953cc6b59c",
+        "greenLogHash": "11eaa1c3b57ab6ec6099fdf4d2e7ceb7b8c70505dbedb76bbedad70d1804f8aa"
+      },
+      {
+        "id": "capture-batch-status",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses failed batch capture query",
+        "edits": [
+          {
+            "find": "if (batch.status !== 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses failed batch capture query"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses failed batch capture query with original diagnostics",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-batch-status.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-batch-status.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "86fd1723bc5703eb912a679773f0dc030317f232e548ead5bcb1372c5d3d12fe",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "8ceacdf006047eb04140bbbd306a84a22bf6d90451e4c7a43818113e27c039ad",
+        "greenLogHash": "eb064024410e9e64497e7f68bc27984196bfc425d4dc4a6b3e14e97cb852664f"
+      },
+      {
+        "id": "capture-selected-commit",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "retains explicitly selected earlier commit",
+        "edits": [
+          {
+            "find": "revision + '^{commit}'",
+            "replacement": "'HEAD^{commit}'"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=retains explicitly selected earlier commit"
+        ],
+        "state": "killed-restored",
+        "testName": "retains explicitly selected earlier commit and never silently reselects HEAD",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-selected-commit.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-selected-commit.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "e8f67d82bb0ce03be083b9b4248b27ae8a99efac8655047608cf54a233a76350",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "0dd826a5f7d53dfcfd987fdf0cebad8feba616d0ceb30ef1a1e23ac25e0b315a",
+        "greenLogHash": "abd1d37f57c071e3de8bab3009b9ec455809b543c288557d2dd85ae44ebcbe9c"
+      },
+      {
+        "id": "capture-selected-tree",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "retains explicitly selected earlier commit",
+        "edits": [
+          {
+            "find": "revision + '^{tree}'",
+            "replacement": "'HEAD^{tree}'"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=retains explicitly selected earlier commit"
+        ],
+        "state": "killed-restored",
+        "testName": "retains explicitly selected earlier commit and never silently reselects HEAD",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-selected-tree.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-selected-tree.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "90af9951db13f3fecab91c0b14dc58217b4b7ca443f01ca60936af55b2a1c61b",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "09f4ed7df18f0f543100029cf447bd214475e986c962d30b03e6bac8feb411db",
+        "greenLogHash": "c1e57cb6bd7cacf28c99cd3ae75633c4b4273232a945b88ab3cb436b47e31a64"
+      },
+      {
+        "id": "capture-listed-tree",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "retains explicitly selected earlier commit",
+        "edits": [
+          {
+            "find": "['ls-tree', '-r', '-z', '--full-tree', tree]",
+            "replacement": "['ls-tree', '-r', '-z', '--full-tree', 'HEAD']"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=retains explicitly selected earlier commit"
+        ],
+        "state": "killed-restored",
+        "testName": "retains explicitly selected earlier commit and never silently reselects HEAD",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-listed-tree.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-listed-tree.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "d3a15dcd8a48eee4fb5166ac15539ed1404f3ba06bbf8050eae6514142a53fa9",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "e3c61ff83771b572fc9eb008e7d6cb1ba43cbcd482d09e5662b43d3e01bf61be",
+        "greenLogHash": "14276005d0fa0b7a3530e1a6e44d791b74cc2b902c9761e8108e5b4d08d46886"
+      },
+      {
+        "id": "capture-path-empty",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses noncanonical captured path \"\\/absolute\"",
+        "edits": [
+          {
+            "find": "component === ''",
+            "replacement": "false"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses noncanonical captured path \"\\/absolute\""
+        ],
+        "state": "killed-restored",
+        "testName": "refuses noncanonical captured path \"/absolute\"",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-path-empty.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-path-empty.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "f48c207dae61b0c1be9df24a6a70b65892f27e9e5663aa1aa1e2909176d9d27e",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "97c4169b8cf4ca2e38aca9652e37cfb5451c023c4e1c0a536e78d24a9bcb0498",
+        "greenLogHash": "9cf6543a9c86eef684149ccfdc30786ec0f5ea782ec28c94fbae4bdb59d20498"
+      },
+      {
+        "id": "capture-path-dot",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses noncanonical captured path \"a\\/.\\/dot\"",
+        "edits": [
+          {
+            "find": "component === '.'",
+            "replacement": "false"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses noncanonical captured path \"a\\/.\\/dot\""
+        ],
+        "state": "killed-restored",
+        "testName": "refuses noncanonical captured path \"a/./dot\"",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-path-dot.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-path-dot.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "4ed893561cdce75adeb669c627f9e1c5e75f572fb2782a4e268cede7e3480f04",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "eab3776f92fc8854f2a7cf8687a80e45fcb7768ab13e46bf0bdfd5a082d326a8",
+        "greenLogHash": "955961932736233610e061f80c98131b4b85187e73254a4d1a2b956b390b95cd"
+      },
+      {
+        "id": "capture-path-parent",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses noncanonical captured path \"..\\/escape\"",
+        "edits": [
+          {
+            "find": "component === '..'",
+            "replacement": "false"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses noncanonical captured path \"..\\/escape\""
+        ],
+        "state": "killed-restored",
+        "testName": "refuses noncanonical captured path \"../escape\"",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-path-parent.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-path-parent.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "86956455d26951d78ce6f0f200613a6da9c745ad5223d576b269e35e841fc44d",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "ddc12867caa13894178508ffca3e65e962c9c4bfb79ab908ec0106dbcdbe08cf",
+        "greenLogHash": "44ad3e36ba759d97d01a0efe67e90c033c2252df778ef90fdb9fba37a60f08ca"
+      },
+      {
+        "id": "capture-path-duplicate",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses duplicate captured paths",
+        "edits": [
+          {
+            "find": "if (paths.has(entry.path))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses duplicate captured paths"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses duplicate captured paths before batching",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-path-duplicate.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-path-duplicate.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "02d70dffd8c890fde0a123fc8cdc5c722d7b6c038dacb8c4ff70983086617cf4",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "bab7ce547e46302ad748ce79796e91e3f87f769d0bd451523c71efe8c290135e",
+        "greenLogHash": "f2d01532b51baddc6d90b10c67344e1007182347db944dc8d5c93a1bf1000c1a"
+      },
+      {
+        "id": "capture-path-ancestor",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "rejects reverse-ordered file-ancestor",
+        "edits": [
+          {
+            "find": "if (paths.has(components.slice(0, depth).join('/')))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=rejects reverse-ordered file-ancestor"
+        ],
+        "state": "killed-restored",
+        "testName": "rejects reverse-ordered file-ancestor collisions before batching",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-path-ancestor.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-path-ancestor.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "e9575ce0013269156a08ea6eae5e7305e20a0475e6cc90a80786f65f3f330318",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "a6b67d0098eb42793e71a1d8581e94eae639cfd4e424087c5b85196446769be6",
+        "greenLogHash": "17338f0dd517c687d2ef5c0eb0d9992f1c07b55c8c3060cecaf009e9381bd094"
+      },
+      {
+        "id": "capture-gitlink",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses committed gitlinks",
+        "edits": [
+          {
+            "find": "if (entry.mode === '160000')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses committed gitlinks"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses committed gitlinks before batching",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-gitlink.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-gitlink.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "04d2cef9bac3d949a4ebbc9af84f1d293221a62704dc4387a1908f0ce31ebb2d",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "53b6cbe70b8e1136ff9146d31881232f8d5ea18e306cd5884c7ce398fbaaee43",
+        "greenLogHash": "612304cec0d9da5fa01e4b657b1b67675cc11c7990cc4cc92bd448298d5707d3"
+      },
+      {
+        "id": "capture-empty-tree",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "captures a real empty tree",
+        "edits": [
+          {
+            "find": "if (requested.size !== 0)",
+            "replacement": "if (true)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=captures a real empty tree"
+        ],
+        "state": "killed-restored",
+        "testName": "captures a real empty tree without starting a blob reader",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-empty-tree.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-empty-tree.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "210ea3ad5d199a2605a7ff45d7f4a487dd3ffe296e6c640c61fd58ad9ed30590",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "3665afd35b16a2423966387b756d4a1e613858998daa003a3899f65424e373aa",
+        "greenLogHash": "3c01946e8172c7961a84b37b9cf95016af10bd33beeecff63d275ad7584164c6"
+      },
+      {
+        "id": "capture-absent-object",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses absent parsed object",
+        "edits": [
+          {
+            "find": "if (object === undefined) throw new Error('captured blob absent from batch: ' + entry.path);",
+            "replacement": ""
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses absent parsed object"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses absent parsed object after a broken batch decoder instead of manufacturing empty bytes",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-absent-object.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-absent-object.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "9accdf3ceef6a73d2f30d4be9dcc1a3dea5ba15b0f444ffde71c34ebc5e4a621",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "2eb04038f8d95f9d894b6c7830df340f9d39602813780f1ba12d52d990027036",
+        "greenLogHash": "1d6e8abe3133e3ecabd9749eb6a12d772454d3974afaa78f9fce7d9830ca0d5e"
+      },
+      {
+        "id": "capture-missing-object",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses batch missing object",
+        "edits": [
+          {
+            "find": "if (object.kind === 'missing')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses batch missing object"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses batch missing object rather than returning partial captured source",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-missing-object.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-missing-object.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "ca0dc9e6572080559be1eb3c0298c7d61079b2b41aeb8296da5247b3e7ea2c64",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "83d24a2756207893e2fbd69459611c68730dd8ce8488ed8b7a68b3b32d41d47c",
+        "greenLogHash": "c1910045255d2eeb99e6d2d3ba285471f7514c978ff63d3f0d5f15f18ed9bbb8"
+      },
+      {
+        "id": "capture-unknown-file",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns fresh snapshot and file copies",
+        "edits": [
+          {
+            "find": "if (bytes === undefined) throw new Error('captured path is absent: ' + path);",
+            "replacement": ""
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns fresh snapshot and file copies"
+        ],
+        "state": "killed-restored",
+        "testName": "returns fresh snapshot and file copies without aliases across paths or callers",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-unknown-file.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-unknown-file.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "a5475181edc487c431e76b4b8cf1855457cea6751ed2c95afb321ca0caa4555e",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "86a62f8f58fa1f32041ad5c9934268651d4e2f4b3d7ba8f89646295677f7066b",
+        "greenLogHash": "5aa77adc0d26df95001679e059c7c3cb1544e72018b25da752b33ec077696d6f"
+      },
+      {
+        "id": "capture-file-copy",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns fresh snapshot and file copies",
+        "edits": [
+          {
+            "find": "return new Uint8Array(bytes);",
+            "replacement": "return bytes;"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns fresh snapshot and file copies"
+        ],
+        "state": "killed-restored",
+        "testName": "returns fresh snapshot and file copies without aliases across paths or callers",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-file-copy.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-file-copy.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "f5bce31d7cfb9de3109180b208b74c4c744f7baefa838c92d205adcfac0d996a",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "880d3653919abf04e851405e7320ed573dd63813bb706a7c834d428ea5c56511",
+        "greenLogHash": "770e333ca76726d9538f3067d79087e000d3935ca0b9700bd62d165d96741390"
+      },
+      {
+        "id": "capture-entry-copy",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns fresh snapshot and file copies",
+        "edits": [
+          {
+            "find": "entries: entries.map((entry) => ({ ...entry })),",
+            "replacement": "entries: [...entries],"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns fresh snapshot and file copies"
+        ],
+        "state": "killed-restored",
+        "testName": "returns fresh snapshot and file copies without aliases across paths or callers",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-entry-copy.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-entry-copy.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "d79cef52f2ef8fa4d90f53c0bc463d6ba474f136d4a9930210ba708e8d2a9f59",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "6e15647fcf58986e4a8c9e66f650887529b72866d744d3d6f181b050835b662e",
+        "greenLogHash": "f8b2dc1890b33f7675cb1b3b32922001992e3b504c0b358babc6e7f9c325709f"
+      },
+      {
+        "id": "capture-array-copy",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns fresh snapshot and file copies",
+        "edits": [
+          {
+            "find": "entries: entries.map((entry) => ({ ...entry })),",
+            "replacement": "entries,"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns fresh snapshot and file copies"
+        ],
+        "state": "killed-restored",
+        "testName": "returns fresh snapshot and file copies without aliases across paths or callers",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-array-copy.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-array-copy.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "e69cbb209a5e7b34b02cf54fc6d0d29c53065170e2984c8e89e3c8e9f5dc29b4",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "32ae0bf7358a505ca6a24bcf6ad9b846c9733f2b7e1e866f3bc4f5743a888086",
+        "greenLogHash": "d9cde1b77c2a55373a49ce19da836783667f1e5812cffb55da0810aef95150bc"
+      },
+      {
+        "id": "capture-repository-capture",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "captures repository and environment",
+        "edits": [
+          {
+            "find": "repository: context.repository,",
+            "replacement": "get repository(){return context.repository;},"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=captures repository and environment"
+        ],
+        "state": "killed-restored",
+        "testName": "captures repository and environment before the first owned await",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-repository-capture.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-repository-capture.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "33f8efe19221c89f43fa191244a0c3ff2249a7c16b183a1bdae8983b1457d0c2",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "5ae81a39e497a48a96afb7df56c2a9703e8d2a7dfa90f34f0627abdb73589de7",
+        "greenLogHash": "a3c66e5686c03fe36871b0a8c12bdc7c12f61b8d02ee873e15a00c115e4e00fb"
+      },
+      {
+        "id": "capture-environment-capture",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "captures repository and environment",
+        "edits": [
+          {
+            "find": "environment: { ...context.runtime.environment },",
+            "replacement": "environment: context.runtime.environment,"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=captures repository and environment"
+        ],
+        "state": "killed-restored",
+        "testName": "captures repository and environment before the first owned await",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-environment-capture.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-environment-capture.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "bc2aa7590df8be9795b7e5032ab29fb2e0f0ff9e018e9cd062333a9bed26e509",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "c88a6efa98e4dea84bddb802f3e75e49c720fda14de9180b081d5169612c4de1",
+        "greenLogHash": "f225fa6e52f5f7ea01c3be1eba8adbf99be45858dd3ee50c4dd9e5dc514f537a"
+      },
+      {
+        "id": "capture-cancel-commit",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "owns commit capture cancellation",
+        "edits": [
+          {
+            "find": "if (commit.kind === 'cancelled')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=owns commit capture cancellation"
+        ],
+        "state": "killed-restored",
+        "testName": "owns commit capture cancellation before parsing partial output or starting later queries",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-cancel-commit.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-cancel-commit.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "8ed4ba5ec20198dd36f399af33268b358b17dbdffa39e3e5471c45a7c1fa2d05",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "461aa2ee58b6480f51f0b2fff7481c6981ee92f21200baa8a383acc979a38ae9",
+        "greenLogHash": "4f7a81759fb213101b8cd87627e89c9223de3179394d01a8c3a9df2597debdd3"
+      },
+      {
+        "id": "capture-cancel-selected",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "owns tree capture cancellation",
+        "edits": [
+          {
+            "find": "if (selected.kind === 'cancelled')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=owns tree capture cancellation"
+        ],
+        "state": "killed-restored",
+        "testName": "owns tree capture cancellation before parsing partial output or starting later queries",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-cancel-selected.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-cancel-selected.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "489ef5ffa75e5d38eb0d253c35a0a5e3246ca37b865b692c13ff24bafe7aa68f",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "61e28df8d78aa8ed3cbfdafad262fe7fa3b8de995d1debb1c51494c6cd8477fa",
+        "greenLogHash": "f7c1bcf19c8a3ac8fd273bac7a205d0bb88f9d4dc0695069c3742390dbfe31b2"
+      },
+      {
+        "id": "capture-cancel-listed",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "owns entries capture cancellation",
+        "edits": [
+          {
+            "find": "if (listed.kind === 'cancelled')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=owns entries capture cancellation"
+        ],
+        "state": "killed-restored",
+        "testName": "owns entries capture cancellation before parsing partial output or starting later queries",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-cancel-listed.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-cancel-listed.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "7a9f1e723dc7a56a4588e62d484ac2a34b970aae4a371688ab1c16b296c94a37",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "e0a50bba0e41666ae6426c7b39f7fde324b6d0694b3145d42a73ba0567afc2e4",
+        "greenLogHash": "87e9a1a63b4736371192916491232e2ff9113d166ad43858f542491507420e1b"
+      },
+      {
+        "id": "capture-cancel-batch",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns cancellation before parsing a captured batch prefix",
+        "edits": [
+          {
+            "find": "if (batch.kind === 'cancelled')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns cancellation before parsing a captured batch prefix"
+        ],
+        "state": "killed-restored",
+        "testName": "returns cancellation before parsing a captured batch prefix and confirms group absence",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-cancel-batch.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-cancel-batch.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "566e76c2c4e14447a6c42c08963ab5d64129bad1e5f9de6b67137986c8295edf",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "764d9185baba73296a0ac892cbe3b76c6c1e06a7ec7ae3bfb51ed2ea343289d4",
+        "greenLogHash": "37f2807d5db05a8d4bc5ba5b9194318656dc733328499601f2941a917271c01d"
+      },
+      {
+        "id": "capture-git-cwd",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "requests each selected object once",
+        "edits": [
+          {
+            "find": "directory: context.runtime.directory,",
+            "replacement": "directory: context.repository,"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=requests each selected object once"
+        ],
+        "state": "killed-restored",
+        "testName": "requests each selected object once through explicit owned Git authority",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-git-cwd.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-git-cwd.green.log",
+        "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "mutantHash": "7260244ef7a3c070f550d3e7cc7ef0400c5b334697f3ab2eec866281a09c74b8",
+        "afterHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "redLogHash": "9a21be9a30061ce7c40235f625f84839b623e4ba96a14b81502559dce52eca25",
+        "greenLogHash": "656eeab77c98142f193c13845caad0546c37f9bb330b83856ed51d60b62c03c2"
+      },
+      {
+        "id": "capture-git-environment",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "requests each selected object once",
+        "edits": [
+          {
+            "find": "environment: context.runtime.environment,",
+            "replacement": "environment: {...process.env,...context.runtime.environment},"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=requests each selected object once"
+        ],
+        "state": "killed-restored",
+        "testName": "requests each selected object once through explicit owned Git authority",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-git-environment.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-git-environment.green.log",
+        "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "mutantHash": "50d11300ffa685e0020410c67644020706408fe7d22277aa73a22045d1d5f1ad",
+        "afterHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "redLogHash": "7c29b66a14c5f3fc2585f30111966d914f729d17b3c324d26e85e7aca968912e",
+        "greenLogHash": "4f151eb51ce989a5613abc95e2efe574155203bf7137069a47412b21e4ae01a3"
+      },
+      {
+        "id": "capture-git-stdin",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "captures committed binary bytes",
+        "edits": [
+          {
+            "find": "    stdin,",
+            "replacement": "    stdin: undefined,"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=captures committed binary bytes"
+        ],
+        "state": "killed-restored",
+        "testName": "captures committed binary bytes, modes and exact Unicode BOM whitespace paths without live checkout reads",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-git-stdin.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-git-stdin.green.log",
+        "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "mutantHash": "233c55a4ba3314a2202a908f68de4c5869543ceaffc70c152b2d0a5fde9ce198",
+        "afterHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "redLogHash": "764a0b16bfb31ed0ad079ed2d67173a649b96180397c2a65efa3f9c63e6281ef",
+        "greenLogHash": "b9b4daee50720863146bc32adf9d5682abeb49fa53094f23dc6c85f02aa9e164"
+      },
+      {
+        "id": "capture-git-stderr",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses failed batch capture query",
+        "edits": [
+          {
+            "find": "errors.push(bytes.slice());",
+            "replacement": "errors.push(new Uint8Array());"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses failed batch capture query"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses failed batch capture query with original diagnostics",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-git-stderr.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-git-stderr.green.log",
+        "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "mutantHash": "12572569ce1d1d9d23a6a047201adfb835da0563b0b2c57ed1e01cd1f14f2224",
+        "afterHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "redLogHash": "74bc34155cf8a6f81d26a06f00ef3b8545c4e5eae720f8e2308a2f66aa48c899",
+        "greenLogHash": "adbc05913d32a68a649bf833daad497faa8104d2ab310aeef7d9350dc218f7ce"
+      },
+      {
+        "id": "capture-git-cancellation",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns cancellation before parsing a captured batch prefix",
+        "edits": [
+          {
+            "find": "subscribeInterrupts: context.subscribeInterrupts,",
+            "replacement": "subscribeInterrupts: ()=>()=>undefined,"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns cancellation before parsing a captured batch prefix"
+        ],
+        "state": "killed-restored",
+        "testName": "returns cancellation before parsing a captured batch prefix and confirms group absence",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-git-cancellation.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-git-cancellation.green.log",
+        "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "mutantHash": "aacad52e99564e737b7868ee5010d2fd23e464a58c4cfc0d81ef76eedf054016",
+        "afterHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "redLogHash": "cf45e519a171c74b11dddbd5031ab1fdc9ec0ddb5c7d1903227b750e6ccfc0bb",
+        "greenLogHash": "db5852f2746c9fb764462751c2a235c922bb5230c7ffd3c79e9967d79f84acc1"
+      },
+      {
+        "id": "batch-header-terminator",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses a batch that ends inside a header",
+        "edits": [
+          {
+            "find": "if (newline < 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses a batch that ends inside a header"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses a batch that ends inside a header or before the announced size",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-header-terminator.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-header-terminator.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "31e0f2a8b20ea81ba184c5e598911172fcda33ba4f04fa9534767c174b86b752",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "63701cff531680bdd83e99daf8ee63371e3d7c370ddc5bd9c8a9ce8fe5a1e1fa",
+        "greenLogHash": "e321778885fac643d917e7e953354fe78f1cec3b5b61fe3abf389f46a309b407"
+      },
+      {
+        "id": "batch-object-identity",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses a batch answer that names another object",
+        "edits": [
+          {
+            "find": "if (match?.[1] !== blob)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses a batch answer that names another object"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses a batch answer that names another object",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-object-identity.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-object-identity.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "d79aaae40d5c6a50b4380435b39bc0ac38318e28d07418530dab2418c197f136",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "561bd6ee03c532720696c3637c4dd4661fdf1771d46f4afe8deaec4a49db580e",
+        "greenLogHash": "904a13a6776d818e4be9790b3578aa8f79ac01106a7b4bac811c3c9085ae2fb9"
+      },
+      {
+        "id": "batch-object-type",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses a batch header that names another object type",
+        "edits": [
+          {
+            "find": "if (match[2] !== 'blob')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses a batch header that names another object type"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses a batch header that names another object type",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-object-type.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-object-type.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "7772c2bf85fc7667ee2d93b6fee09c0d3d5f2867b51b38bc904208a35930e702",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "a59a0e86ec3ef3bf24c254cb159a159a1859c01fd49f8bac1f2cb55b9195c86a",
+        "greenLogHash": "0a920f900997ab9444a10a5886d389f959438b82f2353957c58538a9e2e92155"
+      },
+      {
+        "id": "batch-payload-boundary",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses a batch that ends inside a header",
+        "edits": [
+          {
+            "find": "if (end >= output.length || output[end] !== 0x0a)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses a batch that ends inside a header"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses a batch that ends inside a header or before the announced size",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-payload-boundary.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-payload-boundary.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "f92c7fffcb3d7efcc0d95d8c4c21d0497d6cb0ef91904b0b7fd9a4988ec4e13f",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "899bdd741a54704654ee2d7796cfaa880cca695d98db67286ac972f52041759d",
+        "greenLogHash": "5c30d31e0851c86f78deb8bd679f332ed030b784cfd0eb1b64ae881802fa6760"
+      },
+      {
+        "id": "batch-content-hash",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses batch substituted payload",
+        "edits": [
+          {
+            "find": "if (blobIdentity(blob, bytes) !== blob)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses batch substituted payload"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses batch substituted payload rather than returning partial captured source",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-content-hash.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-content-hash.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "88102cffbc0fc250df18168a0d29ffaec6fb0e06b0ab958164c29652fc5d0160",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "5084a2b4d96aa476d4361b4511e49d770cf459361b791ee2733f518ac9481dfd",
+        "greenLogHash": "d6be4cea49633bbdaa8a2d2e375a8b704189080fcf4b41e82fa40f9aa2f4fe66"
+      },
+      {
+        "id": "batch-trailing-bytes",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses output the batch did not ask for",
+        "edits": [
+          {
+            "find": "if (offset !== output.length)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses output the batch did not ask for"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses output the batch did not ask for",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-trailing-bytes.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-trailing-bytes.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "041d83665ab96a66177f7165a24a9c2eb1392dec9a5cbaa12610cd7ca193d02c",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "182333794655b233e0c120effa73d175966f4b4e1abf3e7eb35ef9347fdc33e0",
+        "greenLogHash": "8b06a2d81526e791bf401ee1e77265646ee54048f1f5a1edb904cdf208ffdbe3"
+      },
+      {
+        "id": "batch-missing-discriminator",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses a missing object for its own path",
+        "edits": [
+          {
+            "find": "if (header === `${blob} missing`)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses a missing object for its own path"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses a missing object for its own path and still serves the others",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-missing-discriminator.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-missing-discriminator.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "bd840e7e5b4ed1582e59784c11fefd3685ae63985da52198a058667a2a239239",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "9b9167d99da2863740d59671681847ee8566ad5a4e8822a5c42ab11e9b48b9d6",
+        "greenLogHash": "26051f053065f38a29a41e523cc0c1fc77dd68ec71fd9de738f7f466561185e3"
+      },
+      {
+        "id": "batch-payload-lf",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses batch missing payload LF",
+        "edits": [
+          {
+            "find": "if (end >= output.length || output[end] !== 0x0a)",
+            "replacement": "if (false)"
+          },
+          {
+            "find": "if (offset !== output.length)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses batch missing payload LF"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses batch missing payload LF rather than returning partial captured source",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-payload-lf.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-payload-lf.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "3d21dfe1d8155d973ed6ce2403861966224254432dc54fffbfb210702751e2ed",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "76bfeb570c95a2c424928b368d85e72401d1f9f9d1505acffad4da2dc4a6470c",
+        "greenLogHash": "8b76fb0463722de27c5d725f2e349792577910070860aca51999df719d187d42"
+      },
+      {
+        "id": "capture-identity-grammar",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses malformed tree identity",
+        "edits": [
+          {
+            "find": "if (!/^[0-9a-f]{40}$/u.test(identity))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses malformed tree identity"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses malformed tree identity returned with status0",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-identity-proof/capture-identity-grammar.red.log",
+        "greenLog": "/tmp/puni-c23-identity-proof/capture-identity-grammar.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "d006aeed09109f4fd0243b05607d70f3352623b448d0f215ef4036663de0bd0e",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "9cb53298d26d8ca6b14e9c4f08c1f033d8ea6e003573cfe80f83739b43c79de0",
+        "greenLogHash": "bc75bbbb7bad2c67ed0a75b87306244dd162ae3e7f2f65902e2c2a8e40fe9959"
+      }
+    ],
+    "excluded": [
+      {
+        "id": "capture-identity-grammar",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses malformed tree identity",
+        "edits": [
+          {
+            "find": "if (!/^[0-9a-f]{40}$/u.test(identity))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses malformed tree identity"
+        ],
+        "state": "unproven",
+        "redExit": 0,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-identity-grammar.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-identity-grammar.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "d006aeed09109f4fd0243b05607d70f3352623b448d0f215ef4036663de0bd0e",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "68ea0422801eb767c15c7672cb9153aaf8ef5e34e44651d80d3bb44163b313a0",
+        "greenLogHash": "cf604fd5d58c566e708ab329fc1370a0339fbcdc3eff561273c65e4ca8867999"
+      }
+    ],
+    "rawAttempts": [
+      {
+        "id": "capture-prior-cancel",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns prior cancellation before malformed",
+        "edits": [
+          {
+            "find": "if (cancellation.status !== undefined)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns prior cancellation before malformed"
+        ],
+        "state": "killed-restored",
+        "testName": "returns prior cancellation before malformed capture revision validation",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-prior-cancel.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-prior-cancel.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "4799cd5c75aaafb327c6b896c002cb3d4ce3e9a2031d026885d445742d64bbb1",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "de31beca2e945ca9434dc7e2ad1913922cb13751d8134b6dbaa1e47ac780efcd",
+        "greenLogHash": "3b9aee0ac90a079ad5a196a7744b00a0264c0b1cb74589b22313b853cec2d683"
+      },
+      {
+        "id": "capture-prior-unsubscribe",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns prior cancellation before malformed",
+        "edits": [
+          {
+            "find": "  unsubscribe();",
+            "replacement": ""
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns prior cancellation before malformed"
+        ],
+        "state": "killed-restored",
+        "testName": "returns prior cancellation before malformed capture revision validation",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-prior-unsubscribe.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-prior-unsubscribe.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "213c6623c2e9c0b88eb79bd41eb59ea9034fde89082c73db8508f0a4012e1cdf",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "651d16d2a9c0945c9b27b5f5fa7ee1bc001f2a024f81a85f41faf47834a10952",
+        "greenLogHash": "e2091afb7ac27c113dc3e6a2b447ddfa8a40e9402bfd01feefbda793c1103f66"
+      },
+      {
+        "id": "capture-full-revision",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses nonfull capture revision",
+        "edits": [
+          {
+            "find": "if (!/^[0-9a-f]{40}$/u.test(revision))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses nonfull capture revision"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses nonfull capture revision \"HEAD\" before Git",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-full-revision.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-full-revision.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "f2cdac0650ef601b1bd7d89ce161df2e768b6fcb1c1aa4e2aab47bbcf9d82754",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "d4ab6e77689a6fef96156e14004ff69c7064985287c1a6acf8cf43088c30d6d4",
+        "greenLogHash": "49cee23e83c82f78ac92934290f01a9f8ee58a8c8727599c64b2cbb1b450721b"
+      },
+      {
+        "id": "capture-identity-grammar",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses malformed tree identity",
+        "edits": [
+          {
+            "find": "if (!/^[0-9a-f]{40}$/u.test(identity))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses malformed tree identity"
+        ],
+        "state": "unproven",
+        "redExit": 0,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-identity-grammar.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-identity-grammar.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "d006aeed09109f4fd0243b05607d70f3352623b448d0f215ef4036663de0bd0e",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "68ea0422801eb767c15c7672cb9153aaf8ef5e34e44651d80d3bb44163b313a0",
+        "greenLogHash": "cf604fd5d58c566e708ab329fc1370a0339fbcdc3eff561273c65e4ca8867999"
+      },
+      {
+        "id": "capture-identity-utf8",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "preserves invalid UTF8 tree identity",
+        "edits": [
+          {
+            "find": "new TextDecoder('utf-8', { fatal: true })",
+            "replacement": "new TextDecoder('utf-8')"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=preserves invalid UTF8 tree identity"
+        ],
+        "state": "killed-restored",
+        "testName": "preserves invalid UTF8 tree identity decoding failure",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-identity-utf8.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-identity-utf8.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "c3b72b468552bc8cc4d062d3a2b8d8266626e84f5fa01fa570583bab2358e329",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "83cafd2e8d039d634338bd6f865511b3b09ed30f80f3efb57a8de1c1cce799ca",
+        "greenLogHash": "4e2772d2f9a4835f2ee2e99080e96aff4ee90c59988bbc056c28ccb0ad77ca12"
+      },
+      {
+        "id": "capture-commit-status",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses failed commit capture query",
+        "edits": [
+          {
+            "find": "if (commit.status !== 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses failed commit capture query"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses failed commit capture query with original diagnostics",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-commit-status.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-commit-status.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "1371321c2fcc23d58fd2de6ff20d94575fc63024a9fc867c378caef22c4ec95d",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "9541c4f574641e333124d3ce73f144e86b3185bb12ac7dbf39054532b5135895",
+        "greenLogHash": "c46554427265236743e9995b763aed7b2232eeb40edb6ce8e25f39510049f38a"
+      },
+      {
+        "id": "capture-commit-identity",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses substituted resolved commit",
+        "edits": [
+          {
+            "find": "if (readIdentity(commit.stdout) !== revision)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses substituted resolved commit"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses substituted resolved commit before tree capture",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-commit-identity.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-commit-identity.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "987644df296a79d7c60b46e6b3324ecd6e1e27ac600e299c0bd39ba920d13405",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "64506b77784944ba0f76dd184ae8fb94e7fb01aaf77b40db4c04992a08527a00",
+        "greenLogHash": "c28830037abd1d5de4f67722350c83807dea82cf8d78c1a9c255bf8d5b56bf05"
+      },
+      {
+        "id": "capture-tree-status",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses failed tree capture query",
+        "edits": [
+          {
+            "find": "if (selected.status !== 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses failed tree capture query"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses failed tree capture query with original diagnostics",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-tree-status.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-tree-status.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "de49af25363ad0339c6876a7d4c97845166162b78aa2677e0d67c4b67ad428ff",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "20154557b2ed59ea138ffbd0e8b73e8fcf1324aa9bf415e1a5def1f84570c52b",
+        "greenLogHash": "1d6316cf5d7a438253700aae9632c44b21ee1b7e5807fe24cf5e6f67df8a8be9"
+      },
+      {
+        "id": "capture-entries-status",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses failed entries capture query",
+        "edits": [
+          {
+            "find": "if (listed.status !== 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses failed entries capture query"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses failed entries capture query with original diagnostics",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-entries-status.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-entries-status.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "8691d13436b923057bb77ef2e213f8187c91f19cde03b938cfcf0cc368d7fa01",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "b95d8feeda710c1ca45c7ac261360a0986a3868fa3770c8dc18019953cc6b59c",
+        "greenLogHash": "11eaa1c3b57ab6ec6099fdf4d2e7ceb7b8c70505dbedb76bbedad70d1804f8aa"
+      },
+      {
+        "id": "capture-batch-status",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses failed batch capture query",
+        "edits": [
+          {
+            "find": "if (batch.status !== 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses failed batch capture query"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses failed batch capture query with original diagnostics",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-batch-status.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-batch-status.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "86fd1723bc5703eb912a679773f0dc030317f232e548ead5bcb1372c5d3d12fe",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "8ceacdf006047eb04140bbbd306a84a22bf6d90451e4c7a43818113e27c039ad",
+        "greenLogHash": "eb064024410e9e64497e7f68bc27984196bfc425d4dc4a6b3e14e97cb852664f"
+      },
+      {
+        "id": "capture-selected-commit",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "retains explicitly selected earlier commit",
+        "edits": [
+          {
+            "find": "revision + '^{commit}'",
+            "replacement": "'HEAD^{commit}'"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=retains explicitly selected earlier commit"
+        ],
+        "state": "killed-restored",
+        "testName": "retains explicitly selected earlier commit and never silently reselects HEAD",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-selected-commit.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-selected-commit.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "e8f67d82bb0ce03be083b9b4248b27ae8a99efac8655047608cf54a233a76350",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "0dd826a5f7d53dfcfd987fdf0cebad8feba616d0ceb30ef1a1e23ac25e0b315a",
+        "greenLogHash": "abd1d37f57c071e3de8bab3009b9ec455809b543c288557d2dd85ae44ebcbe9c"
+      },
+      {
+        "id": "capture-selected-tree",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "retains explicitly selected earlier commit",
+        "edits": [
+          {
+            "find": "revision + '^{tree}'",
+            "replacement": "'HEAD^{tree}'"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=retains explicitly selected earlier commit"
+        ],
+        "state": "killed-restored",
+        "testName": "retains explicitly selected earlier commit and never silently reselects HEAD",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-selected-tree.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-selected-tree.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "90af9951db13f3fecab91c0b14dc58217b4b7ca443f01ca60936af55b2a1c61b",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "09f4ed7df18f0f543100029cf447bd214475e986c962d30b03e6bac8feb411db",
+        "greenLogHash": "c1e57cb6bd7cacf28c99cd3ae75633c4b4273232a945b88ab3cb436b47e31a64"
+      },
+      {
+        "id": "capture-listed-tree",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "retains explicitly selected earlier commit",
+        "edits": [
+          {
+            "find": "['ls-tree', '-r', '-z', '--full-tree', tree]",
+            "replacement": "['ls-tree', '-r', '-z', '--full-tree', 'HEAD']"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=retains explicitly selected earlier commit"
+        ],
+        "state": "killed-restored",
+        "testName": "retains explicitly selected earlier commit and never silently reselects HEAD",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-listed-tree.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-listed-tree.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "d3a15dcd8a48eee4fb5166ac15539ed1404f3ba06bbf8050eae6514142a53fa9",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "e3c61ff83771b572fc9eb008e7d6cb1ba43cbcd482d09e5662b43d3e01bf61be",
+        "greenLogHash": "14276005d0fa0b7a3530e1a6e44d791b74cc2b902c9761e8108e5b4d08d46886"
+      },
+      {
+        "id": "capture-path-empty",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses noncanonical captured path \"\\/absolute\"",
+        "edits": [
+          {
+            "find": "component === ''",
+            "replacement": "false"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses noncanonical captured path \"\\/absolute\""
+        ],
+        "state": "killed-restored",
+        "testName": "refuses noncanonical captured path \"/absolute\"",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-path-empty.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-path-empty.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "f48c207dae61b0c1be9df24a6a70b65892f27e9e5663aa1aa1e2909176d9d27e",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "97c4169b8cf4ca2e38aca9652e37cfb5451c023c4e1c0a536e78d24a9bcb0498",
+        "greenLogHash": "9cf6543a9c86eef684149ccfdc30786ec0f5ea782ec28c94fbae4bdb59d20498"
+      },
+      {
+        "id": "capture-path-dot",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses noncanonical captured path \"a\\/.\\/dot\"",
+        "edits": [
+          {
+            "find": "component === '.'",
+            "replacement": "false"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses noncanonical captured path \"a\\/.\\/dot\""
+        ],
+        "state": "killed-restored",
+        "testName": "refuses noncanonical captured path \"a/./dot\"",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-path-dot.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-path-dot.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "4ed893561cdce75adeb669c627f9e1c5e75f572fb2782a4e268cede7e3480f04",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "eab3776f92fc8854f2a7cf8687a80e45fcb7768ab13e46bf0bdfd5a082d326a8",
+        "greenLogHash": "955961932736233610e061f80c98131b4b85187e73254a4d1a2b956b390b95cd"
+      },
+      {
+        "id": "capture-path-parent",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses noncanonical captured path \"..\\/escape\"",
+        "edits": [
+          {
+            "find": "component === '..'",
+            "replacement": "false"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses noncanonical captured path \"..\\/escape\""
+        ],
+        "state": "killed-restored",
+        "testName": "refuses noncanonical captured path \"../escape\"",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-path-parent.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-path-parent.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "86956455d26951d78ce6f0f200613a6da9c745ad5223d576b269e35e841fc44d",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "ddc12867caa13894178508ffca3e65e962c9c4bfb79ab908ec0106dbcdbe08cf",
+        "greenLogHash": "44ad3e36ba759d97d01a0efe67e90c033c2252df778ef90fdb9fba37a60f08ca"
+      },
+      {
+        "id": "capture-path-duplicate",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses duplicate captured paths",
+        "edits": [
+          {
+            "find": "if (paths.has(entry.path))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses duplicate captured paths"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses duplicate captured paths before batching",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-path-duplicate.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-path-duplicate.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "02d70dffd8c890fde0a123fc8cdc5c722d7b6c038dacb8c4ff70983086617cf4",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "bab7ce547e46302ad748ce79796e91e3f87f769d0bd451523c71efe8c290135e",
+        "greenLogHash": "f2d01532b51baddc6d90b10c67344e1007182347db944dc8d5c93a1bf1000c1a"
+      },
+      {
+        "id": "capture-path-ancestor",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "rejects reverse-ordered file-ancestor",
+        "edits": [
+          {
+            "find": "if (paths.has(components.slice(0, depth).join('/')))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=rejects reverse-ordered file-ancestor"
+        ],
+        "state": "killed-restored",
+        "testName": "rejects reverse-ordered file-ancestor collisions before batching",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-path-ancestor.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-path-ancestor.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "e9575ce0013269156a08ea6eae5e7305e20a0475e6cc90a80786f65f3f330318",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "a6b67d0098eb42793e71a1d8581e94eae639cfd4e424087c5b85196446769be6",
+        "greenLogHash": "17338f0dd517c687d2ef5c0eb0d9992f1c07b55c8c3060cecaf009e9381bd094"
+      },
+      {
+        "id": "capture-gitlink",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses committed gitlinks",
+        "edits": [
+          {
+            "find": "if (entry.mode === '160000')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses committed gitlinks"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses committed gitlinks before batching",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-gitlink.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-gitlink.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "04d2cef9bac3d949a4ebbc9af84f1d293221a62704dc4387a1908f0ce31ebb2d",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "53b6cbe70b8e1136ff9146d31881232f8d5ea18e306cd5884c7ce398fbaaee43",
+        "greenLogHash": "612304cec0d9da5fa01e4b657b1b67675cc11c7990cc4cc92bd448298d5707d3"
+      },
+      {
+        "id": "capture-empty-tree",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "captures a real empty tree",
+        "edits": [
+          {
+            "find": "if (requested.size !== 0)",
+            "replacement": "if (true)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=captures a real empty tree"
+        ],
+        "state": "killed-restored",
+        "testName": "captures a real empty tree without starting a blob reader",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-empty-tree.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-empty-tree.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "210ea3ad5d199a2605a7ff45d7f4a487dd3ffe296e6c640c61fd58ad9ed30590",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "3665afd35b16a2423966387b756d4a1e613858998daa003a3899f65424e373aa",
+        "greenLogHash": "3c01946e8172c7961a84b37b9cf95016af10bd33beeecff63d275ad7584164c6"
+      },
+      {
+        "id": "capture-absent-object",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses absent parsed object",
+        "edits": [
+          {
+            "find": "if (object === undefined) throw new Error('captured blob absent from batch: ' + entry.path);",
+            "replacement": ""
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses absent parsed object"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses absent parsed object after a broken batch decoder instead of manufacturing empty bytes",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-absent-object.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-absent-object.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "9accdf3ceef6a73d2f30d4be9dcc1a3dea5ba15b0f444ffde71c34ebc5e4a621",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "2eb04038f8d95f9d894b6c7830df340f9d39602813780f1ba12d52d990027036",
+        "greenLogHash": "1d6e8abe3133e3ecabd9749eb6a12d772454d3974afaa78f9fce7d9830ca0d5e"
+      },
+      {
+        "id": "capture-missing-object",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses batch missing object",
+        "edits": [
+          {
+            "find": "if (object.kind === 'missing')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses batch missing object"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses batch missing object rather than returning partial captured source",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-missing-object.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-missing-object.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "ca0dc9e6572080559be1eb3c0298c7d61079b2b41aeb8296da5247b3e7ea2c64",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "83d24a2756207893e2fbd69459611c68730dd8ce8488ed8b7a68b3b32d41d47c",
+        "greenLogHash": "c1910045255d2eeb99e6d2d3ba285471f7514c978ff63d3f0d5f15f18ed9bbb8"
+      },
+      {
+        "id": "capture-unknown-file",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns fresh snapshot and file copies",
+        "edits": [
+          {
+            "find": "if (bytes === undefined) throw new Error('captured path is absent: ' + path);",
+            "replacement": ""
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns fresh snapshot and file copies"
+        ],
+        "state": "killed-restored",
+        "testName": "returns fresh snapshot and file copies without aliases across paths or callers",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-unknown-file.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-unknown-file.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "a5475181edc487c431e76b4b8cf1855457cea6751ed2c95afb321ca0caa4555e",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "86a62f8f58fa1f32041ad5c9934268651d4e2f4b3d7ba8f89646295677f7066b",
+        "greenLogHash": "5aa77adc0d26df95001679e059c7c3cb1544e72018b25da752b33ec077696d6f"
+      },
+      {
+        "id": "capture-file-copy",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns fresh snapshot and file copies",
+        "edits": [
+          {
+            "find": "return new Uint8Array(bytes);",
+            "replacement": "return bytes;"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns fresh snapshot and file copies"
+        ],
+        "state": "killed-restored",
+        "testName": "returns fresh snapshot and file copies without aliases across paths or callers",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-file-copy.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-file-copy.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "f5bce31d7cfb9de3109180b208b74c4c744f7baefa838c92d205adcfac0d996a",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "880d3653919abf04e851405e7320ed573dd63813bb706a7c834d428ea5c56511",
+        "greenLogHash": "770e333ca76726d9538f3067d79087e000d3935ca0b9700bd62d165d96741390"
+      },
+      {
+        "id": "capture-entry-copy",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns fresh snapshot and file copies",
+        "edits": [
+          {
+            "find": "entries: entries.map((entry) => ({ ...entry })),",
+            "replacement": "entries: [...entries],"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns fresh snapshot and file copies"
+        ],
+        "state": "killed-restored",
+        "testName": "returns fresh snapshot and file copies without aliases across paths or callers",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-entry-copy.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-entry-copy.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "d79cef52f2ef8fa4d90f53c0bc463d6ba474f136d4a9930210ba708e8d2a9f59",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "6e15647fcf58986e4a8c9e66f650887529b72866d744d3d6f181b050835b662e",
+        "greenLogHash": "f8b2dc1890b33f7675cb1b3b32922001992e3b504c0b358babc6e7f9c325709f"
+      },
+      {
+        "id": "capture-array-copy",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns fresh snapshot and file copies",
+        "edits": [
+          {
+            "find": "entries: entries.map((entry) => ({ ...entry })),",
+            "replacement": "entries,"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns fresh snapshot and file copies"
+        ],
+        "state": "killed-restored",
+        "testName": "returns fresh snapshot and file copies without aliases across paths or callers",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-array-copy.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-array-copy.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "e69cbb209a5e7b34b02cf54fc6d0d29c53065170e2984c8e89e3c8e9f5dc29b4",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "32ae0bf7358a505ca6a24bcf6ad9b846c9733f2b7e1e866f3bc4f5743a888086",
+        "greenLogHash": "d9cde1b77c2a55373a49ce19da836783667f1e5812cffb55da0810aef95150bc"
+      },
+      {
+        "id": "capture-repository-capture",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "captures repository and environment",
+        "edits": [
+          {
+            "find": "repository: context.repository,",
+            "replacement": "get repository(){return context.repository;},"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=captures repository and environment"
+        ],
+        "state": "killed-restored",
+        "testName": "captures repository and environment before the first owned await",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-repository-capture.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-repository-capture.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "33f8efe19221c89f43fa191244a0c3ff2249a7c16b183a1bdae8983b1457d0c2",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "5ae81a39e497a48a96afb7df56c2a9703e8d2a7dfa90f34f0627abdb73589de7",
+        "greenLogHash": "a3c66e5686c03fe36871b0a8c12bdc7c12f61b8d02ee873e15a00c115e4e00fb"
+      },
+      {
+        "id": "capture-environment-capture",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "captures repository and environment",
+        "edits": [
+          {
+            "find": "environment: { ...context.runtime.environment },",
+            "replacement": "environment: context.runtime.environment,"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=captures repository and environment"
+        ],
+        "state": "killed-restored",
+        "testName": "captures repository and environment before the first owned await",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-environment-capture.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-environment-capture.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "bc2aa7590df8be9795b7e5032ab29fb2e0f0ff9e018e9cd062333a9bed26e509",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "c88a6efa98e4dea84bddb802f3e75e49c720fda14de9180b081d5169612c4de1",
+        "greenLogHash": "f225fa6e52f5f7ea01c3be1eba8adbf99be45858dd3ee50c4dd9e5dc514f537a"
+      },
+      {
+        "id": "capture-cancel-commit",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "owns commit capture cancellation",
+        "edits": [
+          {
+            "find": "if (commit.kind === 'cancelled')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=owns commit capture cancellation"
+        ],
+        "state": "killed-restored",
+        "testName": "owns commit capture cancellation before parsing partial output or starting later queries",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-cancel-commit.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-cancel-commit.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "8ed4ba5ec20198dd36f399af33268b358b17dbdffa39e3e5471c45a7c1fa2d05",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "461aa2ee58b6480f51f0b2fff7481c6981ee92f21200baa8a383acc979a38ae9",
+        "greenLogHash": "4f7a81759fb213101b8cd87627e89c9223de3179394d01a8c3a9df2597debdd3"
+      },
+      {
+        "id": "capture-cancel-selected",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "owns tree capture cancellation",
+        "edits": [
+          {
+            "find": "if (selected.kind === 'cancelled')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=owns tree capture cancellation"
+        ],
+        "state": "killed-restored",
+        "testName": "owns tree capture cancellation before parsing partial output or starting later queries",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-cancel-selected.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-cancel-selected.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "489ef5ffa75e5d38eb0d253c35a0a5e3246ca37b865b692c13ff24bafe7aa68f",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "61e28df8d78aa8ed3cbfdafad262fe7fa3b8de995d1debb1c51494c6cd8477fa",
+        "greenLogHash": "f7c1bcf19c8a3ac8fd273bac7a205d0bb88f9d4dc0695069c3742390dbfe31b2"
+      },
+      {
+        "id": "capture-cancel-listed",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "owns entries capture cancellation",
+        "edits": [
+          {
+            "find": "if (listed.kind === 'cancelled')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=owns entries capture cancellation"
+        ],
+        "state": "killed-restored",
+        "testName": "owns entries capture cancellation before parsing partial output or starting later queries",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-cancel-listed.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-cancel-listed.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "7a9f1e723dc7a56a4588e62d484ac2a34b970aae4a371688ab1c16b296c94a37",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "e0a50bba0e41666ae6426c7b39f7fde324b6d0694b3145d42a73ba0567afc2e4",
+        "greenLogHash": "87e9a1a63b4736371192916491232e2ff9113d166ad43858f542491507420e1b"
+      },
+      {
+        "id": "capture-cancel-batch",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns cancellation before parsing a captured batch prefix",
+        "edits": [
+          {
+            "find": "if (batch.kind === 'cancelled')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns cancellation before parsing a captured batch prefix"
+        ],
+        "state": "killed-restored",
+        "testName": "returns cancellation before parsing a captured batch prefix and confirms group absence",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-cancel-batch.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-cancel-batch.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "566e76c2c4e14447a6c42c08963ab5d64129bad1e5f9de6b67137986c8295edf",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "764d9185baba73296a0ac892cbe3b76c6c1e06a7ec7ae3bfb51ed2ea343289d4",
+        "greenLogHash": "37f2807d5db05a8d4bc5ba5b9194318656dc733328499601f2941a917271c01d"
+      },
+      {
+        "id": "capture-git-cwd",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "requests each selected object once",
+        "edits": [
+          {
+            "find": "directory: context.runtime.directory,",
+            "replacement": "directory: context.repository,"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=requests each selected object once"
+        ],
+        "state": "killed-restored",
+        "testName": "requests each selected object once through explicit owned Git authority",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-git-cwd.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-git-cwd.green.log",
+        "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "mutantHash": "7260244ef7a3c070f550d3e7cc7ef0400c5b334697f3ab2eec866281a09c74b8",
+        "afterHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "redLogHash": "9a21be9a30061ce7c40235f625f84839b623e4ba96a14b81502559dce52eca25",
+        "greenLogHash": "656eeab77c98142f193c13845caad0546c37f9bb330b83856ed51d60b62c03c2"
+      },
+      {
+        "id": "capture-git-environment",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "requests each selected object once",
+        "edits": [
+          {
+            "find": "environment: context.runtime.environment,",
+            "replacement": "environment: {...process.env,...context.runtime.environment},"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=requests each selected object once"
+        ],
+        "state": "killed-restored",
+        "testName": "requests each selected object once through explicit owned Git authority",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-git-environment.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-git-environment.green.log",
+        "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "mutantHash": "50d11300ffa685e0020410c67644020706408fe7d22277aa73a22045d1d5f1ad",
+        "afterHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "redLogHash": "7c29b66a14c5f3fc2585f30111966d914f729d17b3c324d26e85e7aca968912e",
+        "greenLogHash": "4f151eb51ce989a5613abc95e2efe574155203bf7137069a47412b21e4ae01a3"
+      },
+      {
+        "id": "capture-git-stdin",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "captures committed binary bytes",
+        "edits": [
+          {
+            "find": "    stdin,",
+            "replacement": "    stdin: undefined,"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=captures committed binary bytes"
+        ],
+        "state": "killed-restored",
+        "testName": "captures committed binary bytes, modes and exact Unicode BOM whitespace paths without live checkout reads",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-git-stdin.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-git-stdin.green.log",
+        "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "mutantHash": "233c55a4ba3314a2202a908f68de4c5869543ceaffc70c152b2d0a5fde9ce198",
+        "afterHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "redLogHash": "764a0b16bfb31ed0ad079ed2d67173a649b96180397c2a65efa3f9c63e6281ef",
+        "greenLogHash": "b9b4daee50720863146bc32adf9d5682abeb49fa53094f23dc6c85f02aa9e164"
+      },
+      {
+        "id": "capture-git-stderr",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses failed batch capture query",
+        "edits": [
+          {
+            "find": "errors.push(bytes.slice());",
+            "replacement": "errors.push(new Uint8Array());"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses failed batch capture query"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses failed batch capture query with original diagnostics",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-git-stderr.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-git-stderr.green.log",
+        "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "mutantHash": "12572569ce1d1d9d23a6a047201adfb835da0563b0b2c57ed1e01cd1f14f2224",
+        "afterHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "redLogHash": "74bc34155cf8a6f81d26a06f00ef3b8545c4e5eae720f8e2308a2f66aa48c899",
+        "greenLogHash": "adbc05913d32a68a649bf833daad497faa8104d2ab310aeef7d9350dc218f7ce"
+      },
+      {
+        "id": "capture-git-cancellation",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "returns cancellation before parsing a captured batch prefix",
+        "edits": [
+          {
+            "find": "subscribeInterrupts: context.subscribeInterrupts,",
+            "replacement": "subscribeInterrupts: ()=>()=>undefined,"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=returns cancellation before parsing a captured batch prefix"
+        ],
+        "state": "killed-restored",
+        "testName": "returns cancellation before parsing a captured batch prefix and confirms group absence",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/capture-git-cancellation.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/capture-git-cancellation.green.log",
+        "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "mutantHash": "aacad52e99564e737b7868ee5010d2fd23e464a58c4cfc0d81ef76eedf054016",
+        "afterHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+        "redLogHash": "cf45e519a171c74b11dddbd5031ab1fdc9ec0ddb5c7d1903227b750e6ccfc0bb",
+        "greenLogHash": "db5852f2746c9fb764462751c2a235c922bb5230c7ffd3c79e9967d79f84acc1"
+      },
+      {
+        "id": "batch-header-terminator",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses a batch that ends inside a header",
+        "edits": [
+          {
+            "find": "if (newline < 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses a batch that ends inside a header"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses a batch that ends inside a header or before the announced size",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-header-terminator.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-header-terminator.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "31e0f2a8b20ea81ba184c5e598911172fcda33ba4f04fa9534767c174b86b752",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "63701cff531680bdd83e99daf8ee63371e3d7c370ddc5bd9c8a9ce8fe5a1e1fa",
+        "greenLogHash": "e321778885fac643d917e7e953354fe78f1cec3b5b61fe3abf389f46a309b407"
+      },
+      {
+        "id": "batch-object-identity",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses a batch answer that names another object",
+        "edits": [
+          {
+            "find": "if (match?.[1] !== blob)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses a batch answer that names another object"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses a batch answer that names another object",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-object-identity.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-object-identity.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "d79aaae40d5c6a50b4380435b39bc0ac38318e28d07418530dab2418c197f136",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "561bd6ee03c532720696c3637c4dd4661fdf1771d46f4afe8deaec4a49db580e",
+        "greenLogHash": "904a13a6776d818e4be9790b3578aa8f79ac01106a7b4bac811c3c9085ae2fb9"
+      },
+      {
+        "id": "batch-object-type",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses a batch header that names another object type",
+        "edits": [
+          {
+            "find": "if (match[2] !== 'blob')",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses a batch header that names another object type"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses a batch header that names another object type",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-object-type.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-object-type.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "7772c2bf85fc7667ee2d93b6fee09c0d3d5f2867b51b38bc904208a35930e702",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "a59a0e86ec3ef3bf24c254cb159a159a1859c01fd49f8bac1f2cb55b9195c86a",
+        "greenLogHash": "0a920f900997ab9444a10a5886d389f959438b82f2353957c58538a9e2e92155"
+      },
+      {
+        "id": "batch-payload-boundary",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses a batch that ends inside a header",
+        "edits": [
+          {
+            "find": "if (end >= output.length || output[end] !== 0x0a)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses a batch that ends inside a header"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses a batch that ends inside a header or before the announced size",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-payload-boundary.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-payload-boundary.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "f92c7fffcb3d7efcc0d95d8c4c21d0497d6cb0ef91904b0b7fd9a4988ec4e13f",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "899bdd741a54704654ee2d7796cfaa880cca695d98db67286ac972f52041759d",
+        "greenLogHash": "5c30d31e0851c86f78deb8bd679f332ed030b784cfd0eb1b64ae881802fa6760"
+      },
+      {
+        "id": "batch-content-hash",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses batch substituted payload",
+        "edits": [
+          {
+            "find": "if (blobIdentity(blob, bytes) !== blob)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses batch substituted payload"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses batch substituted payload rather than returning partial captured source",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-content-hash.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-content-hash.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "88102cffbc0fc250df18168a0d29ffaec6fb0e06b0ab958164c29652fc5d0160",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "5084a2b4d96aa476d4361b4511e49d770cf459361b791ee2733f518ac9481dfd",
+        "greenLogHash": "d6be4cea49633bbdaa8a2d2e375a8b704189080fcf4b41e82fa40f9aa2f4fe66"
+      },
+      {
+        "id": "batch-trailing-bytes",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses output the batch did not ask for",
+        "edits": [
+          {
+            "find": "if (offset !== output.length)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses output the batch did not ask for"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses output the batch did not ask for",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-trailing-bytes.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-trailing-bytes.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "041d83665ab96a66177f7165a24a9c2eb1392dec9a5cbaa12610cd7ca193d02c",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "182333794655b233e0c120effa73d175966f4b4e1abf3e7eb35ef9347fdc33e0",
+        "greenLogHash": "8b06a2d81526e791bf401ee1e77265646ee54048f1f5a1edb904cdf208ffdbe3"
+      },
+      {
+        "id": "batch-missing-discriminator",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "pattern": "refuses a missing object for its own path",
+        "edits": [
+          {
+            "find": "if (header === `${blob} missing`)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses a missing object for its own path"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses a missing object for its own path and still serves the others",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-missing-discriminator.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-missing-discriminator.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "bd840e7e5b4ed1582e59784c11fefd3685ae63985da52198a058667a2a239239",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "9b9167d99da2863740d59671681847ee8566ad5a4e8822a5c42ab11e9b48b9d6",
+        "greenLogHash": "26051f053065f38a29a41e523cc0c1fc77dd68ec71fd9de738f7f466561185e3"
+      },
+      {
+        "id": "batch-payload-lf",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses batch missing payload LF",
+        "edits": [
+          {
+            "find": "if (end >= output.length || output[end] !== 0x0a)",
+            "replacement": "if (false)"
+          },
+          {
+            "find": "if (offset !== output.length)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses batch missing payload LF"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses batch missing payload LF rather than returning partial captured source",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-proofs/batch-payload-lf.red.log",
+        "greenLog": "/tmp/puni-c23-proofs/batch-payload-lf.green.log",
+        "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "mutantHash": "3d21dfe1d8155d973ed6ce2403861966224254432dc54fffbfb210702751e2ed",
+        "afterHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+        "redLogHash": "76bfeb570c95a2c424928b368d85e72401d1f9f9d1505acffad4da2dc4a6470c",
+        "greenLogHash": "8b76fb0463722de27c5d725f2e349792577910070860aca51999df719d187d42"
+      },
+      {
+        "id": "capture-identity-grammar",
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+        "test": "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "pattern": "refuses malformed tree identity",
+        "edits": [
+          {
+            "find": "if (!/^[0-9a-f]{40}$/u.test(identity))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+          "--timeout=15000",
+          "--test-name-pattern=refuses malformed tree identity"
+        ],
+        "state": "killed-restored",
+        "testName": "refuses malformed tree identity returned with status0",
+        "redExit": 1,
+        "greenExit": 0,
+        "redLog": "/tmp/puni-c23-identity-proof/capture-identity-grammar.red.log",
+        "greenLog": "/tmp/puni-c23-identity-proof/capture-identity-grammar.green.log",
+        "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "mutantHash": "d006aeed09109f4fd0243b05607d70f3352623b448d0f215ef4036663de0bd0e",
+        "afterHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+        "redLogHash": "9cb53298d26d8ca6b14e9c4f08c1f033d8ea6e003573cfe80f83739b43c79de0",
+        "greenLogHash": "bc75bbbb7bad2c67ed0a75b87306244dd162ae3e7f2f65902e2c2a8e40fe9959"
+      }
+    ],
+    "attempts": 46,
+    "canonicalFaults": 45,
+    "logs": 92,
+    "testEpochs": {
+      "initial": "/tmp/puni-c23-proofs/committed-source.test.ts",
+      "strengthened": "/tmp/puni-c23-identity-proof/committed-source.test.ts",
+      "change": "Only malformed commit/tree identity fixture: exact diagnostic/no ls-tree rather than substring echoed by downstream Git error; unrelated oracles unchanged."
+    }
+  },
+  "extraction": {
+    "batchBodyUnchangedAfterPublicRename": true,
+    "sourceGitBefore": "  async function git(argv: readonly string[]) {\n    const errors: Uint8Array[] = [];\n    const outcome = await runLintChild({\n      argv: ['git', '-C', repository, ...argv],\n      directory: runtime.directory,\n      environment: runtime.environment,\n      stage: 'preparation Git',\n      stdin: undefined,\n      stdout: () => ({ kind: 'written' }),\n      stderr: (bytes) => {\n        errors.push(bytes.slice());\n        return { kind: 'written' };\n      },\n      subscribeInterrupts,\n    });\n    return { ...outcome, stderr: Buffer.concat(errors) };\n  }\n",
+    "typeOnlyStageChange": true
+  },
+  "commentAndStageComparison": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+      "beforeHash": "127842d98d44a94a1dcfb78fb77b62b2b8cee44a38f76e788b06e86189859ade",
+      "afterHash": "4918a698a508456c9c8cf647aa84c657950b3d78f9e4148fd6fd4a723ee36123",
+      "sameJavaScript": true,
+      "javascriptHash": "e913b74b139113b242f72db379c755d312bb8ef3a79b5534c1786abad4b8569d",
+      "finalHash": "16824b1fc7aad7276cee3b7efb0c7e4d5b04f52480a8e4e1da18b1a63fa32a5d"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+      "beforeHash": "beacee6ac5cad615c9af28f569c9c3a6e81488acb24c94feb4571556c72dc2b7",
+      "afterHash": "3796b18b3b489d177d2979339e32c73b29160b0700d17c7c69973522c32f3ab2",
+      "sameJavaScript": true,
+      "javascriptHash": "8b0f398f6530740d61a810ee1d94c1ca9d7d181a1ddd349faae2a3502777491d",
+      "finalHash": "f4a6704ee12767ce5247cd6890373d8648f151b7e0cfc9f0d6dac08a8b985403"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+      "beforeHash": "d6eed2cc404ba5947ad1b6e2afd2074078106e0bc69440229164fbe5c111a161",
+      "afterHash": "3988d2186ff368466a7ca037124743827d613490e543c3d536f0c405d5a3f2c7",
+      "sameJavaScript": true,
+      "javascriptHash": "eee71ba8c7b4abbb4780b075cc59409cac2615d7562a8e34befe532876015f41",
+      "finalHash": "2c397d553530b26eaad8824d95f942f5c7400572bb91601cc6d8d8485735e935"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-child.ts",
+      "beforeHash": "dc7bfaaef45124c2e7a98dc3fa20c2e79bca9092f27886af2e054fe7ac25dd49",
+      "afterHash": "3322b5d047d90cd7c1b508c21abbbd5a78af15aaec02de58829e929ce532b265",
+      "sameJavaScript": true,
+      "javascriptHash": "47b66ccb7bf459f401e21289ff639dd647a888c6c4d7167478f2e2c50345572a",
+      "finalHash": "3322b5d047d90cd7c1b508c21abbbd5a78af15aaec02de58829e929ce532b265"
+    }
+  ],
+  "sourceHashes": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-child.ts",
+      "sha256": "3322b5d047d90cd7c1b508c21abbbd5a78af15aaec02de58829e929ce532b265"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+      "sha256": "2c397d553530b26eaad8824d95f942f5c7400572bb91601cc6d8d8485735e935"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.ts",
+      "sha256": "d9d14629c0162e4a05befbdfbc0d06207c1883ab906f7db5dfb2f80c29451d8f"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+      "sha256": "f4a6704ee12767ce5247cd6890373d8648f151b7e0cfc9f0d6dac08a8b985403"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-source.ts",
+      "sha256": "478c89d19ae38dc0aad661143cd5f5ae0c609c83c84b3d67cc98d16030a394c0"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+      "sha256": "16824b1fc7aad7276cee3b7efb0c7e4d5b04f52480a8e4e1da18b1a63fa32a5d"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+      "sha256": "687bc8662d1c1111197a8d2d2925b9f7a7bf0659c6ad70e6b9c8e06e2a6542b9"
+    }
+  ],
+  "review": {
+    "audit": "/tmp/puni-c23-independent-audit.json",
+    "auditRecord": {
+      "rawAttempts": 46,
+      "canonical": 45,
+      "errors": [],
+      "notes": 45,
+      "testEpochHashes": {
+        "initial": "0393f949cef2755fbee5d8dd7cc508991791a2ef61267039ea21317a17ab6b4d",
+        "strengthened": "ace3c2889bc92ce8b1707e91459bffac1bd42992098000f2a497f93cef9f3a0e"
+      },
+      "currentTestEqualsStrengthened": true,
+      "canonicalUniqueIds": 45,
+      "canonicalUniqueMutantTexts": 45,
+      "partitionMatchesRaw": true,
+      "readBlobTestArchiveMatches": true,
+      "jsComparison": "/tmp/puni-c23-independent-js-comparison.json",
+      "checks": [
+        {
+          "id": "final-types",
+          "exitCode": 0,
+          "logHashMatches": true
+        },
+        {
+          "id": "final-lint",
+          "exitCode": 1,
+          "logHashMatches": true
+        }
+      ],
+      "qualifications": [
+        "Diagnostic contracts: capture identity grammar/UTF8, commit/tree/batch statuses, absent parsed object, gitlink, batch header terminator/payload boundary/missing discriminator; later refusal remains in these mutants",
+        "batch-payload-lf removes both boundary and trailing-byte checks as one compound fault",
+        "capture-array-copy returns original array and original entries; recorded failure is entry aliasing before splice, not independent array-splice proof",
+        "capture-full-revision selector runs multiple cases",
+        "No independent tests rerun; final lint currently exit1 at test-only unnecessary first===undefined guard, subsequent final group pending"
+      ]
+    },
+    "finding": "No production blocker.45 canonical/1excluded/46attempts/92logs, source/mutant/restoration/tests/notes reconcile; independently verified minified JS. Audit preceded final test-only entries[0] to entries.at(0) lint correction and fresh final162/0/type0/lint0; no tests independently rerun.",
+    "final": {
+      "audit": "/tmp/puni-c23-final-independent-audit.json",
+      "auditRecord": {
+        "trackedProofSetEqualsAudited": true,
+        "sourceHashes": [
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-child.ts",
+            "matches": true
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/blob-batch.ts",
+            "matches": true
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.ts",
+            "matches": true
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-git.ts",
+            "matches": true
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-source.ts",
+            "matches": true
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.ts",
+            "matches": true
+          },
+          {
+            "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+            "matches": true
+          }
+        ],
+        "exactSingleLookupChange": true,
+        "archivedCopyProofValidity": "Preserved for plain-array fixture and recorded aliases; no independent array-splice proof added.",
+        "finalCheckLogs": [
+          {
+            "id": "final2-types",
+            "exitCode": 0,
+            "hashMatches": true
+          },
+          {
+            "id": "final2-lint",
+            "exitCode": 0,
+            "hashMatches": true
+          },
+          {
+            "id": "final2-tests",
+            "exitCode": 0,
+            "hashMatches": true
+          }
+        ],
+        "observed": {
+          "pass": 162,
+          "fail": 0,
+          "assertions": 501,
+          "files": 7,
+          "seconds": 28.07
+        },
+        "notRun": "No independent tests, mutations, or pending postrecord OpenSpec/format/diff reruns."
+      },
+      "finding": "Tracked receipts/seven source hashes/final log hashes reconcile; entries[0] to .at(0) preserves the plain-array copy-fixture behavior with stated broader-array-alias qualification.162pass0fail501assertions,type/lint0 logs verified; no tests rerun."
+    }
+  },
+  "finalTestOnlyDelta": {
+    "before": "/tmp/puni-c23-final-test-before.ts",
+    "beforeSha256": "ace3c2889bc92ce8b1707e91459bffac1bd42992098000f2a497f93cef9f3a0e",
+    "afterSha256": "687bc8662d1c1111197a8d2d2925b9f7a7bf0659c6ad70e6b9c8e06e2a6542b9",
+    "change": "One fixture lookup changes entries[0] to entries.at(0), preserving actual first-element lookup for the nonempty plain-array fixture while making the required undefined guard reflect its static type; assertion/data/fault reachability unchanged."
+  },
+  "failedChecks": [
+    {
+      "log": "/tmp/puni-c23-capture-red1.log",
+      "observation": "initial missing capture module RED"
+    },
+    {
+      "log": "/tmp/puni-c23-capture-green1.log",
+      "observation": "93pass1fail: tree-query failure interceptor compared only suffix rather than full argv; fixture corrected"
+    },
+    {
+      "log": "/tmp/puni-c23-lint-fix1.log",
+      "observation": "one unused test-only oid parameter, renamed _oid"
+    },
+    {
+      "log": "/tmp/puni-c23-proofs-progress.log",
+      "observation": "first45 attempts include one identity-grammar survivor; exact oracle retry killed it; original0/0 attempt excluded and retained"
+    },
+    {
+      "log": "/tmp/puni-c23-final-lint.log",
+      "observation": "test-only no-unnecessary-condition on entries[0]; corrected to at(0)"
+    },
+    {
+      "log": "/tmp/puni-c23-checks-progress.log",
+      "observation": "first final runner exited on lint rejection before preserving concurrent native test status/output; no pass/fail claim for that unobserved suite. Fresh runner collects all outcomes before reporting failure."
+    },
+    {
+      "log": "/tmp/puni-c23-final2-checks-progress.log",
+      "observation": "temporary runner text replacement syntax error before any child started; corrected, fresh final2 successful output in progress2 log"
+    }
+  ],
+  "qualification": [
+    "Captured source authority exposes copies; mutable public JavaScript containers are not claimed to be frozen.",
+    "Stable trusted Git commit/tree/object mappings and independently selected runtime remain prerequisites. Blob bytes are additionally verified against Git object identities. This is not a general Git fsck/metadata sandbox.",
+    "Several malformed/status/parser faults establish precise diagnostic or decode/order contracts while another later refusal remains.",
+    "batch-payload-lf is one compound two-check fault.",
+    "capture-array-copy is a broader alias fault whose recorded failure is entry mutation before splice; it does not independently prove outer-array-splice isolation. capture-entry-copy independently fails.",
+    "The initial identity oracle matched a downstream error echoing its invalid input. Only the stronger exact-diagnostic/no-ls-tree retry is canonical. Two identity tests changed between raw epochs; other proof oracles remain unchanged.",
+    "The prior cancellation gate also precedes malformed-revision validation, consistently treating already recorded cancellation as controlled exit.",
+    "The Git helper extraction is covered by the fresh C22 source-selection regression. Existing ambient/sync blob readers retain their owner and only share the pure decoder; the new capture path never invokes that owner.",
+    "Capture does not create a physical source tree, reserve outputs, validate filesystem collisions/symlink targets, build roles, prepare activations, archive, package or switch defaults.",
+    "Local Linux/Bun1.4.4 evidence does not qualify macOS, canonical host gate or deployment."
+  ],
+  "remaining": [
+    "fresh native-external output reservations and source materialization",
+    "Git metadata/native filesystem collision/symlink rules before builds",
+    "both current Bun activation preparers",
+    "one-source protected role build and actual copied closure",
+    "owned preparation executable/root completion",
+    "bootstrap/admission/CI Bun ports and coherent cutover",
+    "public PUNI identity/registry authority",
+    "complete client and operational-script Bun conversion",
+    "whole entity hierarchy and canonical host gate/rollout"
+  ]
+}

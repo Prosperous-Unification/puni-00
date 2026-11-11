@@ -1,0 +1,1641 @@
+{
+  "schemaVersion": 1,
+  "scope": "C15 asynchronous lint Git prerequisite; dedicated installed parent/coherent producer switch still open",
+  "rawMutationAttempts": 27,
+  "uniqueSuccessfulFaults": 25,
+  "breakdown": {
+    "newPreflightWiringAndOrdering": 9,
+    "relocatedResponseValidation": 5,
+    "unchangedEnvironmentRegression": 11
+  },
+  "successful": [
+    {
+      "id": "git-major-floor",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "major < 2 || (major === 2 && minor < 36)",
+          "replacement": "major === 2 && minor < 36"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "refuses unsupported git version 1",
+      "scope": "relocated response validation",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=refuses unsupported git version 1"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > refuses unsupported git version 1.99.0 before querying the repository or launching a validator",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-major-floor.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-major-floor.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "c8a335e2db5c30a1d95feeb2b92d07b80bd2d8cecc84e45466b19376c5379b92",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "726bcfb4dc868fd1c20e4afa10e3de964002a3ecafa07cce252e89eb4cfa8b80",
+      "greenLogHash": "563635e3a254d2888f7d5ecd15142cee1337ddf332e5fcc347ab816a73044aa2",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-major-floor.red.log",
+        "sha256": "726bcfb4dc868fd1c20e4afa10e3de964002a3ecafa07cce252e89eb4cfa8b80",
+        "bytes": 1452,
+        "failed": [
+          "Burokrat verified parent runtime > refuses unsupported git version 1.99.0 before querying the repository or launching a validator"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toMatchObject(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-major-floor.green.log",
+        "sha256": "563635e3a254d2888f7d5ecd15142cee1337ddf332e5fcc347ab816a73044aa2",
+        "bytes": 337,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > refuses unsupported git version 1.99.0 before querying the repository or launching a validator"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-minor-floor",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "major < 2 || (major === 2 && minor < 36)",
+          "replacement": "major < 2"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "refuses unsupported git version 2",
+      "scope": "relocated response validation",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=refuses unsupported git version 2"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > refuses unsupported git version 2.35.1 before querying the repository or launching a validator",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-minor-floor.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-minor-floor.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "787687f0b5627d5d62abca0883b12ed3bfd0e0bb17ce23f91bc441b0a9b583a8",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "cb3983a166d0b70fd933142605c8b9109f1527f21207107caec709266821c176",
+      "greenLogHash": "0d9913d2f05db0e5fa37bb77534efa904614b2dbd9cefdcb242c1d85ed06feb6",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-minor-floor.red.log",
+        "sha256": "cb3983a166d0b70fd933142605c8b9109f1527f21207107caec709266821c176",
+        "bytes": 2718,
+        "failed": [
+          "Burokrat verified parent runtime > refuses unsupported git version 2.35.1 before querying the repository or launching a validator",
+          "Burokrat verified parent runtime > refuses unsupported git version 2.35.99 before querying the repository or launching a validator"
+        ],
+        "passed": [],
+        "diagnostics": [
+          "error: expect(received).toMatchObject(expected)",
+          "error: expect(received).toMatchObject(expected)"
+        ]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-minor-floor.green.log",
+        "sha256": "0d9913d2f05db0e5fa37bb77534efa904614b2dbd9cefdcb242c1d85ed06feb6",
+        "bytes": 488,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > refuses unsupported git version 2.35.1 before querying the repository or launching a validator",
+          "Burokrat verified parent runtime > refuses unsupported git version 2.35.99 before querying the repository or launching a validator"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-query-status",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "if (exitCode !== 0)",
+          "replacement": "if (false)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "refuses a failed Git version query",
+      "scope": "relocated response validation",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=refuses a failed Git version query"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > refuses a failed Git version query without parsing its successful-looking stdout",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-query-status.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-query-status.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "b81b93bbd9db8d14150a6d51c1bcdd37fa4b7723bb2a4a3dc56e6e5ff9fc4e25",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "a77eb33b32049ddd2976dd08589c0b9c515066ea31b70463ac0f2a5118dd600d",
+      "greenLogHash": "79546bbb23642fd99e972a79dba28570470edfd260ffd42357592dd5a3ba4625",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-query-status.red.log",
+        "sha256": "a77eb33b32049ddd2976dd08589c0b9c515066ea31b70463ac0f2a5118dd600d",
+        "bytes": 1265,
+        "failed": [
+          "Burokrat verified parent runtime > refuses a failed Git version query without parsing its successful-looking stdout"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toMatchObject(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-query-status.green.log",
+        "sha256": "79546bbb23642fd99e972a79dba28570470edfd260ffd42357592dd5a3ba4625",
+        "bytes": 323,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > refuses a failed Git version query without parsing its successful-looking stdout"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-response-grammar",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "if (version === null)",
+          "replacement": "if (false)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "refuses malformed version response",
+      "scope": "relocated response validation",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=refuses malformed version response"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > refuses malformed version response \"not Git\"",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-response-grammar.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-response-grammar.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "9852c4cb9107103c8d482fcf2ef11e35468c3b9742df95bc640a99e53e77bf60",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "3eafc426126302bed259d9d555df0770fc2a9e8e4a8140b354da26e1edcaa25f",
+      "greenLogHash": "5f64d0dce036cbd883c35e5f30b8fad26eadf0718861918b8f08eda2cf0ffa2f",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-response-grammar.red.log",
+        "sha256": "3eafc426126302bed259d9d555df0770fc2a9e8e4a8140b354da26e1edcaa25f",
+        "bytes": 7521,
+        "failed": [
+          "Burokrat verified parent runtime > refuses malformed version response \"not Git\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"prefix git version 2.43.0\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.36\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0\\nextra\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 999999999999999999.0.0\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0 (Unknown Vendor)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.36.0 (release candidate)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0 (Apple Git-154-rc1)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0\\n\""
+        ],
+        "passed": [],
+        "diagnostics": [
+          "error: expect(received).toContain(expected)",
+          "error: expect(received).toContain(expected)",
+          "error: expect(received).toContain(expected)",
+          "error: expect(received).toContain(expected)",
+          "error: expect(received).toContain(expected)",
+          "error: expect(received).toContain(expected)",
+          "error: expect(received).toContain(expected)",
+          "error: expect(received).toContain(expected)",
+          "error: expect(received).toContain(expected)"
+        ]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-response-grammar.green.log",
+        "sha256": "5f64d0dce036cbd883c35e5f30b8fad26eadf0718861918b8f08eda2cf0ffa2f",
+        "bytes": 1248,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > refuses malformed version response \"not Git\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"prefix git version 2.43.0\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.36\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0\\nextra\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 999999999999999999.0.0\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0 (Unknown Vendor)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.36.0 (release candidate)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0 (Apple Git-154-rc1)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0\\n\""
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-vendor-grammar",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "\\(Apple Git-[0-9]+(?:\\.[0-9]+)*\\)",
+          "replacement": "\\([A-Za-z0-9 .+-]+\\)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "refuses malformed version response",
+      "scope": "relocated response validation",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=refuses malformed version response"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0 (Unknown Vendor)\"",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-vendor-grammar.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-vendor-grammar.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "02520a00120be20031dda8ef7f97056a415f32df32b0333f16b0cacacdf918f8",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "3b6bd383888e8742f83c01dfc28a2cbf166084425199289d6c051dd31dee12cd",
+      "greenLogHash": "d86129fa453d7bee7497cc78cfeae2512bf96e5597367bc21dcd4eb78beb57ce",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-vendor-grammar.red.log",
+        "sha256": "3b6bd383888e8742f83c01dfc28a2cbf166084425199289d6c051dd31dee12cd",
+        "bytes": 4428,
+        "failed": [
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0 (Unknown Vendor)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.36.0 (release candidate)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0 (Apple Git-154-rc1)\""
+        ],
+        "passed": [
+          "Burokrat verified parent runtime > refuses malformed version response \"not Git\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"prefix git version 2.43.0\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.36\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0\\nextra\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 999999999999999999.0.0\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0\\n\""
+        ],
+        "diagnostics": [
+          "error: expect(received).toMatchObject(expected)",
+          "error: expect(received).toMatchObject(expected)",
+          "error: expect(received).toMatchObject(expected)"
+        ]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-vendor-grammar.green.log",
+        "sha256": "d86129fa453d7bee7497cc78cfeae2512bf96e5597367bc21dcd4eb78beb57ce",
+        "bytes": 1248,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > refuses malformed version response \"not Git\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"prefix git version 2.43.0\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.36\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0\\nextra\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 999999999999999999.0.0\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0 (Unknown Vendor)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.36.0 (release candidate)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0 (Apple Git-154-rc1)\"",
+          "Burokrat verified parent runtime > refuses malformed version response \"git version 2.43.0\\n\""
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-inherit-ambient",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "PATH: path,",
+          "replacement": "...process.env, PATH: path,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "gives every ordinary Git process only",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=gives every ordinary Git process only"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-inherit-ambient.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-inherit-ambient.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "8320553872264ed40c6c25184179714ea4d80fb8b3ac9a3a4cb4aba7cee9524f",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "00027dfb6c2c2c56dbd8ee8d487229915cb83a66d8431a772b1e33ff4273a982",
+      "greenLogHash": "4b886dc34dbe96f13ad429d11cac77441af513489a7e3c44a11792e886baf08c",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-inherit-ambient.red.log",
+        "sha256": "00027dfb6c2c2c56dbd8ee8d487229915cb83a66d8431a772b1e33ff4273a982",
+        "bytes": 1132,
+        "failed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toEqual(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-inherit-ambient.green.log",
+        "sha256": "4b886dc34dbe96f13ad429d11cac77441af513489a7e3c44a11792e886baf08c",
+        "bytes": 315,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-global-config",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_CONFIG_GLOBAL: '/dev/null',",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "gives every ordinary Git process only",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=gives every ordinary Git process only"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-global-config.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-global-config.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "456020265b1d54724a2469a7754c510074ce94d1dcdaab94831c7d5b2bf02370",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "bb193f9efb1209a0c8efd9070adf3523b2c31547fc2995298dcefb6910397021",
+      "greenLogHash": "049ca3b7b4e251a47557bd9cf97a5205f3194d8310a29e0cfa869f7d6e87ae41",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-global-config.red.log",
+        "sha256": "bb193f9efb1209a0c8efd9070adf3523b2c31547fc2995298dcefb6910397021",
+        "bytes": 1522,
+        "failed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toMatchObject(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-global-config.green.log",
+        "sha256": "049ca3b7b4e251a47557bd9cf97a5205f3194d8310a29e0cfa869f7d6e87ae41",
+        "bytes": 315,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-system-config",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_CONFIG_SYSTEM: '/dev/null',",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "gives every ordinary Git process only",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=gives every ordinary Git process only"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-system-config.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-system-config.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "b58c018c1be5c011c03f24344f9ccbb5d85e540c2090e12454632bfcb5daac31",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "2e5ea27a1c2a140848635cd1f58396f891f5394f8a5e02f80dc6e668ccd28f42",
+      "greenLogHash": "5b0483e7f0c0dbd23110e5105035f5acd6343c86a5d9356c9bfa77304b2d8034",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-system-config.red.log",
+        "sha256": "2e5ea27a1c2a140848635cd1f58396f891f5394f8a5e02f80dc6e668ccd28f42",
+        "bytes": 1522,
+        "failed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toMatchObject(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-system-config.green.log",
+        "sha256": "5b0483e7f0c0dbd23110e5105035f5acd6343c86a5d9356c9bfa77304b2d8034",
+        "bytes": 315,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-replacements",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_NO_REPLACE_OBJECTS: '1',",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "gives every ordinary Git process only",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=gives every ordinary Git process only"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-replacements.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-replacements.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "fff158c85c934bb35fd7d1ac7184e39c2f4da156fcd22b97c10e0de69abdb6a5",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "adf67ec2f8ce36f34af6f0a80cc7be562495d995928467f99d70f16d0f8b225e",
+      "greenLogHash": "6fa467f8473d7cc98b21dc48a11a8af3e70c56dc7b5fb879f09dc86ec5c2d1ca",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-replacements.red.log",
+        "sha256": "adf67ec2f8ce36f34af6f0a80cc7be562495d995928467f99d70f16d0f8b225e",
+        "bytes": 1522,
+        "failed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toMatchObject(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-replacements.green.log",
+        "sha256": "6fa467f8473d7cc98b21dc48a11a8af3e70c56dc7b5fb879f09dc86ec5c2d1ca",
+        "bytes": 315,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-prompts",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_TERMINAL_PROMPT: '0',",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "gives every ordinary Git process only",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=gives every ordinary Git process only"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-prompts.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-prompts.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "2c467afb69895500d7709e97ba5250e1586553978e1b84ff8932acbcd9348551",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "fb2c040f27d8d6ebc4920441eb76dbbfce09215ab10c80617941f4c91942bb04",
+      "greenLogHash": "8d31cbc6ea64a059abeff72c7b91300c5038a17cec851dc598a9f123b373eef2",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-prompts.red.log",
+        "sha256": "fb2c040f27d8d6ebc4920441eb76dbbfce09215ab10c80617941f4c91942bb04",
+        "bytes": 1522,
+        "failed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toMatchObject(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-prompts.green.log",
+        "sha256": "8d31cbc6ea64a059abeff72c7b91300c5038a17cec851dc598a9f123b373eef2",
+        "bytes": 315,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-config-count",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_CONFIG_COUNT: '2',",
+          "replacement": "GIT_CONFIG_COUNT: '0',"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "gives every ordinary Git process only",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=gives every ordinary Git process only"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-config-count.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-config-count.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "4f846669044d5b7d4ab3fd3251b353271950828e084ba4a10eff0af8e06974e5",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "f2578701fc9ffed565a6e30d8bc9fe2b15d17bed14942cde39ecc2e57d2092df",
+      "greenLogHash": "3d3d6562dc89018b0c785b6076150a2029ed70340388e4a4a6fc04de1892e4ca",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-config-count.red.log",
+        "sha256": "f2578701fc9ffed565a6e30d8bc9fe2b15d17bed14942cde39ecc2e57d2092df",
+        "bytes": 1551,
+        "failed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toMatchObject(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-config-count.green.log",
+        "sha256": "3d3d6562dc89018b0c785b6076150a2029ed70340388e4a4a6fc04de1892e4ca",
+        "bytes": 315,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-protocols",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_ALLOW_PROTOCOL: '',",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "denies a reachable lazy-fetch remote helper",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=denies a reachable lazy-fetch remote helper"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > denies a reachable lazy-fetch remote helper for a missing promised object",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-protocols.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-protocols.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "4c2854cada9f7ba9166a74f2f3008c5f34040b59f1e08576b43d83d1a37ed368",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "c197ba0e711a2f0bf571fbdfc2b6d758bb728aebf2ec51a2a6aae58dcd8095c2",
+      "greenLogHash": "62ebb512f944015f28ed8a8ee4c046e25456bbd2e3bc00d78fea54cb2bc74f78",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-protocols.red.log",
+        "sha256": "c197ba0e711a2f0bf571fbdfc2b6d758bb728aebf2ec51a2a6aae58dcd8095c2",
+        "bytes": 749,
+        "failed": [
+          "Burokrat verified parent runtime > denies a reachable lazy-fetch remote helper for a missing promised object"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toBe(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-protocols.green.log",
+        "sha256": "62ebb512f944015f28ed8a8ee4c046e25456bbd2e3bc00d78fea54cb2bc74f78",
+        "bytes": 318,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > denies a reachable lazy-fetch remote helper for a missing promised object"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-hook-value",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_CONFIG_VALUE_0: '/dev/null',",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "gives every ordinary Git process only",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=gives every ordinary Git process only"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-hook-value.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-hook-value.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "70253e8def1a915e678f201fcc700f58617a11a12fedb5283bc54c86844fcc22",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "19c7bc4297d5eadd81a7b92d055782bfa56d64b11e4eeb133dda22705285d85f",
+      "greenLogHash": "48edeac6db90795c701f69a386563fedc9ca361caabc9472218afb32c277800a",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-hook-value.red.log",
+        "sha256": "19c7bc4297d5eadd81a7b92d055782bfa56d64b11e4eeb133dda22705285d85f",
+        "bytes": 1224,
+        "failed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toMatchObject(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-hook-value.green.log",
+        "sha256": "48edeac6db90795c701f69a386563fedc9ca361caabc9472218afb32c277800a",
+        "bytes": 315,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-fsmonitor-value",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_CONFIG_VALUE_1: 'false',",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "gives every ordinary Git process only",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=gives every ordinary Git process only"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/git-fsmonitor-value.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-fsmonitor-value.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "018c4fa025179542799c02180e09552410af4d7343a87e9326517e802c8ad70d",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "14fbc51578f29701527ac4a56e576fe6e8eb59ab51bf416914a0e43f34aabb7f",
+      "greenLogHash": "053fbed1bc3f896285174efd522c5c7c04f126a2877454b4c60d530e95032188",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-fsmonitor-value.red.log",
+        "sha256": "14fbc51578f29701527ac4a56e576fe6e8eb59ab51bf416914a0e43f34aabb7f",
+        "bytes": 1224,
+        "failed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toMatchObject(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-fsmonitor-value.green.log",
+        "sha256": "053fbed1bc3f896285174efd522c5c7c04f126a2877454b4c60d530e95032188",
+        "bytes": 315,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > gives every ordinary Git process only the declared runtime environment"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preflight-version-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+      "edits": [
+        {
+          "find": "if (version.kind === 'cancelled')",
+          "replacement": "if (false)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+      "pattern": "owns cancellation during the version Git probe with bounded first-signal grace",
+      "scope": "new preflight wiring",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=owns cancellation during the version Git probe with bounded first-signal grace"
+      ],
+      "state": "killed-restored",
+      "testName": "owns cancellation during the version Git probe with bounded first-signal grace",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/preflight-version-cancel.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/preflight-version-cancel.green.log",
+      "beforeHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "mutantHash": "7a983ecdda9ec59cf20a53cbb16fe9adc41191b838f4bb120a4c236edf0872fb",
+      "afterHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "redLogHash": "398bc9794b65d63ce502c582c60a1912fc1ab8e38d080c675404a492bca3d38b",
+      "greenLogHash": "a7967e0cb92510e2672b55261eb6eea0133465204943368e94c4c24fff06dc86",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/preflight-version-cancel.red.log",
+        "sha256": "398bc9794b65d63ce502c582c60a1912fc1ab8e38d080c675404a492bca3d38b",
+        "bytes": 826,
+        "failed": [
+          "owns cancellation during the version Git probe with bounded first-signal grace"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toBe(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/preflight-version-cancel.green.log",
+        "sha256": "a7967e0cb92510e2672b55261eb6eea0133465204943368e94c4c24fff06dc86",
+        "bytes": 288,
+        "failed": [],
+        "passed": [
+          "owns cancellation during the version Git probe with bounded first-signal grace"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preflight-root-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+      "edits": [
+        {
+          "find": "if (root.kind === 'cancelled')",
+          "replacement": "if (false)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+      "pattern": "owns cancellation during the root Git probe with bounded first-signal grace",
+      "scope": "new preflight wiring",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=owns cancellation during the root Git probe with bounded first-signal grace"
+      ],
+      "state": "killed-restored",
+      "testName": "owns cancellation during the root Git probe with bounded first-signal grace",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/preflight-root-cancel.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/preflight-root-cancel.green.log",
+      "beforeHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "mutantHash": "f8f563f188db0d1e10411d000decbd1aa0786d52811dd2d78c4dd5ad678e0680",
+      "afterHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "redLogHash": "66c8720a1396114aed408a96762efe3c753c1d19521cab524daf9d2051ebda93",
+      "greenLogHash": "f57af40ef925fcefc4d8fbec7012487a7e54abd0d27f75a7d6b90a8080d42257",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/preflight-root-cancel.red.log",
+        "sha256": "66c8720a1396114aed408a96762efe3c753c1d19521cab524daf9d2051ebda93",
+        "bytes": 823,
+        "failed": ["owns cancellation during the root Git probe with bounded first-signal grace"],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toBe(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/preflight-root-cancel.green.log",
+        "sha256": "f57af40ef925fcefc4d8fbec7012487a7e54abd0d27f75a7d6b90a8080d42257",
+        "bytes": 285,
+        "failed": [],
+        "passed": ["owns cancellation during the root Git probe with bounded first-signal grace"],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preflight-driver-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+      "edits": [
+        {
+          "find": "if (candidate.kind === 'cancelled') return candidate.status;",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+      "pattern": "owns cancellation during the version Git probe with bounded first-signal grace",
+      "scope": "new preflight wiring",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=owns cancellation during the version Git probe with bounded first-signal grace"
+      ],
+      "state": "killed-restored",
+      "testName": "owns cancellation during the version Git probe with bounded first-signal grace",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/preflight-driver-cancel.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/preflight-driver-cancel.green.log",
+      "beforeHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "mutantHash": "b05bb0868c435148ae2fbe32b0006f470f93ffe107ebe13e48520a980475716f",
+      "afterHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "redLogHash": "24f91e5ed0f238a88e6733b3e646f65d15ec2ea326af33cd52c620d6e4d5aee6",
+      "greenLogHash": "fb141f3d022c35f498c3685102b6503c1b1ee20be8a1866b945c3734e9e6952e",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/preflight-driver-cancel.red.log",
+        "sha256": "24f91e5ed0f238a88e6733b3e646f65d15ec2ea326af33cd52c620d6e4d5aee6",
+        "bytes": 826,
+        "failed": [
+          "owns cancellation during the version Git probe with bounded first-signal grace"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toBe(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/preflight-driver-cancel.green.log",
+        "sha256": "fb141f3d022c35f498c3685102b6503c1b1ee20be8a1866b945c3734e9e6952e",
+        "bytes": 288,
+        "failed": [],
+        "passed": [
+          "owns cancellation during the version Git probe with bounded first-signal grace"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preflight-trusted-cwd",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+      "edits": [
+        {
+          "find": "directory: runtime.directory,",
+          "replacement": "directory: invocation.callerDirectory,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+      "pattern": "both Git probes from the trusted runtime cwd",
+      "scope": "new preflight wiring",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=both Git probes from the trusted runtime cwd"
+      ],
+      "state": "killed-restored",
+      "testName": "runs both Git probes from the trusted runtime cwd after PATH is frozen",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-proofs/preflight-trusted-cwd.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/preflight-trusted-cwd.green.log",
+      "beforeHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "mutantHash": "d32786ccd3ccf2a5bac0681dfc5f7addca2d26209f7ccd5fe3f534689352b52f",
+      "afterHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "redLogHash": "44140da80abd3d02eca1c83facb7f774a1f91480fa6c3bc8a4b78b5b02d41548",
+      "greenLogHash": "65d5853813dad324da67e27e1819deb13a396d80a8589806661b2aa3d1572b74",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/preflight-trusted-cwd.red.log",
+        "sha256": "44140da80abd3d02eca1c83facb7f774a1f91480fa6c3bc8a4b78b5b02d41548",
+        "bytes": 1458,
+        "failed": ["runs both Git probes from the trusted runtime cwd after PATH is frozen"],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toBe(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/preflight-trusted-cwd.green.log",
+        "sha256": "65d5853813dad324da67e27e1819deb13a396d80a8589806661b2aa3d1572b74",
+        "bytes": 274,
+        "failed": [],
+        "passed": ["runs both Git probes from the trusted runtime cwd after PATH is frozen"],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preflight-explicit-environment",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+      "edits": [
+        {
+          "find": "environment: runtime.environment,\n    subscribeInterrupts,",
+          "replacement": "environment: { ...process.env, ...runtime.environment },\n    subscribeInterrupts,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+      "pattern": "both Git probes from the trusted runtime cwd",
+      "scope": "new preflight wiring",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=both Git probes from the trusted runtime cwd"
+      ],
+      "state": "killed-restored",
+      "testName": "runs both Git probes from the trusted runtime cwd after PATH is frozen",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-resume-proofs/preflight-explicit-environment.red.log",
+      "greenLog": "/tmp/puni-async-git-resume-proofs/preflight-explicit-environment.green.log",
+      "beforeHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "mutantHash": "6fd765c62175538974c33b7bc02c397c9811570d864c6b797ba80406dc65fe21",
+      "afterHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "redLogHash": "e32075f4f6067dfe2dd83da68e6e95c2443bcc880efa255f009e4043db930ef9",
+      "greenLogHash": "70293f2e39959e4afa70e0f953ddcdb64be9b0f36d81694d94dfccf85f41c301",
+      "receipt": "/tmp/puni-async-git-resume-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-resume-proofs/preflight-explicit-environment.red.log",
+        "sha256": "e32075f4f6067dfe2dd83da68e6e95c2443bcc880efa255f009e4043db930ef9",
+        "bytes": 1436,
+        "failed": ["runs both Git probes from the trusted runtime cwd after PATH is frozen"],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toBe(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-resume-proofs/preflight-explicit-environment.green.log",
+        "sha256": "70293f2e39959e4afa70e0f953ddcdb64be9b0f36d81694d94dfccf85f41c301",
+        "bytes": 274,
+        "failed": [],
+        "passed": ["runs both Git probes from the trusted runtime cwd after PATH is frozen"],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preflight-interruption-source",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+      "edits": [
+        {
+          "find": "    subscribeInterrupts,",
+          "replacement": "    subscribeInterrupts: () => () => undefined,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+      "pattern": "prior cancellation reaches its direct API",
+      "scope": "new preflight wiring",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=prior cancellation reaches its direct API"
+      ],
+      "state": "killed-restored",
+      "testName": "does not spawn a Git probe after prior cancellation reaches its direct API",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-resume-proofs/preflight-interruption-source.red.log",
+      "greenLog": "/tmp/puni-async-git-resume-proofs/preflight-interruption-source.green.log",
+      "beforeHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "mutantHash": "f6f8655a23734a14a9bcf197aee6440364b9e3efeac620d9830cf37c443a6cff",
+      "afterHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "redLogHash": "53f899d75767a6897fa37f5828ae0418f037e8672324be132971ea0f71e82e2b",
+      "greenLogHash": "c1ed8c0b1bc3b7c21c7cd49ec802b3c23b4854acdf6ecd3ed57e32a9282cabec",
+      "receipt": "/tmp/puni-async-git-resume-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-resume-proofs/preflight-interruption-source.red.log",
+        "sha256": "53f899d75767a6897fa37f5828ae0418f037e8672324be132971ea0f71e82e2b",
+        "bytes": 1835,
+        "failed": ["does not spawn a Git probe after prior cancellation reaches its direct API"],
+        "passed": [],
+        "diagnostics": [
+          "error: cannot start lint Git version",
+          "error: Executable not found in $PATH: \"git\""
+        ]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-resume-proofs/preflight-interruption-source.green.log",
+        "sha256": "c1ed8c0b1bc3b7c21c7cd49ec802b3c23b4854acdf6ecd3ed57e32a9282cabec",
+        "bytes": 278,
+        "failed": [],
+        "passed": ["does not spawn a Git probe after prior cancellation reaches its direct API"],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preflight-version-before-root",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+      "edits": [
+        {
+          "find": "  assertGitVersionResponse(version.status, Buffer.from(version.stdout).toString());",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+      "pattern": "unsupported Git before optional",
+      "scope": "new preflight wiring",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=unsupported Git before optional"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses unsupported Git before optional inactive activation can return",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-resume-proofs/preflight-version-before-root.red.log",
+      "greenLog": "/tmp/puni-async-git-resume-proofs/preflight-version-before-root.green.log",
+      "beforeHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "mutantHash": "58f2470e0e1e0cb008e04e9984cfab5527f5417058caf28fd33f1161e20504a5",
+      "afterHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "redLogHash": "c3d8119d63488e90d33f3969b2f1652e5487b6bca542e7bc240b7228c288351b",
+      "greenLogHash": "efca10887ce239efd487c86ce607c5e113667f46ab6a9d10e3bc3b4dcd0defc9",
+      "receipt": "/tmp/puni-async-git-resume-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-resume-proofs/preflight-version-before-root.red.log",
+        "sha256": "c3d8119d63488e90d33f3969b2f1652e5487b6bca542e7bc240b7228c288351b",
+        "bytes": 725,
+        "failed": ["refuses unsupported Git before optional inactive activation can return"],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toBeInstanceOf(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-resume-proofs/preflight-version-before-root.green.log",
+        "sha256": "efca10887ce239efd487c86ce607c5e113667f46ab6a9d10e3bc3b4dcd0defc9",
+        "bytes": 274,
+        "failed": [],
+        "passed": ["refuses unsupported Git before optional inactive activation can return"],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preflight-no-early-scratch",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+      "edits": [
+        {
+          "find": "  const candidate = await readLintCandidate(invocation, runtime, context.subscribeInterrupts);",
+          "replacement": "  const scratch = mkdtempSync(join(context.scratchDirectory, 'puni-lint-'));\n  const candidate = await readLintCandidate(invocation, runtime, context.subscribeInterrupts);"
+        },
+        {
+          "find": "  const scratch = mkdtempSync(join(base, 'puni-lint-'));",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+      "pattern": "unconfirmed preflight cleanup without creating",
+      "scope": "new preflight resource ordering",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=unconfirmed preflight cleanup without creating"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves unconfirmed preflight cleanup without creating activation scratch",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-resume-proofs/preflight-no-early-scratch.red.log",
+      "greenLog": "/tmp/puni-async-git-resume-proofs/preflight-no-early-scratch.green.log",
+      "beforeHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "mutantHash": "d4c616c3c80980e0e05497de50332d51ca631ced779e4fa16e834045418e027c",
+      "afterHash": "281a350a7292afcce6c8b3fe49b42a5cc6110c06b468da30fb2f976cd4660f9d",
+      "redLogHash": "7d1b83677e9b7cac497ae7995bd0d559d25e3dda5177e5b509bdf71052c80d5e",
+      "greenLogHash": "8bcb909f929d6a110456861c6c63146b08a714f769973806389659efb6085b0e",
+      "receipt": "/tmp/puni-async-git-resume-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-resume-proofs/preflight-no-early-scratch.red.log",
+        "sha256": "7d1b83677e9b7cac497ae7995bd0d559d25e3dda5177e5b509bdf71052c80d5e",
+        "bytes": 850,
+        "failed": ["preserves unconfirmed preflight cleanup without creating activation scratch"],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toEqual(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-resume-proofs/preflight-no-early-scratch.green.log",
+        "sha256": "8bcb909f929d6a110456861c6c63146b08a714f769973806389659efb6085b0e",
+        "bytes": 279,
+        "failed": [],
+        "passed": ["preserves unconfirmed preflight cleanup without creating activation scratch"],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-hook-key",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_CONFIG_KEY_0: 'core.hooksPath'",
+          "replacement": "GIT_CONFIG_KEY_0: 'puni.unusedHooksPath'"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "actually reachable candidate post-index-change",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=actually reachable candidate post-index-change"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > disables an actually reachable candidate post-index-change program",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-hook-resume-proofs/git-hook-key.red.log",
+      "greenLog": "/tmp/puni-async-git-hook-resume-proofs/git-hook-key.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "ddcd5a1d2b65f700ff76d5a387fb05ac5f9bdb340d0a9a845e603ab656575f92",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "f28853b0fbc8be1fb735ea29fa9d7b6f24894b1c4ba0cd5ed5543a02f02e78b4",
+      "greenLogHash": "42278ff21e76616116f8c58de0f1c92acefa107bf25e448603d90ebd5dc0b424",
+      "receipt": "/tmp/puni-async-git-hook-resume-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-hook-resume-proofs/git-hook-key.red.log",
+        "sha256": "f28853b0fbc8be1fb735ea29fa9d7b6f24894b1c4ba0cd5ed5543a02f02e78b4",
+        "bytes": 825,
+        "failed": [
+          "Burokrat verified parent runtime > disables an actually reachable candidate post-index-change program"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toBe(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-hook-resume-proofs/git-hook-key.green.log",
+        "sha256": "42278ff21e76616116f8c58de0f1c92acefa107bf25e448603d90ebd5dc0b424",
+        "bytes": 311,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > disables an actually reachable candidate post-index-change program"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "git-fsmonitor-key",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_CONFIG_KEY_1: 'core.fsmonitor'",
+          "replacement": "GIT_CONFIG_KEY_1: 'puni.unusedFsmonitor'"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "actually reachable candidate fsmonitor",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=actually reachable candidate fsmonitor"
+      ],
+      "state": "killed-restored",
+      "testName": "Burokrat verified parent runtime > disables an actually reachable candidate fsmonitor program",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-hook-resume-proofs/git-fsmonitor-key.red.log",
+      "greenLog": "/tmp/puni-async-git-hook-resume-proofs/git-fsmonitor-key.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "5256bbec5154963c314ce5409e3ccfcba3edf7523fe4b7255a91702cd0532c4e",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "eee7c30e5625b39bc550e04805b993dbb4c5d788feb44c072c68bcf496a8b381",
+      "greenLogHash": "251017a55bcdecd18c92c8d4a638a952dcaad043c9fd12bde3688b2c28086eaf",
+      "receipt": "/tmp/puni-async-git-hook-resume-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-hook-resume-proofs/git-fsmonitor-key.red.log",
+        "sha256": "eee7c30e5625b39bc550e04805b993dbb4c5d788feb44c072c68bcf496a8b381",
+        "bytes": 817,
+        "failed": [
+          "Burokrat verified parent runtime > disables an actually reachable candidate fsmonitor program"
+        ],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toBe(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-hook-resume-proofs/git-fsmonitor-key.green.log",
+        "sha256": "251017a55bcdecd18c92c8d4a638a952dcaad043c9fd12bde3688b2c28086eaf",
+        "bytes": 303,
+        "failed": [],
+        "passed": [
+          "Burokrat verified parent runtime > disables an actually reachable candidate fsmonitor program"
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preflight-version-order",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+      "edits": [
+        {
+          "find": "  assertGitVersionResponse(version.status, Buffer.from(version.stdout).toString());",
+          "replacement": ""
+        },
+        {
+          "find": "  if (root.kind === 'cancelled')",
+          "replacement": "  assertGitVersionResponse(version.status, Buffer.from(version.stdout).toString());\n  if (root.kind === 'cancelled')"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+      "pattern": "unsupported Git before optional",
+      "scope": "new preflight ordering",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=unsupported Git before optional"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses unsupported Git before optional inactive activation can return",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-async-git-order-proofs/preflight-version-order.red.log",
+      "greenLog": "/tmp/puni-async-git-order-proofs/preflight-version-order.green.log",
+      "beforeHash": "29e636facc5f61f009a450c575ab019cfabc509f5d55b73e4e57b00d452c7fda",
+      "mutantHash": "f01d0e8acc1cda1a22b82857970c061c2382bef16af2941cfc47f1e407a68c51",
+      "afterHash": "29e636facc5f61f009a450c575ab019cfabc509f5d55b73e4e57b00d452c7fda",
+      "redLogHash": "9df0f44e2b0becf4742dde5a8db5cda14b3197590626f66bcc4b98483150209c",
+      "greenLogHash": "0254b059e2302dcdf3793f9817a5dc9de83f3b398d91c37b734a427f263fd8b6",
+      "receipt": "/tmp/puni-async-git-order-proofs.json",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-order-proofs/preflight-version-order.red.log",
+        "sha256": "9df0f44e2b0becf4742dde5a8db5cda14b3197590626f66bcc4b98483150209c",
+        "bytes": 812,
+        "failed": ["refuses unsupported Git before optional inactive activation can return"],
+        "passed": [],
+        "diagnostics": ["error: expect(received).toBe(expected)"]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-order-proofs/preflight-version-order.green.log",
+        "sha256": "0254b059e2302dcdf3793f9817a5dc9de83f3b398d91c37b734a427f263fd8b6",
+        "bytes": 274,
+        "failed": [],
+        "passed": ["refuses unsupported Git before optional inactive activation can return"],
+        "diagnostics": []
+      }
+    }
+  ],
+  "excluded": [
+    {
+      "id": "git-hook-key",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_CONFIG_KEY_0: 'core.hooksPath'",
+          "replacement": "GIT_CONFIG_KEY_0: 'puni.unusedHooksPath'"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "actually reachable candidate post-index-change",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=actually reachable candidate post-index-change"
+      ],
+      "state": "unproven",
+      "testName": "Burokrat verified parent runtime > disables an actually reachable candidate post-index-change program",
+      "redExit": 1,
+      "greenExit": 1,
+      "redLog": "/tmp/puni-async-git-proofs/git-hook-key.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-hook-key.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "ddcd5a1d2b65f700ff76d5a387fb05ac5f9bdb340d0a9a845e603ab656575f92",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "61947eec4be95abe678f04af2e73eb1c9969f93ed90b624606775411bfb4cb0a",
+      "greenLogHash": "4fe3711d3769820e29fe5e6971f1c12247163f5cb2be22da060ab2cd3fa2e7db",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "reason": "The deliberately restricted harness PATH omitted Bun, so the reachable-hook positive control did not create its marker. Neither RED nor failed GREEN is current proof. Retry adds only the selected Bun directory to the controlled PATH.",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-hook-key.red.log",
+        "sha256": "61947eec4be95abe678f04af2e73eb1c9969f93ed90b624606775411bfb4cb0a",
+        "bytes": 959,
+        "failed": [
+          "Burokrat verified parent runtime > disables an actually reachable candidate post-index-change program"
+        ],
+        "passed": [],
+        "diagnostics": [
+          "ENOENT: no such file or directory, open '/tmp/puni Burokrat parent = FPpvaU/hook-executed'"
+        ]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-hook-key.green.log",
+        "sha256": "4fe3711d3769820e29fe5e6971f1c12247163f5cb2be22da060ab2cd3fa2e7db",
+        "bytes": 959,
+        "failed": [
+          "Burokrat verified parent runtime > disables an actually reachable candidate post-index-change program"
+        ],
+        "passed": [],
+        "diagnostics": [
+          "ENOENT: no such file or directory, open '/tmp/puni Burokrat parent = l55wTB/hook-executed'"
+        ]
+      }
+    },
+    {
+      "id": "git-fsmonitor-key",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+      "edits": [
+        {
+          "find": "GIT_CONFIG_KEY_1: 'core.fsmonitor'",
+          "replacement": "GIT_CONFIG_KEY_1: 'puni.unusedFsmonitor'"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+      "pattern": "actually reachable candidate fsmonitor",
+      "scope": "unchanged environment regression",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=actually reachable candidate fsmonitor"
+      ],
+      "state": "unproven",
+      "testName": "Burokrat verified parent runtime > disables an actually reachable candidate fsmonitor program",
+      "redExit": 1,
+      "greenExit": 1,
+      "redLog": "/tmp/puni-async-git-proofs/git-fsmonitor-key.red.log",
+      "greenLog": "/tmp/puni-async-git-proofs/git-fsmonitor-key.green.log",
+      "beforeHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "mutantHash": "5256bbec5154963c314ce5409e3ccfcba3edf7523fe4b7255a91702cd0532c4e",
+      "afterHash": "a282c27e2f2640b4fa3c5db69f8b057a253f9b3898c7a4f45aa53c2c5b4d9ef4",
+      "redLogHash": "e80ce66f586095219523bd9c0183fd6198168226fc6a665c478f31af49dfa330",
+      "greenLogHash": "453d892c1c3a91bf08e51a7c21f01f3e34a795ad17226da60dd235eacae670b4",
+      "receipt": "/tmp/puni-async-git-proofs.json",
+      "reason": "The deliberately restricted harness PATH omitted Bun, so the reachable-hook positive control did not create its marker. Neither RED nor failed GREEN is current proof. Retry adds only the selected Bun directory to the controlled PATH.",
+      "redEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-fsmonitor-key.red.log",
+        "sha256": "e80ce66f586095219523bd9c0183fd6198168226fc6a665c478f31af49dfa330",
+        "bytes": 951,
+        "failed": [
+          "Burokrat verified parent runtime > disables an actually reachable candidate fsmonitor program"
+        ],
+        "passed": [],
+        "diagnostics": [
+          "ENOENT: no such file or directory, open '/tmp/puni Burokrat parent = jWaa9x/hook-executed'"
+        ]
+      },
+      "greenEvidence": {
+        "path": "/tmp/puni-async-git-proofs/git-fsmonitor-key.green.log",
+        "sha256": "453d892c1c3a91bf08e51a7c21f01f3e34a795ad17226da60dd235eacae670b4",
+        "bytes": 951,
+        "failed": [
+          "Burokrat verified parent runtime > disables an actually reachable candidate fsmonitor program"
+        ],
+        "passed": [],
+        "diagnostics": [
+          "ENOENT: no such file or directory, open '/tmp/puni Burokrat parent = FjSuhA/hook-executed'"
+        ]
+      }
+    }
+  ],
+  "setupFailures": [
+    {
+      "command": "bun /tmp/puni-async-git-proof.ts",
+      "exitCode": 1,
+      "sourceChangedForRefusedEdit": false,
+      "reason": "Generic environment anchor matched both probe and snapshot contexts; harness refused before changing it. The resume uses the probe-only environment+subscription block.",
+      "log": "/tmp/puni-async-git-proofs-run.log"
+    }
+  ],
+  "historyNote": "The first harness produced18 successful rows and2 excluded failed-baseline rows before refusing its21st ambiguous edit. A premature commentary count20 was explicitly corrected. Probe resume4 and controlled-PATH hook retry2 are successful, without replacing original logs. Astra cleared those24 then requested an additional order oracle: a root-query marker and validator relocation produce an assertion failure before restored GREEN. That25th receipt hashes the already24-annotated source, while original24 hash pre-annotation source. No source tests/types or another mutation window overlapped experiments. Malformed-response guard proves its explicit diagnostic; its removal still fails through a null access, rather than granting execution.",
+  "finalVerification": {
+    "sourceHashes": [
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+        "sha256": "b111489759bbf0cc5029816ab08d7cc6ff0fb626c8791f218158d4badb976cb1"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-child.ts",
+        "sha256": "b4abf1905250de36c87568bc9f7c0d39505c3846d0ac90df344b32ac1d0f7375"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "sha256": "279a405d27200d62a3d90e694b14826ee5cc3f825801e8dd26bd58baad592d77"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+        "sha256": "8d276a896abf4fcaa7fd9f3651e7bcfd8291533bb347544b5aa37d8ab42de657"
+      },
+      {
+        "path": "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "sha256": "5459dd14cfbad3d5409bd4745d1cf8b4c60abc4bd60cd0f98a0dd9f2d99f1a6f"
+      }
+    ],
+    "checks": [
+      {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/lint-child.test.ts",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+          "./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts"
+        ],
+        "exitCode": 0,
+        "passed": 142,
+        "failed": 0,
+        "assertions": 734,
+        "seconds": 60.22,
+        "log": {
+          "path": "/tmp/puni-c15-preflight-final-tests.log",
+          "bytes": 15123,
+          "sha256": "aadf7016d6377ee3d019277322a36b03ffd72ab324caef4e5ec3034b2978a726"
+        }
+      },
+      {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "--build",
+          "--force",
+          "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+          "apps/puni/cli/tsconfig.json"
+        ],
+        "exitCode": 0,
+        "log": {
+          "path": "/tmp/puni-c15-preflight-final-types.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "argv": [
+          "bun",
+          "x",
+          "eslint",
+          "apps/twilight-structure/twilight-burokrat/cli/src/git-environment.ts",
+          "apps/twilight-structure/twilight-burokrat/cli/src/lint-child.ts",
+          "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+          "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.ts",
+          "apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts"
+        ],
+        "exitCode": 0,
+        "log": {
+          "path": "/tmp/puni-c15-preflight-final-lint.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "exitCode": 0,
+        "kind": "owned-file prettier check",
+        "log": {
+          "path": "/tmp/puni-c15-preflight-final-format.log",
+          "bytes": 66,
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+        }
+      },
+      {
+        "argv": ["bun", "x", "openspec", "validate", "--all", "--json"],
+        "exitCode": 0,
+        "passed": 343,
+        "failed": 0,
+        "log": {
+          "path": "/tmp/puni-c15-preflight-final-openspec.json",
+          "bytes": 328392,
+          "sha256": "4c11d81e1b615fe8123664fdf51f3fe5450f741f42cc1b4a5e8eafa61d233c36"
+        }
+      }
+    ],
+    "review": {
+      "canonical24Audit": {
+        "path": "/tmp/puni-c15-independent-audit.json",
+        "bytes": 9626,
+        "sha256": "cbc47dfab9fb70d7a5a84e2a755d61e563df67f2f24dea88b4415cf4f653ca49"
+      },
+      "extraOrderingProof": "/tmp/puni-async-git-order-proofs.json",
+      "finalCanonical": 25,
+      "independentlyReranTests": false
+    },
+    "note": "Only final evidence and task checkbox change after the recorded logic checks; they receive separate final format/OpenSpec checks."
+  }
+}

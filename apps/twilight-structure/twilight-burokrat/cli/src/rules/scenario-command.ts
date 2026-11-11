@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
+import { readInstalledRequest, type ValidatorRequest } from '../cli-parser';
 import { extractScenarioHeadings } from './scenario-headings';
 import {
   deriveScenarioIndex,
@@ -92,23 +93,13 @@ function readJournal(repository: string): ScenarioJournal {
   }
 }
 
-/** Pure proposed import/allocation or provenance check for one selected OpenSpec source. */
-/** The usage line of `scenario`; `cli-parser.ts`'s help shows the same grammar (cli.test.ts). */
-export const scenarioUsage =
-  'usage: twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]';
-
 export function writeScenarioCommand(argv: readonly string[]): void {
-  const [command, action, repository, rawSource, flag, predecessor] = argv;
-  // Proof: replacing this usage refusal with `return` made unsupported `destroy` exit 0;
-  // the production CLI negative expected exit 1.
-  if (
-    command !== 'scenario' ||
-    (action !== 'import' && action !== 'allocate' && action !== 'validate') ||
-    (argv.length !== 4 && argv.length !== 6) ||
-    (argv.length === 6 && (action !== 'allocate' || flag !== '--predecessor'))
-  ) {
-    throw new Error(scenarioUsage);
-  }
+  writeScenario(readInstalledRequest('scenario', argv));
+}
+
+/** Propose identities or verify provenance for a typed OpenSpec source selection. */
+export function writeScenario(request: ValidatorRequest<'scenario'>): void {
+  const { action, repository, source: rawSource } = request;
   // Proof: bypassing SourcePath made the invalid-source CLI negative report a missing
   // specification file instead of rejecting the path at the input boundary.
   const source = parseOrThrow(SourcePath, rawSource);
@@ -130,10 +121,10 @@ export function writeScenarioCommand(argv: readonly string[]): void {
     return;
   }
   const predecessors =
-    argv.length === 4
+    request.predecessor === undefined
       ? {}
       : Object.fromEntries(
-          extractScenarioHeadings(specMarkdown).map(({ title }) => [title, predecessor]),
+          extractScenarioHeadings(specMarkdown).map(({ title }) => [title, request.predecessor]),
         );
   process.stdout.write(
     `${JSON.stringify(proposeScenarioAllocation(journal, source, specMarkdown, predecessors))}\n`,

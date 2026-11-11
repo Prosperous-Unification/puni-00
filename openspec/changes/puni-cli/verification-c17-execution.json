@@ -1,0 +1,859 @@
+{
+  "schemaVersion": 1,
+  "scope": "shared standalone/typed installed lint executable ownership; partial task1.2d",
+  "sourceBase": "42f563b549982e9fffd27ce840cb10fcfd73ba14",
+  "proofCount": 18,
+  "proofs": [
+    {
+      "id": "shared-executable-private-argc",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "const isParent = argv.length === 1 && argv[0] === lintParentMode;",
+          "replacement": "const isParent = argv[0] === lintParentMode;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "refuses extra private parent argv",
+      "scope": "replayed relocated/shared executable guard; original receipt remains immutable",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=refuses extra private parent argv"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses extra private parent argv before handshake or request IO",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-executable-private-argc.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-executable-private-argc.green.log",
+      "beforeHash": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e",
+      "mutantHash": "8701ef971c8f6931fcc1e87434f386435450a6757c0261beb1ba934f1fa30cc6",
+      "afterHash": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e",
+      "redLogHash": "43d868a3fc9edf812cdb9d51ef9d805974f679caaf83d5ede3c25e5ece3e91de",
+      "greenLogHash": "26dce1e32f88eee8d975a6a9e15b13e36c05690b1b3e88fa9991814f36827270"
+    },
+    {
+      "id": "shared-executable-start-failure-before-io",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "edits": [
+        {
+          "find": "    if (start.kind === 'failed') throw start.cause;",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "typed request after pre-start invalid",
+      "scope": "replayed relocated/shared executable guard; original receipt remains immutable",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=typed request after pre-start invalid"
+      ],
+      "state": "killed-restored",
+      "testName": "does not read the typed request after pre-start invalid",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-executable-start-failure-before-io.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-executable-start-failure-before-io.green.log",
+      "beforeHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "mutantHash": "22959e9cdf990fc53bc40eb4752dfeaa3ab63d00cef91e87ef74130bd153a627",
+      "afterHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "redLogHash": "fc84c23e65d31e975da8fe0acffe6e66e1f5ef2e55f619856c69e831332e626f",
+      "greenLogHash": "92cd5bfbd05f5f4db7c66d2e5db1c0174600ebcf75b384e7f5af8489fe25b7ed"
+    },
+    {
+      "id": "shared-executable-start-cancel-before-io",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "edits": [
+        {
+          "find": "      start.kind === 'cancelled'",
+          "replacement": "      false"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "typed request after pre-start cancel",
+      "scope": "replayed relocated/shared executable guard; original receipt remains immutable",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=typed request after pre-start cancel"
+      ],
+      "state": "killed-restored",
+      "testName": "does not read the typed request after pre-start cancel",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-executable-start-cancel-before-io.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-executable-start-cancel-before-io.green.log",
+      "beforeHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "mutantHash": "c090b96adeccef3f4c4cfff63612401334feec6687336795895d3dff32df9aa9",
+      "afterHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "redLogHash": "b2e50df9a972a3a4981f9cbb261ffec465ffdb44a5e1b5dae6748c592150e076",
+      "greenLogHash": "4cfb11504ca51ce263456eb889fd12345de53c36e68425cd9968081dd498c08b"
+    },
+    {
+      "id": "shared-executable-read-control-failure",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "edits": [
+        {
+          "find": "    if (failure !== undefined) throw failure;",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "cleans its actual live stage after duplicate-start",
+      "scope": "replayed relocated/shared executable guard; original receipt remains immutable",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=cleans its actual live stage after duplicate-start"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > cleans its actual live stage after duplicate-start",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-executable-read-control-failure.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-executable-read-control-failure.green.log",
+      "beforeHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "mutantHash": "73043fdaff54a3fd0d79fca97a1f980c7e7aac14eb26fa24eb74ffef5ec8808d",
+      "afterHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "redLogHash": "1bfb589df52f7da24bacf5e6bf14a33d160696d6cad7c3d71e63d23a3d91e722",
+      "greenLogHash": "f0123c734a6747827ac4fff0b3a718b939ee0ae42b402a18e1344e68f2fdcdc0"
+    },
+    {
+      "id": "shared-executable-typed-mode",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "isParent ? ['--puni-lint-v1'] : argv",
+          "replacement": "argv"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "does not launch a stage before start",
+      "scope": "replayed relocated/shared executable guard; original receipt remains immutable",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=does not launch a stage before start"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > does not launch a stage before start and reports finished after lifecycle settlement",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-executable-typed-mode.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-executable-typed-mode.green.log",
+      "beforeHash": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e",
+      "mutantHash": "a0695a75f36b0d9bacdf477fb1f8c3ad2e19cb7c083a98b828f5f09ef18223c3",
+      "afterHash": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e",
+      "redLogHash": "6f5bf006dde22cdff2b5a465c3ebbb917b432bb43a2d586b30b9eca682a493c3",
+      "greenLogHash": "66a670d56093734d9cf2088173eaf7357a61867e7b237180cd7a10240c1b6dcf"
+    },
+    {
+      "id": "shared-executable-control-before-dispose",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "edits": [
+        {
+          "find": "      parent.releaseControl();",
+          "replacement": "      void 0;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child broker-dispose-late",
+      "scope": "replayed relocated/shared executable guard; original receipt remains immutable",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=actual child broker-dispose-late"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child broker-dispose-late failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-executable-control-before-dispose.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-executable-control-before-dispose.green.log",
+      "beforeHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "mutantHash": "ad0f0a4db9d6312d2bdad78d5e02edc1fbe0b27db03800fb289240533591d50c",
+      "afterHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "redLogHash": "e3f8f10b819ecf4fb1856cab3f0dbc1fd404239065b272a86ec80ae4ef0a453a",
+      "greenLogHash": "8010c38a5bad7a548e01f18283f32b00a6f5f1c27d2af7a213fbf9c073f37cea"
+    },
+    {
+      "id": "shared-executable-release-contained",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "edits": [
+        {
+          "find": "      parent.releaseControl();\n    } catch (cause) {\n      status = await reportFailure(cause);",
+          "replacement": "      parent.releaseControl();\n    } catch (cause) {\n      throw cause;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child release failures",
+      "scope": "replayed relocated/shared executable guard; original receipt remains immutable",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=actual child release failures"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child release failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-executable-release-contained.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-executable-release-contained.green.log",
+      "beforeHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "mutantHash": "9d7a1e02be14d40c98352871f9ab6f829efd71f59c3c87759e2de1a99309c878",
+      "afterHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "redLogHash": "b9de5636826b3c5b48e984797856ee557781f32a52420b5f4ac1fc867303f747",
+      "greenLogHash": "5059a850be7e8de85e81296d8fbbee7b3467ed888ef3738001e65ccd8cd324bb"
+    },
+    {
+      "id": "shared-executable-finished-contained",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "edits": [
+        {
+          "find": "      parent.finishLifecycle();\n    } catch (cause) {\n      status = await reportFailure(cause);",
+          "replacement": "      parent.finishLifecycle();\n    } catch (cause) {\n      throw cause;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child finished-late",
+      "scope": "replayed relocated/shared executable guard; original receipt remains immutable",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=actual child finished-late"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child finished-late failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-executable-finished-contained.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-executable-finished-contained.green.log",
+      "beforeHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "mutantHash": "bdc7a549d3d6a938cbca9b88d84ae743e94314ea0adcbdeb397deae9b5709c3c",
+      "afterHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "redLogHash": "641facdc0ac92c9c9555b9fc508e98b1002131395fdf2d01f848c34e7a34fc02",
+      "greenLogHash": "e7a9b30a00a183767a97492956ad1ae08cee044d7c667ee9f20e1b343d167531"
+    },
+    {
+      "id": "shared-executable-start-gate",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "edits": [
+        {
+          "find": "const start = parent.kind === 'connected' ? await parent.start : { kind: 'started' as const };",
+          "replacement": "const start = { kind: 'started' as const };"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "typed request after pre-start cancel",
+      "scope": "replayed relocated/shared executable guard; original receipt remains immutable",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=typed request after pre-start cancel"
+      ],
+      "state": "killed-restored",
+      "testName": "does not read the typed request after pre-start cancel",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-executable-start-gate.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-executable-start-gate.green.log",
+      "beforeHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "mutantHash": "022613c2bfb490e264137a6dd5c333ef9e5b5bb07ce8d036d9cd43404c1db01a",
+      "afterHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "redLogHash": "b1db6ed52c828fc84887d68deae3d6498a320f956be7515e7928978bc50e0dc3",
+      "greenLogHash": "942a023d1187cf79be51ec2e7b3dacc55feebd20fcf5b184c4c790849c9126fe"
+    },
+    {
+      "id": "shared-main-terminal-report-contained",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "edits": [
+        {
+          "find": "// Terminal reporting/release failure is exit 1; another reporter would be unowned.\n      return 1;",
+          "replacement": "throw new Error('injected escaped reporting failure');"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+      "pattern": "contains terminal reporting",
+      "scope": "replayed relocated bounded reporting/disposal guard",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=contains terminal reporting"
+      ],
+      "state": "killed-restored",
+      "testName": "contains terminal reporting failures without Bun automatic reporting",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-main-terminal-report-contained.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-main-terminal-report-contained.green.log",
+      "beforeHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "mutantHash": "eaa6a38b1fc18ec08c1cbe1fe1fe0d6b74263a10d02367a5dde1222d60242ce9",
+      "afterHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "redLogHash": "126ae6c78e7c7718e62954325432bf3da0141c3f119c5d2eb943339727b0d620",
+      "greenLogHash": "86c8414707d2e4b4cf4fa0dcd2257a05ea600f363fbc9e7dc85e751c99997e4c"
+    },
+    {
+      "id": "shared-main-terminal-disposal-contained",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "edits": [
+        {
+          "find": "    outputs.dispose();\n  } catch (cause) {\n    status = await reportFailure(cause);",
+          "replacement": "    outputs.dispose();\n  } catch (cause) {\n    throw cause;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+      "pattern": "contains terminal disposal",
+      "scope": "replayed relocated bounded reporting/disposal guard",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=contains terminal disposal"
+      ],
+      "state": "killed-restored",
+      "testName": "contains terminal disposal failures without Bun automatic reporting",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-main-terminal-disposal-contained.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-main-terminal-disposal-contained.green.log",
+      "beforeHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "mutantHash": "c6e89f535a8014370a681198f4eba885b93cd03fc7af0d109aa1a6ebaeedb2a4",
+      "afterHash": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805",
+      "redLogHash": "d9eda7bdaa3c15b96486d9d643922709ef2077e30de9f1055c88f4a9562fdfed",
+      "greenLogHash": "dc3db3d0faee491cb1cbef2ad94079dbd11eb801438eb38d0acb133b8dc79d99"
+    },
+    {
+      "id": "shared-main-terminal-native-exit",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "process.exit(await runLintExecutable(process.argv.slice(2)))",
+          "replacement": "process.exitCode = await runLintExecutable(process.argv.slice(2))"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+      "pattern": "unconfirmed group cleanup",
+      "scope": "actual native exit before fixture-owned kill/reap; no completion manufactured during cleanup",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=unconfirmed group cleanup"
+      ],
+      "state": "killed-restored",
+      "testName": "exits after unconfirmed group cleanup with PID diagnostics and retained scratch",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-native-exit-proofs/shared-main-terminal-native-exit.red.log",
+      "greenLog": "/tmp/puni-shared-native-exit-proofs/shared-main-terminal-native-exit.green.log",
+      "beforeHash": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e",
+      "mutantHash": "3a88302bd9cc5f2c2c0e153aa4c731f0ddccfd658c9b976059fa57d0c7ebeb5b",
+      "afterHash": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e",
+      "redLogHash": "23e184fe188fedbc150fbc31becbadb5b01ac7994df0b291bff60088be2bf38f",
+      "greenLogHash": "eb81c648a9177042101304a43f72e9076b222b6f01945eaaebbcb5daf9ba8502"
+    },
+    {
+      "id": "typed-lookup-origin",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "readLintRuntime(context.lookup.path, context.lookup.directory)",
+          "replacement": "readLintRuntime(context.lookup.path, context.installedDirectory)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+      "pattern": "freezes relative Git lookup",
+      "scope": "actual trusted/provider Git canaries distinguish lookup origin",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=freezes relative Git lookup"
+      ],
+      "state": "killed-restored",
+      "testName": "freezes relative Git lookup at the independently captured origin instead of provider directories",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/typed-lookup-origin.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/typed-lookup-origin.green.log",
+      "beforeHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "mutantHash": "c6cc50c19e07b42a55a7e20475d259c63904787331c4f0af13136d41a4508d73",
+      "afterHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "redLogHash": "155f6fb0dbb633e8e26c9a33a3af58cfae1991a6c7a7e3a6bc68079b1dacec5f",
+      "greenLogHash": "aeb3bef78133b75f37cdc04e0d4806ea458dfd038f1c9741582a46891c67aa3b"
+    },
+    {
+      "id": "typed-runtime-inside-owner",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "  return runLintOperation(({ outputs, subscribeInterrupts }) => {\n    const runtime = readLintRuntime(context.lookup.path, context.lookup.directory);",
+          "replacement": "  const runtime = readLintRuntime(context.lookup.path, context.lookup.directory);\n  return runLintOperation(({ outputs, subscribeInterrupts }) => {"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+      "pattern": "contains runtime construction failure",
+      "scope": "bounded reporting ownership rather than native automatic error output",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=contains runtime construction failure"
+      ],
+      "state": "killed-restored",
+      "testName": "contains runtime construction failure through the executable bounded reporter",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/typed-runtime-inside-owner.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/typed-runtime-inside-owner.green.log",
+      "beforeHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "mutantHash": "638188bb2db37ca3c468f42c31914231c6f17f607cfcfcc5f8c59a090a6cb6a4",
+      "afterHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "redLogHash": "d1aac6463053087492c4761131ffcb466192004e16673ec6827b8af3f0331af6",
+      "greenLogHash": "9c1dedecf301a837d7433f7aaf2ed733f58c830cda0238d63d358178acbf906e"
+    },
+    {
+      "id": "typed-no-stdin",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "    const runtime = readLintRuntime(context.lookup.path, context.lookup.directory);",
+          "replacement": "    Bun.stdin.stream();\n    const runtime = readLintRuntime(context.lookup.path, context.lookup.directory);"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+      "pattern": "without stdin or argv re-entry",
+      "scope": "typed execution does not enter standalone stdin transport",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=without stdin or argv re-entry"
+      ],
+      "state": "killed-restored",
+      "testName": "owns typed installed execution without stdin or argv re-entry and preserves binary verdict37",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/typed-no-stdin.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/typed-no-stdin.green.log",
+      "beforeHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "mutantHash": "1358804b54ce5dd2b06b1720e9044ee520a48b563d5f2923cec6c52581d1219a",
+      "afterHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "redLogHash": "0a81c8ee148ab44c4964fa00d8fcc0b27cd7347494e8ad9829dbdbe789b6a105",
+      "greenLogHash": "0d93a47f7fbc0649e4976d122a77d82cd5ee4cfd4bc6cd04761f233adf8f09a4"
+    },
+    {
+      "id": "typed-required-setting",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "      ...context,\n      runtime,",
+          "replacement": "      ...context,\n      required:false,\n      runtime,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+      "pattern": "preserves required admission status78",
+      "scope": "required admission survives executable context composition",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=preserves required admission status78"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves required admission status78 through the typed executable owner",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/typed-required-setting.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/typed-required-setting.green.log",
+      "beforeHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "mutantHash": "1484a28c550c4cfd2e0ba3259aef0da70dd59cf1f91ffab248845e1aa4b3ff3b",
+      "afterHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "redLogHash": "c4fb94b0cd75933790e10a440b20b3f8cd61a8a4691265f57de79e7f6ec18e57",
+      "greenLogHash": "ae8a3b830d61af69a0d7554b0f8578e7ebd7e279d96a950f2ed1214685f7f2d6"
+    },
+    {
+      "id": "typed-native-cancellation",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "      subscribeInterrupts,\n    });",
+          "replacement": "      subscribeInterrupts:()=>()=>undefined,\n    });"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+      "pattern": "delivers actual native cancellation",
+      "scope": "real signal reaches installed IPC and bounded stage cleanup; faulty role self-exits to avoid leaks",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=delivers actual native cancellation"
+      ],
+      "state": "killed-restored",
+      "testName": "delivers actual native cancellation through the typed owner and removes its live stage",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/typed-native-cancellation.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/typed-native-cancellation.green.log",
+      "beforeHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "mutantHash": "1945f91f9630375e5b594a361083d15b20ec35fc1ace8c2dc692379ff62b9cb5",
+      "afterHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "redLogHash": "158ae118ac4cb0702f623c4b3c9c47aff5b3cd6d6592451f5f4ea60a67458021",
+      "greenLogHash": "b7b015dd1f9e04fb0170a0e4a3836eb021006e431294f765925c51e78d64397f"
+    },
+    {
+      "id": "typed-output-wiring",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "      stdout: outputs.stdout,",
+          "replacement": "      stdout: outputs.stderr,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+      "pattern": "without stdin or argv re-entry",
+      "scope": "native binary stdout and stderr retain separate ownership",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=without stdin or argv re-entry"
+      ],
+      "state": "killed-restored",
+      "testName": "owns typed installed execution without stdin or argv re-entry and preserves binary verdict37",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/typed-output-wiring.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/typed-output-wiring.green.log",
+      "beforeHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "mutantHash": "d911fd4789249236fad89e4deb13182e044227607f15965d34144b2a7e89a8da",
+      "afterHash": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1",
+      "redLogHash": "13be76a2dc647233192358c56669fe3387281abb73d9068fbb5f3148cf835f74",
+      "greenLogHash": "2ccfde435aed00345a764e57789758b115f733ec72031e5788ae16d00c9aa7a6"
+    }
+  ],
+  "supersededSuccessfulObservations": [
+    {
+      "id": "shared-main-terminal-native-exit",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "process.exit(await runLintExecutable(process.argv.slice(2)))",
+          "replacement": "process.exitCode = await runLintExecutable(process.argv.slice(2))"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+      "pattern": "unconfirmed group cleanup",
+      "scope": "actual native exit before fixture-owned kill/reap; no completion manufactured during cleanup",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "--timeout=20000",
+        "--test-name-pattern=unconfirmed group cleanup"
+      ],
+      "state": "killed-restored",
+      "testName": "exits after unconfirmed group cleanup with PID diagnostics and retained scratch",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-shared-execution-proofs/shared-main-terminal-native-exit.red.log",
+      "greenLog": "/tmp/puni-shared-execution-proofs/shared-main-terminal-native-exit.green.log",
+      "beforeHash": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e",
+      "mutantHash": "3a88302bd9cc5f2c2c0e153aa4c731f0ddccfd658c9b976059fa57d0c7ebeb5b",
+      "afterHash": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e",
+      "redLogHash": "a9d2b8bc0216d483c1f6c53924c40ea79f22e4666bd3114a67935e408c2f3195",
+      "greenLogHash": "4fa1db8fb42e379db8f121a266889a7ace4afc1b27ddb9a87160b5a328938501"
+    }
+  ],
+  "observations": {
+    "uniqueCases": 18,
+    "successfulAttempts": 19,
+    "logs": 38
+  },
+  "testEpochSourceHashes": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "sha256": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "sha256": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "sha256": "aa09932c7080b9407047722544e488277e63a0b6f55e51046dceabea208ac0e1"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+      "sha256": "912fa3116a4023e99e499ae5ab9c83e3a9f24de7ab81826eee9af8f098d11a2a"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+      "sha256": "5dcf5a29a24e444de65c66b35facea9009d673c0df74d7a7eddf3aa0fa2a9d8b"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts",
+      "sha256": "80b07ad1423659a2f457740cf5288e8e46f2e9b29882c05e148f6ba73327798c"
+    }
+  ],
+  "checks": [
+    {
+      "id": "coherent-tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-child.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-death.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "--timeout=30000"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-shared-execution-regression-final.log",
+      "logSha256": "44968a808545a2eb59a5ab31cd7e3ca2d5e7a51cf5d5b60c369b65f4219cf867"
+    },
+    {
+      "id": "lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-shared-execution-lint4.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native-types",
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "apps/puni/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-navigator/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "libs/wbs/application/core/tsconfig.json",
+        "libs/wbs/adapters/store-sqlite/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-shared-execution-native-types5.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "review": {
+    "audit": "/tmp/puni-shared-execution-independent-audit.json",
+    "scope": "C17 source review and read-only receipt audit; no tests run",
+    "proofObservations": 19,
+    "logsHashed": 38,
+    "errors": [],
+    "limits": [
+      "Native reaping qualification Linux x64; existing other POSIX test branch retained.",
+      "Root1.2d integration remains open.",
+      "Final checks not independently run."
+    ]
+  },
+  "historicalChecks": [
+    {
+      "log": "/tmp/puni-installed-executable-regression1.log",
+      "observation": "370pass0fail1334assertions15files126.42s before sixth cancellation case and final adopted fixture"
+    },
+    {
+      "log": "/tmp/puni-installed-executable-green4.log",
+      "observation": "6pass0fail20assertions8.14s before stricter ESRCH matcher; no production change"
+    },
+    {
+      "log": "/tmp/puni-unconfirmed-helper-green3.log",
+      "observation": "native-exit baseline1pass0fail5assertions3.04s after final crypto correction"
+    }
+  ],
+  "failedOrUncreditedAttempts": [
+    {
+      "log": "/tmp/puni-installed-executable-red1.log",
+      "observation": "0pass4fail missing typed executable export; initial RED"
+    },
+    {
+      "log": "/tmp/puni-installed-executable-green2.log",
+      "observation": "proof-comment move lost ternary colon; formatter caught syntax; concurrent launched tests uncredited"
+    },
+    {
+      "log": "/tmp/puni-shared-execution-native-green2.log",
+      "observation": "19pass1fail accidental helper crypto hashText instead of digest, before child launch; corrected"
+    },
+    {
+      "logs": [
+        "/tmp/puni-shared-execution-lint2.log",
+        "/tmp/puni-shared-execution-native-types2.log"
+      ],
+      "observation": "helper unsafe typing plus accidental Hash method typo; corrected, no passing credit"
+    },
+    {
+      "log": "/tmp/puni-shared-execution-native-types4.log",
+      "observation": "TS6053 misspelled SQLite root path; canonical six-root command corrected and passed separately"
+    },
+    {
+      "logs": [
+        "/tmp/puni-shared-execution-lint3.log",
+        "/tmp/puni-shared-execution-native-types3.log"
+      ],
+      "observation": "empty logs but session exit statuses unavailable after compaction; not credited, commands repeated with observed exits"
+    },
+    {
+      "log": "/tmp/puni-installed-executable-native-types1.log",
+      "observation": "possible import-autofix overlap; frozen native-types2 later passed; not final epoch credit"
+    },
+    {
+      "observation": "two temporary writer anchor refusals made no source changes; no test or mutation credit"
+    }
+  ],
+  "notes": [
+    "Canonical TypeScript command resolves @typescript/native7.0.2; explicit node_modules/typescript/lib/tsc.js uses compiler6.0.2. Historical JS6 claims remain labeled accurately.",
+    "Final native-exit fault measures settledBeforeCleanup false and null status before manual cleanup; restored case exits1. Fixture supervisor reaps only its owned adopted stage and restores prior native state.",
+    "Reaping qualification Linux x64; prior non-Linux POSIX behavioral branch remains. No Mac qualification claimed.",
+    "Six new adjacent adapter Proof notes added after frozen logic/test epoch; they do not change executable behavior. Final format/lint/spec checks recorded separately."
+  ],
+  "remaining": [
+    "root lazy executor/entrypoint and Dash validated facade",
+    "actual root alias and native output/preflight cases",
+    "public package/client script embedding/Bun conversion",
+    "canonical host gate and rollout"
+  ],
+  "finalChecks": [
+    {
+      "id": "post-comment-lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-c17-final-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "openspec",
+      "argv": ["bunx", "openspec", "validate", "--all", "--json"],
+      "exitCode": 0,
+      "log": "/tmp/puni-c17-final-openspec.json",
+      "logSha256": "b3468ffd96ce3d79e45b4cca321adcb37c66b0629dad4b0bb1787836c05417b8"
+    },
+    {
+      "id": "diff",
+      "argv": ["git", "diff", "--check"],
+      "exitCode": 0,
+      "log": "/tmp/puni-c17-final-diff.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "format",
+      "argv": [
+        "bunx",
+        "prettier",
+        "--check",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts",
+        "openspec/changes/puni-cli/design.md",
+        "openspec/changes/puni-cli/specs/puni-cli/spec.md",
+        "openspec/changes/puni-cli/verify.md",
+        "openspec/changes/puni-cli/verification-c17-execution.json"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-c17-final-format.log",
+      "logSha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    }
+  ],
+  "finalObserved": {
+    "pass": 371,
+    "fail": 0,
+    "assertions": 1337,
+    "files": 15,
+    "seconds": 136.26
+  },
+  "sourceHashes": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "sha256": "ce54ce0b244f3b30347abb1bea21c8723357b4fdc4ceefc1974068b9535d330e"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-execution.ts",
+      "sha256": "e7b717c5dc75b1b7c9660aaa8d0860418421fb76f8a59b1f39c3840ad80b6805"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "sha256": "fb8e27e6f45d98a79fe571198f273abeacb1ebeaec717eb725c7e2317bafa99f"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-executable.test.ts",
+      "sha256": "912fa3116a4023e99e499ae5ab9c83e3a9f24de7ab81826eee9af8f098d11a2a"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+      "sha256": "5dcf5a29a24e444de65c66b35facea9009d673c0df74d7a7eddf3aa0fa2a9d8b"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/unconfirmed-lint-exit.ts",
+      "sha256": "80b07ad1423659a2f457740cf5288e8e46f2e9b29882c05e148f6ba73327798c"
+    }
+  ],
+  "compiler": {
+    "canonical": "@typescript/native npm:typescript@7.0.2 via bunx tsc",
+    "historicalJS": "typescript npm:@typescript/typescript6@6.0.2"
+  }
+}

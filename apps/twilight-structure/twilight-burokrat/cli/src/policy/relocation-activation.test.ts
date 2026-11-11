@@ -1057,10 +1057,10 @@ describe('relocation activation prepared from a candidate SHA', () => {
     // defaults let the tool write the operator's own attestation into every check receipt; each
     // negative observed `relocation activation: ...` at exit 0 instead of this refusal.
     expect(runCommand(without('--resource-lane')).output).toContain(
-      'missing required flag: --resource-lane',
+      'Missing option `--resource-lane`.',
     );
     expect(runCommand(without('--cwd-identity')).output).toContain(
-      'missing required flag: --cwd-identity',
+      'Missing option `--cwd-identity`.',
     );
   }, 300_000);
 
@@ -1070,12 +1070,12 @@ describe('relocation activation prepared from a candidate SHA', () => {
     // the command prepared a whole activation from the defaults; this negative observed
     // `relocation activation: ...` at exit 0.
     expect(runPreparation(prepared, ['--candidate-revision', 'x']).output).toContain(
-      'unknown flag: --candidate-revision',
+      'Unexpected option or subcommand: `--candidate-revision`.',
     );
     // Proof: forcing the missing-flag refusal false let an absent flag stay undefined; this
     // negative observed `The "paths[0]" property must be of type string, got undefined`.
     expect(runCommand(['--candidate-repository', prepared.fixture.repository]).output).toContain(
-      'missing required flag: --candidate-sha',
+      'Missing option `--candidate-sha`.',
     );
     const destination = join(prepared.fixture.workspace, 'selected-destination');
     mkdirSync(destination, { recursive: true });

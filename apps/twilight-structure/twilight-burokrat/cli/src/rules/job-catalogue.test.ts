@@ -336,7 +336,8 @@ describe('JOB-CATALOGUE', () => {
   test('check refuses a malformed instant', async () => {
     const outcome = await judge(createCandidate({}), { now: '2026-12-02' });
     expect(outcome.exitCode).toBe(1);
-    expect(outcome.stderr).toContain('check --now is not a UTC instant: 2026-12-02');
+    expect(outcome.stderr).toContain('`--now`: expected a canonical UTC instant');
+    expect(outcome).not.toHaveProperty('verdict');
   });
 
   test('check refuses --now without a dated rule', async () => {

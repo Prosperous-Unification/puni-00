@@ -1,3 +1,4 @@
+import { readInstalledRequest, type ValidatorRequest } from '../cli-parser';
 import { readSelectedBlob } from '../inventory/read-blob';
 import {
   type CandidateEntry,
@@ -368,23 +369,18 @@ export function verifyTemplateInCandidate(request: TemplateVerifyRequest): Templ
   return verifyArtifact(template, subject, files, siblingsOf);
 }
 
-/** The usage line of `template`; `cli-parser.ts`'s help shows the same grammar (cli.test.ts). */
-export const templateUsage =
-  'usage: twilight-burokrat template <list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>';
-
-function candidateRequest(kind: string, revision: string): CandidateRequest {
-  if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {
-    // Proof: treating an invalid kind as committed made `refuses an unknown candidate selection
-    // kind` exit 0 instead of 1. Observed 2026-09-20.
-    throw new Error(templateUsage);
-  }
+function candidateRequest(kind: CandidateRequest['kind'], revision: string): CandidateRequest {
   return kind === 'committed' ? { kind, revision } : { kind, base: revision };
 }
 
 /** `template list`, `template show <id>`, `template verify <id> <kind> <repo> <rev> <subject>` */
 export function writeTemplateCommand(argv: readonly string[]): void {
-  const [, action, templateId, kind, repository, revision, subject] = argv;
-  if (argv.length === 2 && action === 'list') {
+  writeTemplate(readInstalledRequest('template', argv));
+}
+
+/** Execute one typed template operation. */
+export function writeTemplate(request: ValidatorRequest<'template'>): void {
+  if (request.action === 'list') {
     process.stdout.write(
       `${JSON.stringify({
         schemaVersion: 1,
@@ -398,16 +394,16 @@ export function writeTemplateCommand(argv: readonly string[]): void {
     );
     return;
   }
-  if (argv.length === 3 && action === 'show') {
-    process.stdout.write(`${JSON.stringify(selectTemplate(templateId))}\n`);
+  if (request.action === 'show') {
+    process.stdout.write(`${JSON.stringify(selectTemplate(request.template))}\n`);
     return;
   }
-  if (argv.length === 7 && action === 'verify') {
+  {
     const verified = verifyTemplateInCandidate({
-      templateId,
-      repository,
-      candidate: candidateRequest(kind, revision),
-      subject,
+      templateId: request.template,
+      repository: request.repository,
+      candidate: candidateRequest(request.kind, request.revision),
+      subject: request.subject,
     });
     process.stdout.write(`${JSON.stringify(verified)}\n`);
     // Proof: deleting this assignment made `reports a file whose name lacks the kind suffix`
@@ -415,7 +411,4 @@ export function writeTemplateCommand(argv: readonly string[]): void {
     if (!verified.conforms) process.exitCode = 1;
     return;
   }
-  // Proof: deleting this refusal made `refuses an unknown template action` exit 0 instead of 1.
-  // Observed 2026-09-20.
-  throw new Error(templateUsage);
 }
