@@ -1,3 +1,13 @@
+# Production and recovery observations — 2026-11-11
+
+This fenced JSON is a historical observation record, with no executable or runtime
+consumer. The report interprets its bounds; it is not an acceptance certificate.
+
+The historical checkout status text is retained in the private runtime receipt;
+its count and digest are projected here because those retired source paths are
+not instructions for the current tree.
+
+```json
 {
   "schemaVersion": 1,
   "scope": "Read-only priority-one production provenance and recovery coverage diagnosis; no release acceptance",
@@ -192,8 +202,10 @@
     ],
     "buildCheckout": {
       "head": "0623a9740720d97bfa5f3e37cbc55b9521837778",
-      "status": "M apps/fe-01/src/components/wbs/plan-cells.test.tsx",
-      "release": ""
+      "release": "",
+      "isDirty": true,
+      "trackedStatusSha256": "c11443d9073b5aa15b1340373b2cd555d9077d855ea547da34178845bfab2c1b",
+      "trackedModificationCount": 1
     },
     "rootBytes": {
       "available": 14238830592,
@@ -1690,3 +1702,4 @@
     }
   ]
 }
+```

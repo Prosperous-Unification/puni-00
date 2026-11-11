@@ -10,7 +10,7 @@ The proposed acceptance repair still requires its own OpenSpec and R5 proofs.
 The private local capture root is `/tmp/puni-production-provenance-20261111`,
 mode `0700`; report JSON and exact state/bundle/release captures use mode `0600`.
 Raw credentials, full Docker environments, Caddy configuration bodies and client
-rows were not exported. The sanitized [evidence](evidence.json) retains selected
+rows were not exported. The sanitized [observations](observations.md) retains selected
 metadata plus hashes of private receipts. Temporary captures are not a durable
 backup; the committed projections are the reviewable record.
 
@@ -80,3 +80,13 @@ future work; no production permission is inferred.
 - Publication uses normal Git hooks. Their output and exact-head GitHub verdicts
   are retained with the commit/PR. Docs-only selection proves documentation checks,
   not release qualification; no external certified-wiki admission is claimed.
+
+The first published packet used a standalone JSON file. The existing fail-closed
+selector correctly treated that unreviewed input as runtime-impacting. This
+historical record has no runtime consumer, so it is now fenced JSON in Markdown
+to retain the observations under the existing narrative documentation path. The
+legacy checkout status is represented by its count/digest; the exact retired-path
+text remains in its hashed private receipt. The current-document check refuses
+retired source paths even inside historical JSON fences. CI
+policy and required verdicts are unchanged; the superseded PR run is not release
+evidence. Local selection must report `docs` for the final candidate.

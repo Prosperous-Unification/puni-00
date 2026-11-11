@@ -10,7 +10,7 @@ No production process, routing, state, image, backup, credential or setting was 
 Source baseline and GitHub main were both
 `7614ca5116e2b27831076f7bc7c9f9872051c388`. Live reads ran on November 11 around
 05:45–05:52 UTC; individual timestamps and sanitized primary observations are in
-[evidence.json](evidence.json). [Verification and limits](verify.md) distinguish
+[observations](observations.md). [Verification and limits](verify.md) distinguish
 fresh reads, historical receipts, static source findings and unexecuted work.
 
 ## Runtime and immutable artifacts
@@ -62,7 +62,7 @@ has no OCI revision. Neither supplies an application revision.
   digest. It cannot establish the current three-tier release. The root-level
   `release.json` is absent and is not the default path.
 - The legacy build checkout is at `0623a9740720d97bfa5f3e37cbc55b9521837778`,
-  with a tracked frontend-test modification (exact historical path in the evidence).
+  with a tracked frontend-test modification (exact status bytes retained privately).
   It was preserved. The installed prod `swap.js` hash begins `7e8f65aa…`, versus
   `ecc8c315…` for that checkout's built swap; installed smoke begins `9e23d75e…`,
   versus `9e0cb775…` in the correct `dist/tool-smoke/smoke.js` path. These establish
