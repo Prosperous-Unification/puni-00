@@ -111,7 +111,14 @@ for (const pipe of ['stdout', 'stderr'] as const) {
       [
         process.execPath,
         '-e',
-        `const chunk = Buffer.alloc(65536); for (let n = 0; n < 512; n++) { await Bun.write(Bun.${pipe}, chunk); } await Bun.sleep(750); process.exit(0);`,
+        // Bound emission without letting natural exit substitute for the live-child kill proof.
+        `setInterval(() => undefined, 1000);
+const chunk = Buffer.alloc(65536);
+try {
+  for (let emitted = 0; emitted < 512; emitted++) await Bun.write(Bun.${pipe}, chunk);
+} catch (cause) {
+  if (!(cause instanceof Error && 'code' in cause && cause.code === 'EPIPE')) throw cause;
+}`,
       ],
       { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
     );
@@ -119,22 +126,54 @@ for (const pipe of ['stdout', 'stderr'] as const) {
     const exit = child.exited.then(() => {
       reaped = true;
     });
+    const nativeKill = child.kill.bind(child);
+    const liveAtKill: boolean[] = [];
+    const kill = spyOn(child, 'kill').mockImplementation((signal) => {
+      liveAtKill.push(child.exitCode === null);
+      nativeKill(signal);
+    });
+    let watchdogUsed = false;
+    // Rescue stays inside the canonical 30-second test budget; any use invalidates this proof.
+    const watchdog = setTimeout(() => {
+      watchdogUsed = true;
+      // Bypass the observed boundary method: test cleanup cannot become a production kill witness.
+      nativeKill('SIGKILL');
+    }, 10000);
     const spawn = spyOn(Bun, 'spawn').mockReturnValue(child);
     try {
       // The production transport uses only these trusted enrollment fields.
       const enrollment = { sshHost: 'fixture' } as ManagedRegistry;
-      expect(
-        await rejectionOf(connectRegistryAuthority(enrollment)({ command: 'read' })),
-      ).toBeInstanceOf(Error);
+      const failure = await rejectionOf(connectRegistryAuthority(enrollment)({ command: 'read' }));
+      const overflow: unknown = failure instanceof AggregateError ? failure.errors[0] : failure;
+      expect(overflow).toBeInstanceOf(Error);
+      if (!(overflow instanceof Error)) throw new Error('Missing authority overflow cause');
+      // Proof: unrelated send EPERM passed the original generic-error test; this exact-cause assertion refuses it.
+      expect(overflow.message).toBe(
+        `Registry authority ${pipe} exceeds ${pipe === 'stdout' ? '16777216' : '65536'} bytes`,
+      );
+      // Proof: isolated production kill removal requires the watchdog and fails this assertion, then restores green.
+      expect(watchdogUsed).toBe(false);
+      expect(kill.mock.calls).toEqual([['SIGKILL']]);
+      expect(liveAtKill).toEqual([true]);
       expect(child.signalCode).toBe('SIGKILL');
       expect(reaped).toBe(true);
-      expect(() => process.kill(child.pid, 0)).toThrow();
+      let absence: unknown;
+      try {
+        process.kill(child.pid, 0);
+      } catch (cause) {
+        absence = cause;
+      }
+      // Proof: an injected EPERM from the owned PID probe fails here; only ESRCH establishes absence.
+      expect(absence).toMatchObject({ code: 'ESRCH' });
       console.log(
         JSON.stringify({
           boundary: `authority-${pipe}`,
           signal: child.signalCode,
           reaped,
           absentPid: child.pid,
+          overflow: overflow.message,
+          watchdogUsed,
+          liveAtKill,
         }),
       );
       expect(spawn.mock.calls[0]?.[0]).toEqual([
@@ -146,8 +185,10 @@ for (const pipe of ['stdout', 'stderr'] as const) {
         'sudo -n /usr/local/sbin/puni-registry-authority',
       ]);
     } finally {
+      clearTimeout(watchdog);
       spawn.mockRestore();
-      if (child.exitCode === null) child.kill('SIGKILL');
+      kill.mockRestore();
+      if (child.exitCode === null) nativeKill('SIGKILL');
       await exit;
     }
   });
