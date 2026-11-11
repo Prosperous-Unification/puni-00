@@ -5,6 +5,7 @@ import { Readable, Writable } from 'node:stream';
 
 import type { Monotonic, WallClock } from '../clock';
 import {
+  awaitLegacyRelease,
   holdLegacyLock,
   jobHoldFile,
   type LegacyHold,
@@ -66,7 +67,7 @@ export interface JobRunDependencies {
   readonly settleBudgetMs: number;
   /** The account the linger fix names. */
   readonly user: string;
-  /** The shell lock every host job also queues on in observe mode (J12). */
+  /** Native owner of the shared queue every host job takes in observe mode (J12). */
   readonly legacyLock: LegacyLock;
 }
 
@@ -434,26 +435,45 @@ async function executeHostJob(
         : null;
     const containers =
       docker === null ? declaredContainersOnly : dockerContainerEvidence(docker, deps.environment);
+    let execution: { kind: 'completed'; status: number } | { kind: 'failed'; cause: unknown };
     try {
-      return await runAdmitted(
-        runtime,
-        records,
-        admission.job,
-        catalogued,
-        systemdRun,
-        docker,
-        containers,
-        request,
-        toolchain,
-        deps,
-        interruption,
-        (handler) => {
-          forward.to = handler;
-        },
-      );
-    } finally {
-      if (legacyHold !== null) await endLegacyHold(runtime, admission.job.id, legacyHold, deps);
+      execution = {
+        kind: 'completed',
+        status: await runAdmitted(
+          runtime,
+          records,
+          admission.job,
+          catalogued,
+          systemdRun,
+          docker,
+          containers,
+          request,
+          toolchain,
+          deps,
+          interruption,
+          (handler) => {
+            forward.to = handler;
+          },
+        ),
+      };
+    } catch (cause) {
+      execution = { kind: 'failed', cause };
     }
+    if (legacyHold !== null) {
+      try {
+        await endLegacyHold(runtime, admission.job.id, legacyHold, deps);
+      } catch (cleanupFailure) {
+        if (execution.kind === 'failed')
+          throw new AggregateError(
+            [execution.cause, cleanupFailure],
+            'host job operation and native hold cleanup failed',
+            { cause: cleanupFailure },
+          );
+        throw cleanupFailure;
+      }
+    }
+    if (execution.kind === 'failed') throw execution.cause;
+    return execution.status;
   } finally {
     for (const signal of signals) process.removeListener(signal, onSignal);
     records.close();
@@ -462,10 +482,10 @@ async function executeHostJob(
 }
 
 /**
- * Observe mode (J12): queue the admitted job on the shell lock with what is left of its one wait
- * budget, so legacy callers and Dash jobs share one order. The hold's ticket, deadline, holder
- * record and label (`dash-job-<id> <label>`) are the shell lock's own; the job launches only
- * once it holds. A refusal or an interruption there withdraws the job, which was never prepared
+ * Observe mode (J12): queue the admitted job through the native host-lock owner with what is
+ * left of its one wait budget. Historical callers and Dash jobs share the same tickets,
+ * deadlines, holder records and labels (`dash-job-<id> <label>`); the job launches only once
+ * its immutable child token and Ready handoff are corroborated. A refusal or an interruption there withdraws the job, which was never prepared
  * or launched, releasing its reservation at once.
  * @throws OpsRefusal 75 when the shell lock gives no turn within the budget left, 129/130/143
  * when interrupted while queued there, 70 for any other refusal of the shell lock.
@@ -511,7 +531,7 @@ async function queueOnLegacyLock(
           ]
         : [
             70,
-            `the shell lock refused it with exit ${String(outcome.exitCode)}${outcome.reason === undefined ? '' : `: ${outcome.reason}`} (observe mode)`,
+            `the shell lock refused it with exit ${String(outcome.exitCode)}: ${outcome.reason} (observe mode)`,
           ];
   // Proof: without the withdrawal `a legacy deadline withdraws the Dash job`
   // (host-pool-mode.test.ts) left the job starting with its cores reserved (2026-11-02, Slice 6b).
@@ -532,44 +552,30 @@ export async function endLegacyHold(
   runtime: Pick<ResourceRuntime, 'inspectHostJob'>,
   jobId: string,
   hold: LegacyHold,
-  deps: JobRunDependencies,
-): Promise<void> {
+  deps: Pick<JobRunDependencies, 'report'>,
+): Promise<{ readonly kind: 'released' } | { readonly kind: 'retained' }> {
   let released: boolean;
   try {
     released = runtime.inspectHostJob(jobId).compute.state === 'released';
   } catch (cause) {
-    deps.report(
-      `ops job: ${jobId} keeps the shell lock: its compute entry is unreadable (${causeText(cause)}); watch releases it`,
+    // Proof: the previous return-on-unreadable branch failed the retained-ledger failure control in job-hold.test.ts; restoration passed (2026-11-11).
+    throw new Error(
+      'ops job: ' + jobId + ' keeps the native hold: its compute entry is unreadable',
+      { cause },
     );
-    return;
   }
-  // Proof: releasing regardless made `a surviving child keeps the shell lock until its compute
-  // settles` (host-pool-mode.test.ts) see the holder gone (2026-11-02, Slice 6b).
+  // Proof: removing compute authorization released an outstanding job in job-hold.test.ts; restoration passed (2026-11-11).
   if (!released) {
     deps.report(
-      `ops job: ${jobId} keeps the shell lock until its compute settles; watch releases it`,
+      'ops job: ' + jobId + ' keeps the shell lock until its compute settles; watch releases it',
     );
-    return;
+    return { kind: 'retained' };
   }
   hold.release();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const ended = await Promise.race([
-    hold.exited.then(
-      () => true,
-      () => true,
-    ),
-    new Promise<boolean>((resolveGrace) => {
-      timer = setTimeout(() => {
-        resolveGrace(false);
-      }, 10_000);
-    }),
-  ]);
-  clearTimeout(timer);
-  deps.report(
-    ended
-      ? `ops job: ${jobId} released the shell lock`
-      : `ops job: ${jobId} removed its shell lock hold; holder ${String(hold.pid)} has not exited yet`,
-  );
+  // Proof: the previous rejected-exit-as-success projection failed the native-wait failure control in job-hold.test.ts; restoration passed (2026-11-11).
+  await awaitLegacyRelease(hold);
+  deps.report('ops job: ' + jobId + ' released the shell lock');
+  return { kind: 'released' };
 }
 
 /** Kill the whole session of `pid`; a session already gone is not an error. */

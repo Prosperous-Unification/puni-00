@@ -26,6 +26,11 @@ export interface QueueRuntime {
   readonly isAlive: (pid: number) => boolean;
   readonly wait: (seconds: number) => Promise<'elapsed' | 'cancelled'>;
 }
+/** Invalid caller-controlled queue fields; native identities and trusted records fail separately. */
+export class RequestRefusal extends Error {
+  override readonly name = 'RequestRefusal';
+}
+
 export interface QueueRequest {
   readonly path: string;
   readonly label: string;
@@ -33,9 +38,31 @@ export interface QueueRequest {
   readonly waitSeconds: number;
   readonly pollSeconds: number;
 }
+/** Queue observations delivered after admission, before protected work starts. */
+export interface Admission {
+  readonly aheadAtArrival: number;
+  readonly waitedSeconds: number;
+}
+/** Refusal-time informational records, never proof of current native mutex ownership. */
+export type Contention =
+  | { readonly kind: 'holder'; readonly pidText: string | undefined }
+  | {
+      readonly kind: 'tickets';
+      readonly tickets: readonly {
+        readonly pidText: string;
+        readonly label:
+          { readonly kind: 'named'; readonly text: string } | { readonly kind: 'gone' };
+      }[];
+    };
 export type QueueOutcome<T> =
   | { readonly kind: 'cancelled' }
-  | { readonly kind: 'refused'; readonly aheadAtArrival: number; readonly ahead: number }
+  | {
+      readonly kind: 'refused';
+      readonly aheadAtArrival: number;
+      readonly ahead: number;
+      readonly waitedSeconds: number;
+      readonly contention: Contention;
+    }
   | { readonly kind: 'completed'; readonly aheadAtArrival: number; readonly value: T };
 
 function hasCode(cause: unknown, code: string): boolean {
@@ -209,27 +236,29 @@ function reclaimQueue(
  * path cleanup is not an atomic identity check against arbitrary namespace replacement.
  * Admission cancellation never races active work: after entry, work and known record cleanup
  * settle inside native ownership. Wait budgets are monotonic; published deadlines are epoch time.
+ * Work receives its first-arrival count and elapsed whole seconds under ownership, so executable
+ * adapters can report admission before spawning their payload. The runtime clock is monotonic.
  * This adapter owns no signals or descendants and leaves the canonical mutex inode intact.
  */
 export async function runQueuedWork<T>(
   request: QueueRequest,
-  work: () => Promise<T>,
+  work: (admission: Admission) => Promise<T>,
   runtime: QueueRuntime,
 ): Promise<QueueOutcome<T>> {
   const { path, label, command, waitSeconds, pollSeconds } = request;
   const { pid, signal, readEpoch, readElapsed, isAlive, wait } = runtime;
   // Proof: c30b-wait-validation; injected skip wait budget admission failed `refuses invalid request waitSeconds -1 before touching the filesystem` and 2 additional named controls; restoration passed. Negative budget reaches erroneous admission; fractional/nonfinite values can still meet BigInt conversion after queue creation.
   if (!Number.isSafeInteger(waitSeconds) || waitSeconds < 0)
-    throw new Error('heavy lock wait seconds must be a nonnegative safe integer');
+    throw new RequestRefusal('heavy lock wait seconds must be a nonnegative safe integer');
   // Proof: c30b-poll-validation; injected skip poll interval admission failed `refuses invalid request pollSeconds 0 before touching the filesystem` and 2 additional named controls; restoration passed. Production-path fault and exact restored named control; credit follows the first observed assertion.
   if (!Number.isInteger(pollSeconds) || pollSeconds < 1 || pollSeconds > 30)
-    throw new Error('heavy lock poll seconds must be between 1 and 30');
+    throw new RequestRefusal('heavy lock poll seconds must be between 1 and 30');
   // Proof: c30b-pid-validation; injected skip caller PID admission failed `refuses invalid caller PID 0` and 2 additional named controls; restoration passed. Secondary ticket PID guards remain; this proves refusal before filesystem publication.
   if (!Number.isInteger(pid) || pid < 1 || pid > 2147483647)
     throw new Error('heavy lock caller PID is outside the native range');
   // Proof: c30b-label-validation; injected skip single-line lane-label admission failed `refuses invalid request label "" before touching the filesystem` and 3 additional named controls; restoration passed. Some cases still meet positional ticket refusal; preserve prepublication ordering and actual admitted cases separately.
   if (label === '' || /[\r\n\0]/u.test(label))
-    throw new Error('heavy lock label must be a nonempty single line');
+    throw new RequestRefusal('heavy lock label must be a nonempty single line');
   // Proof: c30b-prepublication-cancel; injected publish state for an already-cancelled caller failed `cancels before publishing and while waiting without entering protected work`; restoration passed. Without the early guard later cancellation may still refuse; no queue may have been created in the already-cancelled branch.
   if (signal.aborted) return { kind: 'cancelled' };
   const started = new Date(Number(readEpoch() / 1000000n)).toISOString().replace(/\.\d{3}Z$/u, 'Z');
@@ -294,6 +323,7 @@ export async function runQueuedWork<T>(
       // Proof: c30b-queue-fairness; injected allow a later waiter to skip the queue head failed `serves the slower earlier Bun process before the faster later process after a real holder releases`; restoration passed. Actual independent Bun processes poll at 2 and 1 seconds behind an actual flock holder. Queue-order removal must produce a reversed work log, not a test timeout.
       // Proof: c30b-zero-budget-attempt; injected skip a free first attempt at zero budget failed `publishes complete legacy metadata before a zero-budget claim and removes its ticket before work`; restoration passed. Production-path fault and exact restored named control; credit follows the first observed assertion.
       if (ahead === 0) {
+        const arrival = aheadAtArrival;
         const claimed = await holdLock(path, async () => {
           if (signal.aborted) return { kind: 'cancelled' as const };
           // Proof: c30b-own-ticket-native; injected skip the own-ticket check under native ownership failed `rechecks its ticket inside native ownership before publishing a record`; restoration passed. Production-path fault and exact restored named control; credit follows the first observed assertion.
@@ -311,7 +341,13 @@ export async function runQueuedWork<T>(
             ownsTicket = false;
             if (signal.aborted) return { kind: 'cancelled' as const };
             // Proof: c30b-queue-await-work; injected return the callback promise without awaiting it failed `keeps the native lock and holder until active work settles after cancellation`; restoration passed. First failure is API settled=true while work is pending; later holder/kernel assertions are not reached.
-            return { kind: 'worked' as const, value: await work() };
+            return {
+              kind: 'worked' as const,
+              value: await work({
+                aheadAtArrival: arrival,
+                waitedSeconds: Math.floor(readElapsed() - enqueuedAt),
+              }),
+            };
           }, [
             () => {
               // Proof: c30b-record-cleanup; injected leave partial holder metadata behind failed `cleans a partial holder publication before returning its exact write failure`; restoration passed. Production-path fault and exact restored named control; credit follows the first observed assertion.
@@ -326,8 +362,35 @@ export async function runQueuedWork<T>(
         }
       }
       // Proof: c30b-monotonic-budget; injected extend the monotonic budget by one poll failed `uses its monotonic wait budget independently of repeated wall clock epochs`; restoration passed. Production-path fault and exact restored named control; credit follows the first observed assertion.
-      if (readElapsed() - enqueuedAt >= waitSeconds)
-        return { kind: 'refused', ahead, aheadAtArrival };
+      const waited = readElapsed() - enqueuedAt;
+      if (waited >= waitSeconds) {
+        const contention: Contention =
+          ahead === 0
+            ? { kind: 'holder', pidText: readObservedText(join(record, 'holder')) }
+            : {
+                kind: 'tickets',
+                tickets: names
+                  .filter((candidate) => candidate < name)
+                  .map((candidate) => {
+                    const identity = decodeTicketName(candidate),
+                      published = readTicket(queue, candidate);
+                    return {
+                      pidText: identity.pidText,
+                      label:
+                        published === undefined
+                          ? { kind: 'gone' as const }
+                          : { kind: 'named' as const, text: published.label },
+                    };
+                  }),
+              };
+        return {
+          kind: 'refused',
+          ahead,
+          aheadAtArrival,
+          waitedSeconds: Math.floor(waited),
+          contention,
+        };
+      }
       if ((await wait(pollSeconds)) === 'cancelled') return { kind: 'cancelled' };
     }
   }, [

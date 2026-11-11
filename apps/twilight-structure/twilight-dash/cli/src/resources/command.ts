@@ -18,15 +18,16 @@ import { SingletonGuard } from './singleton-guard';
  * Runs one parsed `resources` action (its grammar is `cli-parser.ts`'s, parsed before this reads
  * credentials or opens the ledger). `connect` opens WBS's tools for the configured MCP endpoint
  * and key; it is called once, and the tools are closed before the command returns. `legacyLock`
- * is resolved only when `watch`'s singleton guard first needs the shell lock (`dash-host-jobs`
- * J12).
+ * is resolved only when watch's singleton guard needs the host lock. The guard settles before
+ * its ledger closes; every acquired capability is closed independently, retaining the operation
+ * and all cleanup failures. A single failure retains its original identity.
  */
 export async function runResources(
   request: DashRequest<'resources'>,
   clock: WallClock,
   write: (text: string) => unknown,
   connect: (endpoint: McpEndpoint, key: ApiKey) => WbsTools,
-  legacyLock: () => LegacyLock,
+  legacyLock: () => LegacyLock | Promise<LegacyLock>,
 ): Promise<number> {
   const configuration = loadResourceConfiguration(request.config);
   const runtime =
@@ -36,14 +37,47 @@ export async function runResources(
   const report = (value: unknown): void => {
     write(`${JSON.stringify(value)}\n`);
   };
-  const tools = connect(configuration.endpoint, configuration.credential);
+  const failures = new Set<unknown>();
+  const transport: { connection: { kind: 'unopened' } | { kind: 'opened'; tools: WbsTools } } = {
+    connection: { kind: 'unopened' },
+  };
+  let guard: SingletonGuard | undefined;
   const cancellation = new AbortController();
   const cancel = (): void => {
     cancellation.abort();
   };
   process.once('SIGTERM', cancel);
   process.once('SIGINT', cancel);
-  try {
+  /** Failed inspection cannot authorize a cleanup request; sweep and final observation remain independent. */
+  function cleanUse(id: string, reason: string): void {
+    let latest: ReturnType<ResourceRuntime['inspect']> | undefined;
+    try {
+      latest = runtime.inspect(id);
+    } catch (cause) {
+      // Proof: rethrowing this cleanup fault lost the run primary in the inspect-before control; recording it restored both failures (2026-11-11).
+      failures.add(cause);
+    }
+    if (latest !== undefined && !latest.sealed && latest.state !== 'released') {
+      try {
+        runtime.requestCleanup(latest.id, latest.revision, latest.incarnation, reason);
+      } catch (cause) {
+        failures.add(cause);
+      }
+    }
+    try {
+      runtime.sweep();
+    } catch (cause) {
+      failures.add(cause);
+    }
+    try {
+      report(runtime.inspect(id));
+    } catch (cause) {
+      failures.add(cause);
+    }
+  }
+  const runAction = async (): Promise<number> => {
+    const tools = connect(configuration.endpoint, configuration.credential);
+    transport.connection = { kind: 'opened', tools };
     if (request.action === 'init') {
       report({
         initialized: true,
@@ -67,21 +101,16 @@ export async function runResources(
       }
       // ResourceRuntime.create validates this untrusted JSON once at its public boundary.
       const use = await runtime.create(creation as CreationRequest, tools);
-      report(use);
-      if (request.action === 'create') return 0;
+      if (request.action === 'create') {
+        report(use);
+        return 0;
+      }
+      // Proof: reporting before this ownership scope skipped cleanup of the created use on write failure; the creation-report control now observes cleanup (2026-11-11).
       try {
+        report(use);
         return await runtime.run(use.id, request.argv, cancellation.signal);
       } finally {
-        const latest = runtime.inspect(use.id);
-        if (!latest.sealed && latest.state !== 'released')
-          runtime.requestCleanup(
-            latest.id,
-            latest.revision,
-            latest.incarnation,
-            'managed session ended',
-          );
-        runtime.sweep();
-        report(runtime.inspect(use.id));
+        cleanUse(use.id, 'managed session ended');
       }
     }
     if (request.action === 'run') {
@@ -89,16 +118,7 @@ export async function runResources(
       try {
         return await runtime.run(id, request.argv, cancellation.signal);
       } finally {
-        const latest = runtime.inspect(id);
-        if (!latest.sealed && latest.state !== 'released')
-          runtime.requestCleanup(
-            latest.id,
-            latest.revision,
-            latest.incarnation,
-            'managed command ended',
-          );
-        runtime.sweep();
-        report(runtime.inspect(id));
+        cleanUse(id, 'managed command ended');
       }
     }
     if (request.action === 'cleanup') {
@@ -119,7 +139,7 @@ export async function runResources(
       // host without `watch`, the only remedy for a hold its launcher could not end.
       // Proof: without it `resources sweep releases the orphan hold of a settled job`
       // (host-pool-mode.test.ts) left the holder holding (2026-11-02, review H1).
-      const holds = new SingletonGuard(runtime, legacyLock, process.env, (line) => {
+      const holds = await new SingletonGuard(runtime, legacyLock, process.env, (line) => {
         process.stderr.write(`${line}\n`);
       }).releaseSettledHolds();
       report({ legacyHolds: holds });
@@ -130,33 +150,76 @@ export async function runResources(
       report({ cursor: runtime.requestCursor(), pendingEvents: runtime.outbox().length });
       return 0;
     }
-    const guard = new SingletonGuard(runtime, legacyLock, process.env, (line) => {
+    const owner = new SingletonGuard(runtime, legacyLock, process.env, (line) => {
       process.stderr.write(`${line}\n`);
     });
-    try {
-      while (!cancellation.signal.aborted) {
-        report(runtime.sweep());
-        // Proof: without it `resources watch holds the guard for a queued job and lets go when
-        // the pool empties` (host-pool-mode.test.ts) timed out waiting for admission (2026-11-02).
-        guard.tick();
-        try {
-          await runtime.synchronize(tools);
-        } catch (cause) {
-          // WBS unavailable is a durable retry obligation; refusals and malformed trusted replies
-          // stop the controller.
-          if (!(cause instanceof ResourceWbsUnavailable)) throw cause;
-          report({ publication: 'pending', reason: 'WBS unavailable; durable outbox retained' });
-        }
-        await Bun.sleep(1000);
+    guard = owner;
+    while (!cancellation.signal.aborted) {
+      report(runtime.sweep());
+      // Proof: without it `resources watch holds the guard for a queued job and lets go when
+      // the pool empties` (host-pool-mode.test.ts) timed out waiting for admission (2026-11-02).
+      await owner.tick();
+      try {
+        await runtime.synchronize(tools);
+      } catch (cause) {
+        // WBS unavailable is a durable retry obligation; refusals and malformed trusted replies
+        // stop the controller.
+        if (!(cause instanceof ResourceWbsUnavailable)) throw cause;
+        report({ publication: 'pending', reason: 'WBS unavailable; durable outbox retained' });
       }
-    } finally {
-      guard.stop();
+      await Bun.sleep(1000);
     }
     return 0;
-  } finally {
-    process.removeListener('SIGTERM', cancel);
-    process.removeListener('SIGINT', cancel);
-    runtime.close();
-    await tools.close();
+  };
+  const execution = await runAction().then(
+    (status) => ({ kind: 'returned' as const, status }),
+    // Proof: returning success from this rejection branch made the undefined-throw control return 0; restoring the tagged failure preserved undefined (2026-11-11).
+    (cause: unknown) => ({ kind: 'threw' as const, cause }),
+  );
+  if (guard !== undefined) {
+    try {
+      // Proof: dropping await closed the ledger before guard stop settled in the healthy-watch control; restoration passed (2026-11-11).
+      await guard.stop();
+    } catch (cause) {
+      failures.add(cause);
+    }
   }
+  // Proof: omitting ledger close leaked its capability after connect threw; the exact connection-failure control observed the missing close (2026-11-11).
+  try {
+    runtime.close();
+  } catch (cause) {
+    // Proof: rethrowing here skipped transport close and lost its error in the two-close control; restoration retained both failures (2026-11-11).
+    failures.add(cause);
+  }
+  const connection = transport.connection;
+  if (connection.kind === 'opened') {
+    try {
+      await connection.tools.close();
+    } catch (cause) {
+      failures.add(cause);
+    }
+  }
+  // Proof: c32-command-listener-settlement-lifetime; replaying early removal caused native exits 130/143 in four gated guard/transport controls; restoring late removal passed (2026-11-11).
+  // Proof: omitting listener removal left both signal counts elevated in the connection-failure control; restoration passed (2026-11-11).
+  process.removeListener('SIGTERM', cancel);
+  process.removeListener('SIGINT', cancel);
+  if (execution.kind === 'threw') {
+    // Proof: keeping the repeated guard tick/stop value aggregated one original failure twice; identity-preserving deduplication restored the repeated-guard control (2026-11-11).
+    failures.delete(execution.cause);
+    // Proof: forcing aggregation here replaced the single run failure identity; restoring this branch passed the single-primary control (2026-11-11).
+    if (failures.size === 0) throw execution.cause;
+    throw new AggregateError(
+      // Proof: removing execution.cause lost the primary sweep error from the four-failure watch control; restoration passed (2026-11-11).
+      [execution.cause, ...failures],
+      'resource command and cleanup failed',
+      { cause: execution.cause },
+    );
+  }
+  // Proof: omitting this branch returned success after a lone transport-close failure; the single-cleanup control failed until restoration (2026-11-11).
+  if (failures.size === 1) throw failures.values().next().value;
+  if (failures.size > 1) {
+    const causes = [...failures];
+    throw new AggregateError(causes, 'resource command cleanup failed', { cause: causes[0] });
+  }
+  return execution.status;
 }

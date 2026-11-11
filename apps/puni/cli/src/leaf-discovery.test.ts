@@ -6,17 +6,21 @@ import { parser, readInvocation, UsageRefusal } from './cli-parser';
 interface Leaf {
   readonly words: readonly string[];
   readonly terms: Usage;
+  readonly isHidden: boolean;
 }
 
-function findLeaves(terms: Usage, words: readonly string[] = []): Leaf[] {
+function findLeaves(terms: Usage, words: readonly string[] = [], isHidden = false): Leaf[] {
   const first = terms.at(0);
-  if (first?.type === 'command') return findLeaves(terms.slice(1), [...words, first.name]);
+  if (first?.type === 'command')
+    return findLeaves(terms.slice(1), [...words, first.name], isHidden || first.hidden === true);
   if (
     first?.type === 'exclusive' &&
     first.terms.some((branch) => ['command', 'exclusive'].includes(branch.at(0)?.type ?? ''))
   )
-    return first.terms.flatMap((branch) => findLeaves([...branch, ...terms.slice(1)], words));
-  return words.length === 0 ? [] : [{ words, terms }];
+    return first.terms.flatMap((branch) =>
+      findLeaves([...branch, ...terms.slice(1)], words, isHidden),
+    );
+  return words.length === 0 ? [] : [{ words, terms, isHidden }];
 }
 
 function findOptions(terms: Usage): string[] {
@@ -100,6 +104,9 @@ const expectedLeaves = {
     'ops job render-audit-units',
     'ops job run',
     'ops job status',
+    'ops lock hold-internal-v1',
+    'ops lock run',
+    'ops lock status',
     'ops outbox drop',
     'ops pool init',
     'ops pool inspect',
@@ -139,26 +146,33 @@ describe('complete installed grammar discovery through PUNI', () => {
 
   for (const leaf of leaves) {
     const name = leaf.words.join(' ');
-    it(name + ' help and dynamic completion describe every declared option', () => {
-      let help = '';
-      expect(
-        readInvocation([...leaf.words, '--help'], (chunk) => {
-          help += chunk;
-        }),
-      ).toEqual({ kind: 'printed' });
-      expect(help).toContain('Usage: puni ' + name);
-      expect(help).not.toContain('[...]');
-      let completion = '';
-      expect(
-        readInvocation(['completion', 'bash', ...leaf.words, '--'], (chunk) => {
-          completion += chunk;
-        }),
-      ).toEqual({ kind: 'printed' });
-      for (const option of findOptions(leaf.terms)) {
-        expect(help, name).toContain(option);
-        expect(completion, name).toContain(option);
-      }
-    });
+    it(
+      name +
+        (leaf.isHidden
+          ? ' help describes private options while completion conceals them'
+          : ' help and dynamic completion describe every declared option'),
+      () => {
+        let help = '';
+        expect(
+          readInvocation([...leaf.words, '--help'], (chunk) => {
+            help += chunk;
+          }),
+        ).toEqual({ kind: 'printed' });
+        expect(help).toContain('Usage: puni ' + name);
+        expect(help).not.toContain('[...]');
+        let completion = '';
+        expect(
+          readInvocation(['completion', 'bash', ...leaf.words, '--'], (chunk) => {
+            completion += chunk;
+          }),
+        ).toEqual({ kind: 'printed' });
+        for (const option of findOptions(leaf.terms)) {
+          expect(help, name).toContain(option);
+          if (leaf.isHidden) expect(completion, name).not.toContain(option);
+          else expect(completion, name).toContain(option);
+        }
+      },
+    );
 
     it(name + ' refuses an unknown option before operation IO', () => {
       expect(() =>

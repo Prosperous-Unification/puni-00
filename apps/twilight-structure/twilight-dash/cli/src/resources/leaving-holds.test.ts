@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 
 import { insideLinuxNamespace } from './host-pool.test.fixture';
-import { type HoldScope, identifyProcess, inspectHolds } from './runtime';
+import { hasProcessEnded, type HoldScope, identifyProcess, inspectHolds } from './runtime';
 
 /**
  * A group leader that called `pthread_exit` beside a live thread, printing its pid once the
@@ -86,6 +86,31 @@ if (insideLinuxNamespace(import.meta.path)) {
       parent.kill('SIGKILL');
       await parent.exited;
       rmSync(locator, { recursive: true, force: true });
+    }
+  });
+
+  test('a zombie guard leader with a surviving thread is retained until the complete original group ends', async () => {
+    const parent = await leavingLeader(null);
+    try {
+      const stat = readFileSync('/proc/' + String(parent.pid) + '/stat', 'utf8'),
+        start = stat
+          .slice(stat.lastIndexOf(')') + 2)
+          .split(' ')
+          .at(19);
+      if (start === undefined) throw new Error('fixture full process birth missing');
+      const identity = {
+        pid: parent.pid,
+        boot: readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(),
+        start,
+      };
+      expect(identifyProcess(parent.pid)).toBe(null);
+      expect(hasProcessEnded(identity)).toBe(false);
+      parent.kill('SIGKILL');
+      await parent.exited;
+      expect(hasProcessEnded(identity)).toBe(true);
+    } finally {
+      if (parent.exitCode === null) parent.kill('SIGKILL');
+      await parent.exited;
     }
   });
 }

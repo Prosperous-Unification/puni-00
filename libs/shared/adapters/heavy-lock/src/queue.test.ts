@@ -97,7 +97,16 @@ it('never jumps an earlier live ticket even when the kernel mutex is free', asyn
       },
       f.runtime,
     ),
-  ).toEqual({ kind: 'refused', aheadAtArrival: 1, ahead: 1 });
+  ).toEqual({
+    kind: 'refused',
+    aheadAtArrival: 1,
+    ahead: 1,
+    waitedSeconds: 0,
+    contention: {
+      kind: 'tickets',
+      tickets: [{ pidText: String(process.pid), label: { kind: 'named', text: 'earlier' } }],
+    },
+  });
   expect(entered).toBe(false);
   expect(readdirSync(f.path + '.queue')).toEqual([name]);
   expect(existsSync(f.path)).toBe(false);
@@ -491,7 +500,16 @@ it('uses its monotonic wait budget independently of repeated wall clock epochs',
       },
     },
   );
-  expect(completion).toEqual({ kind: 'refused', aheadAtArrival: 1, ahead: 1 });
+  expect(completion).toEqual({
+    kind: 'refused',
+    aheadAtArrival: 1,
+    ahead: 1,
+    waitedSeconds: 2,
+    contention: {
+      kind: 'tickets',
+      tickets: [{ pidText: String(process.pid), label: { kind: 'named', text: 'earlier' } }],
+    },
+  });
   expect(polls).toBe(2);
   expect(readdirSync(f.path + '.queue')).toEqual([name]);
 });
@@ -559,3 +577,38 @@ it('creates only a hidden draft before its first metadata byte is written', asyn
     writing.mockRestore();
   }
 });
+
+for (const queued of [false, true])
+  it(
+    'exposes admission timing inside protected work before completion ' +
+      (queued ? 'queued' : 'immediate'),
+    async () => {
+      const f = createFixture(),
+        name = '1799999999000000000-' + String(process.pid);
+      if (queued) writeTicket(f.path, name);
+      let elapsed = 10.25;
+      const runtime: QueueRuntime = {
+        ...f.runtime,
+        readElapsed: () => elapsed,
+        wait: () => {
+          elapsed += 2.875;
+          rmSync(join(f.path + '.queue', name));
+          return Promise.resolve('elapsed');
+        },
+      };
+      const completion = await runQueuedWork(
+        { ...f.request, waitSeconds: 10, pollSeconds: 2 },
+        async (admission?: { readonly aheadAtArrival: number; readonly waitedSeconds: number }) => {
+          expect(admission).toEqual({
+            aheadAtArrival: queued ? 1 : 0,
+            waitedSeconds: queued ? 2 : 0,
+          });
+          expect(readFileSync(f.path + '.d/holder', 'utf8')).toBe(String(process.pid) + '\n');
+          expect((await holdLock(f.path, () => Promise.resolve())).kind).toBe('busy');
+          return 42;
+        },
+        runtime,
+      );
+      expect(completion).toEqual({ kind: 'completed', value: 42, aheadAtArrival: queued ? 1 : 0 });
+    },
+  );

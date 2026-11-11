@@ -4,13 +4,19 @@ import { dirname } from 'node:path';
 import { type Command, readFailureStatus, readInvocation } from './cli-parser';
 import { type Context, executeCommand } from './execute-command';
 
-/** Lint/preparation may retain bounded-failure native references; other operations drain. */
+/** Owned lint/preparation/lock operations may retain terminal native references; other operations drain. */
 export interface Completion {
   readonly kind: 'drain' | 'exit';
   readonly status: number;
 }
 
 function requiresExit(command: Command | undefined): boolean {
+  if (
+    command?.tool === 'dash' &&
+    command.request.command === 'ops' &&
+    command.request.words.startsWith('lock ')
+  )
+    return true;
   return (
     command?.tool === 'burokrat' &&
     (command.request.command === 'lint' ||

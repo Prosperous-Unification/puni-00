@@ -1,4 +1,4 @@
-import type { DashCommand, ReleaseCommand } from '../cli-parser';
+import type { DashCommand, LockCommand, ReleaseCommand } from '../cli-parser';
 import type { Monotonic, WallClock } from '../clock';
 import type { ApiKey, McpEndpoint } from '../mcp/machine-token';
 import type { WbsTools } from '../mcp/wbs-tools';
@@ -29,7 +29,10 @@ import { formatHostPoolStatus } from './status';
 import { checkEligibleTypes, switchPoolMode } from './switch-mode';
 
 /** A parsed host-job or pool command line, discriminated by its words after `ops`. */
-export type OpsCommand = Exclude<Extract<DashCommand, { readonly command: 'ops' }>, ReleaseCommand>;
+export type OpsCommand = Exclude<
+  Extract<DashCommand, { readonly command: 'ops' }>,
+  ReleaseCommand | LockCommand
+>;
 
 /** Everything the `ops` commands reach outside their arguments, composed by `cli.ts`. */
 export interface OpsDependencies {
@@ -42,8 +45,8 @@ export interface OpsDependencies {
   readonly telemetry: ScopeTelemetry;
   readonly host: HostFacts;
   readonly user: string;
-  /** The shell lock (J12), resolved only by the commands that take or read it. */
-  readonly legacyLock: () => LegacyLock;
+  /** The native owner of the shared host queue, resolved only by commands that need it. */
+  readonly legacyLock: () => LegacyLock | Promise<LegacyLock>;
   /**
    * WBS's tools for the pool configuration's MCP endpoint and key, the client `resources`
    * publishes the outbox with; `ops outbox drop` re-sends through it (task 6.8b).
@@ -52,12 +55,12 @@ export interface OpsDependencies {
 }
 
 /**
- * The shell lock, or a refusal naming why it cannot be found.
- * @throws OpsRefusal 70 when the library is missing or answers no path.
+ * Resolve the selected native host lock, retaining synchronous and asynchronous refusal causes.
+ * @throws OpsRefusal 70 when the selected protected lock dependencies are unavailable.
  */
-function resolveLegacyLock(deps: OpsDependencies, command: string): LegacyLock {
+async function resolveLegacyLock(deps: OpsDependencies, command: string): Promise<LegacyLock> {
   try {
-    return deps.legacyLock();
+    return await deps.legacyLock();
   } catch (cause) {
     throw new OpsRefusal(70, `${command}: ${causeText(cause)}`, { cause });
   }
@@ -68,14 +71,14 @@ function resolveLegacyLock(deps: OpsDependencies, command: string): LegacyLock {
  * mode under the guard; null once the guard is released, when no Dash job takes it.
  * @throws OpsRefusal 70 when the queue cannot be read: unknown is never reported as empty.
  */
-function legacyQueueOf(
+async function legacyQueueOf(
   status: HostPoolStatus,
   deps: OpsDependencies,
   command: string,
-): LegacyQueueStatus | null {
+): Promise<LegacyQueueStatus | null> {
   if (status.mode === 'concurrent' && status.guard === 'released') return null;
   try {
-    return readLegacyQueue(resolveLegacyLock(deps, command));
+    return await readLegacyQueue(await resolveLegacyLock(deps, command));
   } catch (cause) {
     if (cause instanceof OpsRefusal) throw cause;
     throw new OpsRefusal(70, `${command}: ${causeText(cause)}`, { cause });
@@ -106,7 +109,7 @@ function openPool(config: string, clock: WallClock, command: string): ResourceRu
 }
 
 /** What `ops job run` and `ops job calibrate` reach, from the `ops` dependencies. */
-function launcherDependencies(deps: OpsDependencies): JobRunDependencies {
+async function launcherDependencies(deps: OpsDependencies): Promise<JobRunDependencies> {
   return {
     clock: deps.clock,
     monotonic: deps.monotonic,
@@ -120,7 +123,7 @@ function launcherDependencies(deps: OpsDependencies): JobRunDependencies {
     sampleIntervalMs: 10_000,
     settleBudgetMs: 30_000,
     user: deps.user,
-    legacyLock: resolveLegacyLock(deps, 'ops job run'),
+    legacyLock: await resolveLegacyLock(deps, 'ops job run'),
   };
 }
 
@@ -172,8 +175,9 @@ function auditInstant(now: string | undefined, clock: WallClock): number {
  * `cli.test.ts` holds this table equal to the parser's `ops` commands.
  */
 export const opsHandlers: OpsHandlers = {
-  'job run': (command, deps) => runHostJob(command, launcherDependencies(deps)),
-  'job calibrate': (command, deps) => calibrateHostJob(command, launcherDependencies(deps)),
+  'job run': async (command, deps) => runHostJob(command, await launcherDependencies(deps)),
+  'job calibrate': async (command, deps) =>
+    calibrateHostJob(command, await launcherDependencies(deps)),
   'job propose': (command, deps) => {
     const catalogue = readCommittedCatalogue(deps.cwd, 'ops job propose');
     const jobType = catalogue.jobs.find((job) => job.id === command.type);
@@ -258,7 +262,7 @@ export const opsHandlers: OpsHandlers = {
       runtime.close();
     }
   },
-  'job status': (command, deps) => {
+  'job status': async (command, deps) => {
     const runtime = openPool(command.config, deps.clock, 'ops job status');
     try {
       const status = runtime.hostPoolStatus();
@@ -274,7 +278,7 @@ export const opsHandlers: OpsHandlers = {
         const peaks = new Map(
           status.jobs.map((job) => [job.id, records.inspect(job.id)?.peakMemoryBytes ?? null]),
         );
-        const legacy = legacyQueueOf(status, deps, 'ops job status');
+        const legacy = await legacyQueueOf(status, deps, 'ops job status');
         for (const line of formatHostPoolStatus(
           status,
           peaks,
@@ -333,11 +337,11 @@ export const opsHandlers: OpsHandlers = {
       runtime.close();
     }
   },
-  'pool inspect': (command, deps) => {
+  'pool inspect': async (command, deps) => {
     const runtime = openPool(command.config, deps.clock, 'ops pool inspect');
     try {
       const status = runtime.hostPoolStatus();
-      const legacy = legacyQueueOf(status, deps, 'ops pool inspect');
+      const legacy = await legacyQueueOf(status, deps, 'ops pool inspect');
       deps.stdout(
         `${JSON.stringify({
           ...status,
@@ -367,7 +371,7 @@ export const opsHandlers: OpsHandlers = {
         {
           now: () => deps.clock.read(),
           environment: deps.environment,
-          legacyLock: resolveLegacyLock(deps, 'ops pool switch-mode'),
+          legacyLock: await resolveLegacyLock(deps, 'ops pool switch-mode'),
           account: deps.user,
           report: (line) => {
             deps.stderr(`${line}\n`);

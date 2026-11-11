@@ -33,7 +33,7 @@ None.
 
 ## Decisions Recorded
 
-None.
+- [ADR 0070: durable holds retain helper identity through cleanup](../../../docs/adr/0085-durable-holds-retain-helper-identities.md).
 
 ## Impact
 

@@ -36,6 +36,7 @@ export async function executeCommand(command: Command, context: Context): Promis
         monotonic: monotonicClock(),
         send: (input, init) => fetch(input, init),
         sleep: (milliseconds) => Bun.sleep(milliseconds),
+        callerDirectory: context.callerDirectory,
         environment: context.environment,
         write: (text) => {
           context.stdout(text);

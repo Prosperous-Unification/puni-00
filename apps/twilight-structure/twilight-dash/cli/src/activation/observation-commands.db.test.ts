@@ -32,6 +32,7 @@ function capturingDependencies(): { readonly deps: DashDependencies; readonly ou
     output,
     deps: {
       clock: FIXED_CLOCK,
+      helperPrefix: [process.execPath, '/unused/standalone.ts'],
       monotonic: { now: () => 0 },
       planEnrollment: () => Promise.reject(new Error('store commands never plan enrollment')),
       stdout: {

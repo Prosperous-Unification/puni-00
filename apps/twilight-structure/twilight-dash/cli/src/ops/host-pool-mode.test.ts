@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -39,6 +39,7 @@ import {
   GUARD_LABEL,
   type HostJobAdmission,
   HostPoolModeRefusal,
+  identifyProcess,
   loadResourceConfiguration,
   ResourceRuntime,
 } from '../resources/runtime';
@@ -66,11 +67,36 @@ import { switchHoldFile, verifyEligibleTypes } from './switch-mode';
 if (insideOpsNamespace(import.meta.path)) {
   const clock = wallClock();
   const monotonic = monotonicClock();
-  const cleanups: (() => void)[] = [];
-  afterEach(() => {
-    for (const cleanup of cleanups.splice(0)) cleanup();
+  const cleanups: (() => void | Promise<void>)[] = [];
+  afterEach(async () => {
+    for (const cleanup of cleanups.splice(0)) await cleanup();
   });
   const silent = (): void => undefined;
+  async function stopChild(child: ChildProcess): Promise<void> {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    const exited = new Promise<void>((resolveExit, rejectExit) => {
+      child.once('error', rejectExit);
+      child.once('exit', () => {
+        resolveExit();
+      });
+    });
+    child.kill('SIGKILL');
+    await exited;
+  }
+
+  /** Seed unchanged stored legacy state; new guard recording now requires current Ready evidence. */
+  function recordHistoricalGuard(runtime: ResourceRuntime, lockPath: string): void {
+    const identity = identifyProcess(process.pid);
+    if (identity === null) throw new Error('fixture historical guard birth missing');
+    const ledger = new Database(join(runtime.configuration.root, '.dash', 'resources.sqlite'));
+    try {
+      ledger
+        .query('UPDATE host_pool SET guard_holder=? WHERE id=1')
+        .run(JSON.stringify({ ...identity, lockPath, since: clock.read() }));
+    } finally {
+      ledger.close();
+    }
+  }
 
   /**
    * A pool of 8 cores and 13 GiB, initialized, whose launcher checkout carries a catalogue of
@@ -242,13 +268,33 @@ if (insideOpsNamespace(import.meta.path)) {
   /** The `watch` singleton's guard, ticking every 200 ms until the test ends. */
   function watchGuard(fixture: Pool): void {
     const guard = new SingletonGuard(runtimeOf(fixture), () => fixture.lock, process.env, silent);
+    let pending = Promise.resolve();
+    let failure: { cause: unknown } | undefined;
     const timer = setInterval(() => {
-      guard.tick();
+      pending = pending.then(async () => {
+        if (failure !== undefined) return;
+        try {
+          await guard.tick();
+        } catch (cause) {
+          failure = { cause };
+        }
+      });
     }, 200);
-    cleanups.unshift(() => {
+    cleanups.unshift(async () => {
       clearInterval(timer);
-      guard.stop();
-      // A guard still held keeps a holder alive; its hold file goes with the fixture.
+      await pending;
+      try {
+        await guard.stop();
+      } catch (cleanupFailure) {
+        if (failure !== undefined)
+          throw new AggregateError(
+            [failure.cause, cleanupFailure],
+            'test guard tick and stop failed',
+            { cause: cleanupFailure },
+          );
+        throw cleanupFailure;
+      }
+      if (failure !== undefined) throw failure.cause;
     });
   }
 
@@ -275,8 +321,9 @@ if (insideOpsNamespace(import.meta.path)) {
     );
     if (held.kind !== 'held') throw new Error(held.kind);
     expect(runtime.recordGuardHolder(held.hold.pid, fixture.lock.lockPath)).toBe(true);
-    cleanups.push(() => {
+    cleanups.unshift(async () => {
       held.hold.release();
+      await held.hold.exited;
     });
     return held.hold;
   }
@@ -313,7 +360,7 @@ if (insideOpsNamespace(import.meta.path)) {
       if (dash === undefined || late === undefined) throw new Error('both ran');
       expect(overlaps(dash, late)).toBe(false);
       expect(late.start).toBeGreaterThanOrEqual(dash.end ?? Number.POSITIVE_INFINITY);
-      expect(readLegacyQueue(fixture.lock).holder).toEqual({ kind: 'none' });
+      expect((await readLegacyQueue(fixture.lock)).holder).toEqual({ kind: 'none' });
       expect(
         existsSync(jobHoldFile(fixture.root, runtimeOf(fixture).listHostJobs()[0]?.id ?? '')),
       ).toBe(false);
@@ -361,7 +408,7 @@ if (insideOpsNamespace(import.meta.path)) {
         diskUnits: 0,
         workspaceSlots: 0,
       });
-      expect(readLegacyQueue(fixture.lock).waiters).toEqual([]);
+      expect((await readLegacyQueue(fixture.lock)).waiters).toEqual([]);
       expect(intervalsOf(fixture.log).has('late')).toBe(false);
       await legacy.exited;
     });
@@ -384,7 +431,7 @@ if (insideOpsNamespace(import.meta.path)) {
           line.endsWith('keeps the shell lock until its compute settles; watch releases it'),
         ),
       ).toBe(true);
-      expect(readLegacyQueue(fixture.lock).holder.kind).toBe('held');
+      expect((await readLegacyQueue(fixture.lock)).holder.kind).toBe('held');
       const early = startLegacyCaller(fixture.lock, 'early', fixture.log, {
         waitSeconds: 0,
         seconds: 0,
@@ -396,10 +443,10 @@ if (insideOpsNamespace(import.meta.path)) {
       if (job === undefined) throw new Error('no host job recorded');
       await eventually(
         'the surviving child to end and the job to settle',
-        () => {
+        async () => {
           runtime.settleHostJob(job.id, { containersGone: () => true });
-          guard.tick();
-          return readLegacyQueue(fixture.lock).holder.kind === 'none';
+          await guard.tick();
+          return (await readLegacyQueue(fixture.lock)).holder.kind === 'none';
         },
         20_000,
       );
@@ -447,10 +494,10 @@ if (insideOpsNamespace(import.meta.path)) {
       );
       if (held.kind !== 'held') throw new Error(held.kind);
       const guard = new SingletonGuard(runtime, () => fixture.lock, process.env, silent);
-      guard.tick();
+      await guard.tick();
       expect(existsSync(jobHoldFile(fixture.root, admitted.job.id))).toBe(true);
       runtime.withdrawUnlaunchedHostJob(admitted.job.id, 'test');
-      guard.tick();
+      await guard.tick();
       expect(await held.hold.exited).toBe(0);
       const switchHold = await holdLegacyLock(
         fixture.lock,
@@ -465,9 +512,9 @@ if (insideOpsNamespace(import.meta.path)) {
         process.env,
       );
       if (switchHold.kind !== 'held') throw new Error(switchHold.kind);
-      guard.tick();
+      await guard.tick();
       expect(await switchHold.hold.exited).toBe(0);
-      expect(readLegacyQueue(fixture.lock).holder).toEqual({ kind: 'none' });
+      expect((await readLegacyQueue(fixture.lock)).holder).toEqual({ kind: 'none' });
     });
   });
 
@@ -493,7 +540,7 @@ if (insideOpsNamespace(import.meta.path)) {
       const transition = runtimeOf(fixture).hostPoolTransition();
       expect(transition).toMatchObject({ mode: 'concurrent', guard: 'on', guardHolder: null });
       expect(transition.switching).toBeNull();
-      expect(readLegacyQueue(fixture.lock).holder).toEqual({ kind: 'none' });
+      expect((await readLegacyQueue(fixture.lock)).holder).toEqual({ kind: 'none' });
       expect((await switchMode(fixture, 'concurrent')).code).toBe(64);
     });
 
@@ -681,7 +728,7 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(refused.stderr).toContain('run resources sweep to release it');
       // A live holder is named alive by its identity, not by its pid alone (review K5).
       const live = spawn('sleep', ['30']);
-      cleanups.push(() => live.kill('SIGKILL'));
+      cleanups.unshift(() => stopChild(live));
       await eventually('the live holder', () => live.pid !== undefined);
       const stat = readFileSync(`/proc/${String(live.pid)}/stat`, 'utf8');
       const start = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19] ?? '';
@@ -706,13 +753,13 @@ if (insideOpsNamespace(import.meta.path)) {
       const switching = switchMode(fixture, 'concurrent', { waitSeconds: 30 });
       await eventually(
         'the switch ticket',
-        () => readLegacyQueue(fixture.lock).waiters.length === 1,
+        async () => (await readLegacyQueue(fixture.lock)).waiters.length === 1,
       );
       process.emit('SIGTERM', 'SIGTERM');
       const interrupted = await switching;
       expect(interrupted.code).toBe(143);
       expect(interrupted.stderr).toContain('interrupted by SIGTERM');
-      expect(readLegacyQueue(fixture.lock).waiters).toEqual([]);
+      expect((await readLegacyQueue(fixture.lock)).waiters).toEqual([]);
       expect(existsSync(switchHoldFile(fixture.root))).toBe(false);
       expect(runtimeOf(fixture).hostPoolTransition()).toMatchObject({
         mode: 'observe',
@@ -731,7 +778,7 @@ if (insideOpsNamespace(import.meta.path)) {
       const switching = switchMode(fixture, 'concurrent');
       await eventually(
         'the switch ticket',
-        () => readLegacyQueue(fixture.lock).waiters.length === 1,
+        async () => (await readLegacyQueue(fixture.lock)).waiters.length === 1,
       );
       const behind = startLegacyCaller(fixture.lock, 'behind', fixture.log, {
         waitSeconds: 30,
@@ -776,7 +823,7 @@ if (insideOpsNamespace(import.meta.path)) {
       const first = run(fixture, 'eligible', 'first', { seconds: 2, waitSeconds: 30 });
       const second = run(fixture, 'eligible', 'second', { seconds: 2, waitSeconds: 30 });
       await eventually('both payloads', () => intervalsOf(fixture.log).size === 2);
-      const status = readLegacyQueue(fixture.lock);
+      const status = await readLegacyQueue(fixture.lock);
       expect(status.lines[0]).toMatch(
         new RegExp(`^heavy lock: holder pid \\d+ label ${GUARD_LABEL}$`),
       );
@@ -840,7 +887,7 @@ if (insideOpsNamespace(import.meta.path)) {
     test('the guard record is not cleared while a ticket is queued or compute is held', async () => {
       const fixture = await concurrentPool();
       const runtime = runtimeOf(fixture);
-      expect(runtime.recordGuardHolder(process.pid, fixture.lock.lockPath)).toBe(true);
+      recordHistoricalGuard(runtime, fixture.lock.lockPath);
       const queued = runtime.enqueueHostJob(
         { descriptor: jobType('eligible', 1, 1), label: 'lane:demand', waitSeconds: 30 },
         process.pid,
@@ -870,7 +917,7 @@ if (insideOpsNamespace(import.meta.path)) {
       );
       if (held.kind !== 'held') throw new Error(held.kind);
       // Recorded under this test's own pid: alive, but not the shell lock's holder.
-      expect(runtime.recordGuardHolder(process.pid, fixture.lock.lockPath)).toBe(true);
+      recordHistoricalGuard(runtime, fixture.lock.lockPath);
       const queued = runtime.enqueueHostJob(
         { descriptor: jobType('eligible', 1, 1), label: 'lane:x', waitSeconds: 0 },
         process.pid,
@@ -958,7 +1005,7 @@ if (insideOpsNamespace(import.meta.path)) {
           `import { runResources } from ${JSON.stringify(join(import.meta.dir, '..', 'resources', 'command'))};`,
           `import { parseDashRequest } from ${JSON.stringify(join(import.meta.dir, '..', 'cli-parser'))};`,
           `import { WbsUnreachable } from ${JSON.stringify(join(import.meta.dir, '..', 'mcp', 'wbs-tools'))};`,
-          `const lock = ${JSON.stringify(fixture.lock)};`,
+          `const lock = {...${JSON.stringify(fixture.lock)},clock:{read:()=>Date.now()},monotonic:{now:()=>performance.now()}};`,
           'const tools = { call: async () => { throw new WbsUnreachable("fixture WBS is down"); }, close: async () => undefined };',
           `process.exitCode = await runResources(parseDashRequest('resources', ['resources', 'watch', '--config', ${JSON.stringify(fixture.config)}]), { read: () => Date.now() }, () => undefined, () => tools, () => lock);`,
         ].join('\n'),
@@ -968,10 +1015,11 @@ if (insideOpsNamespace(import.meta.path)) {
       try {
         expect(await run(fixture, 'eligible', 'watched', { seconds: 1, waitSeconds: 30 })).toBe(0);
         expect(intervalsOf(fixture.log).has('watched')).toBe(true);
-        await eventually('watch to let go of the guard', () => {
+        await eventually('watch to let go of the guard', async () => {
           const transition = runtimeOf(fixture).hostPoolTransition();
           return (
-            transition.guardHolder === null && readLegacyQueue(fixture.lock).holder.kind === 'none'
+            transition.guardHolder === null &&
+            (await readLegacyQueue(fixture.lock)).holder.kind === 'none'
           );
         });
       } finally {
@@ -998,8 +1046,9 @@ if (insideOpsNamespace(import.meta.path)) {
       );
       if (held.kind !== 'held') throw new Error(held.kind);
       expect(runtime.recordGuardHolder(held.hold.pid, fixture.lock.lockPath)).toBe(true);
-      cleanups.push(() => {
+      cleanups.unshift(async () => {
         held.hold.release();
+        await held.hold.exited;
       });
       return held.hold;
     }
@@ -1026,7 +1075,7 @@ if (insideOpsNamespace(import.meta.path)) {
           payload: leaver,
         }),
       ).toBe(0);
-      expect(readLegacyQueue(fixture.lock).holder.kind).toBe('held');
+      expect((await readLegacyQueue(fixture.lock)).holder.kind).toBe('held');
       await Bun.sleep(2500);
       const out: string[] = [];
       const tools = {
@@ -1045,7 +1094,7 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(out.join('')).toContain('"legacyHolds":{"released":[');
       await eventually(
         'the holder to let go',
-        () => readLegacyQueue(fixture.lock).holder.kind === 'none',
+        async () => (await readLegacyQueue(fixture.lock)).holder.kind === 'none',
       );
     });
 
@@ -1109,7 +1158,7 @@ if (insideOpsNamespace(import.meta.path)) {
         process.env,
         (line) => lines.push(line),
       );
-      guard.tick();
+      await guard.tick();
       expect(runtime.hostPoolTransition().holdCorruption).toBe(stray);
       expect(lines.join('\n')).toContain(`holds ${stray}, which Dash did not write`);
       const queued = runtime.enqueueHostJob(
@@ -1126,9 +1175,9 @@ if (insideOpsNamespace(import.meta.path)) {
       );
       expect(status.join('')).toContain(`hold corruption: ${stray}`);
       // No legacy holder was started or ended beside it.
-      expect(readLegacyQueue(fixture.lock).holder).toEqual({ kind: 'none' });
+      expect((await readLegacyQueue(fixture.lock)).holder).toEqual({ kind: 'none' });
       rmSync(stray);
-      guard.tick();
+      await guard.tick();
       expect(runtime.hostPoolTransition().holdCorruption).toBeNull();
     });
 
@@ -1227,7 +1276,7 @@ if (insideOpsNamespace(import.meta.path)) {
         'this switch-mode no longer holds the intake fence',
       );
       const other = spawn('sleep', ['30']);
-      cleanups.push(() => other.kill('SIGKILL'));
+      cleanups.unshift(() => stopChild(other));
       await eventually('the other process', () => other.pid !== undefined);
       const stat = readFileSync(`/proc/${String(other.pid)}/stat`, 'utf8');
       const start = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
@@ -1270,7 +1319,7 @@ if (insideOpsNamespace(import.meta.path)) {
       const fixture = pool();
       const runtime = runtimeOf(fixture);
       const other = spawn('sleep', ['30']);
-      cleanups.push(() => other.kill('SIGKILL'));
+      cleanups.unshift(() => stopChild(other));
       await eventually('the other process', () => other.pid !== undefined);
       const job = admitOne(runtime, 'lane:theirs', other.pid);
       expect(() => runtime.withdrawUnlaunchedHostJob(job.id, 'test')).toThrow(
@@ -1294,11 +1343,11 @@ if (insideOpsNamespace(import.meta.path)) {
         process.env,
         silent,
       );
-      second.tick();
+      await second.tick();
       await Bun.sleep(500);
-      expect(readLegacyQueue(fixture.lock).waiters).toEqual([]);
+      expect((await readLegacyQueue(fixture.lock)).waiters).toEqual([]);
       expect(runtime.hostPoolTransition().guardHolder?.pid).toBe(hold.pid);
-      second.stop();
+      await second.stop();
     });
 
     test('recording a guard holder outside concurrent mode is refused', () => {
@@ -1325,10 +1374,9 @@ if (insideOpsNamespace(import.meta.path)) {
       }
     });
 
-    test('an unreadable compute entry keeps the shell lock', async () => {
-      const report: string[] = [];
+    test('an unreadable compute entry keeps the shell lock and fails loudly', async () => {
       let released = false;
-      await endLegacyHold(
+      const failure: unknown = await endLegacyHold(
         {
           inspectHostJob: () => {
             throw new Error('ledger gone');
@@ -1337,18 +1385,20 @@ if (insideOpsNamespace(import.meta.path)) {
         'job-x',
         {
           pid: 1,
+          identity: { pid: 1, boot: '00000000-0000-0000-0000-000000000000', start: '1' },
+          diagnostics: () => ({ kind: 'readable', text: '' }),
           release: () => {
             released = true;
           },
           exited: Promise.resolve(0),
         },
-        { report: (line: string) => report.push(line) } as unknown as JobRunDependencies,
+        { report: silent },
+      ).then(
+        () => undefined,
+        (cause: unknown) => cause,
       );
-      // Proof: releasing on the unreadable branch made this see the hold released (2026-11-02, H7).
+      expect(String(failure)).toContain('compute entry is unreadable');
       expect(released).toBe(false);
-      expect(report).toEqual([
-        'ops job: job-x keeps the shell lock: its compute entry is unreadable (ledger gone); watch releases it',
-      ]);
     });
   });
 
@@ -1424,7 +1474,7 @@ if (insideOpsNamespace(import.meta.path)) {
         process.env,
         (line) => lines.push(line),
       );
-      guard.tick();
+      await guard.tick();
       expect(runtime.guardObligation().demand).toBe(false);
       expect(lines).toContain(
         'host pool: removing ticket lane:killed (pid ' +
@@ -1432,7 +1482,7 @@ if (insideOpsNamespace(import.meta.path)) {
           '): its process is gone',
       );
       await Bun.sleep(300);
-      expect(readLegacyQueue(fixture.lock).holder).toEqual({ kind: 'none' });
+      expect((await readLegacyQueue(fixture.lock)).holder).toEqual({ kind: 'none' });
     });
 
     test('a guard lost mid-run with no watch is still recorded', async () => {

@@ -14,7 +14,9 @@ import { submitAdmission } from './authority/submit-admission';
 import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activation-checks';
 import {
   type DashCommand,
+  isLockCommand,
   isReleaseCommand,
+  type LockCommand,
   parseDashCommand,
   type ReleaseCommand,
   UsageRefusal,
@@ -61,6 +63,8 @@ function resourceTools(endpoint: McpEndpoint, key: ApiKey, monotonic: Monotonic)
 /** Everything `runDash` reaches outside its arguments, composed once by `entrypoint.ts`. */
 export interface DashDependencies {
   readonly planEnrollment: PlanEnrollment;
+  /** Fully Dash-namespaced protected launch selected by the executable boundary. */
+  readonly helperPrefix: readonly string[];
   readonly clock: WallClock;
   /** Deadlines for the activation commands; composed now so no later command defaults it. */
   readonly monotonic: Monotonic;
@@ -77,7 +81,7 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
 
 /** The commands `entrypoint.ts` dispatches itself, so `mcp token` never loads this module. */
 type EntrypointCommand =
-  Extract<DashCommand, { readonly command: 'mcp' | 'pool' }> | ReleaseCommand;
+  Extract<DashCommand, { readonly command: 'mcp' | 'pool' }> | ReleaseCommand | LockCommand;
 
 /** A parsed command `runDash` dispatches. */
 export type DispatchedCommand = Exclude<DashCommand, EntrypointCommand>;
@@ -211,7 +215,8 @@ export const dashHandlers: Handlers = {
       deps.clock,
       (text) => deps.stdout.write(text),
       (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),
-      productionLegacyLock,
+      () =>
+        productionLegacyLock(deps.helperPrefix, { clock: deps.clock, monotonic: deps.monotonic }),
     );
   },
   ops: async (command, deps) => {
@@ -227,7 +232,8 @@ export const dashHandlers: Handlers = {
       telemetry: linuxScopeTelemetry(),
       host: linuxHostFacts,
       user: userInfo().username,
-      legacyLock: productionLegacyLock,
+      legacyLock: () =>
+        productionLegacyLock(deps.helperPrefix, { clock: deps.clock, monotonic: deps.monotonic }),
       connect: (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),
     });
   },
@@ -256,7 +262,8 @@ export async function runDash(command: DispatchedCommand, deps: DashDependencies
   // Proof: giving `clock` a `wallClock()` default here failed `only clock.ts reads the wall
   // clock` naming `cli.ts`; dropping this check let `runDash refuses missing dependencies`
   // reach the dispatcher (2026-10-11); dropping `monotonic` from it did the same (2026-10-12).
-  for (const name of ['planEnrollment', 'clock', 'monotonic', 'stdout'] as const) {
+  // Proof: omitting helperPrefix admission failed runDash refuses missing dependencies; restoration passed (2026-11-11).
+  for (const name of ['planEnrollment', 'clock', 'monotonic', 'stdout', 'helperPrefix'] as const) {
     if ((deps as Partial<DashDependencies> | undefined)?.[name] === undefined) {
       throw new Error(`Dash dependency is required: ${name}`);
     }
@@ -291,9 +298,14 @@ export async function runDashArguments(
   const command = parseDashCommand(argv);
   // Proof: removing the release predicate sent `runDashArguments refuses lightweight release`
   // into the heavy handler and lost its modeled UsageRefusal.
-  if (command.command === 'mcp' || command.command === 'pool' || isReleaseCommand(command)) {
+  if (
+    command.command === 'mcp' ||
+    command.command === 'pool' ||
+    isReleaseCommand(command) ||
+    isLockCommand(command)
+  ) {
     throw new UsageRefusal(
-      `${isReleaseCommand(command) ? 'ops release' : command.command} is dispatched by entrypoint.ts`,
+      `${isReleaseCommand(command) ? 'ops release' : isLockCommand(command) ? 'ops lock' : command.command} is dispatched by entrypoint.ts`,
     );
   }
   // Proof: dash-arguments-status; `returns explicit Dash arguments statuses without touching the executable exit code` failed under the recorded source fault and passed after restoration.

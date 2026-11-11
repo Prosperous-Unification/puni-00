@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -55,6 +56,17 @@ it('packs and installs the captured PUNI package outside its checkout with prote
       cpSync(origin, target, { dereference: false });
     } else rmSync(target, { force: true });
   }
+  // This captured test commit substitutes only the fixed canonical inode literal. The installed
+  // owner gets no path override; real-host pathname qualification remains a separate gate.
+  const lockPath = join(root, 'controlled native mutex');
+  const queuePath = join(repository, 'libs/shared/adapters/heavy-lock/src/queue.ts');
+  const queueSource = readFileSync(queuePath, 'utf8'),
+    canonical = "return '/home/puni1/.cache/wbs-heavy-work.lock';";
+  expect(queueSource.split(canonical)).toHaveLength(2);
+  writeFileSync(
+    queuePath,
+    queueSource.replace(canonical, 'return ' + JSON.stringify(lockPath) + ';'),
+  );
   git(repository, ['config', 'user.name', 'PUNI package integration']);
   git(repository, ['config', 'user.email', 'package@example.test']);
   git(repository, ['add', '--all']);
@@ -201,7 +213,7 @@ it('packs and installs the captured PUNI package outside its checkout with prote
     NODE_OPTIONS: '--require=' + preload,
     BUN_BE_BUN: '1',
   };
-  function invoke(args: string[]) {
+  function invoke(args: string[], expectedStatus = 0) {
     const child = Bun.spawnSync([executable, ...args], {
       cwd: candidate,
       env: environment,
@@ -210,7 +222,7 @@ it('packs and installs the captured PUNI package outside its checkout with prote
       stderr: 'pipe',
       timeout: 20000,
     });
-    expect(child.exitCode, child.stderr.toString()).toBe(0);
+    expect(child.exitCode, child.stderr.toString()).toBe(expectedStatus);
     expect(existsSync(sentinel)).toBe(false);
     return child.stdout.toString();
   }
@@ -219,6 +231,128 @@ it('packs and installs the captured PUNI package outside its checkout with prote
   expect(invoke(['--version'])).toBe('0.3.0');
   expect(invoke(['--help'])).toContain('navigator');
   expect(invoke(['bur', 'template', 'list'])).toContain('"id":"module"');
+  expect(invoke(['dash', 'ops', 'lock', 'status'])).toBe(
+    'heavy lock: holder none' + String.fromCharCode(10),
+  );
+  expect(existsSync(lockPath)).toBe(false);
+  expect(existsSync(lockPath + '.queue')).toBe(false);
+  const nativePayload = join(candidate, 'native payload.ts');
+  const kernel = readFileSync(executable, 'utf8').split(String.fromCharCode(10)).at(0);
+  if (!kernel?.startsWith('#!')) throw new Error('installed protected interpreter absent');
+  writeFileSync(
+    nativePayload,
+    [
+      kernel,
+      'console.log(JSON.stringify({cwd:process.cwd(),argv:process.argv.slice(2)}));process.exit(37);',
+    ].join(String.fromCharCode(10)),
+    { mode: 0o755 },
+  );
+  const nativeArgs = ['a b', '', '$(literal)', '--literal'];
+  expect(
+    JSON.parse(
+      invoke(
+        [
+          'd',
+          'ops',
+          'lock',
+          'run',
+          '--label',
+          'installed native',
+          '--',
+          nativePayload,
+          ...nativeArgs,
+        ],
+        37,
+      ),
+    ),
+  ).toEqual({ cwd: candidate, argv: nativeArgs });
+  expect(existsSync(lockPath + '.d')).toBe(false);
+  expect(readdirSync(lockPath + '.queue')).toEqual([]);
+  // Historical shim bytes are inspected as committed enrollment evidence, never executed.
+  // The installed native parent/helper must work with only Bun and Git on PATH.
+  const launcher = join(root, 'historical enrolled checkout'),
+    poolRoot = join(root, 'installed managed root'),
+    poolConfig = join(root, 'installed pool.json');
+  mkdirSync(join(launcher, 'bin'), { recursive: true });
+  mkdirSync(join(launcher, 'infra', 'jobs'), { recursive: true });
+  mkdirSync(poolRoot, { mode: 0o700 });
+  writeFileSync(join(launcher, 'bin', 'heavy-lock-lib.sh'), 'run_heavy_job() {\n  :\n}\n');
+  writeFileSync(
+    join(launcher, 'infra', 'jobs', 'catalogue.json'),
+    JSON.stringify({ schemaVersion: 1, jobs: [] }),
+  );
+  git(launcher, ['init', '--initial-branch=main']);
+  git(launcher, ['config', 'user.name', 'Installed holder fixture']);
+  git(launcher, ['config', 'user.email', 'installed-holder@example.invalid']);
+  git(launcher, ['add', '.']);
+  git(launcher, ['commit', '-m', 'historical enrollment evidence']);
+  writeFileSync(
+    poolConfig,
+    JSON.stringify({
+      schemaVersion: 3,
+      root: poolRoot,
+      authorityId: 'installed-authority',
+      epoch: 'installed-epoch',
+      providerId: 'installed-provider',
+      mcpResource: 'http://127.0.0.1:3100/mcp',
+      credential: `wbs_mk_${crypto.randomUUID()}.${'k'.repeat(43)}`,
+      diskUnitBytes: 1073741824,
+      diskBudgetUnits: 1,
+      workspaceSlots: 1,
+      headroomBytes: 0,
+      cpuCores: 1,
+      memoryGib: 2,
+      headroom: { cpuCores: 0, memoryGib: 1 },
+      exclusiveUnits: {},
+      enrollmentId: 'installed-enrollment',
+      launcherCheckouts: [launcher],
+      concurrencyEligible: [],
+    }),
+    { mode: 0o600 },
+  );
+  invoke(['d', 'ops', 'pool', 'init', '--config', poolConfig]);
+  expect(
+    JSON.parse(
+      invoke([
+        'dash',
+        'ops',
+        'pool',
+        'switch-mode',
+        'concurrent',
+        '--config',
+        poolConfig,
+        '--operator',
+        'installed fixture',
+        '--allow-empty',
+        '--wait-seconds',
+        '10',
+        '--poll-seconds',
+        '1',
+      ]),
+    ),
+  ).toMatchObject({ to: 'concurrent' });
+  expect(readdirSync(join(poolRoot, '.dash', 'legacy-holds'))).toEqual([]);
+  expect(existsSync(lockPath + '.d')).toBe(false);
+  expect(readdirSync(lockPath + '.queue')).toEqual([]);
+  expect(
+    JSON.parse(
+      invoke([
+        'd',
+        'ops',
+        'pool',
+        'switch-mode',
+        'observe',
+        '--config',
+        poolConfig,
+        '--operator',
+        'installed fixture',
+        '--wait-seconds',
+        '10',
+        '--poll-seconds',
+        '1',
+      ]),
+    ),
+  ).toMatchObject({ to: 'observe' });
   git(candidate, ['init', '--initial-branch=main']);
   expect(JSON.parse(invoke(['d', 'bootstrap-authority', candidate]))).toMatchObject({
     status: 'bootstrapped',

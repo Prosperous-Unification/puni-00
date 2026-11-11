@@ -37,6 +37,7 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/website/fe-01', 'website-fe-01'],
   // Proof: omitting both delivery projects failed the root/identity and product-axis
   // inventory cases with these exact additional tuples (2026-10-23).
+  ['libs/shared/adapters/bun-output', 'shared-bun-output'],
   ['libs/shared/adapters/bun-startup', 'shared-bun-startup'],
   ['libs/shared/adapters/delivery-github', 'shared-delivery-github'],
   ['libs/shared/adapters/heavy-lock', 'shared-heavy-lock'],

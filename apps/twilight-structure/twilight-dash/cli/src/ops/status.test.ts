@@ -79,10 +79,10 @@ if (insideOpsNamespace(import.meta.path))
       };
     }
 
-    function status(config: string): string[] {
+    async function status(config: string): Promise<string[]> {
       const stdout: string[] = [];
       expect(
-        opsHandlers['job status'](
+        await opsHandlers['job status'](
           { command: 'ops', words: 'job status', config },
           dependencies(stdout),
         ),
@@ -90,7 +90,7 @@ if (insideOpsNamespace(import.meta.path))
       return stdout.join('').split('\n').slice(0, -1);
     }
 
-    test('one running, one waiting: the gate with its tree and peak, then the build', () => {
+    test('one running, one waiting: the gate with its tree and peak, then the build', async () => {
       const { runtime, config, root, trees } = pool(1);
       const queued = runtime.enqueueHostJob(
         { descriptor: gate, label: 'gate:0a518a42', waitSeconds: 0 },
@@ -151,7 +151,7 @@ if (insideOpsNamespace(import.meta.path))
       if (waiting.kind !== 'queued') throw new Error(waiting.reason);
       expect(runtime.pollHostJob(waiting.ticket, () => undefined).kind).toBe('waiting');
       now = start + 65000;
-      expect(status(config)).toEqual([
+      expect(await status(config)).toEqual([
         'host pool enrollment-one: mode observe; allocatable 8 cores, 13 GiB, 16 disk units, 16 slots; reserved 4 cores, 6 GiB, 0 disk units, 1 slots',
         `running gate gate:0a518a42 pid ${String(payload.pid)} age 1m00s envelope 4 cores 6 GiB 0 GiB tmp peak 2.5 GiB units gate_tree=${trees[0] ?? ''} settlement held (compute held, tmp held, gate_tree held)`,
         `waiting website-dev-build build:site pid ${String(process.pid)} age 55s budget 1m05s overtakes 0`,
@@ -161,15 +161,31 @@ if (insideOpsNamespace(import.meta.path))
       ]);
     });
 
-    test('an idle pool says so', () => {
+    test('an idle pool says so', async () => {
       const { config, root } = pool(0);
       HostJobRunRecords.open(root, false).close();
-      expect(status(config)).toEqual([
+      expect(await status(config)).toEqual([
         'host pool enrollment-one: mode observe; allocatable 8 cores, 13 GiB, 16 disk units, 16 slots; reserved 0 cores, 0 GiB, 0 disk units, 0 slots',
         'running none',
         'waiting none',
         'heavy lock: holder none',
       ]);
+    });
+
+    test('status preserves asynchronous native lock resolution failure', async () => {
+      const { config, root } = pool(0);
+      HostJobRunRecords.open(root, false).close();
+      const stderr: string[] = [];
+      const code = await runOps(
+        { command: 'ops', words: 'job status', config },
+        {
+          ...dependencies([]),
+          stderr: (text) => stderr.push(text),
+          legacyLock: () => Promise.reject(new Error('selected helper unavailable')),
+        },
+      );
+      expect(code).toBe(70);
+      expect(stderr).toEqual(['error: ops job status: selected helper unavailable\n']);
     });
 
     test('status refuses 70 when the run records are missing, creating nothing', async () => {
@@ -186,7 +202,7 @@ if (insideOpsNamespace(import.meta.path))
       expect(existsSync(HostJobRunRecords.pathOf(root))).toBe(false);
     });
 
-    test('a job whose payload never ran says so', () => {
+    test('a job whose payload never ran says so', async () => {
       const { runtime, config, root } = pool(0);
       HostJobRunRecords.open(root, false).close();
       const queued = runtime.enqueueHostJob(
@@ -212,7 +228,7 @@ if (insideOpsNamespace(import.meta.path))
         'host job has no running payload to record',
       );
       expect(runtime.inspectHostJob(admitted.job.id).exitCode).toBeNull();
-      expect(status(config)[1]).toEndWith(
+      expect((await status(config))[1]).toEndWith(
         '; payload did not run: systemd-run did not start scope dash-job-x',
       );
     });

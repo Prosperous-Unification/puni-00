@@ -31,29 +31,11 @@ const WORKSPACE = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
 const DASH_SOURCE = join(import.meta.dir, '..');
 
 /**
- * Inside the new mount namespace: keep every `/home` entry visible, then give `/home/puni1`
- * private `.config`, `.cache` and `.local` (on a gate host, where `/home/puni1` is this account,
- * only those three are overlaid), then run the suite.
+ * Preserve this account’s checkout in a private namespace and give the fixed host-pool account
+ * private storage. A foreign home is overlaid; on a gate host whose checkout lives there, only
+ * `.config`, `.cache` and `.local` are overlaid. The setup runs in Bun before execing the suite.
  */
-const NAMESPACE_SETUP = [
-  'set -euo pipefail',
-  'keep=$(mktemp -d)',
-  'mount --make-rprivate /',
-  'mount --rbind /home "$keep"',
-  'mount -t tmpfs tmpfs /home',
-  'for entry in "$keep"/* "$keep"/.[!.]*; do',
-  '  [ -e "$entry" ] || continue',
-  '  name=${entry##*/}',
-  '  mkdir "/home/$name"',
-  '  mount --rbind "$entry" "/home/$name"',
-  'done',
-  'mkdir -p /home/puni1',
-  'for directory in .config .cache .local; do',
-  '  mkdir -p "/home/puni1/$directory"',
-  '  mount -t tmpfs tmpfs "/home/puni1/$directory"',
-  'done',
-  'exec "$@"',
-].join('\n');
+const NAMESPACE_SETUP = join(import.meta.dir, 'testing', 'launcher-namespace.test.fixture.ts');
 
 /** What an enclosing gate or host job exports that a launcher under test must not inherit. */
 const INHERITED_JOB_VARIABLE =
@@ -86,10 +68,10 @@ if (process.env[NAMESPACE_FLAG] !== '1') {
         '--mount-proc',
         'setpriv',
         '--bounding-set=-sys_ptrace',
-        'bash',
-        '-c',
+        process.execPath,
+        '--no-env-file',
+        '--config=/dev/null',
         NAMESPACE_SETUP,
-        'launcher-namespace',
         process.execPath,
         'test',
         import.meta.path,
@@ -119,6 +101,7 @@ import { monotonicClock, wallClock } from ${JSON.stringify(join(DASH_SOURCE, 'cl
 import { ampleHost } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'host-pool.test.fixture'))};
 import { runHostJob } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'job-run'))};
 import { productionLegacyLock } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'legacy-lock'))};
+import { createLaunch } from ${JSON.stringify(join(WORKSPACE, 'libs/shared/adapters/bun-startup/src/index.ts'))};
 import { fakeScopeTelemetry } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'ops.test.fixture'))};
 import { OpsRefusal } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'refusal'))};
 
@@ -150,7 +133,7 @@ try {
       settleBudgetMs: 20000,
       user: 'puni1',
       // Inside the namespace /home/puni1/.cache is tmpfs: the canonical lock is a fixture.
-      legacyLock: productionLegacyLock(),
+      legacyLock: await productionLegacyLock(createLaunch(process.execPath, ${JSON.stringify(join(DASH_SOURCE, 'entrypoint.ts'))}), {clock:wallClock(),monotonic:monotonicClock()}),
     },
   );
 } catch (cause) {

@@ -1,4 +1,4 @@
-import { findIncoherence, isReleaseCommand, UsageRefusal } from './cli-parser';
+import { findIncoherence, isLockCommand, isReleaseCommand, UsageRefusal } from './cli-parser';
 import type { Monotonic, WallClock } from './clock';
 import type { Request } from './grammar-facade';
 import type { FetchLike } from './mcp/machine-token';
@@ -13,6 +13,7 @@ export type { Request } from './grammar-facade';
  * without a namespace, so generated pool helpers can append canonical dash/mcp/token.
  */
 export interface Context {
+  readonly callerDirectory: string;
   readonly clock: WallClock;
   readonly monotonic: Monotonic;
   readonly send: FetchLike;
@@ -37,6 +38,13 @@ export async function executeRequest(request: Request, context: Context): Promis
   const refusal = findIncoherence(request);
   if (refusal !== undefined) throw new UsageRefusal(refusal);
   // Proof: dash-facade-release-selection; bypassing this branch failed `returns the actual release adapter status while retaining its inherited native IO contract`; restoration passed.
+  if (isLockCommand(request)) {
+    const { runInstalledLock } = await import('./ops/lock');
+    return await runInstalledLock(request, {
+      callerDirectory: context.callerDirectory,
+      environment: context.environment,
+    });
+  }
   if (isReleaseCommand(request)) {
     const { runOpsCommand } = await import('./ops/release');
     // Proof: dash-facade-release-status; replacing the returned adapter status with zero failed `returns the actual release adapter status while retaining its inherited native IO contract`; restoration passed.
@@ -74,6 +82,8 @@ export async function executeRequest(request: Request, context: Context): Promis
     clock: context.clock,
     monotonic: context.monotonic,
     planEnrollment: runFleetPlan,
+    // Proof: removing canonical dash failed the actual heavy-facade prefix control in helper-prefix.test.ts; restoration passed (2026-11-11).
+    helperPrefix: [...context.helperPrefix, 'dash'],
     stdout: { write: context.write },
   });
 }

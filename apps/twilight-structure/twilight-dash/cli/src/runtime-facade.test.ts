@@ -40,6 +40,7 @@ function createContext(overrides: Partial<Context> = {}) {
     sleep: () => {
       throw new Error('unexpected sleep');
     },
+    callerDirectory: process.cwd(),
     environment: {},
     write: (text) => printed.push(text),
     helperPrefix: createLaunch(process.execPath, '/opt/puni install/puni.mjs'),
@@ -278,4 +279,40 @@ it('keeps the actual typed MCP path import-safe against the heavy command graph'
   expect(child.exitCode, child.stderr.toString()).toBe(0);
   expect(child.stdout.toString()).toBe('{"Authorization":"Bearer light-token"}\n');
   expect(child.stderr.length).toBe(0);
+});
+
+it('dispatches typed foreground lock without the heavy CLI graph or ambient argv', () => {
+  const root = createRoot(),
+    directory = join(root, 'caller'),
+    entry = new URL('./runtime-facade.ts', import.meta.url).href;
+  const selected =
+    'export async function runInstalledLock(request,context){process.stdout.write(JSON.stringify({request,directory:context.callerDirectory,marker:context.environment.LOCK_MARKER}));return 37;}';
+  const plugin =
+    'Bun.plugin({name:"lock-port",setup(build){build.onLoad({filter:new RegExp("twilight-dash/cli/src/cli[.]ts$")},()=>{throw new Error("lock loaded heavy CLI");});build.onLoad({filter:new RegExp("twilight-dash/cli/src/ops/lock[.]ts$")},()=>({loader:"ts",contents:' +
+    JSON.stringify(selected) +
+    '}));}});';
+  const request = {
+    command: 'ops',
+    words: 'lock run',
+    label: 'lane',
+    waitSeconds: 0,
+    pollSeconds: 5,
+    argv: ['literal', 'a b', ''],
+  };
+  const program = [
+    plugin,
+    'const {executeRequest}=await import(' + JSON.stringify(entry) + ');',
+    'process.argv=[process.execPath,"misleading","ops","unknown"];',
+    'process.exitCode=await executeRequest(' +
+      JSON.stringify(request) +
+      ',{callerDirectory:' +
+      JSON.stringify(directory) +
+      ',environment:{LOCK_MARKER:"explicit"},write(){throw new Error("lock used unowned output");}});',
+  ].join(String.fromCharCode(10));
+  const child = Bun.spawnSync(
+    [process.execPath, '--no-env-file', '--config=/dev/null', '--eval', program],
+    { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', timeout: 4000 },
+  );
+  expect(child.exitCode, child.stderr.toString()).toBe(37);
+  expect(JSON.parse(child.stdout.toString())).toEqual({ request, directory, marker: 'explicit' });
 });

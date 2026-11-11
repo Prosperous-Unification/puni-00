@@ -454,10 +454,8 @@ const jobTypeOption = () =>
     description: message`The job type, as the checkout's infra/jobs/catalogue.json at HEAD names it.`,
   });
 
-/** The admission and payload fields `ops job run` and `ops job calibrate` share (J7, J9). */
-const launchFields = (label: string, waitSeconds: number) => ({
-  config: poolConfig(),
-  type: jobTypeOption(),
+/** Queue admission options shared by foreground locks and catalogued job launchers. */
+const queueFields = (label: string, waitSeconds: number) => ({
   label: withDefault(
     option('--label', flagValue('NAME'), {
       description: message`The lane label status and refusals name, as HEAVY_LOCK_LABEL is; default ${label}.`,
@@ -479,6 +477,13 @@ const launchFields = (label: string, waitSeconds: number) => ({
     }),
     5,
   ),
+});
+
+/** Admission and payload fields shared by catalogued job launchers. */
+const launchFields = (label: string, waitSeconds: number) => ({
+  config: poolConfig(),
+  type: jobTypeOption(),
+  ...queueFields(label, waitSeconds),
   argv: multiple(
     argument(string({ metavar: 'COMMAND' }), {
       description: message`The payload, after --: its program, then arguments matching the type's argument profile.`,
@@ -547,13 +552,53 @@ const releaseNamespace = command(
   },
 );
 
+const lockNamespace = command(
+  'lock',
+  or(
+    command(
+      'hold-internal-v1',
+      object({
+        command: constant('ops'),
+        words: constant('lock hold-internal-v1'),
+        holdFile: operandOption('--hold-file', 'PATH', 'The owned full-identity hold token.'),
+        controllerPid: option(
+          '--controller-pid',
+          integer({ min: 1, max: 2147483647, metavar: 'PID' }),
+        ),
+        controllerBoot: operandOption(
+          '--controller-boot',
+          'BOOT',
+          'The selected controller boot identity.',
+        ),
+        controllerStart: operandOption(
+          '--controller-start',
+          'TICKS',
+          'The selected controller process start identity.',
+        ),
+        ...queueFields('dash durable holder', 0),
+      }),
+      { hidden: true, brief: message`Internal durable holder protocol version one.` },
+    ),
+    opsCommand('status', 'lock status', 'Observe the canonical host lock and queue.', {}),
+    opsCommand(
+      'run',
+      'lock run',
+      'Queue on the canonical host lock and run a foreground payload.',
+      {
+        ...queueFields('unlabeled', 0),
+        argv: multiple(argument(string({ metavar: 'COMMAND' })), { min: 1 }),
+      },
+    ),
+  ),
+);
 /**
- * `ops` has one typed grammar for release operations, host jobs and the host pool. Release
- * dispatch remains independent of the heavier authority and host-job runtime.
+ * `ops` declares native lock, release, host-job and host-pool operations. Lock and release
+ * dispatch stay independent of the heavier authority and host-job runtime.
  */
 const opsNamespace = command(
   'ops',
   or(
+    lockNamespace,
     command(
       'job',
       or(
@@ -746,6 +791,18 @@ export type DashCommand = InferValue<typeof dashParser>;
 
 /** The centrally parsed release request, handled before the authority graph is loaded. */
 export type ReleaseCommand = InferValue<typeof releaseNamespace>;
+
+/** Foreground/status and fixed private holder requests, dispatched without the host-pool graph. */
+export type LockCommand = InferValue<typeof lockNamespace>;
+
+export function isLockCommand(command: DashCommand): command is LockCommand {
+  return (
+    command.command === 'ops' &&
+    (command.words === 'lock status' ||
+      command.words === 'lock run' ||
+      command.words === 'lock hold-internal-v1')
+  );
+}
 
 /**
  * Select release operations from the parsed ops namespace without loading their handler.

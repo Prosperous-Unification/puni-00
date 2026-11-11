@@ -665,6 +665,7 @@ export const RESTART_PATHS: readonly string[] = [
   // Proof: omitting this entry failed `names every library project.json that exists on disk`
   // with this exact missing adapter manifest (2026-10-23).
   // Proof: c31-integration-b-restart-startup-manifest; injected remove 'libs/shared/adapters/bun-startup/project.json', from restart inputs failed `Bun startup manifest edits restart the dev supervisor and rerun MCP preparation`; restoration passed. First RED assertion is absent MCP producer output after real Git reset. Later Docker/artifact assertions are not reached; scheduling only.
+  'libs/shared/adapters/bun-output/project.json',
   'libs/shared/adapters/bun-startup/project.json',
   'libs/shared/adapters/delivery-github/project.json',
   // Proof: c31-integration-b-restart-lock-manifest; injected remove 'libs/shared/adapters/heavy-lock/project.json', from restart inputs failed `native lock manifest edits restart the dev supervisor and rerun MCP preparation`; restoration passed. First RED assertion is absent MCP producer output after real Git reset. Later Docker/artifact assertions are not reached; scheduling only.

@@ -13,6 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import {
   canonicalJson,
   digestOf,
@@ -478,6 +479,7 @@ test('dispatcher uses no clocks or fleet planner', async () => {
     clock: { read: forbidden },
     monotonic: { now: forbidden },
     planEnrollment: forbidden,
+    helperPrefix: createLaunch(process.execPath, join(import.meta.dir, '../entrypoint.ts')),
     stdout: {
       write(text) {
         stdout += text;

@@ -23,6 +23,7 @@
     "resolveJsonModule": true,
     "types": ["bun-types"],
     "paths": {
+      "@shared/bun-output": ["./libs/shared/adapters/bun-output/src/index.ts"],
       "@shared/bun-startup": ["./libs/shared/adapters/bun-startup/src/index.ts"],
       "@shared/heavy-lock": ["./libs/shared/adapters/heavy-lock/src/index.ts"],
       "@tools/controller-account-fixture": [

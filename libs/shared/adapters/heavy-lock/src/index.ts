@@ -1,8 +1,9 @@
 export { holdLock, readEpochNanoseconds } from './native';
-export type { QueueOutcome, QueueRequest, QueueRuntime } from './queue';
+export type { Admission, Contention, QueueOutcome, QueueRequest, QueueRuntime } from './queue';
 export {
   createQueueRuntime,
   isProcessAlive,
+  RequestRefusal,
   runQueuedWork,
   selectLockPath,
   waitForPoll,

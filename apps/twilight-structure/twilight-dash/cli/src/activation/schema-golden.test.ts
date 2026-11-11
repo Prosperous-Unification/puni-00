@@ -1,6 +1,7 @@
 import { chmodSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
@@ -41,6 +42,7 @@ function dependencies(output: string[], now: number) {
     clock: { read: () => now },
     monotonic: { now: () => 0 },
     planEnrollment: () => Promise.reject(new Error('the golden never plans enrollment')),
+    helperPrefix: createLaunch(process.execPath, join(import.meta.dir, '../entrypoint.ts')),
     stdout: {
       write: (text: string) => {
         output.push(text);
