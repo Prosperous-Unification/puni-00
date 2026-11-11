@@ -1,0 +1,1705 @@
+# Production and recovery observations — 2026-11-11
+
+This fenced JSON is a historical observation record, with no executable or runtime
+consumer. The report interprets its bounds; it is not an acceptance certificate.
+
+The historical checkout status text is retained in the private runtime receipt;
+its count and digest are projected here because those retired source paths are
+not instructions for the current tree.
+
+```json
+{
+  "schemaVersion": 1,
+  "scope": "Read-only priority-one production provenance and recovery coverage diagnosis; no release acceptance",
+  "sourceSha": "7614ca5116e2b27831076f7bc7c9f9872051c388",
+  "runtime": {
+    "startedAt": "2026-11-11T05:45:15.510852+00:00",
+    "finishedAt": "2026-11-11T05:45:16.082953+00:00",
+    "host": "ubuntu-8gb-hel1-1",
+    "account": "puni1",
+    "productionRoutes": [
+      {
+        "handle": [
+          {
+            "handler": "subroute",
+            "routes": [
+              {
+                "handle": [
+                  {
+                    "handler": "encode"
+                  }
+                ]
+              },
+              {
+                "handle": [
+                  {
+                    "handler": "subroute",
+                    "routes": [
+                      {
+                        "handle": [
+                          {
+                            "handler": "reverse_proxy",
+                            "upstreams": [
+                              {
+                                "dial": "be-01-green:3100"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "match": [
+                  {
+                    "path": ["/api/*"]
+                  }
+                ]
+              },
+              {
+                "handle": [
+                  {
+                    "handler": "subroute",
+                    "routes": [
+                      {
+                        "handle": [
+                          {
+                            "handler": "reverse_proxy",
+                            "upstreams": [
+                              {
+                                "dial": "gw-01-green:3200"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "match": [
+                  {
+                    "path": ["/ws*"]
+                  }
+                ]
+              },
+              {
+                "handle": [
+                  {
+                    "handler": "subroute",
+                    "routes": [
+                      {
+                        "handle": [
+                          {
+                            "handler": "reverse_proxy",
+                            "upstreams": [
+                              {
+                                "dial": "fe-01-blue:80"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "match": [
+          {
+            "host": ["wbs.bulletpoints.club"]
+          }
+        ],
+        "terminal": true
+      }
+    ],
+    "caddyConfigSha256": "3682995b2cae3cb19d52ce13a280941facbcca84bc33ea319ed63253752b1dc5",
+    "state": [
+      {
+        "path": "/home/puni1/wbs/state/be.json",
+        "sha256": "f821ca168597ab7c8fa44f95ffc0590bcae8197c21dc55cfc8e0ab3678b7f9da",
+        "bytes": 110,
+        "mtimeNs": 1785775820000000000,
+        "mode": "0o664",
+        "keys": ["activeColor", "lastDeployedSha", "tier"],
+        "release": {
+          "activeColor": "green",
+          "lastDeployedSha": "0afc77758131bc4257dcaa78f0b26bc97ffd92dc",
+          "deployedAt": null,
+          "lastDeployedAt": null,
+          "imageDigest": null
+        }
+      },
+      {
+        "path": "/home/puni1/wbs/state/gw.json",
+        "sha256": "ab0240754090f475abdf172794998ac99e107bc85294b571ddd29876622fc688",
+        "bytes": 110,
+        "mtimeNs": 1785775834000000000,
+        "mode": "0o664",
+        "keys": ["activeColor", "lastDeployedSha", "tier"],
+        "release": {
+          "activeColor": "green",
+          "lastDeployedSha": "0afc77758131bc4257dcaa78f0b26bc97ffd92dc",
+          "deployedAt": null,
+          "lastDeployedAt": null,
+          "imageDigest": null
+        }
+      },
+      {
+        "path": "/home/puni1/wbs/state/fe.json",
+        "sha256": "e275f92e05f69ee410d5db1ae22cbb00d0488f2bd00246d29cf6a1553f9b4ceb",
+        "bytes": 109,
+        "mtimeNs": 1785775838000000000,
+        "mode": "0o664",
+        "keys": ["activeColor", "lastDeployedSha", "tier"],
+        "release": {
+          "activeColor": "blue",
+          "lastDeployedSha": "0afc77758131bc4257dcaa78f0b26bc97ffd92dc",
+          "deployedAt": null,
+          "lastDeployedAt": null,
+          "imageDigest": null
+        }
+      }
+    ],
+    "installedArtifacts": [
+      {
+        "path": "/home/puni1/wbs/bin/swap.js",
+        "sha256": "7e8f65aae4df1c33c5bbfcd92db350dc038bc2236d4a6dbc5d3b4fe465fee10a",
+        "bytes": 33176,
+        "mtimeNs": 1787830153659598846,
+        "mode": "0o755"
+      },
+      {
+        "path": "/home/puni1/wbs/bin/smoke.js",
+        "sha256": "9e23d75e1929a7f4924538393b9859a4243f0065b46386d3b26804954a52431b",
+        "bytes": 43165,
+        "mtimeNs": 1787830154157601571,
+        "mode": "0o755"
+      },
+      {
+        "path": "/home/puni1/wbs-dev/bin/swap.js",
+        "sha256": "ab0e5f0a3cf58f38c422446c38cedf40d441abbb95f6d586e1f9db5e950ee69d",
+        "bytes": 34321,
+        "mtimeNs": 1787853695286680914,
+        "mode": "0o755"
+      },
+      {
+        "path": "/home/puni1/wbs-dev/bin/smoke.js",
+        "sha256": "8ebf73b8214b3e88135fb257d2025cb21a7c21c798f2282d34a515ae187c55d9",
+        "bytes": 43603,
+        "mtimeNs": 1787853732807888705,
+        "mode": "0o755"
+      },
+      {
+        "path": "/home/puni1/wbs-build/release.json",
+        "state": "FileNotFoundError"
+      },
+      {
+        "path": "/etc/puni/registry-deployments.json",
+        "state": "FileNotFoundError"
+      }
+    ],
+    "buildCheckout": {
+      "head": "0623a9740720d97bfa5f3e37cbc55b9521837778",
+      "release": "",
+      "isDirty": true,
+      "trackedStatusSha256": "c11443d9073b5aa15b1340373b2cd555d9077d855ea547da34178845bfab2c1b",
+      "trackedModificationCount": 1
+    },
+    "rootBytes": {
+      "available": 14238830592,
+      "total": 160938012672
+    }
+  },
+  "applicationContainers": [
+    {
+      "name": "/be-01-green",
+      "id": "bf378c989c6423ab0baeb12861e08393c39af29a43aaca50d1ec32f745f962e4",
+      "imageId": "sha256:ebc269d2f5a4ef99eeee60c0ad69e5ed657407265dee32230301e70930ad6385",
+      "imageRef": "registry.infra.bulletpoints.club/wbs-be-01@sha256:ebc269d2f5a4ef99eeee60c0ad69e5ed657407265dee32230301e70930ad6385",
+      "created": "2026-08-23T23:41:16.644050696Z",
+      "startedAt": "2026-08-24T15:24:56.30968867Z",
+      "status": "running",
+      "mounts": [
+        {
+          "Type": "bind",
+          "Name": null,
+          "Source": "/home/puni1/wbs/data",
+          "Destination": "/data",
+          "RW": true
+        }
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "0d9b296af33f2b851fcbf4df3e9ec89751734ba4",
+        "org.opencontainers.image.source": "https://github.com/oven-sh/bun",
+        "org.opencontainers.image.version": "1.3.14-alpine",
+        "org.opencontainers.image.title": "bun"
+      },
+      "wbsSha": []
+    },
+    {
+      "name": "/gw-01-green",
+      "id": "d17962f991324aa0559ba179846e223794a77a65e2c0fa79087fa1df9e83f23d",
+      "imageId": "sha256:81c3552868199f89c147eab06f0e9b2c99092c6d16f7262190d7a35a3e30743e",
+      "imageRef": "registry.infra.bulletpoints.club/wbs-gw-01@sha256:81c3552868199f89c147eab06f0e9b2c99092c6d16f7262190d7a35a3e30743e",
+      "created": "2026-08-23T23:41:39.217848524Z",
+      "startedAt": "2026-08-24T15:24:56.315302885Z",
+      "status": "running",
+      "mounts": [],
+      "labels": {
+        "org.opencontainers.image.revision": "0d9b296af33f2b851fcbf4df3e9ec89751734ba4",
+        "org.opencontainers.image.source": "https://github.com/oven-sh/bun",
+        "org.opencontainers.image.version": "1.3.14-alpine",
+        "org.opencontainers.image.title": "bun"
+      },
+      "wbsSha": []
+    },
+    {
+      "name": "/fe-01-blue",
+      "id": "3a58bc0eabc57be72223381907fb50d7b7a9a7b654304d23685f3ed2bd47d192",
+      "imageId": "sha256:310f4fb8a1ed8550cda3eeb767cfe15dd7e0c89beed437aded1ffd9093d8ebf5",
+      "imageRef": "registry.infra.bulletpoints.club/wbs-fe-01@sha256:310f4fb8a1ed8550cda3eeb767cfe15dd7e0c89beed437aded1ffd9093d8ebf5",
+      "created": "2026-08-23T23:42:00.995006619Z",
+      "startedAt": "2026-08-24T15:24:56.313174205Z",
+      "status": "running",
+      "mounts": [],
+      "labels": {
+        "org.opencontainers.image.revision": null,
+        "org.opencontainers.image.source": "https://github.com/caddyserver/caddy-docker",
+        "org.opencontainers.image.version": "v2.11.4",
+        "org.opencontainers.image.title": "Caddy"
+      },
+      "wbsSha": []
+    }
+  ],
+  "registry": {
+    "observedAt": "2026-11-11T05:49:54.303157+00:00",
+    "tiers": [
+      {
+        "tier": "be",
+        "repository": "wbs-be-01",
+        "localJoin": {
+          "containerId": "bf378c989c6423ab0baeb12861e08393c39af29a43aaca50d1ec32f745f962e4",
+          "containerImageId": "sha256:ebc269d2f5a4ef99eeee60c0ad69e5ed657407265dee32230301e70930ad6385",
+          "imageId": "sha256:ebc269d2f5a4ef99eeee60c0ad69e5ed657407265dee32230301e70930ad6385",
+          "manifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:ebc269d2f5a4ef99eeee60c0ad69e5ed657407265dee32230301e70930ad6385",
+            "size": 2944,
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          "rootFsLayers": [
+            "sha256:0854555d70acaa318b38ee50bc667cb51ff6bf0757624624c7ff3b6fe17459a0",
+            "sha256:9072d322eb16c6a414861801ae295eb67839e0aeabeab982bea0520b6fccdeaa",
+            "sha256:135be4fad03ab91972ef4eb6846e200938c2dea183881ba5cac3d79648a09737",
+            "sha256:7a415decbb54be30a9369d7466887b96544eedd7b28dbb7ad87dc6381a4b91a0",
+            "sha256:fb0c09554b3fc2d49fda0df4305e80bbd89a17e405ed02b65b79c54fcf6fd637",
+            "sha256:592e878c2cd79244e9ecf582b4688c9fa9c45bb31b1890119e1fb88fae6a6784",
+            "sha256:18305bb13da6dbb60e54e3fe6a6eb55749ad5b84938eca8fd9403aba3f9f68f4",
+            "sha256:214fa3205939cbf99d9ecf10f18905f4969a4628a6da0e219e93a070e05b6b13",
+            "sha256:10389c755ae1f4394e9c93324d20dc2c462f1745d6cd225a11a35eaed24fd4ae",
+            "sha256:476dcefc09a0ca71c9b36fe5a7bfa11404d773626f9c53dd64ab22f18d5608e2",
+            "sha256:c848e4133ebd02c2f5f2146fb3c60b2d5a44b1f46dbd534dd9d8d4a1ec2467be",
+            "sha256:a4b5662c6b0c814dfe51f23c4c904db434230abe6893335a3a2a2bcbdca3e52b",
+            "sha256:5e68b6c6e291537ae98c711d9a48a19502d0b84b023f90af216813331cc3936b",
+            "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+          ]
+        },
+        "manifest": {
+          "http": 200,
+          "headerDigest": "sha256:ebc269d2f5a4ef99eeee60c0ad69e5ed657407265dee32230301e70930ad6385",
+          "bodyDigest": "sha256:ebc269d2f5a4ef99eeee60c0ad69e5ed657407265dee32230301e70930ad6385",
+          "body": {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "config": {
+              "mediaType": "application/vnd.oci.image.config.v1+json",
+              "digest": "sha256:f7fbd21568aeb1f0dc40e83e6bafdfecad16430e9bdd2d5c05cf1c6bc85773d2",
+              "size": 4307
+            },
+            "layers": [
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:84f5eff04246b56d48d1ed6cbd82d6bc7e53f7e790db6a467f92571c69f3289e",
+                "size": 3808189
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:dcf061af8c01e1f1f25f674a31deb3a3b06fba9cee22f1915d5c8696773185c8",
+                "size": 35385822
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:2f325d21eb3a45d41dab236a207a03a064598cf43a96271ce5306191add522f9",
+                "size": 297
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:0d0b2b34a3453dedf85b39d8c100eadf6838fc467d9acafbf3ab31459ed51af6",
+                "size": 185
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:cf34dbd5e0ab03f713e02ef49ab5525718e0381241fe29bae7897cd0be7081f7",
+                "size": 3661539
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:cce26e891611b83efb72188a1b88da1afb85f293a070b53c6259b1dbfc922cf3",
+                "size": 140
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:b929812a218929e1f84fa87638fa1e681e6db85985a91004b2f2d17793e39235",
+                "size": 93
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:368ce3b6da6ea0068f5306effc9a437c5f9cc0f103d4267f603650244a054ca8",
+                "size": 16820850
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:8022f50b73d15e1c7347314e096048c465f13efa84bacf1de729d2906425aea8",
+                "size": 1065
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:a0916e568b81b82e2f52db3130a48a20b85b74d3efc8c236e9320803a2832dae",
+                "size": 120567
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:edd46865449d9f3a7df72c4eff0e7f9658f2e3a74e17e467d634532d73f27185",
+                "size": 684
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:ca03b89fbe06133af3b2f9158b4d5e6421bda4caec35206884aa3fc86303cadb",
+                "size": 10120
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:367391ff3431a782dfca07694baa80cb223d54d249499ce0fd9f6d6c8cb96a71",
+                "size": 9636
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
+                "size": 32
+              }
+            ]
+          }
+        },
+        "configuration": {
+          "http": 200,
+          "headerDigest": "sha256:f7fbd21568aeb1f0dc40e83e6bafdfecad16430e9bdd2d5c05cf1c6bc85773d2",
+          "bodyDigest": "sha256:f7fbd21568aeb1f0dc40e83e6bafdfecad16430e9bdd2d5c05cf1c6bc85773d2",
+          "projection": {
+            "created": "2026-08-03T16:08:21.658020508Z",
+            "architecture": "amd64",
+            "os": "linux",
+            "labels": {
+              "WBS_SHA": null,
+              "org.opencontainers.image.revision": "0d9b296af33f2b851fcbf4df3e9ec89751734ba4",
+              "org.opencontainers.image.source": "https://github.com/oven-sh/bun"
+            },
+            "wbsSha": [],
+            "historyCount": 14,
+            "historyShaClaims": []
+          },
+          "localImageComparison": {
+            "rootFsLayersEqual": true,
+            "environmentEqual": true,
+            "labelsEqual": true,
+            "commandEqual": true,
+            "entrypointEqual": true
+          }
+        },
+        "historicalTag": {
+          "sha": "0afc77758131bc4257dcaa78f0b26bc97ffd92dc",
+          "digest": "sha256:ebc269d2f5a4ef99eeee60c0ad69e5ed657407265dee32230301e70930ad6385"
+        }
+      },
+      {
+        "tier": "gw",
+        "repository": "wbs-gw-01",
+        "localJoin": {
+          "containerId": "d17962f991324aa0559ba179846e223794a77a65e2c0fa79087fa1df9e83f23d",
+          "containerImageId": "sha256:81c3552868199f89c147eab06f0e9b2c99092c6d16f7262190d7a35a3e30743e",
+          "imageId": "sha256:81c3552868199f89c147eab06f0e9b2c99092c6d16f7262190d7a35a3e30743e",
+          "manifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:81c3552868199f89c147eab06f0e9b2c99092c6d16f7262190d7a35a3e30743e",
+            "size": 2944,
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          "rootFsLayers": [
+            "sha256:0854555d70acaa318b38ee50bc667cb51ff6bf0757624624c7ff3b6fe17459a0",
+            "sha256:9072d322eb16c6a414861801ae295eb67839e0aeabeab982bea0520b6fccdeaa",
+            "sha256:135be4fad03ab91972ef4eb6846e200938c2dea183881ba5cac3d79648a09737",
+            "sha256:7a415decbb54be30a9369d7466887b96544eedd7b28dbb7ad87dc6381a4b91a0",
+            "sha256:fb0c09554b3fc2d49fda0df4305e80bbd89a17e405ed02b65b79c54fcf6fd637",
+            "sha256:592e878c2cd79244e9ecf582b4688c9fa9c45bb31b1890119e1fb88fae6a6784",
+            "sha256:18305bb13da6dbb60e54e3fe6a6eb55749ad5b84938eca8fd9403aba3f9f68f4",
+            "sha256:214fa3205939cbf99d9ecf10f18905f4969a4628a6da0e219e93a070e05b6b13",
+            "sha256:10389c755ae1f4394e9c93324d20dc2c462f1745d6cd225a11a35eaed24fd4ae",
+            "sha256:476dcefc09a0ca71c9b36fe5a7bfa11404d773626f9c53dd64ab22f18d5608e2",
+            "sha256:c848e4133ebd02c2f5f2146fb3c60b2d5a44b1f46dbd534dd9d8d4a1ec2467be",
+            "sha256:a4b5662c6b0c814dfe51f23c4c904db434230abe6893335a3a2a2bcbdca3e52b",
+            "sha256:13f674e5f77bc720051c5b6e5e99d5b4a3f6a73073f655b739588da9d4bbff9a",
+            "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+          ]
+        },
+        "manifest": {
+          "http": 200,
+          "headerDigest": "sha256:81c3552868199f89c147eab06f0e9b2c99092c6d16f7262190d7a35a3e30743e",
+          "bodyDigest": "sha256:81c3552868199f89c147eab06f0e9b2c99092c6d16f7262190d7a35a3e30743e",
+          "body": {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "config": {
+              "mediaType": "application/vnd.oci.image.config.v1+json",
+              "digest": "sha256:354fb4ec8b899c4e005ee3f4f218b895dba0405229ce2c73846a8c86fec24e52",
+              "size": 4308
+            },
+            "layers": [
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:84f5eff04246b56d48d1ed6cbd82d6bc7e53f7e790db6a467f92571c69f3289e",
+                "size": 3808189
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:dcf061af8c01e1f1f25f674a31deb3a3b06fba9cee22f1915d5c8696773185c8",
+                "size": 35385822
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:2f325d21eb3a45d41dab236a207a03a064598cf43a96271ce5306191add522f9",
+                "size": 297
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:0d0b2b34a3453dedf85b39d8c100eadf6838fc467d9acafbf3ab31459ed51af6",
+                "size": 185
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:cf34dbd5e0ab03f713e02ef49ab5525718e0381241fe29bae7897cd0be7081f7",
+                "size": 3661539
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:cce26e891611b83efb72188a1b88da1afb85f293a070b53c6259b1dbfc922cf3",
+                "size": 140
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:b929812a218929e1f84fa87638fa1e681e6db85985a91004b2f2d17793e39235",
+                "size": 93
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:368ce3b6da6ea0068f5306effc9a437c5f9cc0f103d4267f603650244a054ca8",
+                "size": 16820850
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:8022f50b73d15e1c7347314e096048c465f13efa84bacf1de729d2906425aea8",
+                "size": 1065
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:a0916e568b81b82e2f52db3130a48a20b85b74d3efc8c236e9320803a2832dae",
+                "size": 120567
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:edd46865449d9f3a7df72c4eff0e7f9658f2e3a74e17e467d634532d73f27185",
+                "size": 684
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:ca03b89fbe06133af3b2f9158b4d5e6421bda4caec35206884aa3fc86303cadb",
+                "size": 10120
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:60240c0f269482c3cf32e96aae664660ac1abba5c4c9e27c8379e7f77f28698d",
+                "size": 5240
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
+                "size": 32
+              }
+            ]
+          }
+        },
+        "configuration": {
+          "http": 200,
+          "headerDigest": "sha256:354fb4ec8b899c4e005ee3f4f218b895dba0405229ce2c73846a8c86fec24e52",
+          "bodyDigest": "sha256:354fb4ec8b899c4e005ee3f4f218b895dba0405229ce2c73846a8c86fec24e52",
+          "projection": {
+            "created": "2026-08-03T16:08:29.822612449Z",
+            "architecture": "amd64",
+            "os": "linux",
+            "labels": {
+              "WBS_SHA": null,
+              "org.opencontainers.image.revision": "0d9b296af33f2b851fcbf4df3e9ec89751734ba4",
+              "org.opencontainers.image.source": "https://github.com/oven-sh/bun"
+            },
+            "wbsSha": [],
+            "historyCount": 14,
+            "historyShaClaims": []
+          },
+          "localImageComparison": {
+            "rootFsLayersEqual": true,
+            "environmentEqual": true,
+            "labelsEqual": true,
+            "commandEqual": true,
+            "entrypointEqual": true
+          }
+        },
+        "historicalTag": {
+          "sha": "0afc77758131bc4257dcaa78f0b26bc97ffd92dc",
+          "digest": "sha256:81c3552868199f89c147eab06f0e9b2c99092c6d16f7262190d7a35a3e30743e"
+        }
+      },
+      {
+        "tier": "fe",
+        "repository": "wbs-fe-01",
+        "localJoin": {
+          "containerId": "3a58bc0eabc57be72223381907fb50d7b7a9a7b654304d23685f3ed2bd47d192",
+          "containerImageId": "sha256:310f4fb8a1ed8550cda3eeb767cfe15dd7e0c89beed437aded1ffd9093d8ebf5",
+          "imageId": "sha256:310f4fb8a1ed8550cda3eeb767cfe15dd7e0c89beed437aded1ffd9093d8ebf5",
+          "manifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:310f4fb8a1ed8550cda3eeb767cfe15dd7e0c89beed437aded1ffd9093d8ebf5",
+            "size": 1620,
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          "rootFsLayers": [
+            "sha256:31ad4a471c6852bfec14d757cc75a566c82a9769f12c3918cf6bf52cc0eeb3d0",
+            "sha256:e032ca8f081bb2ec65bbe13942b3d7c10ebd4843940179705389c48afa048b0e",
+            "sha256:1cfe352cbc7d645ee4a593a2bf5910d95f6719c73b91b98e2fc1aae6e3fc1c40",
+            "sha256:8d0abd7f7c179be1f61826f11fb74d63591deb2f0d3b42c23f549a60650ce45d",
+            "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+            "sha256:96b7702a18ba81b7e1d20a15f8a692ddb0bdb6b678fbb8b049bc5d5d8987b768",
+            "sha256:5b8912581e5d1db111fadf4c58edec43f5b9d74d3cd2aeb272c8b0a03c53a51a"
+          ]
+        },
+        "manifest": {
+          "http": 200,
+          "headerDigest": "sha256:310f4fb8a1ed8550cda3eeb767cfe15dd7e0c89beed437aded1ffd9093d8ebf5",
+          "bodyDigest": "sha256:310f4fb8a1ed8550cda3eeb767cfe15dd7e0c89beed437aded1ffd9093d8ebf5",
+          "body": {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "config": {
+              "mediaType": "application/vnd.oci.image.config.v1+json",
+              "digest": "sha256:aac0e293edc97578133d2ce58837de256ad23bdd4534dcaba759b846b4d63adb",
+              "size": 2740
+            },
+            "layers": [
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:e6f31ffc071e5560b82a8685fba8214954e5721e3e49269d00958316edbe89fe",
+                "size": 3844421
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:f8432a27d0751eb996e29e368c282dbfd2d97e5b744ad940ed9a08b6300318af",
+                "size": 2760570
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:ee31d5a470f0e64a85c28c82ad55a5bd6b5359db59197c76b9daba7f36c288e9",
+                "size": 7502
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:a0449c657909db1625317d13589fcd22909d657bdc6357101428c90acce4e929",
+                "size": 17294758
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
+                "size": 32
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:0a5b853f297d321746b881b9e2e68b88a0af94660288199d66927b550e52a378",
+                "size": 74713
+              },
+              {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:611bd3634ec81f91492945575eaa1ec85ece1ccf35096f8b768e39eeb9d28e08",
+                "size": 241
+              }
+            ]
+          }
+        },
+        "configuration": {
+          "http": 200,
+          "headerDigest": "sha256:aac0e293edc97578133d2ce58837de256ad23bdd4534dcaba759b846b4d63adb",
+          "bodyDigest": "sha256:aac0e293edc97578133d2ce58837de256ad23bdd4534dcaba759b846b4d63adb",
+          "projection": {
+            "created": "2026-08-03T16:09:58.865405554Z",
+            "architecture": "amd64",
+            "os": "linux",
+            "labels": {
+              "WBS_SHA": null,
+              "org.opencontainers.image.revision": null,
+              "org.opencontainers.image.source": "https://github.com/caddyserver/caddy-docker"
+            },
+            "wbsSha": [],
+            "historyCount": 7,
+            "historyShaClaims": []
+          },
+          "localImageComparison": {
+            "rootFsLayersEqual": true,
+            "environmentEqual": true,
+            "labelsEqual": true,
+            "commandEqual": true,
+            "entrypointEqual": true
+          }
+        },
+        "historicalTag": {
+          "sha": "0afc77758131bc4257dcaa78f0b26bc97ffd92dc",
+          "digest": "sha256:310f4fb8a1ed8550cda3eeb767cfe15dd7e0c89beed437aded1ffd9093d8ebf5"
+        }
+      }
+    ]
+  },
+  "retainedBuildArtifacts": {
+    "observedAt": "2026-11-11T05:49:23.305844+00:00",
+    "files": [
+      {
+        "path": "/home/puni1/wbs-build/dist/tool-dagger/release.json",
+        "bytes": 390,
+        "sha256": "cae504a25098a0363644372cac13584d6e00a606738fbccdbee125ce68b3af2e",
+        "release": {
+          "gw": {
+            "sha": "bc5e81538c63619259d12187532686d5c0c09e4b",
+            "digest": "sha256:729b8a9e91d517b4716bb4a1e94004c2d7a5add2e452f5009f5d335185f03666",
+            "ref": "registry.infra.bulletpoints.club/wbs-gw-01:bc5e81538c63619259d12187532686d5c0c09e4b",
+            "image": "registry.infra.bulletpoints.club/wbs-gw-01@sha256:729b8a9e91d517b4716bb4a1e94004c2d7a5add2e452f5009f5d335185f03666"
+          }
+        }
+      },
+      {
+        "path": "/home/puni1/wbs-build/dist/tool-remote-scripts/swap.js",
+        "bytes": 34408,
+        "sha256": "ecc8c3152929157b88a2eb42d844bfbbcfbacf1b3258f3e6eecc5ff09c263d30"
+      },
+      {
+        "path": "/home/puni1/wbs-build/dist/tool-remote-scripts/smoke.js",
+        "state": "FileNotFoundError"
+      },
+      {
+        "path": "/home/puni1/wbs/state/be.phase",
+        "bytes": 10,
+        "sha256": "cc2e4bb51f522b77c0c3ad04f7a87386a7e06d4fa287c004b6c066410c5c24dc",
+        "phase": "committed"
+      },
+      {
+        "path": "/home/puni1/wbs/state/gw.phase",
+        "bytes": 10,
+        "sha256": "cc2e4bb51f522b77c0c3ad04f7a87386a7e06d4fa287c004b6c066410c5c24dc",
+        "phase": "committed"
+      },
+      {
+        "path": "/home/puni1/wbs/state/fe.phase",
+        "bytes": 10,
+        "sha256": "cc2e4bb51f522b77c0c3ad04f7a87386a7e06d4fa287c004b6c066410c5c24dc",
+        "phase": "committed"
+      }
+    ],
+    "releaseFileCandidates": []
+  },
+  "verification": {
+    "observedAt": "2026-11-11T05:48:07.779027+00:00",
+    "historicalSha": "0afc77758131bc4257dcaa78f0b26bc97ffd92dc",
+    "historicalChecks": 0,
+    "historicalStatusCount": 0,
+    "historicalRuns": 0,
+    "mainRules": [
+      {
+        "type": "pull_request",
+        "parameters": {
+          "required_approving_review_count": 0,
+          "dismiss_stale_reviews_on_push": false,
+          "required_reviewers": [],
+          "require_code_owner_review": false,
+          "dismissal_restriction": {
+            "enabled": false,
+            "allowed_actors": []
+          },
+          "require_last_push_approval": false,
+          "required_review_thread_resolution": false,
+          "require_extra_approval_for_unattributed_changes": true,
+          "allowed_merge_methods": ["merge", "squash", "rebase"]
+        },
+        "ruleset_source_type": "Repository",
+        "ruleset_source": "Prosperous-Unification/puni-00",
+        "ruleset_id": 25730010
+      },
+      {
+        "type": "required_status_checks",
+        "parameters": {
+          "strict_required_status_checks_policy": false,
+          "do_not_enforce_on_create": false,
+          "required_status_checks": [
+            {
+              "context": "gate",
+              "integration_id": 15368
+            },
+            {
+              "context": "pixels",
+              "integration_id": 15368
+            }
+          ]
+        },
+        "ruleset_source_type": "Repository",
+        "ruleset_source": "Prosperous-Unification/puni-00",
+        "ruleset_id": 25730010
+      }
+    ],
+    "sourceChecks": [
+      {
+        "name": "gate",
+        "head_sha": "7614ca5116e2b27831076f7bc7c9f9872051c388",
+        "status": "completed",
+        "conclusion": "failure",
+        "started_at": "2026-11-10T20:23:33Z",
+        "completed_at": "2026-11-10T20:23:37Z",
+        "html_url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/42880292473/job/130105034094"
+      },
+      {
+        "name": "pixels",
+        "head_sha": "7614ca5116e2b27831076f7bc7c9f9872051c388",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-11-10T19:14:45Z",
+        "completed_at": "2026-11-10T19:14:48Z",
+        "html_url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/42880292473/job/130064985465"
+      },
+      {
+        "name": "gate remote",
+        "head_sha": "7614ca5116e2b27831076f7bc7c9f9872051c388",
+        "status": "completed",
+        "conclusion": "failure",
+        "started_at": "2026-11-10T18:57:23Z",
+        "completed_at": "2026-11-10T19:52:26Z",
+        "html_url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/42880292473/job/130054747460"
+      }
+    ]
+  },
+  "recovery": {
+    "observedAt": "2026-11-11T05:51:04.708336+00:00",
+    "finishedAt": "2026-11-11T05:51:08.998456+00:00",
+    "sets": [
+      {
+        "name": "sqlite",
+        "statusSha256": "aaf31b6023d54246dea0e27c346a2df7cb2a1eccbfa281899050d47eb79a61e1",
+        "ok": true,
+        "attemptedAt": "2026-11-11T05:17:00.267Z",
+        "completedAt": "2026-11-11T05:25:51.805Z",
+        "alerts": [],
+        "members": [
+          {
+            "label": "wbs-prod",
+            "generation": "20261111T051700267Z-wbs-prod.db",
+            "sha256": "4b198fa591377d2451827b01ea55ccf356d642b98143adb8c9570fb8e577169e",
+            "bytes": 36864
+          },
+          {
+            "label": "wbs-dev",
+            "generation": "20261111T051700267Z-wbs-dev.db",
+            "sha256": "639775b2eee70cb36e0869427c4f00d07181df0bcdbc05af17ad0bbda1b19e2e",
+            "bytes": 1781608448
+          },
+          {
+            "label": "aivn-dev",
+            "generation": "20261111T051700267Z-aivn-dev.db",
+            "sha256": "c3368eb308ad1cb89395b6e428966c905ea0ff5b9019e7c5ce2f849b138fc2c9",
+            "bytes": 110592
+          },
+          {
+            "label": "aivn-cms-dev",
+            "generation": "20261111T051700267Z-aivn-cms-dev.db",
+            "sha256": "e921dd71e796ccb66340823a59366286a9afae76584d1ed4b74da152b24b918c",
+            "bytes": 274432
+          },
+          {
+            "label": "h2puni-config",
+            "generation": "20261111T051700267Z-h2puni-config.tar.gz",
+            "sha256": "b958438b15c362219daa0565f9028798a5284ffa987691df08d3dd13e6f26d29",
+            "bytes": 12509
+          }
+        ],
+        "archive": {
+          "remote": "sqlitecrypt:generations",
+          "generationCount": 25,
+          "acceptedGenerationFiles": 25,
+          "sourceFiles": 25,
+          "setFiles": 5
+        },
+        "remote": {
+          "observedAt": "2026-11-11T05:51:06.272110+00:00",
+          "fileCount": 402,
+          "totalBytes": 112215980652,
+          "oldestGeneration": "20260826T231735243Z-aivn-cms-dev.db",
+          "newestGeneration": "20261111T051700267Z-wbs-prod.db",
+          "currentMembers": [
+            {
+              "label": "wbs-prod",
+              "generation": "20261111T051700267Z-wbs-prod.db",
+              "recordedBytes": 36864,
+              "remoteBytes": 36864,
+              "presentWithRecordedSize": true
+            },
+            {
+              "label": "wbs-dev",
+              "generation": "20261111T051700267Z-wbs-dev.db",
+              "recordedBytes": 1781608448,
+              "remoteBytes": 1781608448,
+              "presentWithRecordedSize": true
+            },
+            {
+              "label": "aivn-dev",
+              "generation": "20261111T051700267Z-aivn-dev.db",
+              "recordedBytes": 110592,
+              "remoteBytes": 110592,
+              "presentWithRecordedSize": true
+            },
+            {
+              "label": "aivn-cms-dev",
+              "generation": "20261111T051700267Z-aivn-cms-dev.db",
+              "recordedBytes": 274432,
+              "remoteBytes": 274432,
+              "presentWithRecordedSize": true
+            },
+            {
+              "label": "h2puni-config",
+              "generation": "20261111T051700267Z-h2puni-config.tar.gz",
+              "recordedBytes": 12509,
+              "remoteBytes": 12509,
+              "presentWithRecordedSize": true
+            }
+          ]
+        },
+        "restoreDrill": {
+          "path": "/home/claw/backups/sqlite/restore-drill.json",
+          "sha256": "512c6f795b86ce4b2ac4415b707e649b7b437bfec5312044702b3ae35709c2a4",
+          "value": {
+            "ok": true,
+            "attemptedAt": "2026-11-08T05:47:00.220Z",
+            "completedAt": "2026-11-08T05:55:52.087Z",
+            "alerts": [],
+            "stamp": "20261108T051700284Z",
+            "remote": "sqlitecrypt:generations",
+            "bytes": 1642614802,
+            "downloadMs": 528731,
+            "verifyMs": 3130,
+            "totalMs": 531866,
+            "members": [
+              {
+                "label": "wbs-prod",
+                "generation": "20261108T051700284Z-wbs-prod.db",
+                "bytes": 36864,
+                "integrity": "ok",
+                "sanity": 5
+              },
+              {
+                "label": "wbs-dev",
+                "generation": "20261108T051700284Z-wbs-dev.db",
+                "bytes": 1642180608,
+                "integrity": "ok",
+                "sanity": 9826
+              },
+              {
+                "label": "aivn-dev",
+                "generation": "20261108T051700284Z-aivn-dev.db",
+                "bytes": 110592,
+                "integrity": "ok",
+                "sanity": 5
+              },
+              {
+                "label": "aivn-cms-dev",
+                "generation": "20261108T051700284Z-aivn-cms-dev.db",
+                "bytes": 274432,
+                "integrity": "ok",
+                "sanity": 22
+              },
+              {
+                "label": "h2puni-config",
+                "generation": "20261108T051700284Z-h2puni-config.tar.gz",
+                "bytes": 12306,
+                "integrity": "ok",
+                "sanity": 55
+              }
+            ]
+          }
+        },
+        "retention": {
+          "path": "/home/claw/backups/sqlite/remote-retention.json",
+          "sha256": "5c4909f3ffb1c15c343a99b143159f6fa26a0fb8af004791f17f8546d5488048",
+          "value": {
+            "ok": true,
+            "attemptedAt": "2026-11-11T04:47:00.295Z",
+            "completedAt": "2026-11-11T04:50:00.471Z",
+            "alerts": [],
+            "targets": [
+              {
+                "target": "sqlitecrypt:generations",
+                "protectedStamps": ["20261111T041700301Z"],
+                "listedFiles": 516,
+                "keptStamps": 84,
+                "keptFiles": 397,
+                "keptBytes": 110433937807,
+                "tierCounts": {
+                  "weekly": 3,
+                  "daily": 35,
+                  "hourly": 45,
+                  "newest": 1
+                },
+                "expiredStamps": 24,
+                "expiredFiles": 119,
+                "expiredBytes": 38791446116,
+                "foreignFiles": [],
+                "oldestKept": "20260826T231735243Z",
+                "newestKept": "20261111T041700301Z"
+              },
+              {
+                "target": "sqlitecrypt:mlflow",
+                "protectedStamps": ["20261111T023700281Z"],
+                "listedFiles": 18,
+                "keptStamps": 18,
+                "keptFiles": 18,
+                "keptBytes": 14436720640,
+                "tierCounts": {
+                  "daily": 16,
+                  "hourly": 1,
+                  "newest": 1
+                },
+                "expiredStamps": 0,
+                "expiredFiles": 0,
+                "expiredBytes": 0,
+                "foreignFiles": [],
+                "oldestKept": "20261025T041105036Z",
+                "newestKept": "20261111T023700281Z"
+              },
+              {
+                "target": "sqlite/website-dev",
+                "protectedStamps": [],
+                "listedFiles": 211,
+                "keptStamps": 82,
+                "keptFiles": 164,
+                "keptBytes": 36417988,
+                "tierCounts": {
+                  "daily": 33,
+                  "hourly": 48,
+                  "newest": 1
+                },
+                "expiredStamps": 24,
+                "expiredFiles": 47,
+                "expiredBytes": 11199972,
+                "foreignFiles": [],
+                "oldestKept": "20261007T232300732Z",
+                "newestKept": "20261111T042311636Z"
+              }
+            ],
+            "dryRun": false
+          }
+        }
+      },
+      {
+        "name": "mlflow",
+        "statusSha256": "e8d1bfe8579b9b2bea06d42267edb39a513fcc9a9b15038c20f2651c37331dd1",
+        "ok": true,
+        "attemptedAt": "2026-11-11T02:37:00.281Z",
+        "completedAt": "2026-11-11T02:42:04.108Z",
+        "alerts": [],
+        "members": [
+          {
+            "label": "mlflow",
+            "generation": "20261111T023700281Z-mlflow.db",
+            "sha256": "be2a88b78f14c9fb7ab5eb2a9703102ceeb43683ef1310de6369d97016eac64d",
+            "bytes": 905199616
+          }
+        ],
+        "archive": {
+          "remote": "sqlitecrypt:mlflow",
+          "generationCount": 3,
+          "acceptedGenerationFiles": 3,
+          "sourceFiles": 3,
+          "setFiles": 1
+        },
+        "remote": {
+          "observedAt": "2026-11-11T05:51:07.008335+00:00",
+          "fileCount": 18,
+          "totalBytes": 14436720640,
+          "oldestGeneration": "20261025T041105036Z-mlflow.db",
+          "newestGeneration": "20261111T023700281Z-mlflow.db",
+          "currentMembers": [
+            {
+              "label": "mlflow",
+              "generation": "20261111T023700281Z-mlflow.db",
+              "recordedBytes": 905199616,
+              "remoteBytes": 905199616,
+              "presentWithRecordedSize": true
+            }
+          ]
+        },
+        "restoreDrill": {
+          "path": "/home/claw/backups/mlflow/restore-drill.json",
+          "sha256": "6cce62eceff8cf26b00500b33236c7f2c5824d3fc703097ca3ccb1cd239759d8",
+          "value": {
+            "ok": true,
+            "attemptedAt": "2026-11-08T05:55:52.498Z",
+            "completedAt": "2026-11-08T05:57:20.098Z",
+            "alerts": [],
+            "stamp": "20261108T023700286Z",
+            "remote": "sqlitecrypt:mlflow",
+            "bytes": 869306368,
+            "downloadMs": 76298,
+            "verifyMs": 11298,
+            "totalMs": 87600,
+            "members": [
+              {
+                "label": "mlflow",
+                "generation": "20261108T023700286Z-mlflow.db",
+                "bytes": 869306368,
+                "integrity": "ok",
+                "sanity": 34
+              }
+            ]
+          }
+        },
+        "retention": {
+          "path": "/home/claw/backups/mlflow/remote-retention.json",
+          "state": "FileNotFoundError"
+        }
+      }
+    ],
+    "website": {
+      "observedAt": "2026-11-11T05:51:08.971520+00:00",
+      "prefix": "sqlite/website-dev",
+      "fileCount": 166,
+      "latestReport": "20261111T052301331Z.sqlite.report.json",
+      "reportSha256": "940c7b7b18eac2488c2bdf9a6d688b966fb4604f6354400b35b3f5bf9018cb10",
+      "reportKeys": [
+        "bytes",
+        "capturedAt",
+        "database",
+        "migrations",
+        "objectKey",
+        "objectVersion",
+        "restoreProcedureVersion",
+        "retentionJournal",
+        "schemaVersion",
+        "sha256",
+        "sourceRevision"
+      ],
+      "report": {
+        "sourceSha": null,
+        "sha256": "414b9747a1a905fe63af7afadc8665413c1de453edc2f2aac5f9beb1bac0eefc",
+        "bytes": 475136,
+        "size": null,
+        "createdAt": null,
+        "timestamp": null,
+        "database": "website",
+        "objectKey": "sqlite/website-dev/20261111T052301331Z.sqlite",
+        "objectVersion": "msaycJ9xphgTe6MV--4oV-p7zr4Uaym",
+        "integrity": null,
+        "integrityCheck": null,
+        "migrations": [
+          "001_initial",
+          "002_m2",
+          "003_account_submission",
+          "004_request_scope",
+          "005_chat_operation",
+          "006_retention_subject",
+          "007_conversation",
+          "008_refusal",
+          "009_guardrails",
+          "010_retention_journal",
+          "011_scoping",
+          "012_conversation_request",
+          "013_reply_failure"
+        ],
+        "restoreProcedureVersion": "website-sqlite-restore/2"
+      },
+      "recentObjects": [
+        {
+          "Name": "20261111T002301269Z.sqlite",
+          "Size": 475136
+        },
+        {
+          "Name": "20261111T002301269Z.sqlite.report.json",
+          "Size": 956
+        },
+        {
+          "Name": "20261111T012301318Z.sqlite",
+          "Size": 475136
+        },
+        {
+          "Name": "20261111T012301318Z.sqlite.report.json",
+          "Size": 956
+        },
+        {
+          "Name": "20261111T012411725Z.sqlite",
+          "Size": 475136
+        },
+        {
+          "Name": "20261111T012411725Z.sqlite.report.json",
+          "Size": 956
+        },
+        {
+          "Name": "20261111T022301335Z.sqlite",
+          "Size": 475136
+        },
+        {
+          "Name": "20261111T022301335Z.sqlite.report.json",
+          "Size": 956
+        },
+        {
+          "Name": "20261111T032301338Z.sqlite",
+          "Size": 475136
+        },
+        {
+          "Name": "20261111T032301338Z.sqlite.report.json",
+          "Size": 956
+        },
+        {
+          "Name": "20261111T042311636Z.sqlite",
+          "Size": 475136
+        },
+        {
+          "Name": "20261111T042311636Z.sqlite.report.json",
+          "Size": 956
+        },
+        {
+          "Name": "20261111T052301331Z.sqlite",
+          "Size": 475136
+        },
+        {
+          "Name": "20261111T052301331Z.sqlite.report.json",
+          "Size": 956
+        }
+      ]
+    },
+    "health": {
+      "path": "/home/claw/backups/sqlite/health.json",
+      "sha256": "f219a40477e248cd17c3acdaad18e20bb62f25950a694ef30573363ca3cfd18b",
+      "value": {
+        "ok": true,
+        "checkedAt": "2026-11-11T05:47:00.270Z",
+        "sets": [
+          {
+            "set": "sqlite",
+            "ok": true,
+            "alerts": [],
+            "facts": {
+              "status": {
+                "ok": true,
+                "alerts": []
+              },
+              "remoteNewestAt": "2026-11-11T05:17:00.267Z",
+              "remoteFiles": 402,
+              "retentionCompletedAt": "2026-11-11T04:50:00.471Z",
+              "drillCompletedAt": "2026-11-08T05:55:52.087Z",
+              "drillTotalMs": 531866
+            }
+          },
+          {
+            "set": "mlflow",
+            "ok": true,
+            "alerts": [],
+            "facts": {
+              "status": {
+                "ok": true,
+                "alerts": []
+              },
+              "remoteNewestAt": "2026-11-11T02:37:00.281Z",
+              "remoteFiles": 18,
+              "drillCompletedAt": "2026-11-08T05:57:20.098Z",
+              "drillTotalMs": 87600
+            }
+          }
+        ],
+        "alerts": []
+      }
+    },
+    "credentialFiles": [
+      {
+        "path": "/home/claw/.secrets/hetzner-puni-01.env",
+        "mode": "0o600",
+        "ownerUid": 1000,
+        "keyNames": [
+          "AWS_ACCESS_KEY_ID",
+          "AWS_SECRET_ACCESS_KEY",
+          "AWS_REGION",
+          "AWS_DEFAULT_REGION",
+          "AWS_ENDPOINT_URL",
+          "PUNI_OBJECT_STORAGE_BUCKET",
+          "RCLONE_CONFIG_PUNI01_TYPE",
+          "RCLONE_CONFIG_PUNI01_PROVIDER",
+          "RCLONE_CONFIG_PUNI01_ENV_AUTH",
+          "RCLONE_CONFIG_PUNI01_REGION",
+          "RCLONE_CONFIG_PUNI01_ENDPOINT",
+          "RCLONE_CONFIG_PUNI01_ACL"
+        ],
+        "readable": true
+      },
+      {
+        "path": "/home/claw/.secrets/sqlite-backup-crypt.env",
+        "mode": "0o600",
+        "ownerUid": 1000,
+        "keyNames": ["SQLITE_BACKUP_CRYPT_PASSWORD", "SQLITE_BACKUP_CRYPT_SALT"],
+        "readable": true
+      }
+    ],
+    "units": "Result=success\nExecMainStartTimestamp=Wed 2026-11-11 05:17:00 UTC\nExecMainExitTimestamp=Wed 2026-11-11 05:25:53 UTC\nExecMainStatus=0\nId=sqlite-backup.service\nLoadState=loaded\nActiveState=inactive\n\nResult=success\nExecMainStartTimestamp=Wed 2026-11-11 02:37:00 UTC\nExecMainExitTimestamp=Wed 2026-11-11 02:42:05 UTC\nExecMainStatus=0\nId=sqlite-backup-mlflow.service\nLoadState=loaded\nActiveState=inactive\n\nResult=success\nExecMainStartTimestamp=Wed 2026-11-11 04:47:00 UTC\nExecMainExitTimestamp=Wed 2026-11-11 04:50:00 UTC\nExecMainStatus=0\nId=sqlite-backup-remote-prune.service\nLoadState=loaded\nActiveState=inactive\n\nResult=success\nExecMainStartTimestamp=Sun 2026-11-08 05:55:52 UTC\nExecMainExitTimestamp=Sun 2026-11-08 05:57:20 UTC\nExecMainStatus=0\nId=sqlite-backup-restore-drill.service\nLoadState=loaded\nActiveState=inactive\n\nResult=success\nExecMainStartTimestamp=Wed 2026-11-11 05:47:00 UTC\nExecMainExitTimestamp=Wed 2026-11-11 05:47:02 UTC\nExecMainStatus=0\nId=backup-freshness-alert.service\nLoadState=loaded\nActiveState=inactive\n\nNextElapseUSecRealtime=Wed 2026-11-11 06:17:00 UTC\nResult=success\nId=sqlite-backup.timer\nLoadState=loaded\nActiveState=active\n\nNextElapseUSecRealtime=Thu 2026-11-12 02:37:00 UTC\nResult=success\nId=sqlite-backup-mlflow.timer\nLoadState=loaded\nActiveState=active\n\nNextElapseUSecRealtime=Thu 2026-11-12 04:47:00 UTC\nResult=success\nId=sqlite-backup-remote-prune.timer\nLoadState=loaded\nActiveState=active\n\nNextElapseUSecRealtime=Sun 2026-11-15 05:47:00 UTC\nResult=success\nId=sqlite-backup-restore-drill.timer\nLoadState=loaded\nActiveState=active\n\nNextElapseUSecRealtime=Wed 2026-11-11 06:02:00 UTC\nResult=success\nId=backup-freshness-alert.timer\nLoadState=loaded\nActiveState=active\n",
+    "coverageLimit": "Remote sizes are not fresh content verification; drill records are historical; no independent escrow, immutable/off-account copy or whole-service restore proved."
+  },
+  "storeInventory": {
+    "h2puni": {
+      "observedAt": "2026-11-11T05:50:33.228199+00:00",
+      "persistentMounts": [
+        {
+          "name": "/wbs-dev-src",
+          "running": true,
+          "mounts": [
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/wbs-dev/src",
+              "Destination": "/src",
+              "RW": true
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/wbs-dev/data",
+              "Destination": "/data",
+              "RW": true
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/run/user/1000/wbs-solver",
+              "Destination": "/run/wbs-solver",
+              "RW": false
+            }
+          ]
+        },
+        {
+          "name": "/puni-site-dev-api-1",
+          "running": false,
+          "mounts": [
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/puni-site-dev/data",
+              "Destination": "/srv/data",
+              "RW": true
+            }
+          ]
+        },
+        {
+          "name": "/logging-vector",
+          "running": true,
+          "mounts": [
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/monitoring",
+              "Destination": "/var/log/host/monitoring",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/etc/observability/victorialogs-bearer-current",
+              "Destination": "/etc/observability/victorialogs-bearer-current",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/wbs/logs",
+              "Destination": "/var/log/host/caddy",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/opt/observability/logging/vector.yaml",
+              "Destination": "/etc/vector/vector.yaml",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/logging/probes",
+              "Destination": "/var/log/host/probes",
+              "RW": false
+            },
+            {
+              "Type": "volume",
+              "Name": "logging-vector-data",
+              "Source": "/var/lib/docker/volumes/logging-vector-data/_data",
+              "Destination": "/var/lib/vector",
+              "RW": true
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/opt/observability/logging/bin/entrypoint.sh",
+              "Destination": "/usr/local/bin/task84-entrypoint.sh",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/etc/observability/h3mon-ca.crt",
+              "Destination": "/etc/observability/h3mon-ca.crt",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/wbs-dev/logs",
+              "Destination": "/var/log/host/deploy/wbs-dev",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/aivn-dev/logs",
+              "Destination": "/var/log/host/deploy/aivn-dev",
+              "RW": false
+            }
+          ]
+        },
+        {
+          "name": "/netdata",
+          "running": true,
+          "mounts": [
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/proc",
+              "Destination": "/host/proc",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/var/log",
+              "Destination": "/host/var/log",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/etc/os-release",
+              "Destination": "/host/etc/os-release",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/",
+              "Destination": "/host/root",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/var/run/docker.sock",
+              "Destination": "/var/run/docker.sock",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/monitoring/netdata-config",
+              "Destination": "/etc/netdata",
+              "RW": true
+            },
+            {
+              "Type": "volume",
+              "Name": "netdatalib",
+              "Source": "/var/lib/docker/volumes/netdatalib/_data",
+              "Destination": "/var/lib/netdata",
+              "RW": true
+            },
+            {
+              "Type": "volume",
+              "Name": "netdatacache",
+              "Source": "/var/lib/docker/volumes/netdatacache/_data",
+              "Destination": "/var/cache/netdata",
+              "RW": true
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/sys",
+              "Destination": "/host/sys",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/run/dbus",
+              "Destination": "/run/dbus",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/etc/passwd",
+              "Destination": "/host/etc/passwd",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/etc/group",
+              "Destination": "/host/etc/group",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/etc/localtime",
+              "Destination": "/etc/localtime",
+              "RW": false
+            }
+          ]
+        },
+        {
+          "name": "/dev-be-01-blue",
+          "running": true,
+          "mounts": [
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/wbs-dev/data",
+              "Destination": "/data",
+              "RW": true
+            }
+          ]
+        },
+        {
+          "name": "/aivn-studio-dev-src",
+          "running": true,
+          "mounts": [
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/aivn-dev/src",
+              "Destination": "/src",
+              "RW": true
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/aivn-dev/data",
+              "Destination": "/data",
+              "RW": true
+            }
+          ]
+        },
+        {
+          "name": "/wbs-caddy-1",
+          "running": true,
+          "mounts": [
+            {
+              "Type": "volume",
+              "Name": "wbs_caddy_config",
+              "Source": "/var/lib/docker/volumes/wbs_caddy_config/_data",
+              "Destination": "/config",
+              "RW": true
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/wbs/caddy",
+              "Destination": "/etc/caddy",
+              "RW": false
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/wbs/logs",
+              "Destination": "/var/log/caddy",
+              "RW": true
+            },
+            {
+              "Type": "volume",
+              "Name": "wbs_caddy_data",
+              "Source": "/var/lib/docker/volumes/wbs_caddy_data/_data",
+              "Destination": "/data",
+              "RW": true
+            }
+          ]
+        },
+        {
+          "name": "/be-01-green",
+          "running": true,
+          "mounts": [
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/wbs/data",
+              "Destination": "/data",
+              "RW": true
+            }
+          ]
+        },
+        {
+          "name": "/wbs-registry-1",
+          "running": true,
+          "mounts": [
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/wbs/registry.htpasswd",
+              "Destination": "/auth/htpasswd",
+              "RW": false
+            },
+            {
+              "Type": "volume",
+              "Name": "wbs_registry_data",
+              "Source": "/var/lib/docker/volumes/wbs_registry_data/_data",
+              "Destination": "/var/lib/registry",
+              "RW": true
+            }
+          ]
+        },
+        {
+          "name": "/aivn-dev-src",
+          "running": true,
+          "mounts": [
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/aivn-dev/data",
+              "Destination": "/data",
+              "RW": true
+            },
+            {
+              "Type": "bind",
+              "Name": null,
+              "Source": "/home/puni1/aivn-dev/src",
+              "Destination": "/src",
+              "RW": true
+            }
+          ]
+        }
+      ],
+      "mcpHistoricalPath": {
+        "path": "/home/puni1/wbs-dev/mcp-data/mcp-session.sqlite",
+        "state": "FileNotFoundError"
+      }
+    },
+    "h3mon": {
+      "observedAt": "2026-11-11T05:50:33.237828+00:00",
+      "dockerAccess": {
+        "exit": 1,
+        "state": "unavailable"
+      },
+      "k3sUnits": "Id=k3s.service\nLoadState=not-found\nActiveState=inactive\nSubState=dead\n\nId=k3s-agent.service\nLoadState=loaded\nActiveState=active\nSubState=running\n"
+    },
+    "h4claw": {
+      "observedAt": "2026-11-11T05:50:33.668202+00:00",
+      "dockerAccess": {
+        "exit": 1,
+        "state": "unavailable"
+      },
+      "k3sUnits": "Id=k3s.service\nLoadState=loaded\nActiveState=active\nSubState=running\n\nId=k3s-agent.service\nLoadState=not-found\nActiveState=inactive\nSubState=dead\n",
+      "serverDbPath": {
+        "path": "/var/lib/rancher/k3s/server/db",
+        "state": "PermissionError"
+      }
+    }
+  },
+  "privateReceiptFiles": [
+    {
+      "name": "backups.json",
+      "sha256": "3063715a14d1550e91a4f8cf49ffda6823549cb1e5963ab5be7adad71e90bed8"
+    },
+    {
+      "name": "build-artifacts.json",
+      "sha256": "5c55e957f1d1c8c7ede81baeab2ed8c15b677957f10b9200a5c6516022a09bd5"
+    },
+    {
+      "name": "github.json",
+      "sha256": "90f3ab1fa0ebae8714acfe55738d3881eca4d9e6cd3f41291ac4f34e89c3d1b0"
+    },
+    {
+      "name": "registry.json",
+      "sha256": "46d03c07558ea1704e591f27f2a63d91d7ec362f71be60120e2f8e2268b418e1"
+    },
+    {
+      "name": "runtime.json",
+      "sha256": "a721b8cd4f4a9d2aa4d04b46242eda4848de8ce6fbee93b5c8bd143dcd8b186f"
+    },
+    {
+      "name": "stores.json",
+      "sha256": "2095c18336a62a8ca9289378614a1331fe5ca30a21897b955a224ad491c6697f"
+    },
+    {
+      "name": "captured/wbs/bin/smoke.js",
+      "bytes": 43165,
+      "sha256": "9e23d75e1929a7f4924538393b9859a4243f0065b46386d3b26804954a52431b"
+    },
+    {
+      "name": "captured/wbs/bin/swap.js",
+      "bytes": 33176,
+      "sha256": "7e8f65aae4df1c33c5bbfcd92db350dc038bc2236d4a6dbc5d3b4fe465fee10a"
+    },
+    {
+      "name": "captured/wbs/state/be.json",
+      "bytes": 110,
+      "sha256": "f821ca168597ab7c8fa44f95ffc0590bcae8197c21dc55cfc8e0ab3678b7f9da"
+    },
+    {
+      "name": "captured/wbs/state/fe.json",
+      "bytes": 109,
+      "sha256": "e275f92e05f69ee410d5db1ae22cbb00d0488f2bd00246d29cf6a1553f9b4ceb"
+    },
+    {
+      "name": "captured/wbs/state/gw.json",
+      "bytes": 110,
+      "sha256": "ab0240754090f475abdf172794998ac99e107bc85294b571ddd29876622fc688"
+    },
+    {
+      "name": "captured/wbs-build/dist/tool-dagger/release.json",
+      "bytes": 390,
+      "sha256": "cae504a25098a0363644372cac13584d6e00a606738fbccdbee125ce68b3af2e"
+    },
+    {
+      "name": "captured/wbs-build/dist/tool-smoke/smoke.js",
+      "bytes": 43857,
+      "sha256": "9e0cb7753847de57ac28599c4db89572eea158a29f40d57d2051e5b7104b9ef9"
+    }
+  ]
+}
+```
