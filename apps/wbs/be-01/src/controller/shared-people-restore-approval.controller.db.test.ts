@@ -10,8 +10,10 @@ async function populate() {
   for (const username of ['sam', 'ada', 'other']) await h.register(username);
   h.organization('org-a');
   h.member('org-a', 'sam', 'super_admin');
+  h.grantPermissions('org-a', 'sam', ['organization.manage_security']);
   h.member('org-a', 'ada', 'admin');
   h.member('org-a', 'other', 'super_admin');
+  h.grantPermissions('org-a', 'other', ['organization.manage_security']);
   for (const username of ['sam', 'ada', 'other']) h.bind(username, 'org-a');
   h.activate();
 }
@@ -54,7 +56,7 @@ describe('personal shared people restore approval', () => {
   it('refuses an admin without storing an operation', async () => {
     expect(await h.call('ada', 'POST', PATH, REQUEST)).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
     expect(approvals()).toEqual([]);
     expect(operations()).toEqual([]);
@@ -81,6 +83,7 @@ describe('personal shared people restore approval', () => {
     expect((await h.call('sam', 'POST', PATH, REQUEST)).status).toBe(200);
     h.organization('org-b');
     h.member('org-b', 'other', 'super_admin');
+    h.grantPermissions('org-b', 'other', ['organization.manage_security']);
     h.bind('other', 'org-b');
     expect(
       await h.call('other', 'POST', PATH, { ...REQUEST, backupDigest: 'b'.repeat(64) }),
@@ -102,7 +105,7 @@ describe('personal shared people restore approval', () => {
     h.bind('other', 'org-b');
     expect(await h.call('other', 'POST', PATH, REQUEST)).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
     expect(operations()).toEqual([]);
     expect(approvals()).toEqual([]);
@@ -121,27 +124,23 @@ describe('personal shared people restore approval', () => {
     expect(operations()).toEqual([]);
   });
 
-  it('rechecks membership after route admission, including approval retries', async () => {
+  it('rechecks current security grants after route admission, including approval retries', async () => {
     expect((await h.call('sam', 'POST', PATH, REQUEST)).status).toBe(200);
-    h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
-      h.userId('sam'),
-    ]);
+    h.sqlite.run('DELETE FROM access_grant WHERE subject_id = ?', [h.userId('sam')]);
     expect((await h.call('sam', 'POST', PATH, REQUEST)).status).toBe(403);
     h.close();
     let demote = false;
     h = OrganizationHarness.openComposedWith({
       afterResolve: () => {
         if (demote)
-          h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
-            h.userId('sam'),
-          ]);
+          h.sqlite.run('DELETE FROM access_grant WHERE subject_id = ?', [h.userId('sam')]);
       },
     });
     await populate();
     demote = true;
     expect(await h.call('sam', 'POST', PATH, REQUEST)).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
     expect(approvals()).toEqual([]);
     expect(operations()).toEqual([]);
@@ -179,7 +178,10 @@ describe('personal shared people restore approval', () => {
       release();
       await holder;
     }
-    expect(await requested).toEqual({ status: 403, body: { error: 'forbidden' } });
+    expect(await requested).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
+    });
     expect(operations()).toEqual([]);
   });
 

@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { AuthService } from '@wbs/core/service/auth.service';
+import { ExternalIdentityRepository } from '@wbs/store-sqlite/external-identity';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { FakeOidcProvider } from '../testing/fake-oidc-provider';
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -8,6 +10,7 @@ const ISSUER = 'https://idp.test';
 
 let harness: OrganizationHarness;
 let provider: FakeOidcProvider;
+let duringExchange: (() => void) | undefined;
 
 /** Inserts a verified claim and an unproven `samlp` connection on it. */
 function connection(
@@ -88,7 +91,24 @@ const audits = () =>
     .all();
 
 beforeEach(async () => {
+  duringExchange = undefined;
   provider = new FakeOidcProvider();
+  const routeOptions = provider.routeOptions.bind(provider);
+  provider.routeOptions = (origin) => {
+    const options = routeOptions(origin);
+    const exchange = options.client.exchange.bind(options.client);
+    return {
+      ...options,
+      client: {
+        ...options.client,
+        exchange: async (...arguments_) => {
+          await Promise.resolve();
+          duringExchange?.();
+          return exchange(...arguments_);
+        },
+      },
+    };
+  };
   harness = OrganizationHarness.open({ provider });
   await harness.register('sam');
   await harness.register('mem');
@@ -96,8 +116,10 @@ beforeEach(async () => {
   harness.organization('org-a');
   harness.organization('org-b');
   harness.member('org-a', 'sam', 'super_admin');
+  harness.grantPermissions('org-a', 'sam', ['organization.manage_security']);
   harness.member('org-a', 'mem', 'member');
   harness.member('org-b', 'bea', 'super_admin');
+  harness.grantPermissions('org-b', 'bea', ['organization.manage_security']);
   connection('conn-a', 'org-a', 'acme.test', 'acme-saml', 'acme');
   harness.activate();
 });
@@ -145,6 +167,54 @@ describe('proof through the routed link', () => {
       expect(mappedUser(subject)).toBeNull();
       expect(audits()).toEqual([]);
     });
+
+  it('uses the addressed connection organization for its current proof grant', async () => {
+    harness.member('org-a', 'bea', 'super_admin');
+    const subject = 'samlp|acme-saml|bea@acme.test';
+    expect(await routedLink('bea', 'acme', subject, 'bea@acme.test')).toBe('linked');
+    expect(mappedUser(subject)).toBe(harness.userId('bea'));
+    expect(connectionRow('conn-a')).toMatchObject({ proven_at: null, proven_by: null });
+    expect(userEmail('bea')).toEqual({ email: null, email_verified: 0 });
+    expect(audits()).toEqual([]);
+  });
+
+  it('uses the borrowed identity writer for audited enterprise proof', async () => {
+    const publicWriter = spyOn(
+      ExternalIdentityRepository.prototype,
+      'linkIdentity',
+    ).mockImplementation(() => {
+      throw new Error('public identity writer must not run');
+    });
+    try {
+      const subject = 'samlp|acme-saml|sam@acme.test';
+      expect(await routedLink('sam', 'acme', subject, 'sam@acme.test')).toBe('linked');
+      expect(mappedUser(subject)).toBe(harness.userId('sam'));
+      expect(connectionRow('conn-a')).toMatchObject({ proven_by: harness.userId('sam') });
+      expect(audits()).toHaveLength(1);
+    } finally {
+      publicWriter.mockRestore();
+    }
+  });
+
+  it('proves through the authenticated account security grant despite a member role', async () => {
+    harness.grantPermissions('org-a', 'mem', ['organization.manage_security']);
+    const subject = 'samlp|acme-saml|mem@acme.test';
+    expect(await routedLink('mem', 'acme', subject, 'mem@acme.test')).toBe('linked');
+    expect(mappedUser(subject)).toBe(harness.userId('mem'));
+    expect(connectionRow('conn-a')).toMatchObject({ proven_by: harness.userId('mem') });
+    expect(userEmail('mem')).toEqual({ email: 'mem@acme.test', email_verified: 1 });
+    expect(audits()).toHaveLength(1);
+  });
+
+  it('keeps a role-only super-admin link ordinary when its security grant is absent', async () => {
+    harness.sqlite.run('DELETE FROM access_grant WHERE subject_id = ?', [harness.userId('sam')]);
+    const subject = 'samlp|acme-saml|sam@acme.test';
+    expect(await routedLink('sam', 'acme', subject, 'sam@acme.test')).toBe('linked');
+    expect(mappedUser(subject)).toBe(harness.userId('sam'));
+    expect(connectionRow('conn-a')).toMatchObject({ proven_at: null, proven_by: null });
+    expect(userEmail('sam')).toEqual({ email: null, email_verified: 0 });
+    expect(audits()).toEqual([]);
+  });
 
   it('links a non-super-admin matching pair without proving or trusting its email', async () => {
     const subject = 'samlp|acme-saml|mem@acme.test';
@@ -208,3 +278,47 @@ describe('proof through the routed link', () => {
     expect(provider.authorizations).toEqual([]);
   });
 });
+
+for (const mutate of ['id', 'authentication', 'delegation']) {
+  it('retains the verified OIDC link principal across provider exchange: ' + mutate, async () => {
+    const observer = spyOn(AuthService.prototype, 'sessionUser');
+    const sessionUser = observer.getMockImplementation();
+    if (sessionUser === undefined)
+      throw new Error('session account spy lost its real implementation');
+    let replace: (() => void) | undefined;
+    let substitutions = 0;
+    observer.mockImplementation(async function (this: AuthService, token) {
+      const current = await sessionUser.call(this, token);
+      if (current !== null)
+        replace = () => {
+          if (mutate === 'id') Object.assign(current.user, { id: harness.userId('bea') });
+          if (mutate === 'authentication')
+            Object.assign(current.user, {
+              authentication: { kind: 'machine', credentialId: 'replacement', personId: 'agent' },
+            });
+          if (mutate === 'delegation')
+            Object.assign(current.user, { delegation: { organizationId: 'org-a' } });
+        };
+      return current;
+    });
+    duringExchange = () => {
+      if (replace === undefined)
+        throw new Error('provider exchange did not receive an authenticated account');
+      replace();
+      substitutions += 1;
+    };
+    const subject = 'samlp|acme-saml|retained@acme.test';
+    try {
+      expect(await routedLink('sam', 'acme', subject, 'retained@acme.test')).toBe('linked');
+      expect(substitutions).toBe(1);
+      expect(mappedUser(subject)).toBe(harness.userId('sam'));
+      expect(connectionRow('conn-a')).toMatchObject({ proven_by: harness.userId('sam') });
+      expect(audits()).toMatchObject([
+        { actor_id: harness.userId('sam'), action: 'sso_connection_proven' },
+      ]);
+    } finally {
+      duringExchange = undefined;
+      observer.mockRestore();
+    }
+  });
+}

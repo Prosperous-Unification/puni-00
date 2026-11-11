@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type Type, type } from 'arktype';
 
 import type { PlanCommandKind } from '../commands/definitions';
@@ -176,7 +177,15 @@ const writeRefusals = [
 const scopedBatchRefusals = [
   organizationRefusal,
   organizationContextRefusal,
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
 ] as const;
 const batchRefusals = [
@@ -209,8 +218,12 @@ const batchRefusals = [
     status: 403,
     schema: responseSchema(
       type.or(
+        type({
+          ...context,
+          error: "'forbidden'",
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
         plainRefusals(
-          'forbidden',
           // `claimWorkItem`/`releaseWorkItem`: the caller may not act as the person named.
           'person_not_bound',
           'credential_not_for_person',
@@ -256,6 +269,7 @@ const batchRefusals = [
       type.or(
         plainRefusals(
           'cycle',
+          'last_super_admin',
           // `patchResource.providerId` naming another organization's instance.
           'provider_not_in_organization',
           // Retired at ADR 0023 and deliberately kept: no release since refuses a
@@ -732,13 +746,22 @@ const undoRefusals = [
   ...writeRefusals,
   organizationRefusal,
   organizationContextRefusal,
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   {
     status: 409,
     schema: responseSchema(
       type({
-        error: "'nothing_to_undo' | 'stale_undo' | 'external_dependencies_inactive'",
+        error:
+          "'nothing_to_undo' | 'replay_provenance_unavailable' | 'stale_undo' | 'external_dependencies_inactive'",
         detail: 'string | null',
       }),
     ),

@@ -386,3 +386,45 @@ describe('reachingGrantsOf', () => {
     );
   });
 });
+
+it('rejects recognized raw role/scope pairs that the grant writer prohibits', () => {
+  const base = {
+    grantId: 'bad-scope-grant',
+    scopeId: 'scope-a',
+    subjectKind: 'user',
+    subjectId: 'ada',
+    reachesRestricted: false,
+    permission: 'package.read',
+  };
+  for (const [objectKind, scopeKind, roleId] of [
+    ['project', 'work_package', 'project-contributor'],
+    ['organization', 'project', 'org-admin'],
+  ] as const) {
+    expect(() => reachingGrantsOf([{ ...base, objectKind, scopeKind, roleId }])).toThrow(
+      'bad-scope-grant',
+    );
+  }
+});
+it('preserves project and package contributor roles at organization scope in the raw decoder', () => {
+  const base = {
+    scopeKind: 'organization',
+    scopeId: 'org-a',
+    subjectKind: 'user',
+    subjectId: 'ada',
+    reachesRestricted: false,
+    permission: 'package.read',
+  };
+  const decoded = reachingGrantsOf([
+    { ...base, grantId: 'project-at-org', objectKind: 'project', roleId: 'project-contributor' },
+    {
+      ...base,
+      grantId: 'package-at-org',
+      objectKind: 'work_package',
+      roleId: 'package-contributor',
+    },
+  ]);
+  expect(decoded.map((grant) => grant.roleId)).toEqual([
+    'project-contributor',
+    'package-contributor',
+  ]);
+});

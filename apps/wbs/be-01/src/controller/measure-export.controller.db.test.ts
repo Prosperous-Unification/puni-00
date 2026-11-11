@@ -24,9 +24,9 @@ beforeEach(async () => {
   h.organization('org-a');
   h.organization('org-b');
   // Defining a measure, directly or by import, is an admin's act (design D70).
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-b', 'grace', 'admin');
-  h.member('org-b', 'moe', 'member');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-b', 'grace', 'admin', ['org-admin']);
+  h.member('org-b', 'moe', 'member', ['project-contributor', 'org-viewer']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
   h.bind('moe', 'org-b');
@@ -258,6 +258,7 @@ it('refuses a definition the organization holds in another shape, writing nothin
 });
 
 it("refuses a member's import that would define a measure, writing nothing", async () => {
+  h.grantPermissions('org-b', 'moe', ['organization.create_project']);
   const source = await exported('ada', await measuredPlan());
   const counted = () =>
     h.sqlite
@@ -268,7 +269,7 @@ it("refuses a member's import that would define a measure, writing nothing", asy
   const before = counted();
   expect(await h.call('moe', 'POST', '/api/projects/import', source)).toEqual({
     status: 403,
-    body: { error: 'forbidden' },
+    body: { error: 'forbidden', permission: 'organization.manage_directory' },
   });
   expect(counted()).toEqual(before);
   // Once an admin has defined it, the member's import only matches it.

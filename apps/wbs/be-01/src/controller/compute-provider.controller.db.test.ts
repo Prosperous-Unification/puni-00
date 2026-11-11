@@ -1,12 +1,14 @@
 import { readProjectResources, validateSchema } from '@wbs/contracts';
 import { computeProvidersOver } from '@wbs/store-sqlite';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { generateKeyPair } from 'jose';
 
 import { openDrizzle } from '../repository/db';
 import { WriteCoordinator } from '../repository/gate';
 import {
   addAgentPerson,
+  grantCredential,
   issueApiKey,
   MACHINE_BEARER_NOT_ACCEPTED,
 } from '../testing/machine-credential-fixture';
@@ -58,9 +60,10 @@ async function setUp(): Promise<void> {
   for (const username of ['dany', 'mem', 'bob']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'dany', 'super_admin');
-  h.member('org-a', 'mem', 'member');
-  h.member('org-b', 'bob', 'admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'mem', ['organization.create_project']);
+  h.member('org-b', 'bob', 'admin', ['org-admin']);
   h.bind('dany', 'org-a');
   h.bind('mem', 'org-a');
   h.bind('bob', 'org-b');
@@ -210,6 +213,7 @@ async function keys() {
     personId: 'dash-b',
     issuedBy: h.userId('bob'),
   });
+  grantCredential(h.sqlite, 'org-a', agent.id, 'project-contributor', 'organization', 'org-a');
   return { agent: agent.key, human: human.key, stranger: stranger.key };
 }
 
@@ -274,7 +278,7 @@ describe('provider instance administration', () => {
     ] as const)
       expect(await h.call('mem', method, path, body)).toEqual({
         status: 403,
-        body: { error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.manage_directory' },
       });
     expect(rows('SELECT id FROM compute_provider')).toHaveLength(1);
     expect(auditRows()).toHaveLength(1);
@@ -303,7 +307,7 @@ describe('provider instance administration', () => {
     h = OrganizationHarness.open({ delegationKey: signing.publicKey });
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     h.activate();
     const own = await registered('dany', 'h4claw');
@@ -327,7 +331,7 @@ describe('provider instance administration', () => {
     h = OrganizationHarness.openComposedWith({ machineGrants });
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     for (const [method, path, body] of [
       ['GET', PATH, undefined],
@@ -461,6 +465,7 @@ describe("a resource's provider reference", () => {
   it('sets, reads and clears the reference, and the schedule input does not move', async () => {
     const h4claw = await registered('dany', 'h4claw');
     const before = await h.optimizationHash(projectA);
+    h.grantPermissions('org-a', 'mem', ['organization.manage_directory']);
     expect((await reference('mem', ram, { providerId: h4claw })).status).toBe(200);
     expect(providerOf(ram)).toBe(h4claw);
     const read = await readResources('dany');
@@ -496,7 +501,7 @@ describe("a resource's provider reference", () => {
 
   it('names the instance to a viewer too, never its locator', async () => {
     await h.register('vic');
-    h.member('org-a', 'vic', 'viewer');
+    h.member('org-a', 'vic', 'viewer', ['org-viewer']);
     h.bind('vic', 'org-a');
     const h4claw = await registered('dany', 'h4claw');
     expect((await reference('dany', ram, { providerId: h4claw })).status).toBe(200);
@@ -594,12 +599,18 @@ describe("a resource's provider reference", () => {
     const command = { kind: 'deleteResource', resourceId: staging, cascade: true };
     expect(
       await callForwarded(h, agent, 'POST', '/api/directory/commands', { commands: [command] }),
-    ).toEqual({ status: 403, body: { at: 0, kind: 'deleteResource', error: 'forbidden' } });
+    ).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(
       await callForwarded(h, agent, 'POST', '/api/directory/commands', {
         commands: [{ kind: 'patchResource', resourceId: staging, patch: { unitLabel: 'env' } }],
       }),
-    ).toMatchObject({ status: 200 });
+    ).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(
       await h.call('dany', 'POST', '/api/directory/commands', { commands: [command] }),
     ).toMatchObject({ status: 200 });
@@ -630,6 +641,107 @@ describe('a capacity report', () => {
     ({ agent, human, stranger } = await keys());
   });
 
+  for (const changed of ['person', 'authentication'] as const) {
+    it(
+      'retains the mounted capacity reporter before resolver substitution: ' + changed,
+      async () => {
+        const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+        const resolve = observer.getMockImplementation();
+        if (resolve === undefined) throw new Error('resolver implementation absent');
+        let substitutions = 0;
+        observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+          const resolved = await resolve.call(this, principal);
+          if (changed === 'person') {
+            if (principal.authentication?.kind !== 'machine')
+              throw new Error('machine report did not reach resolver');
+            Object.assign(principal.authentication, { personId: 'dash-b' });
+          } else delete principal.authentication;
+          substitutions += 1;
+          return resolved;
+        });
+        try {
+          const answered = await report(agent, h4claw, ram, measured(Date.now() - 1000));
+          expect(answered.status).toBe(200);
+          expect(answered.body).toMatchObject({ reportedBy: 'dash-a' });
+          expect(substitutions).toBe(1);
+          expect(rows('SELECT reported_by_person_id FROM resource_capacity_report')).toEqual([
+            { reported_by_person_id: 'dash-a' },
+          ]);
+        } finally {
+          observer.mockRestore();
+        }
+      },
+    );
+  }
+  for (const origin of ['session', 'delegation'] as const) {
+    it(
+      'keeps mounted capacity ' + origin + ' refusal despite substituted machine authentication',
+      async () => {
+        let token: string | undefined;
+        let providerId = h4claw;
+        let resourceId = ram;
+        if (origin === 'delegation') {
+          h.close();
+          const signing = await generateKeyPair('RS256');
+          h = OrganizationHarness.open({ delegationKey: signing.publicKey });
+          await h.register('dany');
+          h.organization('org-a');
+          h.member('org-a', 'dany', 'viewer');
+          h.bind('dany', 'org-a');
+          h.activate();
+          mapUpstream(h, 'dany', 'sub-dany');
+          token = await delegationFor(h, signing.privateKey, 'dany', 'org-a', 'sub-dany');
+          addAgentPerson(h.sqlite, 'dash-a', 'org-a', h.userId('dany'));
+          providerId = 'report-provider';
+          resourceId = 'report-resource';
+          h.sqlite.run(
+            "INSERT INTO compute_provider(id,organization_id,kind,name,locator,created_at) VALUES ('report-provider','org-a','ssh_host','Report host','host',1)",
+          );
+          h.sqlite.run(
+            "INSERT INTO resource(id,name,kind,unit_label,provider_id) VALUES ('report-resource','RAM','divisible','GB','report-provider')",
+          );
+          h.sqlite.run(
+            "INSERT INTO resource_organization(resource_id,organization_id,name) VALUES ('report-resource','org-a','RAM')",
+          );
+        }
+        const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+        const resolve = observer.getMockImplementation();
+        if (resolve === undefined) throw new Error('resolver implementation absent');
+        let substitutions = 0;
+        observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+          const resolved = await resolve.call(this, principal);
+          Object.assign(principal, {
+            authentication: {
+              kind: 'machine',
+              credentialId: 'substituted-key',
+              personId: 'dash-a',
+            },
+          });
+          substitutions += 1;
+          return resolved;
+        });
+        try {
+          const answered =
+            token === undefined
+              ? await h.call(
+                  'dany',
+                  'PUT',
+                  reportPath(providerId, resourceId),
+                  measured(Date.now() - 1000),
+                )
+              : await reportBearing(token, providerId, resourceId, measured(Date.now() - 1000));
+          expect(answered).toEqual({
+            status: 403,
+            body: { error: 'not_an_agent_principal', authentication: origin },
+          });
+          expect(substitutions).toBe(1);
+          expect(reportCount()).toBe(0);
+        } finally {
+          observer.mockRestore();
+        }
+      },
+    );
+  }
   it('stores h4claw at 15 GB with 8 in use, idempotently, beside the declared 32', async () => {
     await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
       commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 32 }],
@@ -813,7 +925,7 @@ describe('a capacity report', () => {
     h = OrganizationHarness.open({ delegationKey: signing.publicKey });
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     h.activate();
     mapUpstream(h, 'dany', 'sub-dany');

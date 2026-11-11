@@ -222,8 +222,9 @@ describe('the claims read', () => {
     expect(await read()).toEqual({ readAt: READ_AT, claims: [] });
     // The memory source holds no organization membership to recheck.
     const scoped = {
+      principal: { id: OWNER },
       kind: 'scoped',
-      scope: { organizationId: 'org', userId: OWNER, role: 'admin' },
+      scope: { cap: null, organizationId: 'org', userId: OWNER, role: 'admin' },
     } as const;
     const misuse = await source.stores.claims.observeProject(projectId, scoped).then(
       () => 'answered',

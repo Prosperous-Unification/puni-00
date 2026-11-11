@@ -33,6 +33,7 @@ import type {
   ScimUsers,
 } from '@wbs/core';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
+import { retainSecurityPrincipal } from '@wbs/core/ports/security-principal';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { BrowserLifecycleRefusedError, canonicalOidcEmail } from '@wbs/store-sqlite';
 import { decodeJwt, errors } from 'jose';
@@ -1231,7 +1232,10 @@ export function authOidcEndpoints(
         const current = await auth.sessionUser(session);
         // Proof: 2026-09-28, skipping this recheck made `refuses a link whose originating account lost its password credential` answer 500 instead of the refusal (then 401; now `refused`).
         if (current?.user.id !== proof.userId) return linkOutcome('refused');
-        const user = current.user;
+        // sessionUser verified this personal password/OIDC account; group-less, machine and consent credentials cannot produce it.
+        // Retain that actual account before provider/queue awaits; never use the newly linked email or subject as authority.
+        // Proof: retaining the caller alias across provider exchange (route-snapshot-oidc-provider) failed `retains the verified OIDC link principal across provider exchange: id`; restored GREEN.
+        const linkPrincipal = retainSecurityPrincipal(current.user);
         // Proof: 2026-09-28, bypassing this per-callback marker read made `refuses a callback after activation is lost before contacting Auth0` contact the provider once.
         if (!(await auth.isLinkActive())) return linkOutcome('inactive');
         const callbackUrl = new URL(linkRedirectUri);
@@ -1261,14 +1265,14 @@ export function authOidcEndpoints(
         if (proof.connectionId !== undefined) {
           const at = now();
           const routed = await enterprise.linkThroughConnection(
-            user.id,
+            linkPrincipal,
             proof.connectionId,
             identity,
-            { stamp: { at, by: user.id }, actor: user.id, auditId: randomUUID() },
+            { stamp: { at, by: linkPrincipal.id }, actor: linkPrincipal.id, auditId: randomUUID() },
           );
           switch (routed.kind) {
             case 'linked':
-              await activatePending(user.id, identity);
+              await activatePending(linkPrincipal.id, identity);
               return linkOutcome('linked');
             case 'inactive':
             case 'sso_prefix_mismatch':
@@ -1282,12 +1286,12 @@ export function authOidcEndpoints(
               return linkOutcome('refused');
           }
         }
-        const linked = await auth.linkOidcIdentity(user.id, identity);
+        const linked = await auth.linkOidcIdentity(linkPrincipal.id, identity);
         if (linked.kind === 'inactive') return linkOutcome('inactive');
         if (linked.kind === 'identity_collision' || linked.kind === 'email_collision')
           return linkOutcome('collision');
         if (linked.kind !== 'linked') return linkOutcome('refused');
-        await activatePending(user.id, identity);
+        await activatePending(linkPrincipal.id, identity);
         return linkOutcome('linked');
       },
       { prevalidate: linkCallbackAdmission, classifyRequestFailure: linkCallbackFailure },

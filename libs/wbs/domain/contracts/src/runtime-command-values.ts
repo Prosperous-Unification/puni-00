@@ -1,3 +1,5 @@
+import type { Permission } from '@wbs/domain/access-role';
+
 import type {
   CommandContext,
   CommandRefusalCode,
@@ -38,16 +40,17 @@ export interface RuntimeObservation {
 }
 
 /** Expected current project/person refusal of the internal raw observation. */
-export type RuntimeReadRefusal = Readonly<{
-  ok: false;
-  reason:
-    | 'runtime_scope_unavailable'
-    | 'not_found'
-    | 'forbidden'
-    | 'unknown_person'
-    | 'person_not_bound'
-    | 'credential_not_for_person';
-}>;
+export type RuntimeReadRefusal =
+  | Readonly<{
+      ok: false;
+      reason:
+        | 'runtime_scope_unavailable'
+        | 'not_found'
+        | 'unknown_person'
+        | 'person_not_bound'
+        | 'credential_not_for_person';
+    }>
+  | Readonly<{ ok: false; reason: 'forbidden'; permission?: Permission }>;
 
 /** Receiver-owned grant; generations are positive safe integers within one scope. */
 export type RuntimeAuthority = Readonly<{ ownerId: string; generation: number }>;

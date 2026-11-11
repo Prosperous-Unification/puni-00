@@ -11,6 +11,12 @@ import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient } from '@/runtime/organization-resources';
 
 import {
+  InitialAccessOptions,
+  type InitialRoleId,
+  readInitialAccessName,
+  readInitialRoleId,
+} from './initial-access-options';
+import {
   type AccessLoss,
   lostAccess,
   READ_ONLY,
@@ -37,7 +43,6 @@ type Invitation = Extract<
   ClientReply<typeof listInvitations>,
   { kind: 'success' }
 >['body']['invitations'][number];
-type Role = Invitation['role'];
 type View =
   | { kind: 'loading' }
   | { kind: 'failure'; message: string }
@@ -46,7 +51,7 @@ type View =
 /**
  * The active organization's invitations: list, send and revoke. Every change
  * re-reads the list, so a row shows the server's state rather than a guess.
- * The server's role matrix decides who may see or send; a refusal is rendered
+ * Current server grants decide who may see or send; a refusal is rendered
  * in place, and a lost organization is handed to the page.
  */
 export function InvitationsPanel({
@@ -57,7 +62,7 @@ export function InvitationsPanel({
   const invitations = useResourceClient(INVITATIONS_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<Role>('member');
+  const [initialRoleId, setInitialRoleId] = useState<InitialRoleId>(null);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState('');
   const [fault, setFault] = useState<Error | null>(null);
@@ -103,7 +108,7 @@ export function InvitationsPanel({
     setMessage('');
     try {
       const reply = await invitations.postApiOrganizationInvitations({
-        body: { email: email.trim(), role },
+        body: { email: email.trim(), initialRoleId },
       });
       switch (reply.kind) {
         case 'success':
@@ -184,19 +189,26 @@ export function InvitationsPanel({
             </span>
             <span className={FIELD_CLASS}>
               <label htmlFor="invitation-role" className={FIELD_LABEL_CLASS}>
-                Role
+                Initial access
               </label>
               <select
                 id="invitation-role"
                 className={SELECT_CLASS}
-                value={role}
+                value={initialRoleId ?? ''}
                 onChange={(event) => {
-                  setRole(roleOf(event.target.value));
+                  /* Proof: invitation-selection-boundary: removed/changed production boundary.
+                   * routes an impossible initial access selection to the Error Boundary at invitation
+                   * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+                  try {
+                    setInitialRoleId(readInitialRoleId(event.target.value));
+                  } catch (cause) {
+                    setFault(
+                      new Error('Unexpected invitation initial access selection', { cause }),
+                    );
+                  }
                 }}
               >
-                <option value="viewer">Viewer</option>
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
+                <InitialAccessOptions />
               </select>
             </span>
             <Button type="submit" className={CONTROL_HEIGHT} disabled={sending}>
@@ -216,7 +228,7 @@ export function InvitationsPanel({
                         {invitation.email}
                       </span>
                       <span className="text-muted-foreground text-sm">
-                        {ROLE_NAMES[invitation.role]}
+                        {readInitialAccessName(invitation.initialRoleId)}
                       </span>
                       <span className="text-muted-foreground text-sm">
                         {STANDING_NAMES[standing]}
@@ -271,14 +283,6 @@ const STANDING_NAMES: Record<Standing, string> = {
   revoked: 'Revoked',
   expired: 'Expired',
 };
-const ROLE_NAMES: Record<Role, string> = { admin: 'Admin', member: 'Member', viewer: 'Viewer' };
-
-/** The select offers only the three invitation roles; anything else is a programming error. */
-function roleOf(value: string): Role {
-  if (value === 'admin' || value === 'member' || value === 'viewer') return value;
-  throw new Error(`Unexpected invitation role option: ${value}`);
-}
-
 type RefusalBody<
   Shape extends typeof listInvitations | typeof createInvitation | typeof revokeInvitation,
 > = Extract<ClientReply<Shape>, { kind: 'refusal' }>['body'];
@@ -295,7 +299,11 @@ function listRefusal(refusal: RefusalBody<typeof listInvitations>): RefusalOutco
     case 'reauthentication_required':
       return lostAccess(refusal);
     case 'forbidden':
-      return said('Your role cannot view invitations.');
+      return said(
+        'permission' in refusal && refusal.permission !== undefined
+          ? `Missing permission: ${refusal.permission}.`
+          : 'Your role cannot view invitations.',
+      );
     case 'insufficient_scope':
       return said(READ_ONLY);
     case 'invalid_query':
@@ -321,7 +329,11 @@ function sendRefusal(refusal: RefusalBody<typeof createInvitation>): RefusalOutc
     case 'reauthentication_required':
       return lostAccess(refusal);
     case 'forbidden':
-      return said('Your role cannot send this invitation.');
+      return said(
+        'permission' in refusal && refusal.permission !== undefined
+          ? `Missing permission: ${refusal.permission}.`
+          : 'Your role cannot send this invitation.',
+      );
     case 'delivery_failed':
       return said('The invitation email could not be sent, so the invitation was withdrawn.');
     case 'invalid_body':
@@ -350,7 +362,11 @@ function revokeRefusal(refusal: RefusalBody<typeof revokeInvitation>): RefusalOu
     case 'reauthentication_required':
       return lostAccess(refusal);
     case 'forbidden':
-      return said('Your role cannot revoke this invitation.');
+      return said(
+        'permission' in refusal && refusal.permission !== undefined
+          ? `Missing permission: ${refusal.permission}.`
+          : 'Your role cannot revoke this invitation.',
+      );
     case 'not_found':
       return said('That invitation no longer exists.');
     case 'invitation_invalid':

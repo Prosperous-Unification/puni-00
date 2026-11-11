@@ -20,9 +20,12 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-b', 'ada', 'member');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project']);
+  h.member('org-b', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'ada', ['organization.create_project']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
   for (const username of ['ada', 'grace']) {
@@ -174,6 +177,7 @@ describe('after activation', () => {
   });
 
   it('refuses delegated onboarding discovery and writes', async () => {
+    h.grant('org-a', 'ada', 'org-super-admin');
     h.sqlite.run("UPDATE users SET email = 'ada@example.org', email_verified = 1 WHERE id = ?", [
       h.userId('ada'),
     ]);
@@ -186,7 +190,11 @@ describe('after activation', () => {
     for (const [method, path, body] of [
       ['GET', '/api/organization/members', undefined],
       ['GET', '/api/organization/join-requests', undefined],
-      ['POST', '/api/organization/join-requests/missing/approve', { role: 'viewer' }],
+      [
+        'POST',
+        '/api/organization/join-requests/missing/approve',
+        { initialRoleId: 'project-viewer' },
+      ],
       ['POST', '/api/organization/join-requests/missing/deny', undefined],
     ] as const) {
       expect(await h.callWith(await delegation(), method, path, body)).toEqual({
@@ -197,7 +205,7 @@ describe('after activation', () => {
     expect(
       await h.callWith(await delegation(), 'POST', '/api/organization/invitations', {
         email: 'recipient@example.org',
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
     expect(
@@ -252,11 +260,13 @@ describe('after activation', () => {
   });
 
   it('refuses delegated member administration even for a super-admin', async () => {
+    h.grant('org-a', 'ada', 'org-super-admin');
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
     );
-    h.member('org-a', 'grace', 'member');
+    h.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
+    h.grantPermissions('org-a', 'grace', ['organization.create_project']);
     const memberships = () =>
       h.sqlite
         .query(
@@ -265,10 +275,9 @@ describe('after activation', () => {
         .all();
     const before = memberships();
     const target = `/api/organization/members/${h.userId('grace')}`;
-    expect(await h.callWith(await delegation(), 'PATCH', target, { role: 'viewer' })).toEqual({
-      status: 403,
-      body: { error: 'insufficient_scope' },
-    });
+    expect((await h.callWith(await delegation(), 'PATCH', target, { role: 'viewer' })).status).toBe(
+      404,
+    );
     expect(await h.callWith(await delegation(), 'DELETE', target)).toEqual({
       status: 403,
       body: { error: 'insufficient_scope' },
@@ -281,6 +290,7 @@ describe('after activation', () => {
   });
 
   it('refuses a delegated switch of the capacity mode, even a super-admin’s', async () => {
+    h.grant('org-a', 'ada', 'org-super-admin');
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
@@ -305,7 +315,8 @@ describe('after activation', () => {
     });
   });
 
-  it('refuses delegated restore approval even for a super-admin', async () => {
+  it('refuses delegated restore approval even for a super-admin with a security grant', async () => {
+    h.grantPermissions('org-a', 'ada', ['organization.manage_security']);
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
@@ -324,6 +335,43 @@ describe('after activation', () => {
     expect(h.sqlite.query('SELECT * FROM shared_people_restore_operation').all()).toEqual([]);
     expect(h.sqlite.query('SELECT * FROM shared_people_restore_approval').all()).toEqual([]);
   });
+
+  for (const method of ['GET', 'PUT'] as const) {
+    it(
+      'refuses delegated session-policy ' +
+        method +
+        ' despite an effective personal security grant',
+      async () => {
+        h.grantPermissions('org-a', 'ada', ['organization.manage_security']);
+        const policy = { maxSessionSeconds: 28_800, reauthenticateAfterSeconds: 3_600 };
+        const before = h.sqlite.query('SELECT * FROM organization_session_policy').all();
+        expect(
+          await h.callWith(
+            await delegation(),
+            method,
+            '/api/organization/session-policy',
+            method === 'GET' ? undefined : policy,
+          ),
+        ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
+        expect(h.sqlite.query('SELECT * FROM organization_session_policy').all()).toEqual(before);
+        expect(
+          h.sqlite
+            .query("SELECT * FROM organization_audit WHERE action = 'session_policy_changed'")
+            .all(),
+        ).toEqual([]);
+        expect(
+          (
+            await h.call(
+              'ada',
+              method,
+              '/api/organization/session-policy',
+              method === 'GET' ? undefined : policy,
+            )
+          ).status,
+        ).toBe(200);
+      },
+    );
+  }
 
   it('lists only the delegated organization’s projects', async () => {
     const answer = await h.callWith(await delegation(), 'GET', '/api/projects');

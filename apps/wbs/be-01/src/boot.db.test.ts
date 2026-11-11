@@ -81,6 +81,10 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
     seed.run(
       "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
     );
+    seed.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+      ['cold-fanout-ada', 'org-a', 'org-a', 'ada', 'org-admin'],
+    );
     seed.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
     seed.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
@@ -722,6 +726,9 @@ describe('bootBe01', () => {
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
       );
       seed.run(
+        "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('boot-limits-read','org-a','organization','org-a','user','ada','org-viewer','route',1)",
+      );
+      seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
       );
     } finally {
@@ -750,7 +757,7 @@ describe('bootBe01', () => {
     );
     if (composed?.organizationLimits === undefined)
       throw new Error('boot composed no limits store');
-    expect(await composed.organizationLimits.read('org-a', 'ada')).toEqual({
+    expect(await composed.organizationLimits.read('org-a', { id: 'ada' })).toEqual({
       source: 'default',
       limits: configured,
       usage: { agentPersons: 0, concurrentClaims: 0, capacityUnits: [] },
@@ -811,8 +818,9 @@ describe('bootBe01', () => {
     if (writes === undefined) throw new Error('boot composed no batch writes');
     const promoted = await writes.uow.run(async (scope) => {
       const access = {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' as const },
       };
       const dependencies = createDependencyContext(
         scope.stores,
@@ -854,6 +862,9 @@ describe('bootBe01', () => {
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
       );
       seed.run(
+        "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('boot-pool-directory','org-a','organization','org-a','user','ada','org-admin','route',1)",
+      );
+      seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
       );
     } finally {
@@ -873,8 +884,11 @@ describe('bootBe01', () => {
       },
     });
     if (pools === undefined) throw new Error('boot did not wire agent pools');
-    expect(await pools.list('org-a', 'ada', Date.now())).toEqual([]);
-    expect(await pools.list('org-a', 'nobody', Date.now())).toBe('forbidden');
+    expect(await pools.list('org-a', { id: 'ada' }, Date.now())).toEqual([]);
+    expect(await pools.list('org-a', { id: 'nobody' }, Date.now())).toEqual({
+      kind: 'forbidden',
+      permission: 'organization.manage_directory',
+    });
   });
 
   it('serves machine credential administration from the shared database once activated', async () => {
@@ -911,10 +925,10 @@ describe('bootBe01', () => {
     });
     if (administration === undefined) throw new Error('boot did not wire machine credentials');
     expect(
-      await administration.list('org-a', 'ada', { includeRevoked: false }, Date.now()),
+      await administration.list('org-a', { id: 'ada' }, { includeRevoked: false }, Date.now()),
     ).toEqual([]);
     expect(
-      await administration.list('org-a', 'nobody', { includeRevoked: false }, Date.now()),
+      await administration.list('org-a', { id: 'nobody' }, { includeRevoked: false }, Date.now()),
     ).toBe('forbidden');
   });
 
@@ -934,6 +948,9 @@ describe('bootBe01', () => {
       seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
       );
+      seed.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('trusted-admin','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
+      );
     } finally {
       seed.close();
     }
@@ -951,8 +968,8 @@ describe('bootBe01', () => {
       },
     });
     if (trusted === undefined) throw new Error('boot did not wire trusted issuers');
-    expect(await trusted.administration.list('org-a', 'ada')).toEqual([]);
-    expect(await trusted.administration.list('org-a', 'nobody')).toBe('forbidden');
+    expect(await trusted.administration.list('org-a', { id: 'ada' })).toEqual([]);
+    expect(await trusted.administration.list('org-a', { id: 'nobody' })).toBe('forbidden');
     expect(await trusted.configuredIssuer()).toBeNull();
   });
 
@@ -968,6 +985,9 @@ describe('bootBe01', () => {
       seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
       seed.run(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('boot-provider-directory','org-a','organization','org-a','user','ada','org-admin','route',1)",
       );
       seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
@@ -989,8 +1009,11 @@ describe('bootBe01', () => {
       },
     });
     if (providers === undefined) throw new Error('boot did not wire compute providers');
-    expect(await providers.administration.list('org-a', 'ada')).toEqual([]);
-    expect(await providers.administration.list('org-a', 'nobody')).toBe('forbidden');
+    expect(await providers.administration.list('org-a', { id: 'ada' })).toEqual([]);
+    expect(await providers.administration.list('org-a', { id: 'nobody' })).toEqual({
+      kind: 'forbidden',
+      permission: 'organization.manage_directory',
+    });
     expect(await providers.reports.readingsOf(['absent'])).toEqual(new Map());
   });
 

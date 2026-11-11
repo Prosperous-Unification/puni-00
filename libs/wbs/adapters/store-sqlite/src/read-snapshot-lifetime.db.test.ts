@@ -29,8 +29,9 @@ import { WorkItemRepository } from './work-item';
 let folder: string;
 let path: string;
 const access = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
 beforeEach(async () => {
   folder = mkdtempSync(join(tmpdir(), 'capture-lifetime-'));
@@ -40,6 +41,9 @@ beforeEach(async () => {
     client.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
     client.run(
       "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
+    );
+    client.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('snapshot-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
     );
   } finally {
     client.close();

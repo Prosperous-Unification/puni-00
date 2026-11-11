@@ -1,11 +1,18 @@
 import {
+  type Authorization,
+  authorize,
+  type SavedPlanTouchOutcome as PortSavedPlanTouchOutcome,
+} from '@wbs/core';
+import {
   bodyByteLength,
   type SavedPlanRow,
   type SavedPlanStore,
   type ScopedSavedPlanWrite,
 } from '@wbs/core';
+import type { Permission } from '@wbs/domain';
 import { and, desc, eq, sql } from 'drizzle-orm';
 
+import { AccessDecisionRepository } from './access-decisions';
 import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
 import { drizzleOuterTransaction, drizzleReadTransaction, refuseToWaitForWriteLock } from './db';
@@ -126,7 +133,10 @@ export type SavedPlanWriteOutcome<Refusal> =
   | { readonly outcome: 'refused'; readonly refusal: Refusal }
   /** `BEGIN IMMEDIATE` met a lock another connection holds. Nothing was written. */
   | { readonly outcome: 'snapshot_busy' }
-  | { readonly outcome: 'forbidden' | 'not_found' };
+  | {
+      readonly outcome: 'forbidden' | 'not_found';
+      readonly permission?: Permission;
+    };
 
 /**
  * One saved plan exactly as it is stored — header row, and each side's bytes.
@@ -181,7 +191,7 @@ function savedPlanHeader(
  * nothing, which is a fact the route has to turn into an answer. `false` would
  * carry the same information and lose the name for it at every call site.
  */
-export type SavedPlanTouchOutcome = 'touched' | 'no_such_plan' | 'snapshot_busy' | 'forbidden';
+export type SavedPlanTouchOutcome = PortSavedPlanTouchOutcome;
 
 /**
  * The two ids a rename or a delete has to be authorised against, and nothing
@@ -291,15 +301,16 @@ export class SavedPlanRepository implements SavedPlanStore {
    * Only `BEGIN` is watched for it. A `SQLITE_BUSY` out of a later statement is
    * not this condition — the lock is already held by then — so it stays an
    * unknown and is thrown.
-   * Scoped saves classify the current membership and project after that BEGIN
-   * and append recovery audit to this same transaction. A quota refusal rolls
-   * that record back with the unwritten plan.
+   * Scoped saves recheck current membership and package.write after that BEGIN.
+   * A permission or quota refusal rolls back the unwritten plan; ordinary
+   * explicitly granted saves create no recovery audit.
    */
   async write<Refusal>(
     plan: SavedPlanWrite,
     check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
     scoped?: ScopedSavedPlanWrite,
   ): Promise<SavedPlanWriteOutcome<Refusal>> {
+    scoped = scoped === undefined ? undefined : structuredClone(scoped);
     const expectedPlan = structuredClone(plan);
     const writeFault = savedPlanWriteFaultOf(this);
     const inputBytes = bodyByteLength(plan.input.bytes);
@@ -322,23 +333,17 @@ export class SavedPlanRepository implements SavedPlanStore {
         let isTransactionActive = true;
         try {
           if (scoped !== undefined) {
-            // Proof: forcing `ordinary` here made `audits a super-admin save,
-            // rename and delete of another creator’s restricted project` find
-            // no save record (0 pass, 1 fail); watched 2026-09-28.
-            const admitted = await new ProjectRepository(db, OPEN).admitEditInOrganization(
-              plan.projectId,
-              scoped.organizationId,
-              scoped.actorId,
-              { savedPlan: 'save' },
-              scoped.role,
-            );
-            // Proof: skipping this refusal made `reclassifies a removed actor
-            // inside the saved-plan save transaction` answer written instead
-            // of forbidden; watched 2026-09-28.
-            if (admitted === null || admitted === 'forbidden') {
+            // Capture authority is rechecked on this independent writer; no
+            // restricted-package recovery or creator bypass applies.
+            const admitted = await authorizeSavedPlanWrite(db, plan.projectId, scoped);
+            // Proof: saved-capture-writer-grant fault failed 'independent saved-plan capture writer' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+            if (admitted !== null) {
               tx.rollback();
               isTransactionActive = false;
-              return { outcome: admitted === null ? 'not_found' : 'forbidden' } as const;
+              return {
+                outcome: admitted.reason,
+                ...(admitted.reason === 'forbidden' ? { permission: admitted.permission } : {}),
+              } as const;
             }
           }
           const refusal = await check(
@@ -685,8 +690,8 @@ export class SavedPlanRepository implements SavedPlanStore {
    *
    * Deleting is the only way a saved plan leaves, and it is permissioned like
    * the rename — creator or project owner (6.1), decided above this line.
-   * A scoped recovery instead uses {@link touchScoped}'s current membership,
-   * project and author check inside its immediate transaction.
+   * Scoped deletion uses {@link touchScoped}'s current membership, package.write
+   * and author-or-effective-manager checks inside its immediate transaction.
    */
   async deleteOf(
     savedPlanId: string,
@@ -719,6 +724,7 @@ export class SavedPlanRepository implements SavedPlanStore {
     scoped: ScopedSavedPlanWrite,
     name?: string,
   ): Promise<SavedPlanTouchOutcome> {
+    scoped = structuredClone(scoped);
     // Proof: removing this check made `refuses a scoped touch whose operation
     // disagrees with the write` resolve instead of throw; watched 2026-09-28.
     if (scoped.operation !== (name === undefined ? 'delete' : 'rename'))
@@ -750,30 +756,30 @@ export class SavedPlanRepository implements SavedPlanStore {
           transaction.rollback();
           return 'no_such_plan';
         }
-        // Proof: forcing `ordinary` here made the mounted super-admin rename
-        // answer 403 instead of 200 (0 pass, 1 fail); watched 2026-09-28.
-        const admitted = await new ProjectRepository(db, OPEN).admitEditInOrganization(
-          principals.projectId,
-          scoped.organizationId,
-          scoped.actorId,
-          { savedPlan: scoped.operation },
-          scoped.role,
-        );
-        // Proof: bypassing this refusal made the store-path removed-actor
-        // touch answer "touched" instead of "forbidden"; watched 2026-09-28.
-        if (
-          admitted === null ||
-          admitted === 'forbidden' ||
-          // Proof: omitting this author-or-project-creator check let an
-          // unrelated member rename another person's unrestricted plan:
-          // `refuses member, admin and viewer writers and leaves creator writes
-          // unaudited` got 200 instead of 403; watched 2026-09-28.
-          (admitted === 'ordinary' &&
-            principals.createdById !== scoped.actorId &&
-            principals.projectOwnerId !== scoped.actorId)
-        ) {
+        // Rename/delete requires current package.write and either authorship
+        // or effective package.manage_settings; role names grant nothing.
+        // Proof: saved-touch-writer-grant fault failed 'independent saved-plan (rename|delete) writer' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+        const admitted = await authorizeSavedPlanWrite(db, principals.projectId, scoped);
+        if (admitted !== null) {
           transaction.rollback();
-          return admitted === null ? 'no_such_plan' : 'forbidden';
+          return admitted.reason === 'not_found'
+            ? 'no_such_plan'
+            : { outcome: 'forbidden', permission: admitted.permission };
+        }
+        if (principals.createdById !== scoped.actorId) {
+          // Proof: saved-manager-effective-grant fault failed 'manager permission when another author saved-plan' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+          const manager = await authorizeSavedPlanWrite(
+            db,
+            principals.projectId,
+            scoped,
+            'package.manage_settings',
+          );
+          if (manager !== null) {
+            transaction.rollback();
+            return manager.reason === 'not_found'
+              ? 'no_such_plan'
+              : { outcome: 'forbidden', permission: manager.permission };
+          }
         }
         if (name === undefined) await db.delete(savedPlan).where(eq(savedPlan.id, savedPlanId));
         else await db.update(savedPlan).set({ name }).where(eq(savedPlan.id, savedPlanId));
@@ -787,4 +793,35 @@ export class SavedPlanRepository implements SavedPlanStore {
       connection.close();
     }
   }
+}
+
+/** The separate saved-plan writer uses the same connection for current grants and the ensuing history write. */
+async function authorizeSavedPlanWrite(
+  db: Parameters<typeof drizzleOuterTransaction>[0],
+  projectId: string,
+  scoped: ScopedSavedPlanWrite,
+  permission: 'package.write' | 'package.manage_settings' = 'package.write',
+): Promise<Extract<Authorization, { ok: false }> | null> {
+  if (scoped.principal.id !== scoped.actorId)
+    throw new Error('saved-plan principal differs from its actor');
+  const project = await new ProjectRepository(db, OPEN).findInOrganization(
+    projectId,
+    scoped.organizationId,
+  );
+  if (project === null) return { ok: false, reason: 'not_found' };
+  const decision = await authorize(
+    new AccessDecisionRepository(db),
+    scoped.principal,
+    {
+      kind: 'work_package',
+      chain: {
+        level: 'work_package',
+        organizationId: scoped.organizationId,
+        workPackageId: projectId,
+      },
+      restricted: project.restricted,
+    },
+    permission,
+  );
+  return decision.ok ? null : decision;
 }

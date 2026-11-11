@@ -110,7 +110,7 @@ describe('a saved plan belongs to its project’s organization', () => {
     expect(rows('saved_plan_organization')).toEqual([]);
   });
 
-  it('retains a member ceiling in save and touch despite stored super-admin membership', async () => {
+  it('refuses restricted save and touch without a named grant despite organization administration', async () => {
     const db = raw();
     db.run(
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('sam', 'sam', 'x', 1)",
@@ -123,24 +123,35 @@ describe('a saved plan belongs to its project’s organization', () => {
       "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'super_admin', 1)",
     );
     db.run("UPDATE project SET restricted = 1 WHERE id = 'p1'");
+    db.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('sam-org','org-a','organization','org-a','user','sam','org-super-admin','route',1)",
+    );
     db.close();
     activate();
-    const scope = { organizationId: 'org-a', actorId: 'sam', role: 'member' as const };
+    const scope = {
+      principal: { id: 'sam' },
+      organizationId: 'org-a',
+      actorId: 'sam',
+      role: 'member' as const,
+    };
     expect(
       await plans().write(record('outside'), () => Promise.resolve(null), {
         ...scope,
         operation: 'save',
       }),
-    ).toEqual({ outcome: 'forbidden' });
+    ).toEqual({ outcome: 'forbidden', permission: 'package.write' });
     expect(rows('saved_plan')).toEqual([]);
     expect(await plans().write(record('original'), () => Promise.resolve(null))).toEqual({
       outcome: 'written',
     });
     const before = rows('saved_plan');
-    expect(await plans().renameTo('original', 'Outside', { ...scope, operation: 'rename' })).toBe(
-      'forbidden',
-    );
-    expect(await plans().deleteOf('original', { ...scope, operation: 'delete' })).toBe('forbidden');
+    expect(
+      await plans().renameTo('original', 'Outside', { ...scope, operation: 'rename' }),
+    ).toEqual({ outcome: 'forbidden', permission: 'package.write' });
+    expect(await plans().deleteOf('original', { ...scope, operation: 'delete' })).toEqual({
+      outcome: 'forbidden',
+      permission: 'package.write',
+    });
     expect(rows('saved_plan')).toEqual(before);
     expect(rows('organization_audit')).toEqual([]);
   });
@@ -158,17 +169,21 @@ describe('a saved plan belongs to its project’s organization', () => {
       "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'super_admin', 1)",
     );
     db.run('UPDATE project SET restricted = 1 WHERE id = ?', ['p1']);
+    db.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('sam-package','org-a','work_package','p1','user','sam','package-manager','route',1)",
+    );
     db.run("DELETE FROM organization_membership WHERE user_id = 'sam'");
     db.close();
     activate();
     expect(
       await plans().write(record('sp-1'), () => Promise.resolve(null), {
+        principal: { id: 'sam' },
         organizationId: 'org-a',
         actorId: 'sam',
-        role: 'super_admin',
+
         operation: 'save',
       }),
-    ).toEqual({ outcome: 'forbidden' });
+    ).toEqual({ outcome: 'not_found' });
     expect(rows('saved_plan')).toEqual([]);
     expect(rows('organization_audit')).toEqual([]);
     expect(await plans().write(record('sp-0'), () => Promise.resolve(null))).toEqual({
@@ -176,12 +191,13 @@ describe('a saved plan belongs to its project’s organization', () => {
     });
     expect(
       await plans().renameTo('sp-0', 'No', {
+        principal: { id: 'sam' },
         organizationId: 'org-a',
         actorId: 'sam',
-        role: 'super_admin',
+
         operation: 'rename',
       }),
-    ).toBe('forbidden');
+    ).toBe('no_such_plan');
     expect(rows('saved_plan')).toMatchObject([{ id: 'sp-0', name: 'sp-0' }]);
   });
 
@@ -189,9 +205,10 @@ describe('a saved plan belongs to its project’s organization', () => {
     let failure: unknown;
     try {
       await plans().renameTo('sp-1', 'Renamed', {
+        principal: { id: 'owner' },
         organizationId: 'org-a',
         actorId: 'owner',
-        role: 'super_admin',
+
         operation: 'delete',
       });
     } catch (caught) {

@@ -55,8 +55,9 @@ function observation() {
     projectId: 'owner',
     actorId: 'actor',
     access: {
+      principal: { id: 'actor' },
       kind: 'scoped' as const,
-      scope: { organizationId: 'org', userId: 'actor', role: 'member' as const },
+      scope: { cap: null, organizationId: 'org', userId: 'actor', role: 'member' as const },
     },
     assertActive: () => {
       if (!active) throw new Error('closed evidence');

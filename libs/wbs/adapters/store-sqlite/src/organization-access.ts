@@ -1,14 +1,14 @@
 import {
+  accessSubjectOf,
+  capOf,
   type CredentialRuleFacts,
   type CredentialRuleRefusal,
   credentialRuleRefusal,
   type OrganizationAccess,
   type OrganizationAccessResolution,
   type OrganizationPrincipal,
-  organizationRoleOf,
   subjectPrefixOf,
 } from '@wbs/core';
-import { ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
 import { and, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -76,6 +76,13 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
     principal: OrganizationPrincipal,
     organizationId: string,
   ): Promise<'not_a_member' | CredentialRuleRefusal | null> {
+    // Proof: admit-private; removed the private entry snapshot.
+    // 'retains the original identity before the admitTo early await' (organization-credential-rules.db.test.ts) failed; restored GREEN, 2026-11-10.
+    // 'retains the original authentication before the admitTo early await' (organization-credential-rules.db.test.ts) failed; restored GREEN, 2026-11-10.
+    // 'retains the original delegation before the admitTo early await' (organization-credential-rules.db.test.ts) failed; restored GREEN, 2026-11-10.
+    // Proof: admit-private-deep; replaced the private deep snapshot with a shallow copy.
+    // 'retains the private OIDC digest before the admitTo early await' (organization-credential-rules.db.test.ts) failed; restored GREEN, 2026-11-10.
+    principal = structuredClone(principal);
     await Promise.resolve();
     const read = readAccessFacts(this.db, organizationId, principal);
     if (read === null) return 'not_a_member';
@@ -98,12 +105,21 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
   async credentialFactsOf(
     principal: OrganizationPrincipal,
     organizationId: string,
-  ): Promise<{ readonly role: OrganizationRole; readonly facts: CredentialRuleFacts } | null> {
+  ): Promise<{ readonly facts: CredentialRuleFacts } | null> {
+    // Proof: facts-private; removed the private entry snapshot.
+    // 'retains the original identity before the credentialFactsOf early await' (organization-credential-rules.db.test.ts) failed; restored GREEN, 2026-11-10.
+    // Proof: facts-private-deep; replaced the private deep snapshot with a shallow copy.
+    // 'retains the private OIDC digest before the credentialFactsOf early await' (organization-credential-rules.db.test.ts) failed; restored GREEN, 2026-11-10.
+    principal = structuredClone(principal);
     await Promise.resolve();
+    // Proof: facts-private-projection; removed the private entry snapshot.
+    // 'retains the private OIDC digest before the credentialFactsOf early await' (organization-credential-rules.db.test.ts) failed; restored GREEN, 2026-11-10.
     return readAccessFacts(this.db, organizationId, principal);
   }
 
   async resolve(principal: OrganizationPrincipal): Promise<OrganizationAccessResolution> {
+    // Proof: removing this entry snapshot mixed identities across the active-organization await in 'snapshots verified organization identity'; fault/restored pass, 2026-11-09.
+    principal = structuredClone(principal);
     const userId = principal.id;
     // Proof: answering `legacy` without reading the marker made `scopes the same
     // running app once another connection activates isolation` in
@@ -160,21 +176,20 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
       )
         return { ok: false, refusal: 'organization_context_changed' };
     }
-    // A machine credential acts as a member at most (A23).
-    // Proof: with the stored role answered unchanged, `refuses patchPerson to
-    // an admin-bound key`, `refuses an admin-bound key a person bound to
-    // another account` and `gives a super-admin-bound key no claim-admin
-    // bypass` in `machine-credential.controller.db.test.ts` failed; watched
-    // 2026-10-22.
-    const role = organizationRoleOf(read.role, principal.authentication);
     return {
       ok: true,
       access: {
         kind: 'scoped',
+        // Proof: copying the full verified account exposed its private username in the grant descriptor; `returns only a detached grant principal projection`
+        // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
+        principal: structuredClone({ id: principal.id, authentication: principal.authentication }),
         scope: {
           organizationId,
           userId,
-          role,
+          // Proof: replacing this cap with null failed both machine and consent
+          // `resolves a ... principal with delegation and contributor cap` and
+          // authenticated grant integration; watched 2026-11-09.
+          cap: capOf(accessSubjectOf(principal)),
           // Proof: without this flag, `refuses a machine key's cascade over its
           // own person` (`machine-credential-admin.controller.db.test.ts`)
           // removed the person and revoked its credential (200); watched
@@ -187,39 +202,49 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
 }
 
 /**
- * A membership recheck alone, for a read that already passed the credential
- * rules at its route's admission and only asks whether the member was removed
- * since (the chain snapshot's own connection).
+ * Current membership identity on the caller's borrowed connection, or null.
+ * This presence recheck supplies no credential or grant authority. Callers
+ * retain the actual authenticated principal, cap, delegation and owner lifetime.
+ * Compatibility display labels are intentionally not read.
+ *
+ * @throws on unreadable membership state.
+ *
+ * Proof: retired-helper-currentMembershipAccess; reintroduced the retired callable.
+ * 'does not expose the retired server role helper currentMembershipAccess' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-helper-capStoredRole; reintroduced the retired callable.
+ * 'does not expose the retired server role helper capStoredRole' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-helper-validateStoredRole; reintroduced the retired callable.
+ * 'does not expose the retired server role helper validateStoredRole' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
  */
-export function currentMembershipAccess(
+export function readMembershipIn(
   db: Pick<SQLiteBunDatabase, 'select'>,
   organizationId: string,
   userId: string,
-):
-  | Extract<OrganizationAccessResolution, { ok: true }>
-  | { readonly ok: false; readonly refusal: 'not_a_member' } {
-  const membership = db
-    .select({ role: organizationMembership.role })
-    .from(organizationMembership)
-    .where(
-      and(
-        eq(organizationMembership.organizationId, organizationId),
-        eq(organizationMembership.userId, userId),
-      ),
-    )
-    .get();
-  if (membership === undefined) return { ok: false, refusal: 'not_a_member' };
-  return {
-    ok: true,
-    access: {
-      kind: 'scoped',
-      scope: { organizationId, userId, role: validateStoredRole(membership.role, organizationId) },
-    },
-  };
+): { readonly organizationId: string; readonly userId: string } | null {
+  // Proof: membership-unreadable; caught unreadable membership SQL as absent.
+  // 'throws on unreadable current membership identity at table' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
+  // 'throws on unreadable current membership identity at organization-column' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
+  // 'throws on unreadable current membership identity at user-column' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
+  return (
+    db
+      .select({
+        organizationId: organizationMembership.organizationId,
+        userId: organizationMembership.userId,
+      })
+      .from(organizationMembership)
+      .where(
+        and(
+          eq(organizationMembership.organizationId, organizationId),
+          eq(organizationMembership.userId, userId),
+        ),
+      )
+      // Proof: membership-absence; fabricated membership identity for absent rows.
+      // 'returns absent membership identity for a removed or foreign account' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
+      .get() ?? null
+  );
 }
 
 interface FactsRow {
-  readonly role: string;
   readonly strategy: string | null;
   readonly auth0Connection: string | null;
   readonly loginSlug: string | null;
@@ -242,14 +267,14 @@ function checkedTime(value: number | null, what: string): number | null {
  * membership recheck every resolution already made, joined, so the credential
  * rules add no query (`organization-session-policy`). Null for no membership.
  *
- * @throws on a malformed role, connection, policy or lifecycle, or a
+ * @throws on a malformed connection, policy or lifecycle, or a
  * lifecycle that belongs to another user: corrupt trusted state.
  */
 function readAccessFacts(
   db: Pick<SQLiteBunDatabase, 'all'>,
   organizationId: string,
   principal: OrganizationPrincipal,
-): { readonly role: OrganizationRole; readonly facts: CredentialRuleFacts } | null {
+): { readonly facts: CredentialRuleFacts } | null {
   const credential = principal.organizationBinding?.credential;
   // Only an OIDC browser credential belongs to a lifecycle; a native one's
   // times come from its own issue time.
@@ -257,7 +282,7 @@ function readAccessFacts(
   // Proof: reading the policy in a second query made `reads the credential
   // rules in the membership query` in `organization-credential-rules.db.test.ts`
   // count four statements per resolution instead of three; watched 2026-10-12.
-  const rows = db.all<FactsRow>(sql`SELECT m.role AS role,
+  const rows = db.all<FactsRow>(sql`SELECT
       c.strategy AS strategy, c.auth0_connection AS auth0Connection, c.login_slug AS loginSlug,
       p.max_session_seconds AS maxSessionSeconds,
       p.reauthenticate_after_seconds AS reauthenticateAfterSeconds,
@@ -273,7 +298,6 @@ function readAccessFacts(
     ORDER BY c.login_slug`);
   const first = rows.at(0);
   if (first === undefined) return null;
-  const role = validateStoredRole(first.role, organizationId);
   const enforced = rows.flatMap((row) => {
     if (row.strategy === null && row.auth0Connection === null && row.loginSlug === null) return [];
     if (
@@ -308,39 +332,5 @@ function readAccessFacts(
           openedAt: checkedTime(first.openedAt, 'opened_at'),
           reauthenticatedAt: checkedTime(first.reauthenticatedAt, 'reauthenticated_at'),
         };
-  return { role, facts: { enforced, policy, lifecycle } };
-}
-
-/**
- * The stored role, checked rather than trusted: the column's type is only what
- * the schema declares, and an unknown role reaching the policy would be read as
- * a writing one.
- *
- * Proof: returning the stored value unchecked made `fails as a server error on
- * a malformed membership role` in `project-organization.controller.db.test.ts`
- * answer 200 instead of 500; watched 2026-09-27.
- *
- * @throws when the stored role is not one of {@link ORGANIZATION_ROLES}.
- */
-export function validateStoredRole(role: string, organizationId: string): OrganizationRole {
-  const known: readonly string[] = ORGANIZATION_ROLES;
-  if (!known.includes(role)) {
-    throw new Error(`membership in organization "${organizationId}" has a malformed role`);
-  }
-  // Narrowed by the membership test above, which is the boundary this is.
-  return role as OrganizationRole;
-}
-
-/**
- * Intersects current stored authority with the authenticated scope's role ceiling.
- * Fresh membership can revoke authority, never restore the account privileges a
- * machine or consent credential did not authenticate.
- *
- * Proof: returning the stored role unchanged made mounted machine batch/replay
- * and step recovery negatives fail, the saved-plan ceiling test write a plan,
- * and the Retry ceiling test return not-retryable rather than forbidden
- * (2026-10-22). Borrowed fan-out has its own ceiling negative.
- */
-export function capStoredRole(role: OrganizationRole, ceiling: OrganizationRole): OrganizationRole {
-  return ORGANIZATION_ROLES.indexOf(role) >= ORGANIZATION_ROLES.indexOf(ceiling) ? role : ceiling;
+  return { facts: { enforced, policy, lifecycle } };
 }

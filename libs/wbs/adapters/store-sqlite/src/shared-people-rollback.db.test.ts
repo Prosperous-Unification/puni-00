@@ -168,9 +168,13 @@ describe('combined shared people recovery', () => {
           "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
         );
         execute("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+        execute(
+          "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('approval-security','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
+        );
         expect(
           await new SharedPeopleRestoreApprovalRepository(connection.db, OPEN).approve(
             'org-a',
+            { id: 'ada' },
             'restore-1',
             'a'.repeat(64),
             'approval-1',
@@ -185,6 +189,8 @@ describe('combined shared people recovery', () => {
         );
       }
       expect(execute('SELECT * FROM shared_people_audit')).toEqual([]);
+      // Revoke the fixture's runtime grant after issuance so the receipt migration guard is the tested rollback boundary.
+      execute("DELETE FROM access_grant WHERE id='approval-security'");
       rollbackTo(path, MIGRATIONS_FOLDER, '20261014130000_add_shared_people_restore_receipts');
       const saved = save();
       const recoveryState = () => ({
@@ -221,6 +227,8 @@ describe('combined shared people recovery', () => {
     expect(
       rollbackTo(path, MIGRATIONS_FOLDER, '20261001010000_add_browser_credential_revocations'),
     ).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',

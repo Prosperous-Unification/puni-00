@@ -17,7 +17,7 @@ import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import type { ScopedDependencyEndpoint } from '@wbs/domain';
+import { CONTRIBUTOR_CAP, type ScopedDependencyEndpoint } from '@wbs/domain';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { sql } from 'drizzle-orm';
@@ -39,8 +39,9 @@ const ACTOR = 'importer';
 const STAMP = { at: 1_757_851_200_000, by: ACTOR };
 const PRINCIPAL = { id: ACTOR, username: ACTOR, scopes: ['read', 'write'] as const };
 const ACCESS = {
+  principal: { id: ACTOR },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: ACTOR, role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: ACTOR, role: 'member' },
 } as const;
 const ORGANIZATION_LIMITS = {
   maxAgentPersons: 50,
@@ -175,6 +176,9 @@ async function harness(authoring: unknown = { state: 'active' }) {
   );
   sqlite.db.run(
     sql`INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a',${ACTOR},'member',1),('org-a','other-owner','member',1)`,
+  );
+  sqlite.db.run(
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('import-authority','org-a','organization','org-a','user',${ACTOR},'org-admin','route',1),('import-remote','org-a','work_package','remote','user',${ACTOR},'package-contributor','route',1)`,
   );
   sqlite.db.run(
     sql`UPDATE organization_activation SET state='activated',activated_at=1 WHERE singleton=1`,
@@ -626,9 +630,7 @@ describe('scoped import transaction lifetime and effects', () => {
       }),
     ).toMatchObject({ ok: true });
     expect(observations.length).toBeGreaterThanOrEqual(4);
-    expect(observations.every((access) => JSON.stringify(access) === JSON.stringify(ACCESS))).toBe(
-      true,
-    );
+    for (const observed of observations) expect(observed).toEqual(ACCESS);
     const statements = fixture.statements.slice(start);
     const begin = statements.findIndex((statement) => /^begin immediate/i.test(statement));
     const membership = statements.findIndex((statement) =>
@@ -652,14 +654,25 @@ describe('scoped import transaction lifetime and effects', () => {
     fixture.sqlite.db.run(
       sql`INSERT INTO machine_credential (id,organization_id,person_id,issued_by,source,name,created_at,created_by) VALUES (${credentialId},'org-a','agent',${ACTOR},'api_key','Agent',1,${ACTOR})`,
     );
+    fixture.sqlite.db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('machine-import-cap','org-a','organization','org-a','machine_credential',${credentialId},'org-admin','route',1)`,
+    );
     const principal = {
       ...PRINCIPAL,
       authentication: { kind: 'machine' as const, credentialId, personId: 'agent' },
       delegation: { organizationId: 'org-a', audience: 'wbs-be-01/direct' as const },
     };
-    const caller = { kind: 'human' as const, principal, expectedAccess: ACCESS };
+    const caller = {
+      kind: 'human' as const,
+      principal,
+      expectedAccess: { ...ACCESS, scope: { ...ACCESS.scope, cap: CONTRIBUTOR_CAP } },
+    };
     const start = fixture.statements.length;
-    expect(await fixture.imports().import(documentFixture(), caller)).toMatchObject({ ok: true });
+    expect(await fixture.imports().import(documentFixture(), caller)).toMatchObject({
+      ok: false,
+      code: 'forbidden',
+      permission: 'organization.create_project',
+    });
     const statements = fixture.statements.slice(start);
     const begin = statements.findIndex((statement) => /^begin immediate/i.test(statement));
     const credential = statements.findIndex((statement) =>
@@ -672,7 +685,7 @@ describe('scoped import transaction lifetime and effects', () => {
     expect(begin).toBeGreaterThanOrEqual(0);
     expect(credential).toBeGreaterThan(begin);
     expect(member).toBeGreaterThan(credential);
-    expect(capture).toBeGreaterThan(member);
+    expect(capture).toBe(-1);
     const admitted = deferred();
     const release = deferred();
     const attempted = deferred();

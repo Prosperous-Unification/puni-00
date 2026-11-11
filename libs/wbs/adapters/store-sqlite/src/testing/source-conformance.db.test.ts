@@ -884,6 +884,13 @@ const openers: ExistingStoreOpeners = {
     );
   },
   projects: (caseId) => openSqliteCase('projects', caseId),
+  spaces: async (caseId) => {
+    const { source, directory } = await seedSqliteSource();
+    source.db.run(
+      sql`INSERT INTO organization (id, name, created_at) VALUES ('space-conformance-org', 'Spaces', 1)`,
+    );
+    return sqliteFixture(source, directory, 'spaces', caseId);
+  },
   projectRanks: async (caseId) => {
     const { source, directory } = await seedSqliteSource();
     source.db.run(
@@ -980,6 +987,15 @@ const declaration: SourceDeclaration = {
       open: openSqliteLimitsCase,
     },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
+    spaces: {
+      kind: 'offered',
+      gaps: [],
+      open: (caseId) => {
+        if (caseId !== 'spaces.create:scoped-round-trip' || openers.spaces === undefined)
+          throw new Error('unexpected space case');
+        return openers.spaces(caseId);
+      },
+    },
     projectRanks: {
       kind: 'offered',
       gaps: [],

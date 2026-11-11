@@ -38,9 +38,11 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
@@ -229,6 +231,7 @@ describe('after activation', () => {
   });
 
   it('fails the export and the optimizer retry closed over a crossing row', async () => {
+    h.grant('org-a', 'ada', 'package-manager', 'work_package', own);
     h.sqlite.run(crossings()['estimate_step']);
     expect((await h.call('ada', 'GET', `/api/projects/${own}/export?format=markdown`)).status).toBe(
       500,
@@ -404,7 +407,11 @@ describe('shared live projection', () => {
               'GET',
               `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
             );
-      expect(refused).toEqual({ status: 403, body: { error: 'not_a_member' } });
+      expect(refused).toEqual(
+        operation === 'save'
+          ? { status: 404, body: { error: 'not_found' } }
+          : { status: 403, body: { error: 'not_a_member' } },
+      );
       expect(h.sqlite.query('SELECT * FROM saved_plan ORDER BY id').all()).toEqual(before);
     },
   );
@@ -836,7 +843,7 @@ async function seedSharedPlans(
   );
   await h.register('ada');
   h.organization('org-a');
-  h.member('org-a', 'ada', 'admin');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
   h.bind('ada', 'org-a');
   h.activate();
   const higher = await create('ada', 'Higher');

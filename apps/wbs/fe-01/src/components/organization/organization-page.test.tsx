@@ -18,7 +18,7 @@ const NOW = Date.UTC(2026, 8, 29);
 const offer = (id: string, email: string, fields: Record<string, unknown> = {}) => ({
   id,
   email,
-  role: 'member',
+  initialRoleId: null,
   expiresAt: NOW + 7 * DAY,
   revokedAt: null,
   consumedAt: null,
@@ -206,7 +206,16 @@ describe('organization page drawing', () => {
       'GET /api/organization/members': [
         () =>
           answer(200, {
-            members: [{ userId: 'u1', username: 'sam', email: null, role: 'admin', createdAt: 1 }],
+            members: [
+              {
+                userId: 'u1',
+                username: 'sam',
+                email: null,
+                effectiveRole: null,
+                grantCount: 0,
+                createdAt: 1,
+              },
+            ],
           }),
       ],
       'GET /api/organization/invitations': [
@@ -305,10 +314,10 @@ describe('organization invitations', () => {
     renderPage();
     const rows = await screen.findAllByRole('listitem');
     expect(rows.map((row) => row.textContent)).toEqual([
-      'pending@acme.testMemberPendingRevoke',
-      'expired@acme.testMemberExpired',
-      'revoked@acme.testMemberRevoked',
-      'accepted@acme.testMemberAccepted',
+      'pending@acme.testNo initial accessPendingRevoke',
+      'expired@acme.testNo initial accessExpired',
+      'revoked@acme.testNo initial accessRevoked',
+      'accepted@acme.testNo initial accessAccepted',
     ]);
   });
 
@@ -316,23 +325,31 @@ describe('organization invitations', () => {
     const sent = stubPage({
       'GET /api/organization/invitations': [
         () => answer(200, { invitations: [] }),
-        () => answer(200, { invitations: [offer('a', 'ada@acme.test', { role: 'viewer' })] }),
+        () =>
+          answer(200, {
+            invitations: [offer('a', 'ada@acme.test', { initialRoleId: 'project-viewer' })],
+          }),
       ],
       'POST /api/organization/invitations': [
-        () => answer(201, { invitation: offer('a', 'ada@acme.test', { role: 'viewer' }) }),
+        () =>
+          answer(201, {
+            invitation: offer('a', 'ada@acme.test', { initialRoleId: 'project-viewer' }),
+          }),
       ],
     });
     renderPage();
     fireEvent.change(await screen.findByLabelText('Email address'), {
       target: { value: ' ada@acme.test ' },
     });
-    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'viewer' } });
+    fireEvent.change(screen.getByLabelText('Initial access'), {
+      target: { value: 'project-viewer' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
     expect(await screen.findByText('Invitation sent to ada@acme.test.')).toBeDefined();
-    expect(await screen.findByText('Viewer', { selector: 'span' })).toBeDefined();
+    expect(await screen.findByText('Project viewer', { selector: 'span' })).toBeDefined();
     expect(sent.find((request) => request.route.startsWith('POST'))?.body).toEqual({
       email: 'ada@acme.test',
-      role: 'viewer',
+      initialRoleId: 'project-viewer',
     });
   });
 

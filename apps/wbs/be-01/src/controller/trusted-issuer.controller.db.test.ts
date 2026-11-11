@@ -1,5 +1,6 @@
 import { JwksTokenVerifier } from '@wbs/auth';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { type LocalIssuer, LocalOidcIssuers } from '../testing/local-oidc-issuer';
 import {
@@ -49,9 +50,11 @@ beforeEach(async () => {
   h.organization('org-a');
   h.organization('org-b');
   h.member('org-a', 'dany', 'super_admin');
+  h.grantPermissions('org-a', 'dany', ['organization.manage_security']);
   h.member('org-a', 'mem', 'member');
   h.member('org-a', 'vic', 'viewer');
   h.member('org-b', 'bob', 'admin');
+  h.grantPermissions('org-b', 'bob', ['organization.manage_security']);
   for (const username of ['dany', 'mem', 'vic']) h.bind(username, 'org-a');
   h.bind('bob', 'org-b');
   h.activate();
@@ -159,7 +162,7 @@ describe('registering a trusted issuer', () => {
   it('answers a member forbidden before judging the audience', async () => {
     expect(await register('mem', { issuer: ci.url, audience: 'wbs:org:org-a' })).toMatchObject({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
   });
 
@@ -402,6 +405,7 @@ describe('removing a trusted issuer', () => {
   // Proof: with the `in_use` refusal removed from `remove`, this answered 500
   // on the foreign key instead of 409; watched 2026-10-22.
   it('refuses removing an issuer two live credentials name, then removes it once both are revoked', async () => {
+    h.grant('org-a', 'dany', 'org-super-admin');
     const id = ((await register('dany', { issuer: ci.url })).body as { id: string }).id;
     const first = await createOidc(id, 'repo:acme/wbs:ref:refs/heads/main', 'main');
     const second = await createOidc(id, 'repo:acme/wbs:ref:refs/heads/next', 'next');
@@ -429,6 +433,7 @@ describe('removing a trusted issuer', () => {
   });
 
   it('deletes a grant an older release left on a revoked credential with the issuer (wbs-permissions P17)', async () => {
+    h.grant('org-a', 'dany', 'org-super-admin');
     const id = ((await register('dany', { issuer: ci.url })).body as { id: string }).id;
     const credential = await createOidc(id, 'repo:acme/wbs:ref:refs/heads/main', 'main');
     expect(
@@ -445,6 +450,20 @@ describe('removing a trusted issuer', () => {
     expect(
       h.sqlite.query("SELECT id FROM access_grant WHERE subject_kind = 'machine_credential'").all(),
     ).toEqual([]);
+
+    const revokedAudits = readGrantAudits().filter(({ action }) => action === 'access_revoked');
+    expect(revokedAudits).toHaveLength(1);
+    expect(revokedAudits).toMatchObject([
+      {
+        actor_id: h.userId('dany'),
+        organization_id: 'org-a',
+        origin: 'cascade',
+        role_id: 'project-contributor',
+        grant_subject_kind: 'machine_credential',
+        grant_subject_id: credential,
+      },
+    ]);
+    expect(revokedAudits.every(({ id, subject_id }) => id !== subject_id)).toBe(true);
   });
 
   it("answers another organization's issuer not_found", async () => {
@@ -470,7 +489,7 @@ describe('who may administer trusted issuers', () => {
       ] as const)
         expect(await h.call(username, method, path, body)).toEqual({
           status: 403,
-          body: { error: 'forbidden' },
+          body: { error: 'forbidden', permission: 'organization.manage_security' },
         });
     expect(ci.discoveryFetches).toBe(1);
     expect(issuerRows()).toHaveLength(1);
@@ -518,4 +537,171 @@ describe('who may administer trusted issuers', () => {
     expect(ci.discoveryFetches).toBe(0);
     expect(issuerRows()).toEqual([]);
   });
+});
+
+describe('current security grants for trusted issuers', () => {
+  beforeEach(async () => {
+    await h.register('role-only');
+    h.member('org-a', 'role-only', 'super_admin', ['project-contributor']);
+    h.bind('role-only', 'org-a');
+  });
+  for (const operation of ['list', 'register', 'remove'] as const) {
+    async function call(username: string) {
+      if (operation === 'list') return h.call(username, 'GET', PATH);
+      if (operation === 'register') return register(username, { issuer: ci.url });
+      const registered = await register('dany', { issuer: ci.url });
+      if (registered.status !== 201) throw new Error('trusted issuer setup refused');
+      const id = (registered.body as { id: string }).id;
+      return h.call(username, 'DELETE', PATH + '/' + id);
+    }
+    it('admits a minimal security grant for trusted-issuer ' + operation, async () => {
+      h.grantPermissions('org-a', 'mem', ['organization.manage_security']);
+      expect((await call('mem')).status).toBe(
+        operation === 'list' ? 200 : operation === 'register' ? 201 : 204,
+      );
+    });
+    it('encodes manage_security for a role-only trusted-issuer ' + operation, async () => {
+      if (operation === 'remove') {
+        const registered = await register('dany', { issuer: ci.url });
+        if (registered.status !== 201) throw new Error('trusted issuer setup refused');
+        const id = (registered.body as { id: string }).id;
+        const before = [issuerRows(), auditRows()];
+        expect(await h.call('role-only', 'DELETE', PATH + '/' + id)).toEqual({
+          status: 403,
+          body: { error: 'forbidden', permission: 'organization.manage_security' },
+        });
+        expect([issuerRows(), auditRows()]).toEqual(before);
+      } else {
+        const before = [issuerRows(), auditRows()];
+        expect(await call('role-only')).toEqual({
+          status: 403,
+          body: { error: 'forbidden', permission: 'organization.manage_security' },
+        });
+        expect([issuerRows(), auditRows()]).toEqual(before);
+        if (operation === 'register') expect(ci.discoveryFetches).toBe(0);
+      }
+    });
+  }
+});
+
+async function duringSecurityResolution<T>(mutate: string, call: () => Promise<T>): Promise<T> {
+  const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+  const resolve = observer.getMockImplementation();
+  if (resolve === undefined) throw new Error('security resolver spy lost its real implementation');
+  let substitutions = 0;
+  observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+    const admitted = await resolve.call(this, principal);
+    if (mutate === 'id') Object.assign(principal, { id: h.userId('vic') });
+    if (mutate === 'authentication')
+      Object.assign(principal, {
+        authentication: { kind: 'machine', credentialId: 'replacement', personId: 'agent' },
+      });
+    if (mutate === 'delegation')
+      Object.assign(principal, { delegation: { organizationId: 'org-a' } });
+    substitutions += 1;
+    return admitted;
+  });
+  try {
+    const answered = await call();
+    expect(substitutions).toBe(1);
+    return answered;
+  } finally {
+    observer.mockRestore();
+  }
+}
+
+for (const operation of ['list', 'register', 'remove'] as const) {
+  for (const mutate of ['id', 'authentication', 'delegation']) {
+    it(
+      'retains the route security principal across organization resolution at trusted-' +
+        operation +
+        ': ' +
+        mutate,
+      async () => {
+        let path = PATH;
+        if (operation === 'remove') {
+          const registered = await register('dany', { issuer: ci.url });
+          if (registered.status !== 201) throw new Error('trusted issuer setup refused');
+          path += '/' + (registered.body as { id: string }).id;
+        }
+        const answered = await duringSecurityResolution(mutate, () =>
+          operation === 'register'
+            ? register('dany', { issuer: ci.url })
+            : h.call('dany', operation === 'list' ? 'GET' : 'DELETE', path),
+        );
+        expect(answered.status).toBe(
+          operation === 'list' ? 200 : operation === 'register' ? 201 : 204,
+        );
+        expect(
+          h.sqlite.query('SELECT id FROM organization_audit WHERE actor_id=?').all(h.userId('vic')),
+        ).toEqual([]);
+      },
+    );
+  }
+}
+
+function readGrantAudits() {
+  return h.sqlite
+    .query<
+      {
+        id: string;
+        organization_id: string;
+        actor_id: string;
+        action: string;
+        subject_id: string;
+        grant_subject_id: string;
+        grant_subject_kind: string;
+        scope_kind: string;
+        scope_id: string;
+        role_id: string;
+        origin: string;
+      },
+      []
+    >(
+      "SELECT id,organization_id,actor_id,action,subject_id,json_extract(detail,'$.subjectId') AS grant_subject_id,json_extract(detail,'$.subjectKind') AS grant_subject_kind,json_extract(detail,'$.scopeKind') AS scope_kind,json_extract(detail,'$.scopeId') AS scope_id,json_extract(detail,'$.roleId') AS role_id,json_extract(detail,'$.origin') AS origin FROM organization_audit WHERE subject_kind='access_grant' ORDER BY rowid",
+    )
+    .all();
+}
+
+it('rolls stale issuer grant removal back when the required cascade audit fails', async () => {
+  h.grant('org-a', 'dany', 'org-super-admin');
+  const id = ((await register('dany', { issuer: ci.url })).body as { id: string }).id;
+  const credential = await createOidc(id, 'repo:acme/wbs:ref:refs/heads/main', 'main');
+  expect(
+    (await h.call('dany', 'DELETE', '/api/organization/machine-credentials/' + credential)).status,
+  ).toBe(204);
+  h.sqlite.run(
+    "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES (?,'org-a','organization','org-a','machine_credential',?,'project-contributor','backfill',1)",
+    [crypto.randomUUID(), credential],
+  );
+  const snapshot = () =>
+    ['organization_trusted_issuer', 'machine_credential', 'access_grant', 'organization_audit'].map(
+      (table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all(),
+    );
+  const before = snapshot();
+  h.sqlite.run(
+    "CREATE TRIGGER fail_issuer_access_audit BEFORE INSERT ON organization_audit WHEN NEW.action='access_revoked' BEGIN SELECT RAISE(ABORT,'issuer access audit unavailable'); END",
+  );
+  expect((await h.call('dany', 'DELETE', PATH + '/' + id)).status).toBe(500);
+  expect(snapshot()).toEqual(before);
+});
+
+it('refuses physical cleanup of zero-grant revoked issuer credentials without a direct holder', async () => {
+  const id = ((await register('dany', { issuer: ci.url })).body as { id: string }).id;
+  const credential = await createOidc(id, 'repo:cp14:main', 'cp14-key');
+  h.sqlite.run('UPDATE machine_credential SET revoked_at=5 WHERE id=?', [credential]);
+  const snapshot = () =>
+    [
+      'organization_trusted_issuer',
+      'machine_credential',
+      'machine_credential_secret',
+      'access_grant',
+      'organization_audit',
+    ].map((table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
+  const before = snapshot();
+  expect(await h.call('dany', 'DELETE', PATH + '/' + id)).toEqual({
+    status: 409,
+    body: { error: 'last_super_admin' },
+  });
+  expect(snapshot()).toEqual(before);
 });

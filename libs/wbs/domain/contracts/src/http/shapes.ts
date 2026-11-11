@@ -97,7 +97,6 @@ import {
 } from './onboarding-shapes';
 import { readOrganizationLimits } from './organization-limits-shapes';
 import {
-  changeMemberRole,
   listMembers,
   listOrganizationMemberships,
   readActiveOrganization,
@@ -219,7 +218,6 @@ const ordinaryHttpShapes = [
   addStep,
   renameStep,
   removeStep,
-  changeMemberRole,
   listMembers,
   removeMember,
   listOrganizationMemberships,

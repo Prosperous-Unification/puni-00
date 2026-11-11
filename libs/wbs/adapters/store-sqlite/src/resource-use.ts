@@ -1,12 +1,16 @@
 import { resourceUse as useSchema, resourceUseEvent as eventSchema } from '@wbs/contracts';
 import {
-  mayEditProjectWithin,
+  assertResourceUseActor,
+  authorize,
   type ResourceUseActor,
   type ResourceUseAnswer,
+  type ResourceUseDenial,
   type ResourceUsePage,
   type ResourceUses,
+  retainResourceUseActor,
 } from '@wbs/core';
 import {
+  canEditProject,
   type ResourceUse,
   type ResourceUseEventDraft,
   type ResourceUseRegistration,
@@ -15,12 +19,14 @@ import {
 import { and, asc, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { AccessDecisionRepository } from './access-decisions';
 import type { Gate } from './gate';
-import { type ImmediateTransaction, writeImmediately } from './immediate-write';
-import { currentMembershipAccess } from './organization-access';
+import type { ImmediateTransaction } from './immediate-write';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
-import { resourceCleanupRequestRecord } from './schema';
+import { MACHINE_CREDENTIAL_SOURCES, PERSON_KINDS, resourceCleanupRequestRecord } from './schema';
 import { resourceUseEventRecord, resourceUseRecord } from './schema';
+import { runSecurityTransaction } from './security-transaction';
 
 type Reader = Pick<SQLiteBunDatabase, 'get' | 'all' | 'select' | 'insert' | 'update'>;
 const refused = (reason: 'not_found' | 'forbidden' | 'conflict' | 'invalid_body') =>
@@ -34,31 +40,112 @@ function fingerprint(
     Object.entries(body).sort(([a], [b]) => a.localeCompare(b)),
   ]);
 }
-/** Rechecks membership and project ownership inside the same write transaction or coordinated read. */
-export function admitResourceUseProject(
+/**
+ * Rechecks only durable credential identity on the held owner connection.
+ * Stale rows are modeled refusal; malformed/unreadable trusted storage throws.
+ * This does not reverify raw secrets, session/delegation expiry or rotation windows.
+ */
+export function readResourceUseCredentialRefusal(
+  tx: Pick<SQLiteBunDatabase, 'get'>,
+  actor: ResourceUseActor,
+): 'forbidden' | null {
+  const authentication = actor.principal.authentication;
+  if (authentication?.kind !== 'machine' && authentication?.kind !== 'consent') return null;
+  if (actor.access.kind !== 'scoped') return 'forbidden';
+  const stored = tx.get<
+    | {
+        organizationId: string;
+        personId: string;
+        source: unknown;
+        revokedAt: unknown;
+        familyId: string | null;
+        kind: unknown;
+        accountId: string | null;
+        personOrganizationId: string | null;
+      }
+    | undefined
+  >(sql`
+    SELECT c.organization_id AS organizationId,c.person_id AS personId,c.source,c.revoked_at AS revokedAt,c.mcp_family_id AS familyId,
+      p.kind,p.account_id AS accountId,o.organization_id AS personOrganizationId
+    FROM machine_credential c LEFT JOIN person p ON p.id=c.person_id
+    LEFT JOIN person_organization o ON o.resource_id=p.id AND o.organization_id=c.organization_id
+    WHERE c.id=${authentication.credentialId}`);
+  if (stored === undefined) return 'forbidden';
+  const sources: readonly string[] = MACHINE_CREDENTIAL_SOURCES;
+  // Proof: credential-source-vocabulary.
+  // The recorded fault broke `throws on manual resource register malformed source with a sufficient own grant`; restored GREEN.
+  if (typeof stored.source !== 'string' || !sources.includes(stored.source))
+    throw new Error('resource machine credential has a malformed source');
+  // Proof: credential-revocation-vocabulary.
+  // The recorded fault broke `throws on manual resource register malformed revoked_at with a sufficient own grant`; restored GREEN.
+  if (
+    stored.revokedAt !== null &&
+    (typeof stored.revokedAt !== 'number' || !Number.isSafeInteger(stored.revokedAt))
+  )
+    throw new Error('resource machine credential has malformed revoked_at');
+  // Proof: credential-family-vocabulary.
+  // The recorded fault broke `throws on a missing stored consent family before manual register despite an own grant`; restored GREEN.
+  if (stored.source === 'mcp_consent' && typeof stored.familyId !== 'string')
+    throw new Error('resource machine credential has a malformed consent family');
+  const kinds: readonly string[] = PERSON_KINDS;
+  // Proof: credential-person-vocabulary.
+  // The recorded fault broke `throws on malformed person kind before manual register despite an own grant`; restored GREEN.
+  if (stored.kind !== null && (typeof stored.kind !== 'string' || !kinds.includes(stored.kind)))
+    throw new Error('resource machine credential person has a malformed kind');
+  // Proof: credential-current-binding.
+  // The recorded fault broke `rechecks queued manual resource list current credential revoked despite a sufficient own grant`; restored GREEN.
+  if (
+    stored.revokedAt !== null ||
+    stored.organizationId !== actor.access.scope.organizationId ||
+    stored.personId !== authentication.personId ||
+    stored.kind !== 'agent' ||
+    stored.accountId !== actor.principal.id ||
+    stored.personOrganizationId !== stored.organizationId
+  )
+    return 'forbidden';
+  if (authentication.kind === 'machine')
+    // Proof: credential-machine-source-kind.
+    // The recorded fault broke `rechecks queued runtime admission replay current source mcp_consent before effects`; restored GREEN.
+    return stored.source === 'mcp_consent' ? 'forbidden' : null;
+  const context = actor.principal.delegation;
+  // Proof: credential-consent-context.
+  // The recorded fault broke `rechecks trusted consent family before manual list despite a sufficient own grant`; restored GREEN.
+  return stored.source !== 'mcp_consent' ||
+    context === undefined ||
+    context.audience === 'wbs-be-01/direct' ||
+    stored.familyId !== context.grant
+    ? 'forbidden'
+    : null;
+}
+
+/** Current grants on the caller's held connection; immutable orphan access has no invented package chain. */
+export async function admitResourceUseProject(
   tx: Reader,
   projectId: string,
   actor: ResourceUseActor,
   write: boolean,
   orphan: boolean,
-): { name: string; organizationId: string | null } | 'not_found' | 'forbidden' {
-  let access = actor.access;
+): Promise<{ name: string; organizationId: string | null } | ResourceUseDenial> {
+  const access = actor.access;
   const active = readOrganizationActivation(tx) === 'activated';
   if (access.kind === 'legacy') {
-    if (active) return 'forbidden';
+    if (active) return refused('forbidden');
   } else {
-    if (!active) return 'forbidden';
-    const member = currentMembershipAccess(tx, access.scope.organizationId, access.scope.userId);
-    if (!member.ok) return 'forbidden';
-    if (member.access.kind !== 'scoped')
-      throw new Error('membership recheck returned legacy access');
-    access = {
-      ...member.access,
-      scope: {
-        ...member.access.scope,
-        ...(access.scope.delegated ? { delegated: true as const } : {}),
-      },
-    };
+    if (!active) return refused('forbidden');
+    const member = readMembershipIn(tx, access.scope.organizationId, actor.principal.id);
+    // Proof: manual-current-member.
+    // The recorded fault broke `rechecks current membership inside resource list owner after queueing`; restored GREEN.
+    if (member === null) return refused('forbidden');
+    // Proof: manual-current-credential-dependency-first bypassed this current row read.
+    // rechecks queued manual resource register current credential revoked despite a sufficient own grant
+    // rechecks queued manual resource append current credential revoked despite a sufficient own grant
+    // rechecks queued manual resource list current credential revoked despite a sufficient own grant
+    // rechecks queued manual resource history current credential revoked despite a sufficient own grant
+    // throws on manual resource register missing table with a sufficient own grant
+    // Exact48 named REDs and restored GREENs retained; this is one dependency proof, not individual predicate isolation.
+    // Proof: manual-current-credential.
+    // The recorded fault broke `rechecks queued manual resource register current credential missing despite a sufficient own grant`; restored GREEN.
+    if (readResourceUseCredentialRefusal(tx, actor) !== null) return refused('forbidden');
   }
   const project = tx.get<
     { name: string; ownerId: string; restricted: number; organizationId: string | null } | undefined
@@ -66,13 +153,10 @@ export function admitResourceUseProject(
     SELECT p.name,p.owner_id AS ownerId,p.restricted,o.organization_id AS organizationId
     FROM project p LEFT JOIN project_organization o ON o.resource_id=p.id WHERE p.id=${projectId}`);
   if (project === undefined) {
-    if (
-      !orphan ||
-      access.kind !== 'scoped' ||
-      access.scope.delegated ||
-      !['admin', 'super_admin'].includes(access.scope.role)
-    )
-      return 'not_found';
+    // Proof: orphan-personal-nondelegation.
+    // The recorded fault broke `conceals delegated personal orphan access even with effective manage_directory`; restored GREEN.
+    if (!orphan || access.kind !== 'scoped' || actor.principal.delegation !== undefined)
+      return refused('not_found');
     const prior = tx
       .select()
       .from(resourceUseRecord)
@@ -84,20 +168,43 @@ export function admitResourceUseProject(
       )
       .limit(1)
       .get();
-    if (prior === undefined) return 'not_found';
+    if (prior === undefined) return refused('not_found');
+    const decision = await authorize(
+      new AccessDecisionRepository(tx),
+      actor.principal,
+      { kind: 'organization', organizationId: access.scope.organizationId },
+      'organization.manage_directory',
+    );
+    // Proof: orphan-current-directory-permission.
+    // The recorded fault broke `conceals personal orphan history and updates from role-only administrators`; restored GREEN.
+    if (!decision.ok) return refused('not_found');
     const snapshot = useSchema.assert(prior.snapshot);
     return { name: snapshot.projectName, organizationId: access.scope.organizationId };
   }
-  // Proof: disabling this tenant comparison exposed a foreign project in the composed guards test (2026-10-25).
-  if (access.kind === 'scoped' && project.organizationId !== access.scope.organizationId)
-    return 'not_found';
-  // Proof: disabling mayEditProjectWithin let a viewer write in the composed guards test (2026-10-25).
-  if (
-    write &&
-    !mayEditProjectWithin({ ...project, restricted: project.restricted !== 0 }, actor.id, access)
-  )
-    return 'forbidden';
-  return { name: project.name, organizationId: project.organizationId };
+  if (access.kind === 'legacy')
+    return write && !canEditProject({ ...project, restricted: project.restricted !== 0 }, actor.id)
+      ? refused('forbidden')
+      : { name: project.name, organizationId: project.organizationId };
+  if (project.organizationId !== access.scope.organizationId) return refused('not_found');
+  const decision = await authorize(
+    new AccessDecisionRepository(tx),
+    // Proof: manual-own-credential-authority.
+    // The recorded fault broke `requires the credential own package.write for runtime fresh admission despite account authority`; restored GREEN.
+    actor.principal,
+    {
+      kind: 'work_package',
+      chain: {
+        level: 'work_package',
+        organizationId: access.scope.organizationId,
+        workPackageId: projectId,
+      },
+      restricted: project.restricted !== 0,
+    },
+    write ? 'package.write' : 'package.read',
+  );
+  // Proof: manual-current-package-permission.
+  // The recorded fault broke `encodes package.write for a readable resource registration denial without effects`; restored GREEN.
+  return decision.ok ? { name: project.name, organizationId: project.organizationId } : decision;
 }
 export function personIn(
   tx: Reader,
@@ -205,7 +312,7 @@ export function appendResourceUseIn(
   return { ok: true, value: changed };
 }
 /** Registers inside an admitted transaction; only the separately authorized runtime adapter supplies runtime identity. */
-export function registerResourceUseIn(
+export async function registerResourceUseIn(
   tx: Reader,
   projectId: string,
   actor: ResourceUseActor,
@@ -222,9 +329,9 @@ export function registerResourceUseIn(
     observedAt: number;
     admissionFingerprint?: string;
   },
-): ResourceUseAnswer<ResourceUse> {
-  const project = admitResourceUseProject(tx, projectId, actor, true, false);
-  if (typeof project === 'string') return refused(project);
+): Promise<ResourceUseAnswer<ResourceUse>> {
+  const project = await admitResourceUseProject(tx, projectId, actor, true, false);
+  if ('ok' in project) return project;
   const identity = fingerprint(actor, draft);
   const prior = tx
     .select()
@@ -368,7 +475,20 @@ export class SqliteResourceUses implements ResourceUses {
     draft: ResourceUseRegistration,
     at: number,
   ): Promise<ResourceUseAnswer<ResourceUse>> {
-    return writeImmediately(this.db, this.gate, (tx) =>
+    // Proof: entry-register-tuple.
+    // The recorded fault broke `rejects direct resource register actor mismatch before reads`; restored GREEN.
+    assertResourceUseActor(actor);
+    // Proof: store-register-authority.
+    // The recorded fault broke `retains manual resource register queued authentication removal before the writer`; restored GREEN.
+    actor = retainResourceUseActor(actor);
+    // Proof: store-register-payload.
+    // The recorded fault broke `retains manual resource register queued payload before the writer`; restored GREEN.
+    draft = structuredClone(draft);
+    // Proof: owner-register-gate.
+    // The recorded fault broke `serializes and fences the actual resource register owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-register-transaction.
+    // The recorded fault broke `serializes and fences the actual resource register owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) =>
       registerResourceUseIn(tx, projectId, actor, draft, at),
     );
   }
@@ -379,9 +499,22 @@ export class SqliteResourceUses implements ResourceUses {
     draft: ResourceUseEventDraft,
     at: number,
   ): Promise<ResourceUseAnswer<ResourceUse>> {
-    return writeImmediately(this.db, this.gate, (tx) => {
-      const project = admitResourceUseProject(tx, projectId, actor, true, true);
-      if (typeof project === 'string') return refused(project);
+    // Proof: entry-append-tuple.
+    // The recorded fault broke `rejects direct resource append actor mismatch before reads`; restored GREEN.
+    assertResourceUseActor(actor);
+    // Proof: store-append-authority.
+    // The recorded fault broke `retains manual resource append queued authentication removal before the writer`; restored GREEN.
+    actor = retainResourceUseActor(actor);
+    // Proof: store-append-payload.
+    // The recorded fault broke `retains manual resource append queued payload before the writer`; restored GREEN.
+    draft = structuredClone(draft);
+    // Proof: owner-append-gate.
+    // The recorded fault broke `serializes and fences the actual resource append owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-append-transaction.
+    // The recorded fault broke `serializes and fences the actual resource append owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const project = await admitResourceUseProject(tx, projectId, actor, true, true);
+      if ('ok' in project) return project;
       const stored = tx
         .select()
         .from(resourceUseRecord)
@@ -422,11 +555,23 @@ export class SqliteResourceUses implements ResourceUses {
     });
   }
   list(projectId: string, actor: ResourceUseActor, page: ResourceUsePage) {
-    return this.gate.enter(async () => {
-      await Promise.resolve();
-      const project = admitResourceUseProject(this.db, projectId, actor, false, true);
-      if (typeof project === 'string') return refused(project);
-      const rows = this.db
+    // Proof: entry-list-tuple.
+    // The recorded fault broke `rejects direct resource list actor mismatch before reads`; restored GREEN.
+    assertResourceUseActor(actor);
+    // Proof: store-list-authority.
+    // The recorded fault broke `retains manual resource list queued authentication removal before the writer`; restored GREEN.
+    actor = retainResourceUseActor(actor);
+    // Proof: store-list-payload.
+    // The recorded fault broke `retains manual resource list queued payload before the writer`; restored GREEN.
+    page = structuredClone(page);
+    // Proof: owner-list-gate.
+    // The recorded fault broke `serializes and fences the actual resource list owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-list-transaction.
+    // The recorded fault broke `serializes and fences the actual resource list owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const project = await admitResourceUseProject(tx, projectId, actor, false, true);
+      if ('ok' in project) return project;
+      const rows = tx
         .select()
         .from(resourceUseRecord)
         .where(
@@ -456,18 +601,30 @@ export class SqliteResourceUses implements ResourceUses {
     });
   }
   history(projectId: string, useId: string, actor: ResourceUseActor, page: ResourceUsePage) {
-    return this.gate.enter(async () => {
-      await Promise.resolve();
-      const project = admitResourceUseProject(this.db, projectId, actor, false, true);
-      if (typeof project === 'string') return refused(project);
-      const use = this.db
+    // Proof: entry-history-tuple.
+    // The recorded fault broke `rejects direct resource history actor mismatch before reads`; restored GREEN.
+    assertResourceUseActor(actor);
+    // Proof: store-history-authority.
+    // The recorded fault broke `retains manual resource history queued authentication removal before the writer`; restored GREEN.
+    actor = retainResourceUseActor(actor);
+    // Proof: store-history-payload.
+    // The recorded fault broke `retains manual resource history queued payload before the writer`; restored GREEN.
+    page = structuredClone(page);
+    // Proof: owner-history-gate.
+    // The recorded fault broke `serializes and fences the actual resource history owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-history-transaction.
+    // The recorded fault broke `serializes and fences the actual resource history owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const project = await admitResourceUseProject(tx, projectId, actor, false, true);
+      if ('ok' in project) return project;
+      const use = tx
         .select()
         .from(resourceUseRecord)
         .where(and(eq(resourceUseRecord.projectId, projectId), eq(resourceUseRecord.id, useId)))
         .get();
       if (use?.organizationId !== project.organizationId) return refused('not_found');
       if (page.cursor !== undefined && !/^\d+$/.test(page.cursor)) return refused('invalid_body');
-      const rows = this.db
+      const rows = tx
         .select()
         .from(resourceUseEventRecord)
         .where(

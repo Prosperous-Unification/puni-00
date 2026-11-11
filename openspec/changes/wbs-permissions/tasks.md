@@ -17,7 +17,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       P15 (`revoke-backfill`). Slice 1 waits for P1, P8, P9, P12, P13, P17 and P7, because
       its backfill mapping is P7's decision on what E8 keeps; slice 2 also for P16; slice 3
       for P3, P4, P5 and P10; slice 4 for P11 and P17; slice 6 for P5, P7, P15 and P17.
-      Slices 3 to 7 run after #698 slice 1; 3.2 (its listing statement joins
+      Slices 3 to 7 run after #698 slice 1 except 4.1's audit foundation, which precedes 2.5
+      using current project vocabulary; the rename preserves its additions. Task 2.4 is
+      security rewiring 2.4a first and final role/helper deletion 2.4b after 2.5. 3.2 (its listing statement joins
       `work_package.project_id`) and 3.4 (slice 3's project rules) after #698 slice 2. The
       full order is #698 design.md's "Dependency graph" (#698 E41): 4.1 lands before 3.3
       (creation grants are audited as `access_granted`), and 3.3 and 4.1 land before #698
@@ -97,7 +99,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
 
 ## 2. `may()` wired into core, the old checks removed
 
-- [ ] 2.1 `authorize(decisions, principal, scope, permission)` in `@wbs/core` with the
+- [x] 2.1 `authorize(decisions, principal, scope, permission)` in `@wbs/core` with the
       P10 answers; `resolve` answers membership, `delegated` and the cap
       (`OrganizationScope.role` stays for the old helpers until 2.4); `scopesOfRoles` is left to `wbs-machine-credentials` slice 4 (#731), which deletes it, so no rewiring here whichever lands first — test: `authorize.test.ts` (not_found, forbidden-with-permission, ok) and the
       existing `authentication.feature` tests with grants; negative: answer `forbidden`
@@ -105,20 +107,21 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       `authorize` is the single reader of `stores.accessDecisions`: it throws when the
       catalog carries none (negative: answer `ok` on `undefined` and a memory-backed
       decision admits; watched), and call sites never `?.` the port.
-- [ ] 2.2 Rewire the work-package sites, old helpers kept: batches
+- [x] 2.2 Rewire the work-package sites, old helpers kept: batches
       (`admitted-scope.resource.ts`, per kind from permission-matrix.md), project, step,
       calendar marker, saved plan, import, create (P16: `organization.create_project`
       until #698 slice 2), the recovery branch of `classifyProjectEdit` (flag clear only,
       P5); controller fixtures gain `grants:` beside `role:` — test: the existing
       project, step, marker, saved-plan and import `*-organization.controller.db.test.ts`
       green on backfilled grants, plus `command-permission.controller.db.test.ts`
-      asserting each of the 61 kinds (40 work package, 21 directory) against the matrix
+      asserting every current registry kind (62 at d49fdad84: 40 work package, 22 directory,
+      including `setDirectoryCapacity`) against the matrix
       (a contributor, a manager, a viewer, a machine), `setBudget` and `clearBudget` under
       `project.manage_budgets` (a `project-contributor` refused naming it); negatives: one per rewired site, the fault being "skip the
       `authorize` call", each watched against its named existing test (for example
       `refuses a viewer every batch, undo and redo`); the `Proof:` comments move with the
       checks.
-- [ ] 2.3 Rewire the organization sites, old helpers kept: directory batches and binding,
+- [x] 2.3 Rewire the organization sites, old helpers kept: directory batches and binding,
       spaces, capacity mode, claims (`isClaimAdmin` → `package.claim_for_others`), machine
       credential reach, directory agent visibility, measure definitions and plan import's
       measure rows (`mayDefineMeasuresInOrganization` → `organization.manage_directory`),
@@ -126,21 +129,45 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       and claim controller tests green on backfilled grants, P7's narrowing visible as
       named refusals; negatives: skip each `authorize` call against its named test;
       watched.
-- [ ] 2.4 Rewire the store-side `super_admin` reads (domains, SSO, session policy,
-      provisioning, shared-people restore) to `organization.manage_security` in the same
-      transaction, then delete `canWriteInOrganization`, `mayBindAccountInOrganization`,
+- [x] 2.4 Complete 2.4a then 2.4b; both are proven in the current-grant checkpoints.
+      **2.4a:** rewire the store-side `super_admin` reads (domains, SSO, session policy,
+      provisioning, trusted issuers, shared-people restore) to `organization.manage_security`
+      in the same transaction, including SSO connection proof and shared-restore approval
+      consumption/execution rechecks. Retain still-used compatibility helpers/fields.
+      **2.4b, after 2.5:** remove/move fixture-only DomainClaimRepository.openClaim
+      and promoteClaim into test setup; their exact apps/libs caller inventory at2.4a
+      has only organization-records.db.test.ts, no production port/route/caller.
+      Close the complete direct role-reader inventory (resource/runtime,
+      fanout, enterprise, agent-pool, compute-provider, limits and trusted-issuer families
+      included). Close the historical AccessDecisionRepository.effectiveRoleAt/list
+      orphan-catalogue omission: their role INNER JOIN currently drops grants with
+      missing catalogue rows. Validate every selected reaching grant before projection,
+      including missing/unknown role kind and invalid permission sets; test a corrupt
+      reaching grant beside independently sufficient valid authority and require an
+      unexpected-state failure without effects. Task2.5 fixes only its new member-summary,
+      initial-grant comparison and direct-target readers; it does not close this older
+      evaluator finding. Then delete `canWriteInOrganization`, `mayBindAccountInOrganization`,
       `canEditProjectInOrganization`, `mayDefineMeasuresInOrganization`,
       `mayAdministerMembership`, `mayInvite`,
       `mayEditProjectWithin`, `isClaimAdmin`, `organizationRoleOf`,
       `roleMaySwitchCapacityMode` and the fixtures' `role:` helper — test: the security
-      controller tests green on grants; `git grep` for each deleted helper answers
-      nothing; `OrganizationScope.role` leaves the type; negative: skip the `authorize`
+      controller tests green on grants; the production declaration/call inventory has no
+      retired helper (negative/Proof string references are intentional); `OrganizationScope.role`
+      leaves the type; negative: skip the `authorize`
       call in `session-policy.ts` and a `project-contributor` sets the session policy;
       watched.
-- [ ] 2.5 Membership routes: `changeMemberRole` removed, `listMembers` answers effective
+      Closed by the 2.4a and bounded 2.4b receipts through final role-evidence retirement
+      in verify.md; explicit display/legacy mapping and UI7.1/7.2, #731 and rollout6.4 stay separate.
+- [x] 2.5 After 4.1's current-vocabulary audit foundation: membership routes,
+      `changeMemberRole` removed, `listMembers` answers effective
       role and grant count, `removeMember` deletes grants and group memberships in the
-      transaction with one audit row (removing an organization-role holder also needs
-      `organization.manage_organization_roles`, P11), invitations and join-request approval
+      transaction with one aggregate `organization_member_removed` audit row (subject
+      `organization_member`, id the removed account; source and both removal counts).
+      SCIM keeps its single existing lifecycle event/actor enriched with bound account,
+      removal flag and counts, with no duplicate grant/member events. Onboarding
+      and invitation initial grants/audits use transaction-bound grant operations inside
+      their existing owner, never a nested grant-store gate. Removing an organization-role holder also needs
+      `organization.manage_organization_roles`, P11. Invitations and join-request approval
       carry an optional initial grant obeying P11, onboarding's creator receives
       `org-super-admin`, SCIM-provisioned members receive none; every membership removal
       (route, leaving, SCIM deprovisioning: `organization.ts` `removeMember` and `administer`,
@@ -195,8 +222,15 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
 
 ## 4. Grant commands and audit
 
-- [ ] 4.1 Audit widening `widen_organization_audit_access` (compatible rebuild, precedent
-      `20261012090200`), `ORGANIZATION_AUDIT_ACTIONS` and subject kinds, `down.sql`
+- [x] 4.1 Before 2.5 and #698 slice 1: audit widening `widen_organization_audit_access`
+      using current project vocabulary (the later rename preserves every access action,
+      subject and index); complete deferred atomic grant-store/operator audit writes.
+      Include `organization_member_removed`/`organization_member` and SCIM aggregate
+      exceptions from the organization-audit delta spec; group deletion emits N grant
+      revokes + M group-member removals + one group-deleted event, and an accepted same-name
+      rename emits one event. Variable cascades use fresh owner-local event IDs; borrowed
+      mutations return evidence without their own owner/audit. Compatible rebuild, precedent
+      `20261012090200`; `ORGANIZATION_AUDIT_ACTIONS` and subject kinds, `down.sql`
       refusing while a new-action row exists — test: the migration test forward, back
       and refusal; negative: `CHECK (1)` in place of the guard and `migration-lint.test.ts`
       reports it; watched.
@@ -260,6 +294,8 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       the spec's scenario, a second organization untouched, `org-*` and creator rows
       kept; negatives: drop the count guard and a mismatched run deletes; drop the origin
       predicate and a route grant is deleted; watched.
+
+- [ ] 6.4 Required initial-access deployment boundary: before the offer-selection migration reaches a shared live store, quiesce outgoing invitation acceptance and onboarding mutations before migration, and retire/drain outgoing authorization readers (including existing gateway/WebSocket sessions) before upgraded writers expose new grant semantics, or refuse activation. Prove an old writer cannot consume an offer/create unaudited membership authority and an old reader cannot continue authorizing by legacy roles during the swap. Preserve read availability and rollback contracts. The additive old-writer insert trigger preserves offer intent only; it does not satisfy this boundary (ADR0081). Coordinate the deploy/Bun CLI slice; task2.5 does not claim live cutover.
 
 ## 7. fe-01
 

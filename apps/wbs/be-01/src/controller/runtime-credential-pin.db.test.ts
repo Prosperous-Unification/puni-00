@@ -7,7 +7,7 @@ import type {
 import { AuthService } from '@wbs/core/module/authentication/authentication.feature';
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 
-import { addAgentPerson } from '../testing/machine-credential-fixture';
+import { addAgentPerson, grantCredential } from '../testing/machine-credential-fixture';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
 
 for (const kind of ['machine', 'consent'] as const) {
@@ -22,7 +22,7 @@ for (const kind of ['machine', 'consent'] as const) {
       harness = OrganizationHarness.openComposed();
       await harness.register('ada');
       harness.organization('org-a');
-      harness.member('org-a', 'ada', 'admin');
+      harness.member('org-a', 'ada', 'admin', ['org-admin']);
       harness.bind('ada', 'org-a');
       harness.activate();
       const created = await harness.call('ada', 'POST', '/api/projects', {
@@ -47,6 +47,14 @@ for (const kind of ['machine', 'consent'] as const) {
       harness.sqlite.run(
         "INSERT INTO work_item (id, project_id, position, name, readiness) VALUES ('leaf', ?, 10, 'Leaf', 'ready')",
         [projectId],
+      );
+      grantCredential(
+        harness.sqlite,
+        'org-a',
+        kind === 'machine' ? 'verified-machine' : 'verified-consent',
+        'project-contributor',
+        'organization',
+        'org-a',
       );
       pinnedPersonId = 'agent-a';
       // Verified-principal dependency seam only: the mounted routes, current admission,

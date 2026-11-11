@@ -1,0 +1,2893 @@
+{
+  "scope": "Bounded rank/capacity-mode vertical of task2.4b; parent task2.4 and whole goal remain open.",
+  "baseCommit": "88c08048537fba1870d0af78284206734a6363a4",
+  "previousCheckpoint": "verification-2.4b-checkpoint.json",
+  "sourceHashes": [
+    {
+      "path": "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+      "sha256": "19c09e6ccb87c783c9d48a462437508df09368a1c323d789ee18d9ad700dc32a",
+      "bytes": 35024
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/fanout-capture.ts",
+      "sha256": "ddae105f8d7cf0d1288d4b08c387884774f635b8f708bb59914b3e167354b24e",
+      "bytes": 23820
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/source.ts",
+      "sha256": "26d4c2a8da58e75f02b45af8beba914f47dbd43bd018870e553b3bdf313c49c7",
+      "bytes": 13958
+    },
+    {
+      "path": "libs/wbs/application/core/src/http/capacity-mode.routes.ts",
+      "sha256": "768bf32d7cbe3a3821c5a6b5042c7003b14bf634783da3c60086644317883d3d",
+      "bytes": 4136
+    },
+    {
+      "path": "libs/wbs/application/core/src/http/project-rank.routes.ts",
+      "sha256": "f692761ce5b75d4419f3a2458cae49f347973b87ca6a7a3f0d5d9d42598be228",
+      "bytes": 3824
+    },
+    {
+      "path": "libs/wbs/application/core/src/ports/fanout-capture-store.ts",
+      "sha256": "1b06747fc894e8da81d22d7e8604dafa68d19b00bab443742131e3c41520c279",
+      "bytes": 4849
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "sha256": "dd2a43f4abd58d4dbbe8b97fcebd9bf5aacda0c951b5bf286fb7db13f7365c95",
+      "bytes": 8153
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "sha256": "064ec31608f89bae76811f21850f1748069b70e733a17d72b4b3bc7fde93cd42",
+      "bytes": 7780
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "sha256": "bf73c722a3ececa2363fd75fd1978ba42d442fe8503e850a0ea18aa77aedd7f2",
+      "bytes": 7095
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "sha256": "d5a015418727b6bf30324a626e08d1e5d7c27ab092966f930bdf071f9fe88a27",
+      "bytes": 7200
+    },
+    {
+      "path": "openspec/changes/wbs-permissions/design.md",
+      "sha256": "533d8d0f2c5f38555f42807647fd1b54b63180ddd7cd1073174d3c845ce863e3",
+      "bytes": 86176
+    },
+    {
+      "path": "openspec/changes/wbs-permissions/specs/permissions/spec.md",
+      "sha256": "7819f1796cca0739ad3d880f7f7b46a99db840566921d7cfc8b3ad51df385c4f",
+      "bytes": 43016
+    }
+  ],
+  "checks": [
+    {
+      "id": "rank-mode-affected-final",
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/project-rank.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/capacity-mode.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/delegation.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/fanout-selected-rank.controller.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/project-rank.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/shared-people-mode.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/source-dependency-capability.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/task-2.4b-rank-mode-affected-final.log",
+      "logEvidence": {
+        "sha256": "7ef02aee9dd5d1b6bd595a1ae839188a233c504c16181c77fcd5e5e226573951",
+        "bytes": 42152
+      }
+    },
+    {
+      "id": "rank-mode-model-final",
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts",
+        "--test-name-pattern",
+        "switches shared|commits mode audit|refuses the switch|rolls mode audit|explores bounded shared"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/task-2.4b-rank-mode-model-final.log",
+      "logEvidence": {
+        "sha256": "7f5143436bea89ea5b62edc91c7a1990e9948ffbcabebff360dbdb9d072d653b",
+        "bytes": 793
+      }
+    },
+    {
+      "id": "rank-mode-force-final",
+      "command": [
+        "bunx",
+        "tsc",
+        "-b",
+        "--force",
+        "libs/wbs/application/core/tsconfig.json",
+        "libs/wbs/adapters/store-sqlite/tsconfig.json",
+        "apps/wbs/be-01/tsconfig.json",
+        "apps/wbs/gw-01/tsconfig.json",
+        "apps/wbs/fe-01/tsconfig.json",
+        "apps/wbs/mcp-01/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/task-2.4b-rank-mode-force-final.log",
+      "logEvidence": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "id": "rank-mode-lint-final",
+      "command": [
+        "bun",
+        "node_modules/eslint/bin/eslint.js",
+        "--max-warnings=0",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/fanout-capture.ts",
+        "libs/wbs/adapters/store-sqlite/src/source.ts",
+        "libs/wbs/application/core/src/http/capacity-mode.routes.ts",
+        "libs/wbs/application/core/src/http/project-rank.routes.ts",
+        "libs/wbs/application/core/src/ports/fanout-capture-store.ts",
+        "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+        "libs/wbs/application/core/src/service/project-rank.resource.ts",
+        "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+        "libs/wbs/application/core/src/service/standalone-rank.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/task-2.4b-rank-mode-lint-final.log",
+      "logEvidence": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "id": "rank-mode-format-final",
+      "command": [
+        "bunx",
+        "prettier",
+        "--check",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/fanout-capture.ts",
+        "libs/wbs/adapters/store-sqlite/src/source.ts",
+        "libs/wbs/application/core/src/http/capacity-mode.routes.ts",
+        "libs/wbs/application/core/src/http/project-rank.routes.ts",
+        "libs/wbs/application/core/src/ports/fanout-capture-store.ts",
+        "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+        "libs/wbs/application/core/src/service/project-rank.resource.ts",
+        "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+        "libs/wbs/application/core/src/service/standalone-rank.ts",
+        "openspec/changes/wbs-permissions/design.md",
+        "openspec/changes/wbs-permissions/specs/permissions/spec.md"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/task-2.4b-rank-mode-format-final.log",
+      "logEvidence": {
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66
+      }
+    },
+    {
+      "id": "rank-mode-openspec-final",
+      "command": ["bunx", "openspec", "validate", "--all", "--json"],
+      "exitCode": 0,
+      "log": "/tmp/task-2.4b-rank-mode-openspec-final.log",
+      "logEvidence": {
+        "sha256": "d9bade61f3ad04df3f0d852a4c9f917b2aaecb401d654d153f495100f8469f6e",
+        "bytes": 329442
+      }
+    },
+    {
+      "id": "rank-mode-diff-final",
+      "command": ["git", "diff", "--check"],
+      "exitCode": 0,
+      "log": "/tmp/task-2.4b-rank-mode-diff-final.log",
+      "logEvidence": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    }
+  ],
+  "proofSummary": {
+    "successful": 44,
+    "namedRedGreenOccurrences": 60,
+    "excluded": 0
+  },
+  "proofs": [
+    {
+      "id": "rank-read-scope-identity",
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "tests": ["rejects direct rank read scope mismatch before grant and fact reads"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(rejects direct rank read scope mismatch before grant and fact reads$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-read-scope-identity-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-read-scope-identity-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-read-scope-identity-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-read-scope-identity-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "mutantHash": "8d5a14766b1b046dd3daddafa1fd2d057e91013f4c82e71b4b471510fe29209a",
+      "afterHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "854e979fe98e7130d749d00cfd6d98f58981c3b6111e2a106b3667dbd30b64e2",
+          "bytes": 865
+        },
+        "green": {
+          "sha256": "a64a059e072b71e18c0f737f3564f79dee648388b14f4044c223c2c664068746",
+          "bytes": 274
+        }
+      }
+    },
+    {
+      "id": "rank-read-principal-identity",
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "tests": [
+        "rejects direct rank read principal mismatch before grant and fact reads",
+        "throws before facts for a missing direct rank read grant principal"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(rejects direct rank read principal mismatch before grant and fact reads$|throws before facts for a missing direct rank read grant principal$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-read-principal-identity-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-read-principal-identity-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-read-principal-identity-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-read-principal-identity-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "mutantHash": "f05e5667019afdc623efe34c71475360cb01d3d23522bfe8778de6a12ef910db",
+      "afterHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "ddd39d1bea034ffb7da94d5170243b48e19dd0cb981744b49a09fadee60f3102",
+          "bytes": 1564
+        },
+        "green": {
+          "sha256": "00daeb92c714317350a999bd56c22e4ae15a1d421a421ac0f78f0ceb5c75743a",
+          "bytes": 365
+        }
+      }
+    },
+    {
+      "id": "rank-read-access-snapshot",
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "tests": ["retains direct rank read scoped evidence before its awaited dependency"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains direct rank read scoped evidence before its awaited dependency$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-read-access-snapshot-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-read-access-snapshot-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-read-access-snapshot-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-read-access-snapshot-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "mutantHash": "a19eedad9fda27125dd56d7eefa8f71d5b180f18144d6f94266a83cf93016107",
+      "afterHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "1754adfaab8645976995265995e03e1e948e52b9d5c38326953c26c990bcbf2a",
+          "bytes": 1025
+        },
+        "green": {
+          "sha256": "d21e7ec7db93bf1c087811a270c8e2c997c1b119bfe2472e0c377ac5ab4584a2",
+          "bytes": 277
+        }
+      }
+    },
+    {
+      "id": "rank-move-scope-identity",
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "tests": ["rejects direct rank move scope mismatch before grant and fact reads"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(rejects direct rank move scope mismatch before grant and fact reads$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-move-scope-identity-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-move-scope-identity-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-move-scope-identity-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-move-scope-identity-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "mutantHash": "871a28220a62e7f3f10b6602d8707f755c1d59a40d9a3bf87a9329b451b55817",
+      "afterHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "687bcbfd2df6a097448d5e89fd192eb84a658ae945ce48556306fb04b1377637",
+          "bytes": 865
+        },
+        "green": {
+          "sha256": "1554fb453613d2cfc4ba480bfb9ca9f65e6108cdcfa2b1ef41fcabab42dfa786",
+          "bytes": 274
+        }
+      }
+    },
+    {
+      "id": "rank-move-principal-identity",
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "tests": [
+        "rejects direct rank move principal mismatch before grant and fact reads",
+        "throws before facts for a missing direct rank move grant principal"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(rejects direct rank move principal mismatch before grant and fact reads$|throws before facts for a missing direct rank move grant principal$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-move-principal-identity-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-move-principal-identity-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-move-principal-identity-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-move-principal-identity-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "mutantHash": "f046709a5eda64473c5d7fc33a5c13999c3ff7c29ce758b8cade8ea441b805d3",
+      "afterHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "5db023dacb72e3293d025e4d131ea1735339f611827b90b8c806508b23505ffa",
+          "bytes": 1491
+        },
+        "green": {
+          "sha256": "4ebce09ba687c49567ee302492cad7d7438f30702721714f159dee8c1dd4c25a",
+          "bytes": 365
+        }
+      }
+    },
+    {
+      "id": "rank-move-access-snapshot",
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "tests": ["retains direct rank move scoped evidence before its awaited dependency"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains direct rank move scoped evidence before its awaited dependency$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-move-access-snapshot-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-move-access-snapshot-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-move-access-snapshot-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-move-access-snapshot-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "mutantHash": "b35f3572e684347b4b73e714fdf5b3c80da249428f141673fda241b9f8f648f0",
+      "afterHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "f36010eaf267beeeb8638f4c3b09fb7c0c373de3046277bccbb4f1f79d826c9f",
+          "bytes": 1116
+        },
+        "green": {
+          "sha256": "7ddae17841a60abf423cdca3cbaa780098aea74cddb3e8b6ee119e411af9f49f",
+          "bytes": 277
+        }
+      }
+    },
+    {
+      "id": "rank-move-access-auth-deep",
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "tests": ["retains direct rank move access authentication before awaited grant evaluation"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains direct rank move access authentication before awaited grant evaluation$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-move-access-auth-deep-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-move-access-auth-deep-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-move-access-auth-deep-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-move-access-auth-deep-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "mutantHash": "2aa4ed6ca1a0aee85fb2d65a75616ab3f7286bc938e205cda87715aac29f8ae6",
+      "afterHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "f9b90d2f618b3e0f8d033869fc5d0778d7fce6317e4df69c5b0b5d1b1a68c653",
+          "bytes": 870
+        },
+        "green": {
+          "sha256": "57b7587dd20512867029b4fc2903b5bbf9ce3a2b8478cf785f8c95b0d501bb9d",
+          "bytes": 285
+        }
+      }
+    },
+    {
+      "id": "rank-move-actor-snapshot",
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "tests": [
+        "retains direct rank move actor id before awaited grant evaluation",
+        "retains direct rank move actor authentication before awaited grant evaluation"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains direct rank move actor id before awaited grant evaluation$|retains direct rank move actor authentication before awaited grant evaluation$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-move-actor-snapshot-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-move-actor-snapshot-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-move-actor-snapshot-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-move-actor-snapshot-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "mutantHash": "03df7853dc568de9a75e44909a3e80fc0365eb27fa7b29f04a3c4eac3da0230c",
+      "afterHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "454f767fa7ee91dd18844e8b3de0c539b171c72d097818c79425dd67371874b3",
+          "bytes": 1575
+        },
+        "green": {
+          "sha256": "aca72f9c0cf117bca649fb2ea4ee0c36772c4d14de29704dcbcb447a2ae0a9e6",
+          "bytes": 369
+        }
+      }
+    },
+    {
+      "id": "rank-move-actor-auth-deep",
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "tests": ["retains direct rank move actor authentication before awaited grant evaluation"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains direct rank move actor authentication before awaited grant evaluation$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-move-actor-auth-deep-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-move-actor-auth-deep-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-move-actor-auth-deep-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-move-actor-auth-deep-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "mutantHash": "7bdd67ce01d248982254ebeb9d1d6b2f9f274f34a97ea4a0863dd94a5a264c1f",
+      "afterHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "d570edf1d827124995447b7c7d068bfae2ed146fc71b19fa3b2e8781c855d719",
+          "bytes": 887
+        },
+        "green": {
+          "sha256": "b2484db155daaae04207b4ca6ccf01dd6bc3c7b0d4405a24a200e31fda42cbf8",
+          "bytes": 284
+        }
+      }
+    },
+    {
+      "id": "mode-read-identity",
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "tests": [
+        "rejects direct mode read principal mismatch before grant and fact reads",
+        "throws before facts for a missing direct mode read grant principal"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(rejects direct mode read principal mismatch before grant and fact reads$|throws before facts for a missing direct mode read grant principal$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-read-identity-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-read-identity-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-read-identity-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-read-identity-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "mutantHash": "819646ed213b76a3a50a6759abebd772e1b77ee0b592ca28bec28a482ea77798",
+      "afterHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "ed3110635e3006860e6ccf20e172290db253f0a52d28eb1d5cb0dd84d708f5af",
+          "bytes": 1491
+        },
+        "green": {
+          "sha256": "06bfba09e206b48ddf4c7b9a41cb1e2ca4aa657d5649587a24f587942010713e",
+          "bytes": 365
+        }
+      }
+    },
+    {
+      "id": "mode-read-access-snapshot",
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "tests": ["retains direct mode read scoped evidence before its awaited dependency"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains direct mode read scoped evidence before its awaited dependency$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-read-access-snapshot-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-read-access-snapshot-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-read-access-snapshot-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-read-access-snapshot-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "mutantHash": "68e31b4cf331645ea406e9c5d053307e3167df8d81fb7e26d7d07bb2b989faf5",
+      "afterHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "c57863679d6fbe26dab4ab895cebac157c0605e759fbf0b19409f81422ad2ba5",
+          "bytes": 973
+        },
+        "green": {
+          "sha256": "f9e16f3db3e83c520efa7a5775a4b76b45738b0c4993f0033c3bbd904d11cf9d",
+          "bytes": 277
+        }
+      }
+    },
+    {
+      "id": "mode-read-access-auth-deep",
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "tests": ["retains mode read scoped authentication before its awaited fact read"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains mode read scoped authentication before its awaited fact read$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-read-access-auth-deep-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-read-access-auth-deep-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-read-access-auth-deep-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-read-access-auth-deep-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "mutantHash": "58e5feddeaf4035a8a135529d0aae9292285c0dfc3395d37ec10d7a281fee1a1",
+      "afterHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "beb0629eda4b3b2c1ad8986c2290ef94f724e912936bc59c9552de6f1ae97b37",
+          "bytes": 870
+        },
+        "green": {
+          "sha256": "5fadcbe745fe49da34fc8223fff936fdecdee3092d199e692e9902be8225588a",
+          "bytes": 275
+        }
+      }
+    },
+    {
+      "id": "mode-switch-scope-identity",
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "tests": ["rejects direct mode switch scope mismatch before grant and fact reads"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(rejects direct mode switch scope mismatch before grant and fact reads$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-switch-scope-identity-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-switch-scope-identity-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-switch-scope-identity-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-switch-scope-identity-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "mutantHash": "66e7781d426d59a03b07b2e2a3632869dd7f699f6bdf6b8c3899c8e48f5a4bed",
+      "afterHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "55d66fec565346b628c01f962cd52c1355848e5124fab67180a20e536d485fcf",
+          "bytes": 867
+        },
+        "green": {
+          "sha256": "3df68a0177244c7cad11fa11e3eb931f7348ca71a296ac20948f32290b5679f5",
+          "bytes": 276
+        }
+      }
+    },
+    {
+      "id": "mode-switch-principal-identity",
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "tests": [
+        "rejects direct mode switch principal mismatch before grant and fact reads",
+        "throws before facts for a missing direct mode switch grant principal"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(rejects direct mode switch principal mismatch before grant and fact reads$|throws before facts for a missing direct mode switch grant principal$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-switch-principal-identity-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-switch-principal-identity-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-switch-principal-identity-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-switch-principal-identity-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "mutantHash": "95c5bf3e241a1b88b03bc58819b5dfdbdc42722829c9b731634ce36d12fa9450",
+      "afterHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "b72691df07b5a2a3498c2043b985fc153baa981842033b9693c1e2787c8f0207",
+          "bytes": 1495
+        },
+        "green": {
+          "sha256": "68cf862cffd2f4897dc324edc43e3a54bfd46fa5e2a5dbaa301f4f1e07c6f69a",
+          "bytes": 369
+        }
+      }
+    },
+    {
+      "id": "mode-switch-access-snapshot",
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "tests": ["retains direct mode switch scoped evidence before its awaited dependency"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains direct mode switch scoped evidence before its awaited dependency$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-switch-access-snapshot-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-switch-access-snapshot-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-switch-access-snapshot-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-switch-access-snapshot-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "mutantHash": "1a9e57a0c44fed1d9bb770e5d8747dfae2d44489da58c48617b150d8a946a05e",
+      "afterHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "5d7efbc6f20a5989ff9a86bc0787ec7485a5a80c5569e27fbe09ace43526bbd9",
+          "bytes": 1005
+        },
+        "green": {
+          "sha256": "eb298ea3d5bafd0b56cdcb0cddd97b3072e16c92fc321004a2ea60084fabc614",
+          "bytes": 279
+        }
+      }
+    },
+    {
+      "id": "mode-switch-access-auth-deep",
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "tests": ["retains direct mode switch access authentication before awaited grant evaluation"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains direct mode switch access authentication before awaited grant evaluation$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-switch-access-auth-deep-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-switch-access-auth-deep-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-switch-access-auth-deep-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-switch-access-auth-deep-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "mutantHash": "b681de0623dcc69d044a7c3747c53828d46d5c93ecd11e59375d6fc51665f5e7",
+      "afterHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "17ba941ba5d184fb13cbe2946586e795f3628e54e0746ae52451c42f24b3dff4",
+          "bytes": 879
+        },
+        "green": {
+          "sha256": "bcfe9c0c5664bf305f263f32a7733c3eea2d5e4f82ea7211813f46d0a610cd64",
+          "bytes": 287
+        }
+      }
+    },
+    {
+      "id": "mode-switch-actor-snapshot",
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "tests": [
+        "retains direct mode switch actor id before awaited grant evaluation",
+        "retains direct mode switch actor authentication before awaited grant evaluation"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains direct mode switch actor id before awaited grant evaluation$|retains direct mode switch actor authentication before awaited grant evaluation$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-switch-actor-snapshot-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-switch-actor-snapshot-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-switch-actor-snapshot-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-switch-actor-snapshot-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "mutantHash": "3433e7bfa1493db0c0ce76d2f841bb23b39c220188ade22117090ef3f91feeeb",
+      "afterHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "7d7a82543705ed42365f5f4529748087a2acbf68cfba36c8bf937e5bee8c2ddd",
+          "bytes": 1579
+        },
+        "green": {
+          "sha256": "485eeee16ebdcc1cc9f9f95e2b7b2d3a30fcbcd6e77fde5b5e56c3108adeb893",
+          "bytes": 373
+        }
+      }
+    },
+    {
+      "id": "mode-switch-actor-auth-deep",
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "tests": ["retains direct mode switch actor authentication before awaited grant evaluation"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains direct mode switch actor authentication before awaited grant evaluation$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-switch-actor-auth-deep-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-switch-actor-auth-deep-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-switch-actor-auth-deep-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-switch-actor-auth-deep-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "mutantHash": "1f35d5119148ff2a5e4f17cf260eca236adfd7acaa13562b7707256b18676b63",
+      "afterHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "b8470a654f5a4c88d50d627868a25571a401e1b8152ee639b265004e30679faf",
+          "bytes": 889
+        },
+        "green": {
+          "sha256": "03c3221dc2cf475c2f456542d2db4c0017a85db40c2c77d4996947100beb8fa9",
+          "bytes": 286
+        }
+      }
+    },
+    {
+      "id": "rank-owner-stamp",
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "tests": [
+        "retains standalone rank queued stamp by before admitted ownership",
+        "retains standalone rank queued stamp at before admitted ownership"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains standalone rank queued stamp by before admitted ownership$|retains standalone rank queued stamp at before admitted ownership$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-owner-stamp-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-owner-stamp-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-owner-stamp-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-owner-stamp-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "mutantHash": "d9a9a706a1f0944637cb04ca46fc4babefaa5ef2541f5e38f6a503d14abf67a4",
+      "afterHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "4007e150af40f9c10e7aea773f98e1a60b8d0b5dfe583da22580837048e00c92",
+          "bytes": 1541
+        },
+        "green": {
+          "sha256": "ed0e6c61ea50dece8185f0289c31faed371f80f5368c4e1602afaf8d951bbcbd",
+          "bytes": 357
+        }
+      }
+    },
+    {
+      "id": "rank-owner-caller",
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "tests": ["retains standalone rank queued caller authority and expected context"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains standalone rank queued caller authority and expected context$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-owner-caller-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-owner-caller-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-owner-caller-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-owner-caller-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "mutantHash": "3600f4e4847106d8ab0f12b74f7d2cae7130a044e1162cb87ee31bafa3f0b1f3",
+      "afterHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "aebd6c7e44920c64e701c8f728aeed909c70689ec0cdd8a1b33a116f3015358a",
+          "bytes": 928
+        },
+        "green": {
+          "sha256": "9147b3e0757b4ca7aedaf7bdc1a39c38cabba507025c55effdc280cd9ee79ab1",
+          "bytes": 275
+        }
+      }
+    },
+    {
+      "id": "rank-owner-caller-deep",
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "tests": ["retains standalone rank queued caller authority and expected context"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains standalone rank queued caller authority and expected context$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-owner-caller-deep-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-owner-caller-deep-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-owner-caller-deep-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-owner-caller-deep-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "mutantHash": "19a7c061e6b7df97935b14991bde9df6b2a20c6b9419f369ddfcd8bc77fdef5c",
+      "afterHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "de2676d5320422bc8d2cd3369ead4e92b30a66eace6bdc64a1f3ee3a82a724f6",
+          "bytes": 928
+        },
+        "green": {
+          "sha256": "f931e4b868b548c1fac130c325362e01fd8707bc2be592594880632d98554d0c",
+          "bytes": 275
+        }
+      }
+    },
+    {
+      "id": "rank-required-capture",
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "tests": ["requires capture before a standalone rank no-op"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(requires capture before a standalone rank no-op$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-required-capture-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-required-capture-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-required-capture-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-required-capture-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "mutantHash": "68d69b45440dca2f98b11440279a247e45bc8b1ff4d7d888e6011066975a89e1",
+      "afterHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "122a6a37dd558e17d35a6c5dba740dc4a0e307b1a37099fb8465a68bec325392",
+          "bytes": 845
+        },
+        "green": {
+          "sha256": "cb686c7581adba3427571b9333f9e0bde9bc65c431d9b3b51b99e39f9ec983bf",
+          "bytes": 254
+        }
+      }
+    },
+    {
+      "id": "rank-required-store",
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "tests": ["requires the borrowed rank store before a standalone self move"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(requires the borrowed rank store before a standalone self move$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-required-store-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-required-store-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-required-store-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-required-store-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "mutantHash": "78c004b5cf32b447811ec77df0469bf36d70c9df8740ec15ca982cac1942d502",
+      "afterHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "e03daa23e9f8a24ed94b7ec53e3db748c34801df5824dce3ee69f51260017f09",
+          "bytes": 752
+        },
+        "green": {
+          "sha256": "08ae662c55158167744e835f185bbe41bcb0a84a3aef2686a69dd02b05f95494",
+          "bytes": 269
+        }
+      }
+    },
+    {
+      "id": "rank-current-decision",
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "tests": ["names the current rank permission before a role-only standalone no-op"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(names the current rank permission before a role-only standalone no-op$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-current-decision-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-current-decision-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-current-decision-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-current-decision-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "mutantHash": "ba36b18ea01998abc989fc6d9f753451905ebb8309f1413670ef3f9bf366c13a",
+      "afterHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "1255371054c90545fbbdd74f67ff82a3d72a4e14af0b40750c7820b079bb7466",
+          "bytes": 1131
+        },
+        "green": {
+          "sha256": "53084c72c71a02f77c1acf967dd5eb6bc2b167267dc46ea8ffe40ccd07720efd",
+          "bytes": 276
+        }
+      }
+    },
+    {
+      "id": "rank-required-grant-port",
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "tests": [
+        "requires grants before a standalone rank no-op",
+        "propagates unreadable grant state before a standalone rank no-op"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(requires grants before a standalone rank no-op$|propagates unreadable grant state before a standalone rank no-op$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-required-grant-port-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-required-grant-port-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-required-grant-port-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-required-grant-port-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "mutantHash": "d9c9594145c181b0aa0ccc5507cc50d81879721b0d248da11af7f1031a3136d2",
+      "afterHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "fc56d48d69318beec0565654c8d551a41f71b6682a34d81e4d6a8a1f2d06bbeb",
+          "bytes": 1537
+        },
+        "green": {
+          "sha256": "c0457fa23fd71c4d9fc822fdd14887fda063d97204354aea6ea6d64a429d7391",
+          "bytes": 337
+        }
+      }
+    },
+    {
+      "id": "rank-modeled-context-conflict",
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "tests": [
+        "preserves stale expected user as a modeled conflict at standalone rank",
+        "preserves stale expected organization as a modeled conflict at standalone rank"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(preserves stale expected user as a modeled conflict at standalone rank$|preserves stale expected organization as a modeled conflict at standalone rank$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-modeled-context-conflict-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-modeled-context-conflict-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-modeled-context-conflict-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-modeled-context-conflict-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "mutantHash": "bf3e8982ef57a6d93cf72a5f78599f33d723612670c05dd226415e76d37bdcb3",
+      "afterHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "diagnosticOracle": "unexpected retained context conflict",
+      "logEvidence": {
+        "red": {
+          "sha256": "6c3dee502cef60fdb85899e51c1c713c0dfb109a6b430bf70c5b50888b869982",
+          "bytes": 2015
+        },
+        "green": {
+          "sha256": "d528b9b3f4e953045585ec960985aea4e3495855ffb9be118e76aa49a9a487d1",
+          "bytes": 375
+        }
+      }
+    },
+    {
+      "id": "mode-owner-stamp",
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "tests": [
+        "retains standalone mode queued stamp by before admitted ownership",
+        "retains standalone mode queued stamp at before admitted ownership"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains standalone mode queued stamp by before admitted ownership$|retains standalone mode queued stamp at before admitted ownership$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-owner-stamp-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-owner-stamp-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-owner-stamp-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-owner-stamp-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "mutantHash": "ab9b9afb5e3639af2e31b3140d417eb1e1cdce592c9307d40db52e31169424e7",
+      "afterHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "3a08737280b8addde9a727a114df8ace3412362652f2494655d905e286542eff",
+          "bytes": 1755
+        },
+        "green": {
+          "sha256": "929345acca07740d19846b72111f65d84da5e3d9f18421495f26f2cf26730f9b",
+          "bytes": 357
+        }
+      }
+    },
+    {
+      "id": "mode-owner-caller",
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "tests": ["retains standalone mode queued caller authority and expected context"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains standalone mode queued caller authority and expected context$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-owner-caller-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-owner-caller-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-owner-caller-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-owner-caller-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "mutantHash": "b399158b880b7a092cfa9b577d81d0b7682b30c0958c0b3f6ac3b3f77f9f3d9f",
+      "afterHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "6a5a14b73f8e323716fe51151d1d3c92e149af24676a14a82497c8f4b29fdb61",
+          "bytes": 928
+        },
+        "green": {
+          "sha256": "6be9311acff221fcd94f0ed7d0f1e200de28ed96a490a057836f21228a30b252",
+          "bytes": 275
+        }
+      }
+    },
+    {
+      "id": "mode-owner-caller-deep",
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "tests": ["retains standalone mode queued caller authority and expected context"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains standalone mode queued caller authority and expected context$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-owner-caller-deep-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-owner-caller-deep-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-owner-caller-deep-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-owner-caller-deep-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "mutantHash": "127e4fd40110247704f324429ab121a8e0f979882bd23c7740d24fbe422786a7",
+      "afterHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "ec72d416c4bd461933821a3c0d5fb9ab13d09fcc55930434927fd0f22d15840d",
+          "bytes": 928
+        },
+        "green": {
+          "sha256": "9d88c6496e551dc6d423f2c574d9a57d62d14340a2e1f1fca9668e86b82007e9",
+          "bytes": 275
+        }
+      }
+    },
+    {
+      "id": "mode-required-capture",
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "tests": ["requires capture before a standalone mode no-op"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(requires capture before a standalone mode no-op$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-required-capture-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-required-capture-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-required-capture-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-required-capture-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "mutantHash": "5a39184caee1beb12a7a21be62c758dfec6b6a644372b35039ad524e05803345",
+      "afterHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "daeccb01dede8f674e7728b32fbb7e0cff5125211e5d8c76bf31c48799cfea59",
+          "bytes": 845
+        },
+        "green": {
+          "sha256": "c3facb91a7e0307c90cfe10e93186376c7d4388d9e7348bd52214637b26dc8be",
+          "bytes": 254
+        }
+      }
+    },
+    {
+      "id": "mode-required-store",
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "tests": ["requires the borrowed mode store before a standalone no-op"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(requires the borrowed mode store before a standalone no-op$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-required-store-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-required-store-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-required-store-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-required-store-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "mutantHash": "36f8375c44b95447a679ecbff05206499ef27410a60762c960b936fc94882d1b",
+      "afterHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "2cf877a9dfca9cb362eca17817b4737f0e139d10cab36b815851b7346f102391",
+          "bytes": 795
+        },
+        "green": {
+          "sha256": "4e2f95b7891313292d86966ff382573142312fbc727301e0446b458c7a991228",
+          "bytes": 265
+        }
+      }
+    },
+    {
+      "id": "mode-current-decision",
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "tests": ["names the current mode permission before a role-only standalone no-op"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(names the current mode permission before a role-only standalone no-op$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-current-decision-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-current-decision-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-current-decision-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-current-decision-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "mutantHash": "f1ef83b2ab316686fddb25c3023a70b9cdbe1bfbc1b5f7467d50c85e7881b4b2",
+      "afterHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "ed533e8661bf8bb74e47d45fe276063c22e3f53889db6cf5bdfd0997f43eb90d",
+          "bytes": 893
+        },
+        "green": {
+          "sha256": "d07eccb284c8a97ee68a163c2179882b1e0c2613f7afc32f57527b3b7b8c4e4e",
+          "bytes": 276
+        }
+      }
+    },
+    {
+      "id": "mode-required-grant-port",
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "tests": [
+        "requires grants before a standalone mode no-op",
+        "propagates unreadable grant state before a standalone mode no-op"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(requires grants before a standalone mode no-op$|propagates unreadable grant state before a standalone mode no-op$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-required-grant-port-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-required-grant-port-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-required-grant-port-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-required-grant-port-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "mutantHash": "5e9f08fed97c4be469ab924b1014aab2d1a9bdf51c2093e5045e1a8d88288a7c",
+      "afterHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "25389c36337f7175b7fac47352515dc8b815c317c3f1b294a6d07971edbcf0e7",
+          "bytes": 1537
+        },
+        "green": {
+          "sha256": "307159fb82b3f159f26ab6d67051a8b2e16f05b8bb31248fc114d740c7bc12cb",
+          "bytes": 337
+        }
+      }
+    },
+    {
+      "id": "mode-modeled-context-conflict",
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "tests": [
+        "preserves stale expected user as a modeled conflict at standalone mode",
+        "preserves stale expected organization as a modeled conflict at standalone mode"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(preserves stale expected user as a modeled conflict at standalone mode$|preserves stale expected organization as a modeled conflict at standalone mode$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-modeled-context-conflict-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-modeled-context-conflict-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-modeled-context-conflict-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-modeled-context-conflict-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "mutantHash": "992a4d4e4e7a3429dea28a1bdfbea9f3cf0f30e797cc35b5e70b4cd738542ec4",
+      "afterHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "diagnosticOracle": "unexpected retained context conflict",
+      "logEvidence": {
+        "red": {
+          "sha256": "5348833c1f8ed8cc26254ba88b17421ab32a2e0a3d52e770510f8273e40928aa",
+          "bytes": 2035
+        },
+        "green": {
+          "sha256": "f3ca078c12bd1ecd5d9cfcb81e8cd65e3a3872bc6a8fc91d277d8b07f0eac55d",
+          "bytes": 375
+        }
+      }
+    },
+    {
+      "id": "rank-retired-authority-marker",
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "tests": ["moves rank with current grants and no retired role-authority slots"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(moves rank with current grants and no retired role-authority slots$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-retired-authority-marker-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-retired-authority-marker-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-retired-authority-marker-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-retired-authority-marker-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "mutantHash": "9c2075124e8bef146cb4d75e68f95de34f1ed354efbb4d13367e223268480070",
+      "afterHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "diagnosticOracle": "lacks borrowed",
+      "logEvidence": {
+        "red": {
+          "sha256": "2144d793ab6208b2263c6c204d51ce7dd47a58b6196f5e351ac91a5a9339db22",
+          "bytes": 1003
+        },
+        "green": {
+          "sha256": "c880d7f5c212a692d27d3bb867e99b9cbd5dfb2fcfc4a81d95e57ef9efb2fa13",
+          "bytes": 273
+        }
+      }
+    },
+    {
+      "id": "rank-route-read-actor",
+      "path": "libs/wbs/application/core/src/http/project-rank.routes.ts",
+      "tests": ["retains rank read route id before organization resolution"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains rank read route id before organization resolution$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-route-read-actor-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-route-read-actor-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-route-read-actor-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-route-read-actor-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "mutantHash": "1dadb827f7769b75ac23479a3e43baa75ca491c6c278664673dd612bd016cc75",
+      "afterHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "084b0fed8cdb45b753cf562843bea68a016b6b3b1fd5fbd0747c1c81eebaffd7",
+          "bytes": 1423
+        },
+        "green": {
+          "sha256": "0102e41eb7bbb1022a728814e1ce2ef5a2467ff7b442126114bb2236fdaf51f1",
+          "bytes": 264
+        }
+      }
+    },
+    {
+      "id": "mode-route-read-delegation",
+      "path": "libs/wbs/application/core/src/http/capacity-mode.routes.ts",
+      "tests": ["retains mode read route delegation before organization resolution"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains mode read route delegation before organization resolution$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-route-read-delegation-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-route-read-delegation-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-route-read-delegation-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-route-read-delegation-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+      "mutantHash": "aca26c1cf5b92be2a55d33f7a94d7444d3df744d7631f82f1685a2238fb67779",
+      "afterHash": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "94d5f358af4c51d201933667c4fd17854bb70f88241f920aea55286a91b29729",
+          "bytes": 1074
+        },
+        "green": {
+          "sha256": "f4eb8a5c46978d4d769aeda4dc9bff9191f5d1f71cfdf1fb74cebd78ebac6a88",
+          "bytes": 272
+        }
+      }
+    },
+    {
+      "id": "rank-route-caller",
+      "path": "libs/wbs/application/core/src/http/project-rank.routes.ts",
+      "tests": [
+        "retains rank move route id before organization resolution",
+        "retains rank move route authentication before organization resolution",
+        "retains rank move route delegation before organization resolution"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains rank move route id before organization resolution$|retains rank move route authentication before organization resolution$|retains rank move route delegation before organization resolution$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-route-caller-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-route-caller-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-route-caller-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-route-caller-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "mutantHash": "0ee712e7dd5a4bc3685eefef66eaa751c44885c1e4d4520dfacc18c02402c60e",
+      "afterHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "4de17e73a0392f1e027e297713d9c7173770541f0a848cc46e430927cd5d400c",
+          "bytes": 2786
+        },
+        "green": {
+          "sha256": "f661b3e11220f6bd5d3121a1e8b0ee72551165d58986d5755f599f265411399a",
+          "bytes": 437
+        }
+      }
+    },
+    {
+      "id": "rank-route-auth-deep",
+      "path": "libs/wbs/application/core/src/http/project-rank.routes.ts",
+      "tests": ["retains rank move route authentication before organization resolution"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains rank move route authentication before organization resolution$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-route-auth-deep-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-route-auth-deep-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-route-auth-deep-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-route-auth-deep-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "mutantHash": "7fe3a4e0f1e911b0c4b7431bc29c723caaf61d460bc6fc5265137df3d82c6aee",
+      "afterHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "f6d10a36017334959ed93bc8fa0531e9f7c719811a0b4a31224a738e4f2f65bb",
+          "bytes": 871
+        },
+        "green": {
+          "sha256": "fe1ca61e2ec45384a8a2505ab6ed1b623d9f8186078ccbf6336aad8ed8dfa06a",
+          "bytes": 276
+        }
+      }
+    },
+    {
+      "id": "mode-route-caller",
+      "path": "libs/wbs/application/core/src/http/capacity-mode.routes.ts",
+      "tests": [
+        "retains mode switch route id before organization resolution",
+        "retains mode switch route authentication before organization resolution",
+        "retains mode switch route delegation before organization resolution"
+      ],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains mode switch route id before organization resolution$|retains mode switch route authentication before organization resolution$|retains mode switch route delegation before organization resolution$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-route-caller-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-route-caller-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-route-caller-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-route-caller-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+      "mutantHash": "c5895e7b40ff9748599ff1f556aa2a2656c22ddf7edbf7873c764f9b75a7776e",
+      "afterHash": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "7ae9bcca008b55bcf515ef1f513b3ffc10ae9b0d5eb587970d4c5bbc19d33ece",
+          "bytes": 2805
+        },
+        "green": {
+          "sha256": "5e13d9f06ef2270937d0569ee97f433099ac156257cb0d3f168c4427d8119d45",
+          "bytes": 443
+        }
+      }
+    },
+    {
+      "id": "mode-route-auth-deep",
+      "path": "libs/wbs/application/core/src/http/capacity-mode.routes.ts",
+      "tests": ["retains mode switch route authentication before organization resolution"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains mode switch route authentication before organization resolution$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-route-auth-deep-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-route-auth-deep-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-route-auth-deep-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-route-auth-deep-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+      "mutantHash": "cde7905ebe7dbf200cd1c5db5d6d12b5e20d8156d6a5ce25869048ac17275f5b",
+      "afterHash": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "accd66e371b6aa485aed2d3b27146f5e28f70aa556612efef947cde196aea2f2",
+          "bytes": 873
+        },
+        "green": {
+          "sha256": "8b2a3245f54b5993f3e14c7106fceaba3d93bce0160bf26c1f9dd0736e67ada6",
+          "bytes": 278
+        }
+      }
+    },
+    {
+      "id": "rank-route-target",
+      "path": "libs/wbs/application/core/src/http/project-rank.routes.ts",
+      "tests": ["retains rank/mode route target before the bound resolver await"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains rank/mode route target before the bound resolver await$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-route-target-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-route-target-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-route-target-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-route-target-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "mutantHash": "f7e23b6a423cc1499154690b63b1f3a25011131bc723ae2c1a3a98bb159252a1",
+      "afterHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "69e63a8e766065829c5401bcceeba650bebb23b37ce70d50f1611c2cb60fceec",
+          "bytes": 1198
+        },
+        "green": {
+          "sha256": "b50632bcf9a4dee31e6bb944d25efbe59723deb45c4fa68d77da357aa5dcad6e",
+          "bytes": 269
+        }
+      }
+    },
+    {
+      "id": "rank-route-destination",
+      "path": "libs/wbs/application/core/src/http/project-rank.routes.ts",
+      "tests": ["retains rank/mode route destination before the bound resolver await"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains rank/mode route destination before the bound resolver await$)"
+      ],
+      "redLog": "/tmp/task-2.4b-rank-route-destination-red.log",
+      "greenLog": "/tmp/task-2.4b-rank-route-destination-green.log",
+      "beforeSource": "/tmp/task-2.4b-rank-route-destination-before.ts",
+      "mutantSource": "/tmp/task-2.4b-rank-route-destination-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "mutantHash": "fef104fd3ed17847c3b8ba217ae759f7ce2cd4b5aeaa028d12ba22d3682b227b",
+      "afterHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "6d89e374927129ae9f16d28dafb195796702907b093e8f606a901e2879c154d9",
+          "bytes": 1203
+        },
+        "green": {
+          "sha256": "37786f55b36fb90bdc1da7687332c63ff388f09b8d2bd19217598532059478ea",
+          "bytes": 274
+        }
+      }
+    },
+    {
+      "id": "mode-route-intent",
+      "path": "libs/wbs/application/core/src/http/capacity-mode.routes.ts",
+      "tests": ["retains rank/mode route sharedPeople before the bound resolver await"],
+      "command": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "--test-name-pattern",
+        "(retains rank/mode route sharedPeople before the bound resolver await$)"
+      ],
+      "redLog": "/tmp/task-2.4b-mode-route-intent-red.log",
+      "greenLog": "/tmp/task-2.4b-mode-route-intent-green.log",
+      "beforeSource": "/tmp/task-2.4b-mode-route-intent-before.ts",
+      "mutantSource": "/tmp/task-2.4b-mode-route-intent-mutant.ts",
+      "redExit": 1,
+      "greenExit": 0,
+      "killed": true,
+      "green": true,
+      "restored": true,
+      "beforeHash": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+      "mutantHash": "8d5ca3b25c64d83bdb092eeb9a22fe4cd692a7e5f1ce27a1e874b985e4c0eae6",
+      "afterHash": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+      "diagnosticOracle": "Expected|Received|expected production rank\\/mode rejection|toHaveBeenCalled",
+      "logEvidence": {
+        "red": {
+          "sha256": "85b7b619682e2b15a7bb3ee9eb8b95facd0b665f8ae9d68db863464e77505731",
+          "bytes": 870
+        },
+        "green": {
+          "sha256": "5c754e51235b48a49f65c0b5a2c06d9c8770f61a56f8b4daec54069247f91213",
+          "bytes": 275
+        }
+      }
+    }
+  ],
+  "proofArchiveEvidence": {
+    "recordedAt": "2026-11-10T11:53:44.498Z",
+    "scope": "Check creation-time raw-log hashes and original/mutant source archive hashes; no excluded rank/mode attempts.",
+    "successful": 44,
+    "excluded": 0,
+    "rows": [
+      {
+        "id": "rank-read-scope-identity",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-read-scope-identity-red.log",
+          "sha256": "854e979fe98e7130d749d00cfd6d98f58981c3b6111e2a106b3667dbd30b64e2",
+          "bytes": 865
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-read-scope-identity-green.log",
+          "sha256": "a64a059e072b71e18c0f737f3564f79dee648388b14f4044c223c2c664068746",
+          "bytes": 274
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-read-scope-identity-before.ts",
+          "sha256": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+          "bytes": 5269
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-read-scope-identity-mutant.ts",
+          "sha256": "8d5a14766b1b046dd3daddafa1fd2d057e91013f4c82e71b4b471510fe29209a",
+          "bytes": 5234
+        }
+      },
+      {
+        "id": "rank-read-principal-identity",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-read-principal-identity-red.log",
+          "sha256": "ddd39d1bea034ffb7da94d5170243b48e19dd0cb981744b49a09fadee60f3102",
+          "bytes": 1564
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-read-principal-identity-green.log",
+          "sha256": "00daeb92c714317350a999bd56c22e4ae15a1d421a421ac0f78f0ceb5c75743a",
+          "bytes": 365
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-read-principal-identity-before.ts",
+          "sha256": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+          "bytes": 5269
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-read-principal-identity-mutant.ts",
+          "sha256": "f05e5667019afdc623efe34c71475360cb01d3d23522bfe8778de6a12ef910db",
+          "bytes": 5234
+        }
+      },
+      {
+        "id": "rank-read-access-snapshot",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-read-access-snapshot-red.log",
+          "sha256": "1754adfaab8645976995265995e03e1e948e52b9d5c38326953c26c990bcbf2a",
+          "bytes": 1025
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-read-access-snapshot-green.log",
+          "sha256": "d21e7ec7db93bf1c087811a270c8e2c997c1b119bfe2472e0c377ac5ab4584a2",
+          "bytes": 277
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-read-access-snapshot-before.ts",
+          "sha256": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+          "bytes": 5269
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-read-access-snapshot-mutant.ts",
+          "sha256": "a19eedad9fda27125dd56d7eefa8f71d5b180f18144d6f94266a83cf93016107",
+          "bytes": 5232
+        }
+      },
+      {
+        "id": "rank-move-scope-identity",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-move-scope-identity-red.log",
+          "sha256": "687bcbfd2df6a097448d5e89fd192eb84a658ae945ce48556306fb04b1377637",
+          "bytes": 865
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-move-scope-identity-green.log",
+          "sha256": "1554fb453613d2cfc4ba480bfb9ca9f65e6108cdcfa2b1ef41fcabab42dfa786",
+          "bytes": 274
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-move-scope-identity-before.ts",
+          "sha256": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+          "bytes": 5269
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-move-scope-identity-mutant.ts",
+          "sha256": "871a28220a62e7f3f10b6602d8707f755c1d59a40d9a3bf87a9329b451b55817",
+          "bytes": 5234
+        }
+      },
+      {
+        "id": "rank-move-principal-identity",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-move-principal-identity-red.log",
+          "sha256": "5db023dacb72e3293d025e4d131ea1735339f611827b90b8c806508b23505ffa",
+          "bytes": 1491
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-move-principal-identity-green.log",
+          "sha256": "4ebce09ba687c49567ee302492cad7d7438f30702721714f159dee8c1dd4c25a",
+          "bytes": 365
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-move-principal-identity-before.ts",
+          "sha256": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+          "bytes": 5269
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-move-principal-identity-mutant.ts",
+          "sha256": "f046709a5eda64473c5d7fc33a5c13999c3ff7c29ce758b8cade8ea441b805d3",
+          "bytes": 5234
+        }
+      },
+      {
+        "id": "rank-move-access-snapshot",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-move-access-snapshot-red.log",
+          "sha256": "f36010eaf267beeeb8638f4c3b09fb7c0c373de3046277bccbb4f1f79d826c9f",
+          "bytes": 1116
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-move-access-snapshot-green.log",
+          "sha256": "7ddae17841a60abf423cdca3cbaa780098aea74cddb3e8b6ee119e411af9f49f",
+          "bytes": 277
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-move-access-snapshot-before.ts",
+          "sha256": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+          "bytes": 5269
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-move-access-snapshot-mutant.ts",
+          "sha256": "b35f3572e684347b4b73e714fdf5b3c80da249428f141673fda241b9f8f648f0",
+          "bytes": 5232
+        }
+      },
+      {
+        "id": "rank-move-access-auth-deep",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-move-access-auth-deep-red.log",
+          "sha256": "f9b90d2f618b3e0f8d033869fc5d0778d7fce6317e4df69c5b0b5d1b1a68c653",
+          "bytes": 870
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-move-access-auth-deep-green.log",
+          "sha256": "57b7587dd20512867029b4fc2903b5bbf9ce3a2b8478cf785f8c95b0d501bb9d",
+          "bytes": 285
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-move-access-auth-deep-before.ts",
+          "sha256": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+          "bytes": 5269
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-move-access-auth-deep-mutant.ts",
+          "sha256": "2aa4ed6ca1a0aee85fb2d65a75616ab3f7286bc938e205cda87715aac29f8ae6",
+          "bytes": 5313
+        }
+      },
+      {
+        "id": "rank-move-actor-snapshot",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-move-actor-snapshot-red.log",
+          "sha256": "454f767fa7ee91dd18844e8b3de0c539b171c72d097818c79425dd67371874b3",
+          "bytes": 1575
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-move-actor-snapshot-green.log",
+          "sha256": "aca72f9c0cf117bca649fb2ea4ee0c36772c4d14de29704dcbcb447a2ae0a9e6",
+          "bytes": 369
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-move-actor-snapshot-before.ts",
+          "sha256": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+          "bytes": 5269
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-move-actor-snapshot-mutant.ts",
+          "sha256": "03df7853dc568de9a75e44909a3e80fc0365eb27fa7b29f04a3c4eac3da0230c",
+          "bytes": 5234
+        }
+      },
+      {
+        "id": "rank-move-actor-auth-deep",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-move-actor-auth-deep-red.log",
+          "sha256": "d570edf1d827124995447b7c7d068bfae2ed146fc71b19fa3b2e8781c855d719",
+          "bytes": 887
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-move-actor-auth-deep-green.log",
+          "sha256": "b2484db155daaae04207b4ca6ccf01dd6bc3c7b0d4405a24a200e31fda42cbf8",
+          "bytes": 284
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-move-actor-auth-deep-before.ts",
+          "sha256": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+          "bytes": 5269
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-move-actor-auth-deep-mutant.ts",
+          "sha256": "7bdd67ce01d248982254ebeb9d1d6b2f9f274f34a97ea4a0863dd94a5a264c1f",
+          "bytes": 5257
+        }
+      },
+      {
+        "id": "mode-read-identity",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-read-identity-red.log",
+          "sha256": "ed3110635e3006860e6ccf20e172290db253f0a52d28eb1d5cb0dd84d708f5af",
+          "bytes": 1491
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-read-identity-green.log",
+          "sha256": "06bfba09e206b48ddf4c7b9a41cb1e2ca4aa657d5649587a24f587942010713e",
+          "bytes": 365
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-read-identity-before.ts",
+          "sha256": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+          "bytes": 5601
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-read-identity-mutant.ts",
+          "sha256": "819646ed213b76a3a50a6759abebd772e1b77ee0b592ca28bec28a482ea77798",
+          "bytes": 5466
+        }
+      },
+      {
+        "id": "mode-read-access-snapshot",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-read-access-snapshot-red.log",
+          "sha256": "c57863679d6fbe26dab4ab895cebac157c0605e759fbf0b19409f81422ad2ba5",
+          "bytes": 973
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-read-access-snapshot-green.log",
+          "sha256": "f9e16f3db3e83c520efa7a5775a4b76b45738b0c4993f0033c3bbd904d11cf9d",
+          "bytes": 277
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-read-access-snapshot-before.ts",
+          "sha256": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+          "bytes": 5601
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-read-access-snapshot-mutant.ts",
+          "sha256": "68e31b4cf331645ea406e9c5d053307e3167df8d81fb7e26d7d07bb2b989faf5",
+          "bytes": 5564
+        }
+      },
+      {
+        "id": "mode-read-access-auth-deep",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-read-access-auth-deep-red.log",
+          "sha256": "beb0629eda4b3b2c1ad8986c2290ef94f724e912936bc59c9552de6f1ae97b37",
+          "bytes": 870
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-read-access-auth-deep-green.log",
+          "sha256": "5fadcbe745fe49da34fc8223fff936fdecdee3092d199e692e9902be8225588a",
+          "bytes": 275
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-read-access-auth-deep-before.ts",
+          "sha256": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+          "bytes": 5601
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-read-access-auth-deep-mutant.ts",
+          "sha256": "58e5feddeaf4035a8a135529d0aae9292285c0dfc3395d37ec10d7a281fee1a1",
+          "bytes": 5645
+        }
+      },
+      {
+        "id": "mode-switch-scope-identity",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-switch-scope-identity-red.log",
+          "sha256": "55d66fec565346b628c01f962cd52c1355848e5124fab67180a20e536d485fcf",
+          "bytes": 867
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-switch-scope-identity-green.log",
+          "sha256": "3df68a0177244c7cad11fa11e3eb931f7348ca71a296ac20948f32290b5679f5",
+          "bytes": 276
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-switch-scope-identity-before.ts",
+          "sha256": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+          "bytes": 5601
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-switch-scope-identity-mutant.ts",
+          "sha256": "66e7781d426d59a03b07b2e2a3632869dd7f699f6bdf6b8c3899c8e48f5a4bed",
+          "bytes": 5566
+        }
+      },
+      {
+        "id": "mode-switch-principal-identity",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-switch-principal-identity-red.log",
+          "sha256": "b72691df07b5a2a3498c2043b985fc153baa981842033b9693c1e2787c8f0207",
+          "bytes": 1495
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-switch-principal-identity-green.log",
+          "sha256": "68cf862cffd2f4897dc324edc43e3a54bfd46fa5e2a5dbaa301f4f1e07c6f69a",
+          "bytes": 369
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-switch-principal-identity-before.ts",
+          "sha256": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+          "bytes": 5601
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-switch-principal-identity-mutant.ts",
+          "sha256": "95c5bf3e241a1b88b03bc58819b5dfdbdc42722829c9b731634ce36d12fa9450",
+          "bytes": 5566
+        }
+      },
+      {
+        "id": "mode-switch-access-snapshot",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-switch-access-snapshot-red.log",
+          "sha256": "5d7efbc6f20a5989ff9a86bc0787ec7485a5a80c5569e27fbe09ace43526bbd9",
+          "bytes": 1005
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-switch-access-snapshot-green.log",
+          "sha256": "eb298ea3d5bafd0b56cdcb0cddd97b3072e16c92fc321004a2ea60084fabc614",
+          "bytes": 279
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-switch-access-snapshot-before.ts",
+          "sha256": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+          "bytes": 5601
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-switch-access-snapshot-mutant.ts",
+          "sha256": "1a9e57a0c44fed1d9bb770e5d8747dfae2d44489da58c48617b150d8a946a05e",
+          "bytes": 5564
+        }
+      },
+      {
+        "id": "mode-switch-access-auth-deep",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-switch-access-auth-deep-red.log",
+          "sha256": "17ba941ba5d184fb13cbe2946586e795f3628e54e0746ae52451c42f24b3dff4",
+          "bytes": 879
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-switch-access-auth-deep-green.log",
+          "sha256": "bcfe9c0c5664bf305f263f32a7733c3eea2d5e4f82ea7211813f46d0a610cd64",
+          "bytes": 287
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-switch-access-auth-deep-before.ts",
+          "sha256": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+          "bytes": 5601
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-switch-access-auth-deep-mutant.ts",
+          "sha256": "b681de0623dcc69d044a7c3747c53828d46d5c93ecd11e59375d6fc51665f5e7",
+          "bytes": 5645
+        }
+      },
+      {
+        "id": "mode-switch-actor-snapshot",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-switch-actor-snapshot-red.log",
+          "sha256": "7d7a82543705ed42365f5f4529748087a2acbf68cfba36c8bf937e5bee8c2ddd",
+          "bytes": 1579
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-switch-actor-snapshot-green.log",
+          "sha256": "485eeee16ebdcc1cc9f9f95e2b7b2d3a30fcbcd6e77fde5b5e56c3108adeb893",
+          "bytes": 373
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-switch-actor-snapshot-before.ts",
+          "sha256": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+          "bytes": 5601
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-switch-actor-snapshot-mutant.ts",
+          "sha256": "3433e7bfa1493db0c0ce76d2f841bb23b39c220188ade22117090ef3f91feeeb",
+          "bytes": 5566
+        }
+      },
+      {
+        "id": "mode-switch-actor-auth-deep",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-switch-actor-auth-deep-red.log",
+          "sha256": "b8470a654f5a4c88d50d627868a25571a401e1b8152ee639b265004e30679faf",
+          "bytes": 889
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-switch-actor-auth-deep-green.log",
+          "sha256": "03c3221dc2cf475c2f456542d2db4c0017a85db40c2c77d4996947100beb8fa9",
+          "bytes": 286
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-switch-actor-auth-deep-before.ts",
+          "sha256": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+          "bytes": 5601
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-switch-actor-auth-deep-mutant.ts",
+          "sha256": "1f35d5119148ff2a5e4f17cf260eca236adfd7acaa13562b7707256b18676b63",
+          "bytes": 5589
+        }
+      },
+      {
+        "id": "rank-owner-stamp",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-owner-stamp-red.log",
+          "sha256": "4007e150af40f9c10e7aea773f98e1a60b8d0b5dfe583da22580837048e00c92",
+          "bytes": 1541
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-owner-stamp-green.log",
+          "sha256": "ed0e6c61ea50dece8185f0289c31faed371f80f5368c4e1602afaf8d951bbcbd",
+          "bytes": 357
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-owner-stamp-before.ts",
+          "sha256": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+          "bytes": 4670
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-owner-stamp-mutant.ts",
+          "sha256": "d9a9a706a1f0944637cb04ca46fc4babefaa5ef2541f5e38f6a503d14abf67a4",
+          "bytes": 4643
+        }
+      },
+      {
+        "id": "rank-owner-caller",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-owner-caller-red.log",
+          "sha256": "aebd6c7e44920c64e701c8f728aeed909c70689ec0cdd8a1b33a116f3015358a",
+          "bytes": 928
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-owner-caller-green.log",
+          "sha256": "9147b3e0757b4ca7aedaf7bdc1a39c38cabba507025c55effdc280cd9ee79ab1",
+          "bytes": 275
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-owner-caller-before.ts",
+          "sha256": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+          "bytes": 4670
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-owner-caller-mutant.ts",
+          "sha256": "3600f4e4847106d8ab0f12b74f7d2cae7130a044e1162cb87ee31bafa3f0b1f3",
+          "bytes": 4631
+        }
+      },
+      {
+        "id": "rank-owner-caller-deep",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-owner-caller-deep-red.log",
+          "sha256": "de2676d5320422bc8d2cd3369ead4e92b30a66eace6bdc64a1f3ee3a82a724f6",
+          "bytes": 928
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-owner-caller-deep-green.log",
+          "sha256": "f931e4b868b548c1fac130c325362e01fd8707bc2be592594880632d98554d0c",
+          "bytes": 275
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-owner-caller-deep-before.ts",
+          "sha256": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+          "bytes": 4670
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-owner-caller-deep-mutant.ts",
+          "sha256": "19a7c061e6b7df97935b14991bde9df6b2a20c6b9419f369ddfcd8bc77fdef5c",
+          "bytes": 4658
+        }
+      },
+      {
+        "id": "rank-required-capture",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-required-capture-red.log",
+          "sha256": "122a6a37dd558e17d35a6c5dba740dc4a0e307b1a37099fb8465a68bec325392",
+          "bytes": 845
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-required-capture-green.log",
+          "sha256": "cb686c7581adba3427571b9333f9e0bde9bc65c431d9b3b51b99e39f9ec983bf",
+          "bytes": 254
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-required-capture-before.ts",
+          "sha256": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+          "bytes": 4670
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-required-capture-mutant.ts",
+          "sha256": "68d69b45440dca2f98b11440279a247e45bc8b1ff4d7d888e6011066975a89e1",
+          "bytes": 4645
+        }
+      },
+      {
+        "id": "rank-required-store",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-required-store-red.log",
+          "sha256": "e03daa23e9f8a24ed94b7ec53e3db748c34801df5824dce3ee69f51260017f09",
+          "bytes": 752
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-required-store-green.log",
+          "sha256": "08ae662c55158167744e835f185bbe41bcb0a84a3aef2686a69dd02b05f95494",
+          "bytes": 269
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-required-store-before.ts",
+          "sha256": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+          "bytes": 4670
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-required-store-mutant.ts",
+          "sha256": "78c004b5cf32b447811ec77df0469bf36d70c9df8740ec15ca982cac1942d502",
+          "bytes": 4647
+        }
+      },
+      {
+        "id": "rank-current-decision",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-current-decision-red.log",
+          "sha256": "1255371054c90545fbbdd74f67ff82a3d72a4e14af0b40750c7820b079bb7466",
+          "bytes": 1131
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-current-decision-green.log",
+          "sha256": "53084c72c71a02f77c1acf967dd5eb6bc2b167267dc46ea8ffe40ccd07720efd",
+          "bytes": 276
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-current-decision-before.ts",
+          "sha256": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+          "bytes": 4670
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-current-decision-mutant.ts",
+          "sha256": "ba36b18ea01998abc989fc6d9f753451905ebb8309f1413670ef3f9bf366c13a",
+          "bytes": 4662
+        }
+      },
+      {
+        "id": "rank-required-grant-port",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-required-grant-port-red.log",
+          "sha256": "fc56d48d69318beec0565654c8d551a41f71b6682a34d81e4d6a8a1f2d06bbeb",
+          "bytes": 1537
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-required-grant-port-green.log",
+          "sha256": "c0457fa23fd71c4d9fc822fdd14887fda063d97204354aea6ea6d64a429d7391",
+          "bytes": 337
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-required-grant-port-before.ts",
+          "sha256": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+          "bytes": 4670
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-required-grant-port-mutant.ts",
+          "sha256": "d9c9594145c181b0aa0ccc5507cc50d81879721b0d248da11af7f1031a3136d2",
+          "bytes": 4065
+        }
+      },
+      {
+        "id": "rank-modeled-context-conflict",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-modeled-context-conflict-red.log",
+          "sha256": "6c3dee502cef60fdb85899e51c1c713c0dfb109a6b430bf70c5b50888b869982",
+          "bytes": 2015
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-modeled-context-conflict-green.log",
+          "sha256": "d528b9b3f4e953045585ec960985aea4e3495855ffb9be118e76aa49a9a487d1",
+          "bytes": 375
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-modeled-context-conflict-before.ts",
+          "sha256": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+          "bytes": 4670
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-modeled-context-conflict-mutant.ts",
+          "sha256": "bf3e8982ef57a6d93cf72a5f78599f33d723612670c05dd226415e76d37bdcb3",
+          "bytes": 4590
+        }
+      },
+      {
+        "id": "mode-owner-stamp",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-owner-stamp-red.log",
+          "sha256": "3a08737280b8addde9a727a114df8ace3412362652f2494655d905e286542eff",
+          "bytes": 1755
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-owner-stamp-green.log",
+          "sha256": "929345acca07740d19846b72111f65d84da5e3d9f18421495f26f2cf26730f9b",
+          "bytes": 357
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-owner-stamp-before.ts",
+          "sha256": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+          "bytes": 4847
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-owner-stamp-mutant.ts",
+          "sha256": "ab9b9afb5e3639af2e31b3140d417eb1e1cdce592c9307d40db52e31169424e7",
+          "bytes": 4820
+        }
+      },
+      {
+        "id": "mode-owner-caller",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-owner-caller-red.log",
+          "sha256": "6a5a14b73f8e323716fe51151d1d3c92e149af24676a14a82497c8f4b29fdb61",
+          "bytes": 928
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-owner-caller-green.log",
+          "sha256": "6be9311acff221fcd94f0ed7d0f1e200de28ed96a490a057836f21228a30b252",
+          "bytes": 275
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-owner-caller-before.ts",
+          "sha256": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+          "bytes": 4847
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-owner-caller-mutant.ts",
+          "sha256": "b399158b880b7a092cfa9b577d81d0b7682b30c0958c0b3f6ac3b3f77f9f3d9f",
+          "bytes": 4808
+        }
+      },
+      {
+        "id": "mode-owner-caller-deep",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-owner-caller-deep-red.log",
+          "sha256": "ec72d416c4bd461933821a3c0d5fb9ab13d09fcc55930434927fd0f22d15840d",
+          "bytes": 928
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-owner-caller-deep-green.log",
+          "sha256": "9d88c6496e551dc6d423f2c574d9a57d62d14340a2e1f1fca9668e86b82007e9",
+          "bytes": 275
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-owner-caller-deep-before.ts",
+          "sha256": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+          "bytes": 4847
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-owner-caller-deep-mutant.ts",
+          "sha256": "127e4fd40110247704f324429ab121a8e0f979882bd23c7740d24fbe422786a7",
+          "bytes": 4835
+        }
+      },
+      {
+        "id": "mode-required-capture",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-required-capture-red.log",
+          "sha256": "daeccb01dede8f674e7728b32fbb7e0cff5125211e5d8c76bf31c48799cfea59",
+          "bytes": 845
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-required-capture-green.log",
+          "sha256": "c3facb91a7e0307c90cfe10e93186376c7d4388d9e7348bd52214637b26dc8be",
+          "bytes": 254
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-required-capture-before.ts",
+          "sha256": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+          "bytes": 4847
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-required-capture-mutant.ts",
+          "sha256": "5a39184caee1beb12a7a21be62c758dfec6b6a644372b35039ad524e05803345",
+          "bytes": 4822
+        }
+      },
+      {
+        "id": "mode-required-store",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-required-store-red.log",
+          "sha256": "2cf877a9dfca9cb362eca17817b4737f0e139d10cab36b815851b7346f102391",
+          "bytes": 795
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-required-store-green.log",
+          "sha256": "4e2f95b7891313292d86966ff382573142312fbc727301e0446b458c7a991228",
+          "bytes": 265
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-required-store-before.ts",
+          "sha256": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+          "bytes": 4847
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-required-store-mutant.ts",
+          "sha256": "36f8375c44b95447a679ecbff05206499ef27410a60762c960b936fc94882d1b",
+          "bytes": 4824
+        }
+      },
+      {
+        "id": "mode-current-decision",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-current-decision-red.log",
+          "sha256": "ed533e8661bf8bb74e47d45fe276063c22e3f53889db6cf5bdfd0997f43eb90d",
+          "bytes": 893
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-current-decision-green.log",
+          "sha256": "d07eccb284c8a97ee68a163c2179882b1e0c2613f7afc32f57527b3b7b8c4e4e",
+          "bytes": 276
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-current-decision-before.ts",
+          "sha256": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+          "bytes": 4847
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-current-decision-mutant.ts",
+          "sha256": "f1ef83b2ab316686fddb25c3023a70b9cdbe1bfbc1b5f7467d50c85e7881b4b2",
+          "bytes": 4839
+        }
+      },
+      {
+        "id": "mode-required-grant-port",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-required-grant-port-red.log",
+          "sha256": "25389c36337f7175b7fac47352515dc8b815c317c3f1b294a6d07971edbcf0e7",
+          "bytes": 1537
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-required-grant-port-green.log",
+          "sha256": "307159fb82b3f159f26ab6d67051a8b2e16f05b8bb31248fc114d740c7bc12cb",
+          "bytes": 337
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-required-grant-port-before.ts",
+          "sha256": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+          "bytes": 4847
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-required-grant-port-mutant.ts",
+          "sha256": "5e9f08fed97c4be469ab924b1014aab2d1a9bdf51c2093e5045e1a8d88288a7c",
+          "bytes": 4153
+        }
+      },
+      {
+        "id": "mode-modeled-context-conflict",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-modeled-context-conflict-red.log",
+          "sha256": "5348833c1f8ed8cc26254ba88b17421ab32a2e0a3d52e770510f8273e40928aa",
+          "bytes": 2035
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-modeled-context-conflict-green.log",
+          "sha256": "f3ca078c12bd1ecd5d9cfcb81e8cd65e3a3872bc6a8fc91d277d8b07f0eac55d",
+          "bytes": 375
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-modeled-context-conflict-before.ts",
+          "sha256": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+          "bytes": 4847
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-modeled-context-conflict-mutant.ts",
+          "sha256": "992a4d4e4e7a3429dea28a1bdfbea9f3cf0f30e797cc35b5e70b4cd738542ec4",
+          "bytes": 4764
+        }
+      },
+      {
+        "id": "rank-retired-authority-marker",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-retired-authority-marker-red.log",
+          "sha256": "2144d793ab6208b2263c6c204d51ce7dd47a58b6196f5e351ac91a5a9339db22",
+          "bytes": 1003
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-retired-authority-marker-green.log",
+          "sha256": "c880d7f5c212a692d27d3bb867e99b9cbd5dfb2fcfc4a81d95e57ef9efb2fa13",
+          "bytes": 273
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-retired-authority-marker-before.ts",
+          "sha256": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+          "bytes": 4670
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-retired-authority-marker-mutant.ts",
+          "sha256": "9c2075124e8bef146cb4d75e68f95de34f1ed354efbb4d13367e223268480070",
+          "bytes": 4707
+        }
+      },
+      {
+        "id": "rank-route-read-actor",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-route-read-actor-red.log",
+          "sha256": "084b0fed8cdb45b753cf562843bea68a016b6b3b1fd5fbd0747c1c81eebaffd7",
+          "bytes": 1423
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-route-read-actor-green.log",
+          "sha256": "0102e41eb7bbb1022a728814e1ce2ef5a2467ff7b442126114bb2236fdaf51f1",
+          "bytes": 264
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-route-read-actor-before.ts",
+          "sha256": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+          "bytes": 2434
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-route-read-actor-mutant.ts",
+          "sha256": "1dadb827f7769b75ac23479a3e43baa75ca491c6c278664673dd612bd016cc75",
+          "bytes": 2439
+        }
+      },
+      {
+        "id": "mode-route-read-delegation",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-route-read-delegation-red.log",
+          "sha256": "94d5f358af4c51d201933667c4fd17854bb70f88241f920aea55286a91b29729",
+          "bytes": 1074
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-route-read-delegation-green.log",
+          "sha256": "f4eb8a5c46978d4d769aeda4dc9bff9191f5d1f71cfdf1fb74cebd78ebac6a88",
+          "bytes": 272
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-route-read-delegation-before.ts",
+          "sha256": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+          "bytes": 2991
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-route-read-delegation-mutant.ts",
+          "sha256": "aca26c1cf5b92be2a55d33f7a94d7444d3df744d7631f82f1685a2238fb67779",
+          "bytes": 3016
+        }
+      },
+      {
+        "id": "rank-route-caller",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-route-caller-red.log",
+          "sha256": "4de17e73a0392f1e027e297713d9c7173770541f0a848cc46e430927cd5d400c",
+          "bytes": 2786
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-route-caller-green.log",
+          "sha256": "f661b3e11220f6bd5d3121a1e8b0ee72551165d58986d5755f599f265411399a",
+          "bytes": 437
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-route-caller-before.ts",
+          "sha256": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+          "bytes": 2434
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-route-caller-mutant.ts",
+          "sha256": "0ee712e7dd5a4bc3685eefef66eaa751c44885c1e4d4520dfacc18c02402c60e",
+          "bytes": 2417
+        }
+      },
+      {
+        "id": "rank-route-auth-deep",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-route-auth-deep-red.log",
+          "sha256": "f6d10a36017334959ed93bc8fa0531e9f7c719811a0b4a31224a738e4f2f65bb",
+          "bytes": 871
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-route-auth-deep-green.log",
+          "sha256": "fe1ca61e2ec45384a8a2505ab6ed1b623d9f8186078ccbf6336aad8ed8dfa06a",
+          "bytes": 276
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-route-auth-deep-before.ts",
+          "sha256": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+          "bytes": 2434
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-route-auth-deep-mutant.ts",
+          "sha256": "7fe3a4e0f1e911b0c4b7431bc29c723caaf61d460bc6fc5265137df3d82c6aee",
+          "bytes": 2422
+        }
+      },
+      {
+        "id": "mode-route-caller",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-route-caller-red.log",
+          "sha256": "7ae9bcca008b55bcf515ef1f513b3ffc10ae9b0d5eb587970d4c5bbc19d33ece",
+          "bytes": 2805
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-route-caller-green.log",
+          "sha256": "5e13d9f06ef2270937d0569ee97f433099ac156257cb0d3f168c4427d8119d45",
+          "bytes": 443
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-route-caller-before.ts",
+          "sha256": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+          "bytes": 2991
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-route-caller-mutant.ts",
+          "sha256": "c5895e7b40ff9748599ff1f556aa2a2656c22ddf7edbf7873c764f9b75a7776e",
+          "bytes": 2974
+        }
+      },
+      {
+        "id": "mode-route-auth-deep",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-route-auth-deep-red.log",
+          "sha256": "accd66e371b6aa485aed2d3b27146f5e28f70aa556612efef947cde196aea2f2",
+          "bytes": 873
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-route-auth-deep-green.log",
+          "sha256": "8b2a3245f54b5993f3e14c7106fceaba3d93bce0160bf26c1f9dd0736e67ada6",
+          "bytes": 278
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-route-auth-deep-before.ts",
+          "sha256": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+          "bytes": 2991
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-route-auth-deep-mutant.ts",
+          "sha256": "cde7905ebe7dbf200cd1c5db5d6d12b5e20d8156d6a5ce25869048ac17275f5b",
+          "bytes": 2979
+        }
+      },
+      {
+        "id": "rank-route-target",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-route-target-red.log",
+          "sha256": "69e63a8e766065829c5401bcceeba650bebb23b37ce70d50f1611c2cb60fceec",
+          "bytes": 1198
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-route-target-green.log",
+          "sha256": "b50632bcf9a4dee31e6bb944d25efbe59723deb45c4fa68d77da357aa5dcad6e",
+          "bytes": 269
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-route-target-before.ts",
+          "sha256": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+          "bytes": 2434
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-route-target-mutant.ts",
+          "sha256": "f7e23b6a423cc1499154690b63b1f3a25011131bc723ae2c1a3a98bb159252a1",
+          "bytes": 2434
+        }
+      },
+      {
+        "id": "rank-route-destination",
+        "red": {
+          "path": "/tmp/task-2.4b-rank-route-destination-red.log",
+          "sha256": "6d89e374927129ae9f16d28dafb195796702907b093e8f606a901e2879c154d9",
+          "bytes": 1203
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-rank-route-destination-green.log",
+          "sha256": "37786f55b36fb90bdc1da7687332c63ff388f09b8d2bd19217598532059478ea",
+          "bytes": 274
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-rank-route-destination-before.ts",
+          "sha256": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+          "bytes": 2434
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-rank-route-destination-mutant.ts",
+          "sha256": "fef104fd3ed17847c3b8ba217ae759f7ce2cd4b5aeaa028d12ba22d3682b227b",
+          "bytes": 2447
+        }
+      },
+      {
+        "id": "mode-route-intent",
+        "red": {
+          "path": "/tmp/task-2.4b-mode-route-intent-red.log",
+          "sha256": "85b7b619682e2b15a7bb3ee9eb8b95facd0b665f8ae9d68db863464e77505731",
+          "bytes": 870
+        },
+        "green": {
+          "path": "/tmp/task-2.4b-mode-route-intent-green.log",
+          "sha256": "5c754e51235b48a49f65c0b5a2c06d9c8770f61a56f8b4daec54069247f91213",
+          "bytes": 275
+        },
+        "original": {
+          "path": "/tmp/task-2.4b-mode-route-intent-before.ts",
+          "sha256": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+          "bytes": 2991
+        },
+        "mutant": {
+          "path": "/tmp/task-2.4b-mode-route-intent-mutant.ts",
+          "sha256": "8d5ca3b25c64d83bdb092eeb9a22fe4cd692a7e5f1ce27a1e874b985e4c0eae6",
+          "bytes": 2996
+        }
+      }
+    ]
+  },
+  "commentConformance": [
+    {
+      "path": "libs/wbs/application/core/src/service/project-rank.resource.ts",
+      "beforeHash": "10f8bb33f9ef02e45b135f54926e51f0ff02b9caf3046a386d8088bd5fa1619b",
+      "afterHash": "064ec31608f89bae76811f21850f1748069b70e733a17d72b4b3bc7fde93cd42",
+      "beforeJsHash": "d728a209e2fc97d7b8d7326865fdcfb26d82eebcfc77cff1dd601db34d4ff0a7",
+      "afterJsHash": "d728a209e2fc97d7b8d7326865fdcfb26d82eebcfc77cff1dd601db34d4ff0a7",
+      "erasedExecutableEqual": true
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/capacity-mode.resource.ts",
+      "beforeHash": "ce1369d44e14baec86cfcdbe8ce353e05a22e7c2fcadf02ac251bfc79693e9b5",
+      "afterHash": "dd2a43f4abd58d4dbbe8b97fcebd9bf5aacda0c951b5bf286fb7db13f7365c95",
+      "beforeJsHash": "c8fa4738a23f6c3cb1c2858480bc7be1e2d9618fb1029e1192245aa43aba13d2",
+      "afterJsHash": "c8fa4738a23f6c3cb1c2858480bc7be1e2d9618fb1029e1192245aa43aba13d2",
+      "erasedExecutableEqual": true
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/standalone-rank.ts",
+      "beforeHash": "9bbd3685e957ddafc41b7c5277ab9f248abe95e3d4d43814ebc6a672e2da9985",
+      "afterHash": "d5a015418727b6bf30324a626e08d1e5d7c27ab092966f930bdf071f9fe88a27",
+      "beforeJsHash": "73715cfcc1b10015201bfb7dbcff0125124c64a130cfe187618907865f56cef0",
+      "afterJsHash": "73715cfcc1b10015201bfb7dbcff0125124c64a130cfe187618907865f56cef0",
+      "erasedExecutableEqual": true
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts",
+      "beforeHash": "ea57422deb392905a5b44f327583daebe197b2d71d1763777b79ea26c95dc082",
+      "afterHash": "bf73c722a3ececa2363fd75fd1978ba42d442fe8503e850a0ea18aa77aedd7f2",
+      "beforeJsHash": "a5ff2f672d004f88e1099d302ab19b29f6176fb3c898010b5cbaa591e08d3ee5",
+      "afterJsHash": "a5ff2f672d004f88e1099d302ab19b29f6176fb3c898010b5cbaa591e08d3ee5",
+      "erasedExecutableEqual": true
+    },
+    {
+      "path": "libs/wbs/application/core/src/http/project-rank.routes.ts",
+      "beforeHash": "0553fd0e2182f73d33a1618b9168ccd3b521a777d82c124e5dbbb97200637403",
+      "afterHash": "f692761ce5b75d4419f3a2458cae49f347973b87ca6a7a3f0d5d9d42598be228",
+      "beforeJsHash": "575da9e895517b1f4fdffdf2c85da60fd999888421effa465c68259f2a249fbb",
+      "afterJsHash": "575da9e895517b1f4fdffdf2c85da60fd999888421effa465c68259f2a249fbb",
+      "erasedExecutableEqual": true
+    },
+    {
+      "path": "libs/wbs/application/core/src/http/capacity-mode.routes.ts",
+      "beforeHash": "274b53c70750209d1bde249c597c61dbceada7be317cf07327db4ffabae9ab09",
+      "afterHash": "768bf32d7cbe3a3821c5a6b5042c7003b14bf634783da3c60086644317883d3d",
+      "beforeJsHash": "d9ab9d0039412fdf0be95e2396de1138be1e8aa33c7acad98c5a07233804442d",
+      "afterJsHash": "d9ab9d0039412fdf0be95e2396de1138be1e8aa33c7acad98c5a07233804442d",
+      "erasedExecutableEqual": true
+    }
+  ],
+  "contracts": [
+    "Direct scoped rank read/move and mode read/switch reject actor/member/principal identity disagreement before grant or fact reads. Substituted principals have independently sufficient authority; no ordinary403 masks the guard.",
+    "Retain actual scoped access, including authentication, and complete write actor evidence before public dependencies. Read routes retain scalar actor/delegation; write routes retain complete verified callers and validated targets before organization resolution.",
+    "Standalone writers retain caller and caller-owned stamp before UoW queueing, re-resolve current CommandAccess first, then apply fresh organization/principal/stamp invariants. Stale expected-user/org remains modeled organization_context_changed; expectedAccess is not current grant authority.",
+    "Current manage_spaces/manage_capacity_mode authorization precedes every order/no-op/mutation. Capture/rank/grant capabilities remain mandatory even for self/no-op; missing/unreadable grants throw. Existing borrowed rank savepoints, current owner, supported-release/nondelegation rules, audit/event rollback and after-commit delivery remain.",
+    "Unused BeforeRankMove/BeforeModeSwitch types, role-admission functions, source installations and maySwitch/roleMay helpers are deleted together. Removing their unused presence marker adds no public/raw store fallback."
+  ],
+  "failedAndSupersededAttempts": [
+    "Existing two-controller baseline26pass/0fail/109 assertions20.04s. New direct identity cases observed8pass/7fail before guards, then15/0/71. Route capture cases observed0pass/11fail before capture, then26/0/100.",
+    "Queued stamp/retired-marker cases observed11pass/5fail (four stamp aliases plus valid grant without old marker), then42/0/144. Added scope/auth/missing-principal controls56/0/174; final boundary64/0/192 before one extra store-read assertion. Its current focused1/0/3 and final242 group verify that addition.",
+    "Three-controller84/0/285 group precedes six additive final controls and is not presented as a final90-test group. Final eleven-file242/0/8220 group includes all final controls, existing rank/mode/delegation/fanout controllers and actual native/source/UoW conformance.",
+    "Initial bounded lint reported six test-only import/void-arrow diagnostics, corrected without removing assertions. Fresh forced six-root builds passed before and after final controls; final force passed after all restored proofs/comments.",
+    "One documentation writer failed on await/.replace precedence after test-helper/rank-doc writes. Only tool transcript survives; no original standalone raw log is claimed. Tests began after partial writes and remained frozen; unapplied mode/spec/design work resumed after that group settled. No passing documentation credit or source-overlap credit is claimed for the failed script."
+  ],
+  "review": {
+    "astra": "Read-only source/API/44 unique receipts/60 named pairs,12 live+archive hashes,176 log/archive entries and6 executable comparisons cleared. Final command receipt reconciliation pending separate publication review; reviewers did not execute the suite.",
+    "root": "Approved the bounded rank/mode plan and identity/expectedAccess/required-port boundaries; concrete publication remains subject to final review."
+  },
+  "remaining": [
+    "Resource-use/runtime authority and deleted-package infrastructure replay semantics.",
+    "Role-free currentMembershipAccess/credential authority, explicit compatibility display projection, OrganizationScope.role and all remaining server role readers/helpers.",
+    "Fixture-only domain claim primitive cleanup and full2.4b closing regression/conformance; parent task2.4 remains unchecked.",
+    "#698 entity migration, later grant/group/operator/read APIs, permission UI7.1/7.2 and deployment rollout6.4 outgoing mutation/read/session retirement."
+  ],
+  "unrun": [
+    "Canonical h2/h4 exact-SHA gate",
+    "Whole CI/build",
+    "Browser E2E",
+    "Live deployment",
+    "Full optimization model file: five relevant shared-mode cases ran,13 unrelated cases were filtered",
+    "Whole2.4b final regression before all remaining families are implemented"
+  ]
+}

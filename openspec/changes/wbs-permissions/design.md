@@ -27,11 +27,26 @@ the engagement, tables `work_package` and `work_package_organization`, command k
 `freezeWorkPackage` and `unfreezeWorkPackage`, audit action `restricted_work_package_recovery`.
 
 **Order against #698.** Slices 1 and 2 land on whichever tables exist (today's `project`
-rows are the work package scope, P1) and may land before #698 slice 1. Slices 3 to 7 run
-after #698 slice 1, because their routes, tests and matrix use its names; slice 3's
+rows are the work package scope, P1) and may land before #698 slice 1. Task 4.1's audit
+foundation also lands before task 2.5, using the current vocabulary; the later #698 audit
+rebuild preserves every access action, subject and index while renaming project vocabulary.
+The remaining slices 3 to 7 run after #698 slice 1, because their routes, tests and matrix use its names; slice 3's
 project-scope rules (create, import and move at the named project, project grants,
 `project.read`) also wait for #698 slice 2's project entity, and so does slice 3's listing
 statement (task 3.2), which joins `work_package.project_id`.
+
+### Implementation order reconciliation (2026-11-09)
+
+Astra's source review found that deleting the role helpers in 2.4 requires membership
+rewiring in 2.5, whose initial grants require 4.1's audited writes. The old graph put 4.1
+after the rename that waits for 2.5. Proceed under the user's instruction to resolve
+implementation blockers autonomously: 2.4a rewires current transaction-local security
+authority while retaining used compatibility helpers; 4.1 widens the current audit
+vocabulary and completes deferred grant-store/operator audit writes; 2.5 rewires membership
+and atomic initial grants; 2.4b removes every remaining legacy role authority/field/helper;
+then #698 slice 1 proceeds. No unaudited-grant exception or role fallback is introduced.
+The closing inventory includes direct role readers in resource/fanout, enterprise proof,
+shared restore execution, agent pools, compute providers, limits and trusted issuers.
 
 ## Goals / Non-Goals
 
@@ -229,13 +244,19 @@ revocation) checks the count after the write in its transaction and rolls back
 `409 last_super_admin`. Was: "revoking the last `org-super-admin` grant, or removing that
 member, is refused". Removing a member needs
 `organization.manage_members`; removing one who holds an organization-role grant directly
-(`org-admin` or `org-super-admin`) also needs `organization.manage_organization_roles`, as
+(catalogue object kind `organization`, including `org-viewer` and custom organization roles) also needs `organization.manage_organization_roles`, as
 revoking that grant does (review PM-11). A member's removal
 deletes their grants and group memberships in the same transaction, audited once.
 Invitations and join-request approvals carry an optional initial grant from the catalogue
 (`org-admin`, `org-viewer`, `project-contributor` or `project-viewer` at organization
 scope, or none); SCIM-provisioned and onboarding-created members arrive with none, except
 the organization's creator, who is `org-super-admin`.
+
+Task 2.5 clarification: member summaries report the full permission union and provenance of organization-kind grants at organization scope, or null, plus the distinct account-reaching grant count over all scopes; they do not invent a strongest role or include package identifiers. List admission uses the actual caller's `organization.read`; invitation/join lists require `organization.manage_members`. Initial organization roles require `organization.manage_organization_roles`; initial project roles require `organization.manage_access`, in addition to `organization.manage_members` and the full-set subset rule. Personal-only invitation/join guards remain the durable issuer boundary. Only new membership acceptance creates initial access: it rechecks the stored personal issuer's current membership and P11 authority, records grant/audit actor as issuer with origin invitation, and consumes an existing member's offer without upgrading access.
+
+Initial access is persisted as an explicit bounded none/role selection. NULL is reserved for legacy-writer omission; additive backfill and an old-writer-only insert trigger preserve all historical admin/member/viewer offers. Runtime reads only the validated selection, never the old role column. Down first rejects any historical nonrepresentable, malformed or inverse-incoherent selection. See [ADR0081](../../../docs/adr/0081-initial-grant-offers-preserve-legacy-writer-intent.md). A required deployment cutover boundary must route or quiesce acceptance and onboarding onto upgraded grant-and-audit owners before applying this migration; the compatibility trigger cannot upgrade old owners.
+
+CP14 checks the post-write direct built-in user-holder count on the owner connection and throws a modeled rollback refusal before returning 409. A reciprocal removal race may remove the second actor first, so fresh not-a-member/403 precedes the target invariant; two self-leaves instead produce success and last_super_admin. Bootstrap permits transient zero only until the creator's direct grant and audit are written.
 
 **P12. Machine cap at check and at grant.** The evaluator intersects the effective set with `CONTRIBUTOR_CAP` (the union of the
 seeded `project-contributor` and `package-contributor` sets, `wbs-custom-permissions` CP8)
@@ -397,7 +418,10 @@ rows are deferred to task 4.1 (`widen_organization_audit_access`), because
 `organization_audit`'s CHECK admits no `access_*` action yet and the grant store of 1.4
 writes none for the same reason. Until then the CLI writes the grant (origin `operator`,
 `created_by` null) or deletes it in the store's one transaction, and its JSON output names
-the actor `operator:<os login>` the row will carry. A machine credential's id is refused
+the actor `operator:<os login>` the row will carry. Task4.1 closes this deferral: the
+compatible widening admits the rows, the existing grant owner appends them atomically,
+and successful CLI JSON says `audit: recorded`; audit failure rolls back the act.
+A machine credential's id is refused
 `machine_credential`; `already_granted` and revoke's `not_granted` are refusals too.
 
 ## Tables
@@ -819,7 +843,29 @@ foreign one is.
 
 Actions `access_granted`, `access_revoked`, `access_group_created`,
 `access_group_renamed`, `access_group_deleted`, `access_group_member_added`,
-`access_group_member_removed`; subject kinds `access_grant`, `access_group`. Detail: role
+`access_group_member_removed`; subject kinds `access_grant`, `access_group`. Deleting
+an access group appends one revoke for each deleted grant, one member-removal row for
+each deleted group membership, and one group-deleted row (N+M+1); its cascades use the
+actual owning actor and origin `cascade`. A successful rename to the existing name still
+appends one renamed row, matching its accepted UPDATE outcome. Refusals and skipped
+duplicate re-key copies append no success event. Re-key copies preserve the stored
+source origin/creator, but each actually inserted grant is audited with the current
+pool owner's actor/time and operation origin `cascade`, before old grants' revoke rows.
+Borrowed mutation functions return typed actual-row evidence without an owner or audit;
+existing owners append on their same connection. A singular access act supplies its
+required audit ID; variable cascade rows receive distinct fresh IDs minted by that owner,
+never the root lifecycle audit ID reused. Direct
+member removal has one aggregate `organization_member_removed` event, subject kind
+`organization_member`, subject id the removed account id within the row's organization.
+Its detail is `source`, `removedUserGrantCount` and `removedGroupMembershipCount`; source
+comes from the authenticated owning caller, never from comparing the target alone.
+This includes a member with no grants. SCIM deprovisioning retains its existing single lifecycle event
+and `scim:<token id>` actor, with existing detail plus `membershipRemoved`, nullable
+`boundUserId` and both removal counts; it emits no additional member/per-grant events.
+A no-op inactive PATCH still emits nothing; pending/inactive DELETE keeps its existing
+lifecycle event with false/zero removal evidence. The transaction-bound removal operation
+returns status/identity/counts without a nested owner or audit; the owning caller appends
+its event atomically. Other grant/group detail: role
 id, scope kind and id, subject kind and id, origin (`route`, `invitation`, `creation`,
 `cascade`, `operator` for `revoke-backfill`), group name where relevant; never an email. One compatible rebuild
 (`widen_organization_audit_access`, precedent `20261012090200`), `down.sql` refusing while
@@ -892,3 +938,141 @@ person's account with capped scopes") in `wbs-machine-credentials`; and
 `wbs-organization-limits`. Those changes must be synced or archived into `openspec/specs/`
 before this one archives, or the MODIFIED blocks have no target and the audit capability no
 base.
+
+### Admitted identity and replay compatibility (tasks 2.2–2.3 amendment)
+
+A scoped application ResourceAccess carries a required detached ScopedPrincipal projection with exactly id and optional copied authentication metadata. It never carries the raw organization cookie, credential digest, token or the complete verified account object. Complete verified evidence remains separately in CommandCaller for credential revalidation. Trusted construction requires actorId === scope.userId === principal.id; mismatch throws. Queued boundaries snapshot the complete caller before admission, and grant decisions use only fresh CommandAccess output, never expectedAccess. Domain OrganizationScope remains identity-descriptor free. This application boundary was reviewed by Astra on 2026-11-09.
+
+The old journal has no complete, joinable original-command provenance: compensation kinds and labels collapse distinct authority requirements. New rows therefore add an authorization envelope to the existing JSON payload with version 1 and immutable permission/semantic-anchor obligations. No SQL migration or rewrite of historical payload bytes is needed. Existing readers tolerate the extra field, and cursor flip/restamp leave it intact. Storage compatibility does not imply old-binary grant-policy compatibility; deployments must not claim old binaries enforce these obligations.
+
+Legacy scoped entries without this envelope refuse with modeled 409 replay_provenance_unavailable before stale discard; malformed present envelopes throw. New metadata is detached at recording, aggregated only from actual contributors, and retained unchanged through undo→redo→undo. Current budget ownership is resolved from the package anchor at replay time, rather than retaining its original parent. The actual engagement-parent move proof waits for #698 slice 2; interim tests can prove current organization ownership resolution only. Slice 2 retains an explicit parent-move regression obligation.
+
+Deployment clarification: outgoing binaries still interpret the compatibility viewer column. Before migration, outgoing acceptance/onboarding mutations must be quiesced; before exposing upgraded grant semantics, outgoing authorization readers and existing gateway/WebSocket sessions must be retired or drained, or activation refused. This required task6.4 boundary must preserve actual read availability and rollback contracts.
+
+### Remaining server role readers (task 2.4b)
+
+Organization limits read through the actual retained authenticated principal and
+`organization.read`; their operator inspect/set/reset authority remains the host
+operator. All four public owners share the required source Gate. Personal reads
+keep BEGIN IMMEDIATE open across the awaited grant decision; inspect and writes
+keep their native synchronous owner inside that same gate. Operator input and act
+are detached before queuing; no account identity is invented for the host actor.
+The standalone operator CLI creates its own coordinator and awaits before close.
+Borrowed cap gauges acquire no gate and open no owner.
+
+Agent-pool and compute-provider administration use organization.manage_directory;
+rank movement uses organization.manage_spaces and mode changes use
+organization.manage_capacity_mode. Actual principal evidence replaces scalar
+actor-to-account reconstruction at these boundaries. Fixed credential caps and
+existing nondelegation refusals remain.
+
+Resource use follows the live package: list/history require package.read;
+registration/events require package.write. After package deletion, only an
+immutable same-organization use row supports personal orphan access: a
+nondelegated organization.manage_directory principal, with missing/foreign/hidden
+rows still404. No synthetic package chain is constructed. Runtime human binding
+and administration read require manage_directory. Exact bound-machine admission,
+ingestion and request streams retain infrastructure key/person/member/org/epoch/
+sequence authority. New live package writes additionally require package.write.
+Replay discovery follows current bound-authority checks but precedes deleted
+planning-reference resolution, returns the immutable receipt and never restamps
+projection/request revisions. Deleted-package cleanup remains own-authority
+infrastructure; ordinary workers cannot attest release.
+
+OrganizationScope and current membership evidence carry no legacy role authority.
+Public active-organization/own-membership compatibility labels may read the stored
+label only in explicit display projections for existing consumers. Never derive a
+strongest built-in label from grants. Permission-driven slots and role display
+helpers remain tasks7.1/7.2; retaining those labels does not complete permission UI.
+
+Provider report provenance is a bounded preservation change within 2.4b: retain
+actual authenticated id/authentication/delegation, validated report body and target
+scalars before resolving the original complete session evidence. The existing
+context refusal still precedes report classification. Keep the completion clock
+post-resolution and read it once before put. Put detaches exact request fields and
+its measured/unreachable outcome before the existing gate, preserving optional
+reservation absence and zero. It adds no grant check, owner, key/member policy or
+new nondelegation rule. Public readingsOf retains its selection before queuing and
+keeps its native read snapshot inside the same source Gate as administration.
+
+Pool administration borrows no writer: each public method owns the same required
+source Gate/connection through runSecurityTransaction and reads fresh authority
+inside that owner. Retain complete verified caller evidence privately for revoke's
+second resolver and directory command caller; pass a separate minimal retained
+SecurityPrincipal to pool ports. Grant copying still precedes successor-key creation,
+so borrowed cascade helpers never ask a public grant owner to admit a not-yet-live
+credential. Pool revoke and directory cleanup remain two committed owners. Preserve
+both runner admission.refusal and execution.reason forbidden outcomes as a partial409
+with the returned catalog permission; never invent a permission for an unannotated
+refusal. afterRevoke runs exactly once after committed stage one, even if cleanup fails.
+
+The rank/mode cleanup removes BeforeRankMove/BeforeModeSwitch and their SQLite
+role implementations/installations together: no invocation remains, and rank's
+old presence-only role marker is replaced by required capture presence. Actual
+AccessDecisions stays required before every no-op. Direct resource identity is
+trusted construction evidence (actor equals scope user equals grant principal),
+so disagreement throws before reads. Standalone caller.expectedAccess remains a
+fencing expectation and is resolved first to its modeled409; it is never
+prevalidated as current authority. Retain scoped access and complete write actors
+before resource awaits, full route callers/targets before resolver awaits, and
+caller stamps before UoW queueing. Borrowed rank savepoints and after-commit
+fanout delivery keep their existing owners and lifetime guards.
+
+### Resource/runtime retained authority and async owners (task 2.4b)
+
+ResourceUseActor carries the actual detached SecurityPrincipal. Before reads,
+actor ID, scoped member/principal ID, authentication discriminant and defined
+metadata must agree; machine/consent person IDs and machine runtime credential ID
+are derived from that evidence. Canonical historical fingerprints remain replay
+identity, never authority. Routes capture actual authority, targets and validated
+nested inputs before organization resolution; stores capture before Gate.
+
+All nine public resource/runtime operations share the existing Gate and SQLite
+connection. BEGIN IMMEDIATE fences current grant or credential reads through
+completion, including the request stream's awaited current identity check.
+Borrowed async admission/registration and synchronous append/event bodies do not
+open another owner. Late failure rolls back projection/history/sequence/request
+and audit together; paired rollback failure stays unexpected.
+
+A bounded durable credential check validates selected source/time/person-kind
+and consent-family state, current nonrevocation, organization/pinned agent/current
+bound account and membership. api_key and oidc are compatible with generic machine
+authentication; valid mcp_consent is incompatible. Consent keeps its current family
+and retained non-direct context. Stale identity is modeled forbidden; malformed or
+unreadable trusted storage throws. This reuses no secret or expiry verifier.
+
+Infrastructure replay discovers immutable receipts after current bound authority
+but before mutable planning references. The first registered confirmation of a
+provisional admission is infrastructure-only for live and deleted packages alike;
+it preserves newer operator projection/history/cleanup state. J10 host jobs remain
+infrastructure-only even with an optional project link. Deleted cleanup never
+enters personal orphan authorization. These paths perform no grant/package/directory
+permission lookup; fresh live admission and actual live follow-up still require
+package.write. Ordinary worker reports cannot attest physical release.
+
+The shared raw grant decoder additionally enforces roleFitsScope after checking
+both kind vocabularies, before transformation, caps or filtering. A recognized but
+incompatible stored pair is corruption, even beside sufficient valid authority or
+before an organization-role summary discards nonorganization roles. Selection SQL
+and the pure evaluator are unchanged; broader organization-scope project/package
+contributor grants remain valid.
+
+### Role-free machine grant envelope (task 2.4b)
+
+machineGrantScopesOf was the remaining live organization-membership-label reader;
+it is retired in this slice, separately from the unrelated scopesOfRoles/#731 deferral. P12/P17 require fresh machine issuance
+and admission to use the fixed read/write MACHINE_SCOPES envelope while actual
+operations use only the credential's current grants intersected with CONTRIBUTOR_CAP.
+A legacy viewer label cannot suppress an independently granted package.write, and
+an admin label supplies no grant. This explicitly modifies the older MCP M3 viewer
+scenario. MCP requested-scope narrowing and existing signed outer access-token limits
+remain; be-01's inner grant continues to carry verified identity and reread current
+state without a new scope claim/verifier contract. No editor or requested widening.
+
+Current organization scope, borrowed membership evidence and credential facts carry no
+compatibility role. Every consumer preserves its actual principal, contributor cap and
+transaction-bound grant/lease evidence. The six early-await access/selection entries retain
+the full private verified principal, including nested lifecycle binding, while public facts
+return only their declared facts. Active discovery gets its validated display label from the
+matching membership choice after current admission; display labels never enter authority.
+Legacy activation/storage and permission-driven frontend tasks 7.1/7.2 remain separate.

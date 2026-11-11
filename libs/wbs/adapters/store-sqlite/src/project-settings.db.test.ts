@@ -202,6 +202,8 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -310,6 +312,8 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -454,6 +458,8 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',

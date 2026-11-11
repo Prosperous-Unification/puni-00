@@ -11,9 +11,9 @@ import type {
   StepAllowanceWritten,
   WriteStamp,
 } from '@wbs/core';
+import { authorizePackageSettings, type ScopedPrincipal } from '@wbs/core';
 import {
   type AllowancePercent,
-  classifyProjectEdit,
   type DependencyReach,
   type EstimateMethod,
   type EstimateRounding,
@@ -21,15 +21,14 @@ import {
   isEstimateMethod,
   isEstimateRounding,
   isTimezone,
-  ORGANIZATION_ROLES,
-  type OrganizationRole,
   PertWeights,
   suggestProjectAbbreviationCandidates,
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
-import { and, desc, eq, inArray, ne, or, type SQL, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { AccessDecisionRepository } from './access-decisions';
 import {
   auditOnCreate,
   auditOnCreateBesidesCreatedAt,
@@ -37,9 +36,10 @@ import {
   withoutAuditColumns,
 } from './audit';
 import { isUniqueViolation, messagesOf, UNIQUE_INDEXES } from './constraint';
+import { drizzleOuterTransaction } from './db';
 import type { Gate } from './gate';
+import { OPEN } from './gate';
 import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optimizer-rows';
-import { capStoredRole } from './organization-access';
 import {
   decodeProjectAbbreviation,
   readProjectAbbreviation,
@@ -49,7 +49,6 @@ import { bumpedProject, bumpProject } from './revision';
 import {
   optimizationGeneration,
   organizationAudit,
-  organizationMembership,
   planEvent,
   project,
   projectAbbreviation,
@@ -386,11 +385,18 @@ function withOwnerName<T extends { name: string; ownerName: string | null }>(
  *
  * Step name uniqueness is left to the schema index: checking first is a race
  * two concurrent additions both win.
+ *
+ * Proof: retired-helper-classifyProjectWriteIn; reintroduced the retired callable.
+ * 'does not expose the retired server role helper classifyProjectWriteIn' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-method-admitEditInOrganization; reintroduced the retired callable.
+ * 'does not expose the retired role-authorized project admission API' (organization-audit.db.test.ts) failed; restored GREEN, 2026-11-10.
  */
 export class ProjectRepository implements ProjectStore {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
+    /** Borrowed catalogs already hold their source's immediate transaction; public edits own one. */
+    private readonly writeScope: 'owned' | 'borrowed' = 'owned',
   ) {}
 
   // `async` is load-bearing rather than decorative: `db.transaction` is
@@ -1044,16 +1050,20 @@ export class ProjectRepository implements ProjectStore {
   }
 
   /**
-   * {@link update} confined to one organization: the ownership predicate is in
-   * the UPDATE itself, so a project that is not, or is no longer, the
-   * organization's answers null and is left unchanged.
+   * Rechecks current principal grants and membership in the owning write
+   * transaction. Missing, foreign and invisible projects answer null; readable
+   * settings denials answer forbidden. Only an authorized exact flag-clear
+   * recovery writes an audit alongside the update. The detached editor
+   * principal is retained before its queued owner; compatibility labels supply no authority.
+   *
+   * The ownership predicate remains in the UPDATE itself, so a target outside
+   * the addressed organization is left unchanged.
    *
    * Proof: dropping the predicate made `records an open and a write only while
    * the organization owns the project` in `project.db.test.ts` answer the
    * renamed foreign project instead of null; watched 2026-09-27.
-   */
-  /**
-   * Proof, each watched 2026-09-27: skipping the audit insert made `recovers
+   *
+   * Historical proof, each watched 2026-09-27: skipping the audit insert made `recovers
    * a restricted project as an audited super-admin edit` in
    * `project-organization.controller.db.test.ts` find no record; classifying
    * from the caller's earlier read instead of in the transaction made
@@ -1068,10 +1078,48 @@ export class ProjectRepository implements ProjectStore {
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string,
-    editor: { readonly actorId: string; readonly auditId: string; readonly role: OrganizationRole },
+    editor: {
+      readonly actorId: string;
+      readonly auditId: string;
+      readonly principal: ScopedPrincipal;
+    },
   ): Promise<Project | null | 'forbidden' | 'solution_taken' | 'abbreviation_taken'> {
+    editor = {
+      ...editor,
+      principal: structuredClone({
+        id: editor.principal.id,
+        authentication: editor.principal.authentication,
+      }),
+    };
     try {
-      return await this.write(id, patch, stamp, organizationId, editor);
+      if (this.writeScope === 'borrowed')
+        return await this.write(id, patch, stamp, organizationId, editor);
+      return await this.gate.enter(async () => {
+        const transaction = drizzleOuterTransaction(this.db);
+        transaction.begin();
+        try {
+          const written = await new ProjectRepository(this.db, OPEN, 'borrowed').write(
+            id,
+            patch,
+            stamp,
+            organizationId,
+            editor,
+          );
+          transaction.commit();
+          return written;
+        } catch (failure) {
+          try {
+            transaction.rollback();
+          } catch (rollbackFailure) {
+            throw new AggregateError(
+              [failure, rollbackFailure],
+              'project edit and rollback failed',
+              { cause: rollbackFailure },
+            );
+          }
+          throw failure;
+        }
+      });
     } catch (refused) {
       // The modeled refusals, raised inside the transaction so it rolls back.
       if (refused instanceof EditRefused) return 'forbidden';
@@ -1083,58 +1131,6 @@ export class ProjectRepository implements ProjectStore {
     }
   }
 
-  /**
-   * Runs as a savepoint inside the caller's unit of work, whose `BEGIN
-   * IMMEDIATE` holds the write lock from before this read until the batch
-   * commits or rolls back, the audit record with it. The record is dated by
-   * this adapter, not a service clock: the unit of work hands its act no
-   * clock.
-   *
-   * Proof, watched 2026-09-28: skipping the audit insert made `records one
-   * recovery by a super-admin of a restricted project, keeping its creator`
-   * and `fails when its audit record cannot be written` in
-   * `organization-audit.db.test.ts` fail, and `recovers a restricted project
-   * through a batch, undo and redo, one record each` in
-   * `command-organization.controller.db.test.ts` find no record.
-   */
-  async admitEditInOrganization(
-    projectId: string,
-    organizationId: string,
-    actorId: string,
-    detail: RecoveryAuditDetail,
-    role: OrganizationRole,
-  ): Promise<'ordinary' | 'recovery' | 'forbidden' | null> {
-    const addressed = and(
-      eq(project.id, projectId),
-      inArray(
-        project.id,
-        this.db
-          .select({ id: projectOrganization.resourceId })
-          .from(projectOrganization)
-          .where(eq(projectOrganization.organizationId, organizationId)),
-      ),
-    );
-    return await this.gate.enter(async () => {
-      await Promise.resolve();
-      return this.db.transaction((tx) => {
-        const classified = classifyWithin(tx, addressed, organizationId, actorId, role);
-        if (classified === null) return null;
-        if (classified === 'refused') return 'forbidden';
-        if (classified === 'recovery') {
-          recordRecovery(tx, {
-            id: crypto.randomUUID(),
-            organizationId,
-            actorId,
-            projectId,
-            detail,
-            at: Date.now(),
-          });
-        }
-        return classified;
-      });
-    });
-  }
-
   private async write(
     id: string,
     patch: ProjectPatch,
@@ -1143,7 +1139,7 @@ export class ProjectRepository implements ProjectStore {
     editor: {
       readonly auditId: string;
       readonly actorId: string;
-      readonly role: OrganizationRole;
+      readonly principal: ScopedPrincipal;
     } | null = null,
   ): Promise<Project | null> {
     const addressed =
@@ -1160,6 +1156,27 @@ export class ProjectRepository implements ProjectStore {
             ),
           );
     return await this.gate.enter(async () => {
+      let authorization: { recovery: boolean } | null = null;
+      if (editor !== null && organizationId !== null) {
+        if (editor.principal.id !== editor.actorId)
+          throw new Error('project editor principal differs from its actor');
+        const current = await this.findInOrganization(id, organizationId);
+        if (current === null) return null;
+        const decision = await authorizePackageSettings(
+          new AccessDecisionRepository(this.db),
+          editor.principal,
+          organizationId,
+          current,
+          patch,
+        );
+        // Proof: raw-project-current-denial skipped this guard; 'refuses a readable project without settings permission in the independent writer' returned a written project instead of forbidden (project.db.test.ts); restored GREEN, 2026-11-09.
+        if (!decision.ok) {
+          // Proof: raw-project-hidden-decision removed this arm and 'conceals an owned hidden project exactly like an absent target in the independent writer' received forbidden instead of null (project.db.test.ts); restored GREEN, 2026-11-09.
+          if (decision.reason === 'not_found') return null;
+          throw new EditRefused();
+        }
+        authorization = decision;
+      }
       // An empty patch would make drizzle emit `SET` with no assignments, which
       // SQLite rejects — so a request that changes nothing reads instead.
       // Read off the patch rather than from a list of its fields: the list was
@@ -1198,21 +1215,7 @@ export class ProjectRepository implements ProjectStore {
       };
       return this.db.transaction(
         (tx) => {
-          let edit: 'ordinary' | 'recovery' = 'ordinary';
-          if (editor !== null && organizationId !== null) {
-            const classified = classifyWithin(
-              tx,
-              addressed,
-              organizationId,
-              editor.actorId,
-              editor.role,
-            );
-            // Not the organization's (any more): null, as for an absent project,
-            // before any permission is judged.
-            if (classified === null) return null;
-            if (classified === 'refused') throw new EditRefused();
-            edit = classified;
-          }
+          const edit = authorization?.recovery === true ? 'recovery' : 'ordinary';
           if (abbreviation !== undefined) {
             const current = readProjectAbbreviation(tx, id);
             if (current === undefined) return null;
@@ -1468,71 +1471,6 @@ export class ProjectRepository implements ProjectStore {
 
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 
-/** Classifies a dependent write from an already open SQLite write transaction. */
-export function classifyProjectWriteIn(
-  tx: Transaction,
-  projectId: string,
-  organizationId: string,
-  actorId: string,
-  role: OrganizationRole,
-): 'ordinary' | 'recovery' | 'refused' | null {
-  // Proof: dropping the organization predicate made the store-path foreign
-  // Retry answer forbidden instead of not_found; watched 2026-09-28.
-  return classifyWithin(
-    tx,
-    and(
-      eq(project.id, projectId),
-      inArray(
-        project.id,
-        tx
-          .select({ id: projectOrganization.resourceId })
-          .from(projectOrganization)
-          .where(eq(projectOrganization.organizationId, organizationId)),
-      ),
-    ),
-    organizationId,
-    actorId,
-    role,
-  );
-}
-
-/**
- * `actorId`'s write to the project `addressed` selects, classified from the
- * membership and project as `tx` reads them, capped by the authenticated `role`
- * (see `classifyProjectEdit`):
- * null when the organization does not own the project.
- */
-function classifyWithin(
-  tx: Transaction,
-  addressed: SQL | undefined,
-  organizationId: string,
-  actorId: string,
-  role: OrganizationRole,
-): 'ordinary' | 'recovery' | 'refused' | null {
-  const current = tx
-    .select({ restricted: project.restricted, ownerId: project.ownerId })
-    .from(project)
-    .where(addressed)
-    .get();
-  if (current === undefined) return null;
-  const membership = tx
-    .select({ role: organizationMembership.role })
-    .from(organizationMembership)
-    .where(
-      and(
-        eq(organizationMembership.organizationId, organizationId),
-        eq(organizationMembership.userId, actorId),
-      ),
-    )
-    .get();
-  if (membership === undefined) return 'refused';
-  return classifyProjectEdit(current, {
-    organizationId,
-    userId: actorId,
-    role: capStoredRole(storedRole(membership.role, organizationId), role),
-  });
-}
-
 /** Appends one recovery record to `tx`, so it commits or rolls back with the write. */
 export function recordRecovery(
   tx: Transaction,
@@ -1559,7 +1497,7 @@ export function recordRecovery(
     .run();
 }
 
-/** An organization edit its in-transaction classification refused; rolls the write back. */
+/** A readable organization edit refused by its current grant check; rolls back the write. */
 class EditRefused extends Error {
   constructor() {
     super('the edit is not permitted to this member now');
@@ -1573,21 +1511,6 @@ class SolutionTaken extends Error {
     super('another project of this organization holds that solution slug');
     this.name = 'SolutionTaken';
   }
-}
-
-/**
- * A stored membership role, checked rather than trusted: an unknown role
- * reaching the classification must never be read as a privileged one.
- *
- * @throws for a role outside {@link ORGANIZATION_ROLES}.
- */
-function storedRole(role: string, organizationId: string): OrganizationRole {
-  const known: readonly string[] = ORGANIZATION_ROLES;
-  if (!known.includes(role)) {
-    throw new Error(`membership in organization "${organizationId}" has a malformed role`);
-  }
-  // Narrowed by the membership test above, which is the boundary this is.
-  return role as OrganizationRole;
 }
 
 /** Rolls back creation when its bounded name family has no available address. */

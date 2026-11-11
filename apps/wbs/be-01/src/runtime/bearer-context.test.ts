@@ -141,8 +141,9 @@ test('refuses direct issuance before activation, without membership, or from a d
         Promise.resolve({
           ok: true,
           access: {
+            principal: { id: 'ada' },
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
           },
         }),
     },
@@ -157,8 +158,9 @@ test('refuses direct issuance before activation, without membership, or from a d
         Promise.resolve({
           ok: true,
           access: {
+            principal: { id: 'ada' },
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
           },
         }),
     },

@@ -5,7 +5,13 @@ import { useEffect, useState } from 'react';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 import { cn } from '@/lib/utils';
 
-import { ROLE_NAMES } from './members-panel';
+/** Compatibility labels for the existing organization switcher contract until task2.4b. */
+const ROLE_NAMES: Record<Membership['role'], string> = {
+  super_admin: 'Super-admin',
+  admin: 'Admin',
+  member: 'Member',
+  viewer: 'Viewer',
+};
 
 const choices = browserClient([listOrganizationMemberships]);
 

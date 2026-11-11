@@ -3,15 +3,14 @@ import {
   type AuthenticatedUser,
   type AuthMethodId,
   authMethodOfSubject,
-  type CredentialAuthentication,
   isUnderMcpAuthorizationServer,
   type OidcIdentity,
 } from '@wbs/contracts';
 import {
   admitMachineCredential,
   type GrantableMachineSource,
+  MACHINE_SCOPES,
   type MachineActor,
-  type OrganizationRole,
 } from '@wbs/domain';
 
 import type { User } from '../../ports/account-values';
@@ -19,7 +18,6 @@ import type { MachineCredentials } from '../../ports/machine-credentials';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
 import type { PasswordHasher, TokenCodec } from '../../ports/runtime';
 import type { TrustedIssuerTokens } from '../../ports/trusted-issuers';
-import { machineGrantScopesOf } from '../../service/machine-grant';
 import { digestMachineSecret, type MachineKey, parseMachineKey } from '../../service/machine-key';
 import type { AccountResource } from './account.resource';
 
@@ -164,6 +162,9 @@ const MAX_PASSWORD = 200;
  * `register` and the first OIDC login pass the id they are about to mint as the
  * stamp's actor, so the account is its own author. Every other service is
  * handed an actor by its controller.
+ *
+ * Proof: retired-helper-organizationRoleOf; reintroduced the retired callable.
+ * 'does not expose the retired server role helper organizationRoleOf' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
  */
 export class AuthService {
   constructor(private readonly opts: AuthServiceOptions) {}
@@ -453,6 +454,8 @@ export class AuthService {
       now,
     );
     if (admission.kind === 'refused') return admission.refusal;
+    // Proof: api_key-account-order; moved nonmember refusal before required account lookup.
+    // 'throws for a missing api_key account before a nonmember refusal' (machine-key.test.ts) failed; restored GREEN, 2026-11-10.
     const account = await this.opts.account.readAccount(admission.actor.accountId);
     // Proof: answering unknown_identity here made `throws when the admitted
     // credential's account does not exist` (machine-key.test.ts) resolve;
@@ -465,7 +468,9 @@ export class AuthService {
     // non-member key alike, recording no use` (be-01
     // machine-grant.controller.db.test.ts) saw the non-member's last use
     // recorded; watched 2026-10-26.
-    if (admission.actor.accountRole === null) return 'unknown_identity';
+    // Proof: api_key-current-member; bypassed current membership refusal.
+    // 'refuses a nonmember api_key from current membership identity over HTTP without recording use' (machine-grant.controller.db.test.ts) failed; restored GREEN, 2026-11-10.
+    if (!admission.actor.accountIsMember) return 'unknown_identity';
     // Proof: with this rejection caught and dropped, `fails as a server error
     // when its last use cannot be recorded` in
     // `machine-credential.controller.db.test.ts` failed; watched 2026-10-22,
@@ -544,9 +549,9 @@ export class AuthService {
    * {@link admitMachineCredential}'s `grant` variant (revocation, binding,
    * membership and pool expiry), the account read for its username, the use
    * recorded coarsely. The principal is {@link machinePrincipalOf}'s, with the
-   * grant's run when it has one (M6, M15), and scopes derived from the reread
-   * role alone ({@link machineGrantScopesOf}). Nothing about the grant is
-   * consumed: it is reusable until its `exp`.
+   * grant's run when it has one (M6, M15), and a fresh fixed
+   * {@link MACHINE_SCOPES} envelope. Current own grants and the contributor
+   * permission cap decide operations. The grant remains reusable until exp.
    *
    * @throws when machine credentials are not wired, when the admitted
    * credential's account does not exist, and on every store failure.
@@ -554,6 +559,9 @@ export class AuthService {
   async admitMachineGrant(
     grant: PresentedMachineGrant,
   ): Promise<AuthenticatedUser | 'unknown_identity'> {
+    // Proof: grant-run-snapshot; reread mutable grant.runId after credential lookup.
+    // 'retains the verified machine grant run before credential lookup awaits' (machine-key.test.ts) failed; restored GREEN, 2026-11-10.
+    const runId = grant.runId;
     const machines = this.opts.machineKeys;
     if (machines === undefined)
       throw new Error('a machine grant was presented but machine credentials are not wired');
@@ -569,17 +577,23 @@ export class AuthService {
     );
     if (admission.kind === 'refused') return admission.refusal;
     const { actor } = admission;
-    // A grant admission refuses a non-member account, so the role is read.
-    if (actor.accountRole === null)
-      throw new Error(`machine credential ${actor.credentialId} was admitted without a role`);
+    // Grant-proof admission already requires current membership before account lookup.
+    // Proof: grant-admission-coherence; removed trusted admitted-member coherence.
+    // 'throws when trusted machine admission returns a nonmember actor' (machine-key.test.ts) failed; restored GREEN, 2026-11-10.
+    if (!actor.accountIsMember)
+      throw new Error(`machine credential ${actor.credentialId} was admitted without membership`);
     const account = await this.opts.account.readAccount(actor.accountId);
     if (account === null)
       throw new Error(`machine credential ${actor.credentialId} acts as a missing account`);
     if ((await machines.credentials.touchLastUsed(actor.credentialId, now)) === 'absent')
       return 'unknown_identity';
     return {
-      ...machinePrincipalOf(actor, account.username, grant.runId),
-      scopes: [...machineGrantScopesOf(actor.accountRole)],
+      ...machinePrincipalOf(actor, account.username, runId),
+      // Proof: machine-consume-envelope; narrowed the fresh envelope to read only.
+      // 'writes with a viewer-bound credential own package grant over actual HTTP' (machine-grant.controller.db.test.ts) failed; restored GREEN, 2026-11-10.
+      // Proof: machine-consume-fresh-array; returned shared MACHINE_SCOPES instead of a fresh array.
+      // 'keeps later machine authentication independent of a previously returned scope array' (machine-key.test.ts) failed; restored GREEN, 2026-11-10.
+      scopes: [...MACHINE_SCOPES],
     };
   }
 
@@ -689,6 +703,8 @@ export class AuthService {
       now,
     );
     if (admission.kind === 'refused') return admission.refusal;
+    // Proof: oidc-account-order; moved nonmember refusal before required account lookup.
+    // 'throws for a missing oidc account before a nonmember refusal' (machine-key.test.ts) failed; restored GREEN, 2026-11-10.
     const account = await this.opts.account.readAccount(admission.actor.accountId);
     if (account === null)
       throw new Error(
@@ -697,7 +713,9 @@ export class AuthService {
     // Proof: with this refusal removed, `refuses a non-member's assertion
     // unknown_identity, recording no use` (be-01 machine-grant.controller.db.test.ts)
     // saw the last use recorded; watched 2026-10-26.
-    if (admission.actor.accountRole === null) return 'unknown_identity';
+    // Proof: oidc-current-member; bypassed current membership refusal.
+    // 'refuses a nonmember oidc from current membership identity over HTTP without recording use' (machine-grant.controller.db.test.ts) failed; restored GREEN, 2026-11-10.
+    if (!admission.actor.accountIsMember) return 'unknown_identity';
     // As on the API-key path: a removal committed since admission.
     if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
       return 'unknown_identity';
@@ -740,18 +758,14 @@ async function isForeignIssuerToken(
  * organization as a direct context so `resolve` never answers
  * `no_active_organization` for it and every organization administration
  * route refuses it `insufficient_scope` as it refuses a delegation, and
- * pinned to the credential's person for the claim rules. In its organization
- * it holds at most `member` ({@link organizationRoleOf}, A23), so it never
- * gains the bound account's administration.
+ * pinned to the credential's person for the claim rules. Its own grants are
+ * bounded by the contributor permission cap; it never borrows account grants.
  *
  * `runId` is a machine grant's opted-in run (`wbs-mcp-agent-surface` M15),
  * null for a grant without one: that principal carries no run, so its
  * renewal and claims are the person's (M6 parity).
  *
- * The one place the acting account is decided, with
- * {@link organizationRoleOf} beside it: A12 is the assumption most likely to
- * be overruled (a machine account per credential is the recorded
- * alternative), and that change belongs here alone.
+ * This is the one place the credential's current bound acting account is projected.
  */
 export function machinePrincipalOf(
   actor: MachineActor,
@@ -775,35 +789,6 @@ export function machinePrincipalOf(
       ...(runId === null ? {} : { runId }),
     },
   };
-}
-
-/**
- * The organization role a principal acts with, from its membership's stored
- * role (`wbs-machine-credentials` A23): a machine credential, and an MCP
- * consent delegation acting as an agent person (A20), is a `member` of its
- * organization whatever role the bound account holds — never `admin` or
- * `super_admin`, so no claim-admin bypass, no person binding, no member or
- * settings administration — and a `viewer` account's machine stays a viewer.
- * Every other principal keeps its stored role. `resolve` applies it to the
- * scope it answers.
- *
- * Proof: answering the stored role for a machine made `refuses patchPerson to
- * an admin-bound key`, `refuses an admin-bound key a person bound to another
- * account` and `gives a super-admin-bound key no claim-admin bypass`
- * (`machine-credential.controller.db.test.ts`) fail; watched 2026-10-22, and
- * again for `a key pinned to one person, through mcp-01` on 2026-10-29.
- * Proof: with `consent` left out, `a consent session's tool call claims as
- * its agent, never with the human's reach` (mcp-01
- * `organization-delegation.boot.test.ts`) answered the claim for the unbound
- * `loose` `credential_not_for_person` (the super-admin bypass passed it on)
- * instead of `person_not_bound`; watched 2026-10-22.
- */
-export function organizationRoleOf(
-  role: OrganizationRole,
-  authentication: CredentialAuthentication | undefined,
-): OrganizationRole {
-  if (authentication?.kind !== 'machine' && authentication?.kind !== 'consent') return role;
-  return role === 'viewer' ? 'viewer' : 'member';
 }
 
 /**

@@ -1,6 +1,8 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
+import type { Permission } from '@wbs/domain';
+import { canEditProject } from '@wbs/domain';
 
-import { mayEditProjectWithin, type ResourceAccess } from '../../ports/organization-access';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectService } from '../project/project.resource';
 import type {
@@ -11,7 +13,7 @@ import type {
 import { SavedPlanCaptureRefusal } from './saved-plans.feature';
 
 export interface SavePlanGraph {
-  readonly projects: Pick<ProjectService, 'readWithin'>;
+  readonly projects: Pick<ProjectService, 'readWithin' | 'authorizeWrite'>;
   readonly plans: Pick<SavedPlanService, 'save'>;
   readonly announcements: Pick<Broadcaster, 'publish'>;
 }
@@ -26,7 +28,10 @@ export interface SavePlanInput {
 
 export type SavedPlanUseCaseOutcome =
   | SavedPlanSaveOutcome
-  | { readonly outcome: 'not_found' | 'forbidden' | 'insufficient_scope' }
+  | {
+      readonly outcome: 'not_found' | 'forbidden' | 'insufficient_scope';
+      readonly permission?: Permission;
+    }
   | { readonly outcome: 'access_refused'; readonly refusal: SavedPlanCaptureRefusal['refusal'] };
 
 /** Identifies a failure from the saved-plan write so transports classify only that boundary. */
@@ -42,6 +47,7 @@ export async function savePlan(
   graph: SavePlanGraph,
   input: SavePlanInput,
 ): Promise<SavedPlanUseCaseOutcome> {
+  input = structuredClone(input);
   if (!input.actor.scopes.includes('write')) return { outcome: 'insufficient_scope' };
   // Proof: reading the project unscoped made `answers 404 alike for a foreign
   // and an absent project on every saved-plan and history route` in
@@ -49,16 +55,20 @@ export async function savePlan(
   // project; watched 2026-09-27.
   const found = await graph.projects.readWithin(input.projectId, input.access);
   if (found === null) return { outcome: 'not_found' };
-  if (
-    !mayEditProjectWithin(found.project, input.actor.id, input.access) &&
-    !(
-      input.access.kind === 'scoped' &&
-      input.access.scope.userId === input.actor.id &&
-      input.access.scope.role === 'super_admin'
-    )
-  ) {
-    return { outcome: 'forbidden' };
-  }
+  if (input.access.kind === 'scoped') {
+    const decision = await graph.projects.authorizeWrite(
+      input.projectId,
+      input.actor.id,
+      input.access,
+    );
+    if (!decision.ok)
+      return {
+        outcome: decision.reason,
+        ...(decision.reason === 'forbidden' ? { permission: decision.permission } : {}),
+      };
+    // Proof: legacy-save-plan; bypassed the legacy creator refusal.
+    // 'refuses read-only, wrong-owner, and absent-project calls before save' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+  } else if (!canEditProject(found.project, input.actor.id)) return { outcome: 'forbidden' };
   const request: SavedPlanSaveRequest = {
     projectId: input.projectId,
     ...(input.name === undefined ? {} : { name: input.name }),
@@ -70,7 +80,7 @@ export async function savePlan(
           scoped: {
             organizationId: input.access.scope.organizationId,
             actorId: input.actor.id,
-            role: input.access.scope.role,
+            principal: input.access.principal,
             operation: 'save' as const,
           },
         }

@@ -11,7 +11,7 @@ beforeEach(async () => {
   h = OrganizationHarness.openComposed();
   await h.register('ada');
   h.organization('org-a');
-  h.member('org-a', 'ada', 'admin');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
   h.bind('ada', 'org-a');
   h.activate();
   const created = await h.call('ada', 'POST', '/api/projects', { name: 'Runtime' });
@@ -213,14 +213,17 @@ async function createClaimRequestAfterAuthority(ledgerId: string) {
     },
   };
 }
-test('current role and person binding refuse before historical replay, and foreign projects match absence', async () => {
+test('current grant and person binding refuse before historical replay, and foreign projects match absence', async () => {
   const { request, observation } = await acquireAuthority();
   h.sqlite.run("UPDATE organization_membership SET role = 'viewer' WHERE user_id = ?", [
     h.userId('ada'),
   ]);
+  h.sqlite.run("UPDATE access_grant SET role_id='org-viewer' WHERE subject_id=?", [
+    h.userId('ada'),
+  ]);
   expect(
     await h.call('ada', 'POST', `/api/projects/${projectId}/runtime-authority`, request),
-  ).toEqual({ status: 403, body: { error: 'forbidden' } });
+  ).toEqual({ status: 403, body: { error: 'forbidden', permission: 'package.write' } });
   expect(
     (
       await h.call(
@@ -233,11 +236,14 @@ test('current role and person binding refuse before historical replay, and forei
   h.sqlite.run("UPDATE organization_membership SET role = 'member' WHERE user_id = ?", [
     h.userId('ada'),
   ]);
+  h.sqlite.run("UPDATE access_grant SET role_id='project-contributor' WHERE subject_id=?", [
+    h.userId('ada'),
+  ]);
   expect(
     await h.call('ada', 'POST', `/api/projects/${projectId}/runtime-authority`, request),
-  ).toEqual({ status: 403, body: { error: 'person_not_bound' } });
+  ).toEqual({ status: 403, body: { error: 'forbidden', permission: 'package.claim_for_others' } });
   h.organization('org-b');
-  h.member('org-b', 'ada', 'admin');
+  h.member('org-b', 'ada', 'admin', ['org-admin']);
   h.bind('ada', 'org-b');
   const foreign = await h.call(
     'ada',
@@ -429,7 +435,10 @@ import { runMigrations } from '../repository/migrate';
 test('unused rollback and valid reinstall change the pin before replay or absence', async () => {
   const old = await readState();
   const folder = new URL('../../drizzle', import.meta.url).pathname;
+  h.sqlite.run("DELETE FROM access_grant WHERE origin='route'");
   expect(rollbackTo(h.databasePath(), folder, '20261020130000_add_claim_occupancy')).toEqual([
+    '20261103110000_add_initial_access_offers',
+    '20261102130000_widen_organization_audit_access',
     '20261102120000_add_access_grants',
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',

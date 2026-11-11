@@ -13,7 +13,8 @@ async function open(mode: 'isolated' | 'shared', days: number) {
   seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
   harness.organization('calendar-org');
-  harness.member('calendar-org', 'ada', 'member');
+  harness.member('calendar-org', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('calendar-org', 'ada', ['organization.create_project']);
   harness.bind('ada', 'calendar-org');
   harness.activate();
   harness.sqlite.run('UPDATE organization SET shared_people=? WHERE id=?', [

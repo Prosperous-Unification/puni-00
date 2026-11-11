@@ -91,6 +91,7 @@ export interface ServicesOptions {
 }
 
 export interface BeServices extends AccountfulServices {
+  readonly accessDecisions: PlanTransactionalStores['accessDecisions'];
   readonly commandAccess: CommandAccess;
   readonly optimizer: OptimizationCoordinator | undefined;
   readonly optimizationLifecycle: OptimizationLifecycle;
@@ -323,6 +324,7 @@ export function buildServices(options: ServicesOptions): BeServices {
   if (publicRanks === undefined) throw new Error('SQLite source omitted its public rank store');
   return {
     ...graph,
+    accessDecisions: boundSource.stores.accessDecisions,
     commandAccess: options.commandAccess,
     optimizer: coordinator,
     // Proof: omitting the unconditional binding left the mounted lifecycle
@@ -330,11 +332,21 @@ export function buildServices(options: ServicesOptions): BeServices {
     optimizationLifecycle,
     gate: source.gate,
     projectRanks: {
-      ...standaloneRankStore(publicRanks, boundSource.uow, graph.committedFanout),
+      ...standaloneRankStore(
+        publicRanks,
+        boundSource.uow,
+        graph.committedFanout,
+        options.commandAccess,
+      ),
       // Proof: binding the raw repository here instead made the mounted
       // demoted-switch and every-project cases in
       // `capacity-mode.controller.db.test.ts` fail; watched 2026-10-11.
-      ...standaloneCapacityModeSwitch(publicRanks, boundSource.uow, graph.committedFanout),
+      ...standaloneCapacityModeSwitch(
+        publicRanks,
+        boundSource.uow,
+        graph.committedFanout,
+        options.commandAccess,
+      ),
     },
   };
 }

@@ -128,6 +128,7 @@ export type {
 } from './ports/saved-plan-store';
 export * from './ports/scheduler';
 export * from './ports/scim-users';
+export * from './ports/security-principal';
 export * from './ports/session-policies';
 export * from './ports/source';
 export * from './ports/space-store';
@@ -142,6 +143,7 @@ export * from './ports/work-item-store';
 export type { WriteStamp } from './ports/write-stamp';
 export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime/deadline';
 export * from './service/auth.service';
+export * from './service/authorize';
 export * from './service/compensating';
 export * from './service/directory-usage';
 export * from './service/machine-grant';

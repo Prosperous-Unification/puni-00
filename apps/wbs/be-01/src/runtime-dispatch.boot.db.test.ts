@@ -105,7 +105,7 @@ async function runIntegration(
   try {
     await awaitPhase(harness.register('ada'), 'register');
     harness.organization('org-a');
-    harness.member('org-a', 'ada', 'admin');
+    harness.member('org-a', 'ada', 'admin', ['org-admin']);
     harness.bind('ada', 'org-a');
     harness.activate();
     const created = await awaitPhase(

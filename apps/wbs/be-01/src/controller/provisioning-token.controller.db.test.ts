@@ -24,8 +24,10 @@ beforeEach(async () => {
   h.organization('org-a');
   h.organization('org-b');
   h.member('org-a', 'ada', 'super_admin');
+  h.grantPermissions('org-a', 'ada', ['organization.manage_security']);
   h.member('org-a', 'sam', 'admin');
   h.member('org-b', 'bob', 'super_admin');
+  h.grantPermissions('org-b', 'bob', ['organization.manage_security']);
   h.bind('ada', 'org-a');
   h.bind('sam', 'org-a');
   h.bind('bob', 'org-b');
@@ -213,7 +215,7 @@ describe('provisioning-token administration', () => {
     ] as const)
       expect(await h.call('sam', method, path)).toEqual({
         status: 403,
-        body: { error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.manage_security' },
       });
     expect({ tokens: tokenRows(), audits: auditRows() }).toEqual(before);
   });
@@ -257,6 +259,7 @@ it('refuses provisioning-token administration before activation', async () => {
     await inert.register('ada');
     inert.organization('org-a');
     inert.member('org-a', 'ada', 'super_admin');
+    inert.grantPermissions('org-a', 'ada', ['organization.manage_security']);
     inert.bind('ada', 'org-a');
     seedConnection(inert, {
       organizationId: 'org-a',

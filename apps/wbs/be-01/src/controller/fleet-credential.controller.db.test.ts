@@ -44,8 +44,9 @@ beforeEach(async () => {
   h = openHarness();
   for (const username of ['dany', 'mem']) await h.register(username);
   h.organization('org-a');
-  h.member('org-a', 'dany', 'admin');
-  h.member('org-a', 'mem', 'member');
+  h.member('org-a', 'dany', 'admin', ['org-admin']);
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'mem', ['organization.create_project']);
   h.bind('dany', 'org-a');
   h.bind('mem', 'org-a');
   h.activate();

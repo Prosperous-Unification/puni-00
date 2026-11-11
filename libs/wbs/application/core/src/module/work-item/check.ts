@@ -17,6 +17,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
   const bag = DiBag.createBuilder()
     .withInstalledModules([workItemModule])
     .withServices({
+      accessDecisions: DiBag.createProvider(() => requirements.accessDecisions, {
+        factoryReturnKind: 'sync-value',
+      }),
       livePlans: DiBag.createProvider(() => requirements.livePlans, {
         factoryReturnKind: 'sync-value',
       }),

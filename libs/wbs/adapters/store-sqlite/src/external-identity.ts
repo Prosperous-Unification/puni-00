@@ -137,7 +137,8 @@ export class ExternalIdentityRepository {
   }
 }
 
-type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+// A borrowed identity writer needs queries and mutations, never a second native transaction owner.
+type Transaction = Pick<SQLiteBunDatabase, 'select' | 'insert' | 'update' | 'all'>;
 
 /**
  * {@link ExternalIdentityRepository.linkIdentity} inside the caller's

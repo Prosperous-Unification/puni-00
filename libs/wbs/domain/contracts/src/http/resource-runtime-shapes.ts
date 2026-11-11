@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -134,7 +135,19 @@ const refusals = [
     ),
   },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        // Proof: runtime-permission-schema-field.
+        // The recorded fault broke `validates the runtime resource refusal against the full permission catalogue`; restored GREEN.
+        // Proof: runtime-permission-schema-vocabulary.
+        // The recorded fault broke `validates the runtime resource refusal against the full permission catalogue`; restored GREEN.
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
   {
     status: 403,
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),

@@ -609,7 +609,7 @@ describe('Optimization SQLite adapter', () => {
     }
   });
 
-  it('refuses a member-ceiling Retry for a stored super-admin without writes', async () => {
+  it('refuses restricted Retry without a named package grant despite stored super-admin', async () => {
     const { db, log, key } = fixture();
     db.run(
       sql.raw(
@@ -628,6 +628,11 @@ describe('Optimization SQLite adapter', () => {
       ),
     );
     db.run(sql.raw("UPDATE project SET restricted = 1 WHERE id = 'p-1'"));
+    db.run(
+      sql.raw(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('sam-read','org-a','organization','org-a','user','sam','org-super-admin','route',1)",
+      ),
+    );
     const snapshot = () =>
       ['solver_slot', 'optimization_generation', 'organization_audit', 'event_log'].map((table) =>
         db.all(sql.raw(`SELECT * FROM ${table} ORDER BY rowid`)),
@@ -641,10 +646,14 @@ describe('Optimization SQLite adapter', () => {
           ownerId: 'green',
           now: 21,
           attemptToken: () => 'outside-cap',
-          scoped: { organizationId: 'org-a', actorId: 'sam', role: 'member' },
+          scoped: {
+            principal: { id: 'sam' },
+            organizationId: 'org-a',
+            actorId: 'sam',
+          },
         })
         .then(decisionOf),
-    ).toEqual({ kind: 'forbidden' });
+    ).toEqual({ kind: 'forbidden', permission: 'package.manage_settings' });
     expect(snapshot()).toEqual(before);
   });
 
@@ -667,6 +676,11 @@ describe('Optimization SQLite adapter', () => {
       ),
     );
     db.run(sql.raw("UPDATE project SET restricted = 1 WHERE id = 'p-1'"));
+    db.run(
+      sql.raw(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('sam-retry','org-a','work_package','p-1','user','sam','package-manager','route',1)",
+      ),
+    );
     const gate = new WriteCoordinator();
     const repository = createOptimizationRepository(db, log, gate);
     const slot = {
@@ -716,7 +730,11 @@ describe('Optimization SQLite adapter', () => {
           ownerId: 'green',
           now: 21,
           attemptToken: () => 'retry',
-          scoped: { organizationId: 'org-a', actorId: 'sam', role: 'super_admin' as const },
+          scoped: {
+            principal: { id: 'sam' },
+            organizationId: 'org-a',
+            actorId: 'sam',
+          },
         })
         .then(decisionOf),
     ).then((decision) => {
@@ -731,9 +749,7 @@ describe('Optimization SQLite adapter', () => {
     expect(db.all(sql.raw('SELECT attempt_token FROM solver_slot'))).toEqual([
       { attempt_token: 'retry' },
     ]);
-    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([
-      { detail: '{"optimizer":"retry"}' },
-    ]);
+    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
   });
   it('projects a cache miss before reserving the captured objectives', async () => {
     const { db, log, key } = fixture();

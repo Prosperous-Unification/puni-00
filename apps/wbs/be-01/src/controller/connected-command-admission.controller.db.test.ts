@@ -1,7 +1,7 @@
 import type { DependencyRuntimeCapability } from '@wbs/contracts/dependency-runtime';
 import type { StoredTypedDependency } from '@wbs/core';
 import type { TypedDependencyStore, WritingServices } from '@wbs/core';
-import { clockOf, grantAdmission } from '@wbs/core';
+import { authorize, clockOf, grantAdmission } from '@wbs/core';
 import { commandTransaction } from '@wbs/core/module/plan-commands/composition';
 import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { createWorkingPlan } from '@wbs/core/module/plan-commands/working-plan.resource';
@@ -57,7 +57,7 @@ async function open(
   if (!dormant) seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'super_admin');
+  harness.member('org-a', 'ada', 'super_admin', ['org-super-admin']);
   harness.activate();
   const selected = await harness.request('/api/organization/active', {
     method: 'POST',
@@ -113,8 +113,14 @@ async function open(
     decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1)),
   );
   const expectedAccess = {
+    principal: { id: principal.id },
     kind: 'scoped' as const,
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+    scope: {
+      cap: null,
+      organizationId: 'org-a',
+      userId: principal.id,
+      role: 'super_admin' as const,
+    },
   };
   const input = {
     predecessor: { ...predecessor, scope: 'whole' as const },
@@ -127,7 +133,7 @@ async function open(
 async function foreignEndpoint() {
   await harness.register('grace');
   harness.organization('org-b');
-  harness.member('org-b', 'grace', 'super_admin');
+  harness.member('org-b', 'grace', 'super_admin', ['org-super-admin']);
   const selected = await harness.request('/api/organization/active', {
     method: 'POST',
     headers: {
@@ -262,15 +268,26 @@ async function semantic<T extends { readonly ok: boolean }>(
     });
     if (!resolved.ok || resolved.access.kind !== 'scoped')
       throw new Error('fixture current authority refused');
-    const admitted = await scope.stores.projects.admitEditInOrganization(
+    const project = await scope.stores.projects.findInOrganization(
       fixture.owner.projectId,
-      'org-a',
-      fixture.principal.id,
-      { commands: ['addTypedDependency'] },
-      resolved.access.scope.role,
+      resolved.access.scope.organizationId,
     );
-    if (admitted === null || admitted === 'forbidden')
-      throw new Error('fixture owner admission refused');
+    if (project === null) throw new Error('fixture owner admission refused');
+    const decision = await authorize(
+      scope.stores.accessDecisions,
+      resolved.access.principal,
+      {
+        kind: 'work_package',
+        chain: {
+          level: 'work_package',
+          organizationId: resolved.access.scope.organizationId,
+          workPackageId: project.id,
+        },
+        restricted: project.restricted,
+      },
+      'package.write',
+    );
+    if (!decision.ok) throw new Error('fixture owner admission refused');
     const granted = grantAdmission(fixture.owner.projectId, fixture.principal.id);
     const projects =
       refusedProjectRead === undefined
@@ -542,10 +559,10 @@ test('an explicitly admitted semantic SQLite graph records external revisions th
   });
 });
 
-test('admitted external evidence reads a restricted predecessor without granting predecessor edit authority', async () => {
+test('admitted external evidence refuses a restricted predecessor without its write grant', async () => {
   const fixture = await open();
   await harness.register('grace');
-  harness.member('org-a', 'grace', 'member');
+  harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
@@ -566,7 +583,7 @@ test('admitted external evidence reads a restricted predecessor without granting
     await semantic(fixture, (service) =>
       service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
     ),
-  ).toMatchObject({ ok: true });
+  ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
   expect(
     harness.sqlite
       .query<{ name: string }, [string]>('SELECT name FROM work_item WHERE id=?')
@@ -676,8 +693,9 @@ for (const defect of [
     expect(response.status).toBe(malformed ? 400 : 404);
     expect(await response.json()).toMatchObject({
       error: malformed ? 'invalid_typed_endpoint' : 'not_found',
-      at: 1,
-      kind: 'addTypedDependency',
+      ...(['foreign-project', 'foreign-organization'].includes(defect)
+        ? {}
+        : { at: 1, kind: 'addTypedDependency' }),
     });
     expect(effects()).toEqual(before);
   });
@@ -2438,7 +2456,7 @@ for (const ending of ['success', 'refusal', 'throw'] as const)
         const refused = await resources.refuseOutsideScope(
           fixture.owner.projectId,
           fixture.principal.id,
-          resolved.access.scope,
+          resolved.access,
           { commands: [] },
         );
         if (refused !== null) throw new Error('fixture owner admission refused');
@@ -2494,6 +2512,7 @@ for (const missing of [false, true])
       release = resolve;
     });
     let reads = 0;
+    let observing = false;
     const pending: Promise<unknown>[] = [];
     const uow = {
       run: <T>(act: Parameters<typeof boundary.uow.run<T>>[0]) =>
@@ -2502,6 +2521,7 @@ for (const missing of [false, true])
             get(target, key) {
               if (key === 'findInOrganization')
                 return async (id: string, organizationId: string) => {
+                  if (!observing) return target.findInOrganization(id, organizationId);
                   const project = await target.findInOrganization(id, organizationId);
                   reads++;
                   enter();
@@ -2520,6 +2540,7 @@ for (const missing of [false, true])
     const transaction = commandTransaction(
       uow,
       (scope, broadcast, admission, dependencies) => {
+        observing = true;
         pending.push(
           dependencies.endpoints.readEndpoint(
             missing
@@ -2543,7 +2564,7 @@ for (const missing of [false, true])
       const refused = await resources.refuseOutsideScope(
         fixture.owner.projectId,
         fixture.principal.id,
-        resolved.access.scope,
+        resolved.access,
         { commands: [] },
       );
       if (refused !== null) throw new Error('fixture owner admission refused');
@@ -3612,7 +3633,7 @@ test('synthetic mounted external FS commits stable authority, history and connec
     deliveredAfterRelease = true;
   });
   await harness.register('grace');
-  harness.member('org-a', 'grace', 'member');
+  harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
@@ -3653,6 +3674,13 @@ test('synthetic mounted external FS commits stable authority, history and connec
   );
   expect(forbidden.status).toBe(403);
   expect(effects()).toEqual(before);
+  harness.grant(
+    'org-a',
+    'ada',
+    'package-contributor',
+    'work_package',
+    fixture.predecessor.projectId,
+  );
   pushes.length = 0;
   inspectCommit = true;
   const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
@@ -3850,7 +3878,7 @@ test('synthetic mounted external authoring conceals foreign organization endpoin
     ],
   });
   expect(refused.status).toBe(404);
-  expect(await refused.json()).toEqual({ error: 'not_found', at: 0, kind: 'addTypedDependency' });
+  expect(await refused.json()).toEqual({ error: 'not_found' });
   expect(effects()).toEqual(before);
   expect(pushes).toEqual([]);
 });
@@ -3858,7 +3886,7 @@ test('synthetic mounted external authoring conceals foreign organization endpoin
 async function nodeAuthoringFixture(synthetic?: true) {
   const fixture = await open(undefined, synthetic, undefined, synthetic === undefined);
   await harness.register('grace');
-  harness.member('org-a', 'grace', 'member');
+  harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
@@ -3875,6 +3903,13 @@ async function nodeAuthoringFixture(synthetic?: true) {
       .query("UPDATE work_item SET readiness='ready' WHERE id=?")
       .run(endpoint.workItemId);
   }
+  harness.grant(
+    'org-a',
+    'ada',
+    'package-contributor',
+    'work_package',
+    fixture.predecessor.projectId,
+  );
   const predecessorStep = workflowStep(fixture.predecessor.projectId, 'Dev');
   const successorStep = workflowStep(fixture.owner.projectId, 'Dev');
   harness.sqlite
@@ -3914,6 +3949,10 @@ for (const encoded of [false, true])
   test(`node authoring ${encoded ? 'encoded' : 'split'} remote endpoint binds staged dotted alias locally and schedules FS`, async () => {
     const fixture = await nodeAuthoringFixture(true);
     const route = `/api/projects/${fixture.owner.projectId}`;
+    harness.sqlite.run(
+      "DELETE FROM access_grant WHERE subject_id=? AND scope_kind='work_package' AND scope_id=?",
+      [fixture.principal.id, fixture.predecessor.projectId],
+    );
     const before = effects();
     const forbidden = await fixture.request(
       `/api/projects/${fixture.predecessor.projectId}/commands`,
@@ -3929,6 +3968,13 @@ for (const encoded of [false, true])
     );
     expect(forbidden.status).toBe(403);
     expect(effects()).toEqual(before);
+    harness.grant(
+      'org-a',
+      'ada',
+      'package-contributor',
+      'work_package',
+      fixture.predecessor.projectId,
+    );
     const response = await fixture.request(`${route}/commands`, {
       commands: fixture.commands(encoded),
     });

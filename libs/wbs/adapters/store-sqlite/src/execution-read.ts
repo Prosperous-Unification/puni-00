@@ -9,7 +9,7 @@ import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
-import { currentMembershipAccess } from './organization-access';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
@@ -43,13 +43,9 @@ export async function readExecutionIn(
   if ((access.kind === 'legacy') !== (activation === 'pre_activation'))
     return { kind: 'access_refused', refusal: 'no_active_organization' };
   if (access.kind === 'scoped') {
-    const membership = currentMembershipAccess(
-      db,
-      access.scope.organizationId,
-      access.scope.userId,
-    );
+    const membership = readMembershipIn(db, access.scope.organizationId, access.scope.userId);
     // Proof: bypassing current membership failed the same execution observation test (task-6-3-admission-proofs/membership.log).
-    if (!membership.ok) return { kind: 'access_refused', refusal: membership.refusal };
+    if (membership === null) return { kind: 'access_refused', refusal: 'not_a_member' };
   }
   const projects = new ProjectRepository(db, OPEN);
   // Proof: replacing scoped lookup with findById leaked b1 in `execution observation refuses foreign and absent targets alike` (task-6-3-admission-proofs/ownership.log).

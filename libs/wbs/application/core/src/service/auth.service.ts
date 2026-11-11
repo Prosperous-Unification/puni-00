@@ -17,10 +17,7 @@ export type {
   RegisterOutcome,
   SignedIn,
 } from '../module/authentication/authentication.feature';
-export {
-  organizationRoleOf,
-  TOKEN_TTL_SECONDS,
-} from '../module/authentication/authentication.feature';
+export { TOKEN_TTL_SECONDS } from '../module/authentication/authentication.feature';
 export type { AuthenticatedUser } from '@wbs/contracts';
 
 /** Legacy direct-construction options retained for adapters and tests. */

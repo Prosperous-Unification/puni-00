@@ -598,6 +598,47 @@ describe('MCP organization binding', () => {
     expect(await oauth.reportEndedConsents()).toBe(0);
   });
 
+  it('keeps a CP14-blocked family end pending while local revocation remains denied', async () => {
+    const stub: ConsentStub = {
+      mint: { kind: 'minted' },
+      end: { kind: 'blocked', reason: 'last_super_admin' },
+      now: Date.now(),
+    };
+    const { oauth, store } = fixture(ACTIVATED_WITH_AGENT, undefined, stub);
+    const { clientId, callback } = await consent(oauth);
+    const chosen = await choose(oauth, callback, { agent: '0' });
+    const access = await exchange(oauth, clientId, chosen);
+    expect(
+      (
+        await handled(
+          oauth,
+          new Request(BASE + '/revoke', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ token: access }),
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    const before = store.endedConsents(stub.now, 10);
+    expect(before).toHaveLength(1);
+    expect(await oauth.reportEndedConsents()).toEqual({
+      kind: 'blocked',
+      reason: 'last_super_admin',
+      acknowledged: 0,
+    });
+    expect(store.endedConsents(stub.now, 10)).toEqual(before);
+    const refusal: unknown = await oauth.callerSessionFor(access).then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+    expect(refusal).toBeDefined();
+    stub.end = 'acknowledged';
+    expect(await oauth.reportEndedConsents()).toBe(1);
+    expect(store.endedConsents(stub.now, 10)).toEqual([]);
+    expect(await oauth.reportEndedConsents()).toBe(0);
+  });
+
   it('ends a consent family whose credential be-01 revoked', async () => {
     const { oauth, recorded } = fixture(ACTIVATED_WITH_AGENT, { kind: 'membership_ended' });
     const { clientId, callback } = await consent(oauth);

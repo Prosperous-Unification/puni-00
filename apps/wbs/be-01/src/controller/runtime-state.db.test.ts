@@ -21,6 +21,7 @@ import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import { SqliteCommandAccess } from '@wbs/store-sqlite/command-access';
 import { MachineCredentialRepository } from '@wbs/store-sqlite/machine-credential';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
@@ -34,8 +35,9 @@ import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits
 
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const access: ResourceAccess = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
 };
 const context: RuntimeContext = { actor, access, projectId: 'a1', personId: 'agent' };
 const stamp = { at: 2, by: 'ada' };
@@ -63,6 +65,12 @@ async function seeded() {
   });
   sqlite.db.run(
     `INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)`,
+  );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
+  );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-key','org-a','organization','org-a','machine_credential','key-1','project-contributor','route',1)",
   );
   await source.stores.directory.addPerson({ id: 'agent', name: 'Agent', kind: 'agent' }, [], stamp);
   await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent');
@@ -211,7 +219,8 @@ describe('admitted runtime observation', () => {
     await source.stores.directory.patchPerson('agent', { accountId: null }, stamp);
     expect(await runtime.captureRuntimeObservation(context)).toEqual({
       ok: false,
-      reason: 'person_not_bound',
+      reason: 'forbidden',
+      permission: 'package.claim_for_others',
     });
   });
 
@@ -248,9 +257,11 @@ describe('admitted runtime observation', () => {
     sqlite.db.run(
       `UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id='ada'`,
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-viewer' WHERE id='runtime-ada'");
     expect(await runtime.captureRuntimeObservation(context)).toEqual({
       ok: false,
       reason: 'forbidden',
+      permission: 'package.write',
     });
   });
 
@@ -260,9 +271,14 @@ describe('admitted runtime observation', () => {
     sqlite.db.run(
       `UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'`,
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     const staleAdmin: RuntimeContext = {
       ...context,
-      access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
+      access: {
+        principal: { id: 'ada' },
+        kind: 'scoped',
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
+      },
     };
     expect(await runtime.captureRuntimeObservation(staleAdmin)).toHaveProperty(
       'scope.personId',
@@ -274,6 +290,7 @@ describe('admitted runtime observation', () => {
       sqlite.db.run(
         `UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'`,
       );
+      sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
       reached.resolve(undefined);
       await released.promise;
       return { commit: true, value: undefined };
@@ -282,7 +299,11 @@ describe('admitted runtime observation', () => {
     const pending = runtime.captureRuntimeObservation(staleAdmin);
     released.resolve(undefined);
     await demotion;
-    expect(await pending).toEqual({ ok: false, reason: 'person_not_bound' });
+    expect(await pending).toEqual({
+      ok: false,
+      reason: 'forbidden',
+      permission: 'package.claim_for_others',
+    });
   });
 
   it('enforces real credential pins even for an admin', async () => {
@@ -295,6 +316,7 @@ describe('admitted runtime observation', () => {
     sqlite.db.run(
       `UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'`,
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     // A machine credential's own person is the pin (`wbs-machine-credentials` A12, A18): an
     // upstream pair pins nothing since the operator links retired.
     const pinnedTo = (personId: string): RuntimeContext => ({
@@ -356,21 +378,20 @@ describe('admitted runtime observation', () => {
     expect(failure).toMatchObject({ message: 'admitted runtime project disappeared' });
   });
 
-  it('throws for unreadable local facts and malformed current role', async () => {
+  it('ignores an unused compatibility label and throws for unreadable local facts', async () => {
     const { sqlite, runtime } = await seeded();
     sqlite.db.run(`PRAGMA ignore_check_constraints=ON`);
-    sqlite.db.run(
-      `UPDATE organization_membership SET role='invalid-role' WHERE organization_id='org-a' AND user_id='ada'`,
+    try {
+      sqlite.db.run(
+        `UPDATE organization_membership SET role='invalid-role' WHERE organization_id='org-a' AND user_id='ada'`,
+      );
+    } finally {
+      sqlite.db.run(`PRAGMA ignore_check_constraints=OFF`);
+    }
+    expect(await runtime.captureRuntimeObservation(context)).toHaveProperty(
+      'scope.personId',
+      'agent',
     );
-    const malformed = await runtime.captureRuntimeObservation(context).then(
-      () => null,
-      (cause: unknown) => cause,
-    );
-    expect(malformed).toBeInstanceOf(Error);
-    sqlite.db.run(
-      `UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'`,
-    );
-    sqlite.db.run(`PRAGMA ignore_check_constraints=OFF`);
     sqlite.db.run(`ALTER TABLE step RENAME TO unavailable_step`);
     const unreadable = await runtime.captureRuntimeObservation(context).then(
       () => null,
@@ -439,8 +460,14 @@ describe('admitted runtime observation', () => {
           },
         },
         access: {
+          principal: { id: 'ada' },
           kind: 'scoped' as const,
-          scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+          scope: {
+            cap: CONTRIBUTOR_CAP,
+            organizationId: 'org-a',
+            userId: 'ada',
+            role: 'member' as const,
+          },
         },
       };
       const reached = Promise.withResolvers<undefined>();

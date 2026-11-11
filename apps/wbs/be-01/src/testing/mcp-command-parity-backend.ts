@@ -3,7 +3,7 @@ import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 
 import { openDatabase } from '../repository/db';
-import { addAgentPerson, issueApiKey } from './machine-credential-fixture';
+import { addAgentPerson, grantCredential, issueApiKey } from './machine-credential-fixture';
 import { TEST_MACHINE_GRANT_ENV } from './machine-grant-fixture';
 import { forwardingMachineGrants, requestGrant } from './mcp-forwarded-call';
 import { OrganizationHarness } from './organization-harness';
@@ -42,7 +42,7 @@ const harness = OrganizationHarness.openComposedWith({
 if (process.env['MCP_PARITY_ACTIVE'] === 'true') seedDependencyAuthority(harness.databasePath());
 await harness.register('ada');
 harness.organization('org-a');
-harness.member('org-a', 'ada', 'super_admin');
+harness.member('org-a', 'ada', 'super_admin', ['org-super-admin']);
 harness.bind('ada', 'org-a');
 harness.activate();
 const endpoints = [];
@@ -94,6 +94,14 @@ const credential = await issueApiKey(harness.sqlite, {
   issuedBy: harness.userId('ada'),
 });
 
+grantCredential(
+  harness.sqlite,
+  'org-a',
+  credential.id,
+  'project-contributor',
+  'organization',
+  'org-a',
+);
 const issued = await requestGrant(
   harness,
   { kind: 'api_key', key: credential.key },
@@ -135,7 +143,15 @@ const backend = Bun.serve({
       switch (path.slice('/_parity/authority/'.length)) {
         case 'restricted-predecessor': {
           await harness.register('owner');
-          harness.member('org-a', 'owner', 'member');
+          harness.member('org-a', 'owner', 'member', ['project-contributor']);
+          grantCredential(
+            harness.sqlite,
+            'org-a',
+            credential.id,
+            'package-viewer',
+            'work_package',
+            predecessor.projectId,
+          );
           harness.sqlite.run('UPDATE project SET owner_id=?, restricted=1 WHERE id=?', [
             harness.userId('owner'),
             predecessor.projectId,
@@ -146,6 +162,16 @@ const backend = Bun.serve({
           ]);
           break;
         }
+        case 'write-predecessor':
+          grantCredential(
+            harness.sqlite,
+            'org-a',
+            credential.id,
+            'package-contributor',
+            'work_package',
+            predecessor.projectId,
+          );
+          break;
         case 'hold': {
           if (heldWriter !== undefined) throw new Error('writer already held');
           let markEntered: (() => void) | undefined;
@@ -188,7 +214,17 @@ const backend = Bun.serve({
               separate.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [
                 credential.id,
               ]);
-            else separate.run('UPDATE project SET restricted=1 WHERE id=?', [successor.projectId]);
+            else {
+              grantCredential(
+                separate,
+                'org-a',
+                credential.id,
+                'package-viewer',
+                'work_package',
+                successor.projectId,
+              );
+              separate.run('UPDATE project SET restricted=1 WHERE id=?', [successor.projectId]);
+            }
           } finally {
             separate.close();
           }
@@ -208,6 +244,13 @@ const backend = Bun.serve({
           throw new Error('unknown authority fixture action');
       }
       return Response.json({ prepared: true });
+    }
+    if (path === '/_parity/project-settings') {
+      if (request.headers.get('authorization') !== `Bearer ${controlToken}`)
+        return new Response(null, { status: 403 });
+      if (request.method !== 'POST') return new Response(null, { status: 405 });
+      const { projectId, patch } = (await request.json()) as { projectId: string; patch: unknown };
+      return Response.json(await harness.call('ada', 'PATCH', `/api/projects/${projectId}`, patch));
     }
     if (path === '/_parity/optimization') {
       if (request.headers.get('authorization') !== `Bearer ${controlToken}`)

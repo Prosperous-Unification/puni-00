@@ -41,8 +41,8 @@ export interface GrantedAdmission {
 
 /**
  * The authority a unit of work established for one actor's writes to one
- * project, after it classified the write inside its own transaction as
- * ordinary or as an audited recovery (`ProjectStore.admitEditInOrganization`).
+ * project, after it checked the actual principal's current package permission
+ * inside that transaction. Restricted recovery is only the explicit audited flag-clear.
  *
  * Admits `actorId` writing `projectId` and nothing else — another project or
  * another actor is refused — and nothing at all once expired, so a graph
@@ -52,11 +52,12 @@ export interface GrantedAdmission {
 export function grantAdmission(projectId: string, actorId: string): GrantedAdmission {
   let live = true;
   return {
-    // Proof (2026-09-28): dropping project equality, actor equality or expiry
-    // separately made `scoped step service cannot borrow a recovery grant for
-    // another project, actor, or settled unit` fail through StepService (one
-    // fail per fault). The pure admission test also failed for the equalities.
+    // Actor/project equalities remain exercised by the actual runner's
+    // 'admits the granted actor on the granted project only while its unit of work runs'
+    // (plan-command-admission.test.ts). The retired Step recovery slot is not authority.
     admission: {
+      // Proof: live-writer-expiry; removed live writer expiry while its owner and grant remained open.
+      // 'semantic source refuses an expired writer while its real owner and current package grant remain live' (cross-project-dependency-lifecycle.controller.db.test.ts) failed; restored GREEN, 2026-11-10.
       admits: (project, actor) => live && project.id === projectId && actor === actorId,
     },
     expire: () => {

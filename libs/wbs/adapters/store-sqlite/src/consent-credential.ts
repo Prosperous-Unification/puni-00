@@ -9,15 +9,17 @@ import type {
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { appendGrantAudit } from './access-audit';
 import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { endLeasesOfUncredentialed } from './claim';
 import type { Gate } from './gate';
 import { writeImmediately } from './immediate-write';
-import { roleIn } from './organization';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import { machineCredential, person, personOrganization } from './schema';
+import { LastSuperAdmin, requireSuperAdminIn } from './super-admin';
 
 /** {@link ConsentCredentials} over the shared database. */
 export class ConsentCredentialRepository implements ConsentCredentials {
@@ -63,7 +65,7 @@ export class ConsentCredentialRepository implements ConsentCredentials {
   ): Promise<'minted' | ConsentMintRefusal> {
     return writeImmediately(this.db, this.gate, (tx) => {
       if (readOrganizationActivation(tx) !== 'activated') return 'inactive';
-      if (roleIn(tx, organizationId, userId) === null) return 'not_a_member';
+      if (readMembershipIn(tx, organizationId, userId) === null) return 'not_a_member';
       const agent = tx
         .select({ id: person.id })
         .from(person)
@@ -109,6 +111,10 @@ export class ConsentCredentialRepository implements ConsentCredentials {
   }
 
   end(credentialId: string, familyId: string, act: AuditedAct): Promise<ConsentEndOutcome> {
+    // The caller is the authenticated MCP service, not the credential's account.
+    // Proof: owner-act-consent: removing this boundary failed `retains actual queued cascade audit provenance at consent-end`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = structuredClone(act);
     return writeImmediately(this.db, this.gate, (tx) => {
       const row = tx
         .select()
@@ -141,7 +147,22 @@ export class ConsentCredentialRepository implements ConsentCredentials {
       // Proof: with this call removed, `are deleted when an MCP consent ends`
       // in `access-grant-store.db.test.ts` kept the consent's grant row;
       // watched 2026-11-08.
-      deleteGrantsOfCredentials(tx, [credentialId]);
+      const removedGrants = deleteGrantsOfCredentials(tx, [credentialId]);
+      /* Proof: cp14-consent: removed/changed production boundary.
+       * rolls back a zero-grant credential revocation without a direct human holder at consent-end
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      requireSuperAdminIn(tx, row.organizationId);
+      for (const grant of removedGrants)
+        // Proof: cascade-consent-credential-end: removing this boundary failed `are deleted when an MCP consent ends`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        appendGrantAudit(tx, {
+          grant,
+          action: 'access_revoked',
+          auditId: crypto.randomUUID(),
+          actorId: act.actor,
+          at,
+          origin: 'cascade',
+        });
       appendOrganizationAudit(tx, {
         id: act.auditId,
         organizationId: row.organizationId,
@@ -159,6 +180,12 @@ export class ConsentCredentialRepository implements ConsentCredentials {
         at,
       });
       return 'revoked' as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-consent-end: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at consent-end
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return 'last_super_admin' as const;
+      throw failure;
     });
   }
 }

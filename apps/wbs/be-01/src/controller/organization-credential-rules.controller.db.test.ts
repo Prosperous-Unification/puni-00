@@ -80,9 +80,10 @@ async function populate(): Promise<void> {
   for (const username of ['mia', 'pat']) await h.register(username);
   for (const organization of ['org-a', 'org-b']) {
     h.organization(organization);
-    h.member(organization, 'mia', 'member');
+    h.member(organization, 'mia', 'member', ['project-contributor', 'org-viewer']);
+    h.grantPermissions(organization, 'mia', ['organization.create_project']);
   }
-  h.member('org-a', 'pat', 'member');
+  h.member('org-a', 'pat', 'member', ['project-contributor', 'org-viewer']);
   h.activate();
   for (const [index, subject] of [SSO, SOCIAL, 'github|9'].entries())
     h.sqlite.run(
@@ -272,6 +273,7 @@ describe('enforced SSO', () => {
       "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('mia')],
     );
+    h.grantPermissions('org-a', 'mia', ['organization.manage_security']);
     const request = async (subject: string) => {
       const token = await upstream(subject);
       const selected = await select(token, 'org-a');
@@ -520,7 +522,13 @@ it('a matching expectation cannot bypass SSO, membership, viewer or session poli
     "UPDATE organization_membership SET role = 'viewer' WHERE organization_id = 'org-a' AND user_id = ?",
     [h.userId('mia')],
   );
-  expect((await attempt()).body).toEqual({ error: 'forbidden' });
+  h.sqlite.run("DELETE FROM access_grant WHERE organization_id='org-a' AND subject_id=?", [
+    h.userId('mia'),
+  ]);
+  expect((await attempt()).body).toEqual({
+    error: 'forbidden',
+    permission: 'organization.create_project',
+  });
   h.sqlite.run(
     "UPDATE organization_membership SET role = 'member' WHERE organization_id = 'org-a' AND user_id = ?",
     [h.userId('mia')],

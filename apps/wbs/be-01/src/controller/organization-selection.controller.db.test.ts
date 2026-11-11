@@ -515,3 +515,26 @@ test('binds a real verified OIDC access cookie to its mapped local member and re
     await server.stop(true);
   }
 });
+
+test('active discovery displays the compatibility label without inferring effective grant authority', async () => {
+  harness = OrganizationHarness.open({ sessionBinding: true });
+  await harness.register('ada');
+  harness.organization('org-a');
+  harness.member('org-a', 'ada', 'viewer', ['org-super-admin']);
+  harness.activate();
+  const token = harness.token('ada');
+  const selected = await harness.app.handle(
+    request(token, 'POST', '/api/organization/active', { organizationId: 'org-a' }),
+  );
+  expect(selected.status).toBe(200);
+  const pair = selected.headers.get('set-cookie')?.split(';')[0];
+  if (pair === undefined) throw new Error('active display fixture has no selection cookie');
+  const answer = await harness.app.handle(
+    request(token, 'GET', '/api/organization/active', undefined, pair),
+  );
+  expect(answer.status).toBe(200);
+  expect(await answer.json()).toEqual({ organizationId: 'org-a', name: 'org-a', role: 'viewer' });
+  expect(answer.headers.get('cache-control')).toBe('no-store');
+  expect(answer.headers.get('vary')).toBe('Cookie, Authorization');
+  expect(answer.headers.get('set-cookie')).toBeNull();
+});

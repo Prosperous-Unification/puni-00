@@ -44,8 +44,9 @@ import { trackReadObservations } from './testing/read-observation.fixture';
 
 const installed = { solverVersion: '0.4.0', budgetMs: 1000 };
 const access = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -126,6 +127,10 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated',
   sqlite.run("UPDATE organization_activation SET state='activated',activated_at=1");
   sqlite.run(
     "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
+  );
+  sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+    ['connected-ada', 'org-a', 'org-a', 'ada', 'org-admin'],
   );
   sqlite.run("UPDATE project SET estimate_rounding='exact',start_date='2026-10-05'");
   sqlite.run("UPDATE organization SET shared_people=? WHERE id='org-a'", [

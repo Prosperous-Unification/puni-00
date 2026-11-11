@@ -9,6 +9,13 @@ document `emit-openapi-cli.ts` writes). Every count in this design is **indicati
 `tool-rename-work-package report` re-derives it on the slice 1 branch, and that output, not
 this table, is what slice 1 is reviewed against.
 
+_Implementation reconciliation, 2026-11-09, `origin/main` d49fdad84:_ the table is the dated
+planning snapshot, not the current version inventory. Current plan document/input versions
+are still 11/9; scheduler contract is 18 and solver wire is 5. Wire v5 now carries real
+connected-scope project fields. E10/E26 and tasks 1.3/1.6 below supersede the earlier
+unchanged-hash/wire-v4 assumptions. Astra reviewed the current serializers, frozen wire
+shapes and persisted connected formats; its conclusions are incorporated here.
+
 | Need                    | Exists today                                                                                                                                                                                                                                                                                                                                                                    | Missing                                                |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | The old level           | `project` (23 columns: name, owner, restricted, estimate method, PERT weights, rounding, dep reach, start date, solution ref, optimization, engine, objective, timezone, budget factor, revision, audit) and 8 more `project*` tables; 19 tables carry `project_id`; 25 indexes and 9 triggers carry it in their name, 16 triggers name it in their body                        | the word for it                                        |
@@ -123,9 +130,10 @@ was also "a space-level override of anything", now allowed where E18 says._
   it lands. The same branch also holds `CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 9`, so the
   saved-plan input goes 9 → 10 at slice 1, → 11 at slice 2 and → 12 at slice 3a (assumed by
   the same reasoning; overturn with E10). _Revised 2026-10-25 after the Codex review (F4):
-  slice 2's owner removal takes 11 (E40); was 11 at slice 3a._ `SOLVER_WIRE_VERSION` stays 4 (E26). `SCHEDULER_CONTRACT_VERSION` 17
-  stays unless slice 1 changes a hashed byte (the canonical schedule input names no
-  `projectId` today; task 1.3 proves it either way). Landing order: budgets #663 before slice
+  slice 2's owner removal takes 11 (E40); was 11 at slice 3a._ `SOLVER_WIRE_VERSION` stays 5 through explicit internal boundary mapping (E26).
+  `SCHEDULER_CONTRACT_VERSION` advances 18 → 19 because current elsewhere and connected-stage
+  canonical host inputs carry project keys that the rename changes. Numerical scheduling
+  behavior and quantum stay unchanged; canonical hashes and cache identities change. Landing order: budgets #663 before slice
   1 (done, merged), `feat/cross-project-dependencies` renumbering after.
   Rejected: one document bump at the end (E4 wants slice 1 shipped renamed, and a document
   that still says `project` at the old level would be a dual vocabulary for weeks).
@@ -159,7 +167,7 @@ was also "a space-level override of anything", now allowed where E18 says._
   `{ kind: 'project'; chain }` and grant rows whose scope kind is `project`, plus anything
   else those slices add (listed from their landed code on the slice 1 branch); each is a
   per-line pattern in `allow-list.ts` (E12), never a path exclusion. (WP-13) the solver wire
-  schemas `libs/wbs/domain/contracts/solver/solver-wire.v1–v4.json` and their byte-identical
+  schemas `libs/wbs/domain/contracts/solver/solver-wire.v1–v5.json` and their byte-identical
   copies under `libs/wbs/adapters/solver-py/src/wbs_solver/`: "project" appears in their
   `$comment` strings only (v4 lines 149, 156, 304, 318), and rewriting the solver-py copy
   would change solver-py, which E26 keeps untouched; the comments are reworded with the next
@@ -544,13 +552,30 @@ organization_id, position, …)`, back-filled by mapping each space's work packa
   `feat/cross-project-dependencies` (addresses `PUNI.080.39` name a work package); that branch
   rebases onto the slice 1 names before it lands and its dependency rows become
   cross-work-package rows inside one project (E2). A project has no owner either (E7).
-- **E26. The solver wire carries no project id.** _Revised 2026-10-24 after review (was: the
-  wire renames `projectId`, `SOLVER_WIRE_VERSION` 4 → 5, a solver image rebuild and repin)._
-  On `main`, `solver-wire.v4.json` names only `personId` and `resourceId`; the `projectId` is
-  host-side, `ElsewhereBooking.projectId` in `libs/wbs/domain/domain/src/schedule.ts`, and the
-  script renames it like any TypeScript identifier. `SOLVER_WIRE_VERSION` stays 4, solver-py
-  is unchanged and no image is rebuilt or repinned; the existing golden request test proves
-  the wire bytes are unchanged after `apply`.
+- **E26. Frozen solver wire v5 is an explicit internal vocabulary exception.**
+  _Reconciled 2026-11-09 against d49fdad84 after Astra review:_ cross-project dependencies
+  added real wire keys `projectId`, `projects` and `foreignProjectId`; the earlier claim
+  that no project id crosses the solver wire is obsolete. Current host/domain/client types
+  use work-package terminology. Solver boundary code maps them explicitly to wire v5 keys
+  and validates response scope/input/question identity before returning host outcomes.
+  Both schema copies v1–v5 remain byte-identical, and Python solver 0.4.0, its package and
+  image stay unchanged. Protect only frozen protocol keys in explicit wire types, validators,
+  serializers and historical readers; do not exclude whole solver TypeScript modules.
+
+  Canonical host scheduler serialization adopts work-package keys, so scheduler contract
+  advances 18 → 19 and current cache identities change. Complete request bytes are not
+  unchanged: `contractVersion`, connected `inputHash` and `questionHash` legitimately
+  change; ordinary wire fields and numerical scheduling/quantization semantics do not.
+  Corpus contract prefixes become `19+0.4.0`. Old contract-18 cache rows miss before
+  current codec decoding, including plans whose input hash happens to remain equal.
+
+  Connected host-shaped persisted/public formats get separate versions: stored stage DTO
+  1 → 2, successful durable outcome DTO 2 → 3, boundary certificate DTO 1 → 2, and public
+  `wbs-connected-stage` boundary 1 → 2. New plan export 12 carries renamed nested
+  `question.stageBytes` and `boundary.canonical` contents as well as renamed top-level
+  fields. Supported historical documents/saved evidence validate original bytes/hashes
+  before read-time upgrades; stored body/header hashes and historical bytes are never rewritten.
+
 - **E27. Dev cleanup is an operator step, not a migration.** `work-package-cleanup-cli.ts
 report|apply <rules.json> --expect-count=N` in be-01: a work package is doomed when its
   owner's `users.username` is one of `claire-qa-22aug`, `planner-qa-0822`, `ada` or matches
@@ -711,8 +736,10 @@ by adopting the recommendation).
   - an unreadable state directory beside a valid report, refused by E36's conjunction.
 
 - **E38. Rollback is the snapshot and the previous code; window `down.sql` files refuse**
-  (F1). The lint requires every window migration to have a `down.sql`, and each one refuses
-  unconditionally. It uses a `CHECK (violations = 0)` guard on a temporary table (the
+  (F1). For this change's slice 1, slice 2 and slice 3a non-additive windows in E39, lint
+  requires a `down.sql` and each one refuses unconditionally. The separate step-catalogue
+  transition follows its later, specific SC14 guarded reversal contract; its runbook rollback
+  of record remains the verified snapshot and matching previous code. It uses a `CHECK (violations = 0)` guard on a temporary table (the
   `20260927170000_add_step_allowance` device), and its comment names the restore step. A
   partial reversal would be a second rollback path that no rehearsal covers. Slice 3a's
   could not reverse the overrides it creates anyway. If a window migration ever reached the
@@ -921,9 +948,11 @@ review (F5), E41._
 | Task                                                                                                                         | Depends on                                   |
 | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | P 1.1–1.4: grant tables, the catalogue's 22 permissions, `ScopeChain` and `InterimPackageChain`, decisions port, grant store | —                                            |
-| P 2.1–2.5: `authorize` wired, P16's creation rule                                                                            | P 1                                          |
+| P 2.1–2.3 and 2.4a: current write grants and transaction-local security; used compatibility helpers retained                 | P 1                                          |
+| P 4.1: audit widening in current project vocabulary and deferred atomic grant-store/operator audit writes                    | P 1                                          |
+| P 2.5: membership and audited initial grants                                                                                 | P 2.4a, P 4.1                                |
+| P 2.4b: remaining direct role authority, compatibility fields and helpers removed                                            | P 2.5 and all remaining role-reader families |
 | 1.1–1.9: the rename and its window                                                                                           | P 2 (E11's new-sense identifiers)            |
-| P 4.1: `widen_organization_audit_access`, admitting `access_granted`                                                         | 1.9 (its CHECK lists the renamed vocabulary) |
 | P 3.1: the 404 rule                                                                                                          | P 2, 1.9                                     |
 | P 3.3: restricted packages, package creator grants, `canEditProject` retired                                                 | P 3.1, P 4.1                                 |
 | 2.1–2.3: dev cleanup                                                                                                         | 1.9                                          |
@@ -932,6 +961,13 @@ review (F5), E41._
 | 4.1–4.9: settings, markers and spaces, and their window                                                                      | 3.8, P 3.4                                   |
 | P 4.2 onward                                                                                                                 | as `wbs-permissions`' tasks order them       |
 | 5.1–5.4: steps                                                                                                               | `wbs-step-catalogue`                         |
+
+The 2026-11-09 implementation review resolved the old 2.5→rename→4.1→2.5 cycle by
+landing the additive audit foundation before membership rewiring. Task 1.3's audit rebuild
+must retain all `access_*` and membership audit actions/subjects/indexes from that
+foundation while changing only the old project vocabulary. No grant is committed
+without its required audit to satisfy ordering. The security-first/final-cleanup split
+of 2.4 retains compatibility helpers only until their actual callers are converted.
 
 ## Rename inventory (a)
 

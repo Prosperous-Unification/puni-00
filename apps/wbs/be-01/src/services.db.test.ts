@@ -266,6 +266,12 @@ function seedSharedLifecycle(
     );
     if (activate)
       seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+    seed.run(
+      "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
+    );
+    seed.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('lifecycle-ada','org-a','organization','org-a','user','ada','org-admin','route',1)",
+    );
     seed.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
     seed.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
@@ -1916,7 +1922,17 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
-      await optimizer.retry({ projectId: 'A', objective: 'pri', inputHash, input }),
+      await optimizer.retry({
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-a',
+          actorId: 'ada',
+        },
+        projectId: 'A',
+        objective: 'pri',
+        inputHash,
+        input,
+      }),
     ).toMatchObject({
       kind: 'accepted',
       generation,
@@ -2090,7 +2106,17 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
-      await optimizer.retry({ projectId: 'A', objective: 'pri', inputHash, input }),
+      await optimizer.retry({
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-a',
+          actorId: 'ada',
+        },
+        projectId: 'A',
+        objective: 'pri',
+        inputHash,
+        input,
+      }),
     ).toMatchObject({
       kind: 'accepted',
       generation,
@@ -2130,6 +2156,9 @@ describe('buildServices', () => {
     );
     db.run(
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'bob', 'super_admin', 1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('retry-bob','org-a','work_package','A','user','bob','package-manager','route',1)`,
     );
     db.run(sql`UPDATE project SET restricted = 1 WHERE id = 'A'`);
     db.run(
@@ -2178,7 +2207,11 @@ describe('buildServices', () => {
         objective: 'pri',
         inputHash,
         input,
-        scoped: { organizationId: 'org-a', actorId: 'bob', role: 'super_admin' as const },
+        scoped: {
+          principal: { id: 'bob' },
+          organizationId: 'org-a',
+          actorId: 'bob',
+        },
       }),
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
@@ -2204,7 +2237,7 @@ describe('buildServices', () => {
         .all(),
     ).toEqual([]);
     expect(pushUrls).toEqual([]);
-    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toHaveLength(1);
+    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
     expect(logs.some((line) => line.includes('injected Retry replacement recipient event'))).toBe(
       true,
     );
@@ -2721,6 +2754,11 @@ describe('buildServices', () => {
     try {
       expect(
         await optimizer.retry({
+          scoped: {
+            principal: { id: 'ada' },
+            organizationId: 'org-a',
+            actorId: 'ada',
+          },
           projectId: 'A',
           objective: 'pri',
           inputHash,
@@ -2879,6 +2917,12 @@ describe('buildServices', () => {
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
     );
     db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+    );
+    db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
@@ -2939,6 +2983,12 @@ describe('buildServices', () => {
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
     );
     db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+    );
+    db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
@@ -2989,6 +3039,12 @@ describe('buildServices', () => {
     );
     db.run(
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+    );
+    db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
     );
     db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
@@ -3064,6 +3120,12 @@ describe('buildServices', () => {
     );
     db.run(
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+    );
+    db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
     );
     db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
@@ -3309,6 +3371,12 @@ describe('buildServices', () => {
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
     );
     db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+    );
+    db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
@@ -3393,6 +3461,12 @@ describe('buildServices', () => {
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
     );
     db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+    );
+    db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
@@ -3418,7 +3492,17 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
-      await optimizer.retry({ projectId: requester.projectId, objective: 'pri', inputHash, input }),
+      await optimizer.retry({
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+        },
+        projectId: requester.projectId,
+        objective: 'pri',
+        inputHash,
+        input,
+      }),
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
     expect(launches).toBe(0);
@@ -3459,6 +3543,12 @@ describe('buildServices', () => {
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
     );
     db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+    );
+    db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
@@ -3484,7 +3574,17 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
-      await optimizer.retry({ projectId: requester.projectId, objective: 'pri', inputHash, input }),
+      await optimizer.retry({
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+        },
+        projectId: requester.projectId,
+        objective: 'pri',
+        inputHash,
+        input,
+      }),
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
     expect(launches).toBe(0);
@@ -3525,6 +3625,12 @@ describe('buildServices', () => {
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
     );
     db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+    );
+    db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
@@ -3550,7 +3656,17 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
-      await optimizer.retry({ projectId: requester.projectId, objective: 'pri', inputHash, input }),
+      await optimizer.retry({
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+        },
+        projectId: requester.projectId,
+        objective: 'pri',
+        inputHash,
+        input,
+      }),
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
     expect(launches).toBe(0);
@@ -3586,7 +3702,7 @@ describe('buildServices', () => {
     ).toEqual([]);
   });
 
-  it('records one recovery audit with an installed accepted Retry and victim fan-out', async () => {
+  it('records explicit-grant Retry and victim fan-out without recovery audit', async () => {
     const { db, path, services } = bootstrap({
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -3604,6 +3720,12 @@ describe('buildServices', () => {
     );
     db.run(
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+    );
+    db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
     );
     db.run(
       sql`UPDATE project SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
@@ -3636,13 +3758,15 @@ describe('buildServices', () => {
         objective: 'pri',
         inputHash,
         input,
-        scoped: { organizationId: 'org-x', actorId: 'ada', role: 'super_admin' as const },
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+        },
       }),
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
-    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([
-      { detail: '{"optimizer":"retry"}' },
-    ]);
+    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
     expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
@@ -3650,7 +3774,7 @@ describe('buildServices', () => {
     ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
   });
 
-  it('commits a capacity-queued recovery Retry and reclaimed victim event with one audit', async () => {
+  it('commits explicit-grant capacity-queued Retry and reclaimed victim event without recovery audit', async () => {
     const { db, path, services, pushUrls } = bootstrap({
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -3668,6 +3792,12 @@ describe('buildServices', () => {
     );
     db.run(
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+    );
+    db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
     );
     db.run(
       sql`UPDATE project SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
@@ -3718,13 +3848,15 @@ describe('buildServices', () => {
         objective: 'pri',
         inputHash,
         input,
-        scoped: { organizationId: 'org-x', actorId: 'ada', role: 'super_admin' as const },
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+        },
       }),
     ).toMatchObject({ kind: 'accepted', generation, state: 'retrying' });
     await optimizer.drain();
-    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([
-      { detail: '{"optimizer":"retry"}' },
-    ]);
+    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
     expect(
       db.all(sql`SELECT objective FROM solver_queue WHERE project_id = ${requester.projectId}`),
     ).toEqual([{ objective: 'pri' }]);
@@ -3778,6 +3910,12 @@ describe('buildServices', () => {
       );
       db.run(
         sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      );
+      db.run(
+        sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+      );
+      db.run(
+        sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
       );
       db.run(
         sql`UPDATE project SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
@@ -3835,7 +3973,12 @@ describe('buildServices', () => {
         objective: 'pri' as const,
         inputHash,
         input,
-        scoped: { organizationId: 'org-x', actorId: 'ada', role: 'super_admin' as const },
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+          role: 'super_admin' as const,
+        },
       };
       armed = true;
       expect(await rejectedMessage(optimizer.retry(ask))).toContain(
@@ -3860,9 +4003,7 @@ describe('buildServices', () => {
         expect(
           (await events.rangeSince('project:D', -1)).map(({ seq, message }) => [seq, message]),
         ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'D', causeProjectId: 'C' }]]);
-      expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([
-        { detail: '{"optimizer":"retry"}' },
-      ]);
+      expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
     });
   }
 
@@ -3934,6 +4075,12 @@ describe('buildServices', () => {
         sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
       );
       db.run(
+        sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+      );
+      db.run(
+        sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      );
+      db.run(
         sql`UPDATE project SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
       );
       const captured = await services.workItems.optimizationInput('B');
@@ -3966,7 +4113,12 @@ describe('buildServices', () => {
         objective: 'pri' as const,
         inputHash,
         input,
-        scoped: { organizationId: 'org-x', actorId: 'ada', role: 'super_admin' as const },
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+          role: 'super_admin' as const,
+        },
       };
       expect(await optimizer.retry(ask)).toMatchObject({
         kind: lateState === 'closed' ? 'not-retryable' : 'already-running',
@@ -4056,6 +4208,12 @@ describe('buildServices', () => {
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
     );
     db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+    );
+    db.run(
       sql`UPDATE project SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
@@ -4085,7 +4243,11 @@ describe('buildServices', () => {
       objective: 'pri',
       inputHash,
       input,
-      scoped: { organizationId: 'org-x', actorId: 'ada', role: 'super_admin' as const },
+      scoped: {
+        principal: { id: 'ada' },
+        organizationId: 'org-x',
+        actorId: 'ada',
+      },
     });
     try {
       await Promise.race([
@@ -4162,6 +4324,12 @@ describe('buildServices', () => {
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
     );
     db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+    );
+    db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
@@ -4198,7 +4366,11 @@ describe('buildServices', () => {
           objective: 'pri',
           inputHash,
           input,
-          scoped: { organizationId, actorId, role: 'super_admin' as const },
+          scoped: {
+            principal: { id: actorId },
+            organizationId,
+            actorId,
+          },
         }),
       ).toEqual({ kind: reason });
       expect(lifecycleTables(db)).toEqual(before);
@@ -4212,7 +4384,17 @@ describe('buildServices', () => {
       .run();
     const mismatchedGeneration = lifecycleTables(db);
     expect(
-      await optimizer.retry({ projectId: requester.projectId, objective: 'pri', inputHash, input }),
+      await optimizer.retry({
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+        },
+        projectId: requester.projectId,
+        objective: 'pri',
+        inputHash,
+        input,
+      }),
     ).toEqual({ kind: 'not-retryable', state: 'idle' });
     expect(lifecycleTables(db)).toEqual(mismatchedGeneration);
     expect(captureCalls).toBe(captureBefore);
@@ -4224,6 +4406,11 @@ describe('buildServices', () => {
     expect(lifecycleTables(db)).toEqual(before);
     expect(
       await optimizer.retry({
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+        },
         projectId: requester.projectId,
         objective: 'pri',
         inputHash: 'stale-input',
@@ -4252,7 +4439,17 @@ describe('buildServices', () => {
       .run();
     const withLiveSlot = lifecycleTables(db);
     expect(
-      await optimizer.retry({ projectId: requester.projectId, objective: 'pri', inputHash, input }),
+      await optimizer.retry({
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+        },
+        projectId: requester.projectId,
+        objective: 'pri',
+        inputHash,
+        input,
+      }),
     ).toEqual({ kind: 'already-running' });
     expect(lifecycleTables(db)).toEqual(withLiveSlot);
     expect(captureCalls).toBe(captureBefore);
@@ -4265,7 +4462,17 @@ describe('buildServices', () => {
       .run();
     const withoutFailure = lifecycleTables(db);
     expect(
-      await optimizer.retry({ projectId: requester.projectId, objective: 'pri', inputHash, input }),
+      await optimizer.retry({
+        scoped: {
+          principal: { id: 'ada' },
+          organizationId: 'org-x',
+          actorId: 'ada',
+        },
+        projectId: requester.projectId,
+        objective: 'pri',
+        inputHash,
+        input,
+      }),
     ).toEqual({ kind: 'not-retryable', state: 'idle' });
     expect(lifecycleTables(db)).toEqual(withoutFailure);
     expect(captureCalls).toBe(captureBefore);
@@ -4295,6 +4502,12 @@ describe('buildServices', () => {
       sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
     );
     db.run(
+      sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+    );
+    db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
@@ -4322,7 +4535,17 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
       await rejectedMessage(
-        optimizer.retry({ projectId: requester.projectId, objective: 'pri', inputHash, input }),
+        optimizer.retry({
+          scoped: {
+            principal: { id: 'ada' },
+            organizationId: 'org-x',
+            actorId: 'ada',
+          },
+          projectId: requester.projectId,
+          objective: 'pri',
+          inputHash,
+          input,
+        }),
       ),
     ).toContain('Retry reservation lacks borrowed ownership and capture');
     expect(lifecycleTables(db)).toEqual(before);
@@ -4761,7 +4984,17 @@ describe('buildServices', () => {
       .run();
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
-    const decision = await optimizer.retry({ projectId: 'A', objective: 'pri', inputHash, input });
+    const decision = await optimizer.retry({
+      scoped: {
+        principal: { id: 'ada' },
+        organizationId: 'org-a',
+        actorId: 'ada',
+      },
+      projectId: 'A',
+      objective: 'pri',
+      inputHash,
+      input,
+    });
     expect(decision.kind).toBe('accepted');
     await optimizer.drain();
     expect(armed).toBe(false);
@@ -6791,6 +7024,10 @@ describe('buildServices', () => {
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('grant-org', ?, 'member', 1)",
         [ownerId],
       );
+      raw.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('grant-lifetime','grant-org','organization','grant-org','user',?,'project-contributor','route',1)",
+        [ownerId],
+      );
       for (const [position, projectId] of [upstream, downstream].entries()) {
         await projects.createInOrganization(
           projectRow({ id: projectId, ownerId, name: projectId }),
@@ -6873,8 +7110,9 @@ describe('buildServices', () => {
         },
       });
       const access = {
+        principal: { id: ownerId },
         kind: 'scoped' as const,
-        scope: { organizationId: 'grant-org', userId: ownerId, role: 'member' as const },
+        scope: { cap: null, organizationId: 'grant-org', userId: ownerId, role: 'member' as const },
       };
       const command = {
         kind: 'setEstimate' as const,

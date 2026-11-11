@@ -27,9 +27,9 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
@@ -47,7 +47,19 @@ afterEach(() => {
 async function create(username: string, name: string): Promise<string> {
   const answer = await h.call(username, 'POST', '/api/projects', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const projectId = (answer.body as { project: { id: string } }).project.id;
+  if (
+    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
+      ?.state === 'activated'
+  )
+    h.grant(
+      username === 'grace' ? 'org-b' : 'org-a',
+      username,
+      'package-manager',
+      'work_package',
+      projectId,
+    );
+  return projectId;
 }
 
 async function firstStep(username: string, projectId: string): Promise<string> {
@@ -125,7 +137,7 @@ describe('before activation', () => {
     h = OrganizationHarness.openComposed();
     for (const username of ['ada', 'grace']) await h.register(username);
     h.organization('org-b');
-    h.member('org-b', 'grace', 'member');
+    h.member('org-b', 'grace', 'member', ['org-admin']);
     h.bind('grace', 'org-b');
     const theirs = await create('ada', 'Legacy plan');
     const step = await firstStep('ada', theirs);
@@ -141,80 +153,27 @@ describe('before activation', () => {
 });
 
 describe('after activation', () => {
-  it('audits each super-admin step and marker recovery while keeping the creator', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+  it('refuses super-admin step and marker recovery while keeping the creator', async () => {
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', '/api/projects/' + own, { restricted: true })).status,
     ).toBe(200);
     const step = await firstStep('ada', own);
-    expect(
-      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Recovery' })).status,
-    ).toBe(200);
-    expect(
-      (await h.call('nell', 'PATCH', `/api/projects/${own}/steps/${step}`, { name: 'Recovered' }))
-        .status,
-    ).toBe(200);
-    expect(
-      (await h.call('nell', 'DELETE', `/api/projects/${own}/steps/${step}?cascade=true`)).status,
-    ).toBe(204);
-    expect(
-      (
-        await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
-          markerId: MARKER,
-          date: '2026-10-02',
-          name: 'Start',
-        })
-      ).status,
-    ).toBe(201);
-    expect(
-      (
-        await h.call('nell', 'PATCH', `/api/projects/${own}/calendar-markers/${MARKER}`, {
-          name: 'Moved',
-        })
-      ).status,
-    ).toBe(200);
-    expect(
-      (
-        await h.call('nell', 'PATCH', `/api/projects/${own}/calendar-markers/${MARKER}`, {
-          color: '#5d6afe',
-        })
-      ).status,
-    ).toBe(200);
-    expect(
-      (await h.call('nell', 'DELETE', `/api/projects/${own}/calendar-markers/${MARKER}`)).status,
-    ).toBe(204);
-    const audits = h.sqlite
-      .query<{ organization_id: string; actor_id: string; subject_id: string; detail: string }, []>(
-        'SELECT organization_id, actor_id, subject_id, detail FROM organization_audit ORDER BY rowid',
-      )
-      .all();
-    expect(audits.map((audit) => audit.detail)).toEqual([
-      '{"step":"add"}',
-      '{"step":"rename"}',
-      '{"step":"remove"}',
-      '{"marker":"create"}',
-      '{"marker":"rename"}',
-      '{"marker":"recolor"}',
-      '{"marker":"remove"}',
-    ]);
-    expect(
-      audits.every(
-        (audit) =>
-          audit.organization_id === 'org-a' &&
-          audit.actor_id === h.userId('nell') &&
-          audit.subject_id === own,
-      ),
-    ).toBe(true);
-    expect(
-      h.sqlite
-        .query<{ owner_id: string }, [string]>('SELECT owner_id FROM project WHERE id = ?')
-        .get(own),
-    ).toEqual({ owner_id: h.userId('ada') });
+    const before = foreignState();
+    for (const [method, path, body] of routes(own, step, MARKER)) {
+      if (method === 'GET') continue;
+      expect((await h.call('nell', method, path, body)).status).toBe(403);
+    }
+    expect(h.sqlite.query('SELECT * FROM organization_audit').all()).toEqual([]);
+    expect(await foreignState()).toEqual(await before);
+    expect(h.sqlite.query('SELECT owner_id FROM project WHERE id = ?').get(own)).toEqual({
+      owner_id: h.userId('ada'),
+    });
   });
 
-  it('admits an allowance command through the step lookup and records its recovery once', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+  it('refuses an allowance recovery without package.manage_settings', async () => {
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     const step = await firstStep('ada', own);
     expect(
@@ -226,19 +185,20 @@ describe('after activation', () => {
           allowancePercent: 15,
         })
       ).status,
-    ).toBe(200);
+    ).toBe(403);
     expect(
       h.sqlite.query<{ detail: string }, []>('SELECT detail FROM organization_audit').all(),
-    ).toEqual([{ detail: '{"commands":["setStepAllowance"]}' }]);
+    ).toEqual([]);
   });
 
-  it('commits a combined recovered step patch once and rolls its rename back when allowance fails', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+  it('commits a granted combined step patch once and rolls its rename back when allowance fails', async () => {
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     const step = await firstStep('ada', own);
     expect(
       (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
     ).toBe(200);
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     const path = `/api/projects/${own}/steps/${step}`;
     expect(
       await h.call('nell', 'PATCH', path, { name: 'Recovered', allowancePercent: 15 }),
@@ -246,14 +206,14 @@ describe('after activation', () => {
       status: 200,
       body: { step: { name: 'Recovered', allowancePercent: 15 } },
     });
-    expect(h.sqlite.query('SELECT detail FROM organization_audit').all()).toHaveLength(1);
+    expect(h.sqlite.query('SELECT detail FROM organization_audit').all()).toHaveLength(0);
     expect(
       (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Taken' })).status,
     ).toBe(200);
     expect(
       (await h.call('nell', 'PATCH', path, { name: 'Taken', allowancePercent: 20 })).status,
     ).toBe(409);
-    expect(h.sqlite.query('SELECT detail FROM organization_audit').all()).toHaveLength(1);
+    expect(h.sqlite.query('SELECT detail FROM organization_audit').all()).toHaveLength(0);
     const beforeEvents = h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all();
     h.sqlite.run(
       "CREATE TRIGGER allowance_refused BEFORE UPDATE OF allowance_bps ON step BEGIN SELECT RAISE(ABORT, 'allowance refused'); END",
@@ -268,19 +228,23 @@ describe('after activation', () => {
         after.body as { steps: { id: string; name: string; allowancePercent: number }[] }
       ).steps.find((candidate) => candidate.id === step),
     ).toMatchObject({ name: 'Recovered', allowancePercent: 15 });
-    expect(h.sqlite.query('SELECT detail FROM organization_audit').all()).toHaveLength(1);
+    expect(h.sqlite.query('SELECT detail FROM organization_audit').all()).toHaveLength(0);
     expect(h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all()).toEqual(beforeEvents);
   });
 
-  it('rolls back a recovered step and marker write when the audit insert fails', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+  it('rolls back granted step and marker writes when persistence fails', async () => {
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
       (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
     ).toBe(200);
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     const beforeEvents = h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all();
     h.sqlite.run(
-      "CREATE TRIGGER audit_refused BEFORE INSERT ON organization_audit BEGIN SELECT RAISE(ABORT, 'audit refused'); END",
+      "CREATE TRIGGER step_refused BEFORE INSERT ON step BEGIN SELECT RAISE(ABORT, 'step refused'); END",
+    );
+    h.sqlite.run(
+      "CREATE TRIGGER marker_refused BEFORE INSERT ON calendar_marker BEGIN SELECT RAISE(ABORT, 'marker refused'); END",
     );
     expect(
       (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Refused' })).status,
@@ -309,7 +273,7 @@ describe('after activation', () => {
   });
 
   it('refuses other writers on a restricted project and records no ordinary creator write', async () => {
-    h.member('org-a', 'nell', 'member');
+    h.member('org-a', 'nell', 'member', ['project-contributor']);
     h.bind('nell', 'org-a');
     expect(
       (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
@@ -318,7 +282,7 @@ describe('after activation', () => {
     for (const writer of ['nell', 'vic']) {
       expect(
         (await h.call(writer, 'POST', `/api/projects/${own}/steps`, { name: 'Refused' })).status,
-      ).toBe(403);
+      ).toBe(404);
       expect(
         (
           await h.call(writer, 'POST', `/api/projects/${own}/calendar-markers`, {
@@ -327,21 +291,21 @@ describe('after activation', () => {
             name: 'Refused',
           })
         ).status,
-      ).toBe(403);
+      ).toBe(404);
       expect(
         (
           await h.call(writer, 'PATCH', `/api/projects/${own}/steps/${step}`, {
             allowancePercent: 15,
           })
         ).status,
-      ).toBe(403);
+      ).toBe(404);
     }
     h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
       h.userId('nell'),
     ]);
     expect(
       (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Refused' })).status,
-    ).toBe(403);
+    ).toBe(404);
     expect(
       (
         await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
@@ -350,7 +314,7 @@ describe('after activation', () => {
           name: 'Refused',
         })
       ).status,
-    ).toBe(403);
+    ).toBe(404);
     expect(
       (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Creator' })).status,
     ).toBe(200);
@@ -364,6 +328,8 @@ describe('after activation', () => {
       ).status,
     ).toBe(201);
     expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+    h.sqlite.run('DELETE FROM access_grant WHERE subject_id = ?', [h.userId('ada')]);
+    h.grant('org-a', 'ada', 'package-viewer', 'work_package', own);
     h.sqlite.run("UPDATE organization_membership SET role = 'viewer' WHERE user_id = ?", [
       h.userId('ada'),
     ]);
@@ -377,7 +343,7 @@ describe('after activation', () => {
   });
 
   it('refuses a removed super-admin and records nothing', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
       (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
@@ -399,7 +365,7 @@ describe('after activation', () => {
   });
 
   it('refuses a super-admin revoked after access resolution before step admission', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
       (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
@@ -412,8 +378,8 @@ describe('after activation', () => {
     expect(h.sqlite.query("SELECT id FROM step WHERE name = 'Revoked'").all()).toEqual([]);
   });
 
-  it('records no recovery for step and marker writes the store refuses', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+  it('records no recovery for granted step and marker writes the store refuses', async () => {
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
       (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Review' })).status,
@@ -422,6 +388,7 @@ describe('after activation', () => {
     expect(
       (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
     ).toBe(200);
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     expect(
       (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Review' })).status,
     ).toBe(409);

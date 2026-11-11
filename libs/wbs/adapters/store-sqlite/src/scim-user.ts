@@ -15,7 +15,8 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import { provenConnectionFor } from './enterprise-connection';
 import type { Gate } from './gate';
 import { type ImmediateTransaction, writeImmediately } from './immediate-write';
-import { guardFinalSuperAdmin, membershipOf, roleIn } from './organization';
+import { type MembershipRemovalEvidence, removeMembershipIn } from './organization';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import {
@@ -24,6 +25,7 @@ import {
   organizationScimUser,
   organizationSsoConnection,
 } from './schema';
+import { LastSuperAdmin } from './super-admin';
 
 type Transaction = ImmediateTransaction;
 type Reader = Pick<SQLiteBunDatabase, 'select'>;
@@ -109,32 +111,9 @@ function requireActivated(tx: Transaction): void {
     throw new Error('SCIM provisioning ran before organization activation');
 }
 
-/**
- * Removes the bound user's membership as a super-admin removal would, or
- * refuses the last super-admin. A membership already gone is nothing to do.
- */
-function endMembership(
-  tx: Transaction,
-  organizationId: string,
-  userId: string,
-): 'ended' | 'last_super_admin' {
-  // Proof: skipping this guard made `refuses to deprovision the last
-  // super-admin, changing nothing` in `enterprise-sso-stores.db.test.ts`
-  // delete the membership; watched 2026-10-12.
-  // Dropping the `last-super-admin` return also made mounted `refuses to
-  // deprovision the last super-admin with 409 mutability, changing nothing`
-  // (`scim-deprovisioning.controller.db.test.ts`) answer 200 and deactivate
-  // the record; watched 2026-10-12.
-  const guarded = guardFinalSuperAdmin(tx, organizationId, userId, null);
-  if (guarded === 'last-super-admin') return 'last_super_admin';
-  // Proof: skipping this deletion made mounted `ends browser, gateway and MCP
-  // access to A at once, leaving B unchanged` and `ends a real
-  // selected-organization cookie’s browser and gateway access at once`
-  // (`scim-deprovisioning.controller.db.test.ts`) keep carol's A access;
-  // watched 2026-10-12.
-  if (guarded === null)
-    tx.delete(organizationMembership).where(membershipOf(organizationId, userId)).run();
-  return 'ended';
+/** An inactive or never-bound record removes no membership authority. */
+function absentMembershipEvidence(): MembershipRemovalEvidence {
+  return { membershipRemoved: false, removedUserGrantCount: 0, removedGroupMembershipCount: 0 };
 }
 
 /** {@link ScimUsers} over the shared database. */
@@ -215,6 +194,12 @@ export class ScimUserRepository implements ScimUsers {
   ): Promise<
     { readonly kind: 'updated'; readonly user: ScimUser } | { readonly kind: ScimRefusal }
   > {
+    // Proof: owner-act-scim-update: removing this boundary failed `retains unequal SCIM audit actor and stamp before the queue at update`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = structuredClone(act);
+    // Proof: scim-change-snapshot: removing this boundary failed `retains the selected SCIM deprovisioning change before its queued owner`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    change = structuredClone(change);
     // Proof: committing the membership deletion in its own transaction ahead
     // of this one made mounted `rolls a deprovision back and answers 500 when
     // its audit row cannot be written` (`scim-deprovisioning.controller.db
@@ -240,12 +225,13 @@ export class ScimUserRepository implements ScimUsers {
         changed.push('externalId');
       }
       let deprovisioned = false;
+      let removal = absentMembershipEvidence();
       if (change.active === false && current.active) {
-        if (
-          current.userId !== null &&
-          endMembership(tx, organizationId, current.userId) === 'last_super_admin'
-        )
-          return { kind: 'last_super_admin' };
+        if (current.userId !== null) {
+          const removed = removeMembershipIn(tx, organizationId, current.userId);
+          if (removed.kind === 'last-super-admin') return { kind: 'last_super_admin' };
+          removal = removed.evidence;
+        }
         set.active = 0;
         changed.push('active');
         deprovisioned = true;
@@ -263,6 +249,8 @@ export class ScimUserRepository implements ScimUsers {
         .set({ ...set, ...auditOnUpdate(act.stamp) })
         .where(eq(organizationScimUser.id, id))
         .run();
+      // Proof: scim-update-audit: removing this boundary failed `enriches the single SCIM PATCH lifecycle audit with actual authority removal evidence`;
+      // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
       appendOrganizationAudit(tx, {
         id: act.auditId,
         organizationId,
@@ -270,12 +258,24 @@ export class ScimUserRepository implements ScimUsers {
         action: deprovisioned ? 'scim_user_deprovisioned' : 'scim_user_updated',
         subjectKind: 'scim_user',
         subjectId: id,
-        detail: { changed, ...(change.active === undefined ? {} : { active: change.active }) },
+        detail: {
+          changed,
+          ...(change.active === undefined ? {} : { active: change.active }),
+          // Proof: scim-update-evidence: removing this boundary failed `enriches the single SCIM PATCH lifecycle audit with actual authority removal evidence`;
+          // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+          ...(deprovisioned ? { ...removal, boundUserId: current.userId } : {}),
+        },
         at: act.stamp.at,
       });
       const updated = userIn(tx, organizationId, id);
       if (updated === undefined) throw new Error(`updated SCIM user ${id} vanished`);
       return { kind: 'updated', user: checkedUser(updated) };
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-scim-update: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at scim-update
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return { kind: 'last_super_admin' } as const;
+      throw failure;
     });
   }
 
@@ -284,18 +284,23 @@ export class ScimUserRepository implements ScimUsers {
     id: string,
     act: AuditedAct,
   ): Promise<'deleted' | 'not_found' | 'last_super_admin'> {
+    // Proof: owner-act-scim-remove: removing this boundary failed `retains unequal SCIM audit actor and stamp before the queue at remove`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act = structuredClone(act);
     return this.write((tx) => {
       requireActivated(tx);
       const stored = userIn(tx, organizationId, id);
       if (stored === undefined) return 'not_found';
       const current = checkedUser(stored);
-      if (
-        current.active &&
-        current.userId !== null &&
-        endMembership(tx, organizationId, current.userId) === 'last_super_admin'
-      )
-        return 'last_super_admin';
+      let removal = absentMembershipEvidence();
+      if (current.active && current.userId !== null) {
+        const removed = removeMembershipIn(tx, organizationId, current.userId);
+        if (removed.kind === 'last-super-admin') return 'last_super_admin';
+        removal = removed.evidence;
+      }
       tx.delete(organizationScimUser).where(eq(organizationScimUser.id, id)).run();
+      // Proof: scim-delete-audit: removing this boundary failed `enriches the single SCIM DELETE lifecycle audit with actual authority removal evidence`;
+      // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
       appendOrganizationAudit(tx, {
         id: act.auditId,
         organizationId,
@@ -303,10 +308,18 @@ export class ScimUserRepository implements ScimUsers {
         action: 'scim_user_deprovisioned',
         subjectKind: 'scim_user',
         subjectId: id,
-        detail: { deleted: true },
+        // Proof: scim-delete-evidence: removing this boundary failed `enriches the single SCIM DELETE lifecycle audit with actual authority removal evidence`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        detail: { deleted: true, ...removal, boundUserId: current.userId },
         at: act.stamp.at,
       });
       return 'deleted' as const;
+    }).catch((failure: unknown) => {
+      /* Proof: aggregate-classification-scim-remove: broken owner dependency propagates aggregate; distinct from native paired-failure control.
+       * preserves an unexpected aggregate from the actual owner dependency at scim-remove
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (failure instanceof LastSuperAdmin) return 'last_super_admin' as const;
+      throw failure;
     });
   }
 
@@ -360,7 +373,7 @@ export class ScimUserRepository implements ScimUsers {
       // One SCIM record per person and organization: a second record for an
       // already-bound person stays pending for its directory to resolve.
       if (alreadyBound !== undefined) return [];
-      if (roleIn(tx, proven.organizationId, userId) === null)
+      if (readMembershipIn(tx, proven.organizationId, userId) === null)
         tx.insert(organizationMembership)
           .values({
             organizationId: proven.organizationId,

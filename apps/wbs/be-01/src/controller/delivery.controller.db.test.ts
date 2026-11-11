@@ -68,8 +68,10 @@ async function setup(delivery?: DeliveryReader, deliveryLimits?: Partial<Deliver
   for (const username of ['ada', 'grace', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();

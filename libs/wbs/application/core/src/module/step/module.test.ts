@@ -4,7 +4,6 @@ import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
-import { NO_ADMISSION } from '../../ports/edit-admission';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { installStep } from './check';
@@ -38,6 +37,7 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
+    accessDecisions: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     projectStore: DiBag.createProvider(() => source.stores.projects, {
       factoryReturnKind: 'sync-value',
     }),
@@ -69,7 +69,6 @@ const completeHost = () =>
       clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
         factoryReturnKind: 'sync-value',
       }),
-      recoveryAdmission: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     })
     .buildContainer();
 
@@ -145,6 +144,7 @@ describe('the Step module', () => {
     const partial = DiBag.createBuilder()
       .withInstalledModules([stepModule])
       .withServices({
+        accessDecisions: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
         projectStore: DiBag.createProvider(() => source.stores.projects, {
           factoryReturnKind: 'sync-value',
         }),
@@ -155,9 +155,6 @@ describe('the Step module', () => {
           factoryReturnKind: 'sync-value',
         }),
         broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
-          factoryReturnKind: 'sync-value',
-        }),
-        recoveryAdmission: DiBag.createProvider(() => NO_ADMISSION, {
           factoryReturnKind: 'sync-value',
         }),
       }) as unknown as { buildContainer: () => { resolve: (key: string) => unknown } };

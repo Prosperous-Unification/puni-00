@@ -2,7 +2,6 @@ import {
   admitMachineCredential,
   type MachineActor,
   type MachineCredentialRecord,
-  type OrganizationRole,
 } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
@@ -22,7 +21,7 @@ function credential(overrides: Partial<MachineCredentialRecord> = {}): MachineCr
     personId: 'claire',
     source: 'api_key',
     boundAccountId: 'dany',
-    boundAccountRole: 'super_admin',
+    boundAccountIsMember: true,
     revokedAt: null,
     expiresAt: null,
     trustedIssuerId: null,
@@ -39,13 +38,13 @@ const grant = {
   organizationId: 'org-a',
 } as const;
 
-function actor(role: OrganizationRole | null = 'member'): MachineActor {
+function actor(accountIsMember = true): MachineActor {
   return {
     credentialId: CREDENTIAL,
     accountId: 'dany',
     organizationId: 'org-a',
     personId: 'claire',
-    accountRole: role,
+    accountIsMember,
     scopes: ['read', 'write'],
   };
 }
@@ -59,7 +58,7 @@ describe('the grant variant of admitMachineCredential', () => {
         accountId: 'dany',
         organizationId: 'org-a',
         personId: 'claire',
-        accountRole: 'super_admin',
+        accountIsMember: true,
         scopes: ['read', 'write'],
       },
       proofExpiresAt: null,
@@ -86,7 +85,7 @@ describe('the grant variant of admitMachineCredential', () => {
   });
 
   it('refuses a credential whose account is no longer a member of its organization', () => {
-    expect(admitMachineCredential(grant, credential({ boundAccountRole: null }), NOW)).toEqual(
+    expect(admitMachineCredential(grant, credential({ boundAccountIsMember: false }), NOW)).toEqual(
       UNKNOWN,
     );
   });
@@ -114,9 +113,7 @@ describe('the grant variant of admitMachineCredential', () => {
         fc.record({
           revokedAt: absentOrOne(fc.integer({ min: 0, max: NOW })),
           boundAccountId: absentOrOne(fc.constantFrom('dany', 'mem')),
-          boundAccountRole: absentOrOne(
-            fc.constantFrom<OrganizationRole>('super_admin', 'admin', 'member', 'viewer'),
-          ),
+          boundAccountIsMember: fc.boolean(),
           expiresAt: absentOrOne(fc.integer({ min: NOW - 10_000, max: NOW + 10_000 })),
           source: fc.constantFrom<'api_key' | 'oidc'>('api_key', 'oidc'),
         }),
@@ -125,7 +122,7 @@ describe('the grant variant of admitMachineCredential', () => {
           const live =
             shape.revokedAt === null &&
             shape.boundAccountId !== null &&
-            shape.boundAccountRole !== null &&
+            shape.boundAccountIsMember &&
             (shape.expiresAt === null || shape.expiresAt > NOW);
           expect(admission.kind).toBe(live ? 'admitted' : 'refused');
         },
@@ -227,10 +224,10 @@ describe('machineGrantTermsOf', () => {
     ).toBe('no_lifetime');
   });
 
-  it('derives scopes from the credential’s account role alone', () => {
-    const scopesOf = (role: OrganizationRole | null) => {
+  it('uses fixed machine scopes for current members and refuses missing membership', () => {
+    const scopesOf = (accountIsMember: boolean) => {
       const terms = machineGrantTermsOf(
-        actor(role),
+        actor(accountIsMember),
         {
           requestedExpiresAt: NOW_SECONDS + 600,
           assertionExpiresAt: null,
@@ -241,11 +238,8 @@ describe('machineGrantTermsOf', () => {
       );
       return typeof terms === 'string' ? terms : terms.scopes;
     };
-    expect(scopesOf('super_admin')).toEqual(['read', 'write']);
-    expect(scopesOf('admin')).toEqual(['read', 'write']);
-    expect(scopesOf('member')).toEqual(['read', 'write']);
-    expect(scopesOf('viewer')).toEqual(['read']);
-    expect(scopesOf(null)).toBe('unknown_identity');
+    expect(scopesOf(true)).toEqual(['read', 'write']);
+    expect(scopesOf(false)).toBe('unknown_identity');
   });
 
   it('carries an opted-in run through, and none when none was asked', () => {
@@ -295,4 +289,25 @@ describe('machineGrantTermsOf', () => {
       expiresAt: NOW_SECONDS + 600,
     });
   });
+});
+
+it('keeps later machine grant terms independent of a previously returned scope array', () => {
+  const request = {
+    requestedExpiresAt: NOW_SECONDS + 600,
+    assertionExpiresAt: null,
+    secretExpiresAt: null,
+    runId: null,
+  };
+  const first = machineGrantTermsOf(actor(), request, NOW);
+  if (typeof first === 'string') throw new Error('healthy machine grant terms refused');
+  // A consumer can mutate a readonly TypeScript array at runtime; restore even a deliberately shared-array fault.
+  const exposed = first.scopes as ('read' | 'write')[];
+  try {
+    exposed.pop();
+    const second = machineGrantTermsOf(actor(), request, NOW);
+    if (typeof second === 'string') throw new Error('later machine grant terms refused');
+    expect(second.scopes).toEqual(['read', 'write']);
+  } finally {
+    exposed.splice(0, exposed.length, 'read', 'write');
+  }
 });

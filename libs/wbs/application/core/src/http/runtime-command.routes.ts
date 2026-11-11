@@ -33,7 +33,16 @@ async function answerRuntime<T extends RuntimeReceipt | RuntimeState>(outcome: R
     case 'runtime_scope_unavailable':
       return { ok: false, status: 403, body: { error: outcome.reason } } as const;
     case 'forbidden':
-      return { ok: false, status: 403, body: { error: outcome.reason } } as const;
+      // Proof: omitting this projection lost package.write in the mounted current-runtime-scope refusal test, 2026-11-09.
+      // Proof: runtime-permission-projection fault failed 'package.write on current runtime scope refusal' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          error: outcome.reason,
+          ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+        },
+      } as const;
     case 'person_not_bound':
       return { ok: false, status: 403, body: { error: outcome.reason } } as const;
     case 'credential_not_for_person':

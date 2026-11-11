@@ -1,8 +1,14 @@
 import { resourceRuntimeAdmission, resourceRuntimeEvent } from '@wbs/contracts';
+import { resourceUseActorOf } from '@wbs/core/http/resource-use.routes';
+import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import { openDatabase } from '@wbs/store-sqlite';
 import { afterEach, beforeAll, beforeEach, expect, it } from 'bun:test';
 
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
 
@@ -27,22 +33,25 @@ beforeEach(async () => {
   for (const username of ['owner', 'viewer', 'other']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'owner', 'super_admin');
-  h.member('org-a', 'viewer', 'viewer');
-  h.member('org-b', 'other', 'admin');
+  h.member('org-a', 'owner', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'viewer', 'viewer', ['org-viewer']);
+  h.member('org-b', 'other', 'admin', ['org-admin']);
   h.bind('owner', 'org-a');
   h.bind('viewer', 'org-a');
   h.bind('other', 'org-b');
   h.activate();
   addAgentPerson(h.sqlite, 'agent-a', 'org-a', h.userId('owner'));
   addAgentPerson(h.sqlite, 'agent-b', 'org-b', h.userId('other'));
-  key = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'agent-a',
-      issuedBy: h.userId('owner'),
-    })
-  ).key;
+  const worker = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'agent-a',
+    issuedBy: h.userId('owner'),
+  });
+  key = worker.key;
+  h.sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('worker-write','org-a','organization','org-a','machine_credential',?,'project-contributor','route',1)",
+    [worker.id],
+  );
   const project = await h.call('owner', 'POST', '/api/projects', { name: 'Tracked plan' });
   projectId = (project.body as { project: { id: string } }).project.id;
   const created = await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
@@ -491,6 +500,7 @@ async function runtimeSetup() {
     issuedBy: h.userId('owner'),
     name: 'runtime-key',
   });
+  grantCredential(h.sqlite, 'org-a', issued.id, 'package-contributor', 'work_package', projectId);
   const authorityId = 'dash-local';
   const binding = { providerId, credentialId: issued.id, epoch: 'epoch-one' };
   expect(
@@ -953,24 +963,27 @@ it('refuses another in-scope person as the machine report owner', async () => {
     ).status,
   ).toBe(403);
 });
+async function currentRuntimeActor(r: Awaited<ReturnType<typeof runtimeSetup>>) {
+  const principal = await h.authenticatedMachinePrincipal(r.issued.key);
+  return {
+    ...resourceUseActorOf(principal, {
+      kind: 'scoped',
+      scope: {
+        cap: CONTRIBUTOR_CAP,
+        organizationId: 'org-a',
+        userId: principal.id,
+
+        delegated: true,
+      },
+      principal: { id: principal.id, authentication: structuredClone(principal.authentication) },
+    }),
+    credentialId: r.issued.id,
+  };
+}
 it('rechecks a runtime grant after upstream credential admission', async () => {
   const r = await runtimeSetup();
   const authority = h.resourceRuntime();
-  const actor = {
-    id: h.userId('owner'),
-    personId: 'runtime-controller',
-    credentialId: r.issued.id,
-    fingerprint: 'verified-before-revocation',
-    access: {
-      kind: 'scoped' as const,
-      scope: {
-        organizationId: 'org-a',
-        userId: h.userId('owner'),
-        role: 'super_admin' as const,
-        delegated: true as const,
-      },
-    },
-  };
+  const actor = await currentRuntimeActor(r);
   h.sqlite.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [r.issued.id]);
   expect(await authority.requests(r.authorityId, actor, 0, 50)).toEqual({
     ok: false,
@@ -1093,21 +1106,7 @@ it.each(['unbound', 'rebound'] as const)(
     expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
       200,
     );
-    const actor = {
-      id: h.userId('owner'),
-      personId: 'runtime-controller',
-      credentialId: r.issued.id,
-      fingerprint: 'previously-admitted',
-      access: {
-        kind: 'scoped' as const,
-        scope: {
-          organizationId: 'org-a',
-          userId: h.userId('owner'),
-          role: 'super_admin' as const,
-          delegated: true as const,
-        },
-      },
-    };
+    const actor = await currentRuntimeActor(r);
     const release = Promise.withResolvers<undefined>();
     const entered = Promise.withResolvers<undefined>();
     const held = h.holdWriteTurn(release.promise, () => {

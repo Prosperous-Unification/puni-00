@@ -8,6 +8,7 @@ import {
 import type { Clock } from '../ports/clock';
 import type { OrganizationAccess } from '../ports/organization-access';
 import { type AuditedAct, isSecretShaped } from '../ports/organization-audit';
+import { retainSecurityPrincipal } from '../ports/security-principal';
 import {
   isPublicIssuerUrl,
   type TrustedIssuerAdministration,
@@ -18,17 +19,22 @@ import { bind, EMPTY, type HttpReply } from './endpoint';
 import { activeAudienceRoot, sessionOrganizationOf } from './machine-credential.routes';
 import { organizationRefusal } from './organization-refusal';
 
-const forbidden = { ok: false, status: 403, body: { error: 'forbidden' } } as const;
+const forbidden = {
+  ok: false,
+  status: 403,
+  // Proof: dropping this permission property (http-permission-trusted-issuer) failed `encodes manage_security for a role-only trusted-issuer list`; restored GREEN.
+  body: { error: 'forbidden', permission: 'organization.manage_security' },
+} as const;
 
 /**
  * Trusted issuer administration (`wbs-machine-credentials` A16, A17) for the
- * active organization's admins. A delegation or a machine credential is
+ * active organization's organization.manage_security holders. A delegation or a machine credential is
  * `insufficient_scope`, as on the credential routes.
  *
  * Registration runs in this order, so nothing is fetched for a caller who
  * could not register and nothing is stored for a URL that did not discover:
  * the configured sign-in issuer is `issuer_reserved` with no read; the
- * store's read-only check (role, connection gate, `issuer_taken`); the
+ * store's read-only check (current grants, connection gate, `issuer_taken`); the
  * audience rule (`audience_not_wbs`); one discovery fetch; then the store's
  * write, which checks everything again with its audit row.
  *
@@ -58,9 +64,11 @@ export function trustedIssuerRoutes(
     bind(
       listTrustedIssuers,
       async ({ principal }): Promise<HttpReply<typeof listTrustedIssuers>> => {
+        // Proof: retaining the caller alias across organization resolution (route-snapshot-trusted-list) failed `retains the route security principal across organization resolution at trusted-list: id`; restored GREEN.
+        const actor = retainSecurityPrincipal(principal);
         const organizationId = await sessionOrganizationOf(organizations, principal);
         if (typeof organizationId !== 'string') return organizationId;
-        const listed = await issuers.list(organizationId, principal.id);
+        const listed = await issuers.list(organizationId, actor);
         if (listed === 'inactive') return organizationRefusal('no_active_organization');
         if (listed === 'forbidden') return forbidden;
         return {
@@ -89,6 +97,8 @@ export function trustedIssuerRoutes(
         // 2026-10-22.
         if (!isPublicIssuerUrl(body.issuer))
           return { ok: false, status: 400, body: { error: 'invalid_body' } };
+        // Proof: retaining the caller alias across organization resolution (route-snapshot-trusted-register) failed `retains the route security principal across organization resolution at trusted-register: id`; restored GREEN.
+        const actor = retainSecurityPrincipal(principal);
         const organizationId = await sessionOrganizationOf(organizations, principal);
         if (typeof organizationId !== 'string') return organizationId;
         const ssoConnectionId = body.ssoConnectionId ?? null;
@@ -97,13 +107,13 @@ export function trustedIssuerRoutes(
         // fetched its discovery and registered it; watched 2026-10-22.
         if (body.issuer === (await configuredIssuer()))
           return { ok: false, status: 409, body: { error: 'issuer_reserved' } };
-        const ready = await issuers.checkRegistration(organizationId, principal.id, {
+        const ready = await issuers.checkRegistration(organizationId, actor, {
           issuer: body.issuer,
           audience: body.audience,
           ssoConnectionId,
         });
         if (ready !== 'ready') return registrationRefusal(ready);
-        // Judged after the role, so a member learns nothing, and before the
+        // Judged after the grant, so an unauthorized member learns nothing, and before the
         // fetch, so a foreign audience costs no discovery.
         // Proof: with this refusal removed, `refuses a look-alike or
         // wbs:org audience audience_not_wbs, fetching and storing nothing`
@@ -118,7 +128,7 @@ export function trustedIssuerRoutes(
           return { ok: false, status: 409, body: { error: 'issuer_mismatch' } };
         const registered = await issuers.register(
           organizationId,
-          principal.id,
+          actor,
           {
             id: crypto.randomUUID(),
             issuer: body.issuer,
@@ -126,7 +136,7 @@ export function trustedIssuerRoutes(
             audience: body.audience,
             ssoConnectionId,
           },
-          act(principal.id),
+          act(actor.id),
         );
         if (registered.kind !== 'registered') return registrationRefusal(registered.kind);
         return { ok: true, status: 201, body: registered.issuer };
@@ -135,14 +145,11 @@ export function trustedIssuerRoutes(
     bind(
       removeTrustedIssuer,
       async ({ principal, params }): Promise<HttpReply<typeof removeTrustedIssuer>> => {
+        // Proof: retaining the caller alias across organization resolution (route-snapshot-trusted-remove) failed `retains the route security principal across organization resolution at trusted-remove: id`; restored GREEN.
+        const actor = retainSecurityPrincipal(principal);
         const organizationId = await sessionOrganizationOf(organizations, principal);
         if (typeof organizationId !== 'string') return organizationId;
-        const removed = await issuers.remove(
-          organizationId,
-          principal.id,
-          params.id,
-          act(principal.id),
-        );
+        const removed = await issuers.remove(organizationId, actor, params.id, act(actor.id));
         if (typeof removed === 'object')
           return {
             ok: false,
@@ -156,6 +163,8 @@ export function trustedIssuerRoutes(
             return forbidden;
           case 'not_found':
             return { ok: false, status: 404, body: { error: 'not_found' } };
+          case 'last_super_admin':
+            return { ok: false, status: 409, body: { error: 'last_super_admin' } };
           case 'removed':
             return { ok: true, status: 204, body: EMPTY };
         }

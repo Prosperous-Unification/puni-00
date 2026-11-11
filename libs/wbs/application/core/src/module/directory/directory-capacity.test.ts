@@ -2,6 +2,7 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
+import type { AccessDecisions } from '../../ports/access-decisions';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import { createLocalDependencyContext } from '../../service/dependency-context';
@@ -16,8 +17,9 @@ const RAM = 'resource-host-ram';
 const DISK = 'resource-disk';
 /** An admin of the organization owning `host ram` and projects A, B and C. */
 const ADMIN: ResourceAccess = {
+  principal: { id: F },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: F, role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: F },
 };
 const STAMP = { at: 1, by: F };
 
@@ -39,7 +41,15 @@ async function seeded() {
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
-  const graph = servicesOver(source.stores, options);
+  const accessDecisions: AccessDecisions = {
+    effectiveRoleAt: (principal, target) => {
+      if (principal.id !== F || target.kind !== 'organization' || target.organizationId !== 'org-a')
+        throw new Error('unexpected capacity fixture subject/scope');
+      return Promise.resolve({ permissions: new Set(['organization.manage_directory']), via: [] });
+    },
+    readablePackageIds: () => Promise.reject(new Error('unexpected capacity grant listing')),
+  };
+  const graph = servicesOver({ ...source.stores, accessDecisions }, options);
   await source.stores.users.create({ id: F, username: F, passwordHash: 'x', createdAt: 1 }, STAMP);
   const projects = [
     expectCreated(await graph.projects.create('A', F)).project.id,
@@ -68,10 +78,13 @@ async function seeded() {
   for (const projectId of projects) fixture.ownProjectInOrganization(projectId, 'org-a');
   const state = (resourceId: string, units: number | null, access: ResourceAccess = ADMIN) =>
     source.uow.run(async (scope) => {
-      const services = servicesOver(scope.stores, {
-        ...options,
-        dependencyContext: createLocalDependencyContext(scope.stores),
-      });
+      const services = servicesOver(
+        { ...scope.stores, accessDecisions },
+        {
+          ...options,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
+      );
       const outcome = await services.directory.setDirectoryCapacityWithin(
         resourceId,
         F,

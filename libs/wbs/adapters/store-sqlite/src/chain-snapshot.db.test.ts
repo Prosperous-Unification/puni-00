@@ -52,8 +52,9 @@ let path: string;
 let closed: number;
 const principal = { id: 'ada' };
 const admitted = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
 const fast = createScheduler(
   (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
@@ -863,8 +864,9 @@ describe('detached live snapshot guards', () => {
     });
   }
   const access = {
+    principal: { id: 'ada' },
     kind: 'scoped',
-    scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
   } as const;
   it('refuses a legacy aggregate read after activation', async () => {
     expect(await livePlans().readAggregate('ada', { kind: 'legacy' })).toEqual({

@@ -23,8 +23,9 @@ let folder: string;
 let sqlite: SqliteSource;
 let queries: string[];
 const access = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
 beforeEach(async () => {
   folder = mkdtempSync(join(tmpdir(), 'read-continuation-'));
@@ -153,7 +154,7 @@ for (const outcome of ['success', 'refusal', 'throw'] as const) {
           (scope) => {
             const authorize = scope.fanoutCapture?.[method];
             if (authorize === undefined) throw new Error('missing fanout authorizer');
-            return authorize('a1', 'ada', access);
+            return authorize('a1', 'ada', access, { name: 'No' });
           },
           reached,
           released,

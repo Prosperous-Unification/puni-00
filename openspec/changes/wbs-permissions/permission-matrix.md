@@ -60,6 +60,8 @@ A `package-*` or `project-*` role granted at organization scope counts only for 
 it governs (P9). Sizes: 9 roles × 22 permissions (P19 added `organization.manage_settings`);
 61 command kinds and 159 endpoints below.
 
+_Implementation inventory, 2026-11-09 at d49fdad84:_ `commandDefinitions` currently has 62 kinds: 40 work-package commands and 22 directory commands. The dated counts above are historical observations; executable permission coverage must compare registry ids, never rely on those totals. `setDirectoryCapacity` is the additional directory operation and requires `organization.manage_directory`.
+
 ## Plan-command kinds (`POST /api/work-packages/:id/commands`, 40)
 
 Each command is checked at the work package the batch addresses, `setBudget` and
@@ -79,13 +81,14 @@ both ends until `project.manage_dependencies` gains behaviour. `createWorkItem` 
 `patchWorkItem` naming a type outside the project's `allowedWorkItemTypes` are refused
 `409 type_not_allowed_in_project` after the permission passes (#698 E22).
 
-## Directory commands (`POST /api/directory/commands`, 21)
+## Directory commands (`POST /api/directory/commands`, 22)
 
-| Permission                      | Kinds                                                                                                                                                                                                                                                                              | Today                                                                  |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `organization.manage_directory` | `createTeam`, `patchTeam`, `deleteTeam`, `createPerson`, `patchPerson`, `deletePerson`, `createTag`, `patchTag`, `deleteTag`, `createService`, `patchService`, `deleteService`, `createWorkItemType`, `patchWorkItemType`, `deleteWorkItemType`, `createResource`, `patchResource` | member                                                                 |
-| `organization.manage_directory` | `createMeasure`, `patchMeasure`, `deleteMeasure` (measure definitions)                                                                                                                                                                                                             | admin (`mayDefineMeasuresInOrganization`, `organization-access.ts:54`) |
-| `organization.manage_directory` | `deleteResource`                                                                                                                                                                                                                                                                   | admin (`mayRemoveResourceInOrganization`, `wbs-resources` R8a)         |
+| Permission                      | Kinds                                                                                                                                                                                                                                                                              | Today                                                                                          |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `organization.manage_directory` | `createTeam`, `patchTeam`, `deleteTeam`, `createPerson`, `patchPerson`, `deletePerson`, `createTag`, `patchTag`, `deleteTag`, `createService`, `patchService`, `deleteService`, `createWorkItemType`, `patchWorkItemType`, `deleteWorkItemType`, `createResource`, `patchResource` | member                                                                                         |
+| `organization.manage_directory` | `createMeasure`, `patchMeasure`, `deleteMeasure` (measure definitions)                                                                                                                                                                                                             | admin (`mayDefineMeasuresInOrganization`, `organization-access.ts:54`)                         |
+| `organization.manage_directory` | `deleteResource`                                                                                                                                                                                                                                                                   | admin (`mayRemoveResourceInOrganization`, `wbs-resources` R8a)                                 |
+| `organization.manage_directory` | `setDirectoryCapacity`                                                                                                                                                                                                                                                             | admin (`mayStateDirectoryCapacityInOrganization`; current registry reconciliation, 2026-11-09) |
 
 `patchPerson` with `accountId` (binding) was admin-only and stays inside
 `organization.manage_directory`. A `deletePerson … cascade` that revokes machine
@@ -294,3 +297,25 @@ keeps them in (P5, P6). Clearing it is `package.manage_settings`, or, for an
   1 `organization.manage_settings` + 3 `project.read` + 6 `project.manage_settings` +
   3 `project.manage_packages` + 28 `package.read` + 9 `package.write` +
   3 `package.manage_settings`.
+
+### Protocol endpoints added after the original route-count snapshot
+
+These exact current shape exports supplement the dated route inventory; existing
+capacity-report infrastructure authority remains unchanged. Permission checks use
+the retained actual principal and current owned/borrowed connection.
+
+| Method and path                                             | Endpoint                    | Authority                                                                                                                                               |
+| ----------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST /api/projects/:id/resource-uses                        | registerResourceUse         | package.write on the live package                                                                                                                       |
+| GET /api/projects/:id/resource-uses                         | listResourceUses            | package.read live; nondelegated manage_directory for immutable current-org orphans                                                                      |
+| POST /api/projects/:id/resource-uses/:useId/events          | appendResourceUseEvent      | package.write live; nondelegated manage_directory for immutable current-org orphans                                                                     |
+| GET /api/projects/:id/resource-uses/:useId/history          | readResourceUseHistory      | package.read live; nondelegated manage_directory for immutable current-org orphans                                                                      |
+| PUT /api/organization/resource-authorities/:authorityId     | bindResourceAuthority       | organization.manage_directory                                                                                                                           |
+| GET /api/organization/resource-authorities/:authorityId     | readResourceAuthority       | organization.manage_directory                                                                                                                           |
+| PUT /api/resource-authorities/:authorityId/admissions       | admitResourceRuntimeUse     | exact bound infrastructure authority; new live registration additionally package.write; immutable replay precedes deleted planning-reference resolution |
+| PUT /api/resource-authorities/:authorityId/events           | ingestResourceRuntimeEvent  | exact bound infrastructure authority; live package mutation additionally package.write; deleted-package cleanup retains own infrastructure authority    |
+| GET /api/resource-authorities/:authorityId/cleanup-requests | readResourceCleanupRequests | own exact bound infrastructure request stream                                                                                                           |
+
+Missing, foreign or unreadable immutable orphans answer404 without a fabricated
+package chain. Ordinary workers cannot attest release. Public compatibility role
+labels and permission-driven UI slots remain7.1/7.2, never server authority.

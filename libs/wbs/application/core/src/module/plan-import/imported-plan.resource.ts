@@ -1,3 +1,4 @@
+import type { Permission } from '@wbs/domain';
 import {
   type CapacityLimitCrossed,
   findTypedEndpointDefect,
@@ -28,6 +29,7 @@ import type { TreeAnnouncement } from '../../ports/tree-announcement';
 import type { Scope } from '../../ports/unit-of-work';
 import type { WorkItemPatch } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
+import { authorize, authorizePackage } from '../../service/authorize';
 import { findImportDependencyDuplicate } from './import-values';
 import type { LocatedImportDependency } from './resolve-import-dependencies';
 
@@ -63,7 +65,7 @@ export interface ImportedPlan {
 export interface ImportTransaction {
   run<T>(
     caller: CommandCaller,
-    forbidden: T,
+    forbidden: (permission?: Permission) => T,
     broadcast: Broadcaster,
     act: (plan: ImportedPlan, access: ResourceAccess) => Promise<ImportDecision<T>>,
   ): Promise<T | RefusedOrganizationAccess>;
@@ -85,12 +87,20 @@ export type ImportedLabels = Required<
 export type LabelOutcome = { ok: true } | { ok: false; reason: string };
 
 /** Modeled endpoint, shape, tuple or graph refusal from transaction admission. */
-export interface ImportDependencyRefusal {
-  readonly ok: false;
-  readonly code: 'unknown_ref' | 'invalid_typed_dependency';
-  readonly path: string;
-  readonly detail: string | null;
-}
+export type ImportDependencyRefusal =
+  | {
+      readonly ok: false;
+      readonly code: 'unknown_ref' | 'invalid_typed_dependency';
+      readonly path: string;
+      readonly detail: string | null;
+    }
+  | {
+      readonly ok: false;
+      readonly code: 'forbidden';
+      readonly permission: 'package.write';
+      readonly path: '';
+      readonly detail: null;
+    };
 
 /** Bound by composition; no feature receives a scope or dependency context. */
 export interface ImportAuthority {
@@ -125,6 +135,20 @@ export class ImportedPlanResource {
   get #stores() {
     this.#authority.assertActive();
     return this.#scope.stores;
+  }
+
+  /** Current directory authority in this import's admitted transaction. */
+  async mayDefineDirectory(): Promise<boolean> {
+    const access = this.#authority.access;
+    if (access.kind === 'legacy') return true;
+    const decision = await authorize(
+      this.#stores.accessDecisions,
+      access.principal,
+      { kind: 'organization', organizationId: access.scope.organizationId },
+      'organization.manage_directory',
+    );
+    this.#authority.assertActive();
+    return decision.ok;
   }
 
   /** Refuses external declarations before allocation; legacy never gains remote authority. */
@@ -391,6 +415,32 @@ export class ImportedPlanResource {
       }
       for (const side of ['predecessor', 'successor'] as const) {
         const endpoint = relationship[side];
+        const access = this.#authority.access;
+        if (access.kind === 'scoped' && endpoint.projectId !== projectId) {
+          const addressed = await this.#stores.projects.findInOrganization(
+            endpoint.projectId,
+            access.scope.organizationId,
+          );
+          if (addressed === null)
+            return { ok: false, code: 'unknown_ref', path: path + '.' + side, detail: null };
+          const authority = await authorizePackage(
+            this.#stores.accessDecisions,
+            access,
+            addressed,
+            stamp.by,
+            'package.write',
+          );
+          if (!authority.ok)
+            return authority.reason === 'not_found'
+              ? { ok: false, code: 'unknown_ref', path: path + '.' + side, detail: null }
+              : {
+                  ok: false,
+                  code: 'forbidden',
+                  permission: 'package.write',
+                  path: '',
+                  detail: null,
+                };
+        }
         const checked = await context.endpoints.readEndpoint(endpoint);
         // Proof: bypassing this consumer failed concealed missing-reference SQLite cases before any typed INSERT (2026-10-22).
         if (!checked.ok)

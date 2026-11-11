@@ -16,7 +16,7 @@ async function open(activate = true) {
   await harness.register('ada');
   for (const organizationId of ['org-a', 'org-b']) {
     harness.organization(organizationId);
-    harness.member(organizationId, 'ada', 'super_admin');
+    harness.member(organizationId, 'ada', 'super_admin', ['org-super-admin']);
   }
   if (activate) harness.activate();
 }
@@ -287,7 +287,8 @@ test('discovery keeps zero and one membership unselected', async () => {
   await open();
   await harness.register('grace');
   for (const hasMembership of [false, true]) {
-    if (hasMembership) harness.member('org-a', 'grace', 'member');
+    if (hasMembership)
+      harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
     const response = await discover(undefined, harness.token('grace'));
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: 'no_active_organization' });

@@ -680,3 +680,123 @@ describe('list and detail agree', () => {
     }
   });
 });
+
+describe('selected catalogue state beside independently sufficient authority', () => {
+  for (const operation of ['organization-effective', 'package-effective', 'listing'] as const) {
+    for (const fault of [
+      'orphan-role',
+      'unknown-kind',
+      'unknown-permission',
+      'empty-set',
+      'invalid-flag',
+    ] as const) {
+      it('rejects selected ' + fault + ' beside sufficient grant at ' + operation, async () => {
+        grant('organization', ORG, 'user', 'ada', 'org-admin');
+        expect(await permissionsOn(person('ada'), 'wp-open')).toContain('package.write');
+        expect(await listed(person('ada'))).toEqual(['wp-closed', 'wp-open', 'wp-two']);
+        customRole('selected-corrupt', 'organization', ['organization.read']);
+        grant('organization', ORG, 'user', 'ada', 'selected-corrupt');
+        if (fault === 'orphan-role') {
+          sqlite.run('PRAGMA foreign_keys=OFF');
+          try {
+            sqlite.run("DELETE FROM access_role WHERE id='selected-corrupt'");
+          } finally {
+            sqlite.run('PRAGMA foreign_keys=ON');
+          }
+          expect(
+            sqlite.query<{ foreign_keys: number }, []>('PRAGMA foreign_keys').get()?.foreign_keys,
+          ).toBe(1);
+        } else if (fault === 'unknown-kind' || fault === 'invalid-flag') {
+          sqlite.run('PRAGMA ignore_check_constraints=ON');
+          try {
+            sqlite.run(
+              fault === 'unknown-kind'
+                ? "UPDATE access_role SET object_kind='space' WHERE id='selected-corrupt'"
+                : "UPDATE access_role SET reaches_restricted=2 WHERE id='selected-corrupt'",
+            );
+          } finally {
+            sqlite.run('PRAGMA ignore_check_constraints=OFF');
+          }
+        } else if (fault === 'unknown-permission') {
+          sqlite.run(
+            "INSERT INTO access_role_permission(role_id,permission) VALUES('selected-corrupt','package.teleport')",
+          );
+        } else sqlite.run("DELETE FROM access_role_permission WHERE role_id='selected-corrupt'");
+        const snapshot = () =>
+          [
+            'access_role',
+            'access_role_permission',
+            'access_grant',
+            'organization_membership',
+            'project',
+            'command_journal',
+            'event_log',
+            'organization_audit',
+          ].map((table) => sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
+        const before = snapshot();
+        const pending =
+          operation === 'listing'
+            ? decisions.readablePackageIds(person('ada'), ORG)
+            : decisions.effectiveRoleAt(
+                person('ada'),
+                operation === 'organization-effective'
+                  ? organization
+                  : await packageTarget('wp-open'),
+              );
+        const failure = await rejectionOf(pending);
+        if (fault === 'unknown-permission') expect(failure).toBeInstanceOf(UnknownPermissionRow);
+        else if (fault === 'empty-set') expect(failure).toBeInstanceOf(EmptyRoleSet);
+        else
+          expect(String(failure)).toContain(
+            fault === 'orphan-role'
+              ? 'references missing access role selected-corrupt'
+              : fault === 'unknown-kind'
+                ? 'access_role.object_kind'
+                : 'access_role.reaches_restricted',
+          );
+        expect(snapshot()).toEqual(before);
+      });
+    }
+  }
+});
+
+for (const statement of ['effectiveRoleAt', 'readablePackageIds'] as const) {
+  for (const corruptRole of ['project-contributor', 'nonreading project role'] as const) {
+    it(
+      'throws for an incompatible role scope through ' +
+        statement +
+        ' alongside sufficient valid authority: ' +
+        corruptRole,
+      async () => {
+        grant('organization', ORG, 'user', 'ada', 'org-super-admin');
+        expect(await permissionsOn(person('ada'), 'wp-open')).toContain('package.write');
+        expect(await listed(person('ada'))).toContain('wp-open');
+        const roleId = corruptRole === 'project-contributor' ? corruptRole : 'misbound-budget-role';
+        if (corruptRole === 'nonreading project role')
+          customRole(roleId, 'project', ['project.manage_budgets']);
+        grant('work_package', 'wp-open', 'user', 'ada', roleId);
+        const bad = sqlite
+          .query<{ id: string }, [string, string]>(
+            'SELECT id FROM access_grant WHERE role_id=? AND scope_kind=?',
+          )
+          .get(roleId, 'work_package');
+        if (bad === null) throw new Error('missing incompatible raw grant fixture');
+        const pending =
+          statement === 'effectiveRoleAt'
+            ? decisions.effectiveRoleAt(person('ada'), await packageTarget('wp-open'))
+            : decisions.readablePackageIds(person('ada'), ORG);
+        const failure = await pending.then(
+          () => null,
+          (failure: unknown) => failure,
+        );
+        expect(failure).toBeInstanceOf(Error);
+        if (!(failure instanceof Error))
+          throw new Error('expected incompatible trusted role scope failure');
+        expect(failure.message).toContain(bad.id);
+        expect(failure.message).toContain(roleId);
+        expect(failure.message).toContain('project');
+        expect(failure.message).toContain('work_package');
+      },
+    );
+  }
+}

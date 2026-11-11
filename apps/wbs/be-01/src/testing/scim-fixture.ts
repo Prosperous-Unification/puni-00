@@ -158,9 +158,9 @@ export async function openScimWorld(
   for (const username of ['ada', 'sam', 'bob']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'super_admin');
-  h.member('org-a', 'sam', 'admin');
-  h.member('org-b', 'bob', 'super_admin');
+  h.member('org-a', 'ada', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'sam', 'admin', ['org-admin']);
+  h.member('org-b', 'bob', 'super_admin', ['org-super-admin']);
   h.bind('ada', 'org-a');
   h.bind('sam', 'org-a');
   h.bind('bob', 'org-b');

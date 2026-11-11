@@ -50,8 +50,10 @@ beforeEach(async () => {
   harness.organization('org-a');
   harness.organization('org-b');
   harness.member('org-a', 'owner', 'super_admin');
+  harness.grantPermissions('org-a', 'owner', ['organization.manage_security']);
   harness.member('org-a', 'admin', 'admin');
   harness.member('org-b', 'other', 'super_admin');
+  harness.grantPermissions('org-b', 'other', ['organization.manage_security']);
   harness.bind('owner', 'org-a');
   harness.bind('admin', 'org-a');
   harness.bind('other', 'org-b');
@@ -153,19 +155,19 @@ describe('enterprise connection administration', () => {
     const { id } = (created.body as { connection: { id: string } }).connection;
     expect(await harness.call('admin', 'POST', PATH, { ...draft, loginSlug: 'other' })).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
     expect(await harness.call('admin', 'GET', PATH)).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
     expect(await harness.call('admin', 'PATCH', `${PATH}/${id}`, { loginSlug: 'other' })).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
     expect(await harness.call('admin', 'DELETE', `${PATH}/${id}`)).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
     expect(
       await harness.call('owner', 'POST', PATH, {
@@ -206,6 +208,7 @@ describe('enterprise connection administration', () => {
     await harness.register('owner');
     harness.organization('org-a');
     harness.member('org-a', 'owner', 'super_admin');
+    harness.grantPermissions('org-a', 'owner', ['organization.manage_security']);
     harness.bind('owner', 'org-a');
     claim('claim-a', 'org-a', 'acme.test', 'verified');
     harness.sqlite.run(
