@@ -61,6 +61,12 @@ beforeAll(async () => {
   // Deliberately copy only the complete generation source closure: a new
   // source-library dependency must be included before fixture preparation works.
   for (const path of [
+    'apps/puni/cli/project.json',
+    'apps/puni/cli/tsconfig.json',
+    'libs/shared/adapters/bun-startup/project.json',
+    'libs/shared/adapters/heavy-lock/project.json',
+    'libs/wbs/domain/domain/src/access-role.ts',
+    'libs/wbs/domain/domain/tsconfig.json',
     'libs/wbs/domain/contracts/src',
     'libs/wbs/domain/contracts/tsconfig.json',
     'libs/wbs/domain/validation/src',
@@ -148,6 +154,12 @@ if (args[0] === 'restart' && args[1] === 'mcp-document-rehearsal') {
 }, 30000);
 
 const changes = [
+  ['PUNI manifest', 'apps/puni/cli/project.json'],
+  ['PUNI aliases', 'apps/puni/cli/tsconfig.json'],
+  ['Bun startup manifest', 'libs/shared/adapters/bun-startup/project.json'],
+  ['native lock manifest', 'libs/shared/adapters/heavy-lock/project.json'],
+  ['permission vocabulary', 'libs/wbs/domain/domain/src/access-role.ts'],
+  ['permission aliases', 'libs/wbs/domain/domain/tsconfig.json'],
   ['command definitions outside http', 'libs/wbs/domain/contracts/src/commands/definitions.ts'],
   ['OpenAPI emitter', 'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts'],
   ['WBS validation', 'libs/wbs/domain/validation/src/index.ts'],

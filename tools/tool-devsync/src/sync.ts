@@ -555,6 +555,10 @@ export const RESTART_PATHS: readonly string[] = [
   // Proof: independently omitting each source/config entry made the real Git-reset
   // sync regression skip restart and MCP preparation (0/1 per fault).
   'libs/wbs/domain/contracts/src',
+  // Proof: c31-integration-b-restart-permission-source; injected remove 'libs/wbs/domain/domain/src/access-role.ts', from restart inputs failed `permission vocabulary edits restart the dev supervisor and rerun MCP preparation`; restoration passed. First RED assertion is absent MCP producer output after real Git reset. Later Docker/artifact assertions are not reached; scheduling only.
+  'libs/wbs/domain/domain/src/access-role.ts',
+  // Proof: c31-integration-b-restart-permission-config; injected remove 'libs/wbs/domain/domain/tsconfig.json', from restart inputs failed `permission aliases edits restart the dev supervisor and rerun MCP preparation`; restoration passed. First RED assertion is absent MCP producer output after real Git reset. Later Docker/artifact assertions are not reached; scheduling only.
+  'libs/wbs/domain/domain/tsconfig.json',
   'apps/wbs/be-01/src/openapi',
   'libs/wbs/domain/validation/src',
   'libs/shared/domain/validation/src',
@@ -565,6 +569,8 @@ export const RESTART_PATHS: readonly string[] = [
   'libs/wbs/domain/validation/tsconfig.json',
   'libs/shared/domain/validation/tsconfig.json',
   'libs/shared/domain/delivery/tsconfig.json',
+  // Proof: c31-integration-b-restart-puni-manifest; injected remove 'apps/puni/cli/project.json', from restart inputs failed `PUNI manifest edits restart the dev supervisor and rerun MCP preparation`; restoration passed. First RED assertion is absent MCP producer output after real Git reset. Later Docker/artifact assertions are not reached; scheduling only.
+  'apps/puni/cli/project.json',
   'apps/wbs/be-01/project.json',
   'apps/wbs/gw-01/project.json',
   'apps/wbs/fe-01/project.json',
@@ -592,6 +598,8 @@ export const RESTART_PATHS: readonly string[] = [
   // HEAD says otherwise, which presents as an import that exists in the editor
   // and not at runtime.
   'tsconfig.base.json',
+  // Proof: c31-integration-b-restart-puni-config; injected remove 'apps/puni/cli/tsconfig.json', from restart inputs failed `PUNI aliases edits restart the dev supervisor and rerun MCP preparation`; restoration passed. First RED assertion is absent MCP producer output after real Git reset. Later Docker/artifact assertions are not reached; scheduling only.
+  'apps/puni/cli/tsconfig.json',
   'apps/wbs/be-01/tsconfig.json',
   'apps/wbs/gw-01/tsconfig.json',
   'apps/wbs/fe-01/tsconfig.json',
@@ -656,7 +664,11 @@ export const RESTART_PATHS: readonly string[] = [
   'libs/shared/domain/delivery/project.json',
   // Proof: omitting this entry failed `names every library project.json that exists on disk`
   // with this exact missing adapter manifest (2026-10-23).
+  // Proof: c31-integration-b-restart-startup-manifest; injected remove 'libs/shared/adapters/bun-startup/project.json', from restart inputs failed `Bun startup manifest edits restart the dev supervisor and rerun MCP preparation`; restoration passed. First RED assertion is absent MCP producer output after real Git reset. Later Docker/artifact assertions are not reached; scheduling only.
+  'libs/shared/adapters/bun-startup/project.json',
   'libs/shared/adapters/delivery-github/project.json',
+  // Proof: c31-integration-b-restart-lock-manifest; injected remove 'libs/shared/adapters/heavy-lock/project.json', from restart inputs failed `native lock manifest edits restart the dev supervisor and rerun MCP preparation`; restoration passed. First RED assertion is absent MCP producer output after real Git reset. Later Docker/artifact assertions are not reached; scheduling only.
+  'libs/shared/adapters/heavy-lock/project.json',
   // Proof: CI run 39513645384 (job gate workspace) failed `names every library project.json
   // that exists on disk` when the two design-system kit manifests were omitted.
   'libs/shared/adapters/ui-core-01/project.json',

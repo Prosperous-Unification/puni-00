@@ -29,14 +29,16 @@
       "options": {
         "command": "bun test --preload ../../../../tools/test/scratch/preload.ts ./src --timeout=30000",
         "cwd": "libs/shared/adapters/heavy-lock"
-      }
+      },
+      "inputs": ["default", "^production", "{workspaceRoot}/bin/heavy-lock-lib.sh"]
     },
     "test:unit": {
       "executor": "nx:run-commands",
       "options": {
         "command": "bun test --preload ../../../../tools/test/scratch/preload.ts ./src --timeout=30000",
         "cwd": "libs/shared/adapters/heavy-lock"
-      }
+      },
+      "inputs": ["default", "^production", "{workspaceRoot}/bin/heavy-lock-lib.sh"]
     }
   }
 }

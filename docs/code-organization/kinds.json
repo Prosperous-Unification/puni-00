@@ -1,5 +1,5 @@
 {
-  "reviewed": "2026-10-11",
+  "reviewed": "2026-11-11",
   "entries": [
     {
       "path": "apps/wbs/be-01/src/service/optimization-dequeue-reservation.ts",
@@ -336,6 +336,18 @@
       "kind": "support",
       "disposition": "shared connected owner tree projection support for work-item reads",
       "rationale": "Projects captured connected placement, readiness, dependency endpoint evidence and foreign holder labels into one owner tree without exposing remote rows"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/authorize.ts",
+      "kind": "support",
+      "disposition": "shared permission-decision support for admitted application writes; keep with its access-decision port callers",
+      "rationale": "authorize and package-specific adapters evaluate the admitted principal through AccessDecisions, preserve invisible-object refusals and distinguish restricted-flag recovery from ordinary package settings authority"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/replay-authorization.ts",
+      "kind": "support",
+      "disposition": "journal permission provenance codec shared by original recordings and replay admission; keep with the work-item journal owner",
+      "rationale": "createReplayAuthorization records detached stable obligations and readReplayAuthorization validates present trusted policy metadata before replay resolves current package and budget ownership"
     }
   ]
 }

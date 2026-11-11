@@ -1036,6 +1036,7 @@ describe('every cached target declares what it reads', () => {
 
     // Proof: missing Fleet control inputs failed this production oracle naming both
     // repair-native-control.py and staging-native-control.py (2026-11-05).
+    // Proof: c31-integration-b-cache-legacy-peer-input; injected omit bin/heavy-lock-lib.sh from shared-heavy-lock:test inputs failed `every cached target declares what it reads > names every file a suite reads from outside its own project`; restoration passed. The ordinary cached test input is named by the existing outside-read oracle; no separate cached test:unit claim.
     expect(undeclared).toBeEmpty();
   });
 });

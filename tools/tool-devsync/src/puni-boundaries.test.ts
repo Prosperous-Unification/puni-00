@@ -147,7 +147,8 @@ describe('PUNI execution boundary', () => {
     const options = await readBoundaryConfig(executor);
     const inherited = await readBoundaryConfig('apps/puni/cli/src/namespaces.ts');
     expect(options['allow']).toEqual(runtimes.map((alias) => '^' + alias + '$'));
-    expect({ ...options, allow: [] }).toEqual(inherited);
+    const optionsWithoutAllow: Record<string, unknown> = { ...options, allow: [] };
+    expect(optionsWithoutAllow).toEqual(inherited);
   }, 30_000);
   it('admits the real lazy executor through only provider runtime facades', async () => {
     const source = await readFile(new URL('../../../' + executor, import.meta.url), 'utf8');
@@ -190,7 +191,8 @@ describe('PUNI package composition boundary', () => {
     const options = await readBoundaryConfig(packager),
       inherited = await readBoundaryConfig('apps/puni/cli/src/namespaces.ts');
     expect(options['allow']).toEqual(['^@puni/burokrat/packaging$']);
-    expect({ ...options, allow: [] }).toEqual(inherited);
+    const optionsWithoutAllow: Record<string, unknown> = { ...options, allow: [] };
+    expect(optionsWithoutAllow).toEqual(inherited);
   }, 30000);
   it('admits the real captured package builder through the packaging facade', async () => {
     const source = await readFile(new URL('../../../' + packager, import.meta.url), 'utf8');
