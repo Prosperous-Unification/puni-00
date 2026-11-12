@@ -1,0 +1,1023 @@
+{
+  "schema": "bun-scripts-c35-control-owner-verification/v1",
+  "state": "accepted23-scoped-task1a-evidence; bounded-task1a-final-integration-approved",
+  "scope": "Bounded2.2b Task1a Dash-local control/lifetime owner through existing standalone checkout only; not whole C35/parent2.2 or an installed/enrolled/default/host gate.",
+  "base": "c108edb5a90c38fa238d07289033f2ebdf14da01",
+  "acceptance": {
+    "root": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/root-accepted23.json",
+      "sha256": "c1b64b64eb6ae1001b28c7671667b91308fd99669e1f36c070e364e25d18b91f"
+    },
+    "astra": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/actual-astra-review.json",
+      "sha256": "99791fa8c6ade20da98c6dd63e510b4cb9b0ea631c958356deb4374fcb463285"
+    },
+    "acceptedJoins": 23,
+    "acceptedRecipes": 17,
+    "rejected": 0
+  },
+  "artifacts": {
+    "retention": "Private review artifacts are retained at these descriptors; publication/archive/installed delivery is not asserted.",
+    "flight": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/runs/formal-v2-flight1",
+      "packet": "provisional-packet.json",
+      "packetSha256": "c5ecbce7ecfee586a576c52bd52d24307baee21103dc7b9765c5a2e4eb7f0e7b",
+      "doneSha256": "d900c4cafc0abdd243f903aab34e780167636975030dd793248f5860ed263c80",
+      "command": {
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "/home/df/.codex/worktrees/6ce4/puni-00/.superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/tooling/runner.ts",
+          "flight",
+          "formal-v2-flight1"
+        ]
+      },
+      "approvalSha256": "39cb5d2111f2ca8b4388da9277231571257c0e94f55c2d430f9f4955002f3d84",
+      "receiptFile": "<join-directory>/receipt.json",
+      "rawFile": "<join-directory>/output.log"
+    },
+    "source": {
+      "manifest": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/SOURCE/manifest.json",
+      "sha256": "cd13b83e7ddf1d37580b4dea55f155db2dfd3fe6522b8022a0c5339af5b8637b",
+      "files": 382,
+      "copies": 382,
+      "literalEdges": 1198,
+      "knownAbsences": 250
+    },
+    "tooling": {
+      "manifest": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/TOOLING/manifest.json",
+      "sha256": "e98c12f4327206bd8d1c388fd741e25b7675dac6cec0d1f768a566b412ad1c51",
+      "files": 51,
+      "copies": 51,
+      "runnerSha256": "8eb209445f11c8b695d5158c8cf367d32b9c23b5b8bdfd1cf48008b2cef45a97",
+      "plan": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json",
+      "planSha256": "3c10fad12da15b38d4946b63ed1c2e6586304913cc23679566153613a0fbdae4"
+    },
+    "nativeInputs": {
+      "files": 462,
+      "manifestDescriptor": "Each hash-bound receipt.nativeInputs lists copied file path/mode/SHA256; files reside beneath its native-inputs directory.",
+      "copyEpoch": "Before native fixture child launch; hashed after owned settlement; temporary trees/commits differ across attempts.",
+      "independentlyVerifiedByRootAndAstra": true
+    }
+  },
+  "recipes": [
+    {
+      "id": "C01",
+      "family": "first interruption",
+      "mutantSha256": "fb9ea76c31c44beeeb8f620946cfb58c632ff936157ce7ab030ac08b11c10071",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C01",
+      "joins": ["C01/first", "C01/native-first"]
+    },
+    {
+      "id": "C02",
+      "family": "first interruption",
+      "mutantSha256": "5c0e9b94a524ac77a9ee57491150ca3f7dd367cafc39ad2ae6ac711ed268f308",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C02",
+      "joins": ["C02/reason"]
+    },
+    {
+      "id": "C03",
+      "family": "status",
+      "mutantSha256": "a42f756eb86194634af6032090798c5beb491399accea5d3f30c75ebc67e561c",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C03",
+      "joins": ["C03/native-term"]
+    },
+    {
+      "id": "C04",
+      "family": "status",
+      "mutantSha256": "54156d8038d8a0fad28ac42e2dd52494e739368686aac3a4f4e48818515e68d9",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C04",
+      "joins": ["C04/none"]
+    },
+    {
+      "id": "C05",
+      "family": "event identity",
+      "mutantSha256": "633768f8a2c3b14d720d23958b22d1d7a08ff9807d960bb5a356d23bee2bb5c3",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C05",
+      "joins": ["C05/sequence"]
+    },
+    {
+      "id": "C06",
+      "family": "event identity",
+      "mutantSha256": "8c452115ea54189674de65037c0b657ced79f29090db5e31b458ff9042745b67",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C06",
+      "joins": ["C06/replay"]
+    },
+    {
+      "id": "C07",
+      "family": "ordered reentrancy",
+      "mutantSha256": "51640c75d6a3a1a02248996214d07b7dddfe7ff0ace7fb071adabb3096ed18ed",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C07",
+      "joins": ["C07/wake-order", "C07/observer-order"]
+    },
+    {
+      "id": "C08",
+      "family": "ordered reentrancy",
+      "mutantSha256": "18740bc99a3262cab2b986ba2124a509c695011ef92ff5f11db5ece585f6f494",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C08",
+      "joins": ["C08/cohort"]
+    },
+    {
+      "id": "C09",
+      "family": "registration retirement",
+      "mutantSha256": "d3b95e8df91f639db76951fbbe1fc7dba818e7ad19f8b1c02f5d80fbc9ffa5a0",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C09",
+      "joins": ["C09/remove-wake", "C09/remove-observer"]
+    },
+    {
+      "id": "C10",
+      "family": "registration retirement",
+      "mutantSha256": "722596e9fb9aa4ea73bff5c1322a82031f58d4bb531a83951b72548ad2122042",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C10",
+      "joins": ["C10/duplicates"]
+    },
+    {
+      "id": "C11",
+      "family": "registration retirement",
+      "mutantSha256": "f4c9cf4eebf6f8dc38083d90e76884ceb6a768e732db855b387bf8c7092d6f32",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C11",
+      "joins": ["C11/dispose-cohort"]
+    },
+    {
+      "id": "C12",
+      "family": "queue wake",
+      "mutantSha256": "1c250a9cbf7b580278e6e8870a73bc82fb562f7bf466318d0767e3d3b54b40c9",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C12",
+      "joins": ["C12/queue-wake"]
+    },
+    {
+      "id": "C13",
+      "family": "queue wake",
+      "mutantSha256": "5ed416869104650a4f5373594ef9e6b4a63401ec01dfdf5b5352b738438d4cd0",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C13",
+      "joins": ["C13/prior-abort"]
+    },
+    {
+      "id": "C14",
+      "family": "registration retirement",
+      "mutantSha256": "a331f42e7a615e1f01fd175683fb12a979b1211c35d3510f0e7eac6e196fbc8f",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C14",
+      "joins": ["C14/external-retire"]
+    },
+    {
+      "id": "C15",
+      "family": "registration retirement",
+      "mutantSha256": "937650b048d0c0c07211fe072f56dd2915764f0fb46213dda3b253b4be0eaab1",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C15",
+      "joins": ["C15/native-retire"]
+    },
+    {
+      "id": "C16",
+      "family": "referenced lifetime",
+      "mutantSha256": "de7405c6ba74da14661cc440646589d78183a3cf0863a2f4ac32599429f108bc",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C16",
+      "joins": [
+        "C16/preflight-retention",
+        "C16/work-retention",
+        "C16/recovery-retention",
+        "C16/late-retention"
+      ]
+    },
+    {
+      "id": "C17",
+      "family": "referenced lifetime",
+      "mutantSha256": "e64e525d3f56156966154dce88fd6f26acfcdcf0ea8117747a7364c725c9c8cc",
+      "literalEditDescriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/finite-plan-v2/plan.json#C17",
+      "joins": ["C17/interval-retirement"]
+    }
+  ],
+  "pairs": [
+    {
+      "id": "C01/first",
+      "recipe": "C01",
+      "case": "first",
+      "test": "retains first TERM provenance across later independent external cancellation",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 29,
+        "matcher": "toEqual"
+      },
+      "acceptedScope": "Later external cancellation replaced first native TERM provenance.",
+      "negative": {
+        "directory": "C01/red-first",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "97d9db77bb262062a485a2f8008b408036204dd1c9d44ea85bab9858c38a9a34",
+        "rawSha256": "c76bff0f630f589ca5ec7d9f2bec2d52ae78da9a1ddfce8f9bf99a5b5d539bfc"
+      },
+      "restored": {
+        "directory": "C01/green-first",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "4aae2a601d8d84bb67f82ddeeca2ccf5649eb2b155aad4b2737f99c4d3dfad2d",
+        "rawSha256": "743f0740f25342c712946c3f2e5413345bc13fe6aa13a2502b96af585c6173fe"
+      }
+    },
+    {
+      "id": "C01/native-first",
+      "recipe": "C01",
+      "case": "native-first",
+      "test": "owned gate checkout cleanup-signal under isolated Linux supervision",
+      "firstOwn": {
+        "file": "tools/tool-devsync/src/gate-checkout.test.ts",
+        "line": 347,
+        "matcher": "toMatchObject"
+      },
+      "acceptedScope": "Later TERM replaced initial INT in actual cleanup outcome, changing 130 to 143.",
+      "negative": {
+        "directory": "C01/red-native-first",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "184fa2e74aa85be4ae20f997a19953ff345bf18e2ee82a65329431c1bc15003e",
+        "rawSha256": "ac30412758921ffcccd07e0e12be20d2b5b64e5ac8f96d764b4416de54093dfa"
+      },
+      "restored": {
+        "directory": "C01/green-native-first",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "7a62bd81bfa3a770c13dcd4280b028f94c2e8b2dc359e649e8156690e1ec979d",
+        "rawSha256": "7cb1578dc04998da272698ebe676c003add67b5099389493ad284ffcb30f99b0"
+      }
+    },
+    {
+      "id": "C02/reason",
+      "recipe": "C02",
+      "case": "reason",
+      "test": "latches an already aborted external reason by identity and wakes queue waiting",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 15,
+        "matcher": "toBe"
+      },
+      "acceptedScope": "Original external reason identity became undefined.",
+      "negative": {
+        "directory": "C02/red-reason",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "850a49383b2a35216e63f1bac8ef554b6f4b0d40913bac4267a59144f838b56d",
+        "rawSha256": "3304d5578622d14b87f599d02494c1501696fbc1e557753e496583c7640daf18"
+      },
+      "restored": {
+        "directory": "C02/green-reason",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "147a078cbe985829612671c8073eb9fb0e52dd07557cf9610ad5538d1fe786c7",
+        "rawSha256": "5264a1bafc4845de6319ddbd20bae8cf137673770b8dc2f8d97dd149a312a885"
+      }
+    },
+    {
+      "id": "C03/native-term",
+      "recipe": "C03",
+      "case": "native-term",
+      "test": "owned gate checkout term-signal under isolated Linux supervision",
+      "firstOwn": {
+        "file": "tools/tool-devsync/src/gate-checkout.test.ts",
+        "line": 347,
+        "matcher": "toMatchObject"
+      },
+      "acceptedScope": "Actual native TERM retained its kind but projected 130 instead of 143.",
+      "negative": {
+        "directory": "C03/red-native-term",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "fb468aa5f0a2053ba8a7cd09f5524df5cb9b7223f7c312bdb3c50f261f14de7c",
+        "rawSha256": "0250197caa095e7588f5b7c43b2b442c1007cf7ad908a3f3e5a67fbf4fc01dcf"
+      },
+      "restored": {
+        "directory": "C03/green-native-term",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "ed46f555b8ff338c0c491c694ce3e4a8ff9962024c7e97c87dab935d626faa1a",
+        "rawSha256": "66911349796d8b3f6b59d90dfec33e50818e2dcc8606559f8a19a61180ccf34c"
+      }
+    },
+    {
+      "id": "C04/none",
+      "recipe": "C04",
+      "case": "none",
+      "test": "refuses a cancellation status without an observed control",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 103,
+        "matcher": "toThrow"
+      },
+      "acceptedScope": "Missing observation returned 130 instead of throwing.",
+      "negative": {
+        "directory": "C04/red-none",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "b19ffb7fd6f7bc889c9e354f7be688b7c04d905a1d7ebef9300f76a879ce7f87",
+        "rawSha256": "5f1b2c1aed5a26315f8f44aad4ba29e0b47db0c8dbd413d89ba626f2ba0c6619"
+      },
+      "restored": {
+        "directory": "C04/green-none",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "538dd44d21b466765b3744bb1599f90d21eaa7ef01f84579a4ce715c6899441a",
+        "rawSha256": "ae9ac5ece359f816f1820ec2dc4db31d474ead7f80502189e672b4f52a3c36f8"
+      }
+    },
+    {
+      "id": "C05/sequence",
+      "recipe": "C05",
+      "case": "sequence",
+      "test": "replays the same first event while repeated native observations get fresh sequences",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 47,
+        "matcher": "toEqual"
+      },
+      "acceptedScope": "Repeated observations reused sequence 1 instead of 2 and 3.",
+      "negative": {
+        "directory": "C05/red-sequence",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "9ba5933a031e3ab217dfc24e1a60b64a6764528666761e25b63bb9586ad599f8",
+        "rawSha256": "57984a7b0adc7f3dcb21b56a3c8b3cc6205528188ece59d3b0577ff471bc9056"
+      },
+      "restored": {
+        "directory": "C05/green-sequence",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "ed406d94477e92ed922eae71fc27d653e274028b308b9fcbed0eb0dc5d361ce8",
+        "rawSha256": "122972bcff3fb2cc0c3f8838df0f7a4b75f5ffe17e79e9741bb11d834a03465a"
+      }
+    },
+    {
+      "id": "C06/replay",
+      "recipe": "C06",
+      "case": "replay",
+      "test": "replays the same first event while repeated native observations get fresh sequences",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 53,
+        "matcher": "toBe"
+      },
+      "acceptedScope": "Replayed event serialized identically but lost object identity.",
+      "negative": {
+        "directory": "C06/red-replay",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "f05cd4788e3411c26c64bce6caa745a48035026c6229505157b7d3ce8bd1e42f",
+        "rawSha256": "3a15ba412edcba96516abefaa8b4bc4033d34e8f70df7949817061651696f4db"
+      },
+      "restored": {
+        "directory": "C06/green-replay",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "f24fe1ce0a0ebbb76f70e5c70bea2123b0d86e51fcd3c86eda4ea3ed63b76bad",
+        "rawSha256": "ee3036f6555075998eaeb96fa2312b518473c2e323acfb579ec0d84c2c32d05e"
+      }
+    },
+    {
+      "id": "C07/wake-order",
+      "recipe": "C07",
+      "case": "wake-order",
+      "test": "delivers native TERM before external cancellation reentered by queue wake",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 141,
+        "matcher": "toEqual"
+      },
+      "acceptedScope": "Wake reentrancy delivered event 2 before event 1.",
+      "negative": {
+        "directory": "C07/red-wake-order",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "a9540021236f28c2695f335020b3c3cb60f8569748a9b6327bf7337e8f86fdeb",
+        "rawSha256": "72bd2f4418ff2091104cceae88a002e951eebb93b158a901f1d274f70431febd"
+      },
+      "restored": {
+        "directory": "C07/green-wake-order",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "1410e5ab67204ca9314b5e1102c4fca37ea8371e8151a34d7f9a0c8a4f6556a6",
+        "rawSha256": "78081dc47dcd592268aa13142f1455568911af70771df6ef2e8b40eb825f694e"
+      }
+    },
+    {
+      "id": "C07/observer-order",
+      "recipe": "C07",
+      "case": "observer-order",
+      "test": "finishes the current observer cohort before dispatching reentered cancellation",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 167,
+        "matcher": "toEqual"
+      },
+      "acceptedScope": "Reentered event 2 overtook completion of event 1's observer cohort.",
+      "negative": {
+        "directory": "C07/red-observer-order",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "39b5e7280f5679aec1e96d796f0723d809a2e22d3bd86d9689d64ab67450f36a",
+        "rawSha256": "6010b4725a04494441460a26c454b042f0bfbcb23a01a8fee2e2399290dd46b8"
+      },
+      "restored": {
+        "directory": "C07/green-observer-order",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "64b1509a952fb0d1ad27b36b6c6807e138ac54a00bb5223c1b59e284c520b5e6",
+        "rawSha256": "a182cf164f4812587403228370c2575cf54c7ed5b30163076863eb8bb7a37b96"
+      }
+    },
+    {
+      "id": "C08/cohort",
+      "recipe": "C08",
+      "case": "cohort",
+      "test": "replays first identity once to a wake subscriber while nested observations remain ordered",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 199,
+        "matcher": "toEqual"
+      },
+      "acceptedScope": "Late subscriber received duplicate first delivery and historical event 2.",
+      "negative": {
+        "directory": "C08/red-cohort",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "695a18275186f7f3fb58108aee719391a5d2ebe9b76e34b8e130d0a1197d01b3",
+        "rawSha256": "b4951c6bb7c7e5af070ecaee4471994d20922812cbde64e8f619169b1ee95bb4"
+      },
+      "restored": {
+        "directory": "C08/green-cohort",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "b94a2eb47707457012a41e6c7e465f6a9056ec29b3e8945259bf1b43a0977c82",
+        "rawSha256": "fdf50972ee61a49372b797e3389c00d85956a7d9ddf974dc7490a1a539c0da20"
+      }
+    },
+    {
+      "id": "C09/remove-wake",
+      "recipe": "C09",
+      "case": "remove-wake",
+      "test": "suppresses a captured notification when queue wake removes that registration",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 244,
+        "matcher": "toEqual"
+      },
+      "acceptedScope": "Wake-time removal failed to suppress captured undelivered notification.",
+      "negative": {
+        "directory": "C09/red-remove-wake",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "c71f3d612cfadf9f9eb7da41c44d28aa75b1a648b1b1c0c2b43eaac83eefdd34",
+        "rawSha256": "1c719da419f729dd7ad64c4292b0cd88003eeef87f10bdf99be07fac1e131690"
+      },
+      "restored": {
+        "directory": "C09/green-remove-wake",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "287c3151b70c0fcbf85af934df300cbd7dafa73719c7ec0d96f3f8a3617423c8",
+        "rawSha256": "1c9d0de28b5f061b6818a7229096a31e0c0c2d03a829045bcb8d593f8987e702"
+      }
+    },
+    {
+      "id": "C09/remove-observer",
+      "recipe": "C09",
+      "case": "remove-observer",
+      "test": "suppresses a later observer removed during the current notification",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 264,
+        "matcher": "toEqual"
+      },
+      "acceptedScope": "Earlier observer removal failed to suppress later captured registration.",
+      "negative": {
+        "directory": "C09/red-remove-observer",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "3263cd459998357a7e412afbf2f364a572032aa0b8747ff7250788b99a932e86",
+        "rawSha256": "866458db002f316a278b6daf7b60b4e3125e933764478c02ba59f49c243510e9"
+      },
+      "restored": {
+        "directory": "C09/green-remove-observer",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "eeaec51e28c79718f9f3b534d3ba876fc16c70fd9eb3c0f73b2c09e00a055719",
+        "rawSha256": "518471dbf8499696f70a4423c2e7cadbcaec55810ef228b572fd8a4b39b3d2d2"
+      }
+    },
+    {
+      "id": "C10/duplicates",
+      "recipe": "C10",
+      "case": "duplicates",
+      "test": "retires only one registration when the same callback subscribes twice",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 278,
+        "matcher": "toEqual"
+      },
+      "acceptedScope": "Same callback's two registrations delivered only once. This negative does not independently reach later one-registration retirement assertions.",
+      "negative": {
+        "directory": "C10/red-duplicates",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "9fa30eba339aa80385d8bab3ee2fe8c0794db241807a06aee90b0b89fed85591",
+        "rawSha256": "d71b43f82e4d726516932ae4816571a0bbc6a83535ef17a241785e5579991f97"
+      },
+      "restored": {
+        "directory": "C10/green-duplicates",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "811530ecb802af4160c0b00cdb68a51ce406aa65362970483ecd6adca421a562",
+        "rawSha256": "567d65403b244109d47037665b5f3eb238f85f0c58cbdd825c88c63da0246aad"
+      }
+    },
+    {
+      "id": "C11/dispose-cohort",
+      "recipe": "C11",
+      "case": "dispose-cohort",
+      "test": "executable facade disposal suppresses its already captured undelivered cohort",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 316,
+        "matcher": "toEqual"
+      },
+      "acceptedScope": "Disposed executable's captured cohort still delivered.",
+      "negative": {
+        "directory": "C11/red-dispose-cohort",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "705ddc4d03c578490a61f7e3f6ed567d496645f525eeeb3d28bb333abe5d06e8",
+        "rawSha256": "f81b32b28632866462b83f6030601f0ad3db91ab078e069b1f1f23c4374f3565"
+      },
+      "restored": {
+        "directory": "C11/green-dispose-cohort",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "795a9ab66999746791f249c076f69a0921b17cc8bb5fd61fd269be988f6423b2",
+        "rawSha256": "b4f6a7ef5a95d5549bafcb670e7a0951d006818477fdec170002b44d49df8909"
+      }
+    },
+    {
+      "id": "C12/queue-wake",
+      "recipe": "C12",
+      "case": "queue-wake",
+      "test": "retains independent external cancellation reason in every returned outcome",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.test.ts",
+        "line": 935,
+        "matcher": "toMatchObject"
+      },
+      "acceptedScope": "Already-aborted independent input returned completed instead of cancelled when control abort propagation was removed. This is the selected cancellation-before-admission observation, not every possible queued-wait interleaving.",
+      "negative": {
+        "directory": "C12/red-queue-wake",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "7add2b5bc350a92e291e63eb49423ad2bf6d571f9625796b5c6e3129237e86da",
+        "rawSha256": "ecd31c54b03248647413dfe08d0893518bd01cc8dfb73d3843e3adb9885052e7"
+      },
+      "restored": {
+        "directory": "C12/green-queue-wake",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "93dc2a5993c7d327c2127e30cf663ab980a7c6b9fc88d6ec18b581504b0f1e38",
+        "rawSha256": "d6d793b3da3c9554c25c61c38517bde2656f86427ee3bf3c78d13fb3aba97000"
+      }
+    },
+    {
+      "id": "C13/prior-abort",
+      "recipe": "C13",
+      "case": "prior-abort",
+      "test": "latches an already aborted external reason by identity and wakes queue waiting",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 11,
+        "matcher": "toBe"
+      },
+      "acceptedScope": "Already-aborted input failed to abort the control signal.",
+      "negative": {
+        "directory": "C13/red-prior-abort",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "935bba7331644adc5f82758054f8adf6ab5a8297eb1b22746e04fe1ecfded80e",
+        "rawSha256": "9526f8ceacf1709ff1db11213344e26109253e6c0e40d267842eb64266f225a2"
+      },
+      "restored": {
+        "directory": "C13/green-prior-abort",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "3a90fde84b8a71c4e98f8e9c6581c7d7367d8390fb7d8227f483ea802039db45",
+        "rawSha256": "e1e66c838ed3597256cd0e2a30320c2c5841b341d29d6ba8a2d9702b741b8024"
+      }
+    },
+    {
+      "id": "C14/external-retire",
+      "recipe": "C14",
+      "case": "external-retire",
+      "test": "unsubscribes and retires native and external listeners on disposal",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 96,
+        "matcher": "toBe"
+      },
+      "acceptedScope": "External abort after disposal still woke the disposed control.",
+      "negative": {
+        "directory": "C14/red-external-retire",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "df0ff0bee8317f818e11fa5d4bae94957aa41ae0b0fd0f1dc641c149bed2a18d",
+        "rawSha256": "df6604dce1eabe18dc14eeec962837070fb730537ec7fe0de86f5b1f37b78a99"
+      },
+      "restored": {
+        "directory": "C14/green-external-retire",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "e56fd2d30350ff90f22fc65b75b365887fec1b5c9d7dd20656e88ae4c3cb36c0",
+        "rawSha256": "114248829482f88e7ddf9d5c18be2d73b5b26ecd77dd8fbd153877fc3290735d"
+      }
+    },
+    {
+      "id": "C15/native-retire",
+      "recipe": "C15",
+      "case": "native-retire",
+      "test": "unsubscribes and retires native and external listeners on disposal",
+      "firstOwn": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "line": 89,
+        "matcher": "toBe"
+      },
+      "acceptedScope": "Removed paired listener cleanup left INT listener count 1 instead of 0. First INT-count only; no separately reached TERM-negative claim.",
+      "negative": {
+        "directory": "C15/red-native-retire",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "023f7535314c8ff99182a41818f3a2c1526fb3136bab09b5b7eebc67d5a9c00f",
+        "rawSha256": "8af9b3de5f7528c9710d2b4171a6a54949710b7d94cb1f2424c2fd1f57600055"
+      },
+      "restored": {
+        "directory": "C15/green-native-retire",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "00e4b44c6b9bb30eebfef573af5082134ab6f9f4bd77eaebb9d3bc39c83ecff0",
+        "rawSha256": "65d6a44635b7dab5d095ba5ea720ac2a0b83cef44e20ad787ff05fd9435f4236"
+      }
+    },
+    {
+      "id": "C16/preflight-retention",
+      "recipe": "C16",
+      "case": "preflight-retention",
+      "test": "owned gate checkout preflight-term under isolated Linux supervision",
+      "firstOwn": {
+        "file": "tools/tool-devsync/src/gate-checkout.test.ts",
+        "line": 194,
+        "matcher": "toBe"
+      },
+      "acceptedScope": "Process ended while preflight was expected pending.",
+      "negative": {
+        "directory": "C16/red-preflight-retention",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "3714f641a076f3ad3c65df81b51f21c2d1c12664b4d7ba7ed929b1cb749d884f",
+        "rawSha256": "f8d0a0a6543a98c3e4554c08b228d26eb7d13338cf7061f6ffdcdda0c734ffe7"
+      },
+      "restored": {
+        "directory": "C16/green-preflight-retention",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "002d75b0ff2821e11111d780a2596c070c19a6c538cd85f2bf80502e0a3716db",
+        "rawSha256": "3a0d32b14f275daf2088ffdaf42b5b0b5c9e0c3291a26a55af57fc83152aafb1"
+      }
+    },
+    {
+      "id": "C16/work-retention",
+      "recipe": "C16",
+      "case": "work-retention",
+      "test": "owned gate checkout pending-work under isolated Linux supervision",
+      "firstOwn": {
+        "file": "tools/tool-devsync/src/gate-checkout.test.ts",
+        "line": 233,
+        "matcher": "toBe"
+      },
+      "acceptedScope": "Process ended while work was expected pending.",
+      "negative": {
+        "directory": "C16/red-work-retention",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "98ad087aa928bc3435a9839260f9fd5d7b3104a98bab43bc6440fcf99f783ee6",
+        "rawSha256": "6e6987afbdc5db03646e0fe24ff84a1618bbeb77b544f9ef79928e3412da49bc"
+      },
+      "restored": {
+        "directory": "C16/green-work-retention",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "35b892c0db9c8b7a77e623b54040a57bbe29109b8b90d106684e4d5364fa9dd5",
+        "rawSha256": "2885b0c7d9dd105da1b63028a4c4251b14e0b164c6d35825c7aa1042f65c09ad"
+      }
+    },
+    {
+      "id": "C16/recovery-retention",
+      "recipe": "C16",
+      "case": "recovery-retention",
+      "test": "owned gate checkout recovery-signals under isolated Linux supervision",
+      "firstOwn": {
+        "file": "tools/tool-devsync/src/gate-checkout.test.ts",
+        "line": 194,
+        "matcher": "toBe"
+      },
+      "acceptedScope": "Process ended while recovery was expected pending; the corrected branch was actually reached.",
+      "negative": {
+        "directory": "C16/red-recovery-retention",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "de95ebdfc0b7b256e8705632b5f6e4b0d070a74b0112282d9d1ace4ebc95100c",
+        "rawSha256": "27401e46a9ed03f5d3f4a5d1293dcbdc6ea6f88820a6f7fd3c2336a4d6839334"
+      },
+      "restored": {
+        "directory": "C16/green-recovery-retention",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "b668b3e49426016dd774185858d23e78b7f6f144cbe80b33c068c3ec7677138e",
+        "rawSha256": "37cf31c4764f793f2fbf446c06f44e35aa4cc81719238d0e4658eeb1d9fd134c"
+      }
+    },
+    {
+      "id": "C16/late-retention",
+      "recipe": "C16",
+      "case": "late-retention",
+      "test": "owned gate checkout pending-cleanup under isolated Linux supervision",
+      "firstOwn": {
+        "file": "tools/tool-devsync/src/gate-checkout.test.ts",
+        "line": 233,
+        "matcher": "toBe"
+      },
+      "acceptedScope": "Process ended during pending late cleanup. Process/report retention only, not admission ownership.",
+      "negative": {
+        "directory": "C16/red-late-retention",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "dd6f37989742b6922be71d69fc62e130be95c2bd4d96872be681ed0f20798733",
+        "rawSha256": "376b761971f35bb16e1bcd84a290af7eb41e2614ede87d82223bd90f8567b3db"
+      },
+      "restored": {
+        "directory": "C16/green-late-retention",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "16583351ea3aacac9b96bec5abec547087d9e5ce8837a47f98b1ec8128304ba7",
+        "rawSha256": "2b8741f09322e4f73c2335ec08c2dfee5e163b1f893f3d4f2c083882ad129e4f"
+      }
+    },
+    {
+      "id": "C17/interval-retirement",
+      "recipe": "C17",
+      "case": "interval-retirement",
+      "test": "owned gate checkout pending-work under isolated Linux supervision",
+      "firstOwn": {
+        "file": "tools/tool-devsync/src/gate-checkout.test.ts",
+        "line": 41,
+        "matcher": "toBe"
+      },
+      "acceptedScope": "Controlled settlement remained pending instead of ending within the explicit 500 ms observation. This was an ordinary returned pending assertion, not runner/test timeout credit.",
+      "negative": {
+        "directory": "C17/red-interval-retirement",
+        "exit": 1,
+        "signalCode": null,
+        "receiptSha256": "83f9ea99f2ee05d69ab46891ccce4b4f6dc35c083d87f34c09d561b55cab2059",
+        "rawSha256": "3ce0c9e306e1df319cd25b6703ae1778554b2f946f4a0928d6d491e0a7eb518b"
+      },
+      "restored": {
+        "directory": "C17/green-interval-retirement",
+        "exit": 0,
+        "signalCode": null,
+        "receiptSha256": "cee4d255b8add2d53c26e19b043eb6e2d82fa5e760aabac39c24ecbcbe00903d",
+        "rawSha256": "615a02bc840627edc3ba17a4654a1a0674127f9a4a8edb79ff90d3cdc1ed0878"
+      }
+    }
+  ],
+  "commentBridge": {
+    "method": {
+      "bunVersion": "1.4.4",
+      "bunRevision": "38afee6c84fcf48c0edb2466aa4b27d287a59c30",
+      "loader": "ts",
+      "target": "bun"
+    },
+    "scope": "accepted pre-comment Task1a epoch to closing Proof annotations only; not historical54 requalification or installed/bundle bridge",
+    "descriptor": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/comment-js-bridge.json",
+    "descriptorSha256": "c0eb8687f390b0ac807ae21b9b0a67e7b7783e61e5661ef28aac61303a8f2f00",
+    "files": [
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.ts",
+        "beforeSourceSha256": "dc78f096a0394269a3a3721de83ca3c2d27bb333ebe2aa12ae72e3b65efef9bd",
+        "afterSourceSha256": "db4ea3adbac789e6b81ca653966d2ca01c3b6b1f45eaa4c6171fe495d7e79846",
+        "mode": 436,
+        "emittedSha256": "8b5c4fbb1920a67ce542c14dd3c5c1183a99bb911ced7927a74c8b80b0dbdc21",
+        "identicalBytes": true
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+        "beforeSourceSha256": "4abd74da65749ea2c8afd9fed218617987040fb716230668b57f1e8abefb90cc",
+        "afterSourceSha256": "4abd74da65749ea2c8afd9fed218617987040fb716230668b57f1e8abefb90cc",
+        "mode": 436,
+        "emittedSha256": "237fa805f864d621470224541749b2a0ab49fe38a3cc05dfeba958f64df73587",
+        "identicalBytes": true
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.ts",
+        "beforeSourceSha256": "a150980540f848b843920995bf3cef66af1d2107efaca6c8eff05976274e47ee",
+        "afterSourceSha256": "a150980540f848b843920995bf3cef66af1d2107efaca6c8eff05976274e47ee",
+        "mode": 436,
+        "emittedSha256": "b3f7b9a45769ec660c66edf52dbc02db0e26bad03e03e50c303624f741b6f095",
+        "identicalBytes": true
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.test.ts",
+        "beforeSourceSha256": "8f4b3e1a10144939a58770e666fb913a0f4416edf9a4c5d344f57f265d5505dd",
+        "afterSourceSha256": "8f4b3e1a10144939a58770e666fb913a0f4416edf9a4c5d344f57f265d5505dd",
+        "mode": 436,
+        "emittedSha256": "521575f9b1bbe403d068d8458ae20c4213f28fda97f388cb01921188ea34340e",
+        "identicalBytes": true
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/testing/gate-checkout.test.fixture.ts",
+        "beforeSourceSha256": "a16256f643ecf0bfd17045789f6798a76bc6fb9033dd3d36fbb4d035df98ce7c",
+        "afterSourceSha256": "a16256f643ecf0bfd17045789f6798a76bc6fb9033dd3d36fbb4d035df98ce7c",
+        "mode": 436,
+        "emittedSha256": "7428d1e62cb502ef6018a822a8f60eafa016dd1ff39800183dc41f49a27997fb",
+        "identicalBytes": true
+      },
+      {
+        "path": "tools/tool-devsync/src/gate-checkout.test.ts",
+        "beforeSourceSha256": "b13fa49fa2e6c5ebb155ac86c61533ad856091245e42519e20077a55d5c664b5",
+        "afterSourceSha256": "b13fa49fa2e6c5ebb155ac86c61533ad856091245e42519e20077a55d5c664b5",
+        "mode": 436,
+        "emittedSha256": "8f1824778ac97056800476bd5314f8b098060839928485b142141a37ba754cce",
+        "identicalBytes": true
+      }
+    ]
+  },
+  "continuity": {
+    "relocatedFreshEvidence": {
+      "S01": "C01",
+      "S07": "C03",
+      "L01": "C16",
+      "L02": "C17"
+    },
+    "retained48": "Scoped historical correspondence only; not automatic requalification.",
+    "correspondence": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/old-proof-correspondence.json",
+      "sha256": "eebf9ca72ee752e51c849dc068e060a6a57f1f9c02dc5d284442e8254e62aebc"
+    },
+    "historical54Requalified": false,
+    "c33Index": {
+      "path": "openspec/changes/bun-scripts/verification-c33-checkout.json",
+      "sha256": "217d112c053caf07d34089fe634412c43e0f7dfbfea1bc6d186dc7c5b9d113fd",
+      "unchanged": true
+    }
+  },
+  "limits": [
+    "Control-flow stop/reap and close evidence, no syscall certificate or descendant/resource absence.",
+    "Native pending assertions do not prove later lock/head assertions; C17 ended/pending is ordinary observation.",
+    "No abrupt controller-death guarantee or enrolled/full-gate/cutover authority.",
+    "C10 first duplicate delivery only; C12 selected already-aborted cancellation before admission; C15 first INT count only.",
+    "C16 pending lifetime only, no later lock/head negative; C17 ordinary500ms ended/pending assertion, no timeout credit.",
+    "Control-flow stop/reap and parent-close evidence only, not separate syscall certificates.",
+    "No push/default/host, wider gate composition, parent2.2 or whole C35 closure. Local staging/commit is limited to the separately root-authorized eleven paths and required checks."
+  ],
+  "finalOwningChecks": {
+    "epoch": "Final comment-only source; all six owned code/test files preserve exact pre-comment Bun-emitted bytes.",
+    "checks": [
+      {
+        "id": "dash",
+        "exit": 0,
+        "summary": {
+          "pass": 63,
+          "fail": 0,
+          "assertions": 251,
+          "seconds": 12.95
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli",
+        "argv": [
+          "bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "--preload",
+          "./src/runs/testing/format4-lifetime-preload.ts",
+          "--preload",
+          "./src/runs/testing/format5-lifetime-preload.ts",
+          "./src/ops/gate-control.test.ts",
+          "./src/ops/gate-checkout.test.ts",
+          "--timeout=60000"
+        ],
+        "receipt": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-dash.json",
+        "receiptSha256": "89c29ba3379c6fc6ae1ae92eaccdf755d39ff57692e40e717876d7ca2e4028c8",
+        "raw": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-dash.log",
+        "rawSha256": "82c7bff56dff25ae272f8b62996add5e5c48373026bbc299a166ad97c28d23d4"
+      },
+      {
+        "id": "native",
+        "exit": 0,
+        "summary": {
+          "pass": 25,
+          "fail": 0,
+          "outerAssertions": 25,
+          "seconds": 17.48
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "argv": [
+          "bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "--preload",
+          "./tools/test/scratch/preload.ts",
+          "./tools/tool-devsync/src/gate-checkout.test.ts",
+          "--timeout=30000"
+        ],
+        "receipt": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-native.json",
+        "receiptSha256": "d2d5aaf2253ee5bdd6d25f43b844d994a7bf585e9f5b76adb7f5ed13357b3c5d",
+        "raw": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-native.log",
+        "rawSha256": "c1c734187179985f94682985aa8f5fdeed14248a401e9d401f5ff48085f11f1c"
+      },
+      {
+        "id": "types",
+        "exit": 0,
+        "summary": {
+          "roots": ["twilight-dash", "tool-devsync"],
+          "forced": true
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "argv": [
+          "bunx",
+          "tsc",
+          "--build",
+          "--force",
+          "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+          "tools/tool-devsync/tsconfig.json"
+        ],
+        "receipt": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-types.json",
+        "receiptSha256": "65e0b45369ac1cc9df1e70dbaaece8c45d16dd51b6c12bf6c97f895b111c3e94",
+        "raw": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-types.log",
+        "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "id": "freshGraph",
+        "exit": 0,
+        "summary": {
+          "daemon": false,
+          "isolatePlugins": false,
+          "graphOverridesRemoved": true
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "argv": [
+          "bunx",
+          "nx",
+          "graph",
+          "--file=.superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/graph.json"
+        ],
+        "receipt": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-graph.json",
+        "receiptSha256": "0dcdffc720e5962c10e59cbc47260b6370757ea33706fa1890f892a4bdcc304a",
+        "raw": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-graph.log",
+        "rawSha256": "fc3826d9eb60bb32ce00705b4fc6b2a51f7802046e455cc5cddd3b984badb79f"
+      },
+      {
+        "id": "lint",
+        "exit": 0,
+        "summary": {
+          "exactTypeScriptFiles": 6,
+          "noSkippedBoundary": true
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "argv": [
+          "bunx",
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.test.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.test.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/testing/gate-checkout.test.fixture.ts",
+          "tools/tool-devsync/src/gate-checkout.test.ts"
+        ],
+        "receipt": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-lint.json",
+        "receiptSha256": "38193b85c0e57801c0726833750477c5fbde720c568b11f473b6335501536d10",
+        "raw": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-lint.log",
+        "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "id": "openspec",
+        "exit": 0,
+        "summary": {
+          "passed": 343,
+          "failed": 0
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "argv": ["bunx", "openspec", "validate", "--all", "--json"],
+        "receipt": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-openspec.json",
+        "receiptSha256": "bb3444a1af8c1ddf1d25c9d974453adf6067dd8f2975757411b92928631d0d3d",
+        "raw": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1a-v1/receipts/c35-close-openspec.log",
+        "rawSha256": "70bccaefe14016174e893b8ff4ea16dd3ef2873cb407e4f6cde853e3a53b68b6"
+      }
+    ],
+    "postSerialization": "Explicit owned format/final OpenSpec/diff receipts and exact final record hash are in the closing packet to avoid self-referential hashes.",
+    "skipped": [
+      "Full Dash/Tools suites and installed/build artifact checks outside the focused owner slice.",
+      "Raw full Nx/host gates, CI secrets/migration checks, publication/default/host operations.",
+      "No admitted-core/enrolled/fetch/shared-stage/full-gate or whole C35 completion."
+    ],
+    "integrationReview": "Root and same-Astra clear bounded Task1a after documentation-only D1; only2.2b checked. Later root instruction conditionally authorizes exact11-path staging, uncached staged document check and normal-hook local commit; actual metadata/check/commit receipts are in private closing-task1a-v2."
+  }
+}

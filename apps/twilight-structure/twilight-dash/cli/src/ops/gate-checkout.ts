@@ -11,6 +11,7 @@ import { isAbsolute, join, normalize } from 'node:path';
 
 import type { Admission, QueueOutcome } from '@shared/heavy-lock';
 
+import { createGateControl, type Interruption } from './gate-control';
 import { readTermination } from './native-exit';
 
 export interface Request {
@@ -32,11 +33,7 @@ export interface Completion {
   readonly status: number;
   readonly failures: readonly Failure[];
 }
-/** First control observed by this executable owner, independent of final status priority. */
-export type Interruption =
-  | { readonly kind: 'none' }
-  | { readonly kind: 'native'; readonly signal: 'SIGINT' | 'SIGTERM' }
-  | { readonly kind: 'external'; readonly reason: unknown };
+export type { Interruption } from './gate-control';
 export type Outcome = QueueOutcome<Completion> & { readonly interruption: Interruption };
 export interface Context {
   readonly path: string;
@@ -326,35 +323,10 @@ export async function runCheckout(request: Request, context: Context): Promise<O
   // Proof: C33 A02 replaced the captured requested SHA with HEAD after admission; `owned gate checkout queued under isolated Linux supervision` reported the wrong selected commit; restoration passed.
   const selected = { ...request },
     captured = { ...context };
-  const controller = new AbortController();
-  const isCancelled = (): boolean => controller.signal.aborted;
-  let first: Interruption = { kind: 'none' };
-  const readInterruption = (): Interruption => first;
-  const recordInterruption = (observation: Exclude<Interruption, { kind: 'none' }>): void => {
-    // Proof: C33 S01 overwrote first control; `owned gate checkout cleanup-signal under isolated Linux supervision` returned second TERM instead of first INT; restoration passed.
-    if (readInterruption().kind === 'none') first = observation;
-    controller.abort();
-  };
-  const readInterruptionStatus = (): 130 | 143 => {
-    const observation = readInterruption();
-    if (observation.kind === 'none')
-      throw new Error('checkout cancellation lacks an observed control');
-    // Proof: C33 S07 mapped TERM to130; `owned gate checkout term-signal under isolated Linux supervision` lost143; restoration passed.
-    return observation.kind === 'native' && observation.signal === 'SIGTERM' ? 143 : 130;
-  };
-  const onInt = () => {
-      recordInterruption({ kind: 'native', signal: 'SIGINT' });
-    },
-    onTerm = () => {
-      recordInterruption({ kind: 'native', signal: 'SIGTERM' });
-    },
-    onAbort = () => {
-      recordInterruption({ kind: 'external', reason: captured.signal.reason });
-    };
-  process.on('SIGINT', onInt);
-  process.on('SIGTERM', onTerm);
-  captured.signal.addEventListener('abort', onAbort);
-  if (captured.signal.aborted) onAbort();
+  const control = createGateControl(captured.signal),
+    isCancelled = (): boolean => control.signal.aborted,
+    readInterruption = control.readInterruption,
+    readInterruptionStatus = control.readStatus;
   const captureOutcome = (outcome: QueueOutcome<Completion>): Outcome => {
     const interruption = readInterruption();
     if (outcome.kind === 'cancelled' && interruption.kind === 'none')
@@ -430,8 +402,6 @@ export async function runCheckout(request: Request, context: Context): Promise<O
   let ownedCompletion: { readonly aheadAtArrival: number; readonly value: Completion } | undefined;
   const readCompletion = ():
     { readonly aheadAtArrival: number; readonly value: Completion } | undefined => ownedCompletion;
-  // Proof: C33 L01 unreferenced this owner; all five `pending-` native phase cases observed process end after their marker; restoration passed. Late cleanup proves process/report retention after mutex close, not continued lock ownership.
-  const operationRetention = setInterval(() => undefined, 1000);
   try {
     const { runQueuedWork, createQueueRuntime } = await import('@shared/heavy-lock');
     // Proof: C33 A01 moved checkout before admission; `owned gate checkout queued under isolated Linux supervision` observed changed HEAD while the independent holder remained held; restoration passed.
@@ -709,7 +679,7 @@ export async function runCheckout(request: Request, context: Context): Promise<O
           process.umask(previousUmask);
         }
       },
-      createQueueRuntime(controller.signal),
+      createQueueRuntime(control.signal),
     );
     // Proof: C33 S05 removed post-release checkpoint; `retains successful keep tree on late native signal without post-release Git mutation` lost the returned INT/status; restoration passed. Unchanged receipt members are not separate proof.
     await serviceInterrupts();
@@ -735,10 +705,6 @@ export async function runCheckout(request: Request, context: Context): Promise<O
       },
     });
   } finally {
-    // Proof: C33 L02 omitted reference clear; `owned gate checkout pending-work under isolated Linux supervision` remained pending at the ended assertion after controlled settlement; restoration passed. Not test-timeout credit.
-    clearInterval(operationRetention);
-    captured.signal.removeEventListener('abort', onAbort);
-    process.off('SIGINT', onInt);
-    process.off('SIGTERM', onTerm);
+    control.dispose();
   }
 }

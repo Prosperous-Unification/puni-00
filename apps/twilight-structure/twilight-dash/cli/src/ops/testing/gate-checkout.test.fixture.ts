@@ -96,6 +96,18 @@ const settlement = Promise.withResolvers<undefined>();
 process.on('SIGUSR2', () => {
   settlement.resolve(undefined);
 });
+if (mode === 'preflight-term') {
+  const queue = await import('@shared/heavy-lock'),
+    runQueuedWork = queue.runQueuedWork;
+  await mock.module('@shared/heavy-lock', () => ({
+    ...queue,
+    async runQueuedWork(...arguments_: Parameters<typeof queue.runQueuedWork>) {
+      writeFileSync(record + '.preflight', 'before queue entry');
+      await settlement.promise;
+      return runQueuedWork(...arguments_);
+    },
+  }));
+}
 const pendingFile = record + '.pending';
 async function pause(stage: string): Promise<void> {
   if (mode === 'pending-' + stage) {
@@ -154,6 +166,10 @@ const execution = runCheckout(
     reportFailure: async (failure) => {
       writeFileSync(record + '.failure', failure.phase);
       await pause(failure.phase === 'cleanup' ? 'cleanup' : 'failure');
+      if (mode === 'recovery-signals') {
+        writeFileSync(record + '.recovery', 'reporting after restoration');
+        await settlement.promise;
+      }
       if (mode === 'final-error-signal') throw Error('controlled final recovery report failure');
     },
     reportUnconfirmed: () => {
@@ -187,7 +203,8 @@ const execution = runCheckout(
         (mode === 'false-status' ||
         mode === 'nonzero-signal' ||
         mode === 'restore-error-signal' ||
-        mode === 'pending-failure'
+        mode === 'pending-failure' ||
+        mode === 'recovery-signals'
           ? 'process.exitCode=37;'
           : '');
       const child = scope.runChild([
@@ -220,7 +237,7 @@ const persist = (outcome: unknown): void => {
     ),
   );
 };
-if (mode.startsWith('pending-')) {
+if (mode.startsWith('pending-') || mode === 'preflight-term' || mode === 'recovery-signals') {
   // No top-level-await, poll timer, watcher or active child backs up operation retention here.
   void execution.then(persist, (cause: unknown) => {
     persist({ kind: 'threw', message: cause instanceof Error ? cause.message : String(cause) });

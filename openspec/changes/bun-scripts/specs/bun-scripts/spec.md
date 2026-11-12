@@ -249,3 +249,61 @@ The internal Bun checkout transaction SHALL accept an already-available immutabl
 
 - **WHEN** work returns37 with a tracked child42, or work returns0 with tracked children42 and43
 - **THEN** the final failure list retains every child observation while status remains37 or42 respectively, until a higher-priority operational/report/recovery failure applies
+
+### Requirement: The gate executable owns control before asynchronous preflight through settlement
+
+The standalone checkout SHALL construct one native/external control owner before its first asynchronous preflight and retain a referenced operation until work, IO, children, recovery, admission release and reporting settle. Native INT/TERM and external cancellation SHALL retain separate provenance. External cancellation SHALL retain the original reason by identity. The queue-wake signal SHALL confer neither native provenance nor child-settlement authority. The executable facade SHALL dispose its owner; borrowed work SHALL NOT dispose it.
+
+#### Scenario: Native TERM arrives during controlled asynchronous preflight
+
+- **WHEN** the standalone executable is paused before queue entry and observes native TERM
+- **THEN** it remains referenced until the pause settles, cancels without checkout/work, preserves native TERM independently of the queue wake, and retires its listeners after settlement
+
+#### Scenario: Newly observed events differ from subscription replay
+
+- **WHEN** a subscriber joins after the first event and another same-kind signal or external cancellation is newly observed
+- **THEN** replay uses the original first-event sequence and identity, each new observation has a fresh sequence, and first kind/reason remains unchanged
+
+#### Scenario: Queue wake subscribes during the first control dispatch
+
+- **WHEN** a queue-wake observer subscribes while the first control is being dispatched
+- **THEN** it receives the first-event replay once without a duplicate dispatch of that same sequence
+
+#### Scenario: Recovery reporting observes INT followed by TERM
+
+- **WHEN** native INT then TERM arrive while admitted restoration reporting is pending
+- **THEN** the executable and native lock remain owned until reporting settles, its independent interruption remains INT, and an existing work failure keeps its numeric priority
+
+#### Scenario: Subscription and executable ownership retire
+
+- **WHEN** a subscription is removed or the executable finishes all owned settlement and disposes its control owner
+- **THEN** removed subscriptions receive no later controls, executable native/external listeners retire, and no referenced operation keeps the process alive after controlled completion
+
+#### Scenario: Reentrant cancellation preserves observation order
+
+- **WHEN** native TERM wakes a queue listener that aborts the independent external input, or an earlier control observer aborts that input during event1 delivery
+- **THEN** observation allocates sequences and latches first control immediately, while FIFO delivery finishes the current event cohort before delivering nested event2
+- **AND** first native TERM remains143, native INT remains130, and the external event retains its original reason object
+
+#### Scenario: A registration joins while nested delivery is pending
+
+- **WHEN** a new subscriber joins during wake or notification with another observed event still pending
+- **THEN** it synchronously receives the original first event object once and receives each applicable later observation once according to the cohort captured at observation
+- **AND** an event observed before that registration joined is not replayed as history
+
+#### Scenario: Removal retires only its own undelivered notifications
+
+- **WHEN** a registration is removed during queue wake or an earlier observer notification
+- **THEN** every notification not yet delivered to that registration is suppressed, including its captured current-event notification
+- **AND** separate subscribe calls using the same function retain independent registration tokens, so removing one preserves the other
+
+#### Scenario: The owning executable closes an already captured control cohort
+
+- **WHEN** the executable facade owns its control, has no borrowed work pending, and disposes during queue wake before a captured registration is notified
+- **THEN** that undelivered registration is retired without receiving the captured notification
+- **AND** this disposal authority belongs to the executable owner rather than borrowed stage/work code
+
+#### Scenario: Independent cancellation already exists before admission
+
+- **WHEN** the standalone checkout is called with an already-aborted independent signal
+- **THEN** its queue wake observes that cancellation and returns cancelled before admission with the original external reason

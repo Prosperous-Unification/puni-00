@@ -44,6 +44,8 @@ async function expectEnded(child: Pick<Bun.Subprocess, 'exited'>): Promise<void>
 }
 for (const mode of [
   'queued',
+  'preflight-term',
+  'recovery-signals',
   'return-early',
   'cleanup-signal',
   'term-signal',
@@ -181,7 +183,40 @@ for (const mode of [
           root,
           environment,
         );
-        if (mode === 'kind-change') {
+        if (mode === 'preflight-term' || mode === 'recovery-signals') {
+          const checkpoint = mode === 'preflight-term' ? '.preflight' : '.recovery';
+          await until(() => existsSync(record + checkpoint) || child.exitCode !== null);
+          expect(existsSync(record + checkpoint)).toBe(true);
+          const lifetime = await Promise.race([
+            child.exited.then((status) => ({ kind: 'ended' as const, status })),
+            Bun.sleep(150).then(() => ({ kind: 'pending' as const })),
+          ]);
+          expect(lifetime.kind).toBe('pending');
+          child.kill(mode === 'preflight-term' ? 'SIGTERM' : 'SIGINT');
+          await Bun.sleep(30);
+          if (mode === 'recovery-signals') {
+            child.kill('SIGTERM');
+            await Bun.sleep(30);
+          }
+          expect(child.exitCode).toBe(null);
+          expect(git(tree, 'rev-parse', 'HEAD')).toBe(original);
+          expect((await holdLock(path, () => Promise.resolve(undefined))).kind).toBe(
+            mode === 'preflight-term' ? 'owned' : 'busy',
+          );
+          child.kill('SIGUSR2');
+          await until(() => existsSync(record + '.outcome') || child.exitCode !== null);
+          expect(JSON.parse(readFileSync(record + '.outcome', 'utf8'))).toMatchObject(
+            mode === 'preflight-term'
+              ? { kind: 'cancelled', interruption: { kind: 'native', signal: 'SIGTERM' } }
+              : {
+                  kind: 'completed',
+                  value: { status: 37 },
+                  interruption: { kind: 'native', signal: 'SIGINT' },
+                },
+          );
+          if (mode === 'preflight-term') expect(existsSync(record + '.work')).toBe(false);
+          await expectEnded(child);
+        } else if (mode === 'kind-change') {
           await until(() => existsSync(record + '.outcome') || child.exitCode !== null);
           expect(existsSync(record + '.work')).toBe(false);
           expect(JSON.parse(readFileSync(record + '.outcome', 'utf8'))).not.toMatchObject({

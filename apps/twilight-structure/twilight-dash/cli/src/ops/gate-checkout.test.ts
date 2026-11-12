@@ -927,12 +927,20 @@ for (const late of ['close failure', 'native signal'] as const)
 it('retains independent external cancellation reason in every returned outcome', async () => {
   const f = fixture(),
     controller = new AbortController();
-  controller.abort('explicit external reason');
+  const reason = { cancellation: 'explicit external reason' };
+  controller.abort(reason);
+  const intListeners = process.listenerCount('SIGINT'),
+    termListeners = process.listenerCount('SIGTERM');
   const outcome = await runCheckout(request(f), { ...context(f), signal: controller.signal });
   expect(outcome).toMatchObject({
     kind: 'cancelled',
-    interruption: { kind: 'external', reason: 'explicit external reason' },
+    interruption: { kind: 'external', reason },
   });
+  if (outcome.interruption.kind !== 'external') throw Error('external cancellation missing');
+  expect(outcome.interruption.reason).toBe(reason);
+  expect(process.listenerCount('SIGINT')).toBe(intListeners);
+  expect(process.listenerCount('SIGTERM')).toBe(termListeners);
+  expect(git(f.tree, 'rev-parse', 'HEAD')).toBe(f.original);
   expect(existsSync(f.path)).toBe(false);
 });
 it('distinguishes work exit74 from restoration74 when required reporting fails', async () => {
