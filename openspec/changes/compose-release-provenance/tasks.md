@@ -11,5 +11,5 @@
 ## 3. Verification and release
 
 - [ ] 3.1 Complete production-path fault/removal proofs and adjacent Proof comments, run affected tests/lint/type/build, OpenSpec/current docs/format and canonical host gate; record actual evidence and limitations in verify.md.
-- [ ] 3.2 Update owning runbook and get independent safety/spec review; prepare clean commits/PR with passing exact-head required CI verdicts.
+- [x] 3.2 Update owning runbook and get independent safety/spec review; prepare clean commits/PR with passing exact-head required CI verdicts.
 - [ ] 3.3 Push and merge the implementation, including its reviewed prior audit artifacts; verify main ancestry, final source/check state and release scope. Application rollout, if requested, must meet the existing candidate, executor, env/migration/solver and recovery prerequisites.

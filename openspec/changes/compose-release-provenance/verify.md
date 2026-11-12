@@ -4,7 +4,7 @@
 
 The implementation adds source/check and digest-bound image admission to the actual Compose command before remote preflight or swap. It uses existing CI verdicts and the existing registry reader. No provider writes, added CI jobs, production deployment, secret changes or host executor installation are part of this release.
 
-Implementation source: ac334359b6, 021d74b5cd, dd58eec8ef, befd0730dd and 9355a99b1f. Independent task reviews approved the neutral core, GitHub adapter, corrected image adapter and CLI integration. Whole-branch review, canonical host qualification, exact-head PR checks and merge remain pending; this record does not claim them complete.
+Implementation source: ac334359b6, 021d74b5cd, dd58eec8ef, befd0730dd and 9355a99b1f. Independent task reviews approved the neutral core, GitHub adapter, corrected image adapter and CLI integration. Final whole-branch review and full exact-head PR CI passed on b2738feaba1e8403aa9a290b626f74faae8fb90a. Canonical host qualification and merge remain incomplete; this pre-merge record does not claim either complete.
 
 ## Observed commands
 
@@ -22,7 +22,7 @@ Commands ran in the isolated implementation checkout with Bun/Nx on 2026-11-12. 
 | `bun node_modules/@fission-ai/openspec/bin/openspec.js validate --all --json`                                                                                                                        | 343 valid items: 323 changes and 20 specifications; 0 failed.                                                                             |
 | `bun tools/tool-devsync/src/check-documents.ts`                                                                                                                                                      | Verified current documents and indexes.                                                                                                   |
 
-Owned source and documentation passed targeted Prettier checks. Normal commit hooks ran without bypass; external Tool Wiki certification was visibly inactive because its activation root is not provisioned. This does not establish certification. Full-repository format and full test qualification remain pending below.
+Owned source and documentation passed targeted Prettier checks. Normal commit hooks ran without bypass; external Tool Wiki certification was visibly inactive because its activation root is not provisioned. This does not establish certification. The full exact-head CI below passed repository checks and selected runtime module qualification. Interrupted local or host runs are not credited as complete verdicts.
 
 ## Watched failure proofs
 
@@ -38,13 +38,43 @@ Production guards were temporarily removed or their external dependencies faulte
 
 Success cases cover a current verification, explicitly carried earlier pixels success with its original attempt, one all-tier swap, partial gateway publication, valid unselected MCP and release-file replacement during observation while using captured claims. Dry-run performs no provenance reads and explicitly remains unverified.
 
-## Real read-only observation
+## Independent review and exact-head CI
 
-At 2026-11-12T07:53:38Z the actual anonymous adapter read main source 7614ca5116e2b27831076f7bc7c9f9872051c388, GitHub execution 42880292473 attempt 1: gate failed, pixels passed. The core refused it with “Deployment verification execution did not pass.” No tests or provider writes were triggered. This proves live normalization/refusal for that source, not acceptance of a new release.
+The final review covered dd142f771446a03f1ec3d6f7006e7beffdb59e8e..b2738feaba1e8403aa9a290b626f74faae8fb90a and approved specification compliance and quality with zero Critical/Important findings. It credited the four task reviews and inspected their proof receipts without repeating unchanged suites. The broader pure-core hostname grammar is a deferred minor: a direct production-function probe showed the execution adapter refuses both malformed authorities before credential reads.
 
-## Incomplete or unavailable verification
+[PR #926](https://github.com/Prosperous-Unification/puni-00/pull/926) has successful required gate (131102520356) and pixels (131069135844) verdicts from [CI run 43182377178](https://github.com/Prosperous-Unification/puni-00/actions/runs/43182377178), attempt 1, pull_request, on the exact reviewed source b2738feaba1e8403aa9a290b626f74faae8fb90a. It completed at 2026-11-12T09:48:52Z after 86m35s from creation. Every browser shard passed; the final rollup had no active or red checks, including the separate infrastructure rehearsal.
 
-- A wider `bunx nx run tool-deploy:test` was deliberately interrupted with SIGINT at 3m57s during controller-release tests. It produced no complete verdict and is not credited as a pass.
-- An unrelated baseline installer test had previously failed CI with exit 143. A read-only diagnostic run passed 50 tests and 376 assertions in 37.58s; the historical cause remains unknown and no fix is claimed.
-- Canonical host gate, final independent review, exact implementation-head required CI and merge verification are pending. Host snapshots showed h2 disk pressure and another gate holder; no foreign state was deleted or process cancelled.
+The validated selection expanded to every runtime module because the root CONTEXT.md edit has no reviewed narrower ownership mapping. This release adds no CI job or deployment-time test invocation. The prior successful main run took 69m04s; these two runs are not a controlled measurement of the new tests' incremental cost. Focused test counts above are local component receipts, not a claimed full-CI test count.
+
+## Live read-only provider observations
+
+All observations used the actual anonymous adapter and neutral acceptance predicate without triggering tests or provider writes.
+
+| Observation time (UTC) | Exact source and execution                                                                                                               | Observed acceptance                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 2026-11-12T07:53:38Z   | 7614ca5116e2b27831076f7bc7c9f9872051c388; execution 42880292473, attempt 1; gate failed, pixels passed                                   | Refused: Deployment verification execution did not pass.                                              |
+| 2026-11-12T08:29:21Z   | Main source dd142f771446a03f1ec3d6f7006e7beffdb59e8e; execution 43173258476, attempt 1; gate 131059788066 and pixels 131038485273 passed | Accepted, preserving both actual check identities.                                                    |
+| 2026-11-12T08:39:49Z   | Unmerged source b2738feaba1e8403aa9a290b626f74faae8fb90a                                                                                 | Refused: GitHub verification has no source execution. PR checks cannot substitute for main-source CI. |
+
+## Canonical host qualification: incomplete
+
+Both attempts used the canonical script in an isolated h2 gate tree and printed the exact expected source b2738feaba1e8403aa9a290b626f74faae8fb90a. Every canonical check remained enabled; no raw full Nx gate or checkout before the heavy lock was used.
+
+| Attempt                                     | Observed outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default scratch placement                   | Acquired the canonical lock after 1316 seconds. Interrupted with exit 130 when root free space fell to about 1.36 GiB. Only the verified owned source/cwd/process group was signalled; its known test roots were removed and the heavy lock released. No full verdict is credited.                                                                                                                                                                                                                      |
+| Private scratch on existing executable /tmp | Verified kernel memory.max=9663676416 and memory.swap.max=2147483648 before entering the unchanged canonical script. Preflight observed 6,579,601,408 bytes of filesystem space, 12,399,419,392 bytes of host available memory and 3,025,928,192 bytes of free swap. Peak scope memory reached 8,435,105,792 bytes. Root pressure recurred near 1.55 GiB, so the verified owned unit was stopped; command exit 143. Scratch cleanup completed and the heavy lock released. No full verdict is credited. |
+
+A separate containment negative allocated 256 MiB under a 64 MiB memory/zero-swap ceiling: exit 137, systemd Result=oom-kill, MemoryPeak=MemoryMax=67108864 and MemorySwapMax=0. It proves the selected kernel containment can fail. The larger ceilings are not reservations or capacity calibration; they account scope members, while daemon-created containers retain the existing gate accounting limitations.
+
+The controller reported inactive/Result=success after the requested second stop. That status does not override command exit 143 or establish a successful qualification. Root free space returned near 3.25 GiB after cleanup. A scope FD snapshot found no single writable root regular file over 64 MiB; this does not exclude closed files, many smaller writes or daemon-owned writes. The direct writer remains unproved.
+
+A read-only inode/link-count inventory found at least 1,510,653,952 bytes (1.407 GiB) of exclusively reclaimable generated dist output in eight checked old clean gate trees. Their installed dependencies add no reclaimable blocks because of other hardlinks, so those are preserved. A concrete output-only cleanup packet awaits authorization because it touches other work; no foreign data or process has been removed. This is proposed extra headroom, not a calibrated guarantee about the remaining peak. The optional quota CLI was unavailable; no per-user quota assurance is claimed.
+
+## Remaining verification and release
+
+- Canonical host qualification is incomplete. The cleanup approval is pending; elapsed time is not permission. The implementation remains unmerged.
+- A wider local bunx nx run tool-deploy:test was interrupted with SIGINT at 3m57s during controller-release tests. It had no complete verdict and is not retrospectively credited as passed; the successful exact-head CI is separate evidence.
+- An unrelated prior installer CI failure exited 143. Its diagnostic run passed 50 tests and 376 assertions in 37.58s, and this candidate's remote CI passed. The historical cause remains unknown and no fix is claimed.
+- External Tool Wiki certification was visibly inactive because its activation root is not provisioned. This does not establish certification.
 - No real registry publication, application rollout, installed-executor adoption or post-swap runtime identity was verified. Passing source admission cannot establish complete build reproducibility or close the prior production audit acceptance gaps.
