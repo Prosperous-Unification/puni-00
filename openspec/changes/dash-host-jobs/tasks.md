@@ -300,7 +300,7 @@
       payload does, running the frozen install and `nx run-many -t test` there — test: an
       enrolled run lands in an admitted unit and returns it; negatives: 64 without the unit
       enrolled, for an inherited unit unenrolled, and for no, two or a non-commit argument; a
-      nested `test-queued` is refused 70. Done in PR #PRNUM (verify.md, task 6.12).
+      nested `test-queued` is refused 70. Done in PR #928 (verify.md, task 6.12).
 - [x] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's

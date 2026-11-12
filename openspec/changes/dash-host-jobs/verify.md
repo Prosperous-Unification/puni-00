@@ -3398,7 +3398,7 @@ not complete 6.4. None of 6.4's deliverables is met: a week of
 observation, calibration, `propose`, or the container measurement. 6.4 stays open. This
 section completes neither 6.4 nor 6.7 and does not establish host qualification.
 
-## 2026-11-12 test-queued runs in a gate tree (task 6.12)
+## 2026-11-12 test-queued runs in a gate tree (task 6.12, #928)
 
 A unit on the launcher checkout cannot exist (#925: `inspectHolds` refuses a unit any same-user
 process has as cwd, and the watch, the audit and every `ops job run` work in
