@@ -1313,7 +1313,8 @@ read_own_cgroup() {
 #
 # **A type that declares an exclusive unit is refused, 70.** Its unit is either the enclosing
 # job's, in use by the payload that started this one, or not held at all; re-labelling cannot
-# make either sound. Today that is every type but `test-queued`.
+# make either sound. Since 2026-11-12 (task 6.12) that is every catalogued type, `test-queued`
+# included: it shares the gate's trees, so a test run started inside a gate is refused too.
 #
 # The payload runs as a foreground child and its status is returned; a signal reaches it through
 # the job's scope, which Dash signals as a whole. Exit codes: the payload's, 64 for a type the

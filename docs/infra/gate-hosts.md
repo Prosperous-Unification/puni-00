@@ -34,8 +34,8 @@ throttled by the estimated `gate` envelope (the known issue in that section).
   `TMPDIR=/var/tmp` and `NX_DAEMON=false`. These lines sit above the interactivity guard, which
   is what a non-interactive `ssh … CMD` needs.
 - **Gate checkouts.** `~/puni-00-gate-tbf` and `~/puni-00-gate-tbf2` (the pool's two `gate_tree`
-  units, J15) and `~/puni-00-gate-launcher` (launcher-only: gates, `watch` and the audit run Dash
-  from it, because an enrolled payload refuses its own launcher's checkout and a process in a unit
+  units, J15) and `~/puni-00-gate-launcher` (launcher-only: gates, test runs, `watch` and the audit run
+  Dash from it, because an enrolled payload refuses its own launcher's checkout and a process in a unit
   holds it) are full clones of the GitHub repository, never `--filter=blob:none`, each with one
   frozen install. Ansible never moves a head. Before cloning, the role refuses when the home
   filesystem has less free space than 5 GiB per missing checkout plus 10 GiB for a gate, and prints

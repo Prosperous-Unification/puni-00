@@ -121,8 +121,8 @@ the running gate is testing.
 
 ## Launchers enter through `run_heavy_job`
 
-Every launcher (`bin/h2puni-gate.sh`, `bin/publish-release.sh`, `bun run test:queued`, the solver
-image publish) now calls `run_heavy_job` in `bin/heavy-lock-lib.sh`. On a host without
+Every launcher (`bin/h2puni-gate.sh`, `bin/publish-release.sh`, `bun run test:queued <sha>`, the
+solver image publish) now calls `run_heavy_job` in `bin/heavy-lock-lib.sh`. On a host without
 `/home/puni1/.config/dash/host-pool.json` that is the same `flock` queue, so this runbook reads
 its holder exactly as before. The holder's process is the launcher's payload script, such as
 `bin/h2puni-gate-payload.sh <sha>`, under the launcher.

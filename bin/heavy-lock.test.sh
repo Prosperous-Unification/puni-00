@@ -1278,9 +1278,12 @@ make_job_fixture() {
   mkdir -p "$checkout/bin" "$checkout/apps/twilight-structure/twilight-dash/cli/src" \
     "$job_scratch/fake-bin" "$job_scratch/root/.dash" "$job_scratch/config-dir"
   cp "$lock_lib" "$checkout/bin/heavy-lock-lib.sh"
-  # The real catalogue, so a nested job's exclusive units are the production types' own (case 49).
+  # The real catalogue, so a nested job's exclusive units are the production types' own (case 49),
+  # plus `nested-probe`, a fixture type with no exclusive unit: since 2026-11-12 (task 6.12) every
+  # production type names one, so no production type reaches the re-labelled nested path.
   mkdir -p "$checkout/infra/jobs"
-  cp "$repo_root/infra/jobs/catalogue.json" "$checkout/infra/jobs/catalogue.json"
+  jq '.jobs += [.jobs[] | select(.id == "release-build") | .id = "nested-probe" | .envelope.exclusive = []]' \
+    "$repo_root/infra/jobs/catalogue.json" >"$checkout/infra/jobs/catalogue.json"
   : >"$checkout/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts"
   : >"$job_scratch/heavy.lock"
   cat >"$job_scratch/flock-held.pl" <<'PROBE'
@@ -1620,12 +1623,12 @@ run_job_suite() {
   status=0
   DASH_JOB_ID=$job_id DASH_JOB_TYPE=gate HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP=$in_scope \
     JOB_TEST_ADMISSION=running \
-    HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- bash -c "$report_label" "$nested_env" \
+    HEAVY_LOCK_JOB_TYPE=nested-probe run_job "$sh" -- bash -c "$report_label" "$nested_env" \
     2>"$job_scratch/stderr" || status=$?
   expect_status 0 "$status" '49a: a nested launcher inside an admitted job runs'
-  expect_equal 'gate:abc/test-queued' "$(cat "$nested_env" 2>/dev/null)" \
+  expect_equal 'gate:abc/nested-probe' "$(cat "$nested_env" 2>/dev/null)" \
     '49a: the payload runs under the derived label'
-  if grep -q "heavy job: gate:abc/test-queued runs inside dash job $job_id" "$job_scratch/stderr"; then
+  if grep -q "heavy job: gate:abc/nested-probe runs inside dash job $job_id" "$job_scratch/stderr"; then
     pass '49a: the derived label is recorded'
   else fail "49a: the derived label was not recorded: $(cat "$job_scratch/stderr")"; fi
   if [[ $(grep '^argv ' "$job_scratch/dash.log" 2>/dev/null) != "$asked" ]]; then
@@ -1637,7 +1640,7 @@ run_job_suite() {
   reset_job_logs
   status=0
   DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" JOB_TEST_ADMISSION=running \
-    HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- bash -c "$report_label" "$nested_env" 42 \
+    HEAVY_LOCK_JOB_TYPE=nested-probe run_job "$sh" -- bash -c "$report_label" "$nested_env" 42 \
     2>/dev/null || status=$?
   expect_status 42 "$status" "49b: the nested payload's status is the caller's"
   expect_equal 1 "$(trap_runs)" "49b: the caller's EXIT trap ran once"
@@ -1654,7 +1657,7 @@ run_job_suite() {
     reset_job_logs
     status=0
     DASH_JOB_ID=$forged_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP=$forged_cgroup \
-      HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+      HEAVY_LOCK_JOB_TYPE=nested-probe run_job "$sh" -- touch "$job_scratch/ran" \
       2>"$job_scratch/stderr" || status=$?
     expect_status 70 "$status" "$label: a DASH_JOB_ID outside its job's scope is refused"
     if [[ -e $job_scratch/ran || -e $job_scratch/heavy.lock.d ]] || dash_was_called; then
@@ -1676,6 +1679,20 @@ run_job_suite() {
     [[ ! -e $job_scratch/ran ]] && ! dash_was_called; then
     pass '49f: the refusal names the unit and nothing ran'
   else fail "49f: the refusal did not name the unit, or something ran: $(cat "$job_scratch/stderr")"; fi
+  # 49l. `test-queued` shares the gate's trees since 2026-11-12 (task 6.12), so a test run started
+  # inside a gate is refused rather than re-labelled: it would run in the gate's own tree.
+  # Proof (observed 2026-11-12): with the catalogue's `test-queued` exclusive list set back to
+  # `[]`, `49l … want exit 70, got 0` and the payload ran.
+  reset_job_logs
+  status=0
+  DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" JOB_TEST_ADMISSION=running \
+    HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+    2>"$job_scratch/stderr" || status=$?
+  expect_status 70 "$status" '49l: a nested test-queued inside a gate is refused'
+  if grep -q 'test-queued declares the exclusive unit gate_tree' "$job_scratch/stderr" &&
+    [[ ! -e $job_scratch/ran ]] && ! dash_was_called; then
+    pass '49l: the refusal names gate_tree and nothing ran'
+  else fail "49l: the refusal did not name gate_tree, or something ran: $(cat "$job_scratch/stderr")"; fi
   status=0
   DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" \
     HEAVY_LOCK_JOB_TYPE=not-catalogued run_job "$sh" -- touch "$job_scratch/ran" \
@@ -1691,7 +1708,7 @@ run_job_suite() {
     reset_job_logs
     status=0
     DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" JOB_TEST_ADMISSION=$answer \
-      HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+      HEAVY_LOCK_JOB_TYPE=nested-probe run_job "$sh" -- touch "$job_scratch/ran" \
       2>"$job_scratch/stderr" || status=$?
     local case_label=49i
     [[ $answer == absent ]] && case_label=49h
@@ -1716,7 +1733,7 @@ run_job_suite() {
   status=0
   local started=$SECONDS
   DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" JOB_TEST_ADMISSION=hang \
-    JOB_TEST_ADMISSION_TIMEOUT=1 HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+    JOB_TEST_ADMISSION_TIMEOUT=1 HEAVY_LOCK_JOB_TYPE=nested-probe run_job "$sh" -- touch "$job_scratch/ran" \
     2>"$job_scratch/stderr" || status=$?
   expect_status 70 "$status" '49j: a Dash that does not answer is refused'
   if (( SECONDS - started < 30 )) && [[ ! -e $job_scratch/ran ]]; then
@@ -1730,7 +1747,7 @@ run_job_suite() {
   mv "$config" "$config.away"
   status=0
   DASH_JOB_ID=$job_id HEAVY_LOCK_LABEL=gate:abc JOB_TEST_CGROUP="$in_scope" JOB_TEST_ADMISSION=running \
-    HEAVY_LOCK_JOB_TYPE=test-queued run_job "$sh" -- touch "$job_scratch/ran" \
+    HEAVY_LOCK_JOB_TYPE=nested-probe run_job "$sh" -- touch "$job_scratch/ran" \
     2>"$job_scratch/stderr" || status=$?
   mv "$config.away" "$config"
   expect_status 70 "$status" '49k: a nested call on an unenrolled host is refused'
@@ -1755,16 +1772,41 @@ run_launcher_refusals() {
   SOLVER_PUBLISH_BUN=/bin/true SOLVER_PUBLISH_ROOT=/ \
     bash "$repo_root/bin/solver-image-publish-payload.sh" abc >/dev/null 2>&1 || status=$?
   expect_status 64 "$status" '47b: the solver publish payload refuses a sha that is not 40 hex'
-  status=0
-  bash "$repo_root/bin/test-queued.sh" extra >/dev/null 2>&1 || status=$?
-  expect_status 64 "$status" '47c: the test-queued launcher refuses arguments'
-  # A stub `bunx`, so a payload that ignored its arguments would not run the suite here.
+  # 47c. The test-queued launcher takes the sha alone (task 6.12): none, two, or one that names no
+  # commit is refused before the lock or the pool.
+  local -a shape
+  local shape_name
+  for shape_name in none two not-a-commit; do
+    case $shape_name in
+      none) shape=() ;;
+      two) shape=(HEAD HEAD) ;;
+      not-a-commit) shape=(not-a-commit) ;;
+    esac
+    status=0
+    bash "$repo_root/bin/test-queued.sh" ${shape[@]+"${shape[@]}"} >/dev/null 2>"$job_scratch/stderr" || status=$?
+    expect_status 64 "$status" "47c: the test-queued launcher refuses $shape_name"
+  done
+  # Before the lock or the pool, not by the payload after it: the payload refuses the same target.
+  if grep -q 'not-a-commit is not a commit in' "$job_scratch/stderr" &&
+    ! grep -q -E 'heavy lock:|heavy job:|ops job' "$job_scratch/stderr"; then
+    pass '47c: the refusal names the target before any lock or admission'
+  else fail "47c: the refusal did not name the target, or came after the lock: $(cat "$job_scratch/stderr")"; fi
+  # A stub `bun` and `bunx`, so a payload that ignored its arguments would not install or run the
+  # suite here.
   mkdir -p "$job_scratch/stubs"
   printf '#!/bin/sh\nexit 0\n' >"$job_scratch/stubs/bunx"
-  chmod +x "$job_scratch/stubs/bunx"
-  status=0
-  PATH="$job_scratch/stubs:$PATH" bash "$repo_root/bin/test-queued-payload.sh" extra >/dev/null 2>&1 || status=$?
-  expect_status 64 "$status" '47d: the test-queued payload refuses arguments'
+  printf '#!/bin/sh\nexit 0\n' >"$job_scratch/stubs/bun"
+  chmod +x "$job_scratch/stubs/bunx" "$job_scratch/stubs/bun"
+  for shape_name in none two; do
+    case $shape_name in
+      none) shape=() ;;
+      two) shape=("$(git -C "$repo_root" rev-parse HEAD)" extra) ;;
+    esac
+    status=0
+    PATH="$job_scratch/stubs:$PATH" bash "$repo_root/bin/test-queued-payload.sh" ${shape[@]+"${shape[@]}"} \
+      >/dev/null 2>&1 || status=$?
+    expect_status 64 "$status" "47d: the test-queued payload refuses $shape_name"
+  done
   status=0
   SOLVER_PUBLISH_BUN=bun SOLVER_PUBLISH_ROOT=/ \
     bash "$repo_root/bin/solver-image-publish-payload.sh" "$sha" >/dev/null 2>"$job_scratch/stderr" || status=$?
