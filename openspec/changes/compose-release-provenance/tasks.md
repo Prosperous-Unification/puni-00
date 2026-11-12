@@ -1,12 +1,12 @@
 ## 1. Exact source/check acceptance
 
-- [ ] 1.1 Implement provider-neutral deployment verification and selected-image claim predicates — tests: provenance.test.ts accepts equivalent providers; negative: wrong source/reference/pipeline/trigger, failed/cancelled/incomplete/absent/duplicate verdicts and wrong tier/digest/tag; watch guard removal fail.
-- [ ] 1.2 Add supported-origin discovery and bounded GitHub normalization over the existing shared transport — tests: provenance-github.test.ts complete latest execution/attempt; negative: unsupported origin, missing/malformed/unavailable/incomplete records, earlier green retry and changing observations; watch dependency and guard-removal proofs.
+- [x] 1.1 Implement provider-neutral deployment verification and selected-image claim predicates — tests: provenance.test.ts accepts equivalent providers; negative: wrong source/reference/pipeline/trigger, failed/cancelled/incomplete/absent/duplicate verdicts and wrong tier/digest/tag; watch guard removal fail.
+- [x] 1.2 Add supported-origin discovery and bounded GitHub normalization over the existing shared transport — tests: provenance-github.test.ts complete latest execution/attempt; negative: unsupported origin, missing/malformed/unavailable/incomplete records, earlier green retry, carried-check identities and changing observations; watch dependency and guard-removal proofs.
 
 ## 2. Image admission and production call path
 
-- [ ] 2.1 Reuse digest-verified OCI metadata under one selected-image budget and authority-bound existing credentials — tests: provenance-images.test.ts; negative: absent/wrong frontend label, corrupt manifest/config, credential destination mismatch and redirect. Observe fault/removal proofs.
-- [ ] 2.2 Integrate immutable selected release entries and provider/image verification into the supported CLI before remote preflight/swap — tests: provenance-cli.test.ts and legacy-delivery.test.ts; negative: invalid release, wrong/missing/failed/cancelled verification, stale executor and frontend-only mismatch all leave swap trace empty. Dry-run remains visibly unverified.
+- [x] 2.1 Reuse digest-verified OCI metadata under one selected-image budget and authority-bound existing credentials — tests: provenance-images.test.ts; negative: absent/wrong frontend label, corrupt manifest/config, credential destination mismatch and redirect. Observe fault/removal proofs.
+- [x] 2.2 Integrate immutable selected release entries and provider/image verification into the supported CLI before remote preflight/swap — tests: provenance-cli.test.ts and legacy-delivery.test.ts; negative: invalid release, wrong/missing/failed/cancelled verification, stale executor and frontend-only mismatch all leave swap trace empty. Dry-run remains visibly unverified.
 
 ## 3. Verification and release
 

@@ -19,3 +19,8 @@ per organization and per process.
 Run `bunx nx run shared-delivery-github:test:unit`, `shared-delivery-github:lint`,
 `shared-delivery-github:typecheck` and `shared-delivery-github:build` from the
 repository root.
+
+`createGitHubReadTransport` exposes the same bounded anonymous GET channel for
+other public GitHub observations, including deployment verification. Each consumer
+validates its own records and acceptance policy; transport availability does not
+certify a source or a deployment.

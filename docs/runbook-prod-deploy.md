@@ -43,7 +43,7 @@ plan against prod's real state.
 
 ```sh
 # ON h2puni, once the dagger CLI and a prod checkout (not dev's) exist:
-export REGISTRY_USER=wbs REGISTRY_PASS=$(grep ^REGISTRY_PASS= /home/puni1/wbs/.env | cut -d= -f2-)
+export REGISTRY=registry.infra.bulletpoints.club REGISTRY_USER=wbs REGISTRY_PASS=$(grep ^REGISTRY_PASS= /home/puni1/wbs/.env | cut -d= -f2-)
 bin/h2puni-gate.sh "$(git rev-parse HEAD)"   # the sha is checked out under the heavy lock
 bin/publish-release.sh
 bunx nx run tool-remote-scripts:install --execute   # after any swap.js / smoke.js change
@@ -94,6 +94,18 @@ run it until it prints `step codes backfilled: <n>`, then follow the backend int
 migration ledger, and only then renames it into place (`snapshotDatabase` in
 `libs/wbs/adapters/store-sqlite/src/backup.ts`). If the backup fails, the swap aborts before
 anything is migrated. Nothing deletes old backups; prune them by hand.
+
+## Compose source, check and image verification
+
+An executed deployment now observes the selected source repository's latest applicable source-update verification before any remote preflight or swap. The first provider is public GitHub: the existing ci workflow's push to main on the exact source must have passed gate and pixels. A passing PR run or a nearby green commit cannot substitute. The adapter reads the current run/attempt and complete bounded job history; an explicitly carried successful check keeps its original attempt, while a newer failed, cancelled, skipped or incomplete check supersedes it.
+
+Every selected release entry is validated and each image's manifest/config bytes are checked by digest. Its application WBS_SHA must equal the deployment source, including frontend. An inherited Bun/Caddy OCI revision is not application provenance. Partial tier publication is supported when every selected tier exists and passes; all selected tiers must pass before the first swap.
+
+Provider reads are anonymous and read-only, with the existing bounded GitHub transport. Unsupported origins, rate limits, incomplete/changed observations, unreadable/malformed release records, wrong labels and corrupt metadata refuse. No tests run again at deployment. The command prints nonsecret verification execution/attempt/check provenance and image/config identities; keep that observation with release.json and the existing gate/build record. It is not a claim about post-swap runtime or complete build reproducibility.
+
+For credentialed registries, reuse PUNI_REGISTRY_AUTH or REGISTRY_USER/REGISTRY_PASS, and explicitly set REGISTRY to their intended registry authority. The comparison preserves the reader's effective scheme and port, so URL-normalized loopback aliases cannot redirect credentials to another local service. Ambiguous/malformed credentials or any selected image naming a different authority refuse before an authenticated request. Redirected metadata is refused. Keep credential values out of command transcripts, git and PRs. Anonymous public registry reads need no credentials.
+
+A default dry-run remains an advisory plan and explicitly reports provenance unverified. It does not run the provider/image acceptance checks or authorize a release. Source merge also does not install host executors: the existing installed-bundle hash refusal remains, as do solver, migration, environment, shared-edge lock, health and smoke prerequisites. A successful source guard does not prove that the old installed launchers or current production images have adopted it.
 
 ## First product deploy
 

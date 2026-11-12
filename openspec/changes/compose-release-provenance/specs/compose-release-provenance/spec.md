@@ -16,7 +16,7 @@ Deployment verification SHALL identify source repository/revision/reference, pip
 
 ### Requirement: Exact accepted source and current attempt
 
-An executed deployment MUST observe the latest applicable source-update verification execution for the exact repository/revision and required source reference/pipeline. Its current attempt and all uniquely named required checks MUST be complete and successful. Adapter reads MUST refuse changed execution/attempt observations and incomplete pagination.
+Execution SHALL observe the latest source-update verification for the exact repository/revision/ref and pipeline. The current attempt MUST pass; required checks MUST be unique, complete, passing and latest applicable. Carried successes MUST retain their actual identities/attempts and be superseded by newer checks. Changed or incomplete observations MUST refuse.
 
 #### Scenario: Complete current verification
 
@@ -32,6 +32,11 @@ An executed deployment MUST observe the latest applicable source-update verifica
 
 - **WHEN** an earlier success is followed by an incomplete/failed retry or a new execution, or the execution/attempt changes while jobs are read
 - **THEN** the old success does not authorize deployment
+
+#### Scenario: Successful checks are carried across a partial retry
+
+- **WHEN** a completed successful current execution attempt retains a passing pixels check from its earlier attempt and no later pixels observation supersedes it
+- **THEN** verification accepts that check with its original identity and attempt without rerunning it
 
 ### Requirement: Digest-bound selected image identity
 
@@ -55,6 +60,11 @@ Verification adapters MUST use bounded read-only provider operations and retain 
 
 - **WHEN** configured credentials belong to one authority but a selected image names another, or metadata requests redirect
 - **THEN** the deployment refuses without sending credentials to that destination
+
+#### Scenario: A loopback alias selects another effective origin
+
+- **WHEN** credentials are bound to the reader's HTTP localhost endpoint but a selected uppercase or numeric hostname spelling selects HTTPS or another effective port
+- **THEN** the adapter refuses before sending credentials, even when URL host normalization yields the same host string
 
 ### Requirement: Preserve deployment sequencing and advisory planning
 
