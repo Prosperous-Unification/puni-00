@@ -318,4 +318,4 @@
       the `ops job status` line; an optional catalogue `maxRuntimeMinutes` that `ops job run`
       ends with SIGTERM, SIGKILL after the settle budget, and exit 124; `gate` bounded at 480 —
       tests: `audit.test.ts`, `status.test.ts`, `job-run.test.ts` (the runtime bound),
-      Burokrat `job-catalogue.test.ts`; negatives in verify.md. Done in PR #PR_NUMBER.
+      Burokrat `job-catalogue.test.ts`; negatives in verify.md. Done in PR #927.
