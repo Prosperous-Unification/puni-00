@@ -277,7 +277,12 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    mode (step 8, 6.5). Rerun `--tags validate`. It is a read-only probe, not step 4's converging
    second apply.
 
-6. **Observe for a week (6.4).** On h4claw, first calibrate `gate` through step 7 before
+6. **Observe for a week (6.4).** Calibrate every type whose provenance is `estimated` through
+   step 7 before its first ordinary run under `MemoryHigh` on a host (a calibration runs through
+   the pool too, without the bound): an estimate below the real peak throttles the run instead of
+   ending it, and observe mode only records that (the `throttled` audit drift, and the
+   `maxRuntimeMinutes` bound where the type declares one, today only `gate`, both since
+   2026-11-12, are the backstop, not the plan). On h4claw, first calibrate `gate` through step 7 before
    launching further observe-mode gates: the first run is throttled at the 6 GiB estimate
    ([known issue](#launch-a-gate-on-h4claw)). Every launcher goes through `run_heavy_job` in observe mode. Gates
    launch from `~/puni-00-gate-launcher`. From step 5 on, `gate-launcher-refresh.timer` keeps it
