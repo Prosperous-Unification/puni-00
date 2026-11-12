@@ -569,7 +569,7 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   `MemoryHigh`. Its line reads `peak <n> GiB throttled (memory.events high <count>)` (task
   6.11). The count is the largest sampled so far. A throttled job is still running, but it may
   be making almost no progress: the h4claw gate in
-  [gate hosts](../../../../docs/infra/gate-hosts.md) used about 0.02 cores while it was throttled.
+  [gate hosts](../../../../../docs/infra/gate-hosts.md) used about 0.02 cores while it was throttled.
 
 - **`ops job admission --job <id>`** prints one JSON line, `{"job":"<id>","state":…,"running":…}`.
   `running` is true only for a launched (`held`) job with no exit or launch failure recorded
