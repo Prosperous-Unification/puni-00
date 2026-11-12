@@ -55,6 +55,8 @@
         "{workspaceRoot}/openspec/changes/dual-optimized-scheduler/design.md",
         "{workspaceRoot}/openspec/changes/wbs-permissions/permission-matrix.md",
         "{workspaceRoot}/tools/tool-remote-scripts/src/fixtures/solver-supervisor-orphan-host.ts",
+        "{workspaceRoot}/tools/tool-remote-scripts/src/fixtures/host-job-docker-run.ts",
+        "{workspaceRoot}/tools/tool-remote-scripts/src/lib/host-job-container-bound.ts",
         "{workspaceRoot}/apps/wbs/gw-01/src/**/*",
         "{workspaceRoot}/apps/wbs/fe-01/src/**/*",
         "{workspaceRoot}/apps/wbs/fe-01/tsconfig.app.json",

@@ -328,3 +328,11 @@
       ends with SIGTERM, SIGKILL after the settle budget, and exit 124; `gate` bounded at 480 —
       tests: `audit.test.ts`, `status.test.ts`, `job-run.test.ts` (the runtime bound),
       Burokrat `job-catalogue.test.ts`; negatives in verify.md. Done in PR #927.
+- [x] 6.13 Gate containers attributed (J16): the supervisor's managed solver containers, the
+      orphan proof's callers and Caddy in `mcp-body-limit.test.ts` run bounded and labelled
+      inside a Dash job, their argv unchanged outside one — test: each call site's argv carries
+      `--cpus 1` (and `--memory 1g` where the starter sets no memory of its own) and
+      `puni.job=abc` with `DASH_JOB_ID=abc`, and none of them without it; negative: drop the
+      branch and watch it fail. Done in PR #929 (slice 6i): `host-job-container-bound.ts`
+      in tool-remote-scripts. `docker build` stays unattributed, and the peaks stay unmeasured
+      until 6.4, so `gate` stays out of `concurrencyEligible`.

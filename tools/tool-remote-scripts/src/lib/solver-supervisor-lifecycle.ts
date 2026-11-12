@@ -86,7 +86,11 @@ async function createWithinHostCap(
     if (managed.length >= options.maxManagedContainers) {
       throw new Error('managed solver lifecycle: host managed container cap reached');
     }
-    return await driver.create(buildManagedContainerArgs(frame, options));
+    // The supervisor inherits the job's environment from the gate's test phase (the solver
+    // smoke and the orphan proofs start it with no setsid); production starts it without one.
+    // Proof: passing `{}` here made `labels the managed container inside a Dash job`
+    // (solver-supervisor-lifecycle.test.ts) fail on a create argv without the label (2026-11-12).
+    return await driver.create(buildManagedContainerArgs(frame, options, process.env));
   });
   hostAdmissionTail = admission.then(
     () => undefined,

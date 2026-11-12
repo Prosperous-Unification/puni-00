@@ -197,6 +197,45 @@ function channel(
   };
 }
 
+class CreateRecordingDriver extends FakeDriver {
+  readonly created: (readonly string[])[] = [];
+
+  override create(argv: readonly string[]): Promise<string> {
+    this.created.push(argv);
+    return super.create(argv);
+  }
+}
+
+async function createdUnder(jobId: string | undefined): Promise<readonly string[]> {
+  const previous = process.env['DASH_JOB_ID'];
+  if (jobId === undefined) delete process.env['DASH_JOB_ID'];
+  else process.env['DASH_JOB_ID'] = jobId;
+  try {
+    const driver = new CreateRecordingDriver();
+    await runManagedSolverAttempt(START, OPTIONS, driver, channel(['bound'], driver.events));
+    const argv = driver.created.at(0);
+    if (argv === undefined) throw new Error('the lifecycle created no container');
+    return argv;
+  } finally {
+    if (previous === undefined) delete process.env['DASH_JOB_ID'];
+    else process.env['DASH_JOB_ID'] = previous;
+  }
+}
+
+describe('the managed solver container inside and outside a Dash job', () => {
+  it('labels the managed container inside a Dash job', async () => {
+    const argv = await createdUnder('abc');
+    expect(argv).toContain('puni.job=abc');
+    expect(argv[argv.indexOf('--cpus') + 1]).toBe('1');
+  });
+
+  it('leaves the managed container argv unchanged outside a Dash job', async () => {
+    const argv = await createdUnder(undefined);
+    expect(argv).not.toContain('--cpus');
+    expect(argv.some((flag) => flag.startsWith('puni.job='))).toBeFalse();
+  });
+});
+
 describe('the managed solver lifecycle', () => {
   it('arms the persistent timer before start and sends work only after bound', async () => {
     const driver = new FakeDriver();
