@@ -35,13 +35,13 @@
     {
       "id": "test-queued",
       "entrypoint": "package.json#scripts.test:queued",
-      "argumentProfile": "",
-      "envelope": { "cpuCores": 4, "memoryGib": 6, "tmpDiskGib": 4, "exclusive": [] },
+      "argumentProfile": "<sha>",
+      "envelope": { "cpuCores": 4, "memoryGib": 6, "tmpDiskGib": 4, "exclusive": ["gate_tree"] },
       "containers": { "memoryGib": 1, "cpuCores": 1 },
       "enforcement": "observe",
       "provenance": {
         "kind": "estimated",
-        "basis": "read, not measured, 2026-11-01: nx run-many -t test at nx.json parallel 4, the test half of the gate without its tree; every container the test suite starts is unbounded today (Caddy in mcp-body-limit.test.ts), so the bound is declared, not enforced (task 6.2); no exclusive unit yet: the launcher checkout and its .nx cache are shared with any gate or test-queued launched from it (docs/infra/heavy-job-launchers.md), so the type is not concurrency-eligible until one is named",
+        "basis": "read, not measured, 2026-11-01: nx run-many -t test at nx.json parallel 4, the test half of the gate without its tree; every container the test suite starts is unbounded today (Caddy in mcp-body-limit.test.ts), so the bound is declared, not enforced (task 6.2); no exclusive unit yet: the launcher checkout and its .nx cache are shared with any gate or test-queued launched from it (docs/infra/heavy-job-launchers.md), so the type is not concurrency-eligible until one is named; 2026-11-12 (task 6.12): a unit on the launcher checkout is impossible, since the watch, the audit and every ops job run work in it and inspectHolds refuses a unit with a same-user cwd, so the type now runs pinned to <sha> in a gate tree, unit gate_tree, sharing the gate's two trees with no new checkout or re-enrollment",
         "until": "2026-12-01"
       }
     },

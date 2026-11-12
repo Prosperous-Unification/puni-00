@@ -259,7 +259,7 @@
       (6.5a): `host-pool.json`'s `concurrencyEligible`, default `[]`, refused **64 at init and
       at every open** for an id no launcher catalogue names (S6B-A17, S6B-A22). `gate` and
       `test-queued` stay unlisted until their J16 gaps and their shared checkout `.nx` cache
-      are covered (`docs/infra/heavy-job-launchers.md`).
+      are covered (`docs/infra/heavy-job-launchers.md`; the shared cache closed by 6.12).
 - [x] 6.6 Uninspectable same-user processes outside host jobs (review F1): hold inspection
       refuses any same-user process whose `/proc/<pid>/fd` is access-denied. Host-job settlement
       now records such a process outside the job's scope as `uninspectable_outside_scope`, but
@@ -292,6 +292,15 @@
         running job with that id before running nested — test: a fake scope of that name with no
         such job is refused. Done in slice 6e: `ops job admission` (`ops/admission.test.ts`) and
         `bin/heavy-lock.test.sh` cases 49h–49k (S6E-A3).
+- [x] 6.12 test-queued runs in a gate tree: a unit on the launcher checkout is impossible
+      (`inspectHolds` refuses a unit any same-user process has as cwd, and the watch, the audit
+      and every `ops job run` sit in `~/puni-00-gate-launcher`), and a new unit kind means
+      re-enrolling every host (#925). Decided 2026-11-12: the type names `gate_tree` and the
+      profile `<sha>`, and `bin/test-queued-payload.sh` resolves its tree and commit as the gate
+      payload does, running the frozen install and `nx run-many -t test` there — test: an
+      enrolled run lands in an admitted unit and returns it; negatives: 64 without the unit
+      enrolled, for an inherited unit unenrolled, and for no, two or a non-commit argument; a
+      nested `test-queued` is refused 70. Done in PR #PRNUM (verify.md, task 6.12).
 - [x] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's

@@ -182,6 +182,7 @@ try {
   let units: string[] = [];
   let tools = '';
   let launchedSha = '';
+  let testStubs = '';
 
   beforeAll(() => {
     base = mkdtempSync(join(tmpdir(), 'dash-launchers-'));
@@ -201,6 +202,8 @@ try {
       'h2puni-gate-payload.sh',
       'publish-release.sh',
       'publish-release-payload.sh',
+      'test-queued.sh',
+      'test-queued-payload.sh',
     ])
       copyFileSync(join(WORKSPACE, 'bin', script), join(checkout, 'bin', script));
     writeFileSync(join(checkout, 'bin', 'h2puni-gate-steps.sh'), barrierStage('gate-$$'));
@@ -225,11 +228,19 @@ try {
     const fixtureCatalogue = catalogueOf([
       { id: 'gate', cpuCores: 1, memoryGib: 1, exclusive: ['gate_tree'], argumentProfile: '<sha>' },
       { id: 'release-build', cpuCores: 1, memoryGib: 1 },
+      {
+        id: 'test-queued',
+        cpuCores: 1,
+        memoryGib: 1,
+        exclusive: ['gate_tree'],
+        argumentProfile: '<sha>',
+      },
     ]);
     // The real launchers as entrypoints, so `switch-mode` verifies they call `run_heavy_job`.
     const entrypoints: Record<string, string> = {
       gate: 'bin/h2puni-gate.sh',
       'release-build': 'bin/publish-release.sh',
+      'test-queued': 'bin/test-queued.sh',
     };
     const catalogue = {
       ...fixtureCatalogue,
@@ -248,6 +259,24 @@ try {
     launchedSha = fixtureGit(checkout, 'rev-parse', 'HEAD');
     units = [gateTree(join(base, 'gate-tree-1')), gateTree(join(base, 'gate-tree-2'))];
     tools = fakeSystemdRun(join(base, 'tools'), 'exec');
+    // The test-queued payload's two commands: `bun install` is logged and every other `bun` is
+    // the real one (Dash itself), and `bunx` is a barrier stage recording the tree it ran in.
+    testStubs = join(base, 'test-stubs');
+    mkdirSync(testStubs);
+    writeFileSync(
+      join(testStubs, 'bun'),
+      [
+        '#!/usr/bin/env bash',
+        'if [ "${1:-}" = install ]; then',
+        '  printf \'%s in %s\\n\' "$*" "$PWD" >> "$LAUNCHER_TEST_BUN_LOG"',
+        '  exit 0',
+        'fi',
+        `exec ${JSON.stringify(process.execPath)} "$@"`,
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    writeFileSync(join(testStubs, 'bunx'), barrierStage('test-$$'), { mode: 0o755 });
   });
   afterAll(() => {
     rmSync(base, { recursive: true, force: true });
@@ -316,6 +345,13 @@ try {
 
   const gate = ['bash', 'bin/h2puni-gate.sh', 'HEAD'];
   const release = ['bash', 'bin/publish-release.sh'];
+  const testQueued = ['bash', 'bin/test-queued.sh', 'HEAD'];
+
+  /** The environment a test-queued launch adds: its stubs first on `PATH`, and their log. */
+  const testQueuedEnv = (): Record<string, string> => ({
+    PATH: `${testStubs}:${tools}:${process.env['PATH'] ?? ''}`,
+    LAUNCHER_TEST_BUN_LOG: join(base, 'bun.log'),
+  });
 
   describe('the launchers on one host (dash-host-jobs 6.1, 6.2)', () => {
     test('an unenrolled host runs the gate on the legacy lock in the launcher checkout', async () => {
@@ -333,6 +369,37 @@ try {
       ).toEqual([checkout]);
       expect(existsSync(join(base, 'dash.log'))).toBe(false);
     }, 120000);
+
+    test('an unenrolled host runs test-queued pinned in the launcher checkout (6.12)', async () => {
+      expect(existsSync(CONFIG)).toBe(false);
+      rmSync(join(base, 'bun.log'), { force: true });
+      const barrier = barrierDirectory('test-legacy');
+      const result = await launch(testQueued, barrier, 1, testQueuedEnv());
+      expect(result.stderr).toMatch(/heavy lock: waited \d+s behind 0 tickets/);
+      expect(result.stderr).toContain(`h2puni gate: running on ${launchedSha}`);
+      expect(result.exitCode).toBe(0);
+      expect(
+        readdirSync(barrier).map((name) => readFileSync(join(barrier, name), 'utf8').trim()),
+      ).toEqual([checkout]);
+      expect(readFileSync(join(base, 'bun.log'), 'utf8')).toBe(
+        `install --frozen-lockfile in ${checkout}\n`,
+      );
+      expect(existsSync(join(base, 'dash.log'))).toBe(false);
+    }, 120000);
+
+    test('an unenrolled test-queued payload refuses an inherited DASH_JOB_UNIT_GATE_TREE', async () => {
+      expect(existsSync(CONFIG)).toBe(false);
+      const barrier = barrierDirectory('test-inherited-unit');
+      const result = await launch(['bash', 'bin/test-queued-payload.sh', launchedSha], barrier, 1, {
+        ...testQueuedEnv(),
+        DASH_JOB_UNIT_GATE_TREE: units[0] ?? '',
+      });
+      // Proof (observed 2026-11-12): with `resolve_gate_tree` in bin/test-queued-payload.sh
+      // replaced by the launcher checkout, this ran the tests and exited 0.
+      expect(result.exitCode).toBe(64);
+      expect(result.stderr).toContain('on a host that is not enrolled; no admission handed it out');
+      expect(readdirSync(barrier)).toEqual([]);
+    }, 60000);
 
     test('a configuration that appears while a gate is queued makes its payload refuse 64', async () => {
       expect(existsSync(CONFIG)).toBe(false);
@@ -510,6 +577,47 @@ try {
       // checkout and exited 0 (2026-11-02, slice 6a).
       expect(result.exitCode).toBe(64);
       expect(result.stderr).toContain('DASH_JOB_UNIT_GATE_TREE is not set');
+    }, 60000);
+
+    test('test-queued runs pinned in an admitted gate tree and returns it (6.12)', async () => {
+      rmSync(join(base, 'bun.log'), { force: true });
+      const barrier = barrierDirectory('test-enrolled');
+      const result = await launch(testQueued, barrier, 1, testQueuedEnv());
+      expect(result.stderr).not.toContain('heavy lock:');
+      expect(result.exitCode).toBe(0);
+      const trees = readdirSync(barrier).map((name) =>
+        readFileSync(join(barrier, name), 'utf8').trim(),
+      );
+      // Proof (observed 2026-11-12): with `resolve_gate_tree` in bin/test-queued-payload.sh
+      // replaced by the launcher checkout, the barrier recorded that checkout, in neither unit.
+      expect(trees).toHaveLength(1);
+      expect(units).toContain(trees[0]);
+      expect(readFileSync(join(base, 'bun.log'), 'utf8')).toBe(
+        `install --frozen-lockfile in ${trees[0] ?? ''}\n`,
+      );
+      expect(readFileSync(join(base, 'dash.log'), 'utf8')).toContain(
+        `ops job run --type test-queued --config ${CONFIG} --wait-seconds 0 --poll-seconds 5 --label test-queued:${launchedSha.slice(0, 8)} -- ${checkout}/bin/test-queued-payload.sh ${launchedSha}`,
+      );
+      for (const unit of units)
+        expect(fixtureGit(unit, 'log', '-1', '--format=%s')).toBe('resting commit');
+      expect(result.stderr).toMatch(/ops job: \S+ unit gate_tree \S+ released/);
+    }, 120000);
+
+    test('the enrolled test-queued payload run without an admission refuses 64', async () => {
+      const barrier = barrierDirectory('test-bare');
+      const result = await launch(
+        ['bash', 'bin/test-queued-payload.sh', launchedSha],
+        barrier,
+        1,
+        testQueuedEnv(),
+      );
+      // Proof (observed 2026-11-12): with `resolve_gate_tree` in bin/test-queued-payload.sh
+      // replaced by the launcher checkout, this ran the tests there and exited 0.
+      expect(result.exitCode).toBe(64);
+      expect(result.stderr).toContain(
+        'DASH_JOB_UNIT_GATE_TREE is not set; the payload runs only in the gate tree its admission hands it, so launch bin/test-queued.sh <sha>',
+      );
+      expect(readdirSync(barrier)).toEqual([]);
     }, 60000);
 
     test("the shim's exact argv gets past the real Dash parser", async () => {

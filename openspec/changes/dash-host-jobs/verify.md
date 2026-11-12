@@ -3397,3 +3397,64 @@ Last coordinator read: 2026-11-08 22:50Z, still running (3 h 05 min). Last upstr
 not complete 6.4. None of 6.4's deliverables is met: a week of
 observation, calibration, `propose`, or the container measurement. 6.4 stays open. This
 section completes neither 6.4 nor 6.7 and does not establish host qualification.
+
+## 2026-11-12 test-queued runs in a gate tree (task 6.12)
+
+A unit on the launcher checkout cannot exist (#925: `inspectHolds` refuses a unit any same-user
+process has as cwd, and the watch, the audit and every `ops job run` work in
+`~/puni-00-gate-launcher`), and a new unit kind would re-enroll both hosts. So `test-queued` now
+names `gate_tree` and the argument profile `<sha>`, and shares the gate's two trees.
+`bin/test-queued.sh <sha>` resolves the sha with `resolve_gate_commit`, labels the lane
+`test-queued:<sha8>` and runs `bin/test-queued-payload.sh <sha>` through `run_heavy_job`; the
+payload uses `read_host_pool_enrollment`, `resolve_gate_tree`, `resolve_gate_commit` and
+`run_pinned_checkout` (settle `restore` when enrolled) and runs `bun install --frozen-lockfile`
+then `bunx nx run-many -t test`, with `NX_DAEMON=false` so no daemon keeps a cwd in the unit.
+
+- **T12-A1** The install is repeated as one command rather than factored: `bin/h2puni-gate-steps.sh`
+  takes no step list, and its fixture (`h2puni-gate.test.sh` cases 34–36) runs it with `PATH`
+  holding only stubs, where `dirname` is absent and sourcing a library fails. Its reasons and
+  proofs stay with the gate steps.
+- **T12-A2** `resolve_gate_tree` takes an optional third argument, the launcher its enrolled
+  refusal names (`bin/h2puni-gate.sh` by default), and its message now says "the payload"
+  rather than "the gate". No test pinned the old wording.
+- **T12-A3** A nested `test-queued` inside a gate is now refused 70, as any type with a unit, so
+  no production type reaches the re-labelled nested path. Case 49 drives it with a fixture
+  type, `nested-probe` (`release-build` with `exclusive: []`), added to the copied catalogue;
+  49l pins the `test-queued` refusal. The `heavy-lock-queue` scenario changed to match.
+- **T12-A4** On an unenrolled host `bun run test:queued <sha>` now checks the sha out in the
+  launcher checkout and refuses a dirty one 65, as the gate always has; before, it tested the
+  working tree as it stood.
+- **T12-A5** The `ops job run --type test-queued -- true` scenario now names any type whose
+  profile is `""`: under `<sha>` that argv is refused 64.
+
+### Fault injection
+
+| Fault                                                              | Observed failure                                                                                                                                |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| launcher argument count check `if false`                           | heavy-lock `47c … refuses none: want exit 64, got 1`; `47c … refuses two: want exit 64, got 65`                                                 |
+| launcher `resolve_gate_commit` replaced by `test_sha=$1`           | heavy-lock `47c: the refusal did not name the target, or came after the lock: heavy lock: waited 0s behind 0 tickets`                           |
+| payload argument count check `if false`                            | heavy-lock `47d … refuses none: want exit 64, got 1`; `47d … refuses two: want exit 64, got 65`                                                 |
+| catalogue `test-queued` exclusive back to `[]`                     | heavy-lock `49l … want exit 70, got 0`, the payload ran as `gate:abc/test-queued`                                                               |
+| payload `tree=$(resolve_gate_tree …)` replaced by `tree=$checkout` | launchers.test.ts: inherited unit unenrolled `Expected: 64 Received: 0`; enrolled run recorded the launcher checkout; bare enrolled payload `0` |
+
+### Commands
+
+Fresh on 2026-11-12 on the workstation, from `/home/df/wd/puni/wt-tq`, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset.
+
+| Command                                                                                                        | Result                                                                                                           |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `bash bin/heavy-lock.test.sh`                                                                                  | `all heavy-lock checks passed`, exit 0                                                                           |
+| `bash bin/h2puni-gate.test.sh`                                                                                 | `all cases passed`, exit 0                                                                                       |
+| `bun test …/ops/launchers.test.ts`                                                                             | exit 1: `mkdir: cannot create directory '/home/puni1/.config': Permission denied` (this host's root-owned path)  |
+| the same file's inner suite under `unshare` with `/home/puni1` left unbound (`DASH_LAUNCHER_TEST_NAMESPACE=1`) | 14 pass, 0 fail, exit 0                                                                                          |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `twilight-dash:lint`                                    | exit 0, exit 0                                                                                                   |
+| `shellcheck -x` on the changed scripts                                                                         | exit 0                                                                                                           |
+| Burokrat `check … --rule JOB-CATALOGUE --now 2026-11-12T12:00:00.000Z`                                         | `allowed: true`, no finding, exit 0                                                                              |
+| Burokrat `bun test` of the job-catalogue rule, contract and architecture tests                                 | pass; `gate-entrypoints.test.ts` 2 fail (`trusted TypeScript runtime modules are not provisioned`), same on main |
+| `bunx openspec validate --all --json`                                                                          | 342 passed, 0 failed, exit 0                                                                                     |
+| Burokrat `check-indexes working . HEAD`                                                                        | exit 0                                                                                                           |
+| `bunx prettier --check` on the changed non-shell files                                                         | exit 0                                                                                                           |
+
+Not done: no host apply, no enrollment change, no h2puni or h4claw gate, no real `test:queued`
+run. `concurrencyEligible` is unchanged: the suite's containers are still unbounded.
