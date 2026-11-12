@@ -33,8 +33,8 @@ function endOfDay(date: string): number {
  * A calibration runs without `MemoryHigh`, so its high events never mean throttling.
  */
 function throttleOf(record: RunRecord, head: JobType): Drift | null {
-  // Proof: dropping this check made `a throttled run still running is drift; a calibration or a
-  // raised envelope is not` (audit.test.ts) find a throttled calibration (2026-11-12).
+  // Proof: dropping this check made `a throttled run stays drift while it runs; …`
+  // (audit.test.ts) find a throttled calibration (2026-11-12).
   if (record.calibration === true) return null;
   const { memoryHighEvents, memoryGib } = measuresOf(record);
   // Proof: returning null for every count made `a throttled run is the first drift, naming its
@@ -42,9 +42,11 @@ function throttleOf(record: RunRecord, head: JobType): Drift | null {
   // find no drift (2026-11-12).
   if (memoryHighEvents === 0) return null;
   const envelope = descriptorOf(record).envelope.memoryGib;
+  // A run still in progress keeps its throttle whatever HEAD says: it still holds the pool.
   // Proof: dropping this check made the same running-run test keep the drift under a HEAD
-  // envelope raised to 8 GiB (2026-11-12).
-  if (head.envelope.memoryGib > envelope) return null;
+  // envelope raised to 8 GiB; dropping the `endedAt` term made it lose the drift of the run
+  // still running under that envelope (2026-11-12).
+  if (record.endedAt !== null && head.envelope.memoryGib > envelope) return null;
   const running = record.endedAt === null ? ', still running' : '';
   return {
     kind: 'throttled',
@@ -60,8 +62,8 @@ function throttleOf(record: RunRecord, head: JobType): Drift | null {
  * the notes on what was not judged:
  * - `throttled`: an ordinary run (not a calibration) whose scope sampled `memory.events high`
  *   above zero, its outcome recorded or not: the kernel held it at `MemoryHigh`, so the envelope
- *   is below the job's real memory. Kept until the HEAD entry's `memoryGib` exceeds the envelope
- *   the run was throttled under.
+ *   is below the job's real memory. Kept while the run is in progress, and after it ends until
+ *   the HEAD entry's `memoryGib` exceeds the envelope the run was throttled under.
  * - `overrun`: a run's peak above the envelope it ran under, in any dimension, kept however many
  *   runs follow until the HEAD entry's envelope covers the peak; overruns never age out, and a
  *   new provenance alone does not clear one.

@@ -738,6 +738,9 @@ async function runAdmitted(
     return refuseAtGate(70, `systemd-run did not start scope ${unit}`);
   }
   const startedAt = deps.clock.read();
+  // The runtime bound is measured on the monotonic clock, as every other launcher deadline is;
+  // `startedAt` stays the wall-clock instant the record states.
+  const startedMonotonic = deps.monotonic.now();
   const gateSample = readSample('gate', startedAt, deps.telemetry, cgroup, job.locator);
   // Proof: skipping this refusal made `refuses 70 when memory.peak is unreadable at the gate`
   // (job-run.test.ts) run the payload unmeasured, no refusal (2026-11-01, Slice 3).
@@ -849,15 +852,25 @@ async function runAdmitted(
     if (watch !== null) sample.containers = await watch.sample();
     persist(sample);
     // Proof: never ending the payload made `a job past its maxRuntimeMinutes is ended with 124`
-    // (job-run.test.ts) wait for its payload and return 0 (2026-11-12).
+    // (job-run.test.ts) wait for its payload and return 0; measuring on the wall clock instead
+    // made the three bounded tests return 0 under their advanced monotonic clock (2026-11-12).
     if (
       maxRuntimeMinutes !== undefined &&
       endedByLauncher === undefined &&
-      sample.observedAt - startedAt > maxRuntimeMinutes * 60_000
+      deps.monotonic.now() - startedMonotonic > maxRuntimeMinutes * 60_000
     ) {
       endedByLauncher = `exceeded maxRuntimeMinutes ${String(maxRuntimeMinutes)}: ended by the launcher`;
       deps.report(`ops job: ${job.id} ${endedByLauncher}`);
-      await endPayload(pid, ending, deps);
+      // A failed kill must not skip the exit, the record and settlement: the loop goes on
+      // sampling until the payload ends, and the run still records 124 and its reason.
+      // Proof: without this catch `a failed kill at the runtime bound still records 124 and
+      // settles` (job-run.test.ts) reject with `kill EPERM` before the exit was recorded
+      // (2026-11-12).
+      try {
+        await endPayload(pid, ending, deps);
+      } catch (cause) {
+        deps.report(`ops job: ending ${unit} at its runtime bound failed: ${causeText(cause)}`);
+      }
     }
   }
   const exitSample = readSample('exit', deps.clock.read(), deps.telemetry, cgroup, job.locator);

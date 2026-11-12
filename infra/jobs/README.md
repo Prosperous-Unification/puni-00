@@ -16,15 +16,16 @@ The file is `{ "schemaVersion": 1, "jobs": [ … ] }`; the shape is `JobType` in
 [`job-catalogue.ts`](../../apps/twilight-structure/twilight-burokrat/cli/src/contracts/job-catalogue.ts),
 exported through `@twilight-burokrat/contracts`.
 
-| Field             | Meaning                                                                                                                                                                                              |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`              | The job type, lower-case words joined by `-`; what `ops job run --type` names.                                                                                                                       |
-| `entrypoint`      | The file the job starts from, or a JSON file and the dotted key of a package script (`package.json#scripts.test:queued`). Each script entrypoint carries one comment naming its id; JSON holds none. |
-| `argumentProfile` | The arguments the job takes, token for token (below).                                                                                                                                                |
-| `envelope`        | What admission reserves: whole `cpuCores`, `memoryGib` and `tmpDiskGib`, and `exclusive` unit ids such as `gate_tree`. The host pool names the units; the catalogue only counts them.                |
-| `containers`      | `"none"`, or the bound `{ memoryGib, cpuCores }` every container the job starts must run under. A type whose containers run unbounded is serialised.                                                 |
-| `enforcement`     | `observe` throttles at the envelope and kills nothing; `cap` also kills at it. `cap` bounds the job's scope and its declared containers, nothing more.                                               |
-| `provenance`      | Where the envelope came from (below).                                                                                                                                                                |
+| Field               | Meaning                                                                                                                                                                                              |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                | The job type, lower-case words joined by `-`; what `ops job run --type` names.                                                                                                                       |
+| `entrypoint`        | The file the job starts from, or a JSON file and the dotted key of a package script (`package.json#scripts.test:queued`). Each script entrypoint carries one comment naming its id; JSON holds none. |
+| `argumentProfile`   | The arguments the job takes, token for token (below).                                                                                                                                                |
+| `envelope`          | What admission reserves: whole `cpuCores`, `memoryGib` and `tmpDiskGib`, and `exclusive` unit ids such as `gate_tree`. The host pool names the units; the catalogue only counts them.                |
+| `containers`        | `"none"`, or the bound `{ memoryGib, cpuCores }` every container the job starts must run under. A type whose containers run unbounded is serialised.                                                 |
+| `enforcement`       | `observe` throttles at the envelope and kills nothing; `cap` also kills at it. `cap` bounds the job's scope and its declared containers, nothing more.                                               |
+| `maxRuntimeMinutes` | Optional whole minutes after which `ops job run` ends the payload (SIGTERM, then SIGKILL after the settle budget) and exits 124. Absent: no runtime bound.                                           |
+| `provenance`        | Where the envelope came from (below).                                                                                                                                                                |
 
 ### Argument profile
 

@@ -533,7 +533,8 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     `endedByLauncher`. The job settles and releases its reservation and shell lock hold as
     after any exit. A type without the field has no runtime bound. The bound is checked once
     per sample interval, so a job can run up to ten seconds past it.
-    The command exits with the payload's own status, 128 + signal when it was signalled. A
+    Apart from that runtime bound, the command exits with the payload's own status, 128 +
+    signal when it was signalled. A
     telemetry failure (a counter unreadable mid-run, a scope torn down before the exit sample)
     and a ledger write failure are recorded and reported on stderr apart from that status. It
     then settles the job on its terminal evidence, once a second for up to 30 seconds, and prints one
@@ -653,7 +654,8 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
     It stays visible however many runs follow until the HEAD entry's envelope is at least the
     peak. A new provenance alone, `calibrated` included, does not clear it.
   - `waste`: a dimension's p95 below half the HEAD envelope over at least ten complete runs of
-    the HEAD entry.
+    the HEAD entry. Any edit to an entry changes its digest, so the runs before the edit stop
+    counting: adding `maxRuntimeMinutes` to `gate` restarted its count (task 6.11).
   - `estimate_expired`: `estimated` provenance whose `until` day has ended.
   - `attribution_incomplete`: a run during which a container ran unlabelled, unbounded or
     unverified (J16). It stays until a later run of the type sees containers and every one

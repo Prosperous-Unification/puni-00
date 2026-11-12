@@ -345,8 +345,9 @@ type, ended or still running, whose scope sampled `memory.events high` above zer
 SHALL be one line naming the type, the job id, the largest event count, the envelope `memoryGib`
 the run ran under and its peak `memoryGib`. The line SHALL give the remedy: calibrate the type
 (`ops job calibrate --type <id>`) and `ops job propose --type <id>`. `throttled` drifts SHALL print
-before every other kind. A calibration record SHALL never be `throttled`. The drift SHALL stay
-until the HEAD entry's `memoryGib` is above the envelope the run was throttled under.
+before every other kind. A calibration record SHALL never be `throttled`. A run still in
+progress SHALL stay drift until it ends. An ended run SHALL stay drift until the HEAD entry's
+`memoryGib` is above the envelope the run was throttled under.
 
 #### Scenario: A throttled gate is the first drift
 
@@ -355,10 +356,11 @@ until the HEAD entry's `memoryGib` is above the envelope the run was throttled u
 - **THEN** `audit` exits 1, printing the `throttled` line naming 3360000, 6 and the peak first
   and the `overrun` line after it
 
-#### Scenario: A raised envelope clears it
+#### Scenario: A raised envelope clears it once the run has ended
 
 - **WHEN** the catalogue at HEAD raises `gate`'s `memoryGib` from 6 to 8
-- **THEN** the run throttled under 6 GiB is no longer drift
+- **THEN** an ended run throttled under 6 GiB is no longer drift, and a run still in progress
+  under 6 GiB still is
 
 ### Requirement: Status marks a throttled job
 

@@ -205,7 +205,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
     );
   });
 
-  test('a throttled run still running is drift; a calibration or a raised envelope is not', () => {
+  test('a throttled run stays drift while it runs; a calibration, or an ended run under a raised envelope, is not', () => {
     const running = { id: 'live', memoryGib: 6, memoryHighEvents: 12, ended: false };
     expect(audit([running]).drifts).toEqual([
       `gate throttled in run live, still running: memory.events high 12 under envelope memoryGib 6, peak memoryGib 6 (${CATALOGUE_PATH}); calibrate the type (\`ops job calibrate --type gate\`) and \`ops job propose --type gate\`; the estimated envelope is below the job's real memory`,
@@ -217,6 +217,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
       ),
     );
     expect(audit([{ ...running, ended: true }], raised).kinds).toEqual([]);
+    expect(audit([running], raised).kinds).toEqual(['throttled']);
   });
 
   test('runs without an outcome and of retired types are noted, not judged', () => {

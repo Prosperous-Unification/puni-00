@@ -3441,11 +3441,27 @@ R5 negatives, each restored after it was watched failing:
 - **6.11-A3** A run that the launcher ends records exit 124 in both the ledger and the run record.
   The record also keeps the signal the payload ended with and `endedByLauncher`. 124 is not 0, so
   the run is incomplete and `propose` leaves it out.
-- **6.11-A4** The bound is checked at each interval sample. It is measured on the launcher's wall
-  clock from the gate sample, and the grace before SIGKILL is the settle budget (30 s).
+- **6.11-A4** The bound is checked at each interval sample. It is measured on the launcher's
+  monotonic clock from the gate sample, as every other launcher deadline is, so a wall-clock step
+  cannot fire or delay it; the record's `startedAt` stays wall-clock. The grace before SIGKILL is
+  the settle budget (30 s). (Review of #927 S3; the first revision measured on the wall clock.)
 - **6.11-A5** Adding `maxRuntimeMinutes` to `gate` changes that entry's descriptor digest. Older
   `gate` records therefore stop counting toward `waste`, as they do after any edit to an entry.
   Entries without the field keep their digests, and records without `endedByLauncher` still parse.
 - `ops job calibrate --wait-seconds` (`cli-parser.ts` L467–L474 via `launchFields('calibration',
 7200)`, L568–L572) is already unbounded above, with a default of 7200 s. The 1800 s default at
   L676–L680 belongs to `pool switch-mode`. Nothing changed.
+
+### 2026-11-12 Review of #927 (FIX-THEN-MERGE)
+
+- **S1** A run still in progress keeps its `throttled` drift under a raised HEAD envelope. Only an
+  ended run is cleared. Negative: with the `endedAt` term removed, `a throttled run stays drift
+while it runs; …` (audit.test.ts) failed.
+- **S2** A kill at the runtime bound that throws something other than ESRCH is reported, and the
+  run still records 124 and settles. Negative: without the catch, `a failed kill at the runtime
+bound still records 124 and settles` (job-run.test.ts) rejected with `kill EPERM`, which an
+  injected `process.kill` threw.
+- **S3** The bound is measured on `deps.monotonic` (6.11-A4). Negative: comparing the wall clock
+  instead made the three bounded tests, whose monotonic clock was advanced, return 0.
+- Docs: design.md J7 (exit 124) and J9 (`throttled`), the resources.md exit sentence and the
+  `waste` digest note, and the `maxRuntimeMinutes` row in infra/jobs/README.md.

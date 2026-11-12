@@ -16,7 +16,7 @@ import { arch, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
-import { afterAll, afterEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, describe, expect, spyOn, test } from 'bun:test';
 
 import { monotonicClock, wallClock } from '../clock';
 import { fakeCredential } from '../compute/testing/credential';
@@ -1020,9 +1020,9 @@ if (insideOpsNamespace(import.meta.path)) {
   });
 
   describe('the runtime bound over the fake seam (task 6.11)', () => {
-    /** The wall clock, two minutes ahead once `marker` exists: the payload has started. */
+    /** The monotonic clock, two minutes ahead once `marker` exists: the payload has started. */
     const aheadOnceStarted = (marker: string) => ({
-      read: () => clock.read() + (existsSync(marker) ? 120_000 : 0),
+      now: () => monotonic.now() + (existsSync(marker) ? 120_000 : 0),
     });
 
     test('a job past its maxRuntimeMinutes is ended with 124, the reason recorded', async () => {
@@ -1034,7 +1034,7 @@ if (insideOpsNamespace(import.meta.path)) {
       const code = await runHostJob(
         request(config, 'bounded', [payload]),
         runDependencies(checkout, report, {
-          clock: aheadOnceStarted(marker),
+          monotonic: aheadOnceStarted(marker),
           sampleIntervalMs: 100,
         }),
       );
@@ -1068,7 +1068,7 @@ if (insideOpsNamespace(import.meta.path)) {
       const code = await runHostJob(
         request(config, 'bounded', [payload]),
         runDependencies(checkout, report, {
-          clock: aheadOnceStarted(marker),
+          monotonic: aheadOnceStarted(marker),
           sampleIntervalMs: 100,
           settleBudgetMs: 1000,
         }),
@@ -1088,13 +1088,53 @@ if (insideOpsNamespace(import.meta.path)) {
       );
     }, 60000);
 
+    test('a failed kill at the runtime bound still records 124 and settles', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(join(base, 'unkillable.sh'), `touch ${marker}\nsleep 2`);
+      const kill = process.kill.bind(process);
+      const refusing = spyOn(process, 'kill').mockImplementation((pid, signal) => {
+        if (pid < 0 && signal === 'SIGTERM')
+          throw Object.assign(new Error('kill EPERM'), { code: 'EPERM' });
+        return kill(pid, signal);
+      });
+      const report: string[] = [];
+      try {
+        expect(
+          await runHostJob(
+            request(config, 'bounded', [payload]),
+            runDependencies(checkout, report, {
+              monotonic: aheadOnceStarted(marker),
+              sampleIntervalMs: 100,
+            }),
+          ),
+        ).toBe(124);
+      } finally {
+        refusing.mockRestore();
+      }
+      const job = onlyJob(config);
+      expect(job.exitCode).toBe(124);
+      expect(job.state).toBe('released');
+      expect(runRecord(root, job.id)).toMatchObject({
+        exitCode: 124,
+        signal: null,
+        endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
+      });
+      expect(report).toContain(
+        `ops job: ending dash-job-${job.id} at its runtime bound failed: kill EPERM`,
+      );
+    }, 60000);
+
     test('a type without maxRuntimeMinutes runs as long as its payload', async () => {
       const { config, checkout, base, root } = pool();
       const marker = join(base, 'started');
       const payload = payloadScript(join(base, 'short.sh'), `touch ${marker}\nsleep 0.5`);
       const code = await runHostJob(
         request(config, 'test-queued', [payload]),
-        runDependencies(checkout, [], { clock: aheadOnceStarted(marker), sampleIntervalMs: 100 }),
+        runDependencies(checkout, [], {
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+        }),
       );
       expect(code).toBe(0);
       const record = runRecord(root, onlyJob(config).id);
