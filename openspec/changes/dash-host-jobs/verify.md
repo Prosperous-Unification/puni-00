@@ -3397,3 +3397,55 @@ Last coordinator read: 2026-11-08 22:50Z, still running (3 h 05 min). Last upstr
 not complete 6.4. None of 6.4's deliverables is met: a week of
 observation, calibration, `propose`, or the container measurement. 6.4 stays open. This
 section completes neither 6.4 nor 6.7 and does not establish host qualification.
+
+## 2026-11-12 Task 6.11: throttle detection and runtime bound
+
+Closes the gap the h4claw gate (job 22ce2369) exposed: it was held 58 h under `MemoryHigh=6G`
+with `memory.events high` 3.36 million, and nothing in Dash said so. Laptop run,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host was touched.
+
+| Command                                                                                                          | Exit                                                             |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bun test src/ops/audit.test.ts`                                                                                 | 0 (13 pass)                                                      |
+| `bun test src/ops/status.test.ts` (inside its namespace)                                                         | 0 (6 pass inside)                                                |
+| `bun test src/ops/job-run.test.ts -t "runtime bound"` inside `unshare` with `DASH_OPS_TEST_NAMESPACE=1`          | 0 (3 pass)                                                       |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `twilight-burokrat:typecheck`                             | 0, 0                                                             |
+| `bunx nx run twilight-dash:lint --skip-nx-cache`; `bunx eslint` on the two Burokrat contract files               | 0, 0 (`twilight-burokrat:lint` is the wiki lint, 0)              |
+| `bunx nx run twilight-burokrat:test --skip-nx-cache`                                                             | 0 (2607 pass, 0 fail)                                            |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                 | 1: 5719 pass, 49 skip, 3 fail, none in a changed file; see below |
+| `twilight-burokrat check working . HEAD <policy copy> --rule JOB-CATALOGUE --now 2026-11-12T12:00:00.000Z`       | 0 (`allowed: true`, no findings)                                 |
+| `twilight-burokrat check-indexes working . HEAD`; `bunx openspec validate --all --json`; `bunx prettier --check` | 0; 0 (342 passed); 0                                             |
+
+The three Dash failures come from the laptop, not from this change. `packaging/bundle.test.ts` and
+`reproducible.test.ts` failed because the worktree's `node_modules` is a symlink to another
+checkout: the built launcher named `/home/df`, and copied checkouts could not resolve `arktype`.
+Both files passed, 7 pass and 0 fail, in a checkout with a real `node_modules`.
+`ops/launchers.test.ts` fails here with `mkdir: cannot create directory '/home/puni1/.config'`,
+because this laptop has no `puni1` home. CI and the host gate decide all three.
+
+R5 negatives, each restored after it was watched failing:
+
+| Injected fault                                  | Observed failure                                                                                   |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `throttleOf` returns null for every event count | `a throttled run is the first drift…` kinds `['overrun']`; the running-run test found no drift     |
+| calibration exclusion dropped                   | `a throttled run still running is drift; a calibration or a raised envelope is not` failed         |
+| raised-envelope clearing dropped                | the same test kept the drift under an 8 GiB HEAD envelope                                          |
+| status marker never printed                     | `a throttled job says so beside its peak` failed on the running line                               |
+| `ops job status` passes 0 high events           | the same status test failed                                                                        |
+| bound check disabled in `runAdmitted`           | `a job past its maxRuntimeMinutes is ended with 124…` received 0 after 21.2 s                      |
+| SIGKILL escalation dropped in `endPayload`      | `a payload that ignores SIGTERM is killed after the settle budget` elapsed 21.1 s against `< 15 s` |
+
+- **6.11-A1** Numbered 6.11, not 6.8: 6.8 is the settlement digest.
+- **6.11-A2** `throttled` judges running records too. The incident run had no outcome for
+  58 h, so their note now reads `not judged beyond throttling`.
+- **6.11-A3** A run that the launcher ends records exit 124 in both the ledger and the run record.
+  The record also keeps the signal the payload ended with and `endedByLauncher`. 124 is not 0, so
+  the run is incomplete and `propose` leaves it out.
+- **6.11-A4** The bound is checked at each interval sample. It is measured on the launcher's wall
+  clock from the gate sample, and the grace before SIGKILL is the settle budget (30 s).
+- **6.11-A5** Adding `maxRuntimeMinutes` to `gate` changes that entry's descriptor digest. Older
+  `gate` records therefore stop counting toward `waste`, as they do after any edit to an entry.
+  Entries without the field keep their digests, and records without `endedByLauncher` still parse.
+- `ops job calibrate --wait-seconds` (`cli-parser.ts` L467–L474 via `launchFields('calibration',
+7200)`, L568–L572) is already unbounded above, with a default of 7200 s. The 1800 s default at
+  L676–L680 belongs to `pool switch-mode`. Nothing changed.

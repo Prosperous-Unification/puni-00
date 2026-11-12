@@ -161,6 +161,65 @@ if (insideOpsNamespace(import.meta.path))
       ]);
     });
 
+    test('a throttled job says so beside its peak', () => {
+      const { runtime, config, root, trees } = pool(1);
+      const queued = runtime.enqueueHostJob(
+        { descriptor: gate, label: 'gate:22ce2369', waitSeconds: 0 },
+        process.pid,
+      );
+      if (queued.kind !== 'queued') throw new Error(queued.reason);
+      const admitted = runtime.pollHostJob(queued.ticket, () => undefined);
+      if (admitted.kind !== 'admitted') throw new Error(`gate not admitted: ${admitted.kind}`);
+      runtime.prepareHostJob(admitted.job.id);
+      const payload = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' });
+      payloads.push(payload);
+      if (payload.pid === undefined) throw new Error('payload did not start');
+      runtime.recordHostJobLaunch(admitted.job.id, payload.pid);
+      const counters = (memoryHighEvents: number) => ({
+        memoryPeak: 6 * 1024 ** 3,
+        memoryCurrent: 6 * 1024 ** 3,
+        cpuUsageUsec: 1,
+        cpuUserUsec: 1,
+        cpuSystemUsec: 0,
+        pidsCurrent: 3,
+        memoryHighEvents,
+      });
+      const sample = (kind: 'gate' | 'interval', memoryHighEvents: number) => ({
+        kind,
+        observedAt: now,
+        counters: counters(memoryHighEvents),
+        tmpBytes: 0,
+        containers: null,
+        failure: null,
+      });
+      const records = HostJobRunRecords.open(root, false);
+      records.begin(
+        {
+          jobId: admitted.job.id,
+          type: 'gate',
+          label: 'gate:22ce2369',
+          descriptor: gate,
+          descriptorDigest: 'a'.repeat(64),
+          cataloguePath: '/checkout/infra/jobs/catalogue.json',
+          launcherSha: 'b'.repeat(40),
+          argumentProfile: '<sha>',
+          argv: ['bin/h2puni-gate.sh', 'b'.repeat(40)],
+          hostClass: 'linux-x64-8c-15g',
+          unit: `dash-job-${admitted.job.id}`,
+          cgroup: `/app.slice/dash-job-${admitted.job.id}.scope`,
+          tmpDirectory: admitted.job.locator,
+          units: [{ exclusiveId: 'gate_tree', path: trees[0] ?? '' }],
+          startedAt: now,
+        },
+        sample('gate', 0),
+      );
+      records.sample(admitted.job.id, sample('interval', 3_360_000));
+      records.close();
+      expect(status(config)[1]).toBe(
+        `running gate gate:22ce2369 pid ${String(payload.pid)} age 0s envelope 4 cores 6 GiB 0 GiB tmp peak 6.0 GiB throttled (memory.events high 3360000) units gate_tree=${trees[0] ?? ''} settlement held (compute held, tmp held, gate_tree held)`,
+      );
+    });
+
     test('an idle pool says so', () => {
       const { config, root } = pool(0);
       HostJobRunRecords.open(root, false).close();

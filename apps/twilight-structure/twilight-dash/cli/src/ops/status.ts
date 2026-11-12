@@ -3,6 +3,14 @@ import type { HostPoolStatus } from '../resources/runtime';
 
 const GIB = 1024 ** 3;
 
+/** What a live job's run record sampled so far, as `ops job status` prints it. */
+export interface JobPeak {
+  /** The largest `memory.peak` sampled, bytes; null before any counter was read. */
+  memoryBytes: number | null;
+  /** The largest `memory.events high` sampled: above zero, the scope is throttled. */
+  memoryHighEvents: number;
+}
+
 /** `1h02m`, `3m05s` or `45s`; a negative span reads `0s`. */
 export function formatSpan(milliseconds: number): string {
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -18,15 +26,16 @@ export function formatSpan(milliseconds: number): string {
  * `ops job status` (`dash-host-jobs` J13): the pool line, each unreleased job (`calibration`
  * first for a calibration run, J9; type, label, pid,
  * age, envelope, peak so far, units held, settlement state), then each waiter oldest first (age,
- * budget left, overtake count). `peaks` maps a job id to the largest `memory.peak` its run
- * record sampled; a job with none reads `peak unmeasured`. The pool line names the mode and, in
- * concurrent mode, the singleton guard and its holder; a live `switch-mode` gets a line of its
- * own. `legacy`, while the shell lock matters (observe mode, or the guard on), follows verbatim
+ * budget left, overtake count). `peaks` maps a job id to its run record's {@link JobPeak}; a
+ * job with no record or no counter reads `peak unmeasured`, and one whose scope sampled
+ * `memory.events high` above zero reads `throttled (memory.events high <n>)` after its peak.
+ * The pool line names the mode and, in concurrent mode, the singleton guard and its holder; a
+ * live `switch-mode` gets a line of its own. `legacy`, while the shell lock matters (observe mode, or the guard on), follows verbatim
  * as `bin/with-heavy-lock.sh status` prints it, holder first (J12, J13).
  */
 export function formatHostPoolStatus(
   status: HostPoolStatus,
-  peaks: ReadonlyMap<string, number | null>,
+  peaks: ReadonlyMap<string, JobPeak>,
   now: number,
   legacy: LegacyQueueStatus | null,
   holdDirectory: string,
@@ -58,7 +67,12 @@ export function formatHostPoolStatus(
     const { envelope } = job.descriptor;
     // Proof: dropping the peak (`peak unmeasured`) failed `one running, one waiting: the gate
     // with its tree and peak, then the build` (status.test.ts) on the running line (2026-11-01).
-    const peak = peaks.get(job.id) ?? null;
+    const sampled = peaks.get(job.id);
+    const peak = sampled?.memoryBytes ?? null;
+    const highEvents = sampled?.memoryHighEvents ?? 0;
+    // Proof: never printing the marker failed `a throttled job says so beside its peak`
+    // (status.test.ts) on the running line (2026-11-12).
+    const throttled = highEvents > 0 ? ` throttled (memory.events high ${String(highEvents)})` : '';
     const units =
       job.units.length === 0
         ? 'none'
@@ -69,7 +83,7 @@ export function formatHostPoolStatus(
       ...job.units.map((unit) => `${unit.exclusiveId} ${unit.state}`),
     ].join(', ');
     lines.push(
-      `running ${job.calibration === true ? 'calibration ' : ''}${job.descriptor.id} ${job.label} pid ${job.process === null ? '-' : String(job.process.pid)} age ${formatSpan(now - (job.startedAt ?? job.admittedAt))} envelope ${String(envelope.cpuCores)} cores ${String(envelope.memoryGib)} GiB ${String(envelope.tmpDiskGib)} GiB tmp peak ${peak === null ? 'unmeasured' : `${(peak / GIB).toFixed(1)} GiB`} units ${units} settlement ${job.state} (${entries})${job.launchFailure === undefined ? '' : `; ${job.launchFailure}`}${job.guardLost === undefined ? '' : `; singleton guard (pid ${job.guardLost.holderPid === null ? 'unrecorded' : String(job.guardLost.holderPid)}) lost ${formatSpan(now - job.guardLost.at)} ago`}`,
+      `running ${job.calibration === true ? 'calibration ' : ''}${job.descriptor.id} ${job.label} pid ${job.process === null ? '-' : String(job.process.pid)} age ${formatSpan(now - (job.startedAt ?? job.admittedAt))} envelope ${String(envelope.cpuCores)} cores ${String(envelope.memoryGib)} GiB ${String(envelope.tmpDiskGib)} GiB tmp peak ${peak === null ? 'unmeasured' : `${(peak / GIB).toFixed(1)} GiB`}${throttled} units ${units} settlement ${job.state} (${entries})${job.launchFailure === undefined ? '' : `; ${job.launchFailure}`}${job.guardLost === undefined ? '' : `; singleton guard (pid ${job.guardLost.holderPid === null ? 'unrecorded' : String(job.guardLost.holderPid)}) lost ${formatSpan(now - job.guardLost.at)} ago`}`,
     );
   }
   if (status.waiters.length === 0) lines.push('waiting none');

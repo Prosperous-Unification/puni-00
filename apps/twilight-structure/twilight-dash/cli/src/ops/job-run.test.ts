@@ -71,6 +71,7 @@ if (insideOpsNamespace(import.meta.path)) {
     { id: 'boxed', cpuCores: 1, memoryGib: 1, containers: { memoryGib: 1, cpuCores: 1 } },
     { id: 'huge', cpuCores: 1, memoryGib: 99 },
     { id: 'pinned', cpuCores: 1, memoryGib: 1, argumentProfile: '<sha>' },
+    { id: 'bounded', cpuCores: 1, memoryGib: 1, maxRuntimeMinutes: 1 },
   ];
 
   /** A pool of 4 cores and 4 GiB (headroom 1 GiB), one gate tree, initialized by `ops pool init`. */
@@ -1016,6 +1017,90 @@ if (insideOpsNamespace(import.meta.path)) {
         killSession(gone.pid ?? 0, 'SIGKILL');
       }).not.toThrow();
     });
+  });
+
+  describe('the runtime bound over the fake seam (task 6.11)', () => {
+    /** The wall clock, two minutes ahead once `marker` exists: the payload has started. */
+    const aheadOnceStarted = (marker: string) => ({
+      read: () => clock.read() + (existsSync(marker) ? 120_000 : 0),
+    });
+
+    test('a job past its maxRuntimeMinutes is ended with 124, the reason recorded', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(join(base, 'long.sh'), `touch ${marker}\nsleep 20\nexit 0`);
+      const report: string[] = [];
+      const started = monotonic.now();
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          clock: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+        }),
+      );
+      // Proof: dropping the bound check in `runAdmitted` made this return 0 after the payload's
+      // full 20 s (2026-11-12).
+      expect(code).toBe(124);
+      expect(monotonic.now() - started).toBeLessThan(15_000);
+      const job = onlyJob(config);
+      expect(job.exitCode).toBe(124);
+      expect(job.state).toBe('released');
+      expect(runRecord(root, job.id)).toMatchObject({
+        exitCode: 124,
+        signal: 'SIGTERM',
+        endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
+        telemetryFailure: null,
+      });
+      expect(report).toContain(
+        `ops job: ${job.id} exceeded maxRuntimeMinutes 1: ended by the launcher`,
+      );
+    }, 60000);
+
+    test('a payload that ignores SIGTERM is killed after the settle budget', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(
+        join(base, 'stubborn.sh'),
+        `trap '' TERM\ntouch ${marker}\nsleep 20\nexit 0`,
+      );
+      const report: string[] = [];
+      const started = monotonic.now();
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          clock: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      // Proof: dropping the SIGKILL in `endPayload` made the elapsed check fail at 21.1 s, the
+      // payload's full 20 s (2026-11-12).
+      expect(code).toBe(124);
+      expect(monotonic.now() - started).toBeLessThan(15_000);
+      const record = runRecord(root, onlyJob(config).id);
+      expect(record).toMatchObject({
+        exitCode: 124,
+        signal: 'SIGKILL',
+        endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
+      });
+      expect(report.some((line) => line.endsWith('outlived SIGTERM by 1000 ms; SIGKILL'))).toBe(
+        true,
+      );
+    }, 60000);
+
+    test('a type without maxRuntimeMinutes runs as long as its payload', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(join(base, 'short.sh'), `touch ${marker}\nsleep 0.5`);
+      const code = await runHostJob(
+        request(config, 'test-queued', [payload]),
+        runDependencies(checkout, [], { clock: aheadOnceStarted(marker), sampleIntervalMs: 100 }),
+      );
+      expect(code).toBe(0);
+      const record = runRecord(root, onlyJob(config).id);
+      expect(record.exitCode).toBe(0);
+      expect(record.endedByLauncher).toBeUndefined();
+    }, 60000);
   });
 
   describe(`real-scope only (task 3.1, J7)${scopeSkip}`, () => {

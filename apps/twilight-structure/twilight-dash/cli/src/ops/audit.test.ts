@@ -186,6 +186,39 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
     ]);
   });
 
+  test('a throttled run is the first drift, naming its envelope, peak and events', () => {
+    const throttled = {
+      id: 'throttled',
+      memoryGib: 6,
+      cpuCores: 3,
+      tmpGib: 5,
+      memoryHighEvents: 3_360_000,
+      exitCode: 1,
+    };
+    const { drifts, kinds } = audit([
+      { id: 'busy', memoryGib: 5, cpuCores: 4.5, tmpGib: 5 },
+      throttled,
+    ]);
+    expect(kinds).toEqual(['throttled', 'overrun']);
+    expect(drifts[0]).toBe(
+      `gate throttled in run throttled: memory.events high 3360000 under envelope memoryGib 6, peak memoryGib 6 (${CATALOGUE_PATH}); calibrate the type (\`ops job calibrate --type gate\`) and \`ops job propose --type gate\`; the estimated envelope is below the job's real memory`,
+    );
+  });
+
+  test('a throttled run still running is drift; a calibration or a raised envelope is not', () => {
+    const running = { id: 'live', memoryGib: 6, memoryHighEvents: 12, ended: false };
+    expect(audit([running]).drifts).toEqual([
+      `gate throttled in run live, still running: memory.events high 12 under envelope memoryGib 6, peak memoryGib 6 (${CATALOGUE_PATH}); calibrate the type (\`ops job calibrate --type gate\`) and \`ops job propose --type gate\`; the estimated envelope is below the job's real memory`,
+    ]);
+    expect(audit([{ ...running, ended: true, calibration: true }]).kinds).toEqual([]);
+    const raised = committedCatalogue(types, (jobs) =>
+      jobs.map((job) =>
+        job.id === 'gate' ? { ...job, envelope: { ...job.envelope, memoryGib: 8 } } : job,
+      ),
+    );
+    expect(audit([{ ...running, ended: true }], raised).kinds).toEqual([]);
+  });
+
   test('runs without an outcome and of retired types are noted, not judged', () => {
     const retired = committedCatalogue(types, (jobs) =>
       jobs.filter((job) => job.id !== 'release-build'),
@@ -200,7 +233,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
     expect(drifts).toEqual([]);
     expect(notes).toEqual([
       `not judged: runs of release-build, which ${CATALOGUE_PATH} at HEAD does not name`,
-      'not judged: 1 runs without an outcome: running',
+      'not judged beyond throttling: 1 runs without an outcome: running',
     ]);
   });
 });
