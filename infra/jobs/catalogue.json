@@ -10,7 +10,7 @@
       "enforcement": "observe",
       "provenance": {
         "kind": "estimated",
-        "basis": "user slice memory.current 2.0 GiB during gate:0a518a42 on h2puni, 2026-11-01; the containers bound is declared, not enforced everywhere: inside a Dash job the solver smoke's four direct docker runs (wbs-solver, registry:2 and the two clients) take it and the job label (slice 6a), but the supervisor's managed solver containers, the orphan proc tests and Caddy in mcp-body-limit.test.ts still run unbounded and unlabelled, so the type is not yet concurrency-eligible",
+        "basis": "user slice memory.current 2.0 GiB during gate:0a518a42 on h2puni, 2026-11-01; the containers bound is declared, not measured: inside a Dash job the solver smoke's four direct docker runs (wbs-solver, registry:2 and the two clients) take it and the job label (slice 6a), and since 2026-11-12 so do the supervisor's managed solver containers (cpus and label, keeping their own 512 MiB memory), the orphan proof's callers and Caddy in mcp-body-limit.test.ts (task 6.13); docker build is still unattributed and no container peak is measured, so settlement can still find attribution_incomplete and the type is not yet concurrency-eligible",
         "until": "2026-12-01"
       }
     },

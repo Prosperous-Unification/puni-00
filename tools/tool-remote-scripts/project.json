@@ -75,6 +75,7 @@
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
         "{workspaceRoot}/deploy/compose/base.yml",
         "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/infra/jobs/catalogue.json",
         "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {
@@ -217,6 +218,7 @@
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
         "{workspaceRoot}/deploy/compose/base.yml",
         "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/infra/jobs/catalogue.json",
         "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {
@@ -260,6 +262,7 @@
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
         "{workspaceRoot}/deploy/compose/base.yml",
         "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/infra/jobs/catalogue.json",
         "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {
@@ -303,6 +306,7 @@
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
         "{workspaceRoot}/deploy/compose/base.yml",
         "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/infra/jobs/catalogue.json",
         "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {
@@ -346,6 +350,7 @@
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
         "{workspaceRoot}/deploy/compose/base.yml",
         "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/infra/jobs/catalogue.json",
         "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {
@@ -389,6 +394,7 @@
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
         "{workspaceRoot}/deploy/compose/base.yml",
         "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/infra/jobs/catalogue.json",
         "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {
@@ -432,6 +438,7 @@
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
         "{workspaceRoot}/deploy/compose/base.yml",
         "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/infra/jobs/catalogue.json",
         "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {
@@ -475,6 +482,7 @@
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
         "{workspaceRoot}/deploy/compose/base.yml",
         "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/infra/jobs/catalogue.json",
         "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {
@@ -518,6 +526,7 @@
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
         "{workspaceRoot}/deploy/compose/base.yml",
         "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/infra/jobs/catalogue.json",
         "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {

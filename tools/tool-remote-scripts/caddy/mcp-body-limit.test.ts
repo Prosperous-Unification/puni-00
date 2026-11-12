@@ -7,7 +7,7 @@ import { scratchSync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
 import { siteContext } from '../src/lib/site';
-import { CADDY_IMAGE } from './image';
+import { buildTestCaddyCommand } from './command';
 
 const candidate = readFileSync(
   join(import.meta.dir, '../../../deploy/compose/site-dev.caddy.candidate'),
@@ -45,6 +45,38 @@ function notesRequest(bytes: number): string {
   const body = call('n'.repeat(bytes - overhead));
   expect(Buffer.byteLength(body)).toBe(bytes);
   return body;
+}
+
+/**
+ * The running Caddy container carries the job label and the containers bound inside a Dash host
+ * job and neither outside one, as Docker itself reports them (J16).
+ */
+async function expectJobAttribution(container: string): Promise<void> {
+  const inspect = Bun.spawn(
+    [
+      'docker',
+      'inspect',
+      '--format',
+      '{{index .Config.Labels "puni.job"}} {{.HostConfig.Memory}} {{.HostConfig.NanoCpus}}',
+      container,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(inspect.stdout).text(),
+    new Response(inspect.stderr).text(),
+    inspect.exited,
+  ]);
+  if (code !== 0) throw new Error(`cannot inspect test Caddy: ${stderr}`);
+  const jobId = process.env['DASH_JOB_ID'];
+  // Proof: with `...hostJobContainerFlags(environment)` removed from buildTestCaddyCommand, both
+  // suites run with DASH_JOB_ID=abc failed here on `Expected: "abc 1073741824 1000000000"
+  // Received: "<no value> 0 0"` (2026-11-12).
+  expect(stdout.trim()).toBe(
+    jobId === undefined || jobId === ''
+      ? '<no value> 0 0'
+      : `${jobId} ${String(1024 ** 3)} ${String(1e9)}`,
+  );
 }
 
 for (const [configuration, source] of [
@@ -86,24 +118,10 @@ for (const [configuration, source] of [
       );
       const binary = process.env['MCP_CADDY_BINARY'];
       const container = `mcp-body-limit-${basename(scratch)}`;
-      const command =
-        binary === undefined
-          ? [
-              'docker',
-              'run',
-              '--rm',
-              '--name',
-              container,
-              '--network=host',
-              '--volume',
-              `${scratch}:/test:ro`,
-              CADDY_IMAGE,
-              'caddy',
-              'run',
-              '--config',
-              '/test/Caddyfile',
-            ]
-          : [binary, 'run', '--config', configurationPath];
+      const command = buildTestCaddyCommand(
+        { scratch, configurationPath, container, binary },
+        process.env,
+      );
       const caddy = Bun.spawn(command, { stdout: 'pipe', stderr: 'pipe' });
       const logs = new Response(caddy.stderr).text();
       const stopCaddy = async () => {
@@ -134,6 +152,7 @@ for (const [configuration, source] of [
           }
         }
         if (!ready) throw new Error('Caddy did not become ready within 10 seconds');
+        if (binary === undefined) await expectJobAttribution(container);
         const send = (path: string, body: string) =>
           fetch(`http://127.0.0.1:${String(port)}${path}`, {
             method: 'POST',

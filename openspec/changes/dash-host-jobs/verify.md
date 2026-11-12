@@ -3397,3 +3397,52 @@ Last coordinator read: 2026-11-08 22:50Z, still running (3 h 05 min). Last upstr
 not complete 6.4. None of 6.4's deliverables is met: a week of
 observation, calibration, `propose`, or the container measurement. 6.4 stays open. This
 section completes neither 6.4 nor 6.7 and does not establish host qualification.
+
+## Slice 6i: gate containers attributed (task 6.13)
+
+Branch `ops/gate-containers-attributed-20261112` from `main` at `a471352a6`. Nothing here touched
+a host. One helper, `tools/tool-remote-scripts/src/lib/host-job-container-bound.ts`, decides the
+flags: `hostJobContainerFlags` (`--memory 1g --cpus 1 --label puni.job=$DASH_JOB_ID`) and
+`hostJobAttributionFlags` (`--cpus 1` and the label, for the supervisor's managed solver, which
+keeps its own 512 MiB `--memory`/`--memory-swap`). Both are empty when `DASH_JOB_ID` is unset or
+empty, the same boundary as `solver-image-smoke.sh`. The bound is the `gate` type's catalogue
+`containers` (and at or under every type's); its test reads the catalogue and fails on drift.
+Call sites: `buildManagedContainerArgs` (supervisor, used by the smoke's image host, the orphan
+host and the lifecycle proc test), `caddy/command.ts` (Caddy in `mcp-body-limit.test.ts`), and
+`fixtures/host-job-docker-run.ts`, which be-01's orphan proof spawns by path because
+`scope:app` cannot import a `scope:infra` module. `docker build` remains unattributed. No
+`concurrencyEligible` edit.
+
+### Fault injection (2026-11-12, each restored after)
+
+| Fault                                                         | Observed                                                                                       |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| helper always builds flags                                    | 4 fail: every "outside a Dash job" case (helper, supervisor builder, lifecycle, Caddy command) |
+| helper never builds flags                                     | 5 fail: every "inside a Dash job" case                                                         |
+| helper memory comparison removed                              | 2 fail: `Received function did not throw`                                                      |
+| `hostJobAttributionFlags` spread removed from the builder     | 2 fail (builder, lifecycle)                                                                    |
+| lifecycle passes `{}` instead of `process.env`                | 1 fail: `labels the managed container inside a Dash job`                                       |
+| `hostJobContainerFlags` removed from `caddy/command.ts`       | unit fail; real Caddy with `DASH_JOB_ID=abc`: `Received: "<no value> 0 0"`, 2 fail             |
+| flags removed from `host-job-docker-run.ts`                   | launcher test fail; real smoke orphan proof: caller `Received: "<no value> 0 0"`, exit 1       |
+| `hostJobAttributionFlags` removed, real smoke with job id set | orphan proof: managed child `Received: "<no value> 536870912 0"`, exit 1                       |
+
+### Commands
+
+Workstation, worktree root, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset.
+
+| Command                                                                                             | Result                                                                                         |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `bun test` of the six touched tool-remote-scripts unit files                                        | 39 pass, 0 fail, exit 0                                                                        |
+| `bun run tools/tool-remote-scripts/caddy/run.ts` without and with `DASH_JOB_ID=abc` (real Docker)   | 2 pass, 0 fail each, exit 0                                                                    |
+| `WBS_RUN_SOLVER_ORPHAN_PROC=1 bash apps/wbs/be-01/scripts/solver-image-smoke.sh`, `DASH_JOB_ID=abc` | orphan + lifecycle proc tests 3 pass, cleanup complete, exit 0                                 |
+| the same without `DASH_JOB_ID`                                                                      | 3 pass, cleanup complete, exit 0 (29 s)                                                        |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                        | 5091 tests across 327 files, `Successfully ran target test`, exit 0                            |
+| `bunx nx run tool-remote-scripts:test --skip-nx-cache`                                              | **incomplete**: killed by the worker's own 60 min `timeout` in the canonical batch, 0 failures |
+| `bunx nx run {tool-remote-scripts,wbs-be-01}:{lint,typecheck} --skip-nx-cache`                      | exit 0 each                                                                                    |
+| Burokrat `check working . HEAD <policy copy> --rule JOB-CATALOGUE --now 2026-11-12T12:00:00.000Z`   | `allowed: true`, no findings, exit 0                                                           |
+| Burokrat `check-indexes working . HEAD`                                                             | exit 0                                                                                         |
+| `bunx openspec validate --all --json`                                                               | 342 passed, 0 failed, exit 0                                                                   |
+| `bunx prettier --check` on changed files                                                            | exit 0                                                                                         |
+
+Owed: the full tool-remote-scripts target (CI and the host gate carry it); the peaks of the
+now-bounded containers (task 6.4) and `docker build` attribution before `gate` can be eligible.
