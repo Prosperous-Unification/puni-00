@@ -21,6 +21,7 @@ import { auditDrift } from './audit';
 import { renderAuditUnits, writeAuditUnits } from './audit-units';
 import { hostClassOf, readCommittedCatalogue, toolchainOf } from './catalogue';
 import { calibrateHostJob, type JobRunDependencies, runHostJob } from './job-run';
+import { measuresOf } from './measures';
 import { proposeEnvelope } from './propose';
 import { causeText, OpsRefusal } from './refusal';
 import { HostJobRunRecords } from './run-records';
@@ -272,7 +273,18 @@ export const opsHandlers: OpsHandlers = {
       }
       try {
         const peaks = new Map(
-          status.jobs.map((job) => [job.id, records.inspect(job.id)?.peakMemoryBytes ?? null]),
+          status.jobs.map((job) => {
+            const record = records.inspect(job.id);
+            return [
+              job.id,
+              {
+                memoryBytes: record?.peakMemoryBytes ?? null,
+                // Proof: passing 0 here failed `a throttled job says so beside its peak`
+                // (status.test.ts) on the running line (2026-11-12).
+                memoryHighEvents: record === null ? 0 : measuresOf(record).memoryHighEvents,
+              },
+            ];
+          }),
         );
         const legacy = legacyQueueOf(status, deps, 'ops job status');
         for (const line of formatHostPoolStatus(
