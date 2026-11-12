@@ -548,14 +548,21 @@ export function isLimitCode(code: string): code is LimitCode {
 }
 
 /**
- * The visitor-facing line for a window or daily-cap refusal. A minute window names its wait when
- * the API sent `Retry-After`; a daily cap lasts until UTC midnight, so it says tomorrow.
+ * The visitor-facing line for a window or daily-cap refusal. A window names its wait when the API
+ * sent `Retry-After`, rounded up to seconds, minutes or hours; a daily cap lasts until UTC
+ * midnight, so it says tomorrow.
  */
+function describeWait(seconds: number): string {
+  if (seconds < 120) return `${String(seconds)} s`;
+  if (seconds < 7_200) return `${String(Math.ceil(seconds / 60))} min`;
+  return `${String(Math.ceil(seconds / 3_600))} h`;
+}
+
 export function describeLimit(code: LimitCode, retryAfterSeconds: number | null): string {
   if (code === 'rate_limited')
     return retryAfterSeconds === null
-      ? 'Too many requests right now. Try again in a minute.'
-      : `Too many requests right now. Try again in ${String(retryAfterSeconds)} s.`;
+      ? 'Too many requests right now. Try again later.'
+      : `Too many requests right now. Try again in ${describeWait(retryAfterSeconds)}.`;
   const copy: Record<Exclude<LimitCode, 'rate_limited'>, string> = {
     draft_source_limit: 'Your connection started many requests today. Try again tomorrow.',
     draft_site_limit: 'PUNI received many requests today. Try again tomorrow.',
