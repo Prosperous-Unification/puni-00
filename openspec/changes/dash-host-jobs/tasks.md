@@ -317,6 +317,6 @@
       inside a Dash job, their argv unchanged outside one — test: each call site's argv carries
       `--cpus 1` (and `--memory 1g` where the starter sets no memory of its own) and
       `puni.job=abc` with `DASH_JOB_ID=abc`, and none of them without it; negative: drop the
-      branch and watch it fail. Done in PR #PR_NUMBER (slice 6i): `host-job-container-bound.ts`
+      branch and watch it fail. Done in PR #929 (slice 6i): `host-job-container-bound.ts`
       in tool-remote-scripts. `docker build` stays unattributed, and the peaks stay unmeasured
       until 6.4, so `gate` stays out of `concurrencyEligible`.
