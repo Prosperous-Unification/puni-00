@@ -271,14 +271,16 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    instead, before and after the kill. `NRestarts` goes up by one per kill, and
    `ActiveEnterTimestamp` lands `RestartSec` (30 s) after `InactiveExitTimestamp`. The counter
    counts automatic restarts, not their cause, and `show` keeps only the latest timestamp pair, so
-   record the kill itself. A manual `systemctl --user restart` resets the counter to 0. Check mode
-   (`--check`) cannot stand in for the converging apply: the template writes nothing, so the
-   key-count guard fails on 0 staged keys. h4claw converged on `Restart=always` on 2026-11-12
-   (`changed=2`, then `changed=0`); its kill proof is in the `dash-host-jobs` verify.md. `ops pool inspect` must show the same `guard`, `guardHolder` and unit
+   record the kill itself. `ops pool inspect` must show the same `guard`, `guardHolder` and unit
    holders before and after. In observe mode `guardHolder` is always `null`, so there this proves
    only the restart. A guard holder surviving a restart can be shown only in concurrent
    mode (step 8, 6.5). Rerun `--tags validate`. It is a read-only probe, not step 4's converging
-   second apply.
+   second apply. A manual `systemctl --user restart`, including the one `gate-launcher-refresh`
+   runs when `main` moved (step 6), resets `NRestarts` to 0, so read the counter against the
+   latest start. `--check` cannot stand in for the converging apply either: check mode skips every
+   command probe, so the key-count guard compares empty output and fails on 0 keys. h4claw
+   converged on `Restart=always` on 2026-11-12 (`changed=2`, then `changed=0`); its kill proof is
+   in the `dash-host-jobs` verify.md.
 
 6. **Observe for a week (6.4).** On h4claw, first calibrate `gate` through step 7 before
    launching further observe-mode gates: the first run is throttled at the 6 GiB estimate
@@ -306,8 +308,8 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    `puni_gate_pool_headroom {cpuCores 1, memoryGib 5}`, matching the rendered host configuration
    in a comparison on 2026-11-09 (verify.md). The vars actually passed to the lost applies and
    why 5 GiB was chosen are not recorded. Preserve the pinned headroom on every reapply;
-   the other pinned fields in the staged file have not been checked against the ledger, so a
-   successful reapply with that file stays owed. A reapply with the default 2 GiB stops at
+   the reapply of 2026-11-12 with that file converged (`changed=2`, then `changed=0`), so its
+   pinned fields match the ledger. A reapply with the default 2 GiB stops at
    "pinned field differs from the ledger".
 8. **Switch (6.5).** Run `ops pool switch-mode concurrent` after the five-launcher checklist, with
    the types allowed to overlap listed in `puni_gate_pool_concurrency_eligible`. Reapply the role
