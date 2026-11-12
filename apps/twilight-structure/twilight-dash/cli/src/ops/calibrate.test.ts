@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { Database } from 'bun:sqlite';
 import { afterAll, afterEach, describe, expect, test } from 'bun:test';
 
@@ -412,6 +413,10 @@ if (insideOpsNamespace(import.meta.path)) {
         telemetry,
         host: ampleHost,
         user: 'puni1',
+        helperPrefix: createLaunch(
+          process.execPath,
+          new URL('../entrypoint.ts', import.meta.url).pathname,
+        ),
         legacyLock: () => privateLegacyLock(join(cwd, '..')),
         connect: () => {
           throw new Error('no WBS call expected');
@@ -700,6 +705,10 @@ if (insideOpsNamespace(import.meta.path)) {
             sampleIntervalMs: 10_000,
             settleBudgetMs: 20_000,
             user: 'puni1',
+            helperPrefix: createLaunch(
+              process.execPath,
+              new URL('../entrypoint.ts', import.meta.url).pathname,
+            ),
             legacyLock: privateLegacyLock(join(checkout, '..')),
           },
         );
@@ -730,6 +739,10 @@ if (insideOpsNamespace(import.meta.path)) {
         sampleIntervalMs: 10_000,
         settleBudgetMs: 20_000,
         user: 'puni1',
+        helperPrefix: createLaunch(
+          process.execPath,
+          new URL('../entrypoint.ts', import.meta.url).pathname,
+        ),
         legacyLock: privateLegacyLock(join(checkout, '..')),
       };
       let refused: unknown;
@@ -777,6 +790,10 @@ if (insideOpsNamespace(import.meta.path)) {
           sampleIntervalMs: 10_000,
           settleBudgetMs: 20_000,
           user: 'puni1',
+          helperPrefix: createLaunch(
+            process.execPath,
+            new URL('../entrypoint.ts', import.meta.url).pathname,
+          ),
           legacyLock: privateLegacyLock(join(checkout, '..')),
         };
         expect(

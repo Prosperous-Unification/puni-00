@@ -591,6 +591,35 @@ const lockNamespace = command(
     ),
   ),
 );
+
+const payloadValues = multiple(argument(string({ metavar: 'COMMAND' })), { min: 1 });
+/** The private protocol requires its own explicit argv boundary before forwarding literal words. */
+const payloadArguments = {
+  ...payloadValues,
+  parse(context: Parameters<typeof payloadValues.parse>[0]) {
+    if (!context.optionsTerminated && context.buffer[0] !== '--')
+      return {
+        success: false as const,
+        consumed: 0,
+        error: message`Private payload requires -- before its executable.`,
+      };
+    return payloadValues.parse(context);
+  },
+};
+const gatedPayloadCommand = command(
+  'payload-internal-v1',
+  object({
+    command: constant('ops'),
+    words: constant('job payload-internal-v1'),
+    argv: map(payloadArguments, (values): readonly [string, ...string[]] => {
+      const [executable, ...operands] = values;
+      if (executable === '' || values.some((word) => word.includes('\0')))
+        throw new UsageRefusal('Private payload executable is missing or invalid.');
+      return [executable, ...operands];
+    }),
+  }),
+  { hidden: true, brief: message`Internal measured payload protocol version one.` },
+);
 /**
  * `ops` declares native lock, release, host-job and host-pool operations. Lock and release
  * dispatch stay independent of the heavier authority and host-job runtime.
@@ -602,6 +631,7 @@ const opsNamespace = command(
     command(
       'job',
       or(
+        gatedPayloadCommand,
         opsCommand(
           'run',
           'job run',
@@ -794,6 +824,12 @@ export type ReleaseCommand = InferValue<typeof releaseNamespace>;
 
 /** Foreground/status and fixed private holder requests, dispatched without the host-pool graph. */
 export type LockCommand = InferValue<typeof lockNamespace>;
+
+/** Private measured-scope keeper, handled without loading host-pool or catalogue operations. */
+export type GatedPayloadCommand = InferValue<typeof gatedPayloadCommand>;
+export function isGatedPayloadCommand(command: DashCommand): command is GatedPayloadCommand {
+  return command.command === 'ops' && command.words === 'job payload-internal-v1';
+}
 
 export function isLockCommand(command: DashCommand): command is LockCommand {
   return (

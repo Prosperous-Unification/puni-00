@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Usage, UsageTerm } from '@optique/core';
+import { createLaunch } from '@shared/bun-startup';
 import { afterAll, describe, expect, test } from 'bun:test';
 
 import { openAuthority } from './authority/authority-store';
@@ -449,6 +450,7 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
     expect(opsParserWords()).toEqual(
       [
         ...Object.keys(opsHandlers),
+        'job payload-internal-v1',
         'lock hold-internal-v1',
         'lock run',
         'lock status',
@@ -460,6 +462,7 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
       'job admission',
       'job audit',
       'job calibrate',
+      'job payload-internal-v1',
       'job propose',
       'job render-audit-units',
       'job run',
@@ -495,6 +498,10 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
         telemetry: linuxScopeTelemetry(),
         host: { cpuCores: () => 1, memoryGib: () => 1 },
         user: 'nobody',
+        helperPrefix: createLaunch(
+          process.execPath,
+          new URL('./entrypoint.ts', import.meta.url).pathname,
+        ),
         legacyLock: () => {
           throw new Error('no ops command ran');
         },
@@ -681,6 +688,7 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
       'ops job admission',
       'ops job audit',
       'ops job calibrate',
+      'ops job payload-internal-v1',
       'ops job propose',
       'ops job render-audit-units',
       'ops job run',
@@ -723,7 +731,12 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
 
   test.each(commandPaths())('%s refuses an unknown flag in its own usage line', (words) => {
     const line = refusalLineOf([...words.split(' '), '--no-such-flag']);
-    const visibleWords = words === 'ops lock hold-internal-v1' ? 'ops lock' : words;
+    const visibleWords =
+      words === 'ops lock hold-internal-v1'
+        ? 'ops lock'
+        : words === 'ops job payload-internal-v1'
+          ? 'ops job'
+          : words;
     expect(line).toStartWith(`usage: twilight-dash ${visibleWords} `);
     expect(line).not.toContain('\n');
   });

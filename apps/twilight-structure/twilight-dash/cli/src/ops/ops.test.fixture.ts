@@ -177,11 +177,13 @@ export function fakeSystemdRun(directory: string, behaviour: FakeSystemdRun): st
   payloadScript(
     join(directory, 'systemd-run'),
     [
-      'while [ "$#" -gt 0 ] && [ "$1" != -- ]; do shift; done',
+      'unit=',
+      'while [ "$#" -gt 0 ] && [ "$1" != -- ]; do case "$1" in --unit=*) unit=${1#--unit=};; --unit) shift; unit=$1;; esac; shift; done',
       'shift',
       ...(behaviour === 'vanishes' ? ['rm -f -- "$0"'] : []),
       'if [ "$#" -eq 1 ] && [ "$1" = true ]; then exec true; fi',
       `: > ${join(directory, 'launched')}`,
+      `printf '%s\\n' "$unit" > ${join(directory, 'leader-')}$$`,
       launch,
     ].join('\n'),
   );
@@ -213,6 +215,20 @@ function jobIdOf(pid: string): string | null {
   return entry === undefined ? null : entry.slice('DASH_JOB_ID='.length);
 }
 
+function fakeLeaderJob(pid: string): string | null {
+  const environment = procText(`/proc/${pid}/environ`);
+  const path = environment
+    ?.split('\0')
+    .find((entry) => entry.startsWith('PATH='))
+    ?.slice(5);
+  if (path === undefined) return null;
+  for (const directory of path.split(':')) {
+    const unit = procText(join(directory, 'leader-' + pid));
+    if (unit !== null) return /^dash-job-(.+)\n$/u.exec(unit)?.[1] ?? null;
+  }
+  return null;
+}
+
 /**
  * A fake cgroup hierarchy for hosts without a user manager (`dash-host-jobs` slice 3 review F3):
  * a process is in `/fake/dash-job-<id>.scope` once it is the gated shell (its command line holds
@@ -228,8 +244,12 @@ export function fakeScopeTelemetry(root: string): ScopeTelemetry & {
     cgroupOf: (pid) => {
       const command = procText(`/proc/${String(pid)}/cmdline`);
       if (command === null) return null;
-      const id = jobIdOf(String(pid));
-      if (id === null || !command.includes('read gate <&3') || command.includes('systemd-run'))
+      const id = fakeLeaderJob(String(pid));
+      if (
+        id === null ||
+        !command.split('\0').includes('payload-internal-v1') ||
+        command.includes('systemd-run')
+      )
         return '/fake/elsewhere';
       const cgroup = `/fake/dash-job-${id}.scope`;
       const directory = join(root, cgroup);
@@ -245,7 +265,7 @@ export function fakeScopeTelemetry(root: string): ScopeTelemetry & {
       const id = /\/dash-job-(.+)\.scope$/.exec(cgroup)?.[1];
       if (id === undefined) return [];
       return readdirSync('/proc')
-        .filter((pid) => /^\d+$/.test(pid) && jobIdOf(pid) === id)
+        .filter((pid) => /^\d+$/.test(pid) && (jobIdOf(pid) === id || fakeLeaderJob(pid) === id))
         .filter((pid) => !(procText(`/proc/${pid}/stat`) ?? ') Z ').includes(') Z '))
         .map(Number);
     },

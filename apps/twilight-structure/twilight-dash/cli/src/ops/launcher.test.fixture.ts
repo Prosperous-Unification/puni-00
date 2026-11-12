@@ -1,5 +1,7 @@
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
+
 import { monotonicClock, wallClock } from '../clock';
 import { ampleHost } from '../resources/host-pool.test.fixture';
 import { privateLegacyLock } from '../resources/legacy-lock.test.fixture';
@@ -44,6 +46,10 @@ try {
       sampleIntervalMs: Number(interval),
       settleBudgetMs: 20_000,
       user: 'puni1',
+      helperPrefix: createLaunch(
+        process.execPath,
+        new URL('../entrypoint.ts', import.meta.url).pathname,
+      ),
       legacyLock: privateLegacyLock(join(cwd, '..')),
     },
   );

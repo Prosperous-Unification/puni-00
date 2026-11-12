@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
 
@@ -162,6 +163,10 @@ if (insideOpsNamespace(import.meta.path)) {
       telemetry: linuxScopeTelemetry(),
       host: ampleHost,
       user: 'puni1',
+      helperPrefix: createLaunch(
+        process.execPath,
+        new URL('../entrypoint.ts', import.meta.url).pathname,
+      ),
       legacyLock: () => privateLegacyLock(join(cwd, '..')),
       // The drop's guard refusal comes before its re-send (task 6.8b): no WBS call is expected.
       connect: () => ({
@@ -209,6 +214,10 @@ if (insideOpsNamespace(import.meta.path)) {
       sampleIntervalMs: 10_000,
       settleBudgetMs: options.settleBudgetMs ?? 20_000,
       user: 'puni1',
+      helperPrefix: createLaunch(
+        process.execPath,
+        new URL('../entrypoint.ts', import.meta.url).pathname,
+      ),
       legacyLock: fixture.lock,
     };
     return runHostJob(

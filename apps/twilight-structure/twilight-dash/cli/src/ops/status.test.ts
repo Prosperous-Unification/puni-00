@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
 
+import { createLaunch } from '@shared/bun-startup';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { monotonicClock } from '../clock';
@@ -72,6 +73,10 @@ if (insideOpsNamespace(import.meta.path))
         telemetry: linuxScopeTelemetry(),
         host: ampleHost,
         user: 'puni1',
+        helperPrefix: createLaunch(
+          process.execPath,
+          new URL('../entrypoint.ts', import.meta.url).pathname,
+        ),
         legacyLock: () => legacyLock,
         connect: () => {
           throw new Error('no WBS call expected');
@@ -181,6 +186,10 @@ if (insideOpsNamespace(import.meta.path))
         {
           ...dependencies([]),
           stderr: (text) => stderr.push(text),
+          helperPrefix: createLaunch(
+            process.execPath,
+            new URL('../entrypoint.ts', import.meta.url).pathname,
+          ),
           legacyLock: () => Promise.reject(new Error('selected helper unavailable')),
         },
       );

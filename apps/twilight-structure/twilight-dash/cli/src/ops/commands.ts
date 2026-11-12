@@ -1,4 +1,4 @@
-import type { DashCommand, LockCommand, ReleaseCommand } from '../cli-parser';
+import type { DashCommand, GatedPayloadCommand, LockCommand, ReleaseCommand } from '../cli-parser';
 import type { Monotonic, WallClock } from '../clock';
 import type { ApiKey, McpEndpoint } from '../mcp/machine-token';
 import type { WbsTools } from '../mcp/wbs-tools';
@@ -31,11 +31,12 @@ import { checkEligibleTypes, switchPoolMode } from './switch-mode';
 /** A parsed host-job or pool command line, discriminated by its words after `ops`. */
 export type OpsCommand = Exclude<
   Extract<DashCommand, { readonly command: 'ops' }>,
-  ReleaseCommand | LockCommand
+  ReleaseCommand | LockCommand | GatedPayloadCommand
 >;
 
 /** Everything the `ops` commands reach outside their arguments, composed by `cli.ts`. */
 export interface OpsDependencies {
+  readonly helperPrefix: readonly string[];
   readonly clock: WallClock;
   readonly monotonic: Monotonic;
   readonly environment: Readonly<Record<string, string | undefined>>;
@@ -108,9 +109,20 @@ function openPool(config: string, clock: WallClock, command: string): ResourceRu
   return runtime;
 }
 
-/** What `ops job run` and `ops job calibrate` reach, from the `ops` dependencies. */
+/**
+ * What `ops job run` and `ops job calibrate` reach, from the captured `ops` dependencies.
+ * Proof: substituting a candidate prefix or delaying prefix/environment capture across
+ * lock resolution fails both real composition captures in ops/gated-payload.test.ts.
+ * Downstream jobs are mocked there; no candidate execution/installed-prefix proof follows.
+ */
 async function launcherDependencies(deps: OpsDependencies): Promise<JobRunDependencies> {
+  deps = {
+    ...deps,
+    helperPrefix: Object.freeze([...deps.helperPrefix]),
+    environment: Object.freeze(Object.fromEntries(Object.entries(deps.environment))),
+  };
   return {
+    helperPrefix: deps.helperPrefix,
     clock: deps.clock,
     monotonic: deps.monotonic,
     environment: deps.environment,
@@ -125,6 +137,20 @@ async function launcherDependencies(deps: OpsDependencies): Promise<JobRunDepend
     user: deps.user,
     legacyLock: await resolveLegacyLock(deps, 'ops job run'),
   };
+}
+
+/** Capture the declared payload words before resolving the selected lock asynchronously. */
+async function launchHostJob(
+  command: Extract<OpsCommand, { readonly words: 'job run' | 'job calibrate' }>,
+  deps: OpsDependencies,
+): Promise<number> {
+  // Proof: capturing argv after the asynchronous lock wait changes both run/calibration
+  // captures in ops/gated-payload.test.ts to mutated-payload. Composition-boundary only.
+  const request = { ...command, argv: Object.freeze([...command.argv]) };
+  const launcher = await launcherDependencies(deps);
+  return request.words === 'job run'
+    ? await runHostJob(request, launcher)
+    : await calibrateHostJob(request, launcher);
 }
 
 /**
@@ -175,9 +201,8 @@ function auditInstant(now: string | undefined, clock: WallClock): number {
  * `cli.test.ts` holds this table equal to the parser's `ops` commands.
  */
 export const opsHandlers: OpsHandlers = {
-  'job run': async (command, deps) => runHostJob(command, await launcherDependencies(deps)),
-  'job calibrate': async (command, deps) =>
-    calibrateHostJob(command, await launcherDependencies(deps)),
+  'job run': launchHostJob,
+  'job calibrate': launchHostJob,
   'job propose': (command, deps) => {
     const catalogue = readCommittedCatalogue(deps.cwd, 'ops job propose');
     const jobType = catalogue.jobs.find((job) => job.id === command.type);

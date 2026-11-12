@@ -14,6 +14,8 @@ import { submitAdmission } from './authority/submit-admission';
 import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activation-checks';
 import {
   type DashCommand,
+  type GatedPayloadCommand,
+  isGatedPayloadCommand,
   isLockCommand,
   isReleaseCommand,
   type LockCommand,
@@ -81,7 +83,10 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
 
 /** The commands `entrypoint.ts` dispatches itself, so `mcp token` never loads this module. */
 type EntrypointCommand =
-  Extract<DashCommand, { readonly command: 'mcp' | 'pool' }> | ReleaseCommand | LockCommand;
+  | Extract<DashCommand, { readonly command: 'mcp' | 'pool' }>
+  | ReleaseCommand
+  | LockCommand
+  | GatedPayloadCommand;
 
 /** A parsed command `runDash` dispatches. */
 export type DispatchedCommand = Exclude<DashCommand, EntrypointCommand>;
@@ -223,6 +228,7 @@ export const dashHandlers: Handlers = {
     // Proof: dash-ops-status; `returns explicit Dash sequential statuses without touching the executable exit code` failed under the recorded source fault and passed after restoration.
     // Proof: dash-no-global-status; `returns explicit Dash sequential statuses without touching the executable exit code` failed under the recorded source fault and passed after restoration.
     return await runOps(command, {
+      helperPrefix: deps.helperPrefix,
       clock: deps.clock,
       monotonic: deps.monotonic,
       environment: process.env,
@@ -302,7 +308,8 @@ export async function runDashArguments(
     command.command === 'mcp' ||
     command.command === 'pool' ||
     isReleaseCommand(command) ||
-    isLockCommand(command)
+    isLockCommand(command) ||
+    isGatedPayloadCommand(command)
   ) {
     throw new UsageRefusal(
       `${isReleaseCommand(command) ? 'ops release' : isLockCommand(command) ? 'ops lock' : command.command} is dispatched by entrypoint.ts`,

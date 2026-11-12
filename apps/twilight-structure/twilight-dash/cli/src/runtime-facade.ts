@@ -1,4 +1,10 @@
-import { findIncoherence, isLockCommand, isReleaseCommand, UsageRefusal } from './cli-parser';
+import {
+  findIncoherence,
+  isGatedPayloadCommand,
+  isLockCommand,
+  isReleaseCommand,
+  UsageRefusal,
+} from './cli-parser';
 import type { Monotonic, WallClock } from './clock';
 import type { Request } from './grammar-facade';
 import type { FetchLike } from './mcp/machine-token';
@@ -37,7 +43,16 @@ export async function executeRequest(request: Request, context: Context): Promis
   // Proof: dash-facade-account-coherence; skipping account coherence failed `refuses typed account coherence before opening its input or composing heavy effects`; restoration passed.
   const refusal = findIncoherence(request);
   if (refusal !== undefined) throw new UsageRefusal(refusal);
-  // Proof: dash-facade-release-selection; bypassing this branch failed `returns the actual release adapter status while retaining its inherited native IO contract`; restoration passed.
+  // Proof: bypassing hidden-helper dispatch reaches Unsupported Dash command1 instead
+  // of the expected missing-FD refusal125 in the native missing-fds selector, with fresh
+  // mutant/restored source bundles. This is not an installed-tarball replay.
+  if (isGatedPayloadCommand(request)) {
+    const { runGatedPayload } = await import('./ops/gated-payload');
+    return await runGatedPayload(request, {
+      callerDirectory: context.callerDirectory,
+      monotonic: context.monotonic,
+    });
+  }
   if (isLockCommand(request)) {
     const { runInstalledLock } = await import('./ops/lock');
     return await runInstalledLock(request, {
@@ -45,6 +60,7 @@ export async function executeRequest(request: Request, context: Context): Promis
       environment: context.environment,
     });
   }
+  // Proof: dash-facade-release-selection; bypassing this branch failed `returns the actual release adapter status while retaining its inherited native IO contract`; restoration passed.
   if (isReleaseCommand(request)) {
     const { runOpsCommand } = await import('./ops/release');
     // Proof: dash-facade-release-status; replacing the returned adapter status with zero failed `returns the actual release adapter status while retaining its inherited native IO contract`; restoration passed.

@@ -15,6 +15,7 @@ import {
 import { arch, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { Database } from 'bun:sqlite';
 import { afterAll, afterEach, describe, expect, test } from 'bun:test';
 
@@ -104,6 +105,10 @@ if (insideOpsNamespace(import.meta.path)) {
       telemetry: linuxScopeTelemetry(),
       host: ampleHost,
       user: 'puni1',
+      helperPrefix: createLaunch(
+        process.execPath,
+        new URL('../entrypoint.ts', import.meta.url).pathname,
+      ),
       legacyLock: () => privateLegacyLock(join(cwd, '..')),
       connect: () => {
         throw new Error('no WBS call expected');
@@ -167,6 +172,10 @@ if (insideOpsNamespace(import.meta.path)) {
       settleBudgetMs: 20_000,
       user: 'puni1',
       // Beside the checkout, in the pool fixture's own directory: one shell lock per pool.
+      helperPrefix: createLaunch(
+        process.execPath,
+        new URL('../entrypoint.ts', import.meta.url).pathname,
+      ),
       legacyLock: privateLegacyLock(join(cwd, '..')),
       ...overrides,
     };
@@ -180,6 +189,73 @@ if (insideOpsNamespace(import.meta.path)) {
   ): JobRunRequest {
     return { config, type, label, waitSeconds: 0, pollSeconds: 1, argv };
   }
+
+  test('native payload preserves the exact supplied unusual environment names before private transport', async () => {
+    const fixture = pool();
+    const capture = join(fixture.base, 'selected-environment.json');
+    const environment = Object.fromEntries([
+      ...Object.entries(fake.environment),
+      ['__proto__', 'caller-proto'],
+      ['constructor', 'caller-constructor'],
+      ['PWD', ''],
+      ['SHLVL', 'caller-level'],
+      ['_', 'caller-underscore'],
+    ]);
+    const payload = join(fixture.base, 'environment-payload.mjs');
+    writeFileSync(
+      payload,
+      '#!' +
+        process.execPath +
+        '\nawait Bun.write(' +
+        JSON.stringify(capture) +
+        ', JSON.stringify(Object.fromEntries(["__proto__", "constructor", "PWD", "SHLVL", "_"].map(key => [key,process.env[key] ?? null]))));\n',
+      { mode: 0o755 },
+    );
+    const code = await runHostJob(
+      request(fixture.config, 'test-queued', [payload]),
+      runDependencies(fixture.checkout, [], { environment }),
+    );
+    expect(code).toBe(0);
+    expect(JSON.parse(readFileSync(capture, 'utf8'))).toEqual(
+      Object.fromEntries([
+        ['__proto__', 'caller-proto'],
+        ['constructor', 'caller-constructor'],
+        ['PWD', ''],
+        ['SHLVL', 'caller-level'],
+        ['_', 'caller-underscore'],
+      ]),
+    );
+  });
+
+  for (const mode of ['missing', 'partial', 'duplicate', 'leading-zero', 'range', 'contradict'])
+    test(
+      'refuses unqualified private payload status ' + mode + ' without leader fallback',
+      async () => {
+        const fixture = pool();
+        const payload = join(fixture.base, 'status-payload.mjs');
+        writeFileSync(payload, '#!' + process.execPath + '\nprocess.exitCode = 3;\n', {
+          mode: 0o755,
+        });
+        const refusal = await runHostJob(
+          request(fixture.config, 'test-queued', [payload]),
+          runDependencies(fixture.checkout, [], {
+            helperPrefix: [
+              ...createLaunch(
+                process.execPath,
+                new URL('./testing/gated-status.test.fixture.ts', import.meta.url).pathname,
+              ),
+              mode,
+            ],
+          }),
+        ).then(
+          () => undefined,
+          (cause: unknown) => cause,
+        );
+        expect(refusal).toBeInstanceOf(OpsRefusal);
+        if (!(refusal instanceof OpsRefusal)) throw new Error('missing protocol refusal');
+        expect(refusal.exitCode).toBe(70);
+      },
+    );
 
   async function refusal(promise: Promise<number>): Promise<OpsRefusal> {
     try {
@@ -680,6 +756,10 @@ if (insideOpsNamespace(import.meta.path)) {
           expect(code).toBe(3);
           expect(record.exitCode).toBe(3);
           expect(record.telemetryFailure).toContain('torn down before the exit sample');
+          expect(record.telemetryFailure).toContain(
+            'private helper ended by SIGKILL after qualified payload status',
+          );
+          expect(record.attributionIncomplete).toBe(true);
           expect(record.samples.at(-1)).toMatchObject({ kind: 'exit', counters: null });
           expect(report.some((line) => line.includes('telemetry failure recorded'))).toBe(true);
         },
@@ -832,20 +912,18 @@ if (insideOpsNamespace(import.meta.path)) {
 
     test('refuses 70 when the launch identity cannot be recorded', async () => {
       const { config, checkout, root } = pool();
-      // Read once the job's tmp directory exists, which is after preparation and before the
-      // spawn: the managed root is opened to others, so recording the launch is refused.
-      const environment: Record<string, string | undefined> = { ...fake.environment };
-      Object.defineProperty(environment, 'DASH_TEST_TRIGGER', {
-        enumerable: true,
-        get: () => {
+      // The startup deadline is captured after preparation. Change the trusted root there;
+      // caller environment values are now deliberately captured before admission waits.
+      const openingClock = {
+        now: () => {
           if (readdirSync(root).some((entry) => entry !== '.dash')) chmodSync(root, 0o755);
-          return 'set';
+          return monotonic.now();
         },
-      });
+      };
       const refused = await refusal(
         runHostJob(
           request(config, 'test-queued', ['true']),
-          runDependencies(checkout, [], { environment }),
+          runDependencies(checkout, [], { monotonic: openingClock }),
         ),
       );
       chmodSync(root, 0o700);

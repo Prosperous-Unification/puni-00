@@ -100,6 +100,7 @@ const expectedLeaves = {
     'ops job admission',
     'ops job audit',
     'ops job calibrate',
+    'ops job payload-internal-v1',
     'ops job propose',
     'ops job render-audit-units',
     'ops job run',

@@ -133,6 +133,7 @@ try {
       settleBudgetMs: 20000,
       user: 'puni1',
       // Inside the namespace /home/puni1/.cache is tmpfs: the canonical lock is a fixture.
+      helperPrefix: createLaunch(process.execPath, ${JSON.stringify(join(DASH_SOURCE, 'entrypoint.ts'))}),
       legacyLock: await productionLegacyLock(createLaunch(process.execPath, ${JSON.stringify(join(DASH_SOURCE, 'entrypoint.ts'))}), {clock:wallClock(),monotonic:monotonicClock()}),
     },
   );

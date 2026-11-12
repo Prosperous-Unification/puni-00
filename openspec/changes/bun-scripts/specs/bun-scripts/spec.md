@@ -334,3 +334,49 @@ The private checkout core SHALL accept only a currently registered provider-priv
 - **WHEN** early cancellation or final admitted work captures completion and subsequent umask restoration throws
 - **THEN** the facade retains the captured completion and attaches cleanup/report causes using existing restoration-origin priority
 - **AND** numeric work74 alone grants no restoration authority and no recovery Git runs after release
+
+### Requirement: Gated host payloads use the selected Bun artifact
+
+Dash SHALL launch its keeper as the hidden versioned operation in the same selected protected PUNI artifact, preserving catalogue/profile/original argv, native IO, cwd and run records. The keeper SHALL own a non-detached direct payload child and remain through actual native termination, exit sampling/container observation and controller acknowledgement. Direct-child end SHALL NOT establish descendant/container/reservation settlement.
+
+#### Scenario: Start and private environment jointly admit one payload
+
+- **WHEN** FD3 receives exact `start\n` and FD5 receives one complete bounded v1 frame followed by actual EOF
+- **THEN** exactly one payload may start; earlier EOF/cancellation, malformed/duplicate commands, early done or malformed/missing/trailing environment bytes refuse rather than authorize entry
+- **AND** pre-start protocol refusal is125, while qualified pre-child executable refusal remains127/126 without fabricating a native child
+
+#### Scenario: The complete post-jobEnvironment snapshot is private and payload-only
+
+- **WHEN** an admitted job is composed before asynchronous lock waits
+- **THEN** original argv, selected helper/cwd and all defined caller environment values plus established job/unit assignments are captured; own-property-safe maps preserve names such as `__proto__`
+- **AND** FD5 alone transports four big-endian length bytes, fatal-UTF8 JSON `[1,[[name,value],...]]` and EOF under the8MiB encoded-body bound, with strict tuple/version/entry/name/value/duplicate/trailing validation
+- **AND** the helper retains protected startup and never restores private values into its process.env or copies them into argv, environment stashes, diagnostics or disk; only payload spawn receives the decoded map, with native normalization/E2BIG still observable
+
+#### Scenario: Native evidence precedes status and keeper retirement
+
+- **WHEN** the payload ends or a numeric/callback observation becomes inconsistent
+- **THEN** only qualified native outcome plus required numeric correspondence permits canonical0..255 decimal status plus LF and actual FD4 EOF; unknown native authority retains referenced ownership and reports boundedly
+- **AND** normal completion awaits post-status `done\n` plus EOF, or actual controller EOF after native settlement; controller death never manufactures payload termination
+- **AND** final control admission is the helper's exclusive NONBLOCK observation after async reads join, without cross-FD atomicity or a wall-clock peer-send-before-EOF guarantee
+
+#### Scenario: Native transport owns pressure, cancellation and ambiguous close
+
+- **WHEN** inherited3/4/5 endpoints experience fragmentation, real EOF/half-close, larger-than-buffer transfer, stalled peers, cancellation or IO/close failure
+- **THEN** exclusive operations join before one-shot endpoint close; ambiguous failure retains uncertainty and never authorizes a retry or successful synthetic end
+- **AND** original private endpoint identities are not inherited by the payload, irrespective of numeric descriptor reuse
+- **AND** real systemd availability, other-platform behavior and actual kernel errors require their own evidence rather than direct-process, projected-platform or emulated-error qualification
+
+### Requirement: Qualified payload outcome survives subsequent native keeper signal loss
+
+A canonical FD4 payload status followed by independently observed native keeper signal loss SHALL preserve payload status while recording helper death, acknowledgement/telemetry failure and incomplete attribution. ACK EPIPE alone SHALL NOT establish native termination. Unqualified status and normal-exit contradiction refuse infrastructure70; independent native/descendant/container/resource evidence still governs release.
+
+#### Scenario: Native helper death precedes parent FD4 delivery
+
+- **WHEN** genuine canonical payload3 bytes and EOF were written before helper SIGKILL but parent delivery remains queued
+- **THEN** the controller joins actual bounded FD4 classification rather than synthesizing absent status from native helper exit, preserving qualified3 with explicit keeper/telemetry loss
+
+#### Scenario: A real reader remains unconfirmed after native helper exit
+
+- **WHEN** FD4 observation has not settled within its1000ms post-native-end observation budget
+- **THEN** one report is attempted and the actual reader/job/hold remain owned until stream settlement; expiry proves no writer/descendant/resource absence and authorizes no synthetic success
+- **AND** empty EOF, malformed/partial/duplicate bytes, read failure and close-before-end remain distinct from that unconfirmed state

@@ -1,6 +1,12 @@
 import { createLaunch } from '@shared/bun-startup';
 
-import { isLockCommand, isReleaseCommand, readDashInvocation, UsageRefusal } from './cli-parser';
+import {
+  isGatedPayloadCommand,
+  isLockCommand,
+  isReleaseCommand,
+  readDashInvocation,
+  UsageRefusal,
+} from './cli-parser';
 import { monotonicClock, wallClock } from './clock';
 
 /**
@@ -24,7 +30,13 @@ try {
     process.stdout.write(text);
   });
   const command = invocation.kind === 'command' ? invocation.command : undefined;
-  if (command !== undefined && isLockCommand(command)) {
+  if (command !== undefined && isGatedPayloadCommand(command)) {
+    const { runGatedPayload } = await import('./ops/gated-payload');
+    process.exitCode = await runGatedPayload(command, {
+      callerDirectory: process.cwd(),
+      monotonic: monotonicClock(),
+    });
+  } else if (command !== undefined && isLockCommand(command)) {
     const { runInstalledLock } = await import('./ops/lock');
     process.exit(
       await runInstalledLock(command, { callerDirectory: process.cwd(), environment: process.env }),
