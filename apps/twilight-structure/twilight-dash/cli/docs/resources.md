@@ -232,7 +232,7 @@ host-wide free-space change as bytes reclaimed by this cleanup.
 Run this foreground process as the same current user that launches managed commands. For
 persistence, use your existing user service manager set to always restart: `watch` answers
 SIGTERM by cancelling and exiting 0, so restart-on-failure would leave it down. Under systemd,
-`Restart=always` still keeps a unit down after `systemctl stop`:
+`Restart=always` still keeps a unit down after `systemctl stop`. The command the unit runs:
 
 ```sh
 dash resources watch --config "$HOME/.config/dash/resources.json"

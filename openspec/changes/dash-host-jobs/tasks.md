@@ -226,7 +226,7 @@
       `gate-host-pool.test.ts` pins `always`. A host keeps `on-failure` until its next
       converging apply, and the kill proof above is still owed under `always`.
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
-      (`Restart=on-failure`, `always` since 2026-11-12 (6.7), `RestartSec=30`, `KillMode=process`,
+      (`Restart=always`; `on-failure` until 2026-11-12, see 6.7; `RestartSec=30`, `KillMode=process`,
       skipped until the ledger exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
       enrolled host and never starts them. The restart proof on a host stays in 6.7
       (verify.md Slice 6c).

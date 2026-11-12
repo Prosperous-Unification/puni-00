@@ -315,20 +315,25 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    (never the role default, which stays `[]`; an `--extra-vars` file setting it would win) and run
    a converging apply. The field is not pinned,
    so the pinned-field probe lets the role rewrite `host-pool.json` with the new list. Nothing
-   re-runs `ops pool init`. The next `ops` open of the pool (`job run`, `job status`, `job admission`,
-   `pool inspect` and the rest; `resources watch` does not check) refuses 64 an id that no
+   re-runs `ops pool init`. The next `ops` open of the pool (`job run`, `job status`,
+   `pool inspect` and the rest; `resources watch` and the read-only `job admission` do not
+   check) refuses 64 an id that no
    listed launcher checkout's catalogue names at HEAD, and lists a checkout without a readable
    catalogue as `unverified` (`checkEligibleTypes`, lenient). In observe mode the list changes no
    admission. Admission reads it only in concurrent mode (`mayOverlap` in `runtime.ts`), and
-   `switch-mode concurrent` checks it strictly. The first intended set is
-   `["gate", "release-build", "solver-image-publish", "website-dev-build"]`. The first three are
+   `switch-mode concurrent` checks it strictly. The candidates are `release-build`,
+   `solver-image-publish` and `website-dev-build`; `gate` is excluded while its containers run
+   unattributed (the J16 row in [heavy job launchers](heavy-job-launchers.md)). The first two are
    in puni-00's catalogue, which `~/puni-00-gate-launcher` carries (and on h2puni also
    `~/wbs-dev/src`). `website-dev-build` is only in puni-pr-00's `infra/jobs/catalogue.json`, so a
    puni-pr-00 checkout owned by `puni1` must be added to `puni_gate_pool_launcher_checkouts`.
    Without it, every open refuses 64. With it, `switch-mode concurrent` still refuses 70 for that
    checkout while puni-pr-00 carries no `bin/heavy-lock-lib.sh` defining `run_heavy_job` at HEAD:
    its launcher sources the gate tree's (absent at puni-pr-00 `origin/main`, read 2026-11-12). For now
-   list only `release-build` and `solver-image-publish`: `website-dev-build` waits for that
+   list only `release-build` and `solver-image-publish`, knowing that both declare the exclusive
+   unit `dagger_engine`, so this list lets no two jobs overlap yet: the switch then installs the
+   singleton guard and the fence, not parallel admission, until a type without that shared unit
+   is eligible. `website-dev-build` waits for that
    library, and `gate` stays unlisted until the
    [conflict inventory](heavy-job-launchers.md#conflict-inventory-j3)'s unbounded containers are
    covered.
