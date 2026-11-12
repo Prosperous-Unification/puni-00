@@ -3423,7 +3423,12 @@ then `bunx nx run-many -t test`, with `NX_DAEMON=false` so no daemon keeps a cwd
   49l pins the `test-queued` refusal. The `heavy-lock-queue` scenario changed to match.
 - **T12-A4** On an unenrolled host `bun run test:queued <sha>` now checks the sha out in the
   launcher checkout and refuses a dirty one 65, as the gate always has; before, it tested the
-  working tree as it stood.
+  working tree as it stood. As the gate: a pass leaves the checkout detached at the sha (`keep`
+  restores only on failure); before, HEAD was never touched.
+- **T12-A6** The tests run `nx run-many -t test --skip-nx-cache --parallel=2`, the gate's test
+  step flags: a gate tree is long-lived, so the Nx cache would replay an earlier run's results
+  at the same inputs, and `--parallel=2` keeps the run inside the envelope the gate shares
+  (review of #928, finding 1).
 - **T12-A5** The `ops job run --type test-queued -- true` scenario now names any type whose
   profile is `""`: under `<sha>` that argv is refused 64.
 
@@ -3436,6 +3441,8 @@ then `bunx nx run-many -t test`, with `NX_DAEMON=false` so no daemon keeps a cwd
 | payload argument count check `if false`                            | heavy-lock `47d … refuses none: want exit 64, got 1`; `47d … refuses two: want exit 64, got 65`                                                 |
 | catalogue `test-queued` exclusive back to `[]`                     | heavy-lock `49l … want exit 70, got 0`, the payload ran as `gate:abc/test-queued`                                                               |
 | payload `tree=$(resolve_gate_tree …)` replaced by `tree=$checkout` | launchers.test.ts: inherited unit unenrolled `Expected: 64 Received: 0`; enrolled run recorded the launcher checkout; bare enrolled payload `0` |
+| payload `settle=restore` replaced by `settle=keep`                 | launchers.test.ts `test-queued runs pinned in an admitted gate tree`: `Expected: "resting commit" Received: "launcher checkout"`                |
+| payload `bun install … \|\| :`                                     | launchers.test.ts `a failed frozen install refuses test-queued before the tests`: `Expected: not 0`                                             |
 
 ### Commands
 
@@ -3447,7 +3454,7 @@ Fresh on 2026-11-12 on the workstation, from `/home/df/wd/puni/wt-tq`, `CLAUDECO
 | `bash bin/heavy-lock.test.sh`                                                                                  | `all heavy-lock checks passed`, exit 0                                                                           |
 | `bash bin/h2puni-gate.test.sh`                                                                                 | `all cases passed`, exit 0                                                                                       |
 | `bun test …/ops/launchers.test.ts`                                                                             | exit 1: `mkdir: cannot create directory '/home/puni1/.config': Permission denied` (this host's root-owned path)  |
-| the same file's inner suite under `unshare` with `/home/puni1` left unbound (`DASH_LAUNCHER_TEST_NAMESPACE=1`) | 14 pass, 0 fail, exit 0                                                                                          |
+| the same file's inner suite under `unshare` with `/home/puni1` left unbound (`DASH_LAUNCHER_TEST_NAMESPACE=1`) | 15 pass, 0 fail, exit 0                                                                                          |
 | `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `twilight-dash:lint`                                    | exit 0, exit 0                                                                                                   |
 | `shellcheck -x` on the changed scripts                                                                         | exit 0                                                                                                           |
 | Burokrat `check … --rule JOB-CATALOGUE --now 2026-11-12T12:00:00.000Z`                                         | `allowed: true`, no finding, exit 0                                                                              |

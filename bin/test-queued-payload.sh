@@ -34,6 +34,9 @@ export NX_DAEMON=false
 enrollment=$(read_host_pool_enrollment)
 tree=$(resolve_gate_tree "$checkout" "$enrollment" bin/test-queued.sh)
 settle=keep
+# Proof (observed 2026-11-12): with `restore` replaced by `keep`, `test-queued runs pinned in an
+# admitted gate tree and returns it` (launchers.test.ts) found the unit at `launcher checkout`,
+# not `resting commit`.
 if [[ $enrollment == enrolled ]]; then
   settle=restore
 fi
@@ -41,6 +44,10 @@ pinned=$(resolve_gate_commit "$tree" "$checkout" "$1")
 
 # The install is the gate steps' first step (bin/h2puni-gate-steps.sh carries its reason and
 # proofs): the steps script takes no step list and cannot source a library under its PATH-stubbed
-# fixture, so the one command is repeated rather than its body.
+# fixture, so the one command is repeated rather than its body. The tests run as the gate's test
+# step does, `--skip-nx-cache --parallel=2`: a gate tree is long-lived, so its cache would replay a
+# result from an earlier run at the same inputs.
+# Proof (observed 2026-11-12): with the install's status ignored (`bun install … || :`), `a failed
+# frozen install refuses test-queued before the tests` (launchers.test.ts) exited 0 and ran them.
 run_pinned_checkout "$tree" "$pinned" "$settle" \
-  bash -c 'set -euo pipefail; bun install --frozen-lockfile; exec bunx nx run-many -t test'
+  bash -c 'set -euo pipefail; bun install --frozen-lockfile; exec bunx nx run-many -t test --skip-nx-cache --parallel=2'

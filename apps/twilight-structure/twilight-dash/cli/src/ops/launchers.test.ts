@@ -269,7 +269,7 @@ try {
         '#!/usr/bin/env bash',
         'if [ "${1:-}" = install ]; then',
         '  printf \'%s in %s\\n\' "$*" "$PWD" >> "$LAUNCHER_TEST_BUN_LOG"',
-        '  exit 0',
+        '  exit "${LAUNCHER_TEST_INSTALL_STATUS:-0}"',
         'fi',
         `exec ${JSON.stringify(process.execPath)} "$@"`,
         '',
@@ -601,6 +601,22 @@ try {
       for (const unit of units)
         expect(fixtureGit(unit, 'log', '-1', '--format=%s')).toBe('resting commit');
       expect(result.stderr).toMatch(/ops job: \S+ unit gate_tree \S+ released/);
+    }, 120000);
+
+    test('a failed frozen install refuses test-queued before the tests', async () => {
+      rmSync(join(base, 'bun.log'), { force: true });
+      const barrier = barrierDirectory('test-install-fails');
+      const result = await launch(testQueued, barrier, 1, {
+        ...testQueuedEnv(),
+        LAUNCHER_TEST_INSTALL_STATUS: '1',
+      });
+      // Proof: see bin/test-queued-payload.sh; with the install's status ignored this exited 0
+      // and the barrier recorded the tests (2026-11-12).
+      expect(result.exitCode).not.toBe(0);
+      expect(readFileSync(join(base, 'bun.log'), 'utf8')).toContain('install --frozen-lockfile');
+      expect(readdirSync(barrier)).toEqual([]);
+      for (const unit of units)
+        expect(fixtureGit(unit, 'log', '-1', '--format=%s')).toBe('resting commit');
     }, 120000);
 
     test('the enrolled test-queued payload run without an admission refuses 64', async () => {
