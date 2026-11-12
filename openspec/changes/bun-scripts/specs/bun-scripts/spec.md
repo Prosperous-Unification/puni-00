@@ -307,3 +307,30 @@ The standalone checkout SHALL construct one native/external control owner before
 
 - **WHEN** the standalone checkout is called with an already-aborted independent signal
 - **THEN** its queue wake observes that cancellation and returns cancelled before admission with the original external reason
+
+### Requirement: Private checkout authority follows the awaited native admission callback
+
+The private checkout core SHALL accept only a currently registered provider-private admission identity minted inside the actual held local queue callback. The registry SHALL own immutable admission metadata; ordinary timing fields SHALL NOT confer authority. Invalid or retired entry SHALL throw before transaction effects and outside modeled checkout recovery. Trusted composition SHALL await the complete core operation before its admission callback settles. The adapter SHALL retire identity in callback finally on completion or failure before holder/native cleanup.
+
+#### Scenario: Forged or stale identity attempts core entry
+
+- **WHEN** a caller supplies ordinary queue metadata, an unregistered value, or a genuine identity retained beyond its completed or failed callback
+- **THEN** core entry rejects before umask selection, reports, Git or work
+
+#### Scenario: Private admission remains live across awaited work
+
+- **WHEN** an actual queue callback awaits its admitted operation
+- **THEN** its registry identity and immutable metadata remain valid until that callback settles and a competing native owner remains excluded
+- **AND** callback completion or failure retires identity before release cleanup
+
+#### Scenario: Core borrows executable cancellation access
+
+- **WHEN** the private core runs under the standalone executable's existing owner
+- **THEN** it receives only a fresh signal/readStatus projection and cannot dispose that owner through the borrowed object
+- **AND** core completion leaves listener retirement and first-interruption projection with the executable facade
+
+#### Scenario: A finalizer fails after admitted completion was captured
+
+- **WHEN** early cancellation or final admitted work captures completion and subsequent umask restoration throws
+- **THEN** the facade retains the captured completion and attaches cleanup/report causes using existing restoration-origin priority
+- **AND** numeric work74 alone grants no restoration authority and no recovery Git runs after release

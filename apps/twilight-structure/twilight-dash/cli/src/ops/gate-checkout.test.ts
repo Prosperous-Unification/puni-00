@@ -1063,3 +1063,42 @@ it('disables real replacement objects while verifying the same requested commit 
   expect(outcome.status).toBe(0);
   expect(git(f.tree, 'rev-parse', 'HEAD')).toBe(f.original);
 });
+
+for (const early of [false, true])
+  it(
+    'captures ' +
+      (early ? 'early cancellation' : 'work failure') +
+      ' before a throwing umask finalizer',
+    () => {
+      const f = fixture();
+      const program = [
+        'const umask=process.umask.bind(process);umask(0o077);let selected=false;process.umask=(mask)=>{const previous=umask(mask);if(mask===0o077&&selected)throw Error("controlled umask restoration");if(mask===0o022)selected=true;return previous;};',
+        'const external=new AbortController();const{runCheckout}=await import(' +
+          JSON.stringify(new URL('./gate-checkout.ts', import.meta.url).href) +
+          ');const outcome=await runCheckout(' +
+          JSON.stringify(request(f)) +
+          ',{path:' +
+          JSON.stringify(f.path) +
+          ',label:"finalizer capture",waitSeconds:0,pollSeconds:1,gitExecutable:' +
+          JSON.stringify(gitExecutable) +
+          ',lookupPath:"/usr/bin:/bin",signal:external.signal,reportAdmission:()=>{' +
+          (early ? 'external.abort("early");' : '') +
+          'return Promise.resolve();},reportHead:()=>Promise.resolve(),reportFailure:()=>Promise.resolve(),reportUnconfirmed:()=>Promise.resolve(),work:()=>Promise.resolve(37)});process.stdout.write(JSON.stringify(outcome,(_key,value)=>value instanceof Error?{message:value.message}:value));',
+      ].join('\n');
+      const child = Bun.spawnSync(
+        [process.execPath, '--no-env-file', '--config=/dev/null', '--eval', program],
+        { stdout: 'pipe', stderr: 'pipe' },
+      );
+      expect(child.exitCode, child.stderr.toString()).toBe(0);
+      const outcome: unknown = JSON.parse(child.stdout.toString());
+      const failures = [{ phase: 'cleanup', cause: { message: 'controlled umask restoration' } }];
+      if (!early) failures.unshift({ phase: 'work', cause: { message: 'gate work exited 37' } });
+      const expectedFailures: unknown = expect.arrayContaining(failures);
+      expect(outcome).toMatchObject({
+        kind: 'completed',
+        value: { status: 70, failures: expectedFailures },
+        interruption: early ? { kind: 'external', reason: 'early' } : { kind: 'none' },
+      });
+      expect(git(f.tree, 'rev-parse', 'HEAD')).toBe(f.original);
+    },
+  );
