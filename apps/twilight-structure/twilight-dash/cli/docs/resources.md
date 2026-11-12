@@ -230,7 +230,9 @@ host-wide free-space change as bytes reclaimed by this cleanup.
 ## Watch, inspect and request cleanup
 
 Run this foreground process as the same current user that launches managed commands. For
-persistence, use your existing user service manager with restart-on-failure enabled:
+persistence, use your existing user service manager set to always restart: `watch` answers
+SIGTERM by cancelling and exiting 0, so restart-on-failure would leave it down. Under systemd,
+`Restart=always` still keeps a unit down after `systemctl stop`:
 
 ```sh
 dash resources watch --config "$HOME/.config/dash/resources.json"
@@ -505,7 +507,8 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   `docker` CLI whose daemon answers (otherwise 70). Then it waits for admission (`--wait-seconds`,
   default 0; `--poll-seconds` 1 to 30, default 5) and launches the payload:
   - inside `systemd-run --user --scope --unit dash-job-<use id> -p MemoryHigh=<memoryGib>G`
-    (`MemoryMax` too for `enforcement: cap`), behind a gate: the leader's identity is
+    (`MemoryMax` too for `enforcement: cap`; the envelope's `cpuCores` is admission only, and no
+    mode sets a CPU quota on the scope), behind a gate: the leader's identity is
     persisted, the scope's `memory.peak`, `memory.current`, `cpu.stat`, `pids.current` and
     `memory.events` are read and stored as the gate sample, and only then may the payload
     start. An unreadable counter, a scope that never starts or a run record that cannot be
@@ -662,7 +665,10 @@ later) records the mode, the guard, the guard's holder, a `switch-mode` in progr
 corruption and every operator mode record.
 
 **Before the first observe-mode job on a host, `resources watch` must be installed and running
-as its user unit (task 6.7, `Restart=on-failure`, `KillMode=process`).** Without it, a job whose
+as its user unit (task 6.7, `Restart=always`, `KillMode=process`).** `Restart=always`, because
+the watch answers SIGTERM by cancelling and exiting 0, which `on-failure` would leave down;
+`systemctl --user stop` is the one intended way down, and systemd never restarts a unit stopped
+that way. Without it, a job whose
 payload outlives its launcher keeps the shell lock until an operator runs
 `resources sweep --config <path>`. That covers a surviving child past the 30 s settle budget,
 and a launcher killed after launch. Until then every legacy gate and Dash job refuses 75.

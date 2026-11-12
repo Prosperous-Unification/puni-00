@@ -199,7 +199,7 @@
         `ops pool init`, which pins the unit list, comes after (verify.md, "2026-11-05 token-unit
         apply converged on both hosts").
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
-      `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
+      `Restart=always` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
       job whose compute outlives its launcher keeps the shell lock until `watch`, or an
       operator's `resources sweep`, removes its hold file. The concurrent-mode guard's holder
@@ -218,16 +218,16 @@
       is a read-only probe, not a converging apply (EV-A1). Owed on each gate host: an observed
       kill with its before and after `systemctl --user show` and `ops pool inspect`; the guard
       holder surviving a restart, which needs concurrent mode (6.5); and the PLAY RECAP of a
-      second plain enrolled apply with `changed=0`. h2puni is not enrolled. One decision is also
-      owed: whether SIGTERM cancellation (exit 0, `resources/command.ts`) is a stop that must
-      come back (`Restart=always`, which still honours `systemctl stop`) or the one modelled stop
-      that stays down. Under today's `Restart=on-failure`, thrown refusals exit nonzero and are eligible
-      for restart, and a clean SIGTERM cancellation exits 0 and does not restart. That does not
-      mean a SIGKILL or a crash never restarts. `Restart=always` is a proposal only, and the
-      broader requirement that every modelled stop comes back stays unresolved.
+      second plain enrolled apply with `changed=0`. h2puni is not enrolled. The Restart decision
+      is taken (2026-11-12): SIGTERM cancellation (exit 0, `resources/command.ts`) is a stop
+      that must come back, so the template has `Restart=always`, and `systemctl --user stop` is
+      the one modelled stop that stays down (`man systemd.service`, Restart=: a service "stopped
+      with systemctl stop or an equivalent operation" is never restarted).
+      `gate-host-pool.test.ts` pins `always`. A host keeps `on-failure` until its next
+      converging apply, and the kill proof above is still owed under `always`.
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
-      (`Restart=on-failure`, `RestartSec=30`, `KillMode=process`, skipped until the ledger
-      exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
+      (`Restart=on-failure`, `always` since 2026-11-12 (6.7), `RestartSec=30`, `KillMode=process`,
+      skipped until the ledger exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
       enrolled host and never starts them. The restart proof on a host stays in 6.7
       (verify.md Slice 6c).
 - [ ] 6.4 Enroll h2puni and h4claw in observe mode, **only once 6.7's `watch` unit is installed
