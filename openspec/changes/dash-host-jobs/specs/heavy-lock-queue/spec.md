@@ -36,12 +36,18 @@ has that job running. Otherwise it SHALL exit 70 without running the payload, or
 the catalogue does not name. `ops job admission` SHALL open the ledger read-only and SHALL
 refuse 70, migrating nothing, a ledger whose schema version it does not read.
 
-#### Scenario: A nested test run inside a running gate is re-labelled
+#### Scenario: A nested run of a type without a unit is re-labelled
 
-- **WHEN** a gate job's payload, in its `dash-job-<id>.scope`, runs `bun run test:queued` and
-  the ledger has job `<id>` running
-- **THEN** the payload runs as `<gate label>/test-queued`, with no lock taken and no second
-  admission
+- **WHEN** a gate job's payload, in its `dash-job-<id>.scope`, starts a launcher whose type
+  declares no exclusive unit and the ledger has job `<id>` running
+- **THEN** the payload runs as `<gate label>/<type>`, with no lock taken and no second admission
+
+#### Scenario: A nested test run inside a running gate is refused
+
+- **WHEN** a gate job's payload, in its `dash-job-<id>.scope`, runs `bun run test:queued <sha>`
+  and the ledger has job `<id>` running
+- **THEN** it exits 70 naming `test-queued` and its unit `gate_tree`, and the payload does not
+  run, because `test-queued` shares the gate's trees
 
 #### Scenario: A scope named for a job the ledger has not running is refused 70
 

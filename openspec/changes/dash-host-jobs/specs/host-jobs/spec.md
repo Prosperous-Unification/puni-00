@@ -111,7 +111,7 @@ at the gate, it SHALL exit 70 before the payload starts, naming the fix.
 
 #### Scenario: A one-second job is still measured
 
-- **WHEN** `ops job run --type test-queued -- true` runs
+- **WHEN** `ops job run --type <id> -- true` runs for a type whose argument profile is `""`
 - **THEN** the record holds the gate sample and the exit sample, and the scope was not torn down
   before the exit sample was read
 
@@ -400,3 +400,41 @@ the field SHALL still be read.
 
 - **WHEN** a type without `maxRuntimeMinutes` runs under the same clock
 - **THEN** its payload's own exit 0 is returned and no reason is recorded
+
+### Requirement: A test-queued job runs pinned in a gate tree
+
+`bin/test-queued.sh` SHALL take exactly one argument, resolve it to a commit in its own checkout
+and refuse exit 64, before any lock or admission, when it is absent, accompanied by another, or
+names no commit. It SHALL run `bin/test-queued-payload.sh <sha>` through `run_heavy_job` as type
+`test-queued`, labelled `test-queued:<sha8>`. The catalogue's `test-queued` SHALL name the
+argument profile `<sha>` and the exclusive unit `gate_tree`, so it shares the gate's trees. The
+payload SHALL choose its tree as the gate payload does: on an enrolled host only the
+`DASH_JOB_UNIT_GATE_TREE` its admission handed it, refusing 64 without one; on an unenrolled host
+the launcher's checkout, refusing 64 an inherited `DASH_JOB_UNIT_GATE_TREE`. It SHALL check the
+commit out there, refuse a tree whose bytes are not that commit's, run the frozen install and
+`nx run-many -t test`, and, when enrolled, return the tree to its resting commit pass or fail.
+Started inside an admitted job, `test-queued` SHALL be refused 70 as a type with a unit.
+
+#### Scenario: Tests run in an admitted gate tree
+
+- **WHEN** `bin/test-queued.sh HEAD` runs on an enrolled host with two `gate_tree` units
+- **THEN** Dash runs `--type test-queued --label test-queued:<sha8>` with the payload and the
+  full sha, the install and the tests run in one unit at that sha, and the unit is back at its
+  resting commit with `gate_tree` released
+
+#### Scenario: An enrolled payload without an admission is refused
+
+- **WHEN** `bin/test-queued-payload.sh <sha>` runs on an enrolled host without
+  `DASH_JOB_UNIT_GATE_TREE`
+- **THEN** it exits 64 naming the variable and `bin/test-queued.sh <sha>`, and no test runs
+
+#### Scenario: An inherited unit on an unenrolled host is refused
+
+- **WHEN** `bin/test-queued-payload.sh <sha>` runs on an unenrolled host with
+  `DASH_JOB_UNIT_GATE_TREE` set
+- **THEN** it exits 64 saying no admission handed it out, and no test runs
+
+#### Scenario: A launcher without its sha is refused
+
+- **WHEN** `bin/test-queued.sh` runs with no argument, with two, or with one naming no commit
+- **THEN** it exits 64 before any lock or admission
