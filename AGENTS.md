@@ -97,5 +97,5 @@ Five rules govern this repo:
 - h4claw is a second gate host with its own lock, enrolled in the Dash host pool in observe mode
   since 2026-11-08: `ssh puni1@h4claw`, launch from `~/puni-00-gate-launcher` (its two gate trees are
   `~/puni-00-gate-tbf` and `~/puni-00-gate-tbf2`), same script and exit codes, never queued behind
-  h2puni. Calibrate an estimated job type before its first observe-mode run there. See
-  [gate hosts](docs/infra/gate-hosts.md).
+  h2puni. `gate` is not yet calibrated there: no further h4claw gate until it is (known issue in
+  [gate hosts](docs/infra/gate-hosts.md#launch-a-gate-on-h4claw)).
