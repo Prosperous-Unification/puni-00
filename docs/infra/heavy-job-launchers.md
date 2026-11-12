@@ -47,6 +47,12 @@ launcher splits into an outer half and an admitted payload whose arguments fit t
 | `website-dev-build`    | `puni-pr-00/deploy/website/dev/build-release.sh` (other repository)            | `run_heavy_job` since puni-pr-00 #75 (2026-11-03) |
 | none                   | `bin/with-heavy-lock.sh -- …` called directly                                  | legacy lock only, never Dash                      |
 
+Only `gate` declares `maxRuntimeMinutes` (480) in the catalogue, so `ops job run` ends a gate
+that runs longer with exit 124 (task 6.11,
+[resources](../../apps/twilight-structure/twilight-dash/cli/docs/resources.md)).
+`release-build`, `test-queued` and `solver-image-publish` have no runtime bound yet. Each gets
+one once it is calibrated and its recorded durations show what a healthy run takes.
+
 ## Conflict inventory (J3)
 
 What each launcher touches, and what keeps two of them apart once a pool admits them together.

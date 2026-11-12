@@ -321,3 +321,10 @@
           an event WBS now accepts is published by the drop's re-send, not dropped. Done in
           slice 6h (S6H-A1 to A4): `2xx` marks it published, `409` refuses 64, no answer or
           another refusal 70; the journal's `refusal.confirmedAt` is the fresh `400`.
+- [x] 6.11 Throttle detection and runtime bound (the h4claw gate held 58 h under `MemoryHigh`
+      with nothing in Dash noticing; numbered 6.11 because 6.8 is the settlement digest): an
+      `ops job audit` `throttled` drift, printed first; `throttled (memory.events high <n>)` on
+      the `ops job status` line; an optional catalogue `maxRuntimeMinutes` that `ops job run`
+      ends with SIGTERM, SIGKILL after the settle budget, and exit 124; `gate` bounded at 480 —
+      tests: `audit.test.ts`, `status.test.ts`, `job-run.test.ts` (the runtime bound),
+      Burokrat `job-catalogue.test.ts`; negatives in verify.md. Done in PR #927.
