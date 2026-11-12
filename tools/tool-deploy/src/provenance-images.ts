@@ -6,7 +6,8 @@ const AUTHORITY =
 const REPOSITORY =
   /^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*(?:\/[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*)*(?![\s\S])/;
 
-function parseAuthority(authority: string, boundary: string): string {
+/** Mirrors {@link registryImageReader}'s literal loopback scheme choice and retains the resulting origin. */
+function parseRegistryOrigin(authority: string, boundary: string): string {
   // Proof: disabling authority syntax validation admitted the credentialed userinfo REGISTRY fixture.
   if (!AUTHORITY.test(authority)) throw new Error(`Invalid ${boundary} authority`);
   const hostname = authority.split(':')[0];
@@ -14,10 +15,11 @@ function parseAuthority(authority: string, boundary: string): string {
   const origin = `${scheme}://${authority}`;
   // Proof: bypassing URL validation let the invalid-port reference fixture access credentials.
   if (!URL.canParse(origin)) throw new Error(`Invalid ${boundary} authority`);
-  return new URL(origin).host;
+  // Proof: returning URL.host let six effective-origin negatives reach authenticated fetch.
+  return new URL(origin).origin;
 }
 
-function parseReference(reference: string): string {
+function parseReferenceOrigin(reference: string): string {
   const slash = reference.indexOf('/');
   const separator = reference.lastIndexOf('@');
   const repository = reference.slice(slash + 1, separator);
@@ -29,7 +31,7 @@ function parseReference(reference: string): string {
   ) {
     throw new Error('Invalid selected image reference');
   }
-  return parseAuthority(reference.slice(0, slash), 'selected image reference');
+  return parseRegistryOrigin(reference.slice(0, slash), 'selected image reference');
 }
 
 function readCredentials(environment: Readonly<Record<string, string | undefined>>): string | null {
@@ -63,7 +65,7 @@ function readCredentials(environment: Readonly<Record<string, string | undefined
 /**
  * Verifies every selected image's digest-linked config and application revision within one
  * 60s budget. Anonymous reads are supported. Provided credentials require an explicit publisher
- * REGISTRY (authority with optional namespace), and every selected authority is checked before
+ * REGISTRY (authority with optional namespace), and every selected transport origin is checked before
  * the first authenticated request. Credential values and malformed references stay out of errors.
  * @throws for empty selections, malformed configuration, authority mismatches, unverifiable
  * metadata, missing/different application revisions, or exhausted observation time.
@@ -78,7 +80,7 @@ export async function verifyImageProvenance(
   const deadline = performance.now() + 60_000;
   // Proof: disabling selection validation admitted the empty-selected-image fixture.
   if (images.length === 0) throw new Error('Image provenance requires a nonempty selection');
-  const authorities = images.map((image) => parseReference(image.reference));
+  const origins = images.map((image) => parseReferenceOrigin(image.reference));
   const credentials = readCredentials(environment);
   if (credentials !== null) {
     const configured = environment['REGISTRY'];
@@ -91,12 +93,13 @@ export async function verifyImageProvenance(
     // Proof: disabling namespace validation admitted the matching-host query-bearing namespace fixture.
     if (namespace !== undefined && !REPOSITORY.test(namespace))
       throw new Error('Invalid REGISTRY namespace');
-    const authority = parseAuthority(
+    const origin = parseRegistryOrigin(
       slash === -1 ? configured : configured.slice(0, slash),
       'REGISTRY',
     );
     // Proof: disabling full-list authority binding sent an authenticated request in the authority-mismatch fixture.
-    if (authorities.some((selected) => selected !== authority)) {
+    // Proof: removing origin binding let uppercase/numeric-loopback negatives reach authenticated fetch.
+    if (origins.some((selected) => selected !== origin)) {
       throw new Error('Selected image authority differs from credential-bound REGISTRY authority');
     }
   }
