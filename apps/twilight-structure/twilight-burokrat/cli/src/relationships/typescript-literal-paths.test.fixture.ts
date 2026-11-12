@@ -1,4 +1,4 @@
-import { expect, mock, spyOn, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 import ts from 'typescript';
 
 import { fixture, limits, workspace } from './typescript.test.fixture';
@@ -31,7 +31,6 @@ if (shape === 'helper-signature') runtime['resolvePath'] = () => '/candidate/typ
 if (shape === 'helper-version') runtime['version'] = 'foreign';
 if (shape === 'helper-return')
   runtime['resolvePath'] = (_path: string, ..._paths: string[]) => undefined;
-await mock.module('typescript', () => ({ default: runtime }));
 const compiler = await import('./typescript-compiler');
 test('effective literal paths validates boundary before compiler host', () => {
   const { source } = fixture({
@@ -40,7 +39,12 @@ test('effective literal paths validates boundary before compiler host', () => {
       files: ['globals.d.ts', 'src/index.ts'],
     }),
   });
-  const system = compiler.boundSource(workspace, source, { kind: 'bounded', limits });
+  const system = compiler.boundSource(
+    workspace,
+    source,
+    { kind: 'bounded', limits },
+    runtime as unknown as typeof ts,
+  );
   let didReadHost = false;
   system.getCurrentDirectory = () => {
     didReadHost = true;

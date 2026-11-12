@@ -1,3 +1,4 @@
+import { StepParallelInputError } from '../step-parallel';
 import {
   assertStepBlockages,
   CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
@@ -69,6 +70,16 @@ export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Ma
   [8, withNoMeasureBudgets],
 ]);
 
+/** A declared historical upgrade shape failure, distinct from unexpected helper failures. */
+export class PlanInputUpgradeError extends Error {
+  constructor(
+    readonly path: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 /**
  * Version 8 to 9 (`wbs-measure-budgets` design D66): a body saved before
  * measure estimates, budgets and bases were captured held none of them, and
@@ -85,16 +96,26 @@ function withNoMeasureBudgets(body: Record<string, unknown>): Record<string, unk
   // version-8 body without a project object or a measures list`
   // (normalise-plan-input.test.ts) failed; watched 2026-10-23.
   if (typeof project !== 'object' || project === null || Array.isArray(project))
-    throw new Error('a version-8 plan input body holds no project object');
+    // Proof: upgrade-error-producer changed this to Error; mounted input8 malformed project returned500 instead422 (StageB, 2026-11-10).
+    throw new PlanInputUpgradeError(
+      '$.project',
+      'a version-8 plan input body holds no project object',
+    );
   if (!Array.isArray(measures))
-    throw new Error('a version-8 plan input body holds no measures list');
+    throw new PlanInputUpgradeError(
+      '$.measures',
+      'a version-8 plan input body holds no measures list',
+    );
   return {
     ...body,
     schemaVersion: 9,
     project: { ...project, budgetFactor: 1 },
-    measures: measures.map((row: unknown) => {
+    measures: measures.map((row: unknown, at: number) => {
       if (typeof row !== 'object' || row === null || Array.isArray(row))
-        throw new Error('a version-8 plan input body holds a measure that is not an object');
+        throw new PlanInputUpgradeError(
+          `$.measures[${String(at)}]`,
+          'a version-8 plan input body holds a measure that is not an object',
+        );
       return { ...row, currency: null, rateCardDigest: null };
     }),
     measureEstimates: [],
@@ -210,6 +231,17 @@ function withZeroStepAllowances(body: Record<string, unknown>): Record<string, u
   };
 }
 
+/** Refuses legacy sparse claims before an upgrade can replace them with an empty list. */
+export function assertLegacyStepParallels(body: unknown): void {
+  // Proof: legacy-object removed; a hash-consistent legacy array body returned200 on mounted read (StageB, 2026-11-10).
+  if (typeof body !== 'object' || body === null || Array.isArray(body))
+    throw new StepParallelInputError('legacy plan input must be an object');
+  const supplied: unknown = Reflect.get(body, 'stepParallels');
+  // Proof: legacy-smuggling removed; mounted legacy7 retained policy was silently accepted (StageB, 2026-11-10).
+  if (supplied !== undefined && (!Array.isArray(supplied) || supplied.length !== 0))
+    throw new StepParallelInputError('legacy plan input cannot carry step parallelism');
+}
+
 /**
  * Bring a stored plan-input body forward to the version this build reads.
  *
@@ -234,6 +266,8 @@ export function normalisePlanInputForward(
   if (storedVersion > readerVersion) {
     throw new PlanInputVersionError('from-the-future', storedVersion, readerVersion);
   }
+  // Proof: legacy-upgrade-fence omitted; the actual normalizer overwrote retained policy with empty (StageB, 2026-11-10).
+  if (storedVersion < 8) assertLegacyStepParallels(body);
   let current = body;
   for (let version = storedVersion; version < readerVersion; version += 1) {
     const step = upgrades.get(version);

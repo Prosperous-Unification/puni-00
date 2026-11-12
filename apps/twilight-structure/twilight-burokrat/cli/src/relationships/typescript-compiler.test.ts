@@ -6,10 +6,15 @@ import { boundSource, createCompilerHost, parseProject } from './typescript-comp
 
 test('compiler source counts repeated probes at exact boundary', () => {
   const { source } = fixture();
-  const system = boundSource(workspace, source, {
-    kind: 'bounded',
-    limits: { ...limits, maximumProbes: 1 },
-  });
+  const system = boundSource(
+    workspace,
+    source,
+    {
+      kind: 'bounded',
+      limits: { ...limits, maximumProbes: 1 },
+    },
+    ts,
+  );
   expect(system.pathKind('/candidate/src/index.ts')).toBe('file');
   expect(() => system.pathKind('/candidate/src/index.ts')).toThrow(
     'TypeScript probe limit exceeded',
@@ -18,10 +23,15 @@ test('compiler source counts repeated probes at exact boundary', () => {
 
 test('compiler source counts repeated UTF8 read bytes at exact boundary', () => {
   const { source, files } = fixture({ 'src/index.ts': 'é' });
-  const system = boundSource(workspace, source, {
-    kind: 'bounded',
-    limits: { ...limits, maximumReadBytes: 4 },
-  });
+  const system = boundSource(
+    workspace,
+    source,
+    {
+      kind: 'bounded',
+      limits: { ...limits, maximumReadBytes: 4 },
+    },
+    ts,
+  );
   expect(system.readFile('/candidate/src/index.ts')).toBe('é');
   expect(system.readFile('/candidate/src/index.ts')).toBe('é');
   expect(() => system.readFile('/candidate/src/index.ts')).toThrow(
@@ -34,10 +44,15 @@ test('compiler source counts both directory enumeration routes at exact boundary
   const { source } = fixture();
   source.readDirectory = () => ['/candidate/src/index.ts'];
   source.getDirectories = () => ['/candidate/src'];
-  const system = boundSource(workspace, source, {
-    kind: 'bounded',
-    limits: { ...limits, maximumDirectoryEntries: 2 },
-  });
+  const system = boundSource(
+    workspace,
+    source,
+    {
+      kind: 'bounded',
+      limits: { ...limits, maximumDirectoryEntries: 2 },
+    },
+    ts,
+  );
   expect(system.readDirectory('/candidate', [], undefined, [])).toEqual([
     '/candidate/src/index.ts',
   ]);
@@ -49,10 +64,15 @@ test('compiler source counts both directory enumeration routes at exact boundary
 
 test('compiler observations count UTF8 bytes at exact boundary', () => {
   const { source } = fixture();
-  const system = boundSource(workspace, source, {
-    kind: 'bounded',
-    limits: { ...limits, maximumObservedOutputBytes: 2 },
-  });
+  const system = boundSource(
+    workspace,
+    source,
+    {
+      kind: 'bounded',
+      limits: { ...limits, maximumObservedOutputBytes: 2 },
+    },
+    ts,
+  );
   system.chargeOutput('é');
   expect(() => {
     system.chargeOutput('x');
@@ -69,7 +89,7 @@ test('compiler namespace misses never delegate outside paths to any source port'
   source.readDirectory = forbidden;
   source.getDirectories = forbidden;
   source.realpath = forbidden;
-  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits }, ts);
   expect(system.pathKind('/outside/file.ts')).toBe('absent');
   expect(system.readFile('/outside/file.ts')).toBeUndefined();
   expect(system.readDirectory('/outside', [], undefined, [])).toEqual([]);
@@ -81,7 +101,7 @@ test('compiler namespace misses never delegate outside paths to any source port'
 
 test('compiler ambient output callback refuses unexpected compiler writes', () => {
   const { source } = fixture();
-  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits }, ts);
   const host = createCompilerHost({}, system);
   expect(() => {
     host.writeFile('/candidate/unexpected.d.ts', 'unexpected output', false);
@@ -90,7 +110,7 @@ test('compiler ambient output callback refuses unexpected compiler writes', () =
 
 test('compiler source preserves basename directory entries from installed sys contract', () => {
   const { source } = fixture();
-  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits }, ts);
   expect(system.getDirectories('/candidate')).toEqual(['src', 'node_modules']);
 });
 
@@ -101,10 +121,15 @@ test('explicit type root admission delegates outside paths and charges repeated 
     paths.push(path);
     return 'absent';
   };
-  const system = boundSource(workspace, source, {
-    kind: 'bounded',
-    limits: { ...limits, maximumProbes: 2 },
-  });
+  const system = boundSource(
+    workspace,
+    source,
+    {
+      kind: 'bounded',
+      limits: { ...limits, maximumProbes: 2 },
+    },
+    ts,
+  );
   system.admitConfigurationRoot('/outside/types');
   system.admitConfigurationRoot('/outside/types');
   expect(paths).toEqual(['/outside/types', '/outside/types']);
@@ -134,7 +159,7 @@ test('retained admission observes only parser effective roots at the declaring c
         },
       }),
     });
-    const system = boundSource(workspace, source, { kind: 'bounded', limits });
+    const system = boundSource(workspace, source, { kind: 'bounded', limits }, ts);
     const roots: string[] = [];
     system.admitConfigurationRoot = (path) => {
       roots.push(path);
@@ -155,7 +180,7 @@ test('retained configuration admission preserves normalized typeRoots then rootD
       compilerOptions: { noLib: true, types: [], rootDirs: ['types', '../generated', 'types'] },
     }),
   });
-  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits }, ts);
   const roots: string[] = [];
   system.admitConfigurationRoot = (path) => {
     roots.push(path);
@@ -177,7 +202,7 @@ test('previous retained type roots mode preserves rootDirs as ordinary namespace
       files: ['globals.d.ts', 'src/index.ts'],
     }),
   });
-  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits }, ts);
   system.admitConfigurationRoot = () => {
     throw new Error('unexpected explicit admission');
   };
@@ -207,7 +232,7 @@ for (const [options, inherited, expected] of [
         },
       }),
     });
-    const system = boundSource(workspace, source, { kind: 'bounded', limits });
+    const system = boundSource(workspace, source, { kind: 'bounded', limits }, ts);
     const roots: string[] = [];
     system.admitConfigurationRoot = (path) => {
       roots.push(path);
@@ -224,7 +249,7 @@ test('previous modes preserve outside baseUrl as ordinary namespace probes', () 
       files: ['globals.d.ts', 'src/index.ts'],
     }),
   });
-  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits }, ts);
   system.admitConfigurationRoot = () => {
     throw new Error('unexpected explicit admission');
   };
@@ -304,7 +329,7 @@ for (const [label, options, inherited, expected] of [
         compilerOptions: { noLib: true, types: [], ignoreDeprecations: '6.0', ...inherited },
       }),
     });
-    const system = boundSource(workspace, source, { kind: 'bounded', limits });
+    const system = boundSource(workspace, source, { kind: 'bounded', limits }, ts);
     const roots: string[] = [];
     system.admitConfigurationRoot = (path) => {
       roots.push(path);
@@ -329,7 +354,7 @@ test('previous modes preserve literal paths as ordinary namespace probes', () =>
       files: ['globals.d.ts', 'src/index.ts'],
     }),
   });
-  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits }, ts);
   system.admitConfigurationRoot = () => {
     throw new Error('unexpected explicit admission');
   };

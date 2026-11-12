@@ -1,3 +1,5 @@
+import ts from 'typescript';
+
 import type { RelationshipRequest } from '../contracts/records';
 import { createTrustedSystem } from './trusted-files';
 import { extractSerialRelationships } from './typescript-serial';
@@ -18,17 +20,22 @@ export function extractTypeScriptRelationships(
   request: RelationshipRequest['typescript'],
   trustedModules: string,
 ): ReturnType<typeof extractSerialRelationships> {
-  const system = createTrustedSystem(workspace, trustedModules);
-  return extractSerialRelationships(workspace, request, {
-    compilerLibraryDirectory: system.compilerLibraryDirectory,
-    useCaseSensitiveFileNames: system.useCaseSensitiveFileNames,
-    pathKind: (path) =>
-      system.directoryExists(path) ? 'directory' : system.fileExists(path) ? 'file' : 'absent',
-    readFile: (path) => system.readFile(path),
-    readDirectory: (path, extensions, exclude, include, depth) =>
-      system.readDirectory(path, extensions, exclude, include, depth),
-    getDirectories: (path) => system.getDirectories(path),
-    realpath: (path) => system.realpath(path),
-    getCurrentDirectory: () => system.getCurrentDirectory(),
-  });
+  const system = createTrustedSystem(workspace, trustedModules, ts);
+  return extractSerialRelationships(
+    workspace,
+    request,
+    {
+      compilerLibraryDirectory: system.compilerLibraryDirectory,
+      useCaseSensitiveFileNames: system.useCaseSensitiveFileNames,
+      pathKind: (path) =>
+        system.directoryExists(path) ? 'directory' : system.fileExists(path) ? 'file' : 'absent',
+      readFile: (path) => system.readFile(path),
+      readDirectory: (path, extensions, exclude, include, depth) =>
+        system.readDirectory(path, extensions, exclude, include, depth),
+      getDirectories: (path) => system.getDirectories(path),
+      realpath: (path) => system.realpath(path),
+      getCurrentDirectory: () => system.getCurrentDirectory(),
+    },
+    ts,
+  );
 }

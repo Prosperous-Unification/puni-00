@@ -198,3 +198,43 @@ recording remain in their source unit of work; later faults restore the graph,
 sparse facts, journal and event sequences. Contract-only retirement and existing
 absent/open/waiting outcomes do not consult sparse policy. No writer, document
 version, scheduling or UI behavior is enabled by this prerequisite.
+
+## Internal transfer prerequisite (2026-11-09)
+
+`transferStepParallels` accepts an unknown structured request with source facts and
+source/target owner and step inventories, plus old-to-new ID tuple entries. It
+validates inventories and mapping shape, then reuses `readStepParallels` for exact
+source and destination leaf/pair/range validation. Every authored fact needs both
+mappings; every mapping entry references existing source and target IDs, even
+when unused. Parent mappings are allowed, but authored owners must be leaves. Duplicate mapping sources and output pair collisions throw. Output is
+fresh, complete and sorted by owner then step using the saved-plan JavaScript
+string comparison convention (UTF-16 code units, not locale or UTF-8 ordering).
+Explicit equality and absence remain distinct; unused valid mappings create no facts.
+
+No public versions are allocated: ordinary 11, connected 12 and saved-plan 10
+remain current. Export refusal, command/history admission, scheduler and UI stay
+unchanged. This prerequisite does not complete 3.3, 3.4 or release readiness.
+
+## Current archival reader prerequisite (2026-11-09)
+
+Reserve ordinary13 and connected14 without changing writer constants11/12. Construct
+new response shapes lazily. A separate transfer reader accepts1–14 and keeps required
+sparse facts outside the active normalized import contract. It validates raw legacy sparse
+declarations before tolerant projection. Connected families are exactly12/14; measures
+start at11, resources10, blockage9 and estimate units8. These are historical features,
+independent of output activation. New sparse references name target-local leaves/steps;
+external predecessor mappings never widen that inventory. Connected evidence is retained
+by the transfer reader. Public classification retains its1–12 ceiling.
+
+This amendment leaves historical version9/schema8 proof receipts unchanged. Reader
+capability does not establish write admission or complete parent tasks3.3/3.4.
+
+## StageB saved and external readers (2026-11-10)
+
+Run sparse semantic checks after stored hash/link integrity on actual saved reads and
+comparisons for8/9/10, retaining historical1–7 contracts. Normalize in memory only and
+classify expected sparse-validation failures at the existing typed integrity boundary;
+arbitrary helper/getter failures propagate. Legacy sparse declarations must be absent
+or empty before upgrades can introduce a required empty collection. Navigator consumes
+the lazy13 schema strictly and checks local leaf/step/pair membership. It retains raw
+export digest and wire13 provenance; connected families12/14 remain unsupported.

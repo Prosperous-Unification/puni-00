@@ -432,3 +432,78 @@ continue to reach the exhaustive failure boundary.
 
 - **WHEN** an earlier request completes before the command request is refused for sparse policy
 - **THEN** only the completed request's resources are reread and the writer remains refused
+
+### Requirement: Internal sparse transfer preserves exact authored facts
+
+The internal pure transfer boundary SHALL validate structured sparse facts,
+explicit ID tuple maps and source/target inventories. It SHALL refuse malformed
+values, missing references/mappings, duplicate mapping sources and colliding pairs.
+It SHALL return detached complete facts in saved-plan owner/step UTF-16 order
+without mutating inputs, losing explicit equality or synthesizing absent facts.
+
+#### Scenario: Exact sparse remapping
+
+- **GIVEN** explicit equal-default facts, absent siblings and complete ID maps
+- **WHEN** internal transfer succeeds
+- **THEN** precisely those facts appear under mapped pairs with unchanged maxima
+- **AND** input and mapping mutations cannot change the returned collection
+- **AND** Unicode IDs follow saved-plan UTF-16 comparison order
+- **AND** IDs use the existing saved-plan string identity convention
+- **AND** valid unused mappings, including parent mappings, create no facts
+- **AND** fact owners exist as leaves in both supplied inventories
+
+#### Scenario: Invalid transfer refuses atomically
+
+- **GIVEN** malformed facts, reference inventories or mappings, missing references or collisions
+- **WHEN** internal transfer is requested
+- **THEN** it throws without returning partial output or mutating any input
+- **AND** malformed IDs/maxima and duplicate source/output pairs are refused
+- **AND** even unused mapping entries require existing source and target IDs
+- **AND** public writer admission and existing document versions remain unchanged
+
+## ADDED Requirements
+
+### Requirement: Dormant archival sparse reader
+
+The preparatory reader SHALL accept historical1–12 and reserved ordinary13/connected14
+without mounting a sparse writer. Versions13/14 SHALL require a `stepParallels` collection
+of exact local leaf/step identities and integer maxima1–1000. Explicit equality SHALL
+survive, absent siblings SHALL remain absent, and malformed, duplicate or foreign pairs
+SHALL refuse. Historical1–12 SHALL upgrade only missing/empty sparse declarations.
+
+#### Scenario: Frozen connected12 and ordinary13 dialects
+
+- **WHEN** connected12 names external predecessors/mappings or ordinary13 names local links
+- **THEN** the reader preserves the respective dialect and measures introduced at11
+- **AND** connected14 retains the connected evidence plus target-local policy
+
+#### Scenario: Mounted import remains fenced
+
+- **WHEN**13/14 reaches the current public import route
+- **THEN** it refuses unsupported_version at document.version before allocation/writes
+- **AND** exports remain11/12 and sparse preservation refusals remain active
+
+### Requirement: Saved sparse readers validate original retained facts
+
+Saved input8/9/10 SHALL reject hash-consistent malformed sparse facts on single read
+and comparison, with or without a schedule. Legacy7 SHALL upgrade only absent/empty
+sparse declarations. Reads SHALL preserve original body bytes, hashes, versions and
+historical schedule identities, including connected canonical evidence.
+
+#### Scenario: Connected peer cannot supply a local sparse owner
+
+- **WHEN** input10 names a foreign owner/step or mismatches its captured target inventory
+- **THEN** both saved read and comparison refuse typed input corruption
+- **AND** valid explicit equality and absent siblings survive without rewriting storage
+
+### Requirement: Navigator reads strict ordinary13 before output activation
+
+Navigator SHALL accept strict ordinary13 with required valid sparse local facts and
+retain its original wire version/digest. It SHALL retain7–11 readers and explicitly
+refuse connected12/14; this grants no sparse writer or scheduling authority.
+
+#### Scenario: CLI validates sparse facts before writing references
+
+- **WHEN** ordinary13 has absent, malformed, duplicate, parent or unknown sparse references
+- **THEN** the CLI refuses before creating reference/tasks files
+- **AND** a valid13 control produces reference provenance13 from the original bytes

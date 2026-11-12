@@ -417,12 +417,21 @@ it('runs the owner-only stdin CLI with real measurements and bounds input', asyn
       process_.exited,
       new Response(process_.stdout).text(),
       new Response(process_.stderr).text(),
-    ]);
+    ]).then((receipt) => [...receipt, process_.signalCode] as const);
   };
   const initialized = await run(
     JSON.stringify({ command: 'initialize', enrollment: localEnrollment }),
   );
-  expect(initialized[0]).toBe(0);
+  // Proof: an invalid real CLI command still failed code0 and printed code/stdout/stderr/signal (Task22).
+  expect(
+    initialized[0],
+    JSON.stringify({
+      code: initialized[0],
+      stdout: initialized[1],
+      stderr: initialized[2],
+      signal: initialized[3],
+    }),
+  ).toBe(0);
   expect(
     (JSON.parse(initialized[1]) as { state: { enrollment: { registryId: string } } }).state
       .enrollment.registryId,

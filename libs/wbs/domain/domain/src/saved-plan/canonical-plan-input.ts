@@ -3,7 +3,11 @@ import type { EstimateMethod, EstimateRounding, EstimateUnit } from '../estimate
 import type { Hold, Readiness } from '../progress';
 import type { StepState } from '../progress';
 import type { StoredStepBlockage } from '../step-blockage';
-import { assertStepParallel, type StoredStepParallel } from '../step-parallel';
+import {
+  assertStepParallel,
+  StepParallelInputError,
+  type StoredStepParallel,
+} from '../step-parallel';
 import type { TypedDependency } from '../typed-dependency';
 
 /**
@@ -546,6 +550,7 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
         (row) => row.stepId,
       ),
     ).map(({ workItemId, stepId, blockedAt }) => ({ workItemId, stepId, blockedAt })),
+    // Proof: empty-captured-policy and drop-explicit-equality independently failed actual mounted save/read witnesses (StageB, 2026-11-10).
     stepParallels: sorted(
       stepParallels,
       byString(
@@ -804,7 +809,7 @@ export function readStepParallels(body: unknown): StoredStepParallel[] {
     !('stepParallels' in body) ||
     !Array.isArray(body.stepParallels)
   )
-    throw new Error('step parallelism collection is missing or malformed');
+    throw new StepParallelInputError('step parallelism collection is missing or malformed');
   const supplied: readonly unknown[] = body.stepParallels;
   if (supplied.length === 0) return [];
   // Proof: reference-list guard removed; malformed owner-list negative failed (reference-lists.txt).
@@ -814,7 +819,9 @@ export function readStepParallels(body: unknown): StoredStepParallel[] {
     !('steps' in body) ||
     !Array.isArray(body.steps)
   )
-    throw new Error('step parallelism references have no owner or step collection');
+    throw new StepParallelInputError(
+      'step parallelism references have no owner or step collection',
+    );
   const owners = new Set<string>();
   const parents = new Set<string>();
   const steps = new Set<string>();
@@ -827,7 +834,7 @@ export function readStepParallels(body: unknown): StoredStepParallel[] {
       !('id' in owner) ||
       typeof owner.id !== 'string'
     )
-      throw new Error('step parallelism owner collection is malformed');
+      throw new StepParallelInputError('step parallelism owner collection is malformed');
     owners.add(owner.id);
     if ('parentId' in owner && typeof owner.parentId === 'string') parents.add(owner.parentId);
   }
@@ -835,7 +842,7 @@ export function readStepParallels(body: unknown): StoredStepParallel[] {
   for (const step of stepRows) {
     // Proof: step-shape guard removed; malformed step-row negative failed (step-shape.txt).
     if (typeof step !== 'object' || step === null || !('id' in step) || typeof step.id !== 'string')
-      throw new Error('step parallelism step collection is malformed');
+      throw new StepParallelInputError('step parallelism step collection is malformed');
     steps.add(step.id);
   }
   const pairs = new Set<string>();
@@ -843,7 +850,7 @@ export function readStepParallels(body: unknown): StoredStepParallel[] {
   for (const fact of supplied) {
     // Proof: object guard removed; null-fact capture negative failed (fact-object.txt).
     if (typeof fact !== 'object' || fact === null)
-      throw new Error('step parallelism fact is malformed');
+      throw new StepParallelInputError('step parallelism fact is malformed');
     const workItemId = 'workItemId' in fact ? fact.workItemId : undefined;
     const stepId = 'stepId' in fact ? fact.stepId : undefined;
     const maxParallel = 'maxParallel' in fact ? fact.maxParallel : undefined;
@@ -853,18 +860,20 @@ export function readStepParallels(body: unknown): StoredStepParallel[] {
       typeof stepId !== 'string' ||
       typeof maxParallel !== 'number'
     )
-      throw new Error('step parallelism fact is malformed');
+      throw new StepParallelInputError('step parallelism fact is malformed');
     // Proof: range call removed; oversized-maximum capture negative failed (range.txt).
     assertStepParallel(maxParallel);
     // Proof: owner guard removed; unknown-owner capture negative failed (owner.txt).
-    if (!owners.has(workItemId)) throw new Error('step parallelism owner is unknown');
+    if (!owners.has(workItemId))
+      throw new StepParallelInputError('step parallelism owner is unknown');
     // Proof: leaf guard removed; parent-owner capture negative failed (leaf.txt).
-    if (parents.has(workItemId)) throw new Error('step parallelism owner is not a leaf');
+    if (parents.has(workItemId))
+      throw new StepParallelInputError('step parallelism owner is not a leaf');
     // Proof: step guard removed; unknown-step capture negative failed (step.txt).
-    if (!steps.has(stepId)) throw new Error('step parallelism step is unknown');
+    if (!steps.has(stepId)) throw new StepParallelInputError('step parallelism step is unknown');
     const pair = JSON.stringify([workItemId, stepId]);
     // Proof: uniqueness guard removed; duplicate capture negative failed (duplicate.txt).
-    if (pairs.has(pair)) throw new Error('step parallelism pair is duplicated');
+    if (pairs.has(pair)) throw new StepParallelInputError('step parallelism pair is duplicated');
     pairs.add(pair);
     // Proof: rereading the accessor emitted 1001 after validating 2; single-read regression failed (accessor-reread.txt).
     facts.push({ workItemId, stepId, maxParallel });

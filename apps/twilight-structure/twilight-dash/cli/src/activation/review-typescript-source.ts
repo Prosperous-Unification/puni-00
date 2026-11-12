@@ -65,6 +65,30 @@ function readMatcher(): MatchFiles {
   return runtime.matchFiles as MatchFiles;
 }
 const Owners = new WeakMap<TypeScriptSource, Readonly<RetainedNamespaceProvenance>>();
+const ConstructionOwners = new WeakMap<
+  TypeScriptSource,
+  Readonly<{
+    namespace: RetainedNamespace;
+    candidate: RetainedCandidate;
+    runtime: ReviewRuntime;
+  }>
+>();
+
+/** Requires all exact successful source inputs; legacy equal-identity construction remains valid. */
+export function assertRetainedTypeScriptSourceOwners(
+  source: TypeScriptSource,
+  namespace: RetainedNamespace,
+  candidate: RetainedCandidate,
+  runtime: ReviewRuntime,
+): void {
+  // Proof: independent lookup/namespace/candidate/runtime omissions lose `exact construction joins`,
+  // including a genuine legacy mixed source; no owner registry is fabricated.
+  const owners = ConstructionOwners.get(source);
+  if (owners === undefined) throw new Error('owned retained TypeScript source required');
+  if (owners.namespace !== namespace) throw new Error('source namespace owner differs');
+  if (owners.candidate !== candidate) throw new Error('source candidate owner differs');
+  if (owners.runtime !== runtime) throw new Error('source runtime owner differs');
+}
 /** Requires the exact frozen adapter; copies cannot certify another source. */
 export function readRetainedTypeScriptSourceProvenance(
   source: TypeScriptSource,
@@ -593,5 +617,6 @@ export function createRetainedTypeScriptSource(
     return sealed;
   });
   Owners.set(source, provenance);
+  ConstructionOwners.set(source, Object.freeze({ namespace, candidate, runtime }));
   return source;
 }

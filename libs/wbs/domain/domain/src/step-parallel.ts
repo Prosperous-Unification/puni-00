@@ -7,12 +7,15 @@ export interface StoredStepParallel {
   maxParallel: number;
 }
 
+/** Expected malformed sparse input; callers may model stored corruption without catching internal errors. */
+export class StepParallelInputError extends Error {}
+
 /** Rejects corrupt persisted parallelism without coercion, rounding or a default. */
 export function assertStepParallel(maxParallel: number): void {
   // Proof: integer, lower and upper predicates removed independently; real memory-source
   // invalid-value negatives failed (evidence/domain-{integer,lower,upper}.txt), 2026-10-15.
   if (!Number.isInteger(maxParallel) || maxParallel < 1 || maxParallel > 1000)
-    throw new Error('step parallelism must be an integer from 1 to 1000');
+    throw new StepParallelInputError('step parallelism must be an integer from 1 to 1000');
 }
 
 /** Maximum before person and pool clamps, preserving authored provenance. */

@@ -521,6 +521,132 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/browser-regression.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/current-faults.py.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/fault-arity.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/fault-installed-registration.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/lint-source.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/monitor.py.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/openspec-all.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/openspec-strict.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/owning-installed.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/owning-ordinary.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/owning-reader.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/owning-restored.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/parser-callers.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/bun-reports-2026-11-09/provenance.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical evidence recorded in openspec/changes/test-axes/verify.md; repeating the documented research or commands produces a new receipt."
+        }
+      },
+      {
         "path": "openspec/changes/workflow-postgres-provider/evidence/postgres-physical-store-design-20261105.json.gz",
         "format": "application/gzip",
         "consumer": "openspec/changes/workflow-postgres-provider/evidence/postgres-physical-store-publication.md",

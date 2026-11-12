@@ -37,6 +37,8 @@
 - [x] 3.3.2 Implement detached source captures, canonical policy preservation and current/legacy readers; prove each safety boundary with watched faults.
 - [x] 3.3.3 Write v9 JSON export preservation fence RED for direct/captured evidence and isolated/shared routes.
 - [x] 3.4.1 Implement required same-snapshot sparse export evidence and typed unsupported_step_parallelism refusal; prove changed boundaries.
+- [x] 3.3.4 Write internal transfer RED for detached canonical sparse facts, exact ID maps, reference failures and collision refusal.
+- [x] 3.4.2 Implement pure internal transfer only; watch independent safety-check faults fail, record proofs and preserve current public boundaries.
 - [ ] 3.4 Implement transports, duplication, captures, compatibility readers and recovery tooling.
 - [ ] 3.5 Prove no lifecycle/transfer path drops, invents, widens or silently defaults an override.
 
@@ -62,3 +64,17 @@
 - [ ] 5.1 Prove compatible readers/lifecycle guards and refusal of old-writer downgrade with retained facts.
 - [ ] 5.2 Implement phased writer admission after incompatible writers drain and documented recovery.
 - [ ] 5.3 Complete full feature verification, exact-SHA host gate, review and authorized release.
+
+## Current StageA reader prerequisite (2026-11-09)
+
+- [x] A1 Freeze11/12 controls and13/14 required sparse shapes; cover1–14/header failures.
+- [x] A2 Implement unmounted raw-input transfer decoding with explicit historical families.
+- [x] A3 Prove independent connected/measures/list/legacy/mounted faults and restored controls.
+- [ ] A4 Verify scoped suites and document handoff; leave3.3/3.4 and complete feature open.
+
+## StageB saved/external read compatibility (2026-11-10)
+
+- [x] B1 RED: actual read/compare corruption and immutable7–10 upgrade matrix.
+- [x] B2 Validate required8/9/10 sparse semantics and legacy anti-smuggling with typed outcomes.
+- [x] B3 RED/implement strict ordinary13 Navigator schema/membership and CLI provenance.
+- [x] B4 Prove independent production faults and restored controls; record bounded checks/skips.

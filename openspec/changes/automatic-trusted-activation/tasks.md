@@ -674,3 +674,51 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       missing/duplicate sections and altered output. Verify all four artifact members together
       and refuse each missing/altered member. Cover both typesVersions caller routes. Keep extraction unchanged;
       wildcard admission, complete manifest and runtimeTrust remain unverified and open.
+
+- [x] 2.1d.1.3e6f1 Thread one selected TypeScript runtime through retained compilation and
+      filesystem serial compatibility, including trusted IO, project capture/reconstruction,
+      imports, declarations, diagnostics and identity. Preserve serial lifetimes, legacy output,
+      retained budgets, derivative artifacts and unverified trust. Write failing extraction tests
+      first and observe independent fallback/selection-lifetime faults fail restored controls.
+- [ ] 2.1d.1.3e6f2 Accept the selected-runtime prerequisite after recorded scoped checks,
+      independent exact-candidate review, canonical host gate and exact-head CI. Full owning
+      typechecks and serial resource acceptance remain gate-host obligations. This prerequisite
+      does not close derivative loading, runtime authentication or parent .3.
+
+- [x] 2.1d.1.3e6g1 Capture the exact four raw derivative members with private ownership, strict pins
+      and manifest encoding, immutable provenance, finite copy/load limits and fresh private VM loading.
+      TDD actual unchanged Bun 1.4.4 no-Node initialization, noLib/explicit-library declaration and real
+      resolution controls, then independent raw-member/ownership/budget/loader policy/settlement faults.
+- [x] 2.1d.1.3e6g2 Bind distinct derivative artifact/execution identity before selector hashing in an
+      internal non-activating core prerequisite, preserving complete selected/legacy serial identity
+      and lifetime parity. Complete detached envelope bounds/freeze/private ownership are source-proven;
+      exact review and owning/installed/canonical acceptance remain in g5. No strict public route
+      before g3 exact retained ownership and both g4 admission paths.
+- [ ] 2.1d.1.3e6g3 Join four runtime closure tuples to the exact owned ReviewRuntime and derivative
+      acquisition; prepare the real source with full shared request snapshots and exact construction
+      owners. Source controls and independent faults pass; exact review and owning/installed/canonical
+      acceptance remain open. No extraction executes before both g4 admission routes.
+- [ ] 2.1d.1.3e6g4 Admit actual compiler-options attempts synchronously on both Program host and
+      direct-system routes, preserving literal pre-admission, origins/order/absence and shared limits.
+- [ ] 2.1d.1.3e6g5 Package exact artifact members after dist recreation; prove installed execution
+      without checkout/node_modules and all independent guard faults; obtain exact-candidate review,
+      owning host checks, canonical gate/CI and serial resources. Full packet remains open until all five.
+- [ ] 2.1d.1.3e6g6 Complete executing producer/config/reference closure, bounded parser settlement,
+      actual CompilerReadManifestV1, eleven documents and preparation/freeze in parent order; obtain
+      independently installed authority and unattended acceptance. No loader-stage trust promotion.
+
+Stage 2 sequencing: e6g2 is internal and non-activating. Its required discriminated selection is
+privately constructed from Stage 1 execution provenance; no caller supplies trusted identity or
+an alternative compiler. The strict public route remains dependent on e6g3 and both e6g4 routes.
+The existing metadata-only judge reachability invariant remains until that first public composition.
+
+Stage 3 ruling: g3 includes metadata-only compiled member expectations, real two-phase runtime
+acquisition, private exact construction-owner assertions, shared pure full-request snapshots and
+real non-executing retained source preparation. The expected-hash/length proof is explicitly
+qualified; it never repins production or manufactures ownership. Strict composition remains in g4.
+
+- [ ] 2.1d.1.3e6g3c Restore semantic clock ownership: move timed loader/authenticated extraction to
+      Dash with required separate Monotonic; expose immutable source and unverified shared computation
+      through judge. Preserve all aggregate phase deadlines, owner/selector/cap/freeze proofs, actual
+      slow-decode/infinite-VM controls and unchanged scanners. Source implementation/proofs are
+      recorded; exact combined Stage3/clock review remains required before acceptance.

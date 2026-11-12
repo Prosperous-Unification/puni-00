@@ -515,6 +515,13 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // proposal gzip. Removing its exact row from either corrected policy reproduced
     // that refusal; restoration emitted exact binary/gzip/consumer/external-authority
     // metadata. Both policies rejected a same-byte unlisted sibling; key pilot cases passed.
+    // Proof (2026-11-10): both original policies refused the exact November 9 Bun report
+    // receipts through production classify-candidate. Removing each of the fourteen new exact
+    // declarations independently from each corrected policy refused that named archive;
+    // restored fourteen-receipt inventories emitted exact binary/gzip/consumer/external-authority
+    // metadata. Both policies still refused an identical-byte unlisted sibling. These narrow
+    // classifier controls do not establish full pilot acceptance; laptop pilot runs exceeded
+    // their permitted process-tree memory bounds.
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',

@@ -141,6 +141,7 @@ function setup(
   });
   return {
     ...f,
+    compiler: ts,
     namespace,
     request: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
     sourceLimits: {
@@ -1180,3 +1181,75 @@ for (const dimension of [
         );
     }
   });
+
+test('retained compiler selection is captured once before source callbacks without trust promotion', () => {
+  const captured = setup();
+  const selected = { ...ts, version: 'selected-runtime' };
+  let selections = 0;
+  const admission = sources.createRetainedTypeScriptSource;
+  const source = spyOn(sources, 'createRetainedTypeScriptSource').mockImplementation((...args) => {
+    Object.defineProperty(captured, 'compiler', {
+      value: {
+        ...ts,
+        readConfigFile: () => {
+          throw new Error('late compiler selection');
+        },
+      },
+    });
+    return admission(...args);
+  });
+  Object.defineProperty(captured, 'compiler', {
+    configurable: true,
+    get: () => {
+      selections++;
+      return selected;
+    },
+  });
+  try {
+    const extracted = extractRetainedTypeScriptRelationships(captured);
+    expect(selections).toBe(1);
+    expect(extracted.extractor.version).toBe('vselected-runtime');
+    expect(extracted.runtimeTrust).toBe('unverified');
+    expect(extracted.provenance.runtimeTrust).toBe('unverified');
+  } finally {
+    source.mockRestore();
+  }
+});
+
+test('nested retained extraction cannot replace the outer selected runtime', () => {
+  const outer = setup();
+  const inner = setup();
+  let nested = false;
+  const selected = {
+    ...ts,
+    readConfigFile: (...args: Parameters<typeof ts.readConfigFile>) => {
+      if (!nested) {
+        nested = true;
+        const extracted = extractRetainedTypeScriptRelationships({
+          ...inner,
+          compiler: { ...ts, version: 'inner-runtime' },
+        });
+        expect(extracted.extractor.version).toBe('vinner-runtime');
+        expect(extracted.runtimeTrust).toBe('unverified');
+      }
+      return ts.readConfigFile(...args);
+    },
+    getPreEmitDiagnostics: () => {
+      throw new Error('outer selected diagnostics');
+    },
+  };
+  expect(() => extractRetainedTypeScriptRelationships({ ...outer, compiler: selected })).toThrow(
+    'outer selected diagnostics',
+  );
+  expect(nested).toBe(true);
+});
+
+test('retained compiler omission cannot fall back to the installed runtime', () => {
+  expect(() =>
+    extractRetainedTypeScriptRelationships({
+      ...setup(),
+      // @ts-expect-error Executable compiler selection is required separately from runtime bytes.
+      compiler: undefined,
+    }),
+  ).toThrow();
+});

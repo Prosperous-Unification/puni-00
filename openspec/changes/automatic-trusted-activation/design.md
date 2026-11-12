@@ -2494,3 +2494,155 @@ roots. Validate its runtime version, callable signature and returned string at t
 boundary. Admit through system.admitConfigurationRoot without changing options or requiring
 existence. Existing source traversal checks lexical and symlink ancestors, charges repeated
 work, and records link bytes. Earlier modes retain their current compiler probe behavior.
+
+### Selected compiler runtime prerequisite (2026-11-09)
+
+One explicit `TypeScriptRuntime` supplies the executable compiler namespace. The bounded
+source entry receives it as a required argument; Dash retained requests carry it separately
+as `compiler` from the owned retained-byte `ReviewRuntime`. Selection establishes no
+authentication. The existing filesystem composition selects installed TypeScript and passes
+that same object into trusted package IO and serial extraction. Helpers use the runtime carried
+by their bound compiler system; no helper imports an executable ambient compiler. Types-only
+imports remain ordinary TypeScript types. Version and library compatibility checks retain their
+existing purpose and do not authenticate the executing namespace.
+
+The serial extractor retains its configuration-only captures, phase-local programs, ordering,
+reconstruction and collection boundaries. Bounded extraction retains its exact IO policy and
+budgets. Legacy extractor identity and output are unchanged for the installed selection.
+At this selected-runtime prerequisite boundary the four derivative members and hashes remained unchanged and unused. The explicit owned successor below supersedes only that usage boundary.
+`runtimeTrust` remains `unverified`; loader authentication, complete runtime closure,
+CompilerReadManifestV1 and parent 2.1d.1.3 remain open.
+
+Validation uses a separately selected compiler namespace with consumer-visible selected
+configuration/program/import/diagnostic/declaration failures and existing serial parity
+and retained trust oracles. Independent production fallback mutations must fail extraction
+oracles before restoration and adjacent proof comments are recorded.
+
+The separate declared-relationship extractor (`relationships/declarations.ts`) is outside this
+TypeScript compiler-extraction packet; its AST analysis remains a later full retained-producer
+runtime-closure obligation. The scoped no-ambient assertion covers the compiler extraction
+call graph listed above, not the complete all-eleven-document producer.
+
+### Owned derivative successor (2.1d.1.3e6g, 2026-11-09)
+
+Intent: execute authenticated captured derivative bytes through a fresh private compiler namespace,
+then bind its distinct identity and actual attempts to retained extraction. Preserve builder bytes,
+legacy serial/selected behavior and unverified trust; no candidate code, ambient resolver, public
+activation, full-closure or freeze claim is included in the loader stage.
+
+Stage 1 extracts IO-free pins and the exact pretty-JSON/LF manifest literal without changing the
+builder API/output. A private WeakMap owns four byte copies and captured finite budgets. Exact key
+membership, each byte view/reference/length and all limits are read once; all raw hashes and manifest
+bytes are checked before fatal UTF-8 decode. Accounting reserves retained byte copies plus twice the
+executable byte length for each decoded string and twice again for Script staging, cumulatively per
+artifact. This conservative allocation ledger does not measure VM-internal compiled code, ASTs,
+Program heap or GC; bounded parser process settlement remains mandatory.
+
+The loader uses node:vm with fresh intrinsics and in-context module/exports/denied require, no host
+functions or globals. Required code-generation restrictions, import denial and absence policy are
+checked before authenticated compiler evaluation; version, API/private-helper shape and absent sys
+are compatibility checks after it. A synchronous internal callback scopes the original namespace;
+finally drops loader references even if evaluation or callback fails. It is not exported through judge.
+Metadata uses canonical JSON with one LF, SHA-256 and the exact byte-sorted four member records.
+The loader-policy identity hashes its literal versioned recipe; it does not attest installed loader bytes.
+
+Stages 2–5 remain required: derivative identity/core branch; exact retained-runtime ownership join;
+both host/system paths admission; packaging and installed/combined proofs. Full executing producer
+closure, complete config/reference/resolution closure, parser settlement, complete actual read manifest,
+eleven retained documents, protected preparation/selection/freeze and independent external authority
+remain explicit acceptance dependencies. Historical e6e1/e6f1 receipts stay intact.
+
+### Internal derivative identity/core prerequisite (Stage 2)
+
+Intent: carry the owned derivative execution identity through the actual shared core before every
+import, reverse edge and public declaration selector hash. Preserve the complete installed/selected
+and serial recipe/output/lifetime behavior. This stage adds no public retained derivative route,
+observer placeholder, activation or trust claim; exact retained ownership and both actual-attempt
+admission paths remain prerequisites for the strict public composition.
+
+Burokrat exposes one explicitly unverified observation computation with required compiler,
+extractor, policy and mode inputs. Selected compatibility derives the original package/version
+identity in the same validation/source-binding order; both entries share one computation body.
+Dash derives the derivative identity from owned provenance inside its authenticated loader callback.
+No nominal derivative selection or public trusted identity mint remains in Burokrat. The separate
+serial extractor is unchanged.
+
+The internal prerequisite returns an explicit schema/kind with unverified compiler provenance,
+captured request, extractor and all relationships. It snapshots finite compiler limits and request
+arrays/entries before source callbacks or compiler loading, bounds snapshot growth by the necessary
+whole-output allowance, checks the complete final envelope byte cap, deeply freezes detached values
+and only then registers an exact-object/owned-artifact binding. Failures publish no owned envelope.
+This ownership is the internal extraction/artifact join; Stage 3 must still establish the exact
+ReviewRuntime/source ownership and acquisition evidence before any strict retained entry exists.
+
+The pure computation and authenticated immutable-source bridge are reachable from judge; the
+VM and authenticated derivative extraction owner live only in Dash. This deliberately supersedes
+only the former no-source-through-judge rule. No executable-loader/builder reachability or ambient
+clock/store/network scanner exception is permitted.
+
+### Retained derivative acquisition/source preparation (Stage 3)
+
+Intent: acquire the exact four compiler members through the real owned ReviewRuntime and prepare
+an exact owned retained source/request without executing the derivative before both Stage 4
+admission routes exist. Preserve selected compatibility, shared lifetime budgets and unverified
+trust. No private Burokrat executable import or placeholder observer is permitted.
+
+Burokrat exposes listCompilerDerivativeMembers as a frozen metadata-only four-record contract,
+sharing existing hashes and exact manifest bytes. Expected lengths are9197/37980/9144652/526 for
+LICENSE/NOTICE/compiler/manifest. They are independent compiled expectations validated against
+actual owning-builder output, never supplied runtime values. The facade gains only this metadata
+function; its no-builder/no-VM/type-inclusive isolation checks remain intact.
+
+Dash validates every exact compiler-derivative/<member> path, role, hash and length before ANY
+runtime.readFile. Only compiler.cjs is program. Real reads retain their receiver and lifetime
+read/byte/allocation charges; captured Stage 1 limits apply additionally. A frozen opaque token
+registers exact runtime plus actual captured artifact and frozen bootstrap-acquisition metadata
+only after success. That metadata is not the complete actual CompilerReadManifestV1.
+
+Namespace and source constructors add private successful construction-reference records alongside
+existing provenance: namespace→candidate/runtime; source→namespace/candidate/runtime. Internal
+assertions use exact references, not equal hashes or provenance aliases. Selected compatibility
+retains its old hash-only admission; stricter assertions are invoked by derivative preparation.
+
+One shared pure full-request capture snapshots the existing request and all limit policies without
+rereading the caller's top-level object, preserving minima, path grammar, uniqueness, ordering and
+frozen detached state. prepareRetainedDerivativeTypeScriptSource captures all references once,
+uses that helper, requires exact derivative/runtime and namespace/candidate/runtime joins, creates
+the real source and immediately requires its exact construction join. It returns a transient
+internal source/request/limit/artifact/acquisition record; no compiler runs, no successful extraction
+is registered and no source callbacks are placed in the compiler binding/global strong cache.
+
+Length admission proof requires an explicit test-only metadata dependency fault: altered-length
+actual runtime bytes carry their real hash, and only the reader's expected hash is changed to match
+while its compiled length stays old. Hold this fault in control and mutant; removing only length
+admission must spend a real read/copy allowance before any later raw-pin error. This is a combined
+dependency/guard pre-read proof, not an independent hostile-owner bypass under unchanged hashes.
+
+### Compiler loader effect ownership correction (2026-11-10)
+
+Intent: restore Burokrat's semantic no-clock boundary without weakening authenticated bytes,
+aggregate load allowance, exact ownership, selector identity or detached publication. Move the
+existing timed loader and authenticated extraction composition to Dash; preserve Stage3 preparation
+as nonexecuting and leave both Stage4 admission paths and all Stage5/full-closure duties required.
+
+`withCompilerDerivativeSource` crosses judge as an authenticated immutable string plus the captured
+artifact load ceiling, after exact ownership and cumulative staging charges. It has no clock/VM or
+replacement namespace. Burokrat's explicit `extractTypeScriptObservations` computes selectors with
+all arguments required and authenticates neither namespace nor tag; only Dash's private successful
+extraction/artifact binding certifies their execution join. Matching-tag computations/copies refuse
+that private reader. This adds no strict retained execution entry or placeholder admission callback.
+
+Dash receives a required Monotonic separately from artifact/request/source/options. It captures the
+method once with its receiver and samples before source decode. Fractional finite samples and equal
+successive samples are valid; missing/noncallable/nonfinite/backwards samples, finite-endpoint elapsed
+overflow and thrown dependencies fail. The artifact allowance is captured once. Policy, authenticated
+compiler, module.exports and final compatibility checks all use the same start and diminishing
+`allowance - ceil(elapsed)`, refusing nonpositive values and clamping positive Script timeouts to 2147483647. No phase reset, fallback clock or candidate timing override exists. Finally drops context/
+compiler references on all failures; failed work publishes no owned extraction. Synchronous decoding
+cannot be interrupted, but its elapsed cost is charged before evaluation. Parser/VM heap settlement
+and installed execution remain separate obligations.
+
+Only Dash clock.ts produces ambient samples; immediate tests use its actual monotonicClock for slow
+decode/infinite evaluation, complemented by controlled phase samples. Both unchanged package scanners
+must pass, fail direct-clock injections in ordinary source, and pass restored. Packaging must include
+the moved Dash loader/composition and Burokrat source/computation closure through the actual facade.

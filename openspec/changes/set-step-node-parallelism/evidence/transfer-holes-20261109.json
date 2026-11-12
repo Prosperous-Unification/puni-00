@@ -1,0 +1,26 @@
+[
+  {
+    "fault": "owner-holes-skipped",
+    "before": "workItems: Array.from(ownerRows, (owner) => {",
+    "after": "workItems: ownerRows.map((owner) => {",
+    "exit": 1,
+    "failedTests": 2,
+    "failures": [
+      "internal sparse parallel transfer > refuses empty-policy source workItems holes without changing inputs",
+      "internal sparse parallel transfer > refuses empty-policy target workItems holes without changing inputs"
+    ],
+    "maxRSSKiB": 33128
+  },
+  {
+    "fault": "step-holes-skipped",
+    "before": "steps: Array.from(stepRows, (step) => {",
+    "after": "steps: stepRows.map((step) => {",
+    "exit": 1,
+    "failedTests": 2,
+    "failures": [
+      "internal sparse parallel transfer > refuses empty-policy source steps holes without changing inputs",
+      "internal sparse parallel transfer > refuses empty-policy target steps holes without changing inputs"
+    ],
+    "maxRSSKiB": 33168
+  }
+]

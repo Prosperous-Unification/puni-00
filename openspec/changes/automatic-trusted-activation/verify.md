@@ -6094,3 +6094,418 @@ The actual normal commit must rerun hooks on that final code. Exact successor cl
 resulting commit/bundle identities are recorded in the final handoff. The task checkbox and parent `.3` remain open.
 This slice claims no wildcard expansion, reference-config policy, complete compiler manifest,
 protected freeze, authentication, full repository gate, public publication, merge or deployment.
+
+### 2026-11-09 — selected compiler runtime source prerequisite (.3e6f1)
+
+Base `d87afb94a6362d345480f665b6e3b5d20d787686`; isolated branch
+`feat/selected-typescript-runtime-20261109`. Source completion is distinct from .3e6f2
+acceptance, which remains unchecked pending exact-candidate review and host gate/CI.
+
+The required executable compiler is selected once, carried by `TypeScriptSystem.compiler`,
+and supplied explicitly by retained Dash input separately from owned retained-byte runtime
+provenance. The filesystem wrapper selects installed TypeScript for both trusted IO and serial
+extraction. Configuration-only captures, phase-local programs, collection boundaries, legacy
+identity/output, bounded accounting and the unverified trust marker remain in place. The
+successful extraction's private owner binding authenticates its object/request provenance,
+not executable compiler bytes. The separate declared-relationship extractor and full retained
+producer/runtime closure remain outside this prerequisite.
+
+Dependency provenance: worktree/root lockfiles compared byte-for-byte, then root `node_modules`
+was reused by symlink. No frozen install ran. Bun and `.bun-version` are 1.4.4; executable
+TypeScript reports 6.0.3 and installed native typechecker reports 7.0.2. Lock SHA-256 is
+`983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6`.
+The derivative builder remains exactly base Git blob `a4800be21517130cf4bddf2cdc15808752def416`;
+its four artifact members and fixed hashes were not changed or rebuilt.
+
+Observed focused checks, executed serially with a 25ms sampled process-tree RSS monitor:
+
+| Check                                                                                   | Observed outcome                                                       | Peak KiB / ceiling MiB         |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------ |
+| New required-runtime RED / initial GREEN                                                | 0/8 then 8/0 pass/fail                                                 | 147104 / 900; 154260 / 900     |
+| Core, compiler, serial, runtime, legacy and facade Bun regression                       | 109 pass, 242 assertions                                               | 314108 / 900                   |
+| Six retained extraction/owner/roots/config-roots/baseUrl/literal-paths Bun suites       | 133 pass, 3368 assertions                                              | 780688 / 900                   |
+| Narrow API native type diagnostic rooted at runtime and retained extraction/owner tests | pass; not full owning type acceptance                                  | 428796 / 1500                  |
+| Production port type changed to never                                                   | diagnostic failed at real callers; restored pass                       | restored 440444 / 1500         |
+| Scoped changed-file ESLint, Burokrat then Dash                                          | both pass                                                              | 879364 / 1500; 1469192 / 1500  |
+| Selected strict OpenSpec, fresh base and candidate                                      | both fail with the identical 25 pre-existing long-requirement warnings | no new warning                 |
+| OpenSpec all                                                                            | 341/341 pass                                                           | not a runtime acceptance check |
+
+The six-file Burokrat command was `bun test` over
+`relationships/{typescript-core,typescript-compiler,typescript-serial,typescript-runtime,typescript-legacy}.test.ts`
+and `judge-facade.test.ts`. The Dash command used
+`activation/review-typescript{,-owner,-roots,-config-roots,-base-url,-literal-paths}.test.ts`.
+Both ran from the repository root with full source paths, `--preload ./tools/test/scratch/preload.ts`
+and `--timeout=60000`. These tests retain complete legacy snapshots, SHA-1/SHA-256
+noLib/ES5/implicit-library removed-root parity, ambient IO traps, ownership/census/budget
+negatives and serial failure precedence. A subsequent selected-version assertion strengthened
+full bounded/serial identity parity; its direct restored control passes with four assertions.
+
+Twenty-five independent production faults were observed failing their intended extraction
+oracles and restored controls passed after each: ambient config reader, config parser, program
+factory, source factory, default library, private path helper, import resolver, import predicate,
+syntax constants, emitted declaration AST, semantic traversal, bounded diagnostics, serial
+diagnostics, formatting, reconstruction, reference normalization, serial entry, trusted library
+version, trusted filesystem read, bounded identity, retained entry, retained selection reread,
+module-global selection, copying away a non-enumerable private helper, and serial identity.
+Adjacent `Proof:` comments name the observed boundaries. A late-selection reread reached its
+explicit injected `late compiler selection` sentinel; no unrelated earlier compiler error was
+counted as that proof. Reentrant retained extraction preserves the outer selected diagnostic
+sentinel. Narrow type diagnostics were independently broken by the production port type fault.
+
+Refused checks and remaining obligations:
+
+- Owning `bunx nx run twilight-burokrat:typecheck --skip-nx-cache` exceeded the 1500 MiB
+  process-tree ceiling (1559772 KiB observed), was killed with monitor exit 97, and produced no
+  typecheck result. No cap increase or full-project retry followed.
+- An additional source CLI declaration/import subset passed its first six cases, then exceeded
+  900 MiB (1002048 KiB observed) and was killed with monitor exit 97. The subset did not pass
+  as a whole and was not retried with a larger cap.
+- Full owning Burokrat/Dash typechecks, builds and lint, installed packaging regressions,
+  remaining source CLI cases, the canonical exact-SHA host gate/CI and large serial resource
+  workload are not established by this laptop packet. Existing resource tests were not weakened;
+  focused semantic RSS measurements do not prove the 25-config or real-repository memory ceiling.
+- No derivative loading/authentication, wildcard admission, complete read manifest, protected
+  freeze, external authority, public wire change, StepParallel change, host action or publication
+  occurred. Parent .3 and WBS030.6 remain incomplete.
+
+### Owned derivative successor — Stage 1 in progress
+
+Base 82fa8928664998c9a8b72f6af16018d2c142547e is reviewed but its parent gate/CI is unaccepted.
+Bun 1.4.4 VM checkpoint executed unchanged derivative SHA-256
+47bffa39459dbbb0797606506c790af1420a983ed6bc1d3ca4945a64ee782559 with absent sys,
+process/Bun/Buffer/fetch/timers/global and original resolvePath. Controlled noLib declaration emit
+and real alias resolution passed (expected missing-global diagnostics); explicit ES5+decorator
+libraries produced zero diagnostics and two declarations. Observed RSS 150372 KiB under 900 MiB.
+This scratch compatibility checkpoint is not the production-loader acceptance or full parser bound.
+Stage 1 implementation/proofs/checks and all successor acceptance remain pending.
+
+### Owned derivative Stage 1 source/proof checkpoint — 2026-11-10
+
+The isolated candidate starts at reviewed 82fa8928664998c9a8b72f6af16018d2c142547e;
+its parent gate/CI was not accepted by this implementation. Source task e6g1 is complete;
+independent Stage 1 review, all successor e6g2–g6 and parent .3 acceptance remain open.
+Only capture/provenance and their types are public through judge. Internal synchronous
+withCompilerDerivative scopes a fresh original VM namespace to trusted extraction composition.
+No Dash adapter, paths admission wiring, package activation or aggregate trust claim was added.
+
+Commands ran serially under the ignored bounded-monitor.py: 900 MiB for focused suites,
+1500 MiB for scoped lint/API/hooks, 120-second settlement and 25ms process-tree RSS samples.
+The monitor kills/waits its owned non-detached group; detached sessions are outside its fixture
+containment. Its success, memory97, wall98 and child-cleanup controls are observed receipts,
+not a general sandbox or product parser-process guarantee.
+
+- Artifact owning suite: 46 pass, 68 assertions; peak 232220 KiB.
+- Runtime owning suite: 19 pass, 60 assertions; peak 276512 KiB. Actual noLib, explicit/default
+  ES5 library declarations/resolution, deleted physical roots, malicious replacement/cache,
+  original/non-enumerable namespace, denied ambient machinery, failed evaluation/compatibility,
+  cumulative allocation and decode-inclusive timeout controls passed.
+- Existing builder suite: 36 pass, 61 assertions; peak 530444 KiB. All three copied-builder/writer
+  fixture sites now include their actual extracted pin dependency; missing dependencies were
+  observed failing intended guards first. Its four absent/altered/unreadable members still refuse.
+- Judge facade: 1 pass, 7 assertions; peak 230216 KiB. Exact capture/metadata exports and no
+  executable-loader/filesystem-builder reachability are independently fault-proven.
+- Scoped changed-file ESLint: pass, peak 824212 KiB after populating the isolated Nx graph
+  (323000 KiB). Earlier no-graph passes explicitly skipped module-boundary rules and were not
+  accepted; the final scoped result has no such skip. Full owning lint remains unrun.
+- Narrow API diagnostic rooted in both owning files: pass, peak 252640 KiB. Narrowing the real
+  production capture input to never failed real callers, and restored control passed. This is
+  not the full owning typecheck; the earlier known resource refusal remains unchanged.
+- 51 independently watched fault/dependency receipts and restored controls cover raw pins and
+  manifest encoding, closed keys, capture-once, private ownership/copies, pre-allocation and
+  cumulative staging limits, exact provenance preimages/freeze, original/fresh compiler, installed
+  substitution, VM policy/compatibility/timeout and facade/source-image/API boundaries. Final
+  lifetime-seam fresh-instance/substitution/timeout faults were reconfirmed after type refinements.
+  Only intended assertions, never monitor kills or unrelated errors, qualify as proof receipts.
+- All OpenSpec validation: 341/341 pass. Strict selected validation fails with exactly the same
+  25 issues as a fresh exact82fa spec-artifact fixture; no new warning remains. Initial overlong
+  successor detail was moved into testable scenarios without removing its requirements.
+
+Independent Python SHA-256 vectors match exact builder-manifest bytes (526 bytes):
+8b82b8fcaf4fe52d963152efacd98932cc41bb6cd3b701e4c5b47b71cea2d743.
+The four original member pins remain unchanged. Captured artifact identity is
+2eff9728f5e5fbd7c53fde8571254e7865df0664c7b0a9f55eecf698778b0c62;
+execution identity is 5c0c6d82bf82918032bdf831a69dddce02571fdacd03df5b8d1d77af076f9d8d;
+loader-policy recipe identity is d3a0a1bb071f7b6fb1b2892e45c06eaba82880a02aa108bf4c57a52be8b9a9df.
+Independent literal canonical-LF preimages assert these algorithms before selector integration.
+The recipe identity does not attest installed loader/host bytes. runtimeTrust stays unverified.
+
+Bun is 1.4.4. Root dependencies were reused only after byte-identical lock comparison;
+no frozen install ran. Lock SHA-256 is
+983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6.
+Evidence, exact command wrappers, mutation scripts/logs and final review handoff are durable in
+.superpowers/sdd/task10-architecture-plan/ in the coordinator workspace; nothing depends on
+unretained /tmp executable files. Normal commit/hook and final format receipts are reported in
+that Stage 1 report once committed. No host command, push or subagent was used here.
+
+The Stage 2 public derivative composition must deliberately refine the existing transitive judge
+clock/network-token scan for the bounded loader clock and deny-list strings, or place trusted
+composition coherently outside that facade. Never delete the blanket isolation boundary silently.
+Remaining checks: independent exact-candidate Astra review, full owning typecheck/lint/build,
+installed packaging and combined five-stage proofs, canonical exact-SHA host gate/CI and serial
+resource workloads. Complete runtime/config/reference closure, parser process settlement,
+CompilerReadManifestV1, eleven documents, protected preparation/freeze and independently installed
+external authority remain mandatory; no WBS leaf closes from this loader stage.
+
+### Stage 1 proof correction round 1 — 2026-11-10
+
+Independent review of cac77954e961f82129d931b55bf334038b376497 found two P2 evidence gaps,
+not a production behavior defect. The initial four artifact-member omission trials changed both
+the hash preimage and published provenance, failing metadata equality first. The initial import
+trial changed only denial wording and still refused imports. Those five original receipts are
+explicitly superseded as invalid for their claimed independent identity/deny-policy proofs;
+the original logs/scripts and before-fix1 ledger remain retained rather than erased.
+
+Four corrected trials match the complete unique compilerArtifactIdentity hashCanonical block,
+assert its mutation-site count is one, and omit one member solely from that preimage. Owned
+bytes, records and published provenance stay untouched. All four published tuples pass equality;
+the next independent artifact digest assertion fails with the expected full identity
+2eff9728f5e5fbd7c53fde8571254e7865df0664c7b0a9f55eecf698778b0c62 and these altered identities:
+
+| Omitted only from hash preimage | Altered artifact identity                                        |
+| ------------------------------- | ---------------------------------------------------------------- |
+| LICENSE.txt                     | cd60404ef87b213ad83e637344e70e5c6715024b7c343a9eebc99c938146c16c |
+| NOTICE                          | 4e261767592f32f6eb9b250be91b652d1254504fd826e7a572fdb799930aa9d2 |
+| compiler.cjs                    | 14daefee64403015a2076a5ba3b473f5a8fdd0191fe5cb5d2ce934244a674e7b |
+| manifest.json                   | add3c188feb1a53f49b8dc22f3a8b76ed56b8e1899f531dc5fbdb58894655bd3 |
+
+The amended import test captures the exact importer configured on the actual authenticated
+compiler Script via a test-only Script subclass. It passes the compiler source and options to
+super unchanged, evaluates those original bytes first, then probes node:path in that same context
+using the actual captured handler. No replacement callback is supplied by the probe. Under the
+one-site production-handler fault, only node:path is allowed and its actual host builtin namespace
+is returned. The context import fulfills with {status:'fulfilled',basename:'derivative.ts'};
+the explicit rejected-outcome equality fails on that fulfilled state. Restored production denial
+returns {status:'rejected',message:'compiler derivative dynamic import denied'} and the test passes.
+No network or candidate code is involved; other VM policies and authenticated bytes stay intact.
+
+Each of the five bounded trials exited 1 at its intended assertion and had its own restored
+exit-0 control. Exact commands, source-site assertions, expected/altered digests, state outputs,
+monitored RSS and settlement receipts are retained in
+.superpowers/sdd/task10-architecture-plan/evidence/fix1/{proofs.py,receipts.json,_.command.json,_.log}.
+The main 51-entry ledger now points these five entries to corrected receipts and explicitly embeds
+the superseded originals. Adjacent Proof comments describe only the corrected observed oracles.
+Only covering amended tests, changed-file checks and normal hooks are repeated in this correction;
+prior broad suite/full-acceptance results are historical, not newly rerun here. Exact successor
+review is required; Stages 2–5 and every full parent closure/settlement/read-manifest/eleven-document/
+preparation/freeze/independent-authority/installed acceptance obligation remain open.
+
+### Stage 2 internal identity/core checkpoint — in progress
+
+Base 5cd4c144000616755adabe5a9070b5c1d968554a/tree8dabfe1306e685021bd4bb104f180cd117cddcd3
+is independently approved for Stage 1 only. Stage 2 is internal and non-activating. Full owning,
+installed, canonical gate/CI and all later strict composition/closure/authority acceptance remain
+unverified. Focused commands, independent selector vectors and watched fault receipts follow;
+no success is inferred from source composition alone.
+
+### Stage 2 internal source/proof checkpoint — 2026-11-10
+
+The internal prerequisite now executes the owned derivative through the actual shared core and
+selects typescript.compiler.paths-observer / v6.0.3.paths-observer.1 with the owned execution
+identity before any import, reverse-edge or public-declaration selector hash. The selected entry
+retains its required explicit compiler and original wrapper identity recipe. The filesystem
+wrapper and serial implementation are byte-identical to Stage 1. No judge/Dash export, no-op
+observer, retained owner join, strict admission route or package activation was added.
+
+The execution union is IO-free and nominally separates private derivative construction from
+selected compatibility. Only the private authenticated namespace callback constructs the derivative
+record. The internal prerequisite envelope has schemaVersion1/kind typescript-derivative-prerequisite,
+unverified trust, captured request, Stage 1 compiler provenance and detached core relationships.
+Request references/lengths/indexed strings and finite limits are captured once; malformed/sparse
+state refuses, snapshot growth is bounded, and complete output bytes include all envelope fields.
+Only cap-checked, deeply frozen output receives an exact object/artifact binding. Failed loading,
+compilation, caps or freeze cannot register an owned envelope. No compiler/Program/AST enters it.
+This is the internal artifact/output join, not the still-required exact ReviewRuntime/source join.
+
+Literal independent configuration, artifact, execution and all three selector records live in
+relationships/typescript-derivative.expected.json. A separate Python hashlib calculation with
+hand-specified fields/strings, no repository producer/helper or baseline-log input, reconstructs
+all vectors; an independently implemented test serializer/hash checks them through actual core.
+The pre-change complete selected output is also retained as a historical parity observation.
+New extractor blob is 5c0c6d82bf82918032bdf831a69dddce02571fdacd03df5b8d1d77af076f9d8d;
+matching wrapper/version remains distinguishable and cannot authenticate this executable.
+
+Fresh scoped runs, serial compiler children under 900 MiB/120 seconds and 25ms RSS sampling:
+
+- New owning suite: actual noLib and ES5 core extraction, every selector family, complete golden
+  selected/serial parity, wrapper-read poisoning, owned namespace createProgram sentinel,
+  request/limit snapshots, finite growth, exact envelope cap, deep freeze and failure publication.
+- Existing core/compiler/runtime suites: 89 pass, 178 assertions, peak310288 KiB.
+- Existing serial suite: 18 pass, 58 assertions, peak172556 KiB. Large serial resource acceptance
+  is not established by these small fixtures and remains canonical-host work.
+- Judge facade: 1 pass, 7 assertions, peak227192 KiB. Its exact public surface and type-inclusive
+  no-executable-loader reachability remain unchanged, as do clock/store/network isolation scans.
+- Existing retained selected extraction/owner suites: 49 pass, 3050 assertions, peak780436 KiB.
+- Scoped changed-file lint and a narrow API diagnostic rooted in the real owning test pass under
+  the granted1500 MiB cap; narrowing the required artifact input to never fails actual callers,
+  then restored control passes. This is not full owning-project type acceptance.
+
+There are 33 independent watched fault receipts with intended assertion failure1/restored0:
+legacy/wrapper identity substitution, isolated execution-preimage field omissions, each selector
+family's post-hash tag replacement, installed-core substitution losing the authenticated namespace
+sentinel, snapshots/getter rereads/finite/request guards, whole-envelope cap, deep freeze/children,
+exact output/artifact owners, omitted registration and independent before-cap versus after-cap/
+before-freeze publication. NaN request length initially erased the requested config silently;
+its focused red then finite-length refusal passed. Final separately typed owner guards were
+reconfirmed after lint refinements. No resource kill/unrelated exception is counted as a proof;
+error-shape guards are distinguished from actual accepted-owner/cap/publication bypasses.
+
+Exact commands, independent vectors, source faults/restored logs and sampled metrics are durable in
+.superpowers/sdd/task10-architecture-plan/stage2-evidence/. Adjacent Proof comments name observed
+oracles. Stage 1 proofs were not broadly replayed. Bun remains1.4.4; dependency reuse still requires
+locked identity comparison and does not establish a fresh frozen install.
+
+Full owning typechecks/lint/build/package, installed execution, large serial resource workloads,
+exact-candidate independent review, canonical gate/CI and aggregate trust acceptance remain open.
+At first public executable reachability in Stages3/4, narrowly resolve the loader clock/deny-list
+scanner interaction with independent isolation negatives; do not weaken the current metadata-only
+boundary preemptively. Mandatory exact runtime/source ownership, both actual-admission paths,
+complete producer/config/reference closure, bounded parser process, actual read manifest, eleven
+documents, protected preparation/freeze and external-authority/installed acceptance remain required.
+No parent .3 or WBS leaf closes from this internal source checkpoint.
+
+### Stage 3 acquisition/source preparation — in progress
+
+Base cf603a74634f59bce64302f58acfe2f80ac62369/tree832924d3f9078c2c5c483f99f03d1df409d34046
+is approved for Stage 2 only. The accepted original-architect ruling permits metadata-only member
+expectations, private exact owner records and shared full-request preparation without execution.
+All Stage 4/5 and full owning/installed/canonical/closure/authority acceptance remain open.
+
+### Stage 3 source checkpoint (2026-11-10)
+
+Base: `cf603a74634f59bce64302f58acfe2f80ac62369`. The metadata-only judge addition is
+`listCompilerDerivativeMembers`; executable judge reachability/scanners remain unchanged.
+Real isolated owning CLI bytes match all four independent literal hashes/lengths. Runtime
+acquisition validates all four tuples before reads and retains exact runtime/artifact ownership.
+Real preparation shares the complete selected request policy, joins exact namespace/source
+construction inputs and publishes no extraction. Legacy mixed construction remains compatible.
+
+All commands run from native5330 with the existing bounded monitor (ordinary 900 MiB/120s;
+scoped API/lint 1500 MiB/120s). Full commands, outputs and receipts are retained beside the
+Task10 architecture ledger in `stage3-evidence/` and `stage3-report.md`.
+
+- `bun test .../review-compiler.test.ts`: 24 pass, 85 assertions; final peak 562516 KiB.
+- `bun test .../review-typescript.test.ts`: 45 pass, 2979 assertions; peak 781172 KiB.
+- `bun test .../{review-typescript-source,review-typescript-owner,review-runtime}.test.ts`:
+  126 pass, 577 assertions; peak 448208 KiB.
+- `bun test .../{compiler-derivative-artifact,judge-facade}.test.ts`:
+  48 pass, 82 assertions; peak 404008 KiB. Existing type-inclusive isolation remains active.
+- 54 independent ordinary fault/restored pairs, plus one bound-receiver pair; six final tuple/
+  receiver refreshes retain exact source faults. Every mutation site count is one; intended
+  assertions exit 1 and restored controls exit 0. Actual runtime read/copy/allocation charging,
+  all supplied limit rereads, metadata fields/freezes, genuine exact owners and request snapshots
+  are covered. The separate API `runtime: never` fault fails actual callers with TS2345/restores.
+- Role/hash and the disclosed path-prefix dependency fault spend a real sentinel allowance before
+  later pin errors. Missing-path guard removal changes the named refusal to TypeError only.
+  Length is the qualified combined expected-hash-dependency/length-guard admission proof: the
+  test dependency hash matches altered authentic bytes, old expected length remains; removing
+  only length spends the allowance. No unchanged-contract hostile owner bypass is claimed.
+- Narrow actual API roots pass (433412 KiB). Full owning typecheck is unrun.
+- Combined lint and Dash-only default-heap lint were memory-refused at the unchanged 1500 MiB
+  cap. The explicitly approved `NODE_OPTIONS=--max-old-space-size=1024` strategy preserves all
+  root rules/project graphs; Dash scoped lint passes at 1316212 KiB, Burokrat at 829160 KiB.
+- `openspec validate --all --json`: 341/341 pass. Strict selected validation is NOT green:
+  fresh exact-base/current artifacts have 25 identical issues, both exit 1.
+- The CI-discovered core test directive was moved above its unchanged `unknown` argument only.
+  The actual narrow core test root first fails TS2578+TS2345, then passes (271532 KiB).
+  Its runtime unknown-mode refusal still passes (1 test/1 assertion).
+- Known required failure: `no-ambient-clock.test.ts` still exits 1 naming unchanged private
+  loader `performance.now` at lines 90/93. This is an actual clock ownership violation;
+  no scanner exemption or clock-source change belongs to this checkpoint. Original architect
+  ruling must preserve aggregate decode/evaluation deadline while moving measurement to Dash.
+
+Normal monitored commit/hooks and exact source identities are recorded in the handoff report.
+No push, host/gate, full Nx, installed packaging, frozen install or aggregate trust acceptance
+was performed. Stage 4 BOTH actual-attempt admission paths, Stage 5, full producer/config/
+reference closure, parser settlement, actual complete read manifest, eleven documents,
+protected freeze and independent installed authority/unattended acceptance remain mandatory.
+
+### Clock ownership correction — in progress
+
+Successor fixbase35c38592b3539b15c0670736f0cc89596ba8f5d7; combined reviewbasecf603 remains.
+The original architect ruled to move the effect owner to Dash, not inject clock/remaining callbacks
+into Burokrat. Stage3 receipts remain historical and its known clock failure is not relabeled green.
+Clock correction evidence, exact commands/faults and final identity will live in the Task10 ledger's
+clock-evidence/ and clock-report.md. No Stage4/5, installed, owning/gate/CI or trust acceptance follows.
+
+### Clock ownership source checkpoint (2026-11-10)
+
+Fixbase35c38592b3539b15c0670736f0cc89596ba8f5d7; combined reviewbasecf603 remains.
+The timed VM loader and authenticated extraction/private success binding now live in Dash.
+Burokrat exports an authenticated immutable-source bridge and explicit unverified computation,
+sharing one core body with selected compatibility. Its nominal derivative execution union is
+removed. No Burokrat clock/remaining callback or VM wrapper remains. Existing raw pins and
+semantic loader-policy identities are unchanged; they do not attest the moved implementation closure.
+
+Required Monotonic is a separate trusted Dash dependency; no default/request/options timing exists.
+The method is captured once with its receiver, with finite start before decode and finite,
+nondecreasing subsequent samples/finite elapsed subtraction. One captured allowance spans all
+Script phases/final check; rounding/clamp, thrown dependencies and finally cleanup remain enforced.
+Actual monotonicClock tests witness two VM runs and exact Script timeout for the infinite program,
+versus zero runs after real slow decode. This does not interrupt synchronous decode or bound parser heap.
+
+Observed ordinary900MiB/120s commands and full logs are retained in clock-evidence/:
+
+| Focus                                            | Result                   | Peak KiB |
+| ------------------------------------------------ | ------------------------ | -------- |
+| Final moved loader/timing/cleanup                | 50 pass /138 assertions  | 446808   |
+| Final authenticated extraction/API controls      | 22 pass /92 assertions   | 783540   |
+| Core/compiler/selected/serial parity             | 109 pass /240 assertions | 323972   |
+| Artifact/immutable source/both scanners/facade   | 52 pass /105 assertions  | 454008   |
+| Selected retained/exact extraction owner         | 49 pass /3050 assertions | 785708   |
+| Stage3 real acquisition/nonexecuting preparation | 24 pass /85 assertions   | 486216   |
+
+Total306 passing tests/3710 assertions. The combined retained+reader batch was refused97 at
+923040KiB/900; it is not a passing run. The two smaller serial groups above pass at the unchanged cap.
+
+There are38 distinct ordinary fault/restored cases:34 temporal/owner/selector/scanner cases,
+two actual publication-order faults, one namespace forwarding fault with a constant disclosed
+installed-namespace test dependency, and one new explicit no-VM facade fence. All completed
+mutants exit1 at intended oracles and restored controls exit0; unique site counts are one.
+Four final-form timing-ingress repeats are refreshes, not additional distinct cases. Actual
+phase/consumer/publication admission is distinguished from modeled/native error-order evidence
+for shape, nonfinite later/elapsed, fractional rounding and invalid timeout guards. Clamp instead
+fails the actual timeout argument vector:2147483647 each expected versus2147483648 each observed,
+with no native refusal. No owner entries
+or producer pins are manufactured. Initial registration-omission selection survived because its
+chosen test omitted a valid-owner positive; the retained receipt is disqualified, the oracle now
+calls the real owner reader and the same omission fails. Initial too-short scripted budgets are
+also disqualified; real100ms infinite/150ms decode controls remain unchanged in production allowance.
+
+The required runtime/composition timing parameter each independently narrowed to never fails real
+callers (TS2345), then restores. Compile-only missing-argument controls remain active. These are
+narrow actual roots, not full owning native typechecks. Full commands/config/receipts are in
+api-proof-receipts.json and api-tsconfig.json.
+
+Both unchanged package clock scanners pass after owner relocation and independently fail direct
+clock injections in ordinary Burokrat/moved Dash source, then pass restored. Facade isolation adds
+an explicit node:vm predicate: an actual reachable VM import first exposed the missing fence,
+then fails the strengthened scan and passes restored. Existing store/network/clock/builder and
+type-inclusive graph checks remain; only the intentional immutable-source API restriction changed.
+
+Scoped lint uses unchanged rules/projectService and the previously authorized NODE_OPTIONS1024
+strategy under1500MiB/120s; current Dash lint passes1276632KiB. Normal hooks/exact final identities,
+final API/OpenSpec outcomes and any remaining limitations are recorded in clock-report.md.
+No full native/index/Nx/gate, installed packaging, source publication, host action or trust promotion.
+Combined Stage3/clock review remains pending. Stage4 BOTH actual-attempt routes and real trusted
+process clock composition, Stage5 moved dependency packaging/installed execution, complete producer/
+config/reference closure, parser settlement, actual full read manifest, eleven documents,
+protected freeze and independently installed authority/unattended acceptance remain mandatory.
+
+### Combined Stage3/clock review fixround1 (9e fixbase)
+
+Review accepted37 of38 claimed ordinary clock cases: the installed-namespace receipt failed on
+unresolved bare typescript import, before its sentinel assertion. That receipt/runner/report snapshot
+are preserved in clock-fix1-evidence and explicitly superseded. The corrected copied test image uses
+its owning absolute installed module URL and exercises actual createSourceFile/createProgram in BOTH
+controls and mutant. Only the compiler forwarding argument changes. Control/restoration reject with
+EXACT owned derivative core sentinel; mutant completes actual core (one import, reverse edge and
+public declaration) and fails that exact rejection assertion. The strict runner rejects resolution,
+syntax/type/reference/earlier errors. Active qualified ordinary count returns to38, not39.
+
+The clamp receipt is a timeout-argument invariant: actual three calls receive2147483648 without
+clamp, while the oracle expects2147483647. It is neither native rejection nor a publication bypass.
+The separate ceil receipt remains a native fractional-timeout error. No clamp rerun is needed.
+
+Only namespace/valid-owner covering tests and normal scoped hooks are required for this proof-only
+repair; broad unchanged suites, native owning checks, installed/gate/CI and all Stage4/5/full-goal
+acceptance remain unverified/open. Exact commands, outputs and fix head/tree are appended to clock-report.md.

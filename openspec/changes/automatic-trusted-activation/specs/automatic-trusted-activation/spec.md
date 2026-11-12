@@ -1659,7 +1659,7 @@ strings, required origin or pinned helper shape SHALL refuse before host constru
 
 An explicitly built instrumented TypeScript 6.0.3 derivative SHALL synchronously emit a closed compiler-options paths substitution event containing kind, specifier, effective baseDirectory, matched pattern, original substitution and compiler-normalized candidate immediately after candidate formation and before candidate IO. A callback exception SHALL propagate and prevent fallback; a callback return SHALL NOT affect resolution. Events SHALL follow compiler attempt order and stop when the compiler succeeds. Ordinary ancestor probes and package typesVersions substitutions SHALL NOT produce compiler-options events.
 
-The build SHALL verify the pinned upstream executable SHA-256, require every transformation section exactly once and verify a pinned output SHA-256. Its separate artifact SHALL carry a checked input/output manifest, upstream license and modification notice. It SHALL NOT mutate the installed compiler or perform transformation during extraction. This prerequisite SHALL remain unused by retained extraction and SHALL NOT establish runtimeTrust or complete resolution evidence.
+The build SHALL verify the pinned upstream executable SHA-256, require every transformation section exactly once and verify a pinned output SHA-256. Its separate artifact SHALL carry a checked input/output manifest, upstream license and modification notice. It SHALL NOT mutate the installed compiler or perform transformation during extraction. At this historical prerequisite boundary retained extraction did not consume the derivative. The owned derivative successor below MAY consume it without establishing runtimeTrust or complete resolution evidence.
 
 #### Scenario: Escaping attempt precedes safe fallback
 
@@ -1680,3 +1680,185 @@ The build SHALL verify the pinned upstream executable SHA-256, require every tra
 
 - **WHEN** upstream bytes, transformation occurrence counts, output bytes or manifest identities differ
 - **THEN** the derivative build or verification refuses the artifact
+
+### Requirement: Explicit selected compiler runtime prerequisite
+
+Each TypeScript extraction SHALL use one explicitly selected executable runtime for compiler
+configuration, host construction, source parsing, references, imports, declarations, diagnostics,
+project reconstruction and extractor identity. The retained entry SHALL require the runtime;
+the filesystem compatibility composition SHALL select the installed runtime. Helpers SHALL
+NOT fall back to an ambient executable compiler namespace.
+
+#### Scenario: Selected runtime differs from ambient exports
+
+- **WHEN** a caller supplies a selected executable runtime and ambient exported compiler
+  operations are unavailable or differ
+- **THEN** extraction uses the selected runtime throughout and selected compiler failures propagate
+- **AND** no matching version string or package manifest establishes runtime authentication
+
+#### Scenario: Serial compatibility and retained trust
+
+- **WHEN** filesystem compatibility selects the installed runtime or retained extraction uses it
+- **THEN** existing identity, relationships, bounded IO policy and budgets remain unchanged
+- **AND** filesystem extraction retains configuration-only captures and phase-local programs
+- **AND** retained runtimeTrust remains unverified and this selected-runtime prerequisite does not itself load derivative artifacts
+
+### Requirement: Owned compiler derivative execution successor
+
+The additive derivative route SHALL authenticate privately owned raw artifact bytes before fresh,
+bounded execution. It SHALL bind immutable execution provenance and retained owners, admit actual
+paths attempts on both host routes, preserve legacy identities and unverified trust, and complete
+full closure, parser settlement, preparation/freeze and external-authority acceptance.
+
+#### Scenario: Exact raw capture and immutable provenance
+
+- **WHEN** the caller supplies raw derivative members and limits
+- **THEN** The additive derivative route SHALL capture exactly compiler.cjs, manifest.json, LICENSE.txt and
+  NOTICE as privately owned raw bytes, verifying independently compiled pins and the exact builder
+  manifest encoding before executing anything. It SHALL reject unknown, absent, malformed or altered
+  members, forged or foreign capability objects and nonfinite or exceeded member, total, owned-copy
+  and cumulative load-staging limits. Incoming limits and member references and lengths SHALL be
+  captured once. Metadata SHALL be immutable and SHALL bind the four byte-sorted member tuples,
+  upstream identity, compiler version and versioned loader policy through distinct canonical-LF
+  artifact and execution identities. The legacy installed/selected/serial identity SHALL stay unchanged.
+
+#### Scenario: Private fresh authenticated execution
+
+- **WHEN** an owned derivative is loaded for extraction
+- **THEN** Each derivative extraction SHALL execute only the captured authenticated CommonJS bytes in a fresh
+  VM context with its own intrinsics, absent Node/Bun/filesystem/network/timer globals, denied require,
+  and disabled dynamic code generation and dynamic import. Unsupported required VM policy SHALL
+  refuse loading. The original compiler namespace, including private non-enumerable exports, SHALL
+  remain internal to trusted composition. No filename, module-cache, installed-runtime or ambient
+  resolver fallback is permitted. Failed loading SHALL publish no namespace and release references.
+  The VM composes IO for authenticated code; it SHALL NOT execute candidate JavaScript or certify
+  arbitrary-code isolation, full parser CPU/heap bounds or aggregate runtime trust.
+
+#### Scenario: Required retained composition and full acceptance
+
+- **WHEN** the complete derivative successor is composed
+- **THEN** The complete successor SHALL join the artifact to the exact retained ReviewRuntime and source owner,
+  use a distinct typescript.compiler.paths-observer / v6.0.3.paths-observer.1 execution identity before
+  selector hashing, and install one synchronous actual-attempt admission callback on both Program
+  hosts and direct-system resolution. Every compiler-options substitution, including previously admitted
+  fixed targets and repeated work, SHALL charge existing shared admission limits before candidate IO
+  or fallback. Literal pre-admission, compiler order/normalization, typesVersions origin distinction,
+  unused wildcard absence and ordinary ancestor-probe behavior SHALL remain intact. Output ownership,
+  versioning, whole-envelope bounds and freeze SHALL include derivative provenance while runtimeTrust
+  remains unverified. Complete runtime/config/reference closure, read manifest, bounded parser process
+  settlement, eleven documents, protected preparation/freeze and external-authority acceptance SHALL
+  remain mandatory unchecked dependencies until separately demonstrated.
+
+#### Scenario: Captured bytes survive caller and physical changes
+
+- **WHEN** all four exact members are captured and caller buffers or original paths later change
+- **THEN** execution and immutable provenance describe the retained copies alone
+- **AND** forged, copied or proxied capabilities refuse before observable property access or evaluation
+
+#### Scenario: Required loader policies and budgets fail closed
+
+- **WHEN** a required VM policy, compatibility check, raw pin or cumulative allocation bound fails
+- **THEN** loading throws without publishing a compiler or falling back to another runtime
+
+#### Scenario: Actual attempts use both bounded admission routes
+
+- **WHEN** a compiler-options attempt escapes through either host route
+- **THEN** synchronous admission refuses before candidate IO or safe fallback
+- **AND** repeated inside attempts share the existing source/compiler/traversal limits
+
+### Requirement: Non-activating derivative identity core prerequisite
+
+The internal derivative core SHALL select its owned execution identity before hashing every import,
+reverse edge and public declaration selector. It SHALL preserve selected/serial compatibility and
+SHALL NOT activate a strict retained route before exact runtime/source ownership and both actual
+attempt-admission paths exist. Its detached envelope SHALL remain unverified, bounded, deeply frozen
+and bound privately to its exact owned artifact only after complete success.
+
+#### Scenario: Distinct owned execution reaches every selector
+
+- **WHEN** internal compilation executes the owned pinned derivative
+- **THEN** extractorId is typescript.compiler.paths-observer, version is v6.0.3.paths-observer.1,
+  and blob is the owned compilerExecutionIdentity before each selector's identity is calculated
+- **AND** the artifact/execution canonical-LF preimages and all three selector identities match
+  independent vectors; wrapper package text or matching installed version grants no authentication
+
+#### Scenario: Complete prerequisite publication and settlement
+
+- **WHEN** request or limit getters mutate, a bound is exceeded, compilation fails or freeze fails
+- **THEN** captured inputs remain stable and no incomplete owned envelope is published
+- **AND** final bounds cover request, execution provenance, extractor and every selector family;
+  forged, copied or proxied outputs and equal-content foreign artifacts fail exact owner lookup
+
+#### Scenario: Legacy compatibility and strict-route sequencing
+
+- **WHEN** the existing selected or filesystem serial entry executes
+- **THEN** its full identity, selectors and phase lifetime behavior remain unchanged
+- **AND** Dash owns authenticated derivative composition; judge exposes only immutable-source
+  acquisition and explicitly unverified computation, never executable loading or an owned extraction
+- **AND** strict public composition still requires Stage 3 ownership and both Stage 4 admission paths
+- **AND** no no-op observer, optional trusted identity or new public unverified route fills that gap
+
+### Requirement: Exact retained derivative acquisition and source preparation
+
+Retained derivative preparation SHALL acquire the four compiled members only through the exact
+owned runtime, validate all tuples before reads, and join exact candidate/runtime/namespace/source
+construction owners. It SHALL snapshot the complete shared request policy and return only internal
+non-executing preparation. Strict public extraction remains dependent on both Stage 4 admission paths.
+
+#### Scenario: Immutable member contract and pre-read tuple admission
+
+- **WHEN** a real runtime is selected for derivative acquisition
+- **THEN** all four compiler-derivative paths, roles, hashes and lengths match the immutable public
+  metadata-only contract before ANY runtime.readFile; extra unrelated closure files are permitted
+- **AND** actual runtime capture distinguishes missing files from unreadable files and roots may
+  disappear after owned capture without changing later acquired bytes
+- **AND** every returned copy consumes existing lifetime runtime limits without resets
+
+#### Scenario: Exact owner joins precede source callbacks
+
+- **WHEN** a complete derivative request is prepared
+- **THEN** caller references/getters, request arrays/paths and all existing limits are captured once
+  by the shared full-request policy before exact runtime/namespace owner checks and source creation
+- **AND** the newly constructed real source must match exact namespace/candidate/runtime owners
+  before source or compiler callbacks; equal-content foreign owners, copies and proxies refuse
+- **AND** selected compatibility retains its previous semantics; no callback/AST/Program is stored
+  in the opaque compiler binding and no prepared state is registered as successful extraction
+
+#### Scenario: Qualified length admission under inconsistent expected metadata
+
+- **WHEN** a test-only expected-hash dependency matches authentic altered-length bytes while the
+  compiled expected length remains unchanged
+- **THEN** length admission refuses without spending runtime read/copy allowances
+- **AND** removing only that guard spends an allowance before later raw-pin refusal; this proves
+  combined dependency/guard admission, not an intact-contract hostile-owner bypass
+
+### Requirement: Dash owns timed authenticated derivative execution
+
+Dash SHALL own VM loading, temporal load decisions and private authenticated extraction publication.
+Burokrat SHALL retain deterministic raw artifact ownership and expose only immutable-source acquisition
+and explicit unverified shared computation; it SHALL NOT sample a clock directly or through a timing callback.
+
+#### Scenario: Required temporal owner and one aggregate allowance
+
+- **WHEN** Dash loads a real owned artifact
+- **THEN** it captures a separately supplied required Monotonic method once with its receiver and
+  validates the start before decode; request/runtime/options cannot supply or override it
+- **AND** all later finite nondecreasing samples have finite elapsed subtraction; fractional/equal
+  samples are valid and missing/noncallable/nonfinite/backwards/overflow/thrown timing fails
+- **AND** the single artifact-owned allowance decreases from the original start through policy,
+  authenticated evaluation, exports retrieval and final check, with finite clamped Script timeouts
+- **AND** exhausted work prevents consumers/private success publication and finally releases loader references
+
+#### Scenario: Immutable source is not executable authority
+
+- **WHEN** the facade source bridge yields authenticated decoded text after cumulative staging charges
+- **THEN** no writable byte view, VM, clock or replacement compiler crosses that deterministic bridge
+- **AND** the explicit shared computation authenticates neither compiler nor extractor identity;
+  matching-tag computed/copied output is refused by Dash's exact successful extraction owner lookup
+
+#### Scenario: Real temporal controls and unchanged isolation
+
+- **WHEN** real slow decoding or infinite evaluation executes through the actual Dash clock producer
+- **THEN** the aggregate timeout refuses with no consumer or failed owned publication
+- **AND** all original namespace/selector/request/budget/freeze oracles remain active after relocation
+- **AND** unchanged Burokrat and Dash scanners reject direct clock references outside Dash clock.ts

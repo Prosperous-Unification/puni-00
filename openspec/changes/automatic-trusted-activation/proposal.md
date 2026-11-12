@@ -6,6 +6,14 @@ The user requires this work to proceed automatically without per-PR operator ste
 
 ## What Changes
 
+- A bounded successor captures the pinned four-member compiler derivative and executes its
+  owned bytes privately in Dash; Burokrat supplies immutable source/authentication facts and
+  explicit unverified computation. Dash binds distinct execution identity and actual paths admission
+  to retained extraction. Full runtime closure, preparation/freeze and external acceptance
+  remain required; internal identity/core staging stays non-activating until exact retained
+  ownership and both actual-attempt admission routes exist. Metadata-only member expectations
+  and exact retained-owner source preparation are staged without compiler execution. Aggregate runtime trust stays unverified.
+
 - A ready PR or changed candidate automatically receives independent review, checks, an
   immutable toolkit activation and an exact-candidate admission decision.
 - Candidate-addressed selection replaces the shared activation-variable slot after a

@@ -12,7 +12,9 @@ import {
 } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
-import ts from 'typescript';
+import type ts from 'typescript';
+
+import type { TypeScriptRuntime } from './typescript-compiler';
 
 export interface TrustedSystem extends ts.System {
   realpath(path: string): string;
@@ -71,8 +73,17 @@ function copyPackage(root: string, source: string, destination: string, ancestor
  * extraction, on demand, with their complete file topology. Missing probes stay absent; unreadable
  * trusted packages and escaping symlinks throw. Standard libraries come from the authenticated
  * compiler package in that same physical copy; no source-installation exception is admitted.
+ * The selected executable namespace supplies filesystem operations and version compatibility;
+ * matching library metadata does not authenticate that executing namespace.
  */
-export function createTrustedSystem(workspace: string, trustedModules: string): TrustedSystem {
+export function createTrustedSystem(
+  workspace: string,
+  trustedModules: string,
+  compiler: TypeScriptRuntime,
+): TrustedSystem {
+  // Proof: independent ambient version/read substitutions lost the selected-version refusal
+  // and selected-filesystem-read sentinel through this real filesystem adapter.
+  const ts = compiler;
   const modules = join(workspace, 'node_modules');
   const libraryDirectory = join(modules, '@typescript/old/lib');
   const copied = new Set<string>();
