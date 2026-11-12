@@ -225,6 +225,11 @@
       with systemctl stop or an equivalent operation" is never restarted).
       `gate-host-pool.test.ts` pins `always`. A host keeps `on-failure` until its next
       converging apply, and the kill proof above is still owed under `always`.
+      h4claw, 2026-11-12 (verify.md "2026-11-12 h4claw restart proof"): converging apply `changed=2`
+      (the unit file and the daemon-reload) then `changed=0`; an observed `kill -9` of the watch's
+      `MainPID` with systemd restarting it 30 s later (`NRestarts` 0 → 1) and `ops pool inspect`
+      identical before and after; `--tags validate` `changed=0`. Still owed: the same on h2puni
+      with its enrollment, and the guard holder surviving a restart (concurrent mode, 6.5).
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
       (`Restart=always`; `on-failure` until 2026-11-12, see 6.7; `RestartSec=30`, `KillMode=process`,
       skipped until the ledger exists) and the audit pair `ops job render-audit-units` renders. It enables them on an

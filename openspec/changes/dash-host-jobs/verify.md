@@ -3582,3 +3582,32 @@ Workstation, worktree root, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset.
 
 Owed: the full tool-remote-scripts target (CI and the host gate carry it); the peaks of the
 now-bounded containers (task 6.4) and `docker build` attribution before `gate` can be eligible.
+
+## 2026-11-12 h4claw restart proof and converging apply (task 6.7)
+
+From the operator laptop's fleet controller with the staged enrolled vars of 2026-11-08 (headroom
+1 core, 5 GiB). Job 22ce2369 stayed held in `~/puni-00-gate-tbf` throughout: the role templates
+the unit files, reloads the user manager and enables the units; it never restarts the watch or
+moves a checkout, so the apply does not need a quiet host. Backups of the authorized keys, the
+five unit files and `host-pool.json` were taken first; the staged key's fingerprint equalled the
+live one.
+
+| Step                                         | Observed (UTC)                                                                                                                                                                      |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--check --diff`                             | fails at the key-count guard: the template writes nothing in check mode, so `authorized_keys.staged` held 0 keys against 1 listed (EV-A4)                                           |
+| apply 1                                      | `ok=75 changed=2 failed=0`: `Install the Dash user units` (`dash-resources-watch.service`, `Restart=on-failure` → `always`) and the daemon-reload; pinned fields matched the ledger |
+| apply 2                                      | `ok=74 changed=0 failed=0`                                                                                                                                                          |
+| `systemctl --user restart` to adopt the file | 13:59:02, `MainPID=46858`, `NRestarts` 5 → 0, `Restart=always`, `KillMode=process`                                                                                                  |
+| `ops pool inspect` before                    | observe, `guard on`, `guardHolder null`, `holdCorruption null`; `gate_tree` tbf held by 22ce2369, tbf2 / `dagger_engine` / `docker_build` free                                      |
+| `kill -9 46858`                              | 13:59:29; at 13:59:43 `ActiveState=activating SubState=auto-restart Result=signal MainPID=0 InactiveExitTimestamp=13:59:29`                                                         |
+| after                                        | 14:00:31 `ActiveState=active MainPID=47226 NRestarts=1 ActiveEnterTimestamp=13:59:59`, `RestartSec` after the exit                                                                  |
+| `ops pool inspect` after                     | identical; the hold file and its log still present                                                                                                                                  |
+| `--tags validate`                            | `ok=31 changed=0 failed=0`                                                                                                                                                          |
+
+- **EV-A4** Check mode cannot pass "Require one authorized key per listed key": the template task
+  writes nothing under `--check`, so the guard counts 0 keys. A check-mode run proves the role's
+  read-only tasks only; the converging second apply is the proof.
+- **EV-A5** A manual `systemctl --user restart` resets `NRestarts` to 0 (5 → 0 here), so the
+  counter counts automatic restarts since the last manual start; the kill is recorded beside it.
+- **EV-A6** The holder-survives clause stays owed (observe mode, `guardHolder null`), as is h2puni's
+  proof with its enrollment. Logs: puni-plan `evidence/2026-11-12-h4claw-restart-proof/`.

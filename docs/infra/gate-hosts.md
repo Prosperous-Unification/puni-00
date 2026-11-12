@@ -271,7 +271,10 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    instead, before and after the kill. `NRestarts` goes up by one per kill, and
    `ActiveEnterTimestamp` lands `RestartSec` (30 s) after `InactiveExitTimestamp`. The counter
    counts automatic restarts, not their cause, and `show` keeps only the latest timestamp pair, so
-   record the kill itself. `ops pool inspect` must show the same `guard`, `guardHolder` and unit
+   record the kill itself. A manual `systemctl --user restart` resets the counter to 0. Check mode
+   (`--check`) cannot stand in for the converging apply: the template writes nothing, so the
+   key-count guard fails on 0 staged keys. h4claw converged on `Restart=always` on 2026-11-12
+   (`changed=2`, then `changed=0`); its kill proof is in the `dash-host-jobs` verify.md. `ops pool inspect` must show the same `guard`, `guardHolder` and unit
    holders before and after. In observe mode `guardHolder` is always `null`, so there this proves
    only the restart. A guard holder surviving a restart can be shown only in concurrent
    mode (step 8, 6.5). Rerun `--tags validate`. It is a read-only probe, not step 4's converging
