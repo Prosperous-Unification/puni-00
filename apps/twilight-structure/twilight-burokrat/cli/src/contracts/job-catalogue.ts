@@ -91,7 +91,11 @@ const CalibratedProvenance = type({
       : context.mustBe('as many unique record ids as its record count'),
   );
 
-/** One declared job type: what it runs, what it reserves and where that figure came from. */
+/**
+ * One declared job type: what it runs, what it reserves and where that figure came from.
+ * `maxRuntimeMinutes`, when present, is the wall time after which Dash's launcher ends the
+ * payload with exit 124; an entry without it has no runtime bound.
+ */
 export const JobType = type({
   id: JobId,
   entrypoint: Entrypoint,
@@ -99,6 +103,7 @@ export const JobType = type({
   envelope: JobEnvelope,
   containers: JobContainers,
   enforcement: "'observe'|'cap'",
+  'maxRuntimeMinutes?': WholeUnits,
   provenance: EstimatedProvenance.or(CalibratedProvenance),
 }).onUndeclaredKey('reject');
 export type JobType = typeof JobType.infer;

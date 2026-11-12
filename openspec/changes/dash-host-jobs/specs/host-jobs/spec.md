@@ -337,3 +337,66 @@ launcher death alone.
 - **WHEN** a gate's payload exits 0 but leaves the tree with an untracked file
 - **THEN** CPU and memory settle, the `gate_tree` unit stays `blocked` naming the file, and no
   gate is admitted on that tree until an operator resolves it
+
+### Requirement: The audit names a throttled run first
+
+`ops job audit` SHALL name a `throttled` drift for every ordinary run record of a catalogued
+type, ended or still running, whose scope sampled `memory.events high` above zero. Each drift
+SHALL be one line naming the type, the job id, the largest event count, the envelope `memoryGib`
+the run ran under and its peak `memoryGib`. The line SHALL give the remedy: calibrate the type
+(`ops job calibrate --type <id>`) and `ops job propose --type <id>`. `throttled` drifts SHALL print
+before every other kind. A calibration record SHALL never be `throttled`. A run still in
+progress SHALL stay drift until it ends. An ended run SHALL stay drift until the HEAD entry's
+`memoryGib` is above the envelope the run was throttled under.
+
+#### Scenario: A throttled gate is the first drift
+
+- **WHEN** a `gate` run under an envelope of 6 GiB sampled `memory.events high` 3360000 and
+  another run overran its CPU
+- **THEN** `audit` exits 1, printing the `throttled` line naming 3360000, 6 and the peak first
+  and the `overrun` line after it
+
+#### Scenario: A raised envelope clears it once the run has ended
+
+- **WHEN** the catalogue at HEAD raises `gate`'s `memoryGib` from 6 to 8
+- **THEN** an ended run throttled under 6 GiB is no longer drift, and a run still in progress
+  under 6 GiB still is
+
+### Requirement: Status marks a throttled job
+
+`ops job status` SHALL print `throttled (memory.events high <n>)` after the peak on the line of a
+running job whose run record has sampled `memory.events high` above zero. `<n>` SHALL be the
+largest count sampled. A job with no such sample SHALL print no marker.
+
+#### Scenario: The throttled gate is visible while it runs
+
+- **WHEN** a running gate's run record has an interval sample with `memory.events high` 3360000
+- **THEN** its `status` line reads `peak 6.0 GiB throttled (memory.events high 3360000)`
+
+### Requirement: A job type may bound its runtime
+
+A catalogue entry MAY declare `maxRuntimeMinutes`, a positive whole number. An entry without it
+SHALL have no runtime bound. When a payload of a bounded type has run longer than the bound at a
+sample, `ops job run` SHALL send SIGTERM to the payload's session. If the payload has not ended
+within the settle budget, it SHALL send SIGKILL. `ops job run` SHALL then exit 124 and record 124
+in the ledger and the run record. The run record SHALL keep the signal the payload ended with and
+the reason `exceeded maxRuntimeMinutes <n>: ended by the launcher`. The job SHALL settle and
+release its reservation and its shell lock hold as after any exit. A run record written without
+the field SHALL still be read.
+
+#### Scenario: A gate past its bound is ended
+
+- **WHEN** a `bounded` job with `maxRuntimeMinutes: 1` is still running at a sample two minutes
+  after its gate opened
+- **THEN** the launcher ends it with SIGTERM, exits 124, records exit 124, signal `SIGTERM` and
+  the reason, and the job is released
+
+#### Scenario: A payload that ignores SIGTERM
+
+- **WHEN** the payload ignores SIGTERM and the settle budget passes
+- **THEN** the launcher sends SIGKILL, exits 124 and the run record names `SIGKILL`
+
+#### Scenario: An unbounded type runs on
+
+- **WHEN** a type without `maxRuntimeMinutes` runs under the same clock
+- **THEN** its payload's own exit 0 is returned and no reason is recorded
