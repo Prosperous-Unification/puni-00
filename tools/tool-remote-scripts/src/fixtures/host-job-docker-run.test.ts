@@ -1,4 +1,4 @@
-import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -58,5 +58,26 @@ describe('the host job docker run launcher', () => {
       status: 7,
       argv: ['run', '--detach', '--name', 'wbs-orphan-coordinator-x', 'image'],
     });
+  });
+  // Proof: with the `argv.length === 0` refusal removed from host-job-docker-run.ts, this test
+  // failed on `Expected to contain: "host job docker run: …" Received: ""` (2026-11-12).
+  it('refuses to start docker without arguments', () => {
+    const directory = scratchSync('host-job-docker-run-empty-');
+    const calls = join(directory, 'docker.calls');
+    writeFileSync(
+      join(directory, 'docker'),
+      `#!/bin/sh\nprintf '%s\\n' "$@" > '${calls}'\nexit 7\n`,
+    );
+    chmodSync(join(directory, 'docker'), 0o755);
+    const execution = Bun.spawnSync([process.execPath, LAUNCHER], {
+      env: { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(execution.exitCode).not.toBe(0);
+    expect(execution.stderr.toString()).toContain(
+      'host job docker run: expected docker run arguments',
+    );
+    expect(existsSync(calls)).toBeFalse();
   });
 });
