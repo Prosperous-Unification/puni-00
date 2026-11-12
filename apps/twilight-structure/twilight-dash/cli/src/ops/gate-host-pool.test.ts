@@ -368,13 +368,14 @@ describe('the gate host role prepares the host pool (dash-host-jobs 6.3, 6.7)', 
     expect(renderTemplate('dash-job-audit.timer', variables)).toBe(renderAuditUnits(paths).timer);
   });
 
-  test('the watch unit restarts on failure, spares the guard holder and parses', () => {
+  test('the watch unit always restarts, spares the guard holder and parses', () => {
     const { home, variables } = enrolledHost();
     const unit = unitDirectives(renderTemplate('dash-resources-watch.service', variables));
     // Proof: deleting `KillMode=process` or `Restart=on-failure` from the template failed this
-    // test (verify.md Slice 6c, 6c-F2 and 6c-F3).
+    // test (verify.md Slice 6c, 6c-F2 and 6c-F3); with the template set back to
+    // `Restart=on-failure` it failed on `always` (2026-11-12, task 6.7's Restart decision).
     expect(unit.get('Service.KillMode')).toEqual(['process']);
-    expect(unit.get('Service.Restart')).toEqual(['on-failure']);
+    expect(unit.get('Service.Restart')).toEqual(['always']);
     expect(unit.get('Service.RestartSec')).toEqual(['30']);
     expect(unit.get('Install.WantedBy')).toEqual(['default.target']);
     expect(unit.get('Unit.ConditionPathExists')).toEqual([
