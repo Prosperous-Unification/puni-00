@@ -112,6 +112,105 @@ for (const parent of ['/tmp', '/var/tmp']) {
   });
 }
 
+async function runConfiguredFixture(kind: string) {
+  const parent = await mkdtemp(join(import.meta.dir, '.source-fixture-scratch-'));
+  try {
+    const script = `
+      import { scratchRoot, scratchSync } from ${JSON.stringify(new URL('../../test/scratch/index.ts', import.meta.url).pathname)};
+      import { resolve, relative } from 'node:path';
+      import { createFixtureDocker } from ${JSON.stringify(new URL('./source-exclusion-transport.ts', import.meta.url).pathname)};
+      if (Bun.which('docker') !== null) throw new Error('native Docker must be unavailable');
+      const token = ${JSON.stringify(token)};
+      const kind = ${JSON.stringify(kind)};
+      const ownedParent = scratchRoot();
+      const made = scratchSync('configured-source-' + token + '-');
+      let root = resolve(made);
+      if (kind === 'relative') root = relative(process.cwd(), root);
+      if (kind === 'sibling') root = ownedParent + '-sibling/source-' + token;
+      if (kind === 'escape') root = ownedParent + '/../outside-' + token;
+      if (kind === 'outside') root = '/home/source-' + token;
+      if (kind === 'wrong-token') root = resolve(scratchSync('source-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa-'));
+      if (kind === 'missing-token') root = resolve(scratchSync('source-missing-'));
+      const runtime = kind === 'runtime-escape' ? root + '-sibling/runtime' : root + '/runtime';
+      const physical = ${JSON.stringify(source)};
+      physical.Mounts[0].Source = runtime;
+      const calls = [];
+      let docker;
+      try {
+        docker = createFixtureDocker({
+          token, root, runtime,
+          sourceName: 'source-' + token, sourceTag: 'source-' + token + ':1',
+          caddyName: 'edge-' + token,
+          plans: [{ name: 'source-' + token, id: physical.Id, imageRef: physical.Config.Image, imageId: physical.Image }],
+          run: async (args) => {
+            calls.push(args[0]);
+            if (args[0] === 'ps') return physical.Id;
+            if (args[0] === 'inspect') return JSON.stringify([physical]);
+            throw new Error('unexpected mocked Docker command');
+          },
+        });
+      } catch (cause) {
+        if (!(cause instanceof Error) || !['fixture root must contain UUID', 'fixture runtime outside root'].includes(cause.message)) throw cause;
+        console.log(JSON.stringify({ refusal: cause.message, calls }));
+        process.exit(78);
+      }
+      const listed = await docker(['ps', '-a', '--no-trunc', '--format', '{{.ID}}']);
+      console.log(JSON.stringify({ listed, calls, insideProcessScratch: root.startsWith(resolve(scratchRoot()) + '/') }));
+    `;
+    const temporary =
+      kind === 'normalized-parent' ? parent.slice(process.cwd().length + 1) : parent;
+    const child = Bun.spawnSync([process.execPath, '--no-env-file', '--eval', script], {
+      env: { ...process.env, TMPDIR: temporary, BUN_TMPDIR: parent, PATH: parent },
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 5000,
+    });
+    return {
+      code: child.exitCode,
+      stdout: new TextDecoder().decode(child.stdout),
+      stderr: new TextDecoder().decode(child.stderr),
+    };
+  } finally {
+    await rm(parent, { recursive: true });
+  }
+}
+
+for (const kind of ['valid', 'normalized-parent']) {
+  test(`mocked fixture admits genuine configured process scratch ${kind}`, async () => {
+    const child = await runConfiguredFixture(kind);
+    expect(child.code, child.stderr + child.stdout).toBe(0);
+    const observed: unknown = JSON.parse(child.stdout);
+    expect(observed).toEqual({
+      listed: source.Id + '\n',
+      calls: ['ps', 'inspect'],
+      insideProcessScratch: true,
+    });
+  });
+}
+
+for (const kind of [
+  'relative',
+  'sibling',
+  'escape',
+  'outside',
+  'wrong-token',
+  'missing-token',
+  'runtime-escape',
+]) {
+  test(`mocked fixture refuses configured process scratch ${kind} before Docker`, async () => {
+    const child = await runConfiguredFixture(kind);
+    expect(child.code, child.stderr + child.stdout).toBe(78);
+    const observed: unknown = JSON.parse(child.stdout);
+    expect(observed).toEqual({
+      refusal:
+        kind === 'runtime-escape'
+          ? 'fixture runtime outside root'
+          : 'fixture root must contain UUID',
+      calls: [],
+    });
+  });
+}
+
 for (const [label, privateRoot, runtime] of [
   ['outside parent', `/home/source-${token}`, `/home/source-${token}/runtime`],
   ['tmp sibling prefix', `/tmpx/source-${token}`, `/tmpx/source-${token}/runtime`],
