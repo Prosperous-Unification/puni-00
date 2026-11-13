@@ -16,9 +16,10 @@ import {
 import { hostname, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { scratchSync } from '@tools/test-scratch';
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 
+import { copyControllerBun } from '../fixtures/controller-account';
+import { createSolverScratch, readSolverChild } from '../fixtures/solver-scratch';
 import { initializeOrdinaryEdgePolicy } from './edge-policy';
 import { readClosed } from './managed-cohort';
 import {
@@ -32,13 +33,14 @@ import { buildSolverReaderPreparationBundle } from './solver-supervisor-install-
 
 const initializer = resolve(import.meta.dir, '../initialize-edge-policy.ts');
 
-async function preparationFixture() {
-  const root = scratchSync('solver-reader-whole-');
+async function preparationFixture(scratch: ReturnType<typeof createSolverScratch>) {
+  const root = scratch.root;
   const state = join(root, 'state');
   const staging = join(root, 'stage');
   const installed = join(root, 'installed');
   for (const directory of [state, staging, installed]) await mkdir(directory, { mode: 0o700 });
-  await link(process.execPath, join(staging, 'bun'));
+  // Proof: G01-copy restores the original hardlink and the real independent-executable test fails EXDEV.
+  copyControllerBun(join(staging, 'bun'));
   for (const [source, name] of [
     [resolve(import.meta.dir, '../solver-supervisor.ts'), 'reader.js'],
     [initializer, 'initializer.js'],
@@ -104,8 +106,307 @@ async function preparationFixture() {
   };
 }
 
+test('owned preparation scope copies the exact executable and removes its root after original child settlement', async () => {
+  const original = await lstat(process.execPath, { bigint: true });
+  const originalBytes = await readFile(process.execPath);
+  const root = await (async () => {
+    // Proof: G02-scope omits lexical disposal; the real settled-child control still finds its root.
+    await using scratch = createSolverScratch('solver-reader-copy-lifetime-');
+    const fixture = await preparationFixture(scratch);
+    expect(fixture.root).toBe(scratch.root);
+    const copied = await lstat(fixture.selection.bun.path, { bigint: true });
+    expect(`${String(copied.dev)}:${String(copied.ino)}`).not.toBe(
+      `${String(original.dev)}:${String(original.ino)}`,
+    );
+    expect(copied.mode & 0o7777n).toBe(0o755n);
+    expect(await readFile(fixture.selection.bun.path)).toEqual(originalBytes);
+    const { child, code, stdout, stderr } = await readSolverChild(scratch, () =>
+      Bun.spawn([fixture.selection.bun.path, '--version'], {
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      }),
+    );
+    expect({ code, signal: child.signalCode, stdout, stderr }).toEqual({
+      code: 0,
+      signal: null,
+      stdout: `${Bun.version}\n`,
+      stderr: '',
+    });
+    expect(await Bun.file(fixture.selection.bun.path).exists()).toBe(true);
+    return scratch.root;
+  })();
+  await rejects(lstat(root), { code: 'ENOENT' });
+  const closing = await lstat(process.execPath, { bigint: true });
+  expect([closing.dev, closing.ino, closing.mode, closing.uid, closing.gid]).toEqual([
+    original.dev,
+    original.ino,
+    original.mode,
+    original.uid,
+    original.gid,
+  ]);
+  expect(await readFile(process.execPath)).toEqual(originalBytes);
+});
+
+/** Joins the actual writer's inherited pipes and requires its captured PID to be strictly absent, never signaling it. */
+async function observeFixtureWriterRetirement(
+  pidPath: string,
+  originalPipes: Promise<void>,
+): Promise<void> {
+  await waitForFixture(() => Bun.file(pidPath).exists());
+  // Proof: G08-pid-publication restores parsing before original EOF; the visible-incomplete PID control fails.
+  await originalPipes;
+  const text = await readFile(pidPath, 'utf8');
+  const pid = Number(text);
+  // Proof: G03-writer-pid omits this predicate; malformed/unsafe PID controls wrongly permit disposal.
+  if (!/^[1-9][0-9]*$/.test(text) || !Number.isSafeInteger(pid))
+    throw new Error('original fixture writer PID malformed');
+  // Proof: G04-writer-absence omits this wait; the live pipe-closed writer control observes early disposal.
+  await waitForFixture(async () => {
+    try {
+      await lstat(`/proc/${String(pid)}`);
+      return false;
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return true;
+      // Proof: G05-writer-inspection treats EACCES as absence; the unknown-inspection retention control fails.
+      throw cause;
+    }
+  });
+}
+
+/** Captures only the exact staged reader's original exit; fixture.run owns its original pipe joins. */
+function captureFixtureReader(fixture: Awaited<ReturnType<typeof preparationFixture>>) {
+  const capture = spyOn(Bun, 'spawn');
+  return {
+    async exited(joined: Promise<void>): Promise<number> {
+      await joined;
+      const matches = capture.mock.calls.flatMap(([argv], index) =>
+        argv.length === 3 &&
+        argv[0] === fixture.selection.bun.path &&
+        argv[1] === fixture.selection.reader.path &&
+        argv[2] === '--check-edge-policy'
+          ? [index]
+          : [],
+      );
+      // Proof: G06-capture-count omits this guard; two original launches wrongly permit disposal.
+      if (matches.length !== 1)
+        throw new Error('original staged reader capture absent or ambiguous');
+      const original = capture.mock.results.at(matches[0]);
+      // Proof: G07-capture-launch omits this guard; the actual launch-throw control wrongly permits disposal.
+      if (original?.type !== 'return') throw new Error('original staged reader launch unavailable');
+      return original.value.exited;
+    },
+    restore: () => {
+      capture.mockRestore();
+    },
+  };
+}
+
+for (const fault of ['absent', 'ambiguous', 'unavailable'] as const) {
+  test(`owned staged reader capture retains its scope for ${fault} original launch`, async () => {
+    const scratch = createSolverScratch('solver-reader-capture-refusal-');
+    const fixture = await preparationFixture(scratch);
+    const retire = scratch.requireRetirement();
+    const capture = captureFixtureReader(fixture);
+    const launches: Promise<unknown>[] = [];
+    try {
+      if (fault === 'ambiguous') {
+        for (let index = 0; index < 2; index++)
+          launches.push(
+            readSolverChild(scratch, () =>
+              Bun.spawn(
+                [fixture.selection.bun.path, fixture.selection.reader.path, '--check-edge-policy'],
+                { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+              ),
+            ),
+          );
+      } else if (fault === 'unavailable') {
+        const failure = spyOn(Bun, 'spawn').mockImplementationOnce(() => {
+          throw new Error('owned launch fault');
+        });
+        expect(() =>
+          Bun.spawn(
+            [fixture.selection.bun.path, fixture.selection.reader.path, '--check-edge-policy'],
+            { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+          ),
+        ).toThrow('owned launch fault');
+        // The nested spy is the same scoped original capture and is restored by capture.restore below.
+        expect(failure).toHaveBeenCalledTimes(1);
+      }
+      const joined = Promise.all(launches).then(() => undefined);
+      await retire([capture.exited(joined), joined, joined]);
+      await rejects(scratch[Symbol.asyncDispose](), /solver fixture original retirement unknown/);
+      expect((await lstat(scratch.root)).isDirectory()).toBe(true);
+    } finally {
+      capture.restore();
+      // Proof: finally-omission removes this exact join; a rejected first/pending second launch loses its root.
+      await Promise.allSettled(launches);
+      // This control owns the retained fixture; every explicit original launch above is now joined.
+      await rm(scratch.root, { recursive: true });
+    }
+  });
+}
+
+test('owned preparation scope retains a pipe-closed live writer until attended exit', async () => {
+  const launched = Promise.withResolvers<{
+    root: string;
+    pidPath: string;
+    release: string;
+    operation: Promise<void>;
+  }>();
+  let settled = false;
+  const completion = (async () => {
+    await using scratch = createSolverScratch('solver-reader-writer-lifetime-');
+    const fixture = await preparationFixture(scratch);
+    const pidPath = join(scratch.root, 'original-writer-pid');
+    const release = join(scratch.root, 'original-writer-release');
+    const writer = `import { closeSync } from 'node:fs'; await Bun.write(${JSON.stringify(pidPath)}, String(process.pid)); closeSync(1); closeSync(2); while (!(await Bun.file(${JSON.stringify(release)}).exists())) await Bun.sleep(5);`;
+    const reader = await readFile(fixture.selection.reader.path, 'utf8');
+    await replaceFixtureArtifact(
+      fixture.selection.reader,
+      `${reader}\nlet fixtureWriterStarted = false; process.on('beforeExit', () => { if (process.argv[2] === '--check-edge-policy' && !fixtureWriterStarted) { fixtureWriterStarted = true; const writer = Bun.spawn([process.execPath, '-e', ${JSON.stringify(writer)}], { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' }); writer.unref(); } });`,
+    );
+    const retireWriter = scratch.requireRetirement();
+    const capture = captureFixtureReader(fixture);
+    try {
+      const operation = fixture.run();
+      const joined = operation.then(
+        () => undefined,
+        () => undefined,
+      );
+      const observed = observeFixtureWriterRetirement(pidPath, joined);
+      const retirement = retireWriter([capture.exited(joined), joined, joined, observed]);
+      launched.resolve({ root: scratch.root, pidPath, release, operation });
+      await operation;
+      await retirement;
+    } finally {
+      capture.restore();
+    }
+  })().then(
+    () => {
+      settled = true;
+      return undefined;
+    },
+    (cause: unknown) => {
+      settled = true;
+      launched.reject(cause);
+      return cause;
+    },
+  );
+  const original = await launched.promise;
+  try {
+    await original.operation;
+    const pid = await readFile(original.pidPath, 'utf8');
+    expect((await lstat(`/proc/${pid}`)).isDirectory()).toBe(true);
+    await Bun.sleep(30);
+    expect(settled).toBe(false);
+    expect((await lstat(original.root)).isDirectory()).toBe(true);
+  } finally {
+    await writeFile(original.release, 'attended original writer release');
+    await completion;
+  }
+  expect(await completion).toBeUndefined();
+  await rejects(lstat(original.root), { code: 'ENOENT' });
+});
+
+test('owned writer retirement waits original EOF before reading a visible incomplete PID', async () => {
+  await using scratch = createSolverScratch('solver-reader-pid-publication-');
+  const pidPath = join(scratch.root, 'writer-pid');
+  // Widen only the actual write dependency's create-before-complete interval; no natural-race claim.
+  const program = `const originalWrite = Bun.write; Bun.write = async (path, bytes, options) => { if (path === ${JSON.stringify(pidPath)}) { await originalWrite(path, ''); const release = await new Response(Bun.stdin.stream()).text(); if (release !== 'complete original PID write') throw Error('unexpected fixture release'); } return originalWrite(path, bytes, options); }; await Bun.write(${JSON.stringify(pidPath)}, String(process.pid));`;
+  const retireWriter = scratch.requireRetirement();
+  const child = Bun.spawn([process.execPath, '-e', program], {
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const exit = child.exited;
+  const stdout = new Response(child.stdout).text();
+  const stderr = new Response(child.stderr).text();
+  const originalPipes = Promise.all([stdout, stderr]).then(() => undefined);
+  const observed = observeFixtureWriterRetirement(pidPath, originalPipes);
+  const retirement = retireWriter([exit, stdout, stderr, observed]);
+  let settled = false;
+  const joined = observed.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  try {
+    await waitForFixture(() => Bun.file(pidPath).exists());
+    expect((await lstat(pidPath)).size).toBe(0);
+    await Bun.sleep(25);
+    expect(child.exitCode).toBeNull();
+    expect(settled).toBe(false);
+  } finally {
+    await child.stdin.write('complete original PID write');
+    await child.stdin.end();
+    await Promise.allSettled([exit, stdout, stderr, joined]);
+    await retirement;
+  }
+  await observed;
+  expect({ code: await exit, stdout: await stdout, stderr: await stderr }).toEqual({
+    code: 0,
+    stdout: '',
+    stderr: '',
+  });
+});
+
+for (const fault of [
+  'malformed',
+  'unsafe-integer',
+  'absent',
+  'unreadable',
+  'inspection-unreadable',
+] as const) {
+  test(`owned writer retirement retains its scope for ${fault} trusted metadata`, async () => {
+    const filesystem = await import('node:fs/promises');
+    let inspection: ReturnType<typeof spyOn<typeof filesystem, 'lstat'>> | undefined;
+    const scratch = createSolverScratch('solver-reader-writer-refusal-');
+    const path = join(scratch.root, 'writer-pid');
+    const retireWriter = scratch.requireRetirement();
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '-e',
+        fault === 'absent'
+          ? ''
+          : `await Bun.write(${JSON.stringify(path)}, ${JSON.stringify(fault === 'malformed' ? 'not-a-pid' : fault === 'unsafe-integer' ? '9007199254740992' : String(process.pid))});`,
+      ],
+      { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+    );
+    const exit = child.exited;
+    const stdout = new Response(child.stdout).text();
+    const stderr = new Response(child.stderr).text();
+    const originalPipes = Promise.all([stdout, stderr]).then(() => undefined);
+    await Promise.all([exit, stdout, stderr]);
+    if (fault === 'unreadable') await chmod(path, 0);
+    if (fault === 'inspection-unreadable')
+      inspection = spyOn(filesystem, 'lstat').mockRejectedValueOnce(
+        Object.assign(new Error('owned process inspection unreadable'), { code: 'EACCES' }),
+      );
+    try {
+      const original = observeFixtureWriterRetirement(path, originalPipes);
+      await retireWriter([exit, stdout, stderr, original]);
+      await rejects(scratch[Symbol.asyncDispose](), /solver fixture original retirement unknown/);
+      if (inspection !== undefined)
+        expect(inspection.mock.calls[0]?.[0]).toBe(`/proc/${String(process.pid)}`);
+      expect((await lstat(scratch.root)).isDirectory()).toBe(true);
+    } finally {
+      inspection?.mockRestore();
+      // The original metadata child is joined; only this asserted retained refusal fixture is removed.
+      if (fault === 'unreadable') await chmod(path, 0o600);
+      await rm(scratch.root, { recursive: true });
+    }
+  });
+}
+
 test('whole operation refuses original same-byte policy replacement after actual initializer join', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   let initialized = 0;
   await rejects(
     fixture.run(async (boundary) => {
@@ -124,20 +425,18 @@ test('whole operation refuses original same-byte policy replacement after actual
 });
 
 test('whole operation publishes only two files and executes installed required-policy consumer under real lock', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const observed: string[] = [];
   await fixture.run(async (boundary) => {
     observed.push(boundary);
     if (boundary === 'staged' || boundary === 'installed') {
-      const contender = Bun.spawn(['flock', '-n', join(fixture.state, 'edge.lock'), 'true'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-      const [code] = await Promise.all([
-        contender.exited,
-        new Response(contender.stdout).text(),
-        new Response(contender.stderr).text(),
-      ]);
+      const { code } = await readSolverChild(scratch, () =>
+        Bun.spawn(['flock', '-n', join(fixture.state, 'edge.lock'), 'true'], {
+          stdout: 'pipe',
+          stderr: 'pipe',
+        }),
+      );
       expect(code).toBe(1);
     }
   });
@@ -152,11 +451,19 @@ test('whole operation publishes only two files and executes installed required-p
   for (const path of [fixture.layout.bun, fixture.layout.reader])
     expect((await lstat(path)).mode & 0o777).toBe(0o755);
   expect(await Bun.file(join(fixture.root, 'installed/config.json')).exists()).toBe(false);
-  expect(await Bun.spawn(['flock', '-n', join(fixture.state, 'edge.lock'), 'true']).exited).toBe(0);
+  const unlocked = await readSolverChild(scratch, () =>
+    Bun.spawn(['flock', '-n', join(fixture.state, 'edge.lock'), 'true'], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }),
+  );
+  expect(unlocked.code).toBe(0);
 });
 
 test('generated preparation bundle executes the same actual two-file operation in an owned root', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const operations = await import('./solver-supervisor-install-operation');
   const built = await buildSolverReaderPreparationBundle(fixture.selection, fixture.layout);
   const bytes = built.bytes;
@@ -171,12 +478,9 @@ test('generated preparation bundle executes the same actual two-file operation i
     sha256: new Bun.CryptoHasher('sha256').update(bytes).digest('hex'),
     byteLength: bytes.byteLength,
   });
-  const child = Bun.spawn(['sh', '-c', execution], { stdout: 'pipe', stderr: 'pipe' });
-  const [code, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
+  const { child, code, stdout, stderr } = await readSolverChild(scratch, () =>
+    Bun.spawn(['sh', '-c', execution], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' }),
+  );
   expect({ code, signal: child.signalCode, stderr }).toEqual({ code: 0, signal: null, stderr: '' });
   expect(stdout.split('OK').length).toBe(5);
   expect(await Bun.file(fixture.layout.bun).exists()).toBe(true);
@@ -191,7 +495,8 @@ for (const retained of [
   'reader',
 ]) {
   test(`whole preparation refuses retained ${retained} before initialization and publication`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     const path =
       retained === 'bun'
         ? fixture.layout.bun
@@ -225,7 +530,8 @@ for (const fault of [
   'changed-receipt-attempt',
 ]) {
   test(`whole preparation refuses ${fault} after actual initializer without publication or lock recreation`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     await rejects(
       fixture.run(async (boundary) => {
         if (boundary !== 'initialized') return;
@@ -279,7 +585,8 @@ for (const fault of [
   'installed-replacement',
 ]) {
   test(`whole exclusive publisher retains safe state on ${fault}`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     await rejects(
       fixture.run(async (boundary) => {
         if (fault === 'destination-race' && boundary === 'published-bun')
@@ -334,14 +641,16 @@ for (const fault of [
 }
 
 test('preparation refuses an account not independently designated as this fresh target before effects', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   fixture.selection.target.account.name = 'foreign-account';
   await rejects(fixture.run(), /selected fresh target\/account differs/);
   expect(await Bun.file(join(fixture.state, 'edge-policy.json')).exists()).toBe(false);
 });
 
 test('preparation refuses canonical-state symlink before initializing', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   await rename(fixture.state, join(fixture.root, 'real-state'));
   await symlink(join(fixture.root, 'real-state'), fixture.state);
   await rejects(fixture.run(), /ancestry/);
@@ -349,7 +658,8 @@ test('preparation refuses canonical-state symlink before initializing', async ()
 });
 
 test('explicit preparation establishes only missing canonical state and reader parents', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   await rm(fixture.state, { recursive: true });
   await rm(join(fixture.root, 'installed'), { recursive: true });
   await fixture.run();
@@ -366,7 +676,8 @@ for (const failure of [
   'staged-strict-refusal',
 ] as const) {
   test(`required original child settlement refuses ${failure} without reader publication`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     const artifact =
       failure === 'staged-strict-refusal'
         ? fixture.selection.reader
@@ -397,15 +708,48 @@ for (const failure of [
 }
 
 test('existing original lock contention immediately refuses preparation without touching holder evidence', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   let holder: Bun.PipedSubprocess | undefined;
   let stdout: ReadableStreamDefaultReader<Uint8Array> | undefined;
   let retained = '';
+  let holderExit: Promise<number> | undefined;
+  let holderStderr: Promise<string> | undefined;
+  let stdoutSettlement: ReturnType<typeof Promise.withResolvers<undefined>> | undefined;
+  let holderRetirement: Promise<void> | undefined;
+  async function joinHolder(): Promise<void> {
+    if (holder !== undefined && stdout !== undefined) {
+      await holder.stdin.end();
+      try {
+        expect((await stdout.read()).done).toBe(true);
+        stdout.releaseLock();
+        if (
+          stdoutSettlement === undefined ||
+          holderExit === undefined ||
+          holderStderr === undefined ||
+          holderRetirement === undefined
+        )
+          throw new Error('holder original observations absent');
+        stdoutSettlement.resolve(undefined);
+      } catch (cause) {
+        stdoutSettlement?.reject(cause);
+        throw cause;
+      }
+      const [code, stderr] = await Promise.all([holderExit, holderStderr]);
+      await holderRetirement;
+      expect({ code, signal: holder.signalCode, stderr }).toEqual({
+        code: 0,
+        signal: null,
+        stderr: '',
+      });
+    }
+  }
   try {
     await rejects(
       fixture.run(async (boundary) => {
         if (boundary !== 'initialized') return;
         retained = await readFile(join(fixture.state, 'edge.lock'), 'utf8');
+        const retireHolder = scratch.requireRetirement();
         holder = Bun.spawn(
           [
             'flock',
@@ -417,8 +761,12 @@ test('existing original lock contention immediately refuses preparation without 
           ],
           { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
         );
+        holderExit = holder.exited;
+        holderStderr = new Response(holder.stderr).text();
         const reader = holder.stdout.getReader();
         stdout = reader;
+        stdoutSettlement = Promise.withResolvers<undefined>();
+        holderRetirement = retireHolder([holderExit, stdoutSettlement.promise, holderStderr]);
         const first = await reader.read();
         expect(new TextDecoder().decode(first.value)).toBe('held\n');
       }),
@@ -428,23 +776,14 @@ test('existing original lock contention immediately refuses preparation without 
     expect(await Bun.file(fixture.layout.bun).exists()).toBe(false);
     expect(await Bun.file(fixture.layout.reader).exists()).toBe(false);
   } finally {
-    if (holder !== undefined && stdout !== undefined) {
-      await holder.stdin.end();
-      expect((await stdout.read()).done).toBe(true);
-      stdout.releaseLock();
-      const [code, stderr] = await Promise.all([holder.exited, new Response(holder.stderr).text()]);
-      expect({ code, signal: holder.signalCode, stderr }).toEqual({
-        code: 0,
-        signal: null,
-        stderr: '',
-      });
-    }
+    await joinHolder();
   }
 });
 
 for (const unreadable of ['state', 'reader', 'receipt'] as const) {
   test(`preparation refuses unreadable ${unreadable} independently of absence`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     let changed = '';
     try {
       if (unreadable !== 'receipt') {
@@ -473,7 +812,8 @@ for (const unreadable of ['state', 'reader', 'receipt'] as const) {
 }
 
 test('whole preparation joins execution of the actual installed pair after staged success', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const witness = join(fixture.root, 'installed-reader-executed');
   const contents = `import { writeFileSync as recordInstalledExecution } from 'node:fs';
 ${await readFile(fixture.selection.reader.path, 'utf8')}
@@ -489,7 +829,8 @@ process.on('beforeExit', () => { if (process.argv[2] === '--check-edge-policy-in
 });
 
 test('existing installer generated first-reader transport reaches the genuine local operation without network or service effects', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const installer = await import('../install-solver-supervisor');
   const host = 'fixture-reader-target';
   const staging = join(fixture.root, 'transport');
@@ -542,7 +883,8 @@ test('existing installer generated first-reader transport reaches the genuine lo
 });
 
 test('late second-sibling corruption refuses before linking reader and retains published Bun', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   await rejects(
     fixture.run(async (boundary) => {
       if (boundary !== 'published-bun') return;
@@ -579,7 +921,8 @@ async function waitForFixture(predicate: () => Promise<boolean>): Promise<void> 
 }
 
 test('valid retained ordinary policy refuses first preparation without replacing its bytes or identity', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   await initializeOrdinaryEdgePolicy(fixture.state);
   const path = join(fixture.state, 'edge-policy.json');
   const before = await lstat(path, { bigint: true });
@@ -593,7 +936,8 @@ test('valid retained ordinary policy refuses first preparation without replacing
 
 for (const cleanup of ['changed', 'missing'] as const) {
   test(`primary failure preserves ${cleanup} unpublished cleanup evidence and both errors`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     let retained = '';
     await rejects(
       fixture.run(async (boundary) => {
@@ -628,7 +972,8 @@ for (const cleanup of ['changed', 'missing'] as const) {
 }
 
 test('execution expiry keeps the actual initializer live and refuses even its later normal zero exit', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const ready = join(fixture.root, 'initializer-waiting');
   const release = join(fixture.root, 'initializer-release');
   const original = await readFile(fixture.selection.initializer.path, 'utf8');
@@ -665,7 +1010,8 @@ test('execution expiry keeps the actual initializer live and refuses even its la
 });
 
 test('original staged child exit with withheld EOF retains publication lock through expired observation', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const ready = join(fixture.root, 'writer-ready');
   const release = join(fixture.root, 'writer-release');
   const writer = `await Bun.write(${JSON.stringify(ready)}, String(process.pid)); while (!(await Bun.file(${JSON.stringify(release)}).exists())) await Bun.sleep(5);`;
@@ -677,6 +1023,8 @@ test('original staged child exit with withheld EOF retains publication lock thro
   let now = 0;
   const clock: SolverReaderClock = { now: () => now, pause: () => Bun.sleep(2) };
   let settled = false;
+  const retireWriter = scratch.requireRetirement();
+  const capture = captureFixtureReader(fixture);
   const attempt = fixture.run(undefined, { clock });
   const joined = attempt.then(
     () => {
@@ -686,21 +1034,25 @@ test('original staged child exit with withheld EOF retains publication lock thro
       settled = true;
     },
   );
+  const writerObservation = observeFixtureWriterRetirement(ready, joined);
+  const writerRetirement = retireWriter([
+    capture.exited(joined),
+    joined,
+    joined,
+    writerObservation,
+  ]);
   try {
     await waitForFixture(() => Bun.file(ready).exists());
     await Bun.sleep(30);
     now = 16000;
     await Bun.sleep(30);
     expect(settled).toBe(false);
-    const contender = Bun.spawn(['flock', '-n', join(fixture.state, 'edge.lock'), 'true'], {
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    const [code] = await Promise.all([
-      contender.exited,
-      new Response(contender.stdout).text(),
-      new Response(contender.stderr).text(),
-    ]);
+    const { code } = await readSolverChild(scratch, () =>
+      Bun.spawn(['flock', '-n', join(fixture.state, 'edge.lock'), 'true'], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+      }),
+    );
     expect(code).toBe(1);
     await writeFile(release, 'attended fixture writer release');
     await rejects(attempt, /first-reader child failed: exit=0 signal=null expired=true/);
@@ -710,11 +1062,18 @@ test('original staged child exit with withheld EOF retains publication lock thro
   } finally {
     await writeFile(release, 'attended fixture writer release');
     await joined;
+    try {
+      await writerRetirement;
+      await writerObservation;
+    } finally {
+      capture.restore();
+    }
   }
 });
 
 test('overflow drains the real initializer streams to EOF and refuses retained success output', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const original = await readFile(fixture.selection.initializer.path, 'utf8');
   await replaceFixtureArtifact(
     fixture.selection.initializer,
@@ -726,7 +1085,8 @@ test('overflow drains the real initializer streams to EOF and refuses retained s
 });
 
 test('one immutable operation deadline refuses a next child without its full reserve', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   let now = 0;
   const clock: SolverReaderClock = { now: () => now, pause: () => Bun.sleep(2) };
   await rejects(
@@ -743,15 +1103,17 @@ test('one immutable operation deadline refuses a next child without its full res
 });
 
 test('EXDEV at the actual link boundary refuses with no copy fallback or fixed publication', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const source = new URL('./solver-reader-preparation.ts', import.meta.url).pathname;
   const program = `import * as fs from 'node:fs/promises'; import { mock } from 'bun:test'; const link = fs.link; mock.module('node:fs/promises', () => ({ ...fs, link: async (source, target) => { if (String(source).startsWith('/proc/self/fd/')) throw Object.assign(new Error('EXDEV injected at actual link boundary'), { code: 'EXDEV' }); return link(source, target); } })); const { prepareSolverReader } = await import(${JSON.stringify(source)}); try { await prepareSolverReader(${JSON.stringify(fixture.selection)}, ${JSON.stringify(fixture.layout)}); throw new Error('EXDEV unexpectedly admitted'); } catch (cause) { if (!(cause instanceof Error) || !cause.message.includes('EXDEV injected')) throw cause; }`;
-  const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
-  const [code, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
+  const { child, code, stdout, stderr } = await readSolverChild(scratch, () =>
+    Bun.spawn([process.execPath, '-e', program], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }),
+  );
   expect({ code, signal: child.signalCode, stdout, stderr }).toEqual({
     code: 0,
     signal: null,
@@ -764,7 +1126,8 @@ test('EXDEV at the actual link boundary refuses with no copy fallback or fixed p
 });
 
 async function assertReadFailureDisposition(throwingTap: boolean): Promise<void> {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const ready = join(fixture.root, 'staged-child-ready');
   const release = join(fixture.root, 'staged-child-release');
   const fault = join(fixture.root, 'observed-read-failure');
@@ -796,13 +1159,16 @@ async function assertReadFailureDisposition(throwingTap: boolean): Promise<void>
     if (attended !== 'retire owned outer fixture') throw new Error('invalid attended fixture disposition');
     process.exit(0);
   `;
+  const retireOuter = scratch.requireRetirement();
   const outer = Bun.spawn([process.execPath, '-e', program], {
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
   });
+  const outerExit = outer.exited;
   const out = new Response(outer.stdout).text();
   const err = new Response(outer.stderr).text();
+  const outerRetirement = retireOuter([outerExit, out, err]);
   const failures: unknown[] = [];
   try {
     await waitForFixture(() => Bun.file(fault).exists());
@@ -813,15 +1179,12 @@ async function assertReadFailureDisposition(throwingTap: boolean): Promise<void>
     expect(fields['status']).toBe('pending');
     const actual: unknown = JSON.parse(await readFile(milestone, 'utf8'));
     expect(actual).toMatchObject({ waitSettled: true, stderrEof: true, stdoutFailed: true });
-    const contender = Bun.spawn(['flock', '-n', join(fixture.state, 'edge.lock'), 'true'], {
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    const [code] = await Promise.all([
-      contender.exited,
-      new Response(contender.stdout).text(),
-      new Response(contender.stderr).text(),
-    ]);
+    const { code } = await readSolverChild(scratch, () =>
+      Bun.spawn(['flock', '-n', join(fixture.state, 'edge.lock'), 'true'], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+      }),
+    );
     expect(code).toBe(1);
     expect(outer.exitCode).toBe(null);
     expect(await Bun.file(fixture.layout.bun).exists()).toBe(false);
@@ -836,7 +1199,8 @@ async function assertReadFailureDisposition(throwingTap: boolean): Promise<void>
       await outer.stdin.write('retire owned outer fixture');
       await outer.stdin.end();
     }
-    const [code, stdout, stderr] = await Promise.all([outer.exited, out, err]);
+    const [code, stdout, stderr] = await Promise.all([outerExit, out, err]);
+    await outerRetirement;
     expect({ code, signal: outer.signalCode, stdout }).toEqual({
       code: 0,
       signal: null,
@@ -919,7 +1283,8 @@ test('read-only disposition tap reports unavailable diagnostic without changing 
 });
 
 test('compiler provenance binds actual executing bytes, metadata, virtual selection and every loaded file', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const built = await buildSolverReaderPreparationBundle(fixture.selection, fixture.layout);
   const bytes = await readFile(process.execPath);
   const status = await lstat(process.execPath, { bigint: true });
@@ -956,7 +1321,8 @@ for (const fault of [
   'bad-artifact-size',
 ] as const) {
   test(`public first-reader dispatch refuses ${fault} before any transport command`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     const selection = fixture.selection;
     const argv = [
       '--prepare-first-reader',
@@ -1004,7 +1370,8 @@ for (const fault of [
 
 for (const failed of ['exit', 'signal'] as const) {
   test(`public first-reader installer stops after actual transport ${failed} settlement`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     const installer = await import('../install-solver-supervisor');
     let commands = 0;
     await rejects(
@@ -1038,7 +1405,8 @@ for (const failed of ['exit', 'signal'] as const) {
 
 for (const boundary of ['parent-mkdir', 'artifact-read'] as const) {
   test(`expired settled ${boundary} starts no next forward filesystem effect`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     const layout =
       boundary === 'parent-mkdir'
         ? { ...fixture.layout, state: join(fixture.root, 'missing-parent', 'state') }
@@ -1066,12 +1434,13 @@ for (const boundary of ['parent-mkdir', 'artifact-read'] as const) {
       let refusal = ''; try { await prepareSolverReader(${JSON.stringify(fixture.selection)}, ${JSON.stringify(layout)}, undefined, { clock: { now: () => now, pause: () => Bun.sleep(2) } }); } catch (cause) { refusal = cause instanceof Error ? cause.message : String(cause); }
       await fs.writeFile(${JSON.stringify(witness)}, JSON.stringify({ reached, writes, refusal }));
     `;
-    const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
-    const [code, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
+    const { child, code, stdout, stderr } = await readSolverChild(scratch, () =>
+      Bun.spawn([process.execPath, '-e', program], {
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      }),
+    );
     expect({ code, signal: child.signalCode, stdout, stderr }).toEqual({
       code: 0,
       signal: null,
@@ -1092,7 +1461,8 @@ for (const boundary of ['parent-mkdir', 'artifact-read'] as const) {
 }
 
 test('valid JSON oversized origin receipt refuses at its bounded private consumer', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   await rejects(
     fixture.run(async (boundary) => {
       if (boundary !== 'initialized') return;
@@ -1112,7 +1482,8 @@ test('valid JSON oversized origin receipt refuses at its bounded private consume
 
 for (const boundary of ['sibling-file', 'publication-directory'] as const) {
   test(`required ${boundary} synchronization error retains exact partial publication`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     const source = new URL('./solver-reader-preparation.ts', import.meta.url).pathname;
     const witness = join(fixture.root, 'sync-observed.json');
     const program = `
@@ -1133,12 +1504,13 @@ for (const boundary of ['sibling-file', 'publication-directory'] as const) {
       let refusal = ''; try { await prepareSolverReader(${JSON.stringify(fixture.selection)}, ${JSON.stringify(fixture.layout)}); } catch (cause) { refusal = cause instanceof Error ? cause.message : String(cause); }
       await fs.writeFile(${JSON.stringify(witness)}, JSON.stringify({ injected, refusal }));
     `;
-    const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
-    const [code, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
+    const { child, code, stdout, stderr } = await readSolverChild(scratch, () =>
+      Bun.spawn([process.execPath, '-e', program], {
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      }),
+    );
     expect({ code, signal: child.signalCode, stdout, stderr }).toEqual({
       code: 0,
       signal: null,
@@ -1157,7 +1529,8 @@ for (const boundary of ['sibling-file', 'publication-directory'] as const) {
 
 for (const change of ['named-parent', 'same-byte-sibling'] as const) {
   test(`retained publication continuity refuses changed ${change} before either fixed link`, async () => {
-    const fixture = await preparationFixture();
+    await using scratch = createSolverScratch('solver-reader-whole-');
+    const fixture = await preparationFixture(scratch);
     const parent = join(fixture.root, 'installed');
     let retained = '';
     await rejects(
@@ -1193,7 +1566,8 @@ for (const change of ['named-parent', 'same-byte-sibling'] as const) {
 }
 
 test('transport hash refusal occurs before genuine target operation entry even with downstream artifact guards', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const operations = await import('./solver-supervisor-install-operation');
   const built = await buildSolverReaderPreparationBundle(fixture.selection, fixture.layout);
   const operation = join(fixture.staging, 'sealed-operation.js');
@@ -1210,12 +1584,9 @@ test('transport hash refusal occurs before genuine target operation entry even w
     fixture.selection.reader.path,
     reader.replace('ordinary edge policy ok', 'ordinary edge policy NO'),
   );
-  const child = Bun.spawn(['sh', '-c', script], { stdout: 'pipe', stderr: 'pipe' });
-  const [code, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
+  const { child, code, stdout, stderr } = await readSolverChild(scratch, () =>
+    Bun.spawn(['sh', '-c', script], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' }),
+  );
   expect(code).toBe(1);
   expect(child.signalCode).toBe(null);
   expect(stdout).toContain(`${fixture.selection.reader.path}: FAILED`);
@@ -1225,7 +1596,8 @@ test('transport hash refusal occurs before genuine target operation entry even w
 });
 
 test('actual captured owned source carrier change refuses across the shared compiler-input comparison', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const library = resolve(import.meta.dir);
   const carrier = join(fixture.root, 'solver-reader-preparation.ts');
   const operationCarrier = join(fixture.root, 'solver-supervisor-install-operation.ts');
@@ -1256,12 +1628,13 @@ test('actual captured owned source carrier change refuses across the shared comp
     let refusal = ''; try { await buildSolverReaderPreparationBundle(${JSON.stringify(fixture.selection)}, ${JSON.stringify(fixture.layout)}); } catch (cause) { refusal = cause instanceof AggregateError ? cause.message + ': ' + cause.errors.map(String).join('; ') : cause instanceof Error ? cause.message : String(cause); }
     await fs.writeFile(${JSON.stringify(witness)}, JSON.stringify({ captured, refusal }));
   `;
-  const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
-  const [code, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
+  const { child, code, stdout, stderr } = await readSolverChild(scratch, () =>
+    Bun.spawn([process.execPath, '-e', program], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }),
+  );
   expect({ code, signal: child.signalCode, stdout, stderr }).toEqual({
     code: 0,
     signal: null,
@@ -1276,7 +1649,8 @@ test('actual captured owned source carrier change refuses across the shared comp
 });
 
 test('public first-reader preparation refuses mismatched selected local artifact before any observed transport', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const installer = await import('../install-solver-supervisor');
   const requested = {
     ...fixture.selection,
@@ -1318,7 +1692,8 @@ test('public first-reader preparation refuses mismatched selected local artifact
 });
 
 test('actual first-reader builder captures an owned unsupported text import then refuses its loader', async () => {
-  const fixture = await preparationFixture();
+  await using scratch = createSolverScratch('solver-reader-whole-');
+  const fixture = await preparationFixture(scratch);
   const library = resolve(import.meta.dir);
   const carrier = join(fixture.root, 'solver-reader-preparation.ts');
   const operationCarrier = join(fixture.root, 'solver-supervisor-install-operation.ts');
@@ -1337,15 +1712,17 @@ test('actual first-reader builder captures an owned unsupported text import then
     throw new Error('owned text import control output absent');
   const controlBundle = join(fixture.root, 'text-control.js');
   await writeFile(controlBundle, new Uint8Array(await output.arrayBuffer()));
-  const controlChild = Bun.spawn([process.execPath, controlBundle], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const [controlCode, controlOut, controlErr] = await Promise.all([
-    controlChild.exited,
-    new Response(controlChild.stdout).text(),
-    new Response(controlChild.stderr).text(),
-  ]);
+  const {
+    child: controlChild,
+    code: controlCode,
+    stdout: controlOut,
+    stderr: controlErr,
+  } = await readSolverChild(scratch, () =>
+    Bun.spawn([process.execPath, controlBundle], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }),
+  );
   expect({
     code: controlCode,
     signal: controlChild.signalCode,
@@ -1382,12 +1759,13 @@ test('actual first-reader builder captures an owned unsupported text import then
     let refusal = ''; try { await buildSolverReaderPreparationBundle(${JSON.stringify(fixture.selection)}, ${JSON.stringify(fixture.layout)}); } catch (cause) { refusal = cause instanceof AggregateError ? cause.message + ': ' + cause.errors.map(String).join('; ') : cause instanceof Error ? cause.message : String(cause); }
     await fs.writeFile(${JSON.stringify(witness)}, JSON.stringify({ captured, refusal }));
   `;
-  const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
-  const [code, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
+  const { child, code, stdout, stderr } = await readSolverChild(scratch, () =>
+    Bun.spawn([process.execPath, '-e', program], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }),
+  );
   expect({ code, signal: child.signalCode, stdout, stderr }).toEqual({
     code: 0,
     signal: null,
