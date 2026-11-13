@@ -763,6 +763,95 @@ test('direct swap refuses active policy before later host IO', async () => {
   }
 });
 
+const fixedReaderPaths = {
+  bun: '/home/puni1/.local/lib/wbs-solver/bun',
+  reader: '/home/puni1/.local/lib/wbs-solver/solver-supervisor.js',
+} as const;
+
+/** Keeps fixed-reader shell observations inside the supplied owned fixture, independent of host preparation. */
+function mapBootstrapReaders(source: string, state: string, bun: string, reader: string): string {
+  // Proof: duplicate-bun/reader source controls fail here; only this predicate
+  // omitted falsely accepts changed anchor cardinality after both substitutions.
+  for (const fixed of [fixedReaderPaths.bun, fixedReaderPaths.reader])
+    if (source.split(fixed).length !== 2) throw new Error('fixed bootstrap reader anchor differs');
+  const copied = source
+    .replaceAll('/home/puni1/wbs/state', state)
+    .replaceAll(fixedReaderPaths.bun, bun)
+    .replaceAll(fixedReaderPaths.reader, reader);
+  // Proof: either mapping omission fails before launch. Removing only its
+  // corresponding assertion reaches the controlled forbidden-launch sentinel,
+  // never an actual global reader, in the original bootstrap caller.
+  expect(copied).not.toContain(fixedReaderPaths.bun);
+  expect(copied).not.toContain(fixedReaderPaths.reader);
+  return copied;
+}
+
+async function observeBootstrapAvailability(prepared: boolean) {
+  const state = await mkdtemp(join(tmpdir(), 'bootstrap-reader-availability-'));
+  roots.push(state);
+  await writeFile(join(state, 'edge.lock'), 'edge sentinel');
+  const commands = join(state, 'commands');
+  await mkdir(commands);
+  await writeFile(join(commands, 'id'), '#!/bin/sh\nprintf "0\\n"\n', { mode: 0o755 });
+  await writeFile(
+    join(commands, 'apt-get'),
+    '#!/bin/sh\nprintf called > "$WBS_EDGE_STATE/writer-called"\nexit 42\n',
+    { mode: 0o755 },
+  );
+  const bun = join(state, 'owned-controller-bun');
+  const reader = join(state, 'owned-controller-program');
+  if (prepared) {
+    await writeFile(
+      bun,
+      '#!/bin/sh\nprintf reached > "$WBS_EDGE_STATE/reader-called"\nprintf "controlled installed reader reached\\n" >&2\nexit 42\n',
+      { mode: 0o755 },
+    );
+    await writeFile(reader, '// controlled owned reader metadata vector\n', { mode: 0o755 });
+  }
+  const source = mapControllerShell(
+    await readFile(join(repository, 'tools/tool-bootstrap/src/bootstrap.sh'), 'utf8'),
+  );
+  const copied = mapBootstrapReaders(source, state, bun, reader);
+  const script = join(state, 'bootstrap.sh');
+  await writeFile(script, copied);
+  const executablePath = process.env['PATH'];
+  if (executablePath === undefined) throw new Error('controlled bootstrap requires PATH');
+  const child = Bun.spawn(['sh', script], {
+    env: { ...process.env, WBS_EDGE_STATE: state, PATH: `${commands}:${executablePath}` },
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const captured = await joinChild(
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  );
+  return {
+    ...captured,
+    readerCalled: await Bun.file(join(state, 'reader-called')).exists(),
+    writerCalled: await Bun.file(join(state, 'writer-called')).exists(),
+    lock: await readFile(join(state, 'edge.lock'), 'utf8'),
+  };
+}
+
+for (const prepared of [true, false]) {
+  test(`owned bootstrap reader availability ${prepared ? 'prepared' : 'missing'} is observed before any writer`, async () => {
+    const observed = await observeBootstrapAvailability(prepared);
+    expect(observed.exit).not.toBe(0);
+    expect(observed.readerCalled).toBe(prepared);
+    expect(observed.writerCalled).toBe(false);
+    expect(observed.lock).toBe('edge sentinel');
+    if (prepared) {
+      expect(observed.stderr).toBe('controlled installed reader reached\n');
+      expect(observed.stderr).not.toMatch(/fixed installed controller reader|reader preparation/);
+    } else {
+      expect(observed.stderr).toMatch(/fixed installed controller reader|reader preparation/);
+    }
+    expect(observed.stdout).not.toContain('apt update');
+  });
+}
+
 test('actual bootstrap refuses an unprepared fixed reader before running any candidate writer', async () => {
   const state = await mkdtemp(join(tmpdir(), 'bootstrap-unprepared-'));
   roots.push(state);
@@ -777,7 +866,14 @@ test('actual bootstrap refuses an unprepared fixed reader before running any can
   );
   const source = await readFile(join(repository, 'tools/tool-bootstrap/src/bootstrap.sh'), 'utf8');
   const script = join(state, 'bootstrap.sh');
-  await writeFile(script, source.replaceAll('/home/puni1/wbs/state', state));
+  const missingBun = join(state, 'missing-fixed-bun');
+  const missingReader = join(state, 'missing-fixed-reader.js');
+  // Proof: materializing either owned path rejects here; suppressing only its
+  // ENOENT assertion hides it behind the other still-missing reader downstream.
+  await rejects(lstat(missingBun), { code: 'ENOENT' });
+  await rejects(lstat(missingReader), { code: 'ENOENT' });
+  const copied = mapBootstrapReaders(source, state, missingBun, missingReader);
+  await writeFile(script, copied);
   const child = Bun.spawn(['sh', script], {
     env: {
       ...process.env,
