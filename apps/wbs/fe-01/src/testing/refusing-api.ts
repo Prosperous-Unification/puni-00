@@ -212,6 +212,8 @@ const PROJECT_API_OPERATIONS = {
   createWorkItem: 'postApiProjectsByIdCommands',
   patchWorkItem: 'postApiProjectsByIdCommands',
   setStatus: 'postApiProjectsByIdCommands',
+  setProgress: 'postApiProjectsByIdCommands',
+  clearProgress: 'postApiProjectsByIdCommands',
   setStepBlocked: 'postApiProjectsByIdCommands',
   startAttempt: 'postApiProjectsByIdCommands',
   endAttempt: 'postApiProjectsByIdCommands',
