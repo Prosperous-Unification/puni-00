@@ -2647,3 +2647,13 @@ _Avoid_: postboot evidence, repair authority
 An identified set of stored telemetry selected to check history across a deployment change.
 Its continued availability is separate from current application health or migration readiness.
 _Avoid_: health checkpoint, restore receipt
+
+### Deployment verification
+
+**Deployment verification**:
+An observed outcome of a source revision's required checks, identifying its repository, source reference, pipeline, execution and attempt independently of the system performing the checks.
+_Avoid_: gate (alone), green build, CI receipt (without qualification)
+
+**Image provenance**:
+The digest-bound image metadata identifying the source revision claimed by its build, distinct from acceptance of that revision's checks or identification of a running process.
+_Avoid_: image tag, base-image revision, runtime identity

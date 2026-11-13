@@ -51,6 +51,8 @@ export function registryImageReader(auth: string | null): RegistryImageReader {
     if (remaining <= 0) throw new Error('registry image deadline exceeded');
     const response = await fetch(url, {
       headers: { ...headers, accept },
+      // Proof: removing redirect refusal admitted the redirected valid-digest fixture and contacted its destination.
+      redirect: 'error',
       // Proof: replacing this bound with 60s admitted the delayed config-body fixture.
       signal: AbortSignal.timeout(remaining),
     });

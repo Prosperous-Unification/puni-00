@@ -194,3 +194,36 @@ it('refuses malformed child digest before requesting child bytes', async () => {
   ).toContain('malformed registry digest');
   expect(registry.paths).toHaveLength(1);
 });
+
+it('refuses redirected otherwise-valid digest bytes without contacting their destination', async () => {
+  const fake = registry({ frontend: source });
+  const reference = fake.ref('frontend');
+  const target = `http://${reference.slice(0, reference.indexOf('/'))}`;
+  const forwarded: string[] = [];
+  const destination = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      forwarded.push(request.url);
+      return fetch(`${target}${new URL(request.url).pathname}`);
+    },
+  });
+  stops.push(() => destination.stop(true));
+  const redirect = Bun.serve({
+    port: 0,
+    fetch(request) {
+      return Response.redirect(
+        `http://127.0.0.1:${String(destination.port)}${new URL(request.url).pathname}`,
+        307,
+      );
+    },
+  });
+  stops.push(() => redirect.stop(true));
+  const redirected = `127.0.0.1:${String(redirect.port)}/${reference.slice(reference.indexOf('/') + 1)}`;
+  const message = await registryImageReader('u:secret-sentinel-3')(redirected, 1000).then(
+    () => 'accepted',
+    (error: unknown) => String(error),
+  );
+  expect(message).not.toBe('accepted');
+  expect(message).not.toContain('secret-sentinel-3');
+  expect(forwarded).toEqual([]);
+});
