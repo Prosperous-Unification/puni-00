@@ -130,299 +130,316 @@ async function readEnvelope<Label extends 'participants' | 'intent' | 'committed
 }
 
 for (const roster of [['prod'], ['dev'], ['prod', 'dev']] as const)
-  test(`real selected ${roster.join('+')} intent references retain exact producer evidence and authority`, async () => {
-    const fixture = await participantActivationFixture(roster);
-    process.env['WBS_EDGE_STATE'] = fixture.root;
-    await withDependencyOwner(
-      fixture.request.owner,
-      async (owner) => {
-        const pending = await readFile(join(fixture.root, 'edge-owner.pending'), 'utf8');
-        const prepared = await prepareActivatedParticipantsUnderOwner(
-          owner,
-          fixture.request,
-          fixture.layouts,
-          performance.now() + 180000,
-          fixture.root,
-          fixture.ports,
-        );
-        try {
-          const context = await consumePreparedDependencyActivation(owner, prepared);
-          expect(context.storage.intentRecords.map((entry) => entry.environment)).toEqual([
-            ...roster,
-          ]);
-          expect(context.storage.commitRecords.map((entry) => entry.environment)).toEqual([
-            ...roster,
-          ]);
-          const participants = await readEnvelope(
+  test(
+    `real selected ${roster.join('+')} intent references retain exact producer evidence and authority`,
+    async () => {
+      const fixture = await participantActivationFixture(roster);
+      process.env['WBS_EDGE_STATE'] = fixture.root;
+      await withDependencyOwner(
+        fixture.request.owner,
+        async (owner) => {
+          const pending = await readFile(join(fixture.root, 'edge-owner.pending'), 'utf8');
+          const prepared = await prepareActivatedParticipantsUnderOwner(
+            owner,
+            fixture.request,
+            fixture.layouts,
+            // Proof: scoped-test-budgets actual-callback finite replay expires with the former combined 180s operation input; 360s admits finite work without changing production guards.
+            performance.now() + (roster.length === 2 ? 360_000 : 180_000),
             fixture.root,
-            context.storage.participantRecord,
-            'participants',
+            fixture.ports,
           );
-          expect(participants.owner).toBe(pending);
-          expect(participants.record).toEqual(context.participants);
-          for (const [position, environment] of roster.entries()) {
-            const intentReference = context.storage.intentRecords[position];
-            const commitReference = context.storage.commitRecords[position];
-            const intent = await readEnvelope(fixture.root, intentReference.reference, 'intent');
-            const committed = await readEnvelope(
+          try {
+            const context = await consumePreparedDependencyActivation(owner, prepared);
+            expect(context.storage.intentRecords.map((entry) => entry.environment)).toEqual([
+              ...roster,
+            ]);
+            expect(context.storage.commitRecords.map((entry) => entry.environment)).toEqual([
+              ...roster,
+            ]);
+            const participants = await readEnvelope(
               fixture.root,
-              commitReference.reference,
-              'committed',
+              context.storage.participantRecord,
+              'participants',
             );
-            expect(intent.owner).toBe(pending);
-            expect(committed.owner).toBe(pending);
-            expect(intent.record.format).toBe('dependency-activation-intent');
-            expect(intent.record.version).toBe(1);
-            expect(intent.record.environment).toBe(environment);
-            expect(committed.record.environment).toBe(environment);
-            expect(intent.record.receipt).toEqual(committed.record.receipt);
-            expect(context.storage.receipts[position]).toEqual({
-              environment,
-              receipt: intent.record.receipt,
-            });
-            expect(intent.record.participantRecord).toEqual(context.storage.participantRecord);
-            expect(intent.record.receipt.participantProofSha256).toBe(
-              context.storage.participantRecord.sha256,
-            );
-            expect(intent.record.migrationManifestSha256).toBe(
-              fixture.request.migrations.manifestSha256,
-            );
-            expect(committed.record.migrationManifestSha256).toBe(
-              fixture.request.migrations.manifestSha256,
-            );
-            const backup = await readEnvelope(fixture.root, intent.record.backup, 'backup');
-            expect(backup.owner).toBe(pending);
-            expect(backup.record.environment).toBe(environment);
-            expect(backup.record.databaseIdentity).toBe(intent.record.receipt.databaseIdentity);
-            expect(backup.record.captureSha256).toBe(intent.record.capture.sha256);
-            expect(committed.record.captureSha256).toBe(intent.record.capture.sha256);
-            expect(intent.record.receipt.migrationCaptureSha256).toBe(intent.record.capture.sha256);
-            const evidence = join(fixture.root, `dependency-activation-${context.attempt}`);
-            const captureBytes = await readFile(join(evidence, intent.record.capture.name));
-            expect(digest(captureBytes)).toBe(intent.record.capture.sha256);
-            const capture = JSON.parse(captureBytes.toString('utf8')) as {
-              target: string;
-              candidate: string;
-              pending: unknown[];
-            };
-            expect(capture.target).toBe(intent.record.receipt.databaseIdentity);
-            expect(capture.candidate).toBe(intent.record.receipt.candidateImage);
-            expect(capture.pending).toEqual([]);
-            const backupBytes = await readFile(join(evidence, backup.record.snapshot.name));
-            expect(backupBytes.length).toBe(backup.record.snapshot.bytes);
-            expect(digest(backupBytes)).toBe(backup.record.snapshot.sha256);
-          }
-          for (const [environment, path] of [
-            ['prod', fixture.prodPath],
-            ['dev', fixture.devPath],
-          ] as const) {
-            const connection = openReadOnlyConnection(path);
-            try {
-              const selected = context.storage.receipts.find(
-                (entry) => entry.environment === environment,
+            expect(participants.owner).toBe(pending);
+            expect(participants.record).toEqual(context.participants);
+            for (const [position, environment] of roster.entries()) {
+              const intentReference = context.storage.intentRecords[position];
+              const commitReference = context.storage.commitRecords[position];
+              const intent = await readEnvelope(fixture.root, intentReference.reference, 'intent');
+              const committed = await readEnvelope(
+                fixture.root,
+                commitReference.reference,
+                'committed',
               );
-              expect(inspectDependencyActivation(connection.db)).toEqual(
-                selected === undefined
-                  ? { state: 'DISABLED', receipt: null }
-                  : { state: 'ENABLED', receipt: selected.receipt },
+              expect(intent.owner).toBe(pending);
+              expect(committed.owner).toBe(pending);
+              expect(intent.record.format).toBe('dependency-activation-intent');
+              expect(intent.record.version).toBe(1);
+              expect(intent.record.environment).toBe(environment);
+              expect(committed.record.environment).toBe(environment);
+              expect(intent.record.receipt).toEqual(committed.record.receipt);
+              expect(context.storage.receipts[position]).toEqual({
+                environment,
+                receipt: intent.record.receipt,
+              });
+              expect(intent.record.participantRecord).toEqual(context.storage.participantRecord);
+              expect(intent.record.receipt.participantProofSha256).toBe(
+                context.storage.participantRecord.sha256,
               );
-            } finally {
-              connection.close();
+              expect(intent.record.migrationManifestSha256).toBe(
+                fixture.request.migrations.manifestSha256,
+              );
+              expect(committed.record.migrationManifestSha256).toBe(
+                fixture.request.migrations.manifestSha256,
+              );
+              const backup = await readEnvelope(fixture.root, intent.record.backup, 'backup');
+              expect(backup.owner).toBe(pending);
+              expect(backup.record.environment).toBe(environment);
+              expect(backup.record.databaseIdentity).toBe(intent.record.receipt.databaseIdentity);
+              expect(backup.record.captureSha256).toBe(intent.record.capture.sha256);
+              expect(committed.record.captureSha256).toBe(intent.record.capture.sha256);
+              expect(intent.record.receipt.migrationCaptureSha256).toBe(
+                intent.record.capture.sha256,
+              );
+              const evidence = join(fixture.root, `dependency-activation-${context.attempt}`);
+              const captureBytes = await readFile(join(evidence, intent.record.capture.name));
+              expect(digest(captureBytes)).toBe(intent.record.capture.sha256);
+              const capture = JSON.parse(captureBytes.toString('utf8')) as {
+                target: string;
+                candidate: string;
+                pending: unknown[];
+              };
+              expect(capture.target).toBe(intent.record.receipt.databaseIdentity);
+              expect(capture.candidate).toBe(intent.record.receipt.candidateImage);
+              expect(capture.pending).toEqual([]);
+              const backupBytes = await readFile(join(evidence, backup.record.snapshot.name));
+              expect(backupBytes.length).toBe(backup.record.snapshot.bytes);
+              expect(digest(backupBytes)).toBe(backup.record.snapshot.sha256);
             }
+            for (const [environment, path] of [
+              ['prod', fixture.prodPath],
+              ['dev', fixture.devPath],
+            ] as const) {
+              const connection = openReadOnlyConnection(path);
+              try {
+                const selected = context.storage.receipts.find(
+                  (entry) => entry.environment === environment,
+                );
+                expect(inspectDependencyActivation(connection.db)).toEqual(
+                  selected === undefined
+                    ? { state: 'DISABLED', receipt: null }
+                    : { state: 'ENABLED', receipt: selected.receipt },
+                );
+              } finally {
+                connection.close();
+              }
+            }
+            await context.storage.evidence.inspect();
+            const first = context.storage.intentRecords[0];
+            const path = join(fixture.root, first.reference.name);
+            const bytes = await readFile(path);
+            if (roster.length === 2) {
+              const before = await lstat(path, { bigint: true });
+              await rename(path, path + '.original');
+              await writeFile(path, bytes, { flag: 'wx', mode: 0o600 });
+              const after = await lstat(path, { bigint: true });
+              expect(`${String(after.dev)}:${String(after.ino)}`).not.toBe(
+                `${String(before.dev)}:${String(before.ino)}`,
+              );
+              expect(await readFile(path)).toEqual(bytes);
+            } else {
+              await writeFile(path, Buffer.concat([bytes, Buffer.from('changed')]));
+              expect(digest(await readFile(path))).not.toBe(first.reference.sha256);
+            }
+            await rejects(context.storage.evidence.inspect());
+          } finally {
+            releasePreparedDependencyActivation(owner, prepared);
           }
-          await context.storage.evidence.inspect();
-          const first = context.storage.intentRecords[0];
-          const path = join(fixture.root, first.reference.name);
-          const bytes = await readFile(path);
-          if (roster.length === 2) {
-            const before = await lstat(path, { bigint: true });
-            await rename(path, path + '.original');
-            await writeFile(path, bytes, { flag: 'wx', mode: 0o600 });
-            const after = await lstat(path, { bigint: true });
-            expect(`${String(after.dev)}:${String(after.ino)}`).not.toBe(
-              `${String(before.dev)}:${String(before.ino)}`,
-            );
-            expect(await readFile(path)).toEqual(bytes);
-          } else {
-            await writeFile(path, Buffer.concat([bytes, Buffer.from('changed')]));
-            expect(digest(await readFile(path))).not.toBe(first.reference.sha256);
-          }
-          await rejects(context.storage.evidence.inspect());
-        } finally {
-          releasePreparedDependencyActivation(owner, prepared);
-        }
-      },
-      fixture.root,
-    );
-  }, 180000);
+        },
+        fixture.root,
+      );
+      // Proof: scoped-test-budgets actual-registration replay fails with the former combined 180s outer budget; 420s admits finite work, and its hang still fails.
+    },
+    roster.length === 2 ? 420_000 : 180_000,
+  );
 
 for (const roster of [['prod'], ['dev'], ['prod', 'dev']] as const)
-  test(`initial handoff ${roster.join('+')} retains genuine bounded original evidence`, async () => {
-    const fixture = await participantActivationFixture(roster);
-    bindFixtureLayouts(fixture);
-    process.env['WBS_EDGE_STATE'] = fixture.root;
-    await withDependencyOwner(
-      fixture.request.owner,
-      async (owner) => {
-        const prepared = await prepareInitialDependencyHandoffUnderOwner(
-          owner,
-          fixture.request,
-          fixture.layouts,
-          performance.now() + 180000,
-          fixture.root,
-          fixture.ports,
-        );
-        let released = false;
-        try {
-          await rejects(consumePreparedDependencyActivation(owner, { ...prepared }));
-          const context = await consumePreparedDependencyActivation(owner, prepared);
-          expect(context.purpose).toBe('initial-handoff');
-          if (context.purpose !== 'initial-handoff')
-            throw new Error('mandatory initial evidence absent');
-          expect(context.storage.purpose).toBe('initial-handoff');
-          expect(context.storage.artifacts.selected.map(({ environment }) => environment)).toEqual([
-            ...roster,
-          ]);
-          const labels = context.storage.records.map(
-            ({ contents }) =>
-              (JSON.parse(contents) as { record: { format: string } }).record.format,
-          );
-          expect(labels).toEqual([
-            ...roster.flatMap(() => [
-              'dependency-activation-capture',
-              'dependency-activation-backup',
-            ]),
-            'complete-dependency-participants',
-            ...roster.flatMap(() => [
-              'dependency-activation-intent',
-              'dependency-activation-committed',
-            ]),
-          ]);
-          const pending = await readFile(join(fixture.root, 'edge-owner.pending'), 'utf8');
-          expect(context.pending.contents).toBe(pending);
-          const participants = await readEnvelope(
+  test(
+    `initial handoff ${roster.join('+')} retains genuine bounded original evidence`,
+    async () => {
+      const fixture = await participantActivationFixture(roster);
+      bindFixtureLayouts(fixture);
+      process.env['WBS_EDGE_STATE'] = fixture.root;
+      await withDependencyOwner(
+        fixture.request.owner,
+        async (owner) => {
+          const prepared = await prepareInitialDependencyHandoffUnderOwner(
+            owner,
+            fixture.request,
+            fixture.layouts,
+            // Proof: scoped-test-budgets actual-callback finite replay expires with the former combined 180s operation input; 360s admits finite work without changing production guards.
+            performance.now() + (roster.length === 2 ? 360_000 : 180_000),
             fixture.root,
-            context.storage.participantRecord,
-            'participants',
+            fixture.ports,
           );
-          expect(participants.owner).toBe(pending);
-          expect(participants.record).toEqual(context.participants);
-          for (const [position, environment] of roster.entries()) {
-            const intentReference = context.storage.intentRecords.at(position);
-            const commitReference = context.storage.commitRecords.at(position);
-            if (intentReference === undefined || commitReference === undefined)
-              throw new Error('selected provenance absent');
-            const intent = await readEnvelope(fixture.root, intentReference.reference, 'intent');
-            const committed = await readEnvelope(
+          let released = false;
+          try {
+            await rejects(consumePreparedDependencyActivation(owner, { ...prepared }));
+            const context = await consumePreparedDependencyActivation(owner, prepared);
+            expect(context.purpose).toBe('initial-handoff');
+            if (context.purpose !== 'initial-handoff')
+              throw new Error('mandatory initial evidence absent');
+            expect(context.storage.purpose).toBe('initial-handoff');
+            expect(
+              context.storage.artifacts.selected.map(({ environment }) => environment),
+            ).toEqual([...roster]);
+            const labels = context.storage.records.map(
+              ({ contents }) =>
+                (JSON.parse(contents) as { record: { format: string } }).record.format,
+            );
+            expect(labels).toEqual([
+              ...roster.flatMap(() => [
+                'dependency-activation-capture',
+                'dependency-activation-backup',
+              ]),
+              'complete-dependency-participants',
+              ...roster.flatMap(() => [
+                'dependency-activation-intent',
+                'dependency-activation-committed',
+              ]),
+            ]);
+            const pending = await readFile(join(fixture.root, 'edge-owner.pending'), 'utf8');
+            expect(context.pending.contents).toBe(pending);
+            const participants = await readEnvelope(
               fixture.root,
-              commitReference.reference,
-              'committed',
+              context.storage.participantRecord,
+              'participants',
             );
-            const backup = await readEnvelope(fixture.root, intent.record.backup, 'backup');
-            expect(intent.owner).toBe(pending);
-            expect(committed.owner).toBe(pending);
-            expect(backup.owner).toBe(pending);
-            expect(intent.record.environment).toBe(environment);
-            expect(committed.record.receipt).toEqual(intent.record.receipt);
-            expect(context.storage.receipts[position]).toEqual({
-              environment,
-              receipt: intent.record.receipt,
-            });
-            expect(intent.record.participantRecord).toEqual(context.storage.participantRecord);
-            expect(intent.record.receipt.participantProofSha256).toBe(
-              context.storage.participantRecord.sha256,
-            );
-            expect(intent.record.receipt.migrationCaptureSha256).toBe(intent.record.capture.sha256);
-            expect(backup.record.captureSha256).toBe(intent.record.capture.sha256);
-            expect(committed.record.captureSha256).toBe(intent.record.capture.sha256);
-            expect(intent.record.migrationManifestSha256).toBe(
-              fixture.request.migrations.manifestSha256,
-            );
-            expect(committed.record.migrationManifestSha256).toBe(
-              fixture.request.migrations.manifestSha256,
-            );
-            const evidence = join(fixture.root, `dependency-activation-${context.attempt}`);
-            const captured = await readFile(join(evidence, intent.record.capture.name), 'utf8');
-            const selected = context.storage.artifacts.selected.find(
-              (entry) => entry.environment === environment,
-            );
-            if (selected === undefined) throw new Error('selected original raw projection absent');
-            expect(selected.captureContents).toBe(captured);
-            expect(digest(captured)).toBe(intent.record.capture.sha256);
-            expect(selected.backup).toEqual({
-              name: backup.record.snapshot.name,
-              sha256: backup.record.snapshot.sha256,
-              bytes: backup.record.snapshot.bytes,
-            });
-            const bytes = await readFile(join(evidence, selected.backup.name));
-            expect(bytes.length).toBe(selected.backup.bytes);
-            expect(digest(bytes)).toBe(selected.backup.sha256);
-            const capture = migrationSets.parseMigrationSetCapture(JSON.parse(captured), {
-              target: intent.record.receipt.databaseIdentity,
-              attempt: `${context.attempt}:${environment}`,
-              candidate: intent.record.receipt.candidateImage,
-            });
-            expect(capture.target).toBe(intent.record.receipt.databaseIdentity);
-            expect(capture.candidate).toBe(intent.record.receipt.candidateImage);
-            expect(capture.pending).toEqual([]);
-            const ledger = openReadOnlyConnection(join(evidence, selected.backup.name));
-            try {
-              const namesAndHashes = ledger.db.all<{ name: string; hash: string }>(
-                sql.raw('SELECT name,hash FROM __drizzle_migrations ORDER BY created_at,name'),
+            expect(participants.owner).toBe(pending);
+            expect(participants.record).toEqual(context.participants);
+            for (const [position, environment] of roster.entries()) {
+              const intentReference = context.storage.intentRecords.at(position);
+              const commitReference = context.storage.commitRecords.at(position);
+              if (intentReference === undefined || commitReference === undefined)
+                throw new Error('selected provenance absent');
+              const intent = await readEnvelope(fixture.root, intentReference.reference, 'intent');
+              const committed = await readEnvelope(
+                fixture.root,
+                commitReference.reference,
+                'committed',
               );
-              expect(namesAndHashes).toEqual(capture.applied);
-            } finally {
-              ledger.close();
-            }
-          }
-          for (const publication of context.storage.records)
-            expect(await readFile(publication.path, 'utf8')).toBe(publication.contents);
-          for (const [environment, path] of [
-            ['prod', fixture.prodPath],
-            ['dev', fixture.devPath],
-          ] as const) {
-            const connection = openReadOnlyConnection(path);
-            try {
-              const selected = context.storage.receipts.find(
+              const backup = await readEnvelope(fixture.root, intent.record.backup, 'backup');
+              expect(intent.owner).toBe(pending);
+              expect(committed.owner).toBe(pending);
+              expect(backup.owner).toBe(pending);
+              expect(intent.record.environment).toBe(environment);
+              expect(committed.record.receipt).toEqual(intent.record.receipt);
+              expect(context.storage.receipts[position]).toEqual({
+                environment,
+                receipt: intent.record.receipt,
+              });
+              expect(intent.record.participantRecord).toEqual(context.storage.participantRecord);
+              expect(intent.record.receipt.participantProofSha256).toBe(
+                context.storage.participantRecord.sha256,
+              );
+              expect(intent.record.receipt.migrationCaptureSha256).toBe(
+                intent.record.capture.sha256,
+              );
+              expect(backup.record.captureSha256).toBe(intent.record.capture.sha256);
+              expect(committed.record.captureSha256).toBe(intent.record.capture.sha256);
+              expect(intent.record.migrationManifestSha256).toBe(
+                fixture.request.migrations.manifestSha256,
+              );
+              expect(committed.record.migrationManifestSha256).toBe(
+                fixture.request.migrations.manifestSha256,
+              );
+              const evidence = join(fixture.root, `dependency-activation-${context.attempt}`);
+              const captured = await readFile(join(evidence, intent.record.capture.name), 'utf8');
+              const selected = context.storage.artifacts.selected.find(
                 (entry) => entry.environment === environment,
               );
-              expect(inspectDependencyActivation(connection.db)).toEqual(
-                selected === undefined
-                  ? { state: 'DISABLED', receipt: null }
-                  : { state: 'ENABLED', receipt: selected.receipt },
-              );
-            } finally {
-              connection.close();
+              if (selected === undefined)
+                throw new Error('selected original raw projection absent');
+              expect(selected.captureContents).toBe(captured);
+              expect(digest(captured)).toBe(intent.record.capture.sha256);
+              expect(selected.backup).toEqual({
+                name: backup.record.snapshot.name,
+                sha256: backup.record.snapshot.sha256,
+                bytes: backup.record.snapshot.bytes,
+              });
+              const bytes = await readFile(join(evidence, selected.backup.name));
+              expect(bytes.length).toBe(selected.backup.bytes);
+              expect(digest(bytes)).toBe(selected.backup.sha256);
+              const capture = migrationSets.parseMigrationSetCapture(JSON.parse(captured), {
+                target: intent.record.receipt.databaseIdentity,
+                attempt: `${context.attempt}:${environment}`,
+                candidate: intent.record.receipt.candidateImage,
+              });
+              expect(capture.target).toBe(intent.record.receipt.databaseIdentity);
+              expect(capture.candidate).toBe(intent.record.receipt.candidateImage);
+              expect(capture.pending).toEqual([]);
+              const ledger = openReadOnlyConnection(join(evidence, selected.backup.name));
+              try {
+                const namesAndHashes = ledger.db.all<{ name: string; hash: string }>(
+                  sql.raw('SELECT name,hash FROM __drizzle_migrations ORDER BY created_at,name'),
+                );
+                expect(namesAndHashes).toEqual(capture.applied);
+              } finally {
+                ledger.close();
+              }
             }
+            for (const publication of context.storage.records)
+              expect(await readFile(publication.path, 'utf8')).toBe(publication.contents);
+            for (const [environment, path] of [
+              ['prod', fixture.prodPath],
+              ['dev', fixture.devPath],
+            ] as const) {
+              const connection = openReadOnlyConnection(path);
+              try {
+                const selected = context.storage.receipts.find(
+                  (entry) => entry.environment === environment,
+                );
+                expect(inspectDependencyActivation(connection.db)).toEqual(
+                  selected === undefined
+                    ? { state: 'DISABLED', receipt: null }
+                    : { state: 'ENABLED', receipt: selected.receipt },
+                );
+              } finally {
+                connection.close();
+              }
+            }
+            await rejects(assertParticipantRestorationContext({ ...context }));
+            await rejects(consumePreparedDependencyActivation(owner, prepared));
+            await context.storage.evidence.inspect();
+            expect(Object.isFrozen(context.storage.artifacts.selected)).toBe(true);
+            expect(Object.isFrozen(context.storage.records)).toBe(true);
+            const first = context.storage.artifacts.selected[0];
+            expect(() => {
+              Object.assign(first.backup, { sha256: '0'.repeat(64) });
+            }).toThrow();
+            const path = join(
+              fixture.root,
+              `dependency-activation-${context.attempt}`,
+              first.backup.name,
+            );
+            await rename(path, path + '.original');
+            await writeFile(path, await readFile(path + '.original'), { flag: 'wx', mode: 0o600 });
+            await rejects(context.storage.evidence.inspect());
+            releasePreparedDependencyActivation(owner, prepared);
+            released = true;
+            await rejects(assertParticipantRestorationContext(context));
+            await rejects(context.storage.evidence.inspect());
+          } finally {
+            if (!released) releasePreparedDependencyActivation(owner, prepared);
           }
-          await rejects(assertParticipantRestorationContext({ ...context }));
-          await rejects(consumePreparedDependencyActivation(owner, prepared));
-          await context.storage.evidence.inspect();
-          expect(Object.isFrozen(context.storage.artifacts.selected)).toBe(true);
-          expect(Object.isFrozen(context.storage.records)).toBe(true);
-          const first = context.storage.artifacts.selected[0];
-          expect(() => {
-            Object.assign(first.backup, { sha256: '0'.repeat(64) });
-          }).toThrow();
-          const path = join(
-            fixture.root,
-            `dependency-activation-${context.attempt}`,
-            first.backup.name,
-          );
-          await rename(path, path + '.original');
-          await writeFile(path, await readFile(path + '.original'), { flag: 'wx', mode: 0o600 });
-          await rejects(context.storage.evidence.inspect());
-          releasePreparedDependencyActivation(owner, prepared);
-          released = true;
-          await rejects(assertParticipantRestorationContext(context));
-          await rejects(context.storage.evidence.inspect());
-        } finally {
-          if (!released) releasePreparedDependencyActivation(owner, prepared);
-        }
-      },
-      fixture.root,
-    );
-  }, 180000);
+        },
+        fixture.root,
+      );
+      // Proof: scoped-test-budgets actual-registration replay fails with the former combined 180s outer budget; 420s admits finite work, and its hang still fails.
+    },
+    roster.length === 2 ? 420_000 : 180_000,
+  );
 
 function inspectStores(fixture: Awaited<ReturnType<typeof participantActivationFixture>>) {
   return [fixture.prodPath, fixture.devPath].map((path) => {

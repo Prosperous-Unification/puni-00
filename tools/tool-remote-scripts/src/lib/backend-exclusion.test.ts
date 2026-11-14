@@ -1048,6 +1048,7 @@ async function createSourceCompositionFixture(solverImage?: string, inert = fals
   return { f, solver, prod, selectedDev, source, retained, events, runner };
 }
 
+// Proof: scoped-test-budgets finite registration replay times out at the inherited 10s budget; the explicit 90s allowance passes, while its scaled hang still fails.
 test('combined coordinator retains solver tmpfs and source members throughout awaited protected work', async () => {
   const { excludeSourceAndManagedDependencies } = await import('./dependency-activation-owner');
   const { f, solver, prod, selectedDev, source, retained, events, runner } =
@@ -1098,7 +1099,7 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
         expect(await readFile(`${directory}/${name}`, 'utf8')).not.toMatch(
           /COMPOSED_(?:PRIVATE|CADDY|ADAPTED)_SENTINEL/,
         );
-});
+}, 90_000);
 
 for (const fault of [
   'none',
