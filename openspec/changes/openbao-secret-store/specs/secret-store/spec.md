@@ -82,10 +82,16 @@ fleet repository, and the fleet check MUST refuse `source: openbao` for any memb
 - **WHEN** `externally-provided.json` marks `velero-repo-credentials` as `source: openbao`
 - **THEN** `tool-fleet:check` fails naming the bootstrap Secret
 
-### Requirement: Stages before the store consume nothing from it
+### Requirement: Sync objects live only in the sync stage
 
 The fleet check MUST refuse `source: openbao` for any Secret consumed by a stage at or before
-`secret-store`, and MUST refuse an `ExternalSecret` or Vault issuer in such a stage.
+`secret-store`, and MUST refuse a `SecretStore`, `ExternalSecret` or Vault issuer in any stage
+other than `secret-sync`.
+
+#### Scenario: An ExternalSecret in a consumer stage
+
+- **WHEN** an `ExternalSecret` is added to the `observability` stage's path
+- **THEN** `tool-fleet:check` fails naming the stage and object
 
 #### Scenario: A certificates-stage Secret is migrated
 
@@ -96,6 +102,11 @@ The fleet check MUST refuse `source: openbao` for any Secret consumed by a stage
 
 - **WHEN** a fresh cluster reconciles with only the bootstrap set and the latest snapshot
 - **THEN** the store restores, synced Secrets appear, and every stage reaches Ready without manual Secret creation
+
+#### Scenario: Cold rebuild while Auth0 is unreachable
+
+- **WHEN** the rebuild runs in restore mode and the Auth0 tenant cannot be reached
+- **THEN** initialization, snapshot restore and root-token revocation complete without operator OIDC login
 
 ### Requirement: Every store-sourced Secret is declared
 
@@ -114,9 +125,15 @@ Each `externally-provided.json` entry with `source: openbao` SHALL have a same-n
 
 ### Requirement: Store configuration is declared and drift is visible
 
-After self-init, mounts, auth methods, roles and policies SHALL change only through the attended
-`secret-store apply` command, which MUST refuse unknown live objects, and a drift job SHALL raise
-`OpenBaoConfigDrift` when live configuration differs from the Git render.
+One Git declaration SHALL be the source of every mount, auth method, role and policy, including
+the objects self-init creates. After self-init they SHALL change only through the attended
+`secret-store apply` command, which MUST refuse unknown live objects other than OpenBao built-ins,
+and a drift job SHALL raise `OpenBaoConfigDrift` when live configuration differs from it.
+
+#### Scenario: Self-init objects are adopted
+
+- **WHEN** `secret-store plan` first runs against a freshly self-initialized store
+- **THEN** it reports the operator OIDC mount, role and admin policy as matching the declaration and refuses nothing
 
 #### Scenario: A policy added out of band
 

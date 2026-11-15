@@ -26,6 +26,15 @@ Design only, 2026-11-15. No implementation, rehearsal or live receipt exists; ev
    glossary term renamed to "OpenBao namespace", spec scenarios for every refusal, test names in
    group 2 tasks, recovery keys from `sys/rotate/recovery/init` after the first OIDC login.
 
+3. **Re-review at 27a1a3b0c** (Fable 5.2, high effort). Both earlier S1s confirmed resolved. One
+   new S1, applied: ESO custom resources in the same Kustomization as the HelmRelease that installs
+   their CRDs never pass Flux's pre-apply dry-run, so ESO moves to its own `secret-operator` stage.
+   S2s applied: `SecretStore`/`ExternalSecret` confined to `secret-sync`; the cross-repo
+   `bootstrap-secrets` dependency dropped, local rehearsal sourced from the disposable rehearsal
+   commit and workers `otel-client-ca` kept `operator` until fleet enrolment; one Git declaration
+   owns the self-init objects too; cold rebuild runs in restore mode without Auth0; ADR and
+   glossary qualified to match the design's stated exceptions.
+
 Still unverified and owed by P1: ESO keeping a Secret when refresh fails (task 3.2), ESO 2.15
 against OpenBao 2.7 (task 3.11), certificate reload on renewal (task 3.10).
 

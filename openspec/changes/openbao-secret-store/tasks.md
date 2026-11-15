@@ -11,9 +11,9 @@ check, watch the named test fail, then add the adjacent `Proof:` comment.
 - [ ] 1.1 Vendor `openbao-0.30.7.tgz` and the ESO v2.15.0 chart into `infra/platform/charts/`
       and pin both, with image digests, in `infra/versions/toolchain.json`. Test: the existing
       chart-binding check fails for an unpinned or digest-mismatched archive.
-- [ ] 1.2 Add `secret-store` (platform clusters) and `secret-sync` (all clusters) with the
-      `dependsOn` of design D13; `secret-sync` has `wait: false` and `healthChecks`. Test
-      `refuses a dependsOn naming secret-store`; negative fixture per platform overlay.
+- [ ] 1.2 Add `secret-store` (platform clusters), `secret-operator` and `secret-sync` (all
+      clusters) with the `dependsOn` of design D13; `secret-sync` has `wait: false` and
+      `healthChecks`. Tests `refuses a dependsOn naming secret-store` and `refuses ESO resources in secret-operator`; negative fixture per overlay.
 - [ ] 1.3 Refuse cluster-scoped ESO kinds, `PushSecret`, generators, injector and CSI anywhere.
       Tests: one refusal fixture per kind.
 - [ ] 1.4 Refuse an `ExternalSecret` whose store is in another namespace, or whose
@@ -22,12 +22,14 @@ check, watch the named test fail, then add the adjacent `Proof:` comment.
       same-namespace `ExternalSecret` and `SecretStore`; refuse undeclared targets. Tests:
       `declared but not synced`, `synced but not declared`.
 - [ ] 1.6 Refuse `source: openbao` for the bootstrap set and for any Secret the derived
-      consumption graph attributes to a stage at or before `secret-store`; refuse an
-      `ExternalSecret` or Vault issuer in such a stage. Tests: `velero-repo-credentials` and
-      `otel-server-ca` fixtures fail naming the bootstrap entry and the consuming stage.
+      consumption graph attributes to a stage at or before `secret-store`; refuse a
+      `SecretStore`, `ExternalSecret` or Vault issuer in any stage but `secret-sync`. Tests:
+      `velero-repo-credentials` and `otel-server-ca` fixtures fail naming the bootstrap entry and
+      the consuming stage; an `ExternalSecret` under `observability` fails naming the stage.
 - [ ] 1.7 Fleet repository: `clusters/<cluster-id>/bootstrap-secrets/` Kustomization with SOPS
-      files for the D10 set; move Velero, Alertmanager and CA signing entries from `operator` to
-      it. Test: fleet-check refuses a plaintext value there.
+      files for the platform's D10 set; move Velero, Alertmanager and platform CA signing entries
+      from `operator` to it. Extend the local rehearsal commit with disposable values for the same
+      set. Test: fleet-check refuses a plaintext value there.
 - [ ] 1.8 Measure OpenBao, ESO and drill memory requests in P1 and add them to h4claw's
       coexistence budget; the observability preflight refuses an over-budget plan.
 - [ ] 1.9 Write `docs/infra/secrets.md` (operator runbook: escrow, key retention, unseal,
@@ -37,12 +39,14 @@ check, watch the named test fail, then add the adjacent `Proof:` comment.
 ## 2. Store configuration
 
 - [ ] 2.1 Implement `secret-store plan|apply` (design D8a): pure planner from the Git
-      declaration and a live read to a diff; dry-run default; refuses unknown live mounts, auth
-      methods, roles and policies. Tests: `plans no change for an identical store`,
+      declaration and a live read to a diff; dry-run default; adopts the self-init objects;
+      allow-lists OpenBao built-ins; refuses unknown live mounts, auth methods, roles and
+      policies. Extra test: `adopts the self-init objects without a refusal`. Tests: `plans no change for an identical store`,
       `refuses an undeclared policy`, `refuses an undeclared auth method`, `dry-run writes nothing`.
 - [ ] 2.2 Render OpenBao values: one Raft replica, node selector
-      `puni.dev/capability-secret-store`, static seal from `file://`, minimal self-init (operator
-      OIDC mount, role, admin policy), stdout audit device, Restricted Pod Security, NetworkPolicy
+      `puni.dev/capability-secret-store`, static seal from `file://`, self-init rendered from the
+      2.1 declaration (operator OIDC mount, role, admin policy), a restore mode with self-init
+      disabled, stdout audit device, Restricted Pod Security, NetworkPolicy
       of design D8. Tests: render check refuses self-init requests outside the allow-list and an
       audit device declared through the API.
 - [ ] 2.3 Server certificate (`openbao.puni.internal` plus in-cluster service names, 90 days)
@@ -74,8 +78,9 @@ check, watch the named test fail, then add the adjacent `Proof:` comment.
 - [ ] 3.7 Restore succeeds with the cluster seal key and stays sealed with a wrong key.
 - [ ] 3.8 First operator OIDC login, `sys/rotate/recovery/init`, then `generate-root` with
       recovery keys while Auth0 is unreachable.
-- [ ] 3.9 Cold rebuild: empty cluster plus bootstrap set and latest snapshot reaches Ready for
-      every stage with no manual Secret creation.
+- [ ] 3.9 Cold rebuild in restore mode with Auth0 unreachable: `bao operator init`, snapshot
+      restore with `-force`, root revocation; then every stage reaches Ready with no manual Secret
+      creation and the escrowed recovery keys authorize `generate-root`.
 - [ ] 3.10 Certificate renewal: prove whether OpenBao serves the renewed leaf without restart;
       if not, implement and prove the controlled restart on renewal.
 - [ ] 3.11 ESO v2.15.0 against OpenBao v2.7.2 syncs, refreshes and reports errors.
@@ -90,7 +95,8 @@ check, watch the named test fail, then add the adjacent `Proof:` comment.
       the same probe; attended escrow restore on a second machine; escrow the recovery shares
       before any non-canary write.
 - [ ] 4.3 P3: migrate in design D12 order, one PR and one cutover receipt per Secret.
-- [ ] 4.4 P4: private DNS for `openbao.puni.internal`; workers clusters; runbook entry and alert
+- [ ] 4.4 P4: private DNS for `openbao.puni.internal`; enrol each workers cluster in the fleet
+      repository with its own age recipient and move its `otel-client-ca` there; workers clusters; runbook entry and alert
       for service-account key rotation.
 - [ ] 4.5 Delete `tools/tool-secrets` and the placeholder `.sops.yaml` rule; move WBS `.env`
       values to `kv` with the attended push.

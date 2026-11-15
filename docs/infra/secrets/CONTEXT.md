@@ -16,8 +16,9 @@ A Kubernetes Secret written by External Secrets Operator from a secret store pat
 _Avoid_: injected secret, mounted secret
 
 **Bootstrap set**:
-The credentials that must exist before the secret store can start or be recovered, and so are
-never sourced from it.
+The credentials never sourced from the secret store: those it needs to start or be recovered,
+those consumed by stages that reconcile before it, and those that must keep working while it is
+down.
 _Avoid_: seed secrets, root secrets
 
 **Secret reader**:

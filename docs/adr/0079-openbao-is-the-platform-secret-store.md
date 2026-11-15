@@ -3,8 +3,8 @@
 Platform credentials move to one OpenBao store on the platform cluster, synced into Kubernetes
 Secrets only by External Secrets Operator, because SOPS alone gives no per-identity scoping,
 audit, store-side revocation or tenant isolation. Delivery and the stage graph are shaped so a
-sealed or absent store stops secret changes but never stops running workloads or Flux reconciles,
-and a bootstrap set held outside the store keeps its own recovery path independent of it. Design
+sealed or absent store stops secret changes but never running workloads, and blocks Flux only for
+commits that add a new synced Secret or during a cold rebuild before restore; and a bootstrap set held outside the store keeps its own recovery path independent of it. Design
 and phases: [openbao-secret-store](../../openspec/changes/openbao-secret-store/design.md).
 
 ## Considered Options

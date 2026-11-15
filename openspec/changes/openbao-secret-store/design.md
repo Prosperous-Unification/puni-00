@@ -125,20 +125,30 @@ address through the same probe, so a dead network cannot pass it.
 
 ### D8a Configuration reconciliation
 
-Self-init is one-shot (upstream: to repeat it, remove all storage), so it stays minimal: the
-operator OIDC mount, its role and the operator admin policy. The fleet check allow-lists the
-`initialize` paths. Audit is a server-config stanza, not an API object.
+One Git declaration is the source for every store object: mounts, auth methods, roles and
+policies. Self-init is one-shot (upstream: to repeat it, remove all storage), so it renders only
+three objects from that declaration: the operator OIDC mount, its role and the operator admin
+policy. Audit is a server-config stanza, not an API object. The fleet check refuses a self-init
+request that is not rendered from the declaration.
 
-Everything else (the `kv` mount, Kubernetes auth, JWT mounts, reader and Job policies) is
-declared in Git and applied by an attended operator command, `secret-store plan|apply`, from day
-one. `apply` is dry-run by default, prints the diff, and refuses unknown live mounts, auth
-methods, roles or policies. It runs under the operator's short OIDC token, or a `generate-root`
-token when Auth0 is down. There is **no standing write credential**: a credential that writes
-policies is root-equivalent, and D5's templated policy means new namespaces need no store change,
-so changes are rare. A drift CronJob with a read/list-only policy compares live state to the Git
-render and raises `OpenBaoConfigDrift`. Rejected: a standing in-cluster reconciler (a
-network-reachable root), OpenTofu (state and a toolchain, and it does not refuse unmanaged
-objects).
+An attended operator command, `secret-store plan|apply`, reconciles the live store to the whole
+declaration from day one, **including** the three self-init objects, which it adopts on first run;
+OpenBao's built-ins (`token` auth, `cubbyhole`, `sys`, `identity`, the `default` policy) are
+allow-listed. `apply` is dry-run by default, prints the diff, and refuses unknown live mounts, auth
+methods, roles or policies. Rotating the Auth0 client secret is a declaration change applied the
+same way. `apply` runs under the operator's short OIDC token, or a `generate-root` token when Auth0
+is down. There is **no standing write credential**: a credential that writes policies is
+root-equivalent, and D5's templated policy means new namespaces need no store change, so changes
+are rare. A drift CronJob with a read/list-only policy compares live state to the declaration and
+raises `OpenBaoConfigDrift`. Rejected: a standing in-cluster reconciler (a network-reachable root),
+OpenTofu (state and a toolchain, and it does not refuse unmanaged objects).
+
+**Cold rebuild does not self-init.** Self-init revokes its root token and creates no recovery
+keys, so a rebuilt empty store would be reachable only through Auth0. The rebuild runbook instead
+starts the store in restore mode (self-init disabled), runs `bao operator init` (auto-unseal
+returns a root token and fresh recovery keys), restores the latest snapshot with `-force`, which
+brings back the escrowed recovery-key configuration and every declared object, then revokes that
+root token. Auth0 is not needed at any step (task 3.9).
 
 ### D9 PKI
 
@@ -149,16 +159,23 @@ renew 8 h before expiry, so a PKI issuer on one replica would make telemetry dep
 
 ### D10 Bootstrap set outside OpenBao
 
-| Placed by                                        | Secrets                                                                                                                                                                                                                                |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ansible `platform.yml`                           | `sops-age`, cluster kubeconfig Secrets, `puni-platform-auth`, k3s tokens                                                                                                                                                               |
-| Operator by hand                                 | `puni-fleet-auth`                                                                                                                                                                                                                      |
-| SOPS in private puni-fleet (`bootstrap-secrets`) | cluster seal key, OpenBao server CA signing Secret, Auth0 OIDC client secret, snapshot S3 credentials, `velero-credentials`, `velero-repo-credentials`, `alertmanager-puni`, `registry-ca`, `otel-server-ca`, workers `otel-client-ca` |
+| Placed by                                        | Secrets                                                                                                                                                                                                      |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Ansible `platform.yml`                           | `sops-age`, cluster kubeconfig Secrets, `puni-platform-auth`, k3s tokens                                                                                                                                     |
+| Operator by hand                                 | `puni-fleet-auth`; workers `otel-client-ca` until fleet enrolment                                                                                                                                            |
+| SOPS in private puni-fleet (`bootstrap-secrets`) | cluster seal key, OpenBao server CA signing Secret, Auth0 OIDC client secret, snapshot S3 credentials, `velero-credentials`, `velero-repo-credentials`, `alertmanager-puni`, `registry-ca`, `otel-server-ca` |
 
-puni-00 is public and published ciphertext cannot be revoked, so the bootstrap SOPS files live in
-puni-fleet's `clusters/<cluster-id>/bootstrap-secrets/`, reconciled by a fleet Kustomization
-`bootstrap-secrets` that decrypts with the same `sops-age`; puni-00's `secret-store` stage depends
-on it by name. The CA signing Secrets stay here because the `certificates` stage, which is
+puni-00 is public and published ciphertext cannot be revoked, so the production platform's
+bootstrap SOPS files live in puni-fleet's `clusters/<cluster-id>/bootstrap-secrets/`, reconciled by
+a fleet Kustomization `bootstrap-secrets` that decrypts with the same `sops-age`. No puni-00 stage
+names it in `dependsOn`: a missing seal-key Secret already holds the store pod, and nothing depends
+on `secret-store`. Local rehearsal clusters take the same set from the existing disposable
+rehearsal commit (generated age identity, test values in `infra/platform/secrets/platform-local/`).
+Workers clusters read only puni-00 and the fleet SOPS rule encrypts to the platform recipient
+alone, so workers `otel-client-ca` stays `source: operator` until a workers cluster is enrolled in
+the fleet repository with its own recipient (task 4.4).
+
+The CA signing Secrets stay in the bootstrap set because the `certificates` stage, which is
 health-gated on Certificate Ready, consumes them before the store exists; moving them into the
 store would deadlock a cold rebuild. They move only with PKI in P5.
 
@@ -187,29 +204,40 @@ an attended operator push writes the file until WBS runs in-cluster. `tool-secre
 
 ### D13 Stage graph
 
-| Stage               | Path                         | Waits for                                                 |
-| ------------------- | ---------------------------- | --------------------------------------------------------- |
-| `bootstrap-secrets` | puni-fleet, per cluster      | none (fleet graph)                                        |
-| `secret-store`      | `secret-store/<environment>` | storage, policy, secrets, certificates, bootstrap-secrets |
-| `secret-sync`       | `secret-sync/<cluster-id>`   | policy, secrets                                           |
+| Stage             | Path                            | Waits for                              |
+| ----------------- | ------------------------------- | -------------------------------------- |
+| `secret-store`    | `secret-store/<environment>`    | storage, policy, secrets, certificates |
+| `secret-operator` | `secret-operator/<environment>` | policy                                 |
+| `secret-sync`     | `secret-sync/<cluster-id>`      | secret-operator, secrets               |
 
 **Nothing depends on `secret-store`**, and `secret-sync` does not depend on it either: Flux marks
 a Kustomization `DependencyNotReady` and skips its apply while any dependency is not Ready, so a
 sealed store in the chain would stop `platform`, `observability`, `alerts` and `backup` from
-reconciling. `secret-sync` (ESO, the `SecretStore`s and `ExternalSecret`s) uses `wait: false` with
-`healthChecks` on the ESO Deployments and the target Secrets' existence; consumers (`platform`,
-`observability`) depend on it. With existing Secrets, an outage therefore blocks no reconcile.
-Sync freshness is an alert (`ExternalSecretSyncFailed`, `OpenBaoSealed`), not a gate. Workers
-clusters get only `secret-sync`, also after `policy` and `secrets`.
+reconciling.
 
-Residual: a commit that adds a **new** `ExternalSecret` during an outage fails the target-existence
-health check and blocks `secret-sync`'s dependents until the store returns; such commits wait.
+ESO's chart and CRDs are in `secret-operator`, apart from its custom resources: Flux dry-runs every
+non-CRD object in a Kustomization before applying any, so `SecretStore`s and `ExternalSecret`s in
+the same stage as the HelmRelease that installs their CRDs would never apply. This repeats the
+existing `controllers`/`certificates` and `observability`/`alerts` split. `secret-operator` uses
+`wait: true`; it does not involve the store, so an outage leaves it Ready.
 
-The fleet check refuses a Vault issuer or `ExternalSecret` in any stage at or before
-`secret-store`, and refuses any `dependsOn` naming `secret-store`. `backup` and `alerts` depend
-transitively on `secret-sync` through `observability`; the promise is narrower and testable: no
-bootstrap Secret is store-sourced, and on a **cold rebuild** the order is bootstrap secrets, store
-restore from snapshot, sync, then the rest (proof task 3.9).
+`secret-sync` holds only the `SecretStore`s and `ExternalSecret`s, uses `wait: false` and
+`healthChecks` on the target Secrets' existence, and consumers (`platform`, `observability`)
+depend on it. With existing Secrets, an outage therefore blocks no reconcile. Sync freshness is an
+alert (`ExternalSecretSyncFailed`, `OpenBaoSealed`), not a gate. Workers clusters get
+`secret-operator` and `secret-sync` with the same dependencies.
+
+The fleet check refuses `SecretStore`, `ExternalSecret` or a Vault issuer in any stage other than
+`secret-sync`, and refuses any `dependsOn` naming `secret-store`. A `wait: true` stage holding an
+`ExternalSecret` would turn not-Ready on a refresh failure and block its dependents.
+
+Two exceptions to "an outage blocks no reconcile" are accepted and stated:
+
+- a commit that adds a **new** `ExternalSecret` during an outage fails the target-existence health
+  check and blocks `secret-sync`'s dependents until the store returns; such commits wait;
+- on a **cold rebuild**, consumer stages wait until the store is restored. `backup` and `alerts`
+  depend transitively on `secret-sync` through `observability`, so the order is bootstrap set,
+  store restore (D8a), sync, then the rest (proof task 3.9). No bootstrap Secret is store-sourced.
 
 ## Phases
 
