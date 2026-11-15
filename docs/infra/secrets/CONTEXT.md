@@ -12,8 +12,7 @@ store-sourced credential.
 _Avoid_: vault, SOPS, Kubernetes Secret
 
 **Synced Secret**:
-A Kubernetes Secret written by External Secrets Operator from a secret store path. It outlives
-both the store's availability and its `ExternalSecret`.
+A Kubernetes Secret written by External Secrets Operator from a secret store path.
 _Avoid_: injected secret, mounted secret
 
 **Bootstrap set**:
@@ -26,16 +25,15 @@ The dedicated service account a namespace's `SecretStore` logs in as; never the 
 account.
 _Avoid_: workload identity, ESO account
 
-**Seal key**:
-The static 32-byte key that unseals the secret store and decrypts its snapshots. Losing it loses
-every snapshot.
+**Cluster seal key**:
+The static key that unseals one cluster's secret store and its snapshots.
 _Avoid_: root token, recovery key, unseal share
 
 **Recovery key**:
 One of the shares that together authorize `generate-root`. It cannot unseal the store.
-_Avoid_: seal key, unseal key
+_Avoid_: cluster seal key, unseal key
 
-**Tenant namespace**:
-An OpenBao namespace that holds one organization's secrets with its own auth methods and
-policies. PUNI itself is tenant zero.
-_Avoid_: Kubernetes namespace, organization
+**OpenBao namespace**:
+An isolated area of the secret store with its own auth methods, policies and administrators,
+one per organization; PUNI itself is the first.
+_Avoid_: tenant namespace, Kubernetes namespace, organization
