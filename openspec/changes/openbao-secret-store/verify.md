@@ -35,6 +35,14 @@ Design only, 2026-11-15. No implementation, rehearsal or live receipt exists; ev
    owns the self-init objects too; cold rebuild runs in restore mode without Auth0; ADR and
    glossary qualified to match the design's stated exceptions.
 
+4. **Final check at 1e4032851** (Fable 5.2, high effort): no S1 remains. Restore mode was checked
+   against OpenBao v2.7.2 docs and source (init on a static seal returns root and recovery shares;
+   restore re-reads barrier keys through the same seal; recovery configuration returns with the
+   restored storage); no live probe was run. Two S2s applied: the init root token cannot be revoked
+   after restore because the token store is replaced, so it is discarded and must be rejected; restore
+   mode is a committed overlay selected before a rebuild, with a wipe-and-restore path if the normal
+   overlay self-initializes.
+
 Still unverified and owed by P1: ESO keeping a Secret when refresh fails (task 3.2), ESO 2.15
 against OpenBao 2.7 (task 3.11), certificate reload on renewal (task 3.10).
 

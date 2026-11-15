@@ -79,8 +79,10 @@ check, watch the named test fail, then add the adjacent `Proof:` comment.
 - [ ] 3.8 First operator OIDC login, `sys/rotate/recovery/init`, then `generate-root` with
       recovery keys while Auth0 is unreachable.
 - [ ] 3.9 Cold rebuild in restore mode with Auth0 unreachable: `bao operator init`, snapshot
-      restore with `-force`, root revocation; then every stage reaches Ready with no manual Secret
-      creation and the escrowed recovery keys authorize `generate-root`.
+      restore, init root token rejected (403) after restore; then every stage reaches Ready with no
+      manual Secret creation and the escrowed recovery keys authorize `generate-root`. Negative: a
+      rebuild with the normal overlay self-initializes, is wiped by deleting its PVC, and then
+      restores in restore mode.
 - [ ] 3.10 Certificate renewal: prove whether OpenBao serves the renewed leaf without restart;
       if not, implement and prove the controlled restart on renewal.
 - [ ] 3.11 ESO v2.15.0 against OpenBao v2.7.2 syncs, refreshes and reports errors.

@@ -100,13 +100,13 @@ other than `secret-sync`.
 
 #### Scenario: Cold rebuild with an empty cluster
 
-- **WHEN** a fresh cluster reconciles with only the bootstrap set and the latest snapshot
+- **WHEN** a fresh cluster is bootstrapped in restore mode with only the bootstrap set and the latest snapshot
 - **THEN** the store restores, synced Secrets appear, and every stage reaches Ready without manual Secret creation
 
 #### Scenario: Cold rebuild while Auth0 is unreachable
 
 - **WHEN** the rebuild runs in restore mode and the Auth0 tenant cannot be reached
-- **THEN** initialization, snapshot restore and root-token revocation complete without operator OIDC login
+- **THEN** initialization and restore complete without operator OIDC login, the init root token is rejected afterwards, and the escrowed shares authorize `generate-root`
 
 ### Requirement: Every store-sourced Secret is declared
 

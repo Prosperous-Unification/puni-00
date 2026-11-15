@@ -144,11 +144,16 @@ raises `OpenBaoConfigDrift`. Rejected: a standing in-cluster reconciler (a netwo
 OpenTofu (state and a toolchain, and it does not refuse unmanaged objects).
 
 **Cold rebuild does not self-init.** Self-init revokes its root token and creates no recovery
-keys, so a rebuilt empty store would be reachable only through Auth0. The rebuild runbook instead
-starts the store in restore mode (self-init disabled), runs `bao operator init` (auto-unseal
-returns a root token and fresh recovery keys), restores the latest snapshot with `-force`, which
-brings back the escrowed recovery-key configuration and every declared object, then revokes that
-root token. Auth0 is not needed at any step (task 3.9).
+keys, so a rebuilt empty store would be reachable only through Auth0. Restore mode is a committed
+overlay variant of `secret-store/<environment>` with self-init disabled, selected in the bootstrap
+commit before `platform.yml` runs on a rebuild. The runbook runs `bao operator init` (auto-unseal
+returns a root token and recovery shares), then restores the latest snapshot. The restore replaces
+the token store and the recovery key, so the init root token and the init's recovery shares stop
+working; they are discarded, never escrowed. The restored data brings back the escrowed
+recovery-key configuration and every declared object, so the only Auth0-free admin path afterwards
+is `generate-root` with the escrowed shares. A store that self-initialized during a rebuild because
+the normal overlay was selected is recovered by deleting its PVC and restarting in restore mode
+(task 3.9).
 
 ### D9 PKI
 
