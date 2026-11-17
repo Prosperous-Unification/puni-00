@@ -26,8 +26,8 @@ requests and MUST NOT allow self-registration.
 #### Scenario: Pod reaches a registry port
 
 - **WHEN** a pod outside the registry installation, or a host other than the registry's node,
-  connects to its API port or to an internal port of its cache, database, inner registry, core
-  or job service
+  connects to a registry pod address on its API port or on an internal port of its cache,
+  database, inner registry, core or job service
 - **THEN** no connection is established
 
 ### Requirement: Project storage quota
@@ -71,7 +71,8 @@ artifact, a tag or a repository.
 A robot's secret SHALL be the one the operator supplied, and a secret the registry generates MUST
 NOT be printed, logged or stored. A robot MUST expire no later than 90 days after its creation.
 A rotation MUST replace a role's robot with one that has a fresh 90 days, and the role MUST be
-able to authenticate throughout.
+able to authenticate throughout. A rotation MUST NOT accept a secret file older than the role's
+live robot.
 
 #### Scenario: First creation
 
@@ -89,6 +90,23 @@ able to authenticate throughout.
 
 - **WHEN** the new robot of a role exists and its consumer has not yet received the new secret
 - **THEN** the old robot still logs in, and it is refused only after it is retired
+
+#### Scenario: Stale secret file
+
+- **WHEN** a role is rotated and the idle name's secret file is older than the live robot's
+  creation
+- **THEN** the rotation is refused and no robot is created
+
+#### Scenario: Retirement removes the secret file
+
+- **WHEN** a role's old robot is retired
+- **THEN** its secret file no longer exists on the host
+
+#### Scenario: Pull robot retired before its consumer moved
+
+- **WHEN** a pull role's old robot is retired while the pull secret of a declared namespace does
+  not name the new robot
+- **THEN** the retirement is refused and the old robot still logs in
 
 #### Scenario: Unfinished rotation
 
@@ -306,6 +324,11 @@ restore drill MUST pass before the first consumer uses the registry.
 - **WHEN** the backup process is killed or times out while the registry is read-only
 - **THEN** the registry accepts pushes again without an operator, and no success receipt is
   written
+
+#### Scenario: Host restart during a backup
+
+- **WHEN** the host restarts while a backup's run marker is on disk
+- **THEN** the registry accepts pushes again once it is up, without waiting for the next backup
 
 #### Scenario: Registry already read-only
 

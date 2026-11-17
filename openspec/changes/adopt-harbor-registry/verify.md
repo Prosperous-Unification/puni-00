@@ -103,6 +103,43 @@ root disk was full and failed for that reason: 2 failures in the document tests,
 `check-documents-target.test.ts` left a scratch directory of about 2.8 GB under `/tmp` on each
 run here; those from this work were removed by hand.
 
+## Third review round (2026-11-17, fourth commit)
+
+One finding and four notes, each checked against the plan's own text and applied.
+
+- A rotation could reinstate an old secret: the names alternate, so the idle name's file from
+  two rotations ago was still on disk. `apply --retire` now removes the retired name's file and
+  `apply --rotate` refuses a file older than the live robot. Task 6.1 carries the negative; the
+  injected fault is skipping the age comparison.
+- `apply --retire` of a pull role refuses unless the declared namespaces' pull secrets name the
+  new robot (task 6.2).
+- A recovery unit runs the marker step at boot, so a host crash mid-backup does not leave the
+  registry read-only until the next 01:30 (task 7.3). The runbook states the cost of a stale
+  marker.
+- The spec's port scenario says "registry pod address", because other hosts are meant to
+  reach the host endpoint on 8443.
+- The recovery runbook states that a restore from before a rotation brings back the retired
+  robot name (task 10.1).
+
+| Read                                            | What it showed                                              |
+| ----------------------------------------------- | ----------------------------------------------------------- |
+| Harbor v2.15.4 `api/v2.0/swagger.yaml`, `Robot` | the robot model returns `creation_time` beside `expires_at` |
+
+Checks rerun on the fourth commit's tree. The workstation's root disk was at 99%, so the set
+was cut to what leaves no large scratch:
+
+| Command                                                                                      | Result                          |
+| -------------------------------------------------------------------------------------------- | ------------------------------- |
+| `./node_modules/.bin/openspec validate adopt-harbor-registry --strict`                       | valid, exit 0                   |
+| `./node_modules/.bin/openspec validate --all --json`                                         | 343 items, 343 passed, 0 failed |
+| `bunx prettier --check` on the four changed files                                            | all formatted, exit 0           |
+| `env -u CLAUDECODE bun test` on `adr-index`, `current-documents`, `repo-namespacing-handoff` | 34 pass, 0 fail, 109 assertions |
+| Burokrat `check-indexes working . HEAD`                                                      | exit 0                          |
+
+Not rerun on this tree: `check-documents-target.test.ts`, `tool-rename-work-package`,
+`nx run tool-devsync:check:docs` and the three hooks run by hand. `current-documents.test.ts`
+left a 5 MB scratch directory under `/tmp`, removed after the run.
+
 ## Not run
 
 - No chart was rendered and no Harbor was started. Every memory figure in design.md is an

@@ -499,8 +499,8 @@ Robot credentials. The statements about Harbor's behaviour are read from source 
 <https://github.com/goharbor/harbor/blob/v2.15.4/src/server/v2.0/handler/robot.go>) and proven in
 slice 6:
 
-- **Where.** The operator generates each secret into an owner-only file under
-  `/root/.puni/registry/harbor-robots/` on h4claw and encrypts it into the private fleet
+- **Where.** The operator generates each secret into an owner-only file, one per robot name,
+  under `/root/.puni/registry/harbor-robots/` on h4claw and encrypts it into the private fleet
   repository. The reconciler checks its shape before any request: 8 to 128 characters with an
   upper-case letter, a lower-case letter and a digit, which is what Harbor's refresh accepts.
 - **Create, then refresh.** Harbor's create call always generates a secret of its own and
@@ -517,12 +517,28 @@ slice 6:
 - **Two names per role.** Each role has two robot names, `<role>-a` and `<role>-b`. One is live;
   the other does not exist between rotations. Rotating one name in place would leave a gap
   from the delete until the new secret is encrypted, merged and reconciled by Flux.
-- **Rotation.** Every 60 days, one role at a time: write the new secret file; `apply --rotate`
-  creates the idle name and refreshes it with the new secret; encrypt and merge; wait until the
-  consumer holds it and a login with it succeeds; `apply --retire` deletes the old name. The old
-  robot works until the new one is in place, so there is no gap. Each robot lives about 60 days
-  plus the overlap, inside its 90. Refreshing a secret in place would leave the old expiry, and
-  the robot would stop authenticating on day 90.
+- **Rotation.** Every 60 days, one role at a time: generate a new secret into the idle name's
+  file; `apply --rotate` creates the idle name and refreshes it with that secret; encrypt and
+  merge; wait until the consumer holds it and a login with it succeeds; `apply --retire` removes
+  the old name's secret file and then deletes the old name. The old robot works until the new
+  one is in place, so there is no gap. Each robot lives about 60 days plus the overlap, inside
+  its 90. Refreshing a secret in place would leave the old expiry, and the robot would stop
+  authenticating on day 90.
+- **No old secret returns.** The names alternate, so without a guard the idle name's file from
+  two rotations ago is still on disk. A rotation that skipped the new file would re-create the
+  robot with a secret about 120 days old, and every probe would stay green. Two guards.
+  `apply --retire` removes the retired name's file; a rerun after a failed delete finds the
+  file gone and finishes. `apply --rotate` refuses, before any request, a secret file whose
+  modification time is earlier than the live robot's `creation_time`
+  (<https://github.com/goharbor/harbor/blob/v2.15.4/api/v2.0/swagger.yaml>, `Robot`). The
+  comparison catches a leftover file. It does not catch an old secret written into a new file,
+  so the runbook generates a secret for every rotation and never restores one.
+- **Retiring a pull role.** Each pull role declares its consuming namespaces. `apply --retire`
+  reads, in each, the pull secret of the name that stays, and refuses unless that Secret exists
+  and its user for `registry.puni.internal:8443` is that robot's name as Harbor returns it. The
+  lists are empty in this change, which moves no product; each product move adds its
+  namespace. A push role's consumer is a Docker config on the build host, and the tool does not
+  check that switch.
 - **Unfinished rotation.** Two live names for one role for more than seven days is reported by
   the daily check.
 - **Scope.** Robots are per project, not per repository (robot accounts page above).
@@ -572,7 +588,7 @@ Declared file `infra/registry/harbor.json`, validated with ArkType:
       "immutableTags": [{ "tags": "hold-*", "repositories": "**" }],
       "robots": [
         { "role": "push", "access": ["repository:pull", "repository:push"], "durationDays": 90 },
-        { "role": "pull", "access": ["repository:pull"], "durationDays": 90 }
+        { "role": "pull", "access": ["repository:pull"], "durationDays": 90, "namespaces": [] }
       ],
       "webhooks": [
         { "name": "quota", "events": ["QUOTA_WARNING", "QUOTA_EXCEED"], "kind": "slack" }
@@ -591,7 +607,9 @@ Commands:
   secret.
 - `apply --expect-sha256 <plan digest>` applies exactly that plan. `apply --rotate` and
   `apply --retire`, each naming one project and role, are the two halves of the rotation of
-  decision 5.
+  decision 5. `--rotate` refuses a secret file older than the role's live robot. `--retire`
+  removes the retired name's secret file and, for a pull role, first reads the pull secrets of
+  the declared namespaces.
 - `check` is `plan` plus three probes: each live robot's secret file logs in; no live robot
   expires within 21 days; the served certificate does not expire within 21 days. A host timer
   runs it daily at 06:00 UTC, outside the backup window. If it finds a backup run in progress
@@ -604,7 +622,7 @@ Rules the planner enforces:
 
 - It never deletes a project, repository or artifact. An undeclared project is reported as drift.
   The one thing it deletes is a robot, only inside `apply --retire`, and never a role's only
-  live name.
+  live name. The one file the shell deletes is that robot's secret file.
 - `readOnly: true` in the registry is drift. The backup sets it only under its run marker and
   clears it when it ends (decision 8).
 - A declared `deleteUntagged: true`, or a retention policy in which no rule keeps untagged
@@ -768,10 +786,21 @@ Procedure, one run of `tool-fleet`'s Harbor backup command under a host timer at
 - **Killed or timed out.** Step 6 does not run when the process is killed. The unit therefore
   has an `ExecStopPost` that does step 6 when, and only when, the run marker exists. It also
   runs after a preflight refusal; with no marker it touches nothing, so a read-only that an
-  operator set on purpose stays set. If the host itself goes down mid-run, the marker survives
-  on disk and the next start of the unit clears the setting through the same path before its
-  preflight. A read-only registry without a marker is reported by the daily `check` and is
-  never cleared automatically.
+  operator set on purpose stays set. A read-only registry without a marker is reported by the
+  daily `check` and is never cleared automatically.
+- **Host crash mid-run.** The marker survives on disk. A recovery unit runs the same marker
+  step at boot: it waits a bounded time for Harbor's API, clears read-only and removes the
+  marker, so pushes return after the restart and not at the next 01:30. With no marker it
+  touches nothing, and it does nothing while the backup unit is running. If the wait runs out
+  the unit fails, its notifier posts, and the next start of the backup unit does the step
+  before its preflight. A stale marker has a cost: the step clears whatever read-only it
+  finds, including one an operator set after the crash. The runbook says to remove the marker
+  first when a read-only must stay.
+- **Robots after a restore.** The database carries the robots of the backup's day. Restoring a
+  backup taken before a rotation brings back the retired robot name with its old secret and
+  loses the name created since, so pulls with the current secret fail. The recovery runbook
+  re-creates the lost name with `apply --rotate` from its existing file, which the consumers
+  already hold, and then retires the other.
 - **Memory.** The unit has a `MemoryMax` at the measured B of decision 2.
 - **Failure.** The systemd unit fails and the previous receipt stays. Its `OnFailure` notifier
   tells a person (decision 9).
@@ -805,8 +834,8 @@ Restore drill, the gate before the first consumer:
   crossing. Thresholds: `registry` 80% and 90%; `database`, `jobs` and `cache` 80%. An
   unreadable mount is itself an alert, never a silent pass. This is bespoke code and is listed
   as toil. It alerts only; it changes nothing in Harbor (H17).
-- **Unit failures.** The backup unit, the daily check unit and the fill timer's unit each name
-  one `OnFailure` notifier that posts to the same destination.
+- **Unit failures.** The backup unit, its recovery unit, the daily check unit and the fill
+  timer's unit each name one `OnFailure` notifier that posts to the same destination.
 - **Daily check.** The reconciler's `check` (decision 6) is the drift, robot-expiry,
   certificate-expiry and stuck-read-only signal. It fails a systemd unit.
 - **Database growth.** The declared file schedules Harbor's audit-log purge weekly with 90 days
@@ -985,7 +1014,11 @@ free number.
 - **Backup fails silently.** Mitigation: the unit fails, the receipt does not advance and the
   failure notifier posts. Residual: the destination is unproven until task A7.
 - **A killed backup leaves Harbor read-only.** Mitigation: `ExecStopPost` clears it when the
-  run marker exists; the daily check reports any read-only it finds outside a backup.
+  run marker exists; the recovery unit does the same at boot after a host crash; the daily
+  check reports any read-only it finds outside a backup.
+- **A rotation reinstates an old secret.** Mitigation: retirement removes the secret file and
+  a rotation refuses a file older than the live robot. Residual: an old secret copied into a
+  new file passes.
 - **A gate's code reaches Harbor's inner ports.** Not mitigated (decision 4).
 - **A throttled probe restarts the database.** Mitigation: 5 second probe timeouts and the
   zero-restart pass condition of slice 1.

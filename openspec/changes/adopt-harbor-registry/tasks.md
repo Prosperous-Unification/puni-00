@@ -118,6 +118,7 @@ comment. Nothing here has been done yet.
       retention rule, immutability rule, robot permission, schedule, audit purge, webhook or
       system setting yields exactly that change; a rotation yields create and refresh of the
       role's idle name and nothing else; a retirement yields the deletion of the older name.
+      A pull role carries its consuming namespaces, empty in this change.
 - [ ] 5.2 Negatives, each watched with its check removed: quotas summing above 70% of the
       recorded usable capacity; a declared or observed robot with a delete action; an unlimited
       project quota; an undeclared project (reported, never deleted); a retention policy whose
@@ -134,12 +135,16 @@ comment. Nothing here has been done yet.
       backup unit exist), and
       `--connect <address>:<port>`, which keeps `registry.puni.internal` as the TLS and host
       name. Test: new `harbor-api.test.ts` against a local fake of the 2.15.4 API, reached only
-      through `--connect`. Negatives: missing or unreadable admin credential, declared file or
+      through `--connect`. `apply --retire` removes the retired name's secret file before it
+      deletes the robot, and a rerun after a failed delete finishes. Negatives:
+      `apply --rotate` with a secret file older than the live robot's `creation_time` is
+      refused before any request; missing or unreadable admin credential, declared file or
       robot secret file fail before any request; a robot secret outside 8 to 128 characters or
       without upper case, lower case and a digit fails before any request; a plan digest that
       does not match is refused; the secret the fake returns from robot creation never reaches
       stdout, stderr or a log; no secret does. Fault to inject: skip the digest comparison and
-      watch the stale plan apply; log the create response and watch the redaction test fail.
+      watch the stale plan apply; log the create response and watch the redaction test fail;
+      skip the age comparison and watch the robot re-created with the old file's secret.
 - [ ] 6.2 Extend `tool-fleet:rehearse:harbor` to apply the declared file to the real Harbor and
       prove the spec's scenarios: push over quota refused; push robot delete refused; pull robot
       push refused; cross-project pull refused; a `hold-*` tag cannot be overwritten; a push
@@ -148,9 +153,13 @@ comment. Nothing here has been done yet.
       the operator file's secret logs in; a refresh alone leaves `expires_at` where it was;
       a delete and create of one name keeps that name; after `apply --rotate` the new name
       logs in with `expires_at` 90 days from the rotation and the old name still logs in;
-      after `apply --retire` the old name is refused. Fault to inject: make the rotation
+      after `apply --retire` the old name is refused. A pull role with the lab namespace
+      declared: `apply --retire` is refused while that namespace's pull secret for the new name
+      is absent or names another robot, the old name still logs in, and the retirement passes
+      once the Secret names the new robot. Fault to inject: make the rotation
       refresh only, and watch the expiry case fail; make it replace the name in place, and
-      watch the old-name login fail before retirement.
+      watch the old-name login fail before retirement; skip the pull secret read and watch the
+      early retirement go through.
 - [ ] 6.3 Retention and collection in the rehearsal. Seed twelve artifacts in one repository and
       back-date the push time of some in the lab database. Prove: promoted and old is kept; old,
       unpromoted and outside the newest ten is removed; recent and outside the newest ten is
@@ -186,13 +195,18 @@ comment. Nothing here has been done yet.
 - [ ] 7.3 Host units for the backup and for the daily `check` (06:00 UTC, outside the backup
       window), with their README: `MemoryMax` at the measured B, an `ExecStopPost` that clears
       `read_only` only when the run marker exists, the same marker step before the preflight,
-      `OnFailure` naming the notifier. Test: `systemd-analyze verify` on both, the way
+      a recovery unit that runs the marker step at boot with a bounded wait for Harbor's API,
+      `OnFailure` naming the notifier. Test: `systemd-analyze verify` on all three, the way
       `registry-hosts.test.ts` verifies the endpoint units; on the fixture host, under a
       transient unit with the same directives against the lab Harbor: kill the backup with
       SIGKILL while read-only and watch `read_only` return to false; set `read_only` by hand,
-      start the unit, and watch it refuse and leave `read_only` true after `ExecStopPost` ran.
+      start the unit, and watch it refuse and leave `read_only` true after `ExecStopPost` ran;
+      leave a marker and `read_only` true with no backup running, start the recovery unit, and
+      watch `read_only` return to false and the marker go; with the lab Harbor stopped, watch
+      the recovery unit fail when its wait runs out and leave the marker.
       Fault to inject: remove `ExecStopPost` and watch the registry stay read-only after the
-      kill; remove its marker condition and watch the hand-set read-only cleared.
+      kill; remove its marker condition and watch the hand-set read-only cleared; disable the
+      recovery unit and watch the registry stay read-only after the simulated crash.
 
 ## 8. Endpoint and client roles
 
@@ -232,7 +246,11 @@ comment. Nothing here has been done yet.
 - [ ] 10.1 Rewrite the status and operation sections of `docs/infra/registry.md`, including the
       exact commands that generate the install secrets and robot secrets; update
       `docs/infra/platform.md` and `docs/infra/recovery.md`. Mark what is installed and what is
-      not.
+      not. `registry.md` states: a rotation generates a new secret and never restores one; a
+      stale run marker lets the next marker step clear a read-only that was set after the
+      crash, so remove the marker first when a read-only must stay. `recovery.md` states:
+      restoring a backup taken before a rotation brings back the retired robot name and loses
+      the newer one, with the two commands that repair it.
 - [ ] 10.2 Run the canonical gate on the final implementation SHA and record its printed SHA
       and exit code in verify.md, with the failure-proof table complete.
 
@@ -291,7 +309,8 @@ Each step needs the owner's go for that step. "Operator" is the owner or an agen
       made to fail. Stop: any refusal that does not refuse, or an alert nobody received.
       Rollback: delete the disposable repository as admin and restore the quota and thresholds.
 - [ ] A8 Backup and restore drill. Who: operator. Commands: run the backup unit once by hand;
-      enable its timer and the fill timer; run the drill of decision 8 on the other node.
+      enable its timer, its recovery unit and the fill timer; run the drill of decision 8 on
+      the other node.
       Receipt: snapshot ids, drill digests, durations, the read-only window, the unit's memory
       peak against B. Stop: verification failure, or Harbor left read-only. Rollback: clear
       read-only with the printed command; delete the drill namespace; keep the snapshots.
