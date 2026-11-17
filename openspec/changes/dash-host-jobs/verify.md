@@ -3631,13 +3631,13 @@ resources, never the reverse); `ops/containers.ts` re-exports it and `JOB_LABEL`
 gained `useContainerEvidence`, which `runResources` calls for every action but `init` when
 `docker` is on `PATH`.
 
-| Command                                                                  | Result                                                                                                 |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `bun test src/resources/sweep-container-evidence.test.ts`                | 3 pass, 0 fail                                                                                         |
-| the same with `declaredContainersOnly` restored in `sweep` (R5 negative) | 1 pass, 2 fail: `Expected: "released" Received: "held"` and the unavailable-reading reason not reached |
-| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                    | see the PR                                                                                             |
-| `bunx eslint` on the five changed files                                  | see the PR                                                                                             |
-| the ops/resources tests importing the moved symbols                      | see the PR                                                                                             |
+| Command                                                                               | Result                                                                                                 |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `bun test src/resources/sweep-container-evidence.test.ts`                             | 3 pass, 0 fail                                                                                         |
+| the same with `declaredContainersOnly` restored in `sweep` (R5 negative)              | 1 pass, 2 fail: `Expected: "released" Received: "held"` and the unavailable-reading reason not reached |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                 | `Successfully ran target typecheck`                                                                    |
+| `bunx eslint` on the five changed files                                               | exit 0                                                                                                 |
+| `bun test src/ops/containers.test.ts` (the one test file importing the moved symbols) | 3 pass, 0 fail                                                                                         |
 
 - **S15-A1** The watch injects Docker evidence for every job, not only for the one it watches; a
   reading error keeps the charge (`container evidence unavailable: …`), as before.
