@@ -233,7 +233,8 @@
       active again at 20:45:24Z with `NRestarts` 0 → 1. Still owed: the guard holder surviving a
       restart (concurrent mode, 6.5).
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
-      (`Restart=always`; `on-failure` until 2026-11-12, see 6.7; `RestartSec=30`, `KillMode=process`,
+      (`Restart=always`; `on-failure` until 2026-11-12, see 6.7; h2puni's unit carries `always` since
+      its 2026-11-17 apply; `RestartSec=30`, `KillMode=process`,
       skipped until the ledger exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
       enrolled host and never starts them. The restart proof on a host stays in 6.7
       (verify.md Slice 6c).
@@ -349,16 +350,20 @@
       in tool-remote-scripts. `docker build` stays unattributed, and the peaks stay unmeasured
       until 6.4, so `gate` stays out of `concurrencyEligible`.
 
-- [ ] 6.14 Lift `MemoryHigh` before signalling at the runtime bound (incident 2026-11-17, h4claw job
-      22ce2369): the gate's `nx`, `eslint` and a `git checkout` sat in D state in
-      `mem_cgroup_handle_over_high` (scope `MemoryHigh` 6 GiB, `memory.current` 7.2 GiB,
-      `memory.events high` 462 420 112), so an operator `SIGTERM` to the launcher never reached
-      the payload; the launcher died, the scope and the hold stayed, and `ops job status` reports
-      `settlement unknown`. A task held in the reclaim loop takes no signal, SIGKILL included, so
-      the 6.11 bound's SIGTERM → SIGKILL escalation cannot end such a job either. `ops job run`
-      must raise the scope's `MemoryHigh` to `infinity` (the operator form is
-      `systemctl --user set-property --runtime <scope> MemoryHigh=infinity`) before the SIGTERM at
-      the bound, and the operator runbook
-      names the same step before a manual kill. Test: a payload pinned under `MemoryHigh` in
-      `job-run.test.ts`'s namespace ends at the bound within the settle budget; negative: without
-      the lift the test's fake throttle keeps it alive.
+- [ ] 6.14 End a job cgroup-wide at the runtime bound, lifting `MemoryHigh` first (incident
+      2026-11-17, h4claw job 22ce2369, verify.md): an operator `SIGTERM` to the launcher ended the
+      launcher but left the scope active for hours with the payload in D state under
+      `mem_cgroup_handle_over_high`, until `systemctl --user kill --signal=SIGKILL <scope>` ended
+      it in 17 s. Two gaps: `killSession` is `process.kill(-pid, signal)`, which reaches the
+      leader's process group only while the scope also holds `setsid`'d descendants (the nx
+      daemon, a stray `git checkout`); and a handled or trapped SIGTERM under the `memory.high`
+      throttle runs its handler at 2 s per return to user mode, so the settle budget passes before
+      a clean exit. `ops job run` therefore ends a job at the bound in three steps: raise the
+      scope's `MemoryHigh` to `infinity` (the operator form is
+      `systemctl --user set-property --runtime <scope> MemoryHigh=infinity`), SIGTERM the
+      process group, then after the settle budget
+      `systemctl --user kill --signal=SIGKILL <scope>` (the remedy the runtime already prints for
+      held units) instead of a group SIGKILL; the operator runbook names the same three steps for
+      a manual end. Test: a payload that `setsid`s a child in `job-run.test.ts`'s namespace leaves
+      no process in the scope after the bound; negative: with the group kill restored the child
+      survives and the test fails.

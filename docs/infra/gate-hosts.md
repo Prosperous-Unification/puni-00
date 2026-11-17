@@ -4,9 +4,10 @@ A gate host runs `bin/h2puni-gate.sh <sha>` exactly as h2puni does, under its ow
 lock, so gates on different hosts run in parallel. h2puni is the original gate host. h4claw is the
 second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and live since
 2026-10-21: the apply converged twice and a full gate exited 0 there, recorded in
-[the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md). Since 2026-11-08
-h4claw is enrolled in its Dash host pool in observe mode, so gate on it as `puni1` from
-`~/puni-00-gate-launcher` ([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of
+[the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md). Both hosts are
+enrolled in their Dash host pools in observe mode (h4claw since 2026-11-08, h2puni since
+2026-11-17), so gate on either as `puni1` from `~/puni-00-gate-launcher`
+([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of
 about 100 minutes for a full gate is from before enrollment; the first observe-mode gate was
 throttled by the estimated `gate` envelope (the known issue in that section).
 
@@ -149,12 +150,12 @@ fleet_ansible --limit h4claw --extra-vars @"$OPS/gate.json" playbooks/gate-host.
 
 Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in this order:
 
-0. **Onboard h2puni to the role (h2puni only, once).** h2puni has never been role-managed. It is
-   now listed in `gate_hosts` (`ansible_host: 10.1.0.3`) and in no k3s group. The k3s plays that
-   target `all` stop at their input asserts on it (read from the plays, not run; `discover.yml`
-   only reads `/etc/machine-id`), and `tool-fleet:check` renders the k3s sysctl only for k3s
-   hosts. The role has not been applied to it. Its first apply is a larger change than
-   enrollment, and it is owed by task 6.3's operator half, which Dany sees before it runs:
+0. **Onboard h2puni to the role (h2puni only, once; done 2026-11-05, enrolled 2026-11-17).** The
+   notes below are what the first apply had to take into account and remain the record of why the
+   inventory looks as it does. h2puni is listed in `gate_hosts` (`ansible_host: 10.1.0.3`) and in
+   no k3s group. The k3s plays that target `all` stop at their input asserts on it (read from the
+   plays, not run; `discover.yml` only reads `/etc/machine-id`), and `tool-fleet:check` renders
+   the k3s sysctl only for k3s hosts. Its first apply was a larger change than enrollment:
    - `puni1` on h2puni escalates: it is in the `sudo` group and `sudo -n true` exits 0, because
      the dev poller and the monitoring scripts run `sudo docker` and `sudo openssl` as `puni1`.
      h2puni passes the input asserts, but without an exception validate's "Require the gate
@@ -238,7 +239,11 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
 3. **Drain.** Stop intake, including unattended intake: on h2puni the dev poller's
    `solver-image-publish` launches heavy jobs by itself, so stop the poller first. Then let the
    host's heavy queue drain (`bin/with-heavy-lock.sh status` reads `holder none`). Enrolling while
-   a gate is queued is operator error (S6-A14).
+   a gate is queued is operator error (S6-A14). Then sweep the gate trees for processes: `ops pool
+init` refuses a unit any same-user process has as cwd, and orphaned test fixtures survive for
+   weeks (two held h2puni's trees for 7 and 47 days on 2026-11-17). List them with
+   `find /proc/[0-9]*/cwd -maxdepth 0 -lname "$HOME/puni-00-gate*"` and end them before the
+   apply.
 4. **Apply.** Run the playbook twice as in [Add a gate host](#add-a-gate-host). The second run
    must print `changed=0`. The configuration now exists, so the host is enrolled; until step 5 a
    launcher refuses, because the ledger is missing.
@@ -407,8 +412,9 @@ The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
   `legacy-holds/` until the job settles.
 - Every launcher enters through `run_heavy_job`, which takes this lock on a host that is not
   enrolled in a Dash host pool, and admits the job through the pool on one that is. Both hosts
-  are enrolled in observe mode (h4claw since 2026-11-08, h2puni since 2026-11-17; the `dash-host-jobs`
-  verify.md records each visit). See [heavy job launchers](heavy-job-launchers.md).
+  are enrolled in observe mode (h4claw since 2026-11-08, h2puni since 2026-11-17; the
+  [`dash-host-jobs` verify.md](../../openspec/changes/dash-host-jobs/verify.md) records each
+  visit). See [heavy job launchers](heavy-job-launchers.md).
 
 ## Capacity reports into WBS
 
