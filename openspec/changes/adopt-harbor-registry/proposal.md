@@ -3,7 +3,7 @@
 The platform registry is Distribution 2.8.3 on h4claw's root disk. Nothing bounds its size,
 retires old images or scopes its credentials, and its only content is an activation proof image.
 The hand-built storage lifecycle meant to fix this has six open tasks and no activation.
-Distribution 2.8.x also carries 2026 advisories fixed only in 3.1.x. On 2026-11-17 the owner
+Any valid credential can delete tags in that registry (CVE-2026-41888). On 2026-11-17 the owner
 chose Harbor, so quotas, retention, garbage collection and scoped robots come from one product.
 
 ## What Changes

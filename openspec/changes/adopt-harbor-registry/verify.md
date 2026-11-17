@@ -54,6 +54,35 @@ Each read is cited beside the fact it supports in design.md.
 | `gh api repos/goharbor/distribution/tags`                                                                                                                                                                    | `v2.8.3-harbor.4` exists                                                                                                                           |
 | kubernetes.io node-pressure eviction page                                                                                                                                                                    | `oom_score_adj` per QoS class; eviction order                                                                                                      |
 
+## Review round (2026-11-17, second commit)
+
+A review of the first commit raised ten findings and ten smaller notes. Each was checked against
+its source before the plan changed. All were applied; none was rejected.
+
+| Read                                                                                    | What it showed                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Harbor v2.15.4 `src/controller/robot/controller.go`, `src/server/v2.0/handler/robot.go` | create always generates the secret and returns it; refresh accepts a supplied one of 8 to 128 characters; expiry is creation plus duration, recomputed only when the duration changes          |
+| Harbor v2.15.4 `src/jobservice/job/impl/gc/garbage_collection.go`                       | with delete-untagged on, the job deletes every artifact without a tag, with no age check                                                                                                       |
+| Harbor v2.15.4 `src/pkg/retention/policy/action/performer.go`                           | the delete action marks an artifact with an immutable tag and skips it. The first commit cited `job.go` for this                                                                               |
+| Harbor v2.15.4 `src/pkg/blob/dao/dao.go`                                                | project usage is a sum over blobs associated with the project                                                                                                                                  |
+| Chart v1.19.4 templates and `values.yaml`                                               | only jobservice and registry take `updateStrategy`; init-container values exist; one chart init container on the database; internal Valkey has no password; `harbor_registry_password` default |
+| `gh api repos/goharbor/distribution/compare/v2.8.3...v2.8.3-harbor.2`                   | commit titles: Redis options, Go module migration, dependency bumps                                                                                                                            |
+| kubernetes.io pod QoS page                                                              | Guaranteed needs CPU and memory limits equal to requests in every container                                                                                                                    |
+| `docs/infra/gate-hosts.md` steps 2, 6, 7; `infra/platform/networking/traefik.yaml`      | pinned disk budget with 10 GiB calibration headroom; calibration runs unbounded; Traefik is Burstable on the host network                                                                      |
+
+Checks rerun on the second commit's tree, same commands as above:
+
+| Command                                                                 | Result                                    |
+| ----------------------------------------------------------------------- | ----------------------------------------- |
+| `./node_modules/.bin/openspec validate adopt-harbor-registry --strict`  | valid, exit 0                             |
+| `./node_modules/.bin/openspec validate --all --json`                    | 343 items, 343 passed, 0 failed           |
+| `bunx prettier --check` on the seven files                              | all formatted, exit 0                     |
+| `env -u CLAUDECODE bun test` on the four tool-devsync document tests    | 40 pass, 0 fail, 149 assertions, 112.03 s |
+| `env -u CLAUDECODE bun test tools/tool-rename-work-package`             | 37 pass, 0 fail                           |
+| Burokrat `check-indexes working . HEAD`                                 | exit 0                                    |
+| `env -u CLAUDECODE bunx nx run tool-devsync:check:docs --skip-nx-cache` | succeeded, 18.1 s                         |
+| `plaintext-secrets.ts`, `private-nesting.ts`, `doc-caps.ts`             | each exit 0                               |
+
 ## Not run
 
 - No chart was rendered and no Harbor was started. Every memory figure in design.md is an

@@ -23,6 +23,12 @@ requests and MUST NOT allow self-registration.
 - **THEN** its host socket is bound to the configured private address and a connection to the
   same port on the host's public address is refused
 
+#### Scenario: Pod reaches a registry port
+
+- **WHEN** a pod outside the registry installation connects to its API port or to an internal
+  port of its cache, database, inner registry, core or job service
+- **THEN** the connection is refused
+
 ### Requirement: Project storage quota
 
 Every registry project SHALL have a finite storage quota. The registry MUST refuse a push that
@@ -59,12 +65,35 @@ artifact, a tag or a repository.
 - **WHEN** a robot of one project pulls from another private project
 - **THEN** the registry refuses it
 
+### Requirement: Robot credentials are supplied and renewed
+
+A robot's secret SHALL be the one the operator supplied, and a secret the registry generates MUST
+NOT be printed, logged or stored. A robot MUST expire no later than 90 days after its creation,
+and a rotation MUST leave the robot with a fresh 90 days.
+
+#### Scenario: First creation
+
+- **WHEN** a declared robot is created
+- **THEN** the operator-supplied secret logs in, and no secret appears in the command's output
+  or logs
+
+#### Scenario: Rotation renews expiry
+
+- **WHEN** a robot is rotated 60 days after its creation
+- **THEN** the new secret logs in, the old secret is refused, and the robot's expiry is 90 days
+  after the rotation
+
+#### Scenario: Malformed secret
+
+- **WHEN** a supplied secret is shorter than 8 or longer than 128 characters, or lacks an
+  upper-case letter, a lower-case letter or a digit
+- **THEN** the command fails before it sends any request to the registry
+
 ### Requirement: Retention keeps promoted and recent images
 
 Retention SHALL run per project on a schedule. Within each repository it MUST keep every artifact
-that carries a promotion tag, the ten most recently pushed artifacts and every artifact pushed
-within the last seven days. It MUST remove every other tagged artifact and every untagged
-artifact that no kept image depends on.
+that carries a promotion tag, the ten most recently pushed tagged artifacts and every artifact,
+tagged or not, pushed within the last seven days. It MUST remove every other tagged artifact.
 
 #### Scenario: Promoted tag survives
 
@@ -86,9 +115,15 @@ artifact that no kept image depends on.
 
 #### Scenario: Rollback keeps both images
 
-- **WHEN** release tooling rolls an environment back by swapping `promoted-<environment>` and
-  `promoted-<environment>-previous`
-- **THEN** both images carry a promotion tag and a retention run keeps both
+- **WHEN** release tooling rolls an environment back through the swap tag and retention runs
+  between any two of its steps
+- **THEN** both images carry a promotion tag at every step and retention keeps both
+
+#### Scenario: Untagged artifact inside seven days
+
+- **WHEN** an artifact has no tag, because its index has not arrived yet or because its build tag
+  was pushed again, and it was pushed within the last seven days
+- **THEN** retention and garbage collection both leave it pullable by digest
 
 #### Scenario: Multi-architecture image
 
@@ -113,7 +148,8 @@ another image under it, and retention MUST keep its artifact.
 ### Requirement: Garbage collection reclaims space online
 
 Garbage collection SHALL run on a schedule without stopping pushes or pulls. It MUST free the
-storage of removed artifacts and MUST NOT remove content that a concurrent push uploaded.
+storage of removed artifacts, MUST NOT remove content that a concurrent push uploaded and MUST
+NOT delete an artifact itself.
 
 #### Scenario: Collection during a push
 
@@ -125,6 +161,11 @@ storage of removed artifacts and MUST NOT remove content that a concurrent push 
 
 - **WHEN** garbage collection runs as a dry run
 - **THEN** it reports what it would free and the image filesystem's used bytes do not change
+
+#### Scenario: Untagged artifact at collection
+
+- **WHEN** garbage collection runs while an untagged artifact exists
+- **THEN** the artifact still exists afterwards
 
 ### Requirement: Bounded data filesystems
 
@@ -149,21 +190,34 @@ filesystem's usable capacity.
 - **WHEN** the image filesystem has no free space
 - **THEN** pushes fail, pulls of existing images succeed, and garbage collection can still run
 
+#### Scenario: Abandoned upload
+
+- **WHEN** a client starts a blob upload and never finishes it
+- **THEN** its bytes are gone from the image filesystem within five hours
+
 #### Scenario: Quotas over the bound
 
 - **WHEN** the declared project quotas sum to more than 70% of the recorded usable capacity
 - **THEN** the declared configuration is rejected before anything is applied
 
-### Requirement: Bounded memory
+### Requirement: Guaranteed resources
 
-Every container of the registry installation SHALL declare a memory request equal to its memory
-limit. Vulnerability scanning MUST stay disabled.
+Every container of the registry installation, init containers included, SHALL declare a CPU
+request equal to its CPU limit and a memory request equal to its memory limit, so that every pod
+is in the Guaranteed QoS class. A rollout MUST NOT run two pods of one workload at once.
+Vulnerability scanning MUST stay disabled.
 
 #### Scenario: Rendered workloads
 
 - **WHEN** the platform check renders the registry installation
-- **THEN** a container without a memory limit, a container whose request differs from its limit,
-  or an enabled scanner fails the check
+- **THEN** a container or init container without a CPU or memory limit, one whose request differs
+  from its limit, a workload with a rolling update strategy, or an enabled scanner fails the
+  check
+
+#### Scenario: Running pods
+
+- **WHEN** the installation is running
+- **THEN** every one of its pods reports the Guaranteed QoS class
 
 ### Requirement: Declared configuration
 
@@ -175,6 +229,11 @@ file and the registry, and MUST NOT print a secret.
 
 - **WHEN** a retention rule, a quota or a robot's permissions are changed in the registry by hand
 - **THEN** the check exits non-zero and names the changed item
+
+#### Scenario: Registry left read-only
+
+- **WHEN** the registry is read-only outside a backup run
+- **THEN** the check exits non-zero and names the setting
 
 #### Scenario: Undeclared project
 
@@ -215,6 +274,44 @@ restore drill MUST pass before the first consumer uses the registry.
 - **THEN** the command exits non-zero, the previous success receipt is unchanged, no snapshot is
   pruned and the registry accepts pushes again
 
+#### Scenario: Killed backup
+
+- **WHEN** the backup process is killed or times out while the registry is read-only
+- **THEN** the registry accepts pushes again without an operator, and no success receipt is
+  written
+
+#### Scenario: Registry already read-only
+
+- **WHEN** a backup starts and finds the registry read-only
+- **THEN** it refuses to run and changes nothing
+
+### Requirement: Operational alerts
+
+Filesystem fill, quota events and failed registry maintenance units SHALL each produce a
+notification at the configured destination. A measurement that cannot be taken MUST produce a
+notification and MUST NOT count as healthy.
+
+#### Scenario: Fill threshold crossed
+
+- **WHEN** a data filesystem crosses one of its fill thresholds
+- **THEN** one notification names the filesystem and the threshold, and no further notification
+  follows until the next crossing
+
+#### Scenario: Quota event
+
+- **WHEN** a project reaches its quota warning level or a push is refused for quota
+- **THEN** a notification reaches the destination
+
+#### Scenario: Maintenance unit fails
+
+- **WHEN** the backup, the daily check or the fill check fails
+- **THEN** a notification names the failed unit
+
+#### Scenario: Unreadable mount
+
+- **WHEN** the fill check cannot read a data filesystem
+- **THEN** it fails and a notification says so
+
 ### Requirement: Single registry after cut-over
 
 After the registry is recorded ready, the Distribution endpoint on port 5000 SHALL stop serving.
@@ -224,4 +321,5 @@ Its stored data and backups MUST be kept.
 
 - **WHEN** cut-over is complete
 - **THEN** a connection to `registry.puni.internal:5000` is refused, the proof image is pullable
-  from port 8443 by its original digest, and the Distribution volume and snapshots still exist
+  from port 8443 by its original digest, no client holds a credential for port 5000, and the
+  Distribution volume and snapshots still exist
