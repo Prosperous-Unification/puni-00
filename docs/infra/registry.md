@@ -27,6 +27,10 @@ filesystem boundary, capacity admission, release-aware retention, protected
 rollback/recovery images and coordinated maintenance. Their thresholds and
 retention counts are proposed policy, not current runtime behavior.
 
+A proposed change, [activate the storage bound alone](../../openspec/changes/activate-registry-storage-bound/proposal.md),
+would activate only the bounded filesystem and a 90% write fence, with the lifecycle
+dormant. It is not active.
+
 The staged public Deployment disables ordinary manifest/blob DELETE and Distribution's
 age-only upload purger. Deletion belongs to an isolated maintenance instance after
 verified backup and writer exclusion. The purger uses the object override
