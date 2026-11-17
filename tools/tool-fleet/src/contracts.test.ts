@@ -423,53 +423,79 @@ describe('readToolchain', () => {
 });
 
 describe('decodeRetainedToolchain', () => {
-  const repository = join(import.meta.dir, '../../..');
-  // The last main revision before crane was pinned; its lock carries k3dHelpers but no crane.
-  const helperRevision = '1b94e080b';
-  const helperLockSha256 = '5fa350e57fca1228287d101f41c8156f3845cb262f690cc29eb743bb3c31d31e';
+  // Exact bytes of infra/versions/toolchain.json at 1b94e080b (the last main revision before the
+  // crane pin: k3dHelpers, no crane) and at 6a374c83a (before the k3d helper selection). Files on
+  // disk rather than `git show`, so a depth-1 checkout runs these tests too.
+  const helperLock = {
+    file: 'toolchain-k3d-helpers-without-crane.json',
+    sha256: '5fa350e57fca1228287d101f41c8156f3845cb262f690cc29eb743bb3c31d31e',
+  };
+  const historicalLock = {
+    file: 'toolchain-historical.json',
+    sha256: '4a5353e0b60d6cb9720d48cb695ea81766e198daff0beb64707925558ad6bc05',
+  };
 
-  function showLock(revision: string): Uint8Array {
-    const shown = Bun.spawnSync(
-      ['git', '-C', repository, 'show', `${revision}:infra/versions/toolchain.json`],
-      { stdout: 'pipe', stderr: 'pipe' },
-    );
-    if (shown.exitCode !== 0) {
-      throw new Error(`git show ${revision} failed: ${shown.stderr.toString()}`);
-    }
-    return shown.stdout;
+  async function readRetainedBytes(lock: { file: string; sha256: string }): Promise<Uint8Array> {
+    const bytes = await Bun.file(join(import.meta.dir, 'fixtures', lock.file)).bytes();
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(lock.sha256);
+    return bytes;
+  }
+
+  function sealed(value: unknown): { bytes: Uint8Array; sha256: string } {
+    const bytes = new TextEncoder().encode(JSON.stringify(value));
+    return { bytes, sha256: createHash('sha256').update(bytes).digest('hex') };
   }
 
   it('still decodes a retained k3dHelpers lock committed before the crane pin', async () => {
-    const bytes = showLock(helperRevision);
-    expect(createHash('sha256').update(bytes).digest('hex')).toBe(helperLockSha256);
-    const lock = decodeRetainedToolchain(bytes, helperLockSha256);
+    const bytes = await readRetainedBytes(helperLock);
+    const lock = decodeRetainedToolchain(bytes, helperLock.sha256);
     expect('k3dHelpers' in lock).toBe(true);
     expect(lock.binaries).not.toHaveProperty('crane');
     const path = await writeToolchain(JSON.parse(Buffer.from(bytes).toString('utf8')));
     expect(readToolchain(path)).rejects.toThrow(/crane/);
   });
 
-  it('still checks k3d agreement on a retained k3dHelpers lock', () => {
-    const lock = JSON.parse(Buffer.from(showLock(helperRevision)).toString('utf8')) as {
+  it('still checks k3d agreement on a retained k3dHelpers lock', async () => {
+    const lock = JSON.parse(Buffer.from(await readRetainedBytes(helperLock)).toString('utf8')) as {
       binaries: { k3d: { version: string } };
     };
     lock.binaries.k3d.version = 'v5.9.1';
-    const bytes = new TextEncoder().encode(JSON.stringify(lock));
-    expect(() =>
-      decodeRetainedToolchain(bytes, createHash('sha256').update(bytes).digest('hex')),
-    ).toThrow(/k3d binary version differs/);
+    const { bytes, sha256: lockSha256 } = sealed(lock);
+    expect(() => decodeRetainedToolchain(bytes, lockSha256)).toThrow(/k3d binary version differs/);
   });
 
-  it('decodes a retained historical lock and the current lock', () => {
-    const historical = showLock('b312fca6b^');
-    const historicalLock = decodeRetainedToolchain(
-      historical,
-      createHash('sha256').update(historical).digest('hex'),
+  it('decodes a retained historical lock and the current lock', async () => {
+    const historical = decodeRetainedToolchain(
+      await readRetainedBytes(historicalLock),
+      historicalLock.sha256,
     );
-    expect(historicalLock).not.toHaveProperty('k3dHelpers');
-    const current = new TextEncoder().encode(JSON.stringify(validToolchain));
-    expect(
-      decodeRetainedToolchain(current, createHash('sha256').update(current).digest('hex')).binaries,
-    ).toHaveProperty('crane');
+    expect(historical).not.toHaveProperty('k3dHelpers');
+    const current = sealed(validToolchain);
+    expect(decodeRetainedToolchain(current.bytes, current.sha256).binaries).toHaveProperty('crane');
+  });
+
+  it('refuses a retained lock that has crane but no k3d helper selection', () => {
+    const { k3dHelpers: _removed, ...withoutHelpers } = validToolchain;
+    const { bytes, sha256: lockSha256 } = sealed(withoutHelpers);
+    // Proof: adding a historical variant that also admits crane (HistoricalToolchainSchema with
+    // an optional crane) made this resolve instead of throw (2026-11-17).
+    expect(() => decodeRetainedToolchain(bytes, lockSha256)).toThrow(
+      /k3dHelpers must be an object \(was missing\) or binaries\.crane must be removed/,
+    );
+  });
+
+  it('pins the same crane executable in the registry client and its install role', async () => {
+    const root = join(import.meta.dir, '../../..');
+    const { executableSha256 } = (await readToolchain(join(root, 'infra/versions/toolchain.json')))
+      .binaries.crane;
+    // The lifecycle code keeps its own literal digests; this ties them to the lock.
+    // Proof: changing binaries.crane.executableSha256 in the committed lock to 64 `d`s made this
+    // test fail on the registry-client-software.ts pin (2026-11-17).
+    const software = await Bun.file(join(import.meta.dir, 'registry-client-software.ts')).text();
+    expect(/x64: '([0-9a-f]{64})'/.exec(software)?.[1]).toBe(executableSha256);
+    const role = await Bun.file(
+      join(root, 'infra/ansible/roles/registry_storage/tasks/client-source.yml'),
+    ).text();
+    expect(/stat\.checksum == '([0-9a-f]{64})'/.exec(role)?.[1]).toBe(executableSha256);
   });
 });

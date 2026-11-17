@@ -277,7 +277,8 @@ describe('the locked crane client', () => {
         (e: unknown) => String(e),
       );
       expect(outcome).toContain(`the lock requires ${'c'.repeat(64)}`);
-      expect(existsSync(join(cache, 'crane-v0.22.1', 'extracted', 'crane'))).toBe(false);
+      expect(existsSync(join(cache, 'crane-v0.22.1', 'crane'))).toBe(false);
+      expect(existsSync(join(cache, 'crane-v0.22.1', 'extracted'))).toBe(false);
     } finally {
       await server.stop(true);
     }
@@ -290,8 +291,14 @@ describe('the locked crane client', () => {
       const digest = createHash('sha256').update(executable).digest('hex');
       const lock = await lockFor(archive, server.port, digest);
       const installed = await installLockedCrane(lock, cache, runChecked);
-      expect(installed).toBe(join(cache, 'crane-v0.22.1', 'extracted', 'crane'));
-      expect(existsSync(join(cache, 'crane-v0.22.1', 'extracted', 'gcrane'))).toBe(false);
+      expect(installed).toBe(join(cache, 'crane-v0.22.1', 'crane'));
+      expect(
+        createHash('sha256')
+          .update(await Bun.file(installed).bytes())
+          .digest('hex'),
+      ).toBe(digest);
+      expect(existsSync(join(cache, 'crane-v0.22.1', 'extracted'))).toBe(false);
+      expect(existsSync(join(cache, 'crane-v0.22.1', 'gcrane'))).toBe(false);
     } finally {
       await server.stop(true);
     }

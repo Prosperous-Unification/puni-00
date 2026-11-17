@@ -205,6 +205,8 @@ const ToolchainSchema = K3dHelpersToolchainSchema.merge({
     crane: ArchivedBinaryLock,
   }),
 });
+/** The current lock's crane client: archive digest, extracted-executable digest and platform. */
+export type CraneLock = (typeof ToolchainSchema.infer)['binaries']['crane'];
 export type Toolchain =
   | typeof HistoricalToolchainSchema.infer
   | typeof K3dHelpersToolchainSchema.infer
@@ -213,6 +215,9 @@ export type Toolchain =
 function assertHelperAgreement<Lock extends typeof K3dHelpersToolchainSchema.infer>(
   toolchain: Lock,
 ): Lock {
+  // Proof: removing this comparison made k3d-helper-images.test.ts `Task37 current reader rejects
+  // helper binary-version` and contracts.test.ts `still checks k3d agreement on a retained
+  // k3dHelpers lock` accept a k3d binary that differs from its helpers (2026-11-17).
   if (toolchain.binaries.k3d.version !== toolchain.k3dHelpers.version)
     throw new Error('k3d binary version differs from helper selection');
   return toolchain;
