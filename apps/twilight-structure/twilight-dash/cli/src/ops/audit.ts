@@ -9,8 +9,9 @@ import {
 } from './measures';
 import type { RunRecord } from './run-records';
 
-/** The envelope drifts `ops job audit` names (J9, J16). */
-export type DriftKind = 'overrun' | 'waste' | 'estimate_expired' | 'attribution_incomplete';
+/** The envelope drifts `ops job audit` names (J9, J16), most urgent first. */
+export type DriftKind =
+  'throttled' | 'overrun' | 'waste' | 'estimate_expired' | 'attribution_incomplete';
 
 /** One drift: its kind, the job type and the line the audit prints. */
 export interface Drift {
@@ -28,10 +29,41 @@ function endOfDay(date: string): number {
 }
 
 /**
+ * The `throttled` drift of `record` against its type's HEAD entry, or null: see {@link auditDrift}.
+ * A calibration runs without `MemoryHigh`, so its high events never mean throttling.
+ */
+function throttleOf(record: RunRecord, head: JobType): Drift | null {
+  // Proof: dropping this check made `a throttled run stays drift while it runs; …`
+  // (audit.test.ts) find a throttled calibration (2026-11-12).
+  if (record.calibration === true) return null;
+  const { memoryHighEvents, memoryGib } = measuresOf(record);
+  // Proof: returning null for every count made `a throttled run is the first drift, naming its
+  // envelope, peak and events` (audit.test.ts) find only the overrun, and the running-run test
+  // find no drift (2026-11-12).
+  if (memoryHighEvents === 0) return null;
+  const envelope = descriptorOf(record).envelope.memoryGib;
+  // A run still in progress keeps its throttle whatever HEAD says: it still holds the pool.
+  // Proof: dropping this check made the same running-run test keep the drift under a HEAD
+  // envelope raised to 8 GiB; dropping the `endedAt` term made it lose the drift of the run
+  // still running under that envelope (2026-11-12).
+  if (record.endedAt !== null && head.envelope.memoryGib > envelope) return null;
+  const running = record.endedAt === null ? ', still running' : '';
+  return {
+    kind: 'throttled',
+    type: record.type,
+    line: `${record.type} throttled in run ${record.jobId}${running}: memory.events high ${String(memoryHighEvents)} under envelope memoryGib ${String(envelope)}, peak memoryGib ${memoryGib === null ? 'unmeasured' : figure(memoryGib)} (${record.cataloguePath}); calibrate the type (\`ops job calibrate --type ${record.type}\`) and \`ops job propose --type ${record.type}\`; the estimated envelope is below the job's real memory`,
+  };
+}
+
+/**
  * The envelope drift of the run records against the audit's own catalogue at its HEAD
  * (`dash-host-jobs` J9, J16), each record judged by its job id whatever checkout it ran from
  * (a scratch worktree may be gone; the record pins the envelope it was admitted under), and
  * the notes on what was not judged:
+ * - `throttled`: an ordinary run (not a calibration) whose scope sampled `memory.events high`
+ *   above zero, its outcome recorded or not: the kernel held it at `MemoryHigh`, so the envelope
+ *   is below the job's real memory. Kept while the run is in progress, and after it ends until
+ *   the HEAD entry's `memoryGib` exceeds the envelope the run was throttled under.
  * - `overrun`: a run's peak above the envelope it ran under, in any dimension, kept however many
  *   runs follow until the HEAD entry's envelope covers the peak; overruns never age out, and a
  *   new provenance alone does not clear one.
@@ -59,6 +91,8 @@ export function auditDrift(
       retired.add(record.type);
       continue;
     }
+    const throttle = throttleOf(record, head);
+    if (throttle !== null) drifts.push(throttle);
     if (record.endedAt === null) {
       unended.push(record.jobId);
       continue;
@@ -155,9 +189,15 @@ export function auditDrift(
     );
   if (unended.length > 0)
     notes.push(
-      `not judged: ${String(unended.length)} runs without an outcome: ${unended.join(', ')}`,
+      `not judged beyond throttling: ${String(unended.length)} runs without an outcome: ${unended.join(', ')}`,
     );
-  const order: DriftKind[] = ['overrun', 'waste', 'estimate_expired', 'attribution_incomplete'];
+  const order: DriftKind[] = [
+    'throttled',
+    'overrun',
+    'waste',
+    'estimate_expired',
+    'attribution_incomplete',
+  ];
   drifts.sort((left, right) => order.indexOf(left.kind) - order.indexOf(right.kind));
   return { drifts, notes };
 }

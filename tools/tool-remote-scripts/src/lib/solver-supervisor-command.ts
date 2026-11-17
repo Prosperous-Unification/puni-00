@@ -1,5 +1,7 @@
 import type { SupervisorStartFrame } from '@wbs/contracts/solver/supervisor-protocol';
 
+import { hostJobAttributionFlags, type HostJobEnvironment } from './host-job-container-bound';
+
 export interface ManagedContainerOptions {
   readonly image: string;
   readonly pidsLimit: number;
@@ -32,9 +34,19 @@ function systemdCalendarAt(epochMs: number): string {
   return new Date(epochMs).toISOString().replace('T', ' ').replace('Z', ' UTC');
 }
 
+/**
+ * The `docker create` argv of one managed solver attempt. Its own `--memory` and
+ * `--memory-swap` stay the frame's limit; inside a Dash host job (`DASH_JOB_ID` in
+ * `environment`) it also takes the `gate` type's `--cpus` and the `puni.job` label, so settlement
+ * attributes the container instead of finding the run `attribution_incomplete` (J16).
+ *
+ * @throws when the image is not digest-pinned, `pidsLimit` is not a positive integer, or inside
+ * a job the frame's memory exceeds the containers bound.
+ */
 export function buildManagedContainerArgs(
   frame: SupervisorStartFrame,
   options: ManagedContainerOptions,
+  environment: HostJobEnvironment,
 ): string[] {
   if (!DIGEST_PINNED_IMAGE.test(options.image)) {
     throw new Error('managed solver command: image is not digest-pinned');
@@ -76,6 +88,7 @@ export function buildManagedContainerArgs(
     `${String(frame.memoryLimitMb)}m`,
     '--pids-limit',
     String(options.pidsLimit),
+    ...hostJobAttributionFlags(environment, frame.memoryLimitMb),
     '--interactive',
     '--pull',
     'never',

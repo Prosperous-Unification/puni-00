@@ -34,8 +34,8 @@ throttled by the estimated `gate` envelope (the known issue in that section).
   `TMPDIR=/var/tmp` and `NX_DAEMON=false`. These lines sit above the interactivity guard, which
   is what a non-interactive `ssh … CMD` needs.
 - **Gate checkouts.** `~/puni-00-gate-tbf` and `~/puni-00-gate-tbf2` (the pool's two `gate_tree`
-  units, J15) and `~/puni-00-gate-launcher` (launcher-only: gates, `watch` and the audit run Dash
-  from it, because an enrolled payload refuses its own launcher's checkout and a process in a unit
+  units, J15) and `~/puni-00-gate-launcher` (launcher-only: gates, test runs, `watch` and the audit run
+  Dash from it, because an enrolled payload refuses its own launcher's checkout and a process in a unit
   holds it) are full clones of the GitHub repository, never `--filter=blob:none`, each with one
   frozen install. Ansible never moves a head. Before cloning, the role refuses when the home
   filesystem has less free space than 5 GiB per missing checkout plus 10 GiB for a gate, and prints
@@ -57,8 +57,9 @@ throttled by the estimated `gate` envelope (the known issue in that section).
   `<inventory name>-host-pool`, `launcherCheckouts` the launcher checkout (on h2puni also
   `~/wbs-dev/src`, from the inventory), `concurrencyEligible` empty. The ledger pins all but
   the last two, so changing a pinned field later makes every pool open refuse.
-- **Dash user units.** `dash-resources-watch.service` (`resources watch`, `Restart=on-failure`,
-  `KillMode=process` so the concurrent-mode guard holder outlives a restart, skipped until the
+- **Dash user units.** `dash-resources-watch.service` (`resources watch`, `Restart=always` so a
+  SIGTERM cancellation, which exits 0, comes back too while `systemctl --user stop` still keeps it
+  down, `KillMode=process` so the concurrent-mode guard holder outlives a restart, skipped until the
   ledger exists), and the weekly `dash-job-audit.timer` with its service, the files
   `ops job render-audit-units` renders. Beside them, the hourly `gate-launcher-refresh.timer`
   and its oneshot service, which runs `bin/gate-launcher-refresh.sh` on the launcher checkout
@@ -255,12 +256,14 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool init --config ~/.config/dash/host-pool.json && systemctl --user start dash-resources-watch.service dash-job-audit.timer gate-launcher-refresh.timer
    ```
 
-   Prove the restart once with `kill -9` on the watch's `MainPID`. A plain `kill` (SIGTERM) is
-   the watch's modelled cancellation (`resources/command.ts` aborts and returns 0), and
-   `Restart=on-failure` treats a clean exit as a stop, so the unit would stay inactive. Refusals
-   thrown out of `runResources` reach `entrypoint.ts`, which exits nonzero; those are eligible
-   for automatic restart. Task 6.7's broader modelled-stop requirement remains open: this
-   observation does not prove that every modelled stop comes back. On h4claw
+   Prove the restart once with `kill -9` on the watch's `MainPID`. Since 2026-11-12 the unit
+   has `Restart=always`: a plain `kill` (SIGTERM, the watch's modelled cancellation, which
+   `resources/command.ts` answers by returning 0), a refusal thrown out of `runResources`
+   (nonzero through `entrypoint.ts`) and a SIGKILL all restart it after `RestartSec`. Only
+   `systemctl --user stop` keeps it down: `man systemd.service` exempts a service "stopped with
+   systemctl stop or an equivalent operation" from every `Restart=` setting. A host converged
+   before that change still runs `Restart=on-failure` until its next apply and a
+   `systemctl --user daemon-reload`, which the role runs when the unit file changed. On h4claw
    (2026-11-08), `puni1` over ssh could not read its own journal: `journalctl --user` printed "No
    journal files were opened due to insufficient permissions". h2puni's journal access over ssh is
    not observed. Read the restart from
@@ -270,11 +273,21 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    counts automatic restarts, not their cause, and `show` keeps only the latest timestamp pair, so
    record the kill itself. `ops pool inspect` must show the same `guard`, `guardHolder` and unit
    holders before and after. In observe mode `guardHolder` is always `null`, so there this proves
-   only `Restart=on-failure`. A guard holder surviving a restart can be shown only in concurrent
+   only the restart. A guard holder surviving a restart can be shown only in concurrent
    mode (step 8, 6.5). Rerun `--tags validate`. It is a read-only probe, not step 4's converging
-   second apply.
+   second apply. A manual `systemctl --user restart`, including the one `gate-launcher-refresh`
+   runs when `main` moved (step 6), resets `NRestarts` to 0, so read the counter against the
+   latest start. `--check` cannot stand in for the converging apply either: check mode skips every
+   command probe, so the key-count guard compares empty output and fails on 0 keys. h4claw
+   converged on `Restart=always` on 2026-11-12 (`changed=2`, then `changed=0`); its kill proof is
+   in the `dash-host-jobs` verify.md.
 
-6. **Observe for a week (6.4).** On h4claw, first calibrate `gate` through step 7 before
+6. **Observe for a week (6.4).** Calibrate every type whose provenance is `estimated` through
+   step 7 before its first ordinary run under `MemoryHigh` on a host (a calibration runs through
+   the pool too, without the bound): an estimate below the real peak throttles the run instead of
+   ending it, and observe mode only records that (the `throttled` audit drift, and the
+   `maxRuntimeMinutes` bound where the type declares one, today only `gate`, both since
+   2026-11-12, are the backstop, not the plan). On h4claw, first calibrate `gate` through step 7 before
    launching further observe-mode gates: the first run is throttled at the 6 GiB estimate
    ([known issue](#launch-a-gate-on-h4claw)). Every launcher goes through `run_heavy_job` in observe mode. Gates
    launch from `~/puni-00-gate-launcher`. From step 5 on, `gate-launcher-refresh.timer` keeps it
@@ -300,12 +313,47 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    `puni_gate_pool_headroom {cpuCores 1, memoryGib 5}`, matching the rendered host configuration
    in a comparison on 2026-11-09 (verify.md). The vars actually passed to the lost applies and
    why 5 GiB was chosen are not recorded. Preserve the pinned headroom on every reapply;
-   the other pinned fields in the staged file have not been checked against the ledger, so a
-   successful reapply with that file stays owed. A reapply with the default 2 GiB stops at
+   the reapply of 2026-11-12 with that file converged (`changed=2`, then `changed=0`), so its
+   pinned fields match the ledger. A reapply with the default 2 GiB stops at
    "pinned field differs from the ledger".
 8. **Switch (6.5).** Run `ops pool switch-mode concurrent` after the five-launcher checklist, with
    the types allowed to overlap listed in `puni_gate_pool_concurrency_eligible`. Reapply the role
    to write them.
+
+   **Setting `concurrencyEligible` on an enrolled host.** Set the host var
+   `puni_gate_pool_concurrency_eligible` in `infra/ansible/inventory/production-existing-hosts.yml`
+   (never the role default, which stays `[]`; an `--extra-vars` file setting it would win) and run
+   a converging apply. The field is not pinned,
+   so the pinned-field probe lets the role rewrite `host-pool.json` with the new list. Nothing
+   re-runs `ops pool init`. The next `ops` open of the pool (`job run`, `job status`,
+   `pool inspect` and the rest; `resources watch` and the read-only `job admission` do not
+   check) refuses 64 an id that no
+   listed launcher checkout's catalogue names at HEAD, and lists a checkout without a readable
+   catalogue as `unverified` (`checkEligibleTypes`, lenient). In observe mode the list changes no
+   admission. Admission reads it only in concurrent mode (`mayOverlap` in `runtime.ts`), and
+   `switch-mode concurrent` checks it strictly. The candidates are `release-build`,
+   `solver-image-publish` and `website-dev-build`; `gate` is excluded while its containers run
+   unattributed (the J16 row in [heavy job launchers](heavy-job-launchers.md)). The first two are
+   in puni-00's catalogue, which `~/puni-00-gate-launcher` carries (and on h2puni also
+   `~/wbs-dev/src`). `website-dev-build` is only in puni-pr-00's `infra/jobs/catalogue.json`, so a
+   puni-pr-00 checkout owned by `puni1` must be added to `puni_gate_pool_launcher_checkouts`.
+   Without it, every open refuses 64. With it, `switch-mode concurrent` still refuses 70 for that
+   checkout while puni-pr-00 carries no `bin/heavy-lock-lib.sh` defining `run_heavy_job` at HEAD:
+   its launcher sources the gate tree's (absent at puni-pr-00 `origin/main`, read 2026-11-12). For now
+   list only `release-build` and `solver-image-publish`, knowing that both declare the exclusive
+   unit `dagger_engine`, so this list lets no two jobs overlap yet: the switch then installs the
+   singleton guard and the fence, not parallel admission, until a type without that shared unit
+   is eligible. `website-dev-build` waits for that
+   library, and `gate` stays unlisted until the
+   [conflict inventory](heavy-job-launchers.md#conflict-inventory-j3)'s unbounded containers are
+   covered.
+
+   ```sh
+   fleet_ansible --limit <host> --extra-vars @"$OPS/gate.json" playbooks/gate-host.yml   # from the controller, as in Add a gate host
+   # then, as puni1 in ~/puni-00-gate-launcher:
+   bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool inspect --config ~/.config/dash/host-pool.json
+   bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops pool switch-mode concurrent --config ~/.config/dash/host-pool.json --operator <name>
+   ```
 
 ## Launch a gate on h4claw
 

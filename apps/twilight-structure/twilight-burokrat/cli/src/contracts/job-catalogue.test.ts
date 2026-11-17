@@ -84,6 +84,18 @@ describe('the job catalogue shape', () => {
     job['provenance'] = { kind: 'estimated', basis: 'fixture', until: '2026-02-30' };
     expect(() => parseJobCatalogue(catalogueWith([job]))).toThrow('a real calendar date');
   });
+
+  test('takes an optional whole-minute runtime bound', () => {
+    expect(parseJobCatalogue(catalogueWith([gateJob()])).jobs[0]?.maxRuntimeMinutes).toBe(
+      undefined,
+    );
+    const bounded = { ...gateJob(), maxRuntimeMinutes: 480 };
+    expect(parseJobCatalogue(catalogueWith([bounded])).jobs[0]?.maxRuntimeMinutes).toBe(480);
+    for (const minutes of [0, 1.5, -1, '480'])
+      expect(() =>
+        parseJobCatalogue(catalogueWith([{ ...gateJob(), maxRuntimeMinutes: minutes }])),
+      ).toThrow('jobs[0].maxRuntimeMinutes');
+  });
 });
 
 describe('the argument profile', () => {

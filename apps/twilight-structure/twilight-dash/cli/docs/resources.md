@@ -230,7 +230,9 @@ host-wide free-space change as bytes reclaimed by this cleanup.
 ## Watch, inspect and request cleanup
 
 Run this foreground process as the same current user that launches managed commands. For
-persistence, use your existing user service manager with restart-on-failure enabled:
+persistence, use your existing user service manager set to always restart: `watch` answers
+SIGTERM by cancelling and exiting 0, so restart-on-failure would leave it down. Under systemd,
+`Restart=always` still keeps a unit down after `systemctl stop`. The command the unit runs:
 
 ```sh
 dash resources watch --config "$HOME/.config/dash/resources.json"
@@ -505,7 +507,8 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   `docker` CLI whose daemon answers (otherwise 70). Then it waits for admission (`--wait-seconds`,
   default 0; `--poll-seconds` 1 to 30, default 5) and launches the payload:
   - inside `systemd-run --user --scope --unit dash-job-<use id> -p MemoryHigh=<memoryGib>G`
-    (`MemoryMax` too for `enforcement: cap`), behind a gate: the leader's identity is
+    (`MemoryMax` too for `enforcement: cap`; the envelope's `cpuCores` is admission only, and no
+    mode sets a CPU quota on the scope), behind a gate: the leader's identity is
     persisted, the scope's `memory.peak`, `memory.current`, `cpu.stat`, `pids.current` and
     `memory.events` are read and stored as the gate sample, and only then may the payload
     start. An unreadable counter, a scope that never starts or a run record that cannot be
@@ -523,8 +526,18 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     a gate and an exit sample. Peak tmp is the largest sample, a lower bound; disk outside
     `TMPDIR` is not covered;
   - SIGINT, SIGTERM and SIGHUP before the gate opens refuse the job at the gate (129, 130,
-    143); after it opens they are forwarded to the payload's session.
-    The command exits with the payload's own status, 128 + signal when it was signalled. A
+    143); after it opens they are forwarded to the payload's session;
+  - bounded by its type's optional `maxRuntimeMinutes` in the catalogue (task 6.11). At the first
+    sample after the payload has run longer than that, the launcher prints
+    `ops job: <id> exceeded maxRuntimeMinutes <n>: ended by the launcher` and sends SIGTERM to
+    the payload's session. If the payload has not ended within the settle budget (30 s), the
+    launcher sends SIGKILL. The command then exits 124, `timeout(1)`'s code, and the ledger
+    records 124 too. The run record keeps the signal the payload ended with and that reason as
+    `endedByLauncher`. The job settles and releases its reservation and shell lock hold as
+    after any exit. A type without the field has no runtime bound. The bound is checked once
+    per sample interval, so a job can run up to ten seconds past it.
+    Apart from that runtime bound, the command exits with the payload's own status, 128 +
+    signal when it was signalled. A
     telemetry failure (a counter unreadable mid-run, a scope torn down before the exit sample)
     and a ledger write failure are recorded and reported on stderr apart from that status. It
     then settles the job on its terminal evidence, once a second for up to 30 seconds, and prints one
@@ -551,6 +564,12 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   running gate gate:0a518a42 pid 4242 age 1m00s envelope 4 cores 6 GiB 0 GiB tmp peak 2.5 GiB units gate_tree=/home/puni1/puni-00-gate-tbf settlement held (compute held, tmp held, gate_tree held)
   waiting website-dev-build build:site pid 4343 age 55s budget 1m05s overtakes 0
   ```
+
+  A job whose run record has sampled `memory.events high` above zero is being throttled at its
+  `MemoryHigh`. Its line reads `peak <n> GiB throttled (memory.events high <count>)` (task
+  6.11). The count is the largest sampled so far. A throttled job is still running, but it may
+  be making almost no progress: the h4claw gate in
+  [gate hosts](../../../../../docs/infra/gate-hosts.md) used about 0.02 cores while it was throttled.
 
 - **`ops job admission --job <id>`** prints one JSON line, `{"job":"<id>","state":…,"running":…}`.
   `running` is true only for a launched (`held`) job with no exit or launch failure recorded
@@ -627,17 +646,26 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   envelope it was admitted under. It prints one line per drift and exits 1, or prints
   `no drift` and exits 0. `--now` (default: the clock) is the instant estimates are judged at;
   one that is malformed or names no real instant (`2026-02-30T00:00:00Z`) is 64.
+  - `throttled` (printed first, the most urgent): an ordinary run, not a calibration, whose scope
+    sampled `memory.events high` above zero, whether or not it has ended. The line names the
+    type, the job id, the event count, the envelope `memoryGib` the run ran under and its peak
+    `memoryGib`. It gives the remedy: calibrate the type (`ops job calibrate --type <id>`) and
+    `ops job propose --type <id>`, because the estimated envelope is below the job's real
+    memory. It stays until the HEAD entry's `memoryGib` is above the envelope the run was
+    throttled under (task 6.11).
   - `overrun`: a peak above the envelope the run was admitted under, in memory, CPU or tmp disk.
     It stays visible however many runs follow until the HEAD entry's envelope is at least the
     peak. A new provenance alone, `calibrated` included, does not clear it.
   - `waste`: a dimension's p95 below half the HEAD envelope over at least ten complete runs of
-    the HEAD entry.
+    the HEAD entry. Any edit to an entry changes its digest, so the runs before the edit stop
+    counting: adding `maxRuntimeMinutes` to `gate` restarted its count (task 6.11).
   - `estimate_expired`: `estimated` provenance whose `until` day has ended.
   - `attribution_incomplete`: a run during which a container ran unlabelled, unbounded or
     unverified (J16). It stays until a later run of the type sees containers and every one
     bounded.
-  - Runs without an outcome, and runs of a type the catalogue does not name, print a
-    `note: not judged` line.
+  - Runs of a type the catalogue does not name print a `note: not judged` line. Runs without an
+    outcome print a `note: not judged beyond throttling` line, because only `throttled` judges a
+    run still in progress.
 - **`ops job render-audit-units --config <path> --bun <path> --dash <path> --checkout <path>
 --output-directory <dir>`** writes `dash-job-audit.service` (a oneshot running
   `ops job audit` in the checkout, so a drift fails the unit) and `dash-job-audit.timer`
@@ -662,7 +690,10 @@ later) records the mode, the guard, the guard's holder, a `switch-mode` in progr
 corruption and every operator mode record.
 
 **Before the first observe-mode job on a host, `resources watch` must be installed and running
-as its user unit (task 6.7, `Restart=on-failure`, `KillMode=process`).** Without it, a job whose
+as its user unit (task 6.7, `Restart=always`, `KillMode=process`).** `Restart=always`, because
+the watch answers SIGTERM by cancelling and exiting 0, which `on-failure` would leave down;
+`systemctl --user stop` is the one intended way down, and systemd never restarts a unit stopped
+that way. Without it, a job whose
 payload outlives its launcher keeps the shell lock until an operator runs
 `resources sweep --config <path>`. That covers a surviving child past the 30 s settle budget,
 and a launcher killed after launch. Until then every legacy gate and Dash job refuses 75.

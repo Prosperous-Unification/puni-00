@@ -149,7 +149,8 @@ seconds and at payload exit the counters and the tmp directory's size are sample
 observation boundary outlives the payload until the final sample and the run record are
 durable. Peak tmp disk is the largest sample, stated as a lower bound; disk outside `TMPDIR` and
 the managed worktree is not covered and the record says so. The payload's exit code passes
-through; a signalled payload returns 128 + signal. A telemetry failure mid-run and a ledger
+through; a signalled payload returns 128 + signal. The one exception is a payload the launcher
+ends at its type's `maxRuntimeMinutes`, which returns 124 (task 6.11). A telemetry failure mid-run and a ledger
 write failure are recorded apart from the payload's outcome.
 
 **J8. What cannot be measured is refused before the payload, never run unmeasured.** No
@@ -169,7 +170,8 @@ and toolchain; at least three complete calibration records per dimension, else r
 the count; headroom 1.25, rounded up. `ops job audit` exits 1 naming each envelope drift:
 `overrun` (a peak above the envelope, kept visible until an accepted envelope supersedes it,
 never ageing out), `waste` (p95 below half the envelope over ten or more complete runs),
-`estimate_expired`, `attribution_incomplete` (J16). The 1.25, three and ten are provisional and
+`estimate_expired`, `attribution_incomplete` (J16). Since task 6.11 there is also
+`throttled`, printed first: a run whose scope sampled `memory.events high` above zero. The 1.25, three and ten are provisional and
 labelled so in the catalogue README; cold, warm and two-job concurrent validation precede
 enabling concurrency on a host (task 6.5). Nothing writes the catalogue.
 

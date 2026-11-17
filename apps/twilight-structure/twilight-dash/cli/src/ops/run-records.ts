@@ -73,6 +73,8 @@ export interface RunOutcome {
   containers: ContainerVerdict[];
   /** Why the singleton guard did not hold for this run (review H5); absent when it did. */
   guardLost?: string;
+  /** Why the launcher ended the payload itself (its type's `maxRuntimeMinutes`); absent otherwise. */
+  endedByLauncher?: string;
 }
 
 /** A run record as `ops job status` and the tests read it. */
@@ -86,6 +88,8 @@ export interface RunRecord extends RunStart {
   containers: ContainerVerdict[];
   /** Why the singleton guard did not hold for this run (review H5); absent when it did. */
   guardLost?: string;
+  /** Why the launcher ended the payload itself (its type's `maxRuntimeMinutes`); absent otherwise. */
+  endedByLauncher?: string;
   /** The largest `memory.peak` sampled, bytes; null before any counter was read. */
   peakMemoryBytes: number | null;
   /** The largest tmp sample, bytes: a lower bound, disk outside `TMPDIR` not covered (J7). */
@@ -149,6 +153,7 @@ const OutcomeShape = type({
   ledgerFailure: 'string | null',
   attributionIncomplete: 'boolean',
   'guardLost?': 'string > 0',
+  'endedByLauncher?': 'string > 0',
   containers: type({
     id: 'string',
     verdict: "'bounded'|'unlabelled'|'unbounded'|'unverified'",
@@ -343,6 +348,9 @@ export class HostJobRunRecords {
       attributionIncomplete: outcome?.attributionIncomplete ?? false,
       containers: outcome?.containers ?? [],
       ...(outcome?.guardLost === undefined ? {} : { guardLost: outcome.guardLost }),
+      ...(outcome?.endedByLauncher === undefined
+        ? {}
+        : { endedByLauncher: outcome.endedByLauncher }),
       peakMemoryBytes: peaks.length === 0 ? null : Math.max(...peaks),
       peakTmpBytes: tmp.length === 0 ? null : Math.max(...tmp),
       wallMs: outcome === null ? null : outcome.endedAt - start.startedAt,

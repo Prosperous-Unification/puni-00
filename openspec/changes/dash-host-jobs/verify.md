@@ -3335,8 +3335,8 @@ launcher SHA nor the later validate controller SHA identifies those lost applies
   `puni_gate_pool_headroom` field with `jq -ce .headroom` from the live h4claw rendered
   configuration `/home/puni1/.config/dash/host-pool.json` on 2026-11-09. Both selected
   nonsecret fields read 1 core and 5 GiB. This comparison does not establish which vars were
-  passed to the lost applies. Other pinned fields in that file have not been checked against
-  the ledger, so the first successful reapply with it stays owed. Preserve the pinned
+  passed to the lost applies. Other pinned fields in that file were confirmed against the
+  ledger by the reapply of 2026-11-12 ("h4claw restart proof", below). Preserve the pinned
   headroom on every reapply. Why 5 GiB was chosen is not recorded. A reapply at 2 GiB against
   the pinned 5 GiB is refused as a pinned-field change.
 - **Restart observations; proof remains open (6.7).** `systemctl --user show dash-resources-watch.service`:
@@ -3397,3 +3397,224 @@ Last coordinator read: 2026-11-08 22:50Z, still running (3 h 05 min). Last upstr
 not complete 6.4. None of 6.4's deliverables is met: a week of
 observation, calibration, `propose`, or the container measurement. 6.4 stays open. This
 section completes neither 6.4 nor 6.7 and does not establish host qualification.
+
+## 2026-11-12 Task 6.11: throttle detection and runtime bound
+
+Closes the gap the h4claw gate (job 22ce2369) exposed: it was held 58 h under `MemoryHigh=6G`
+with `memory.events high` 3.36 million, and nothing in Dash said so. Laptop run,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host was touched.
+
+| Command                                                                                                          | Exit                                                             |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bun test src/ops/audit.test.ts`                                                                                 | 0 (13 pass)                                                      |
+| `bun test src/ops/status.test.ts` (inside its namespace)                                                         | 0 (6 pass inside)                                                |
+| `bun test src/ops/job-run.test.ts -t "runtime bound"` inside `unshare` with `DASH_OPS_TEST_NAMESPACE=1`          | 0 (3 pass)                                                       |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `twilight-burokrat:typecheck`                             | 0, 0                                                             |
+| `bunx nx run twilight-dash:lint --skip-nx-cache`; `bunx eslint` on the two Burokrat contract files               | 0, 0 (`twilight-burokrat:lint` is the wiki lint, 0)              |
+| `bunx nx run twilight-burokrat:test --skip-nx-cache`                                                             | 0 (2607 pass, 0 fail)                                            |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                 | 1: 5719 pass, 49 skip, 3 fail, none in a changed file; see below |
+| `twilight-burokrat check working . HEAD <policy copy> --rule JOB-CATALOGUE --now 2026-11-12T12:00:00.000Z`       | 0 (`allowed: true`, no findings)                                 |
+| `twilight-burokrat check-indexes working . HEAD`; `bunx openspec validate --all --json`; `bunx prettier --check` | 0; 0 (342 passed); 0                                             |
+
+The three Dash failures come from the laptop, not from this change. `packaging/bundle.test.ts` and
+`reproducible.test.ts` failed because the worktree's `node_modules` is a symlink to another
+checkout: the built launcher named `/home/df`, and copied checkouts could not resolve `arktype`.
+Both files passed, 7 pass and 0 fail, in a checkout with a real `node_modules`.
+`ops/launchers.test.ts` fails here with `mkdir: cannot create directory '/home/puni1/.config'`,
+because this laptop has no `puni1` home. CI and the host gate decide all three.
+
+R5 negatives, each restored after it was watched failing:
+
+| Injected fault                                  | Observed failure                                                                                   |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `throttleOf` returns null for every event count | `a throttled run is the first drift…` kinds `['overrun']`; the running-run test found no drift     |
+| calibration exclusion dropped                   | `a throttled run still running is drift; a calibration or a raised envelope is not` failed         |
+| raised-envelope clearing dropped                | the same test kept the drift under an 8 GiB HEAD envelope                                          |
+| status marker never printed                     | `a throttled job says so beside its peak` failed on the running line                               |
+| `ops job status` passes 0 high events           | the same status test failed                                                                        |
+| bound check disabled in `runAdmitted`           | `a job past its maxRuntimeMinutes is ended with 124…` received 0 after 21.2 s                      |
+| SIGKILL escalation dropped in `endPayload`      | `a payload that ignores SIGTERM is killed after the settle budget` elapsed 21.1 s against `< 15 s` |
+
+- **6.11-A1** Numbered 6.11, not 6.8: 6.8 is the settlement digest.
+- **6.11-A2** `throttled` judges running records too. The incident run had no outcome for
+  58 h, so their note now reads `not judged beyond throttling`.
+- **6.11-A3** A run that the launcher ends records exit 124 in both the ledger and the run record.
+  The record also keeps the signal the payload ended with and `endedByLauncher`. 124 is not 0, so
+  the run is incomplete and `propose` leaves it out.
+- **6.11-A4** The bound is checked at each interval sample. It is measured on the launcher's
+  monotonic clock from the gate sample, as every other launcher deadline is, so a wall-clock step
+  cannot fire or delay it; the record's `startedAt` stays wall-clock. The grace before SIGKILL is
+  the settle budget (30 s). (Review of #927 S3; the first revision measured on the wall clock.)
+- **6.11-A5** Adding `maxRuntimeMinutes` to `gate` changes that entry's descriptor digest. Older
+  `gate` records therefore stop counting toward `waste`, as they do after any edit to an entry.
+  Entries without the field keep their digests, and records without `endedByLauncher` still parse.
+- `ops job calibrate --wait-seconds` (`cli-parser.ts` L467–L474 via `launchFields('calibration',
+7200)`, L568–L572) is already unbounded above, with a default of 7200 s. The 1800 s default at
+  L676–L680 belongs to `pool switch-mode`. Nothing changed.
+
+### 2026-11-12 Review of #927 (FIX-THEN-MERGE)
+
+- **S1** A run still in progress keeps its `throttled` drift under a raised HEAD envelope. Only an
+  ended run is cleared. Negative: with the `endedAt` term removed, `a throttled run stays drift
+while it runs; …` (audit.test.ts) failed.
+- **S2** A kill at the runtime bound that throws something other than ESRCH is reported, and the
+  run still records 124 and settles. Negative: without the catch, `a failed kill at the runtime
+bound still records 124 and settles` (job-run.test.ts) rejected with `kill EPERM`, which an
+  injected `process.kill` threw.
+- **S3** The bound is measured on `deps.monotonic` (6.11-A4). Negative: comparing the wall clock
+  instead made the three bounded tests, whose monotonic clock was advanced, return 0.
+- Docs: design.md J7 (exit 124) and J9 (`throttled`), the resources.md exit sentence and the
+  `waste` digest note, and the `maxRuntimeMinutes` row in infra/jobs/README.md.
+
+## 2026-11-12 test-queued runs in a gate tree (task 6.12, #928)
+
+A unit on the launcher checkout cannot exist (#925: `inspectHolds` refuses a unit any same-user
+process has as cwd, and the watch, the audit and every `ops job run` work in
+`~/puni-00-gate-launcher`), and a new unit kind would re-enroll both hosts. So `test-queued` now
+names `gate_tree` and the argument profile `<sha>`, and shares the gate's two trees.
+`bin/test-queued.sh <sha>` resolves the sha with `resolve_gate_commit`, labels the lane
+`test-queued:<sha8>` and runs `bin/test-queued-payload.sh <sha>` through `run_heavy_job`; the
+payload uses `read_host_pool_enrollment`, `resolve_gate_tree`, `resolve_gate_commit` and
+`run_pinned_checkout` (settle `restore` when enrolled) and runs `bun install --frozen-lockfile`
+then `bunx nx run-many -t test`, with `NX_DAEMON=false` so no daemon keeps a cwd in the unit.
+
+- **T12-A1** The install is repeated as one command rather than factored: `bin/h2puni-gate-steps.sh`
+  takes no step list, and its fixture (`h2puni-gate.test.sh` cases 34–36) runs it with `PATH`
+  holding only stubs, where `dirname` is absent and sourcing a library fails. Its reasons and
+  proofs stay with the gate steps.
+- **T12-A2** `resolve_gate_tree` takes an optional third argument, the launcher its enrolled
+  refusal names (`bin/h2puni-gate.sh` by default), and its message now says "the payload"
+  rather than "the gate". No test pinned the old wording.
+- **T12-A3** A nested `test-queued` inside a gate is now refused 70, as any type with a unit, so
+  no production type reaches the re-labelled nested path. Case 49 drives it with a fixture
+  type, `nested-probe` (`release-build` with `exclusive: []`), added to the copied catalogue;
+  49l pins the `test-queued` refusal. The `heavy-lock-queue` scenario changed to match.
+- **T12-A4** On an unenrolled host `bun run test:queued <sha>` now checks the sha out in the
+  launcher checkout and refuses a dirty one 65, as the gate always has; before, it tested the
+  working tree as it stood. As the gate: a pass leaves the checkout detached at the sha (`keep`
+  restores only on failure); before, HEAD was never touched.
+- **T12-A6** The tests run `nx run-many -t test --skip-nx-cache --parallel=2`, the gate's test
+  step flags: a gate tree is long-lived, so the Nx cache would replay an earlier run's results
+  at the same inputs, and `--parallel=2` keeps the run inside the envelope the gate shares
+  (review of #928, finding 1).
+- **T12-A5** The `ops job run --type test-queued -- true` scenario now names any type whose
+  profile is `""`: under `<sha>` that argv is refused 64.
+
+### Fault injection
+
+| Fault                                                              | Observed failure                                                                                                                                |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| launcher argument count check `if false`                           | heavy-lock `47c … refuses none: want exit 64, got 1`; `47c … refuses two: want exit 64, got 65`                                                 |
+| launcher `resolve_gate_commit` replaced by `test_sha=$1`           | heavy-lock `47c: the refusal did not name the target, or came after the lock: heavy lock: waited 0s behind 0 tickets`                           |
+| payload argument count check `if false`                            | heavy-lock `47d … refuses none: want exit 64, got 1`; `47d … refuses two: want exit 64, got 65`                                                 |
+| catalogue `test-queued` exclusive back to `[]`                     | heavy-lock `49l … want exit 70, got 0`, the payload ran as `gate:abc/test-queued`                                                               |
+| payload `tree=$(resolve_gate_tree …)` replaced by `tree=$checkout` | launchers.test.ts: inherited unit unenrolled `Expected: 64 Received: 0`; enrolled run recorded the launcher checkout; bare enrolled payload `0` |
+| payload `settle=restore` replaced by `settle=keep`                 | launchers.test.ts `test-queued runs pinned in an admitted gate tree`: `Expected: "resting commit" Received: "launcher checkout"`                |
+| payload `bun install … \|\| :`                                     | launchers.test.ts `a failed frozen install refuses test-queued before the tests`: `Expected: not 0`                                             |
+
+### Commands
+
+Fresh on 2026-11-12 on the workstation, from `/home/df/wd/puni/wt-tq`, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset.
+
+| Command                                                                                                        | Result                                                                                                           |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `bash bin/heavy-lock.test.sh`                                                                                  | `all heavy-lock checks passed`, exit 0                                                                           |
+| `bash bin/h2puni-gate.test.sh`                                                                                 | `all cases passed`, exit 0                                                                                       |
+| `bun test …/ops/launchers.test.ts`                                                                             | exit 1: `mkdir: cannot create directory '/home/puni1/.config': Permission denied` (this host's root-owned path)  |
+| the same file's inner suite under `unshare` with `/home/puni1` left unbound (`DASH_LAUNCHER_TEST_NAMESPACE=1`) | 15 pass, 0 fail, exit 0                                                                                          |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `twilight-dash:lint`                                    | exit 0, exit 0                                                                                                   |
+| `shellcheck -x` on the changed scripts                                                                         | exit 0                                                                                                           |
+| Burokrat `check … --rule JOB-CATALOGUE --now 2026-11-12T12:00:00.000Z`                                         | `allowed: true`, no finding, exit 0                                                                              |
+| Burokrat `bun test` of the job-catalogue rule, contract and architecture tests                                 | pass; `gate-entrypoints.test.ts` 2 fail (`trusted TypeScript runtime modules are not provisioned`), same on main |
+| `bunx openspec validate --all --json`                                                                          | 342 passed, 0 failed, exit 0                                                                                     |
+| Burokrat `check-indexes working . HEAD`                                                                        | exit 0                                                                                                           |
+| `bunx prettier --check` on the changed non-shell files                                                         | exit 0                                                                                                           |
+
+Not done: no host apply, no enrollment change, no h2puni or h4claw gate, no real `test:queued`
+run. `concurrencyEligible` is unchanged: the suite's containers are still unbounded.
+
+## Slice 6i: gate containers attributed (task 6.13)
+
+Branch `ops/gate-containers-attributed-20261112` from `main` at `a471352a6`. Nothing here touched
+a host. One helper, `tools/tool-remote-scripts/src/lib/host-job-container-bound.ts`, decides the
+flags: `hostJobContainerFlags` (`--memory 1g --cpus 1 --label puni.job=$DASH_JOB_ID`) and
+`hostJobAttributionFlags` (`--cpus 1` and the label, for the supervisor's managed solver, which
+keeps its own 512 MiB `--memory`/`--memory-swap`). Both are empty when `DASH_JOB_ID` is unset or
+empty, the same boundary as `solver-image-smoke.sh`. The bound is the `gate` type's catalogue
+`containers` (and at or under every type's); its test reads the catalogue and fails on drift.
+Call sites: `buildManagedContainerArgs` (supervisor, used by the smoke's image host, the orphan
+host and the lifecycle proc test), `caddy/command.ts` (Caddy in `mcp-body-limit.test.ts`), and
+`fixtures/host-job-docker-run.ts`, which be-01's orphan proof spawns by path because
+`scope:app` cannot import a `scope:infra` module. `docker build` remains unattributed. No
+`concurrencyEligible` edit.
+
+### Fault injection (2026-11-12, each restored after)
+
+| Fault                                                         | Observed                                                                                       |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| helper always builds flags                                    | 4 fail: every "outside a Dash job" case (helper, supervisor builder, lifecycle, Caddy command) |
+| helper never builds flags                                     | 5 fail: every "inside a Dash job" case                                                         |
+| helper memory comparison removed                              | 2 fail: `Received function did not throw`                                                      |
+| `hostJobAttributionFlags` spread removed from the builder     | 2 fail (builder, lifecycle)                                                                    |
+| lifecycle passes `{}` instead of `process.env`                | 1 fail: `labels the managed container inside a Dash job`                                       |
+| `hostJobContainerFlags` removed from `caddy/command.ts`       | unit fail; real Caddy with `DASH_JOB_ID=abc`: `Received: "<no value> 0 0"`, 2 fail             |
+| flags removed from `host-job-docker-run.ts`                   | launcher test fail; real smoke orphan proof: caller `Received: "<no value> 0 0"`, exit 1       |
+| `hostJobAttributionFlags` removed, real smoke with job id set | orphan proof: managed child `Received: "<no value> 536870912 0"`, exit 1                       |
+
+### Commands
+
+Workstation, worktree root, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset.
+
+| Command                                                                                             | Result                                                                                         |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `bun test` of the six touched tool-remote-scripts unit files                                        | 39 pass, 0 fail, exit 0                                                                        |
+| `bun run tools/tool-remote-scripts/caddy/run.ts` without and with `DASH_JOB_ID=abc` (real Docker)   | 2 pass, 0 fail each, exit 0                                                                    |
+| `WBS_RUN_SOLVER_ORPHAN_PROC=1 bash apps/wbs/be-01/scripts/solver-image-smoke.sh`, `DASH_JOB_ID=abc` | orphan + lifecycle proc tests 3 pass, cleanup complete, exit 0                                 |
+| the same without `DASH_JOB_ID`                                                                      | 3 pass, cleanup complete, exit 0 (29 s)                                                        |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                        | 5091 tests across 327 files, `Successfully ran target test`, exit 0                            |
+| `bunx nx run tool-remote-scripts:test --skip-nx-cache`                                              | **incomplete**: killed by the worker's own 60 min `timeout` in the canonical batch, 0 failures |
+| `bunx nx run {tool-remote-scripts,wbs-be-01}:{lint,typecheck} --skip-nx-cache`                      | exit 0 each                                                                                    |
+| Burokrat `check working . HEAD <policy copy> --rule JOB-CATALOGUE --now 2026-11-12T12:00:00.000Z`   | `allowed: true`, no findings, exit 0                                                           |
+| Burokrat `check-indexes working . HEAD`                                                             | exit 0                                                                                         |
+| `bunx openspec validate --all --json`                                                               | 342 passed, 0 failed, exit 0                                                                   |
+| `bunx prettier --check` on changed files                                                            | exit 0                                                                                         |
+
+Owed: the full tool-remote-scripts target (CI and the host gate carry it); the peaks of the
+now-bounded containers (task 6.4) and `docker build` attribution before `gate` can be eligible.
+
+## 2026-11-12 h4claw restart proof and converging apply (task 6.7)
+
+From the operator laptop's fleet controller (image digest 372f6f43…, playbook tree at `main`
+eaabce934, after #925) with the staged enrolled vars of 2026-11-08 (headroom 1 core, 5 GiB). Job 22ce2369 stayed held in `~/puni-00-gate-tbf` throughout: the role templates
+the unit files, reloads the user manager and enables the units; it never restarts the watch or
+moves a checkout, so the apply does not need a quiet host. Backups of the authorized keys, the
+five unit files and `host-pool.json` were taken first; the staged key's fingerprint equalled the
+live one.
+
+| Step                                         | Observed (UTC)                                                                                                                                                                      |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--check --diff`                             | fails at the key-count guard with "holds 0 keys, but puni_gate_authorized_keys lists 1": check mode skips the `ssh-keygen` probe, so the guard compares empty output (EV-A9)        |
+| apply 1                                      | `ok=75 changed=2 failed=0`: `Install the Dash user units` (`dash-resources-watch.service`, `Restart=on-failure` → `always`) and the daemon-reload; pinned fields matched the ledger |
+| apply 2                                      | `ok=74 changed=0 failed=0`                                                                                                                                                          |
+| `systemctl --user restart` to adopt the file | 13:59:02, `MainPID=46858`, `NRestarts` 5 → 0, `Restart=always`, `KillMode=process`                                                                                                  |
+| `ops pool inspect` before                    | observe, `guard on`, `guardHolder null`, `holdCorruption null`; `gate_tree` tbf held by 22ce2369, tbf2 / `dagger_engine` / `docker_build` free                                      |
+| `kill -9 46858`                              | 13:59:29; at 13:59:43 `ActiveState=activating SubState=auto-restart Result=signal MainPID=0 InactiveExitTimestamp=13:59:29`                                                         |
+| after                                        | 14:00:31 `ActiveState=active MainPID=47226 NRestarts=1 ActiveEnterTimestamp=13:59:59`, `RestartSec` after the exit                                                                  |
+| `ops pool inspect` after                     | identical; the hold file and its log still present                                                                                                                                  |
+| `--tags validate`                            | `ok=31 changed=0 failed=0`                                                                                                                                                          |
+
+- **EV-A9** Check mode cannot pass "Require one authorized key per listed key": under `--check`
+  the template writes no staged file and every `ansible.builtin.command` probe is skipped
+  ("Command would have run if not in check mode", empty stdout), including the `ssh-keygen -lf`
+  count the guard compares, so it reads 0 keys. Check mode exercises only the variable asserts
+  and the file, stat and template dry runs, none of the probes in `validate.yml` or
+  `host-pool.yml`; the converging second apply is the only proof. (Review of #932, S2-2: the
+  reviewer reproduced this in the locked controller image.)
+- **EV-A10** A manual `systemctl --user restart` resets `NRestarts` to 0 (5 → 0 here), so the
+  counter counts automatic restarts since the last manual start; the kill is recorded beside it.
+- Apply 1 is the reapply with the staged 2026-11-08 vars that the 2026-11-08 record and
+  gate-hosts.md step 7 left owed: its pinned-field probe passed, so the staged file matches the
+  ledger.
+- **EV-A11** The holder-survives clause stays owed (observe mode, `guardHolder null`), as is h2puni's
+  proof with its enrollment. Logs: puni-plan `evidence/2026-11-12-h4claw-restart-proof/`.

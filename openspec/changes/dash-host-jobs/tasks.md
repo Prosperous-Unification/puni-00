@@ -199,7 +199,7 @@
         `ops pool init`, which pins the unit list, comes after (verify.md, "2026-11-05 token-unit
         apply converged on both hosts").
 - [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
-      `Restart=on-failure` and `KillMode=process` (beside the observation units of 4.2). It
+      `Restart=always` and `KillMode=process` (beside the observation units of 4.2). It
       lands before 6.4, because observe mode needs a running `watch` (review H1 of #818). A host
       job whose compute outlives its launcher keeps the shell lock until `watch`, or an
       operator's `resources sweep`, removes its hold file. The concurrent-mode guard's holder
@@ -218,16 +218,21 @@
       is a read-only probe, not a converging apply (EV-A1). Owed on each gate host: an observed
       kill with its before and after `systemctl --user show` and `ops pool inspect`; the guard
       holder surviving a restart, which needs concurrent mode (6.5); and the PLAY RECAP of a
-      second plain enrolled apply with `changed=0`. h2puni is not enrolled. One decision is also
-      owed: whether SIGTERM cancellation (exit 0, `resources/command.ts`) is a stop that must
-      come back (`Restart=always`, which still honours `systemctl stop`) or the one modelled stop
-      that stays down. Under today's `Restart=on-failure`, thrown refusals exit nonzero and are eligible
-      for restart, and a clean SIGTERM cancellation exits 0 and does not restart. That does not
-      mean a SIGKILL or a crash never restarts. `Restart=always` is a proposal only, and the
-      broader requirement that every modelled stop comes back stays unresolved.
+      second plain enrolled apply with `changed=0`. h2puni is not enrolled. The Restart decision
+      is taken (2026-11-12): SIGTERM cancellation (exit 0, `resources/command.ts`) is a stop
+      that must come back, so the template has `Restart=always`, and `systemctl --user stop` is
+      the one modelled stop that stays down (`man systemd.service`, Restart=: a service "stopped
+      with systemctl stop or an equivalent operation" is never restarted).
+      `gate-host-pool.test.ts` pins `always`. A host keeps `on-failure` until its next
+      converging apply, and the kill proof above is still owed under `always`.
+      h4claw, 2026-11-12 (verify.md "2026-11-12 h4claw restart proof"): converging apply `changed=2`
+      (the unit file and the daemon-reload) then `changed=0`; an observed `kill -9` of the watch's
+      `MainPID` with systemd restarting it 30 s later (`NRestarts` 0 → 1) and `ops pool inspect`
+      identical before and after; `--tags validate` `changed=0`. Still owed: the same on h2puni
+      with its enrollment, and the guard holder surviving a restart (concurrent mode, 6.5).
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
-      (`Restart=on-failure`, `RestartSec=30`, `KillMode=process`, skipped until the ledger
-      exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
+      (`Restart=always`; `on-failure` until 2026-11-12, see 6.7; `RestartSec=30`, `KillMode=process`,
+      skipped until the ledger exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
       enrolled host and never starts them. The restart proof on a host stays in 6.7
       (verify.md Slice 6c).
 - [ ] 6.4 Enroll h2puni and h4claw in observe mode, **only once 6.7's `watch` unit is installed
@@ -259,7 +264,7 @@
       (6.5a): `host-pool.json`'s `concurrencyEligible`, default `[]`, refused **64 at init and
       at every open** for an id no launcher catalogue names (S6B-A17, S6B-A22). `gate` and
       `test-queued` stay unlisted until their J16 gaps and their shared checkout `.nx` cache
-      are covered (`docs/infra/heavy-job-launchers.md`).
+      are covered (`docs/infra/heavy-job-launchers.md`; the shared cache closed by 6.12).
 - [x] 6.6 Uninspectable same-user processes outside host jobs (review F1): hold inspection
       refuses any same-user process whose `/proc/<pid>/fd` is access-denied. Host-job settlement
       now records such a process outside the job's scope as `uninspectable_outside_scope`, but
@@ -292,6 +297,15 @@
         running job with that id before running nested — test: a fake scope of that name with no
         such job is refused. Done in slice 6e: `ops job admission` (`ops/admission.test.ts`) and
         `bin/heavy-lock.test.sh` cases 49h–49k (S6E-A3).
+- [x] 6.12 test-queued runs in a gate tree: a unit on the launcher checkout is impossible
+      (`inspectHolds` refuses a unit any same-user process has as cwd, and the watch, the audit
+      and every `ops job run` sit in `~/puni-00-gate-launcher`), and a new unit kind means
+      re-enrolling every host (#925). Decided 2026-11-12: the type names `gate_tree` and the
+      profile `<sha>`, and `bin/test-queued-payload.sh` resolves its tree and commit as the gate
+      payload does, running the frozen install and `nx run-many -t test` there — test: an
+      enrolled run lands in an admitted unit and returns it; negatives: 64 without the unit
+      enrolled, for an inherited unit unenrolled, and for no, two or a non-commit argument; a
+      nested `test-queued` is refused 70. Done in PR #928 (verify.md, task 6.12).
 - [x] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's
@@ -312,3 +326,18 @@
           an event WBS now accepts is published by the drop's re-send, not dropped. Done in
           slice 6h (S6H-A1 to A4): `2xx` marks it published, `409` refuses 64, no answer or
           another refusal 70; the journal's `refusal.confirmedAt` is the fresh `400`.
+- [x] 6.11 Throttle detection and runtime bound (the h4claw gate held 58 h under `MemoryHigh`
+      with nothing in Dash noticing; numbered 6.11 because 6.8 is the settlement digest): an
+      `ops job audit` `throttled` drift, printed first; `throttled (memory.events high <n>)` on
+      the `ops job status` line; an optional catalogue `maxRuntimeMinutes` that `ops job run`
+      ends with SIGTERM, SIGKILL after the settle budget, and exit 124; `gate` bounded at 480 —
+      tests: `audit.test.ts`, `status.test.ts`, `job-run.test.ts` (the runtime bound),
+      Burokrat `job-catalogue.test.ts`; negatives in verify.md. Done in PR #927.
+- [x] 6.13 Gate containers attributed (J16): the supervisor's managed solver containers, the
+      orphan proof's callers and Caddy in `mcp-body-limit.test.ts` run bounded and labelled
+      inside a Dash job, their argv unchanged outside one — test: each call site's argv carries
+      `--cpus 1` (and `--memory 1g` where the starter sets no memory of its own) and
+      `puni.job=abc` with `DASH_JOB_ID=abc`, and none of them without it; negative: drop the
+      branch and watch it fail. Done in PR #929 (slice 6i): `host-job-container-bound.ts`
+      in tool-remote-scripts. `docker build` stays unattributed, and the peaks stay unmeasured
+      until 6.4, so `gate` stays out of `concurrencyEligible`.

@@ -99,6 +99,7 @@ export interface FixtureJobType {
   containers?: 'none' | { memoryGib: number; cpuCores: number };
   enforcement?: 'observe' | 'cap';
   argumentProfile?: string;
+  maxRuntimeMinutes?: number;
 }
 
 /** A Git checkout whose HEAD commits `infra/jobs/catalogue.json` with `types`. */
@@ -132,6 +133,9 @@ export function catalogueOf(types: readonly FixtureJobType[]) {
       },
       containers: jobType.containers ?? 'none',
       enforcement: jobType.enforcement ?? 'observe',
+      ...(jobType.maxRuntimeMinutes === undefined
+        ? {}
+        : { maxRuntimeMinutes: jobType.maxRuntimeMinutes }),
       provenance: { kind: 'estimated', basis: 'test fixture', until: '2099-12-31' },
     })),
   };

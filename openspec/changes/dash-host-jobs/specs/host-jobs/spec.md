@@ -111,7 +111,7 @@ at the gate, it SHALL exit 70 before the payload starts, naming the fix.
 
 #### Scenario: A one-second job is still measured
 
-- **WHEN** `ops job run --type test-queued -- true` runs
+- **WHEN** `ops job run --type <id> -- true` runs for a type whose argument profile is `""`
 - **THEN** the record holds the gate sample and the exit sample, and the scope was not torn down
   before the exit sample was read
 
@@ -337,3 +337,104 @@ launcher death alone.
 - **WHEN** a gate's payload exits 0 but leaves the tree with an untracked file
 - **THEN** CPU and memory settle, the `gate_tree` unit stays `blocked` naming the file, and no
   gate is admitted on that tree until an operator resolves it
+
+### Requirement: The audit names a throttled run first
+
+`ops job audit` SHALL name a `throttled` drift for every ordinary run record of a catalogued
+type, ended or still running, whose scope sampled `memory.events high` above zero. Each drift
+SHALL be one line naming the type, the job id, the largest event count, the envelope `memoryGib`
+the run ran under and its peak `memoryGib`. The line SHALL give the remedy: calibrate the type
+(`ops job calibrate --type <id>`) and `ops job propose --type <id>`. `throttled` drifts SHALL print
+before every other kind. A calibration record SHALL never be `throttled`. A run still in
+progress SHALL stay drift until it ends. An ended run SHALL stay drift until the HEAD entry's
+`memoryGib` is above the envelope the run was throttled under.
+
+#### Scenario: A throttled gate is the first drift
+
+- **WHEN** a `gate` run under an envelope of 6 GiB sampled `memory.events high` 3360000 and
+  another run overran its CPU
+- **THEN** `audit` exits 1, printing the `throttled` line naming 3360000, 6 and the peak first
+  and the `overrun` line after it
+
+#### Scenario: A raised envelope clears it once the run has ended
+
+- **WHEN** the catalogue at HEAD raises `gate`'s `memoryGib` from 6 to 8
+- **THEN** an ended run throttled under 6 GiB is no longer drift, and a run still in progress
+  under 6 GiB still is
+
+### Requirement: Status marks a throttled job
+
+`ops job status` SHALL print `throttled (memory.events high <n>)` after the peak on the line of a
+running job whose run record has sampled `memory.events high` above zero. `<n>` SHALL be the
+largest count sampled. A job with no such sample SHALL print no marker.
+
+#### Scenario: The throttled gate is visible while it runs
+
+- **WHEN** a running gate's run record has an interval sample with `memory.events high` 3360000
+- **THEN** its `status` line reads `peak 6.0 GiB throttled (memory.events high 3360000)`
+
+### Requirement: A job type may bound its runtime
+
+A catalogue entry MAY declare `maxRuntimeMinutes`, a positive whole number. An entry without it
+SHALL have no runtime bound. When a payload of a bounded type has run longer than the bound at a
+sample, `ops job run` SHALL send SIGTERM to the payload's session. If the payload has not ended
+within the settle budget, it SHALL send SIGKILL. `ops job run` SHALL then exit 124 and record 124
+in the ledger and the run record. The run record SHALL keep the signal the payload ended with and
+the reason `exceeded maxRuntimeMinutes <n>: ended by the launcher`. The job SHALL settle and
+release its reservation and its shell lock hold as after any exit. A run record written without
+the field SHALL still be read.
+
+#### Scenario: A gate past its bound is ended
+
+- **WHEN** a `bounded` job with `maxRuntimeMinutes: 1` is still running at a sample two minutes
+  after its gate opened
+- **THEN** the launcher ends it with SIGTERM, exits 124, records exit 124, signal `SIGTERM` and
+  the reason, and the job is released
+
+#### Scenario: A payload that ignores SIGTERM
+
+- **WHEN** the payload ignores SIGTERM and the settle budget passes
+- **THEN** the launcher sends SIGKILL, exits 124 and the run record names `SIGKILL`
+
+#### Scenario: An unbounded type runs on
+
+- **WHEN** a type without `maxRuntimeMinutes` runs under the same clock
+- **THEN** its payload's own exit 0 is returned and no reason is recorded
+
+### Requirement: A test-queued job runs pinned in a gate tree
+
+`bin/test-queued.sh` SHALL take exactly one argument, resolve it to a commit in its own checkout
+and refuse exit 64, before any lock or admission, when it is absent, accompanied by another, or
+names no commit. It SHALL run `bin/test-queued-payload.sh <sha>` through `run_heavy_job` as type
+`test-queued`, labelled `test-queued:<sha8>`. The catalogue's `test-queued` SHALL name the
+argument profile `<sha>` and the exclusive unit `gate_tree`, so it shares the gate's trees. The
+payload SHALL choose its tree as the gate payload does: on an enrolled host only the
+`DASH_JOB_UNIT_GATE_TREE` its admission handed it, refusing 64 without one; on an unenrolled host
+the launcher's checkout, refusing 64 an inherited `DASH_JOB_UNIT_GATE_TREE`. It SHALL check the
+commit out there, refuse a tree whose bytes are not that commit's, run the frozen install and
+`nx run-many -t test`, and, when enrolled, return the tree to its resting commit pass or fail.
+Started inside an admitted job, `test-queued` SHALL be refused 70 as a type with a unit.
+
+#### Scenario: Tests run in an admitted gate tree
+
+- **WHEN** `bin/test-queued.sh HEAD` runs on an enrolled host with two `gate_tree` units
+- **THEN** Dash runs `--type test-queued --label test-queued:<sha8>` with the payload and the
+  full sha, the install and the tests run in one unit at that sha, and the unit is back at its
+  resting commit with `gate_tree` released
+
+#### Scenario: An enrolled payload without an admission is refused
+
+- **WHEN** `bin/test-queued-payload.sh <sha>` runs on an enrolled host without
+  `DASH_JOB_UNIT_GATE_TREE`
+- **THEN** it exits 64 naming the variable and `bin/test-queued.sh <sha>`, and no test runs
+
+#### Scenario: An inherited unit on an unenrolled host is refused
+
+- **WHEN** `bin/test-queued-payload.sh <sha>` runs on an unenrolled host with
+  `DASH_JOB_UNIT_GATE_TREE` set
+- **THEN** it exits 64 saying no admission handed it out, and no test runs
+
+#### Scenario: A launcher without its sha is refused
+
+- **WHEN** `bin/test-queued.sh` runs with no argument, with two, or with one naming no commit
+- **THEN** it exits 64 before any lock or admission

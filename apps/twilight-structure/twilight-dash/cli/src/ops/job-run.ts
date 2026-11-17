@@ -92,6 +92,13 @@ const GATED_PAYLOAD = [
   'exit "$status"',
 ].join('\n');
 
+/**
+ * The exit code of a job the launcher ended at its type's `maxRuntimeMinutes`: `timeout(1)`'s
+ * code for a command that ran out of time, so a caller that reads 124 as "timed out" needs no
+ * new case. The run record keeps the signal the payload ended with beside it.
+ */
+export const RUNTIME_EXCEEDED_EXIT_CODE = 124;
+
 /** Polls between the scope check's readings of `/proc/<pid>/cgroup`. */
 const SCOPE_POLL_MS = 10;
 const SCOPE_START_BUDGET_MS = 15_000;
@@ -321,7 +328,10 @@ interface Interruption {
  * persisting the leader's identity and the gate sample before the gate opens; sample every
  * interval and at exit; record the exit, settle on terminal evidence and return the payload's
  * own status. A signal before the gate opens refuses 129/130/143 with the payload never run; one
- * after is forwarded to the payload's session. A failure to read telemetry or to write a record
+ * after is forwarded to the payload's session. A type with `maxRuntimeMinutes` is ended by the
+ * launcher once its payload has run longer, at the first sample past the bound: SIGTERM to the
+ * payload's session, SIGKILL after the settle budget, and {@link RUNTIME_EXCEEDED_EXIT_CODE}
+ * returned and recorded, the job settling as any exit does. A type without it is unbounded. A failure to read telemetry or to write a record
  * after the gate opened is recorded and reported, never substituted for the payload's status.
  * @throws OpsRefusal for every refusal before the payload runs (64, 70, 73, 75, 129, 130, 143).
  */
@@ -585,6 +595,38 @@ export function killSession(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
+/**
+ * End a payload the launcher no longer lets run: SIGTERM to its session, then SIGKILL once the
+ * settle budget passes without `ending` resolving, then wait for it. The gated shell traps
+ * SIGTERM, so it still reports the payload's status; after SIGKILL it reports none.
+ */
+async function endPayload(
+  pid: number,
+  ending: Promise<void>,
+  deps: JobRunDependencies,
+): Promise<void> {
+  killSession(pid, 'SIGTERM');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const ended = await Promise.race([
+    ending.then(() => true),
+    new Promise<boolean>((resolveGrace) => {
+      timer = setTimeout(() => {
+        resolveGrace(false);
+      }, deps.settleBudgetMs);
+    }),
+  ]);
+  clearTimeout(timer);
+  // Proof: dropping the SIGKILL made `a payload that ignores SIGTERM is killed after the settle
+  // budget` (job-run.test.ts) take the payload's full 20 s, 21.1 s against its 15 s (2026-11-12).
+  if (!ended) {
+    deps.report(
+      `ops job: session ${String(pid)} outlived SIGTERM by ${String(deps.settleBudgetMs)} ms; SIGKILL`,
+    );
+    killSession(pid, 'SIGKILL');
+  }
+  await ending;
+}
+
 async function runAdmitted(
   runtime: ResourceRuntime,
   records: HostJobRunRecords,
@@ -696,6 +738,9 @@ async function runAdmitted(
     return refuseAtGate(70, `systemd-run did not start scope ${unit}`);
   }
   const startedAt = deps.clock.read();
+  // The runtime bound is measured on the monotonic clock, as every other launcher deadline is;
+  // `startedAt` stays the wall-clock instant the record states.
+  const startedMonotonic = deps.monotonic.now();
   const gateSample = readSample('gate', startedAt, deps.telemetry, cgroup, job.locator);
   // Proof: skipping this refusal made `refuses 70 when memory.peak is unreadable at the gate`
   // (job-run.test.ts) run the payload unmeasured, no refusal (2026-11-01, Slice 3).
@@ -787,6 +832,8 @@ async function runAdmitted(
       payload.ended = true;
     },
   );
+  const { maxRuntimeMinutes } = catalogued.jobType;
+  let endedByLauncher: string | undefined;
   for (;;) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     // A cleared timer, not `Bun.sleep`: a pending sleep would hold the process open for up to
@@ -804,6 +851,27 @@ async function runAdmitted(
     const sample = readSample('interval', deps.clock.read(), deps.telemetry, cgroup, job.locator);
     if (watch !== null) sample.containers = await watch.sample();
     persist(sample);
+    // Proof: never ending the payload made `a job past its maxRuntimeMinutes is ended with 124`
+    // (job-run.test.ts) wait for its payload and return 0; measuring on the wall clock instead
+    // made the three bounded tests return 0 under their advanced monotonic clock (2026-11-12).
+    if (
+      maxRuntimeMinutes !== undefined &&
+      endedByLauncher === undefined &&
+      deps.monotonic.now() - startedMonotonic > maxRuntimeMinutes * 60_000
+    ) {
+      endedByLauncher = `exceeded maxRuntimeMinutes ${String(maxRuntimeMinutes)}: ended by the launcher`;
+      deps.report(`ops job: ${job.id} ${endedByLauncher}`);
+      // A failed kill must not skip the exit, the record and settlement: the loop goes on
+      // sampling until the payload ends, and the run still records 124 and its reason.
+      // Proof: without this catch `a failed kill at the runtime bound still records 124 and
+      // settles` (job-run.test.ts) reject with `kill EPERM` before the exit was recorded
+      // (2026-11-12).
+      try {
+        await endPayload(pid, ending, deps);
+      } catch (cause) {
+        deps.report(`ops job: ending ${unit} at its runtime bound failed: ${causeText(cause)}`);
+      }
+    }
   }
   const exitSample = readSample('exit', deps.clock.read(), deps.telemetry, cgroup, job.locator);
   if (watch !== null) exitSample.containers = await watch.sample();
@@ -813,10 +881,12 @@ async function runAdmitted(
   // status, or with its own when it died before reporting one.
   launched.gate.end('done\n');
   const leaderStatus = await launched.leaderExit;
-  const status = payload.status ?? leaderStatus;
+  const payloadStatus = payload.status ?? leaderStatus;
+  const status = endedByLauncher === undefined ? payloadStatus : RUNTIME_EXCEEDED_EXIT_CODE;
   // A status above 128 is how a shell reports a signal; the record names the signal it implies.
   const signal =
-    Object.entries(constants.signals).find(([, number]) => number === status - 128)?.[0] ?? null;
+    Object.entries(constants.signals).find(([, number]) => number === payloadStatus - 128)?.[0] ??
+    null;
   let ledgerFailure: string | null = null;
   // Proof: letting this throw made `a ledger write failure is recorded apart; the status is
   // still the payload's` (job-run.test.ts) reject instead of returning 4 (2026-11-01, Slice 3).
@@ -864,6 +934,7 @@ async function runAdmitted(
       attributionIncomplete: incomplete.length > 0 || guardLost !== undefined,
       containers: verdicts,
       ...(guardLost === undefined ? {} : { guardLost }),
+      ...(endedByLauncher === undefined ? {} : { endedByLauncher }),
     });
   } catch (cause) {
     deps.report(`ops job: ${job.id} run record outcome unrecorded: ${causeText(cause)}`);

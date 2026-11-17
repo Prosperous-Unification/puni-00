@@ -19,7 +19,14 @@ const HOST = new URL(
   '../../../../../tools/tool-remote-scripts/src/fixtures/solver-supervisor-orphan-host.ts',
   import.meta.url,
 ).pathname;
+// `scope:app` keeps this test from importing tool-remote-scripts' container bound helper, so
+// it starts its callers through that helper's launcher by path, as it does the host.
+const CALLER_LAUNCHER = new URL(
+  '../../../../../tools/tool-remote-scripts/src/fixtures/host-job-docker-run.ts',
+  import.meta.url,
+).pathname;
 const CLIENT = '/app/apps/wbs/be-01/scripts/solver-supervisor-orphan-client.ts';
+const MIB = 1024 ** 2;
 const PROJECT = '11111111-1111-4111-8111-111111111111';
 const CONTRACT = '7+0.1.0';
 
@@ -90,8 +97,8 @@ async function startCaller(
   const gid = process.getgid?.();
   if (uid === undefined || gid === undefined) throw new Error('solver orphan process: missing uid');
   await command([
-    'docker',
-    'run',
+    process.execPath,
+    CALLER_LAUNCHER,
     '--detach',
     '--name',
     name,
@@ -115,6 +122,28 @@ async function startCaller(
 async function containerRunning(name: string): Promise<boolean> {
   const result = await command(['docker', 'inspect', '--format', '{{.State.Running}}', name], true);
   return result.code === 0 && result.stdout.trim() === 'true';
+}
+
+/**
+ * Docker's own record of a container's `puni.job` label, memory and CPU limits: inside a Dash
+ * host job the label is the job's id and the CPU limit is the containers bound, outside one
+ * neither is set (J16). `ownMemoryMib` is the limit the starter set itself, null for none, in
+ * which case a job's 1 GiB bound applies.
+ */
+async function expectJobAttribution(name: string, ownMemoryMib: number | null): Promise<void> {
+  const inspected = await command([
+    'docker',
+    'inspect',
+    '--format',
+    '{{index .Config.Labels "puni.job"}} {{.HostConfig.Memory}} {{.HostConfig.NanoCpus}}',
+    name,
+  ]);
+  const jobId = process.env['DASH_JOB_ID'];
+  expect(inspected.stdout.trim()).toBe(
+    jobId === undefined || jobId === ''
+      ? `<no value> ${String((ownMemoryMib ?? 0) * MIB)} 0`
+      : `${jobId} ${String((ownMemoryMib ?? 1024) * MIB)} ${String(1e9)}`,
+  );
 }
 
 async function containerExists(name: string): Promise<boolean> {
@@ -203,6 +232,14 @@ realProcessDescribe('solver supervisor orphan process boundaries', () => {
       await Bun.write(`${firstMarker}.bound`, 'bound');
       await until('first bound verdict sent', () => existsSync(`${firstMarker}.bound-sent`));
       expect(await containerRunning(managedOne)).toBe(true);
+      // The caller asks for no memory limit and takes the bound's 1 GiB inside a job; the
+      // supervisor's managed child keeps its own 512 MiB.
+      // Proof: run by solver-image-smoke.sh with DASH_JOB_ID=abc, dropping the flags from
+      // host-job-docker-run.ts failed the caller on `Received: "<no value> 0 0"`, and dropping
+      // hostJobAttributionFlags from buildManagedContainerArgs failed the managed child on
+      // `Received: "<no value> 536870912 0"` (2026-11-12).
+      await expectJobAttribution(callerOne, null);
+      await expectJobAttribution(managedOne, 512);
       expect(connection.db.select().from(solverSlot).all()).toHaveLength(1);
 
       await command(['docker', 'kill', callerOne]);
