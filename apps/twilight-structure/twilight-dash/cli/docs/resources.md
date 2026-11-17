@@ -722,7 +722,10 @@ a newer ledger naming both versions (`ops job admission` exits 70); it never rea
   ended and refused 70, naming why. `ops job run` removes the hold file once the job's
   compute entry is released. Three other cases keep it:
   - **Dash dies while the job runs.** The file stays, and `watch` or `resources sweep` removes
-    it once that entry settles, so an orphaned payload never runs beside a legacy caller.
+    it once that entry settles, so an orphaned payload never runs beside a legacy caller. Both
+    read Docker for a type with a containers bound (`docker ps` by the job's label) when the CLI
+    is on `PATH`; without Docker a declared bound stays charged, since no reading exists (before
+    2026-11-17 it stayed charged forever even with Docker: h4claw job 22ce2369, task 6.15).
   - **Dash dies while its holder still queues.** The holder claims in its turn and holds, and
     the never-launched job is released after the launch grace. `watch` or `sweep` then removes
     the file.
