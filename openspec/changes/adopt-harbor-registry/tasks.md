@@ -8,7 +8,8 @@ comment. Nothing here has been done yet.
 
 - [ ] 0.1 Owner reads assumptions H1 to H17 and the nine open questions in design.md and
       overrules by id. Receipt: the overrules, dated, in verify.md. Until then H1 to H17 stand
-      as written and only slices 1 to 3 may start.
+      as written and only slices 1 to 3 may start. Question 5, the alert destination, blocks
+      the alert receipts of A7 and with them A10 until the owner names one.
 - [ ] 0.2 When this change merges: file the decision record from design.md as an ADR under the
       next free number, link it from proposal.md, and delete the quoted copy. Test:
       `env -u CLAUDECODE bun test tools/tool-devsync/src/adr-index.test.ts`.
@@ -35,10 +36,14 @@ comment. Nothing here has been done yet.
       or `memory.peak`: they include page cache. Receipt: the per-container table in verify.md.
 - [ ] 1.3 Set each memory limit to the larger of its floor and 1.5 times its peak of `anon` +
       `shmem` + `kernel`, rounded up to 32 MiB; call the sum L. Run the four phases again at
-      those limits. Pass: `oom_kill` 0 in every container and every push completes. Receipt:
-      L, the `max` event counts, CPU throttling and push durations for both runs. Stop and
-      report before any manifest is written if L exceeds 2,717 MiB (3,741 minus the 1,024 MiB
-      reserve of decision 2), and report L + 768 + 1,024 against 3,741 either way.
+      those limits with the lab host's CPUs saturated by a load generator and the database
+      probe timeouts at 5 seconds. Pass: `oom_kill` 0 in every container, zero container
+      restarts and every push completes. Receipt: L, the `max` event counts, CPU throttling,
+      restart counts and push durations for both runs. Stop and report before any manifest is
+      written if L exceeds 1,949 MiB (3,741 minus the 1,024 MiB reserve and the 768 MiB backup
+      figure of decision 2). The planned L of 2,112 MiB already exceeds that: unless the
+      measurement lowers it, this slice ends in a report and the owner decides whether slices
+      2 and 3 go ahead before A is known.
       Rollback for 1.1 to 1.3: `bunx nx run tool-fleet:lab -- down` with the printed id.
 
 ## 2. Chart archive and image lock
@@ -56,6 +61,7 @@ comment. Nothing here has been done yet.
       HelmRelease with every image tag written as `<tag>@sha256:<digest>`, the NetworkPolicy,
       the guard init containers through chart values, the post-render patch (receipts volume;
       `Recreate` on core, nginx, portal and exporter), upload purging at 4 hours and 1 hour,
+      database probe timeouts of 5 seconds,
       static volumes and claims, and the measured CPU and memory figures from slice 1. Add a
       `tool-fleet` module that renders them with the locked `helm`. Test: new
       `platform-harbor.test.ts`; `bunx nx run tool-fleet:check` covers the render.
@@ -65,7 +71,8 @@ comment. Nothing here has been done yet.
       is not `Recreate`; a rendered image reference without a digest or with a digest that
       differs from the lock; `trivy.enabled: true`; a chart default secret left in the values
       (`Harbor12345`, `not-a-secure-key`, `changeit`, `harbor_registry_password`); an install
-      secret of the wrong length; upload purge age above 4 hours; a production claim on a
+      secret of the wrong length; upload purge age above 4 hours; a database probe timeout
+      below 5 seconds; a production claim on a
       dynamic storage class; a volume path outside `/var/lib/puni-harbor/<name>/contents`;
       `expose.type` other than `clusterIP`; a workload without the guard init container or the
       receipts volume; a Harbor pod no default-deny policy selects; a policy that admits 8443
@@ -73,8 +80,10 @@ comment. Nothing here has been done yet.
 - [ ] 3.3 Rehearsal target `tool-fleet:rehearse:harbor` on k3d: Flux installs the local overlay,
       all pods reach Ready and report `qosClass: Guaranteed`; the host reaches 8443. Negatives:
       a pod in another namespace cannot connect to 8443, Valkey 6379, the database, the inner
-      registry, core or jobservice. Fault to inject: remove the default-deny policy and watch
-      each probe connect; remove one CPU limit and watch the pod report Burstable.
+      registry, core or jobservice. Also record whether a process on the node itself reaches
+      Valkey: that is the known residual of decision 4, a recorded fact and not a failure.
+      Fault to inject: remove the default-deny policy and watch each pod probe connect; remove
+      one CPU limit and watch the pod report Burstable.
 
 ## 4. Bounded filesystems and the start-up guard
 
@@ -104,21 +113,25 @@ comment. Nothing here has been done yet.
 
 - [ ] 5.1 `infra/registry/harbor.json` and its ArkType shape; planner
       `planHarborReconciliation(declared, observed)` in `tools/tool-fleet/src`. Test: new
-      `harbor-policy.test.ts`: an empty registry yields the full creation plan, with every robot
-      as create then refresh; an equal registry yields none; one changed quota, retention rule,
-      immutability rule, robot permission, schedule, audit purge, webhook or system setting
-      yields exactly that change; a rotation yields delete, create, refresh for that one robot.
+      `harbor-policy.test.ts`: an empty registry yields the full creation plan, with one robot
+      name per role as create then refresh; an equal registry yields none; one changed quota,
+      retention rule, immutability rule, robot permission, schedule, audit purge, webhook or
+      system setting yields exactly that change; a rotation yields create and refresh of the
+      role's idle name and nothing else; a retirement yields the deletion of the older name.
 - [ ] 5.2 Negatives, each watched with its check removed: quotas summing above 70% of the
       recorded usable capacity; a declared or observed robot with a delete action; an unlimited
       project quota; an undeclared project (reported, never deleted); a retention policy whose
       algorithm is not `or`; `deleteUntagged: true`; a retention policy in which no rule keeps
       untagged artifacts; observed `read_only: true` (drift); a robot deletion outside a
-      rotation; an observed field the reader does not model (throws); a property test that no
+      retirement; the retirement of a role's only live name; two live names for one role for
+      more than seven days (drift); an observed field the reader does not model (throws); a property test that no
       secret string appears in any serialised plan.
 
 ## 6. Reconciler shell and the lab proofs
 
-- [ ] 6.1 The thin IO shell: `plan`, `apply --expect-sha256`, `apply --rotate`, `check`, and
+- [ ] 6.1 The thin IO shell: `plan`, `apply --expect-sha256`, `apply --rotate`,
+      `apply --retire`, `check` (which exits as deferred while a backup run marker and a live
+      backup unit exist), and
       `--connect <address>:<port>`, which keeps `registry.puni.internal` as the TLS and host
       name. Test: new `harbor-api.test.ts` against a local fake of the 2.15.4 API, reached only
       through `--connect`. Negatives: missing or unreadable admin credential, declared file or
@@ -133,8 +146,11 @@ comment. Nothing here has been done yet.
       robot can move a promotion tag; `read_only` set through the API refuses a push and clears
       again. Robots, against the real API: creation ignores a supplied secret; after the refresh
       the operator file's secret logs in; a refresh alone leaves `expires_at` where it was;
-      after `apply --rotate` the old secret is refused and `expires_at` is 90 days from the
-      rotation. Fault to inject: make the rotation refresh only, and watch the expiry case fail.
+      a delete and create of one name keeps that name; after `apply --rotate` the new name
+      logs in with `expires_at` 90 days from the rotation and the old name still logs in;
+      after `apply --retire` the old name is refused. Fault to inject: make the rotation
+      refresh only, and watch the expiry case fail; make it replace the name in place, and
+      watch the old-name login fail before retirement.
 - [ ] 6.3 Retention and collection in the rehearsal. Seed twelve artifacts in one repository and
       back-date the push time of some in the lab database. Prove: promoted and old is kept; old,
       unpromoted and outside the newest ten is removed; recent and outside the newest ten is
@@ -157,7 +173,8 @@ comment. Nothing here has been done yet.
       `backup-harbor.test.ts` with the real pinned `restic` (`PUNI_TEST_RESTIC_BINARY`) and a
       local repository. Negatives, each watched with its guard removed: repository absent (no
       implicit initialisation); owner-only file with mode 0644; a retention or collection run in
-      progress; `read_only` already true at start (refuses, changes nothing); dump failure;
+      progress; `read_only` already true at start with no run marker (refuses, writes no
+      marker, changes nothing); dump failure;
       transfer failure; verification failure. After each failure: non-zero exit, previous
       receipt unchanged, nothing pruned, `read_only` false. `_uploads` is absent from the
       snapshot.
@@ -166,13 +183,16 @@ comment. Nothing here has been done yet.
       blob in a second copy fails the same verification. Fault to inject: skip the blob
       comparison and watch the altered copy pass. Record B: the peak of the backup command's
       process tree.
-- [ ] 7.3 Host units for the backup and for the daily `check`, with their README: `MemoryMax`
-      at the measured B, `ExecStopPost` that clears `read_only`, `OnFailure` naming the
-      notifier. Test: `systemd-analyze verify` on both, the way `registry-hosts.test.ts`
-      verifies the endpoint units; on the fixture host, start the backup under a transient unit
-      with the same directives against the lab Harbor, kill it with SIGKILL while read-only,
-      and watch `read_only` return to false. Fault to inject: remove `ExecStopPost` and watch
-      the registry stay read-only.
+- [ ] 7.3 Host units for the backup and for the daily `check` (06:00 UTC, outside the backup
+      window), with their README: `MemoryMax` at the measured B, an `ExecStopPost` that clears
+      `read_only` only when the run marker exists, the same marker step before the preflight,
+      `OnFailure` naming the notifier. Test: `systemd-analyze verify` on both, the way
+      `registry-hosts.test.ts` verifies the endpoint units; on the fixture host, under a
+      transient unit with the same directives against the lab Harbor: kill the backup with
+      SIGKILL while read-only and watch `read_only` return to false; set `read_only` by hand,
+      start the unit, and watch it refuse and leave `read_only` true after `ExecStopPost` ran.
+      Fault to inject: remove `ExecStopPost` and watch the registry stay read-only after the
+      kill; remove its marker condition and watch the hand-set read-only cleared.
 
 ## 8. Endpoint and client roles
 
@@ -226,11 +246,20 @@ Each step needs the owner's go for that step. "Operator" is the owner or an agen
       `df` for `/` and the containerd image directory; `ss -ltn` for port 8443; the fleet
       firewall rules for the private interface; the `puni-platform` source revision;
       `getent passwd 999 10000`. Receipt: the values, dated, in verify.md, with the run each
-      came from. Stop: none; nothing changes. Rollback: none.
+      came from. This change starts no gate on h4claw: A exists only after the host-pool work
+      runs the cold calibration, and A2 onwards wait for it. Stop: none; nothing changes.
+      Rollback: none.
 - [ ] A2 Owner applies the rule of decision 2 to L, B, N and A, names the placement, and decides
       the re-enrollment of h4claw with more headroom, which the design expects. Receipt: the
       decision by id and the new headroom. Stop: A − L − B below 1,024 MiB with no fallback
       chosen. The rule is applied again whenever the `gate` envelope changes.
+- [ ] A2a Re-enroll h4claw in the host pool, when N + L + B exceeds the pinned 5 GiB. Who: the
+      operator of the host pool, with the owner's go. Command: the procedure of
+      `docs/infra/gate-hosts.md`, "Enroll a host in the host pool", steps 5 and 7: drain the
+      pool, retire the ledger, re-enroll with enrolling vars that carry the new
+      `puni_gate_pool_headroom`. Receipt: the role converges with `changed=0` on a second
+      apply and the rendered pool configuration shows the new headroom. Stop: a job running or
+      queued in the pool. Rollback: re-enroll with the previous headroom.
 - [ ] A3 Provision the four filesystems. Who: operator. Command: the registry playbook with the
       Harbor storage tag and an owner-only vars file. Receipt: role output, the four receipts,
       measured usable capacity, a second apply with `changed=0`. Stop: root reserve refusal, or
@@ -241,7 +270,8 @@ Each step needs the owner's go for that step. "Operator" is the owner or an agen
       commands into owner-only files; encrypt them into the private fleet repository; add its
       two Flux units; merge; reconcile. Receipt: HelmRelease Ready, every pod reporting
       `qosClass: Guaranteed`, guard init containers succeeded, no listener on 8443 yet. Stop:
-      any pod not Ready in 15 minutes, or a website health check failing. Rollback: suspend and
+      A2a without a receipt where the rule's third row applied; any pod not Ready in 15
+      minutes; a website health check failing. Rollback: suspend and
       remove the Harbor unit; volumes and Secrets remain.
 - [ ] A5 First reconcile, on h4claw with `--connect` naming the Service address, because no host
       listener exists yet. Who: operator. Commands: `plan`, review, `apply --expect-sha256`,

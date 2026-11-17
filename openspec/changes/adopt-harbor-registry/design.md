@@ -47,25 +47,25 @@ Facts this design rests on, with their source:
 The owner has seen H1 to H14. Each row gives the verdict, and the alternative with its cost.
 Overrule any row by its id. H15 to H17 are new.
 
-| Id  | Assumption as it now stands                                                                                                                                                                                                                                                | Verdict                   | Alternative and its cost                                                                                                                                                                                 |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| H1  | Harbor runs on the existing k3s cluster on h4claw. Flux installs it from the official chart, vendored as an archive, every image locked by digest. In production a fleet-owned Flux unit reads a pinned public commit                                                      | Kept, refined             | Advance the platform source pin. Cost: deploys every platform change merged since the pinned revision and unblocks held stages                                                                           |
-| H2  | Trivy scanning is off                                                                                                                                                                                                                                                      | Kept                      | Turn it on. Cost: 512Mi request and 1Gi limit by chart default, one more 5Gi volume, vulnerability-database downloads                                                                                    |
-| H3  | Bundled database and cache, one replica each                                                                                                                                                                                                                               | Kept                      | External PostgreSQL and Valkey. Cost: two services the platform does not run today. Harbor's documented backup covers the internal database only                                                         |
-| H4  | Four bounded filesystems, 40 GiB in total: image store 34, database 4, job logs 1, cache 1. Project quotas sum to 23 GiB. The filesystem bound is the write cutoff                                                                                                         | Changed (decision 3)      | One 50 GiB filesystem. Cost: a full image store stops PostgreSQL, so garbage collection cannot free it; and the root disk keeps 28 G free, 5.5 G above the kubelet's image-filesystem eviction threshold |
-| H5  | Projects `website`, `wbs`, `platform`. Per project one push robot and one pull robot. No robot may delete. Pull robots reach the cluster as namespaced image pull secrets                                                                                                  | Kept, refined             | One system robot in each node's `registries.yaml`. Cost: a system-level robot with cross-project read, the class of account two of the October High advisories concern                                   |
-| H6  | Retention: newest ten per repository, anything carrying a promotion tag, anything pushed in the last seven days. Untagged artifacts get the seven-day rule and nothing else. Garbage collection deletes no artifact                                                        | Kept, made exact (7)      | Unique immutable promotion tags. Cost: an immutable tag never releases, so the store only grows                                                                                                          |
-| H7  | Garbage collection runs daily after one dry run                                                                                                                                                                                                                            | Changed (decision 7)      | Weekly. Cost: a week of deleted bytes either keeps projects at their quota or sits on disk outside it; for the same disk margin quotas would have to sum to about half the filesystem (17 GiB)           |
-| H8  | A Bun reconciler in `tool-fleet` applies the declared file through Harbor's API                                                                                                                                                                                            | Decided (decision 6)      | The Terraform provider. Cost: robot secrets in Terraform state on a backend that has never run live; provider tested on Terraform 1.12 to 1.14 while the repository locks 1.16.3                         |
-| H9  | Harbor serves `registry.puni.internal:8443` over HTTPS with the existing internal certificate, on h4claw's private address only. Distribution on `:5000` stops once Harbor's readiness receipts pass                                                                       | Changed (decisions 5, 10) | Port 443 through Traefik. Cost: Traefik listens on host ports of the ingress node, so Harbor's API would answer anyone who sends the host name unless an allow-list is added and proven                  |
-| H10 | Nightly backup of the database and image store to the existing bucket. A restore drill passes before any consumer moves                                                                                                                                                    | Kept, made exact (8)      | Velero, Harbor's documented path. Cost: the `backup` Flux stage is held in production; activating it is a wider platform step                                                                            |
-| H11 | Only the activation proof image is migrated, by digest, with `crane` v0.22.1                                                                                                                                                                                               | Kept                      | Harbor replication from a "Docker registry" endpoint. Cost: copies by tag and needs a stored credential for the old registry. Depends on pull request #936                                               |
-| H12 | The hand-built lifecycle is frozen now. A separate change removes it after Harbor serves its first consumer                                                                                                                                                                | Kept (decision 11)        | Remove it now. Cost: about 99k lines deleted before the replacement has run once                                                                                                                         |
-| H13 | Every Harbor container, init containers included, has CPU and memory requests equal to its limits, so its pods are Guaranteed. That protects Harbor only; ingress relies on the margin rule. Re-pinning the pool's headroom is the expected cost. h3mon is a weak fallback | Changed (decision 2)      | Requests below limits. Cost: under host memory exhaustion the kernel kills Harbor's database before the gate's compiler                                                                                  |
-| H14 | Local admin plus robots. Self-registration off. SSO later                                                                                                                                                                                                                  | Kept                      | OIDC through Auth0 now. Cost: a new Auth0 application and an outbound dependency for the admin login                                                                                                     |
-| H15 | Harbor lives in the existing `puni-registry` namespace and reuses its `registry-ca` issuer and `registry-tls` certificate                                                                                                                                                  | New                       | A new namespace. Cost: the namespace comes from the `policy` stage, which follows the pinned revision, and the CA key would need a second encrypted copy                                                 |
-| H16 | Robots expire 90 days after creation. Rotation every 60 days deletes and re-creates the robot, because Harbor counts expiry from creation and a secret refresh does not renew it. The daily check fails when one expires within 21 days                                    | New                       | Never expire. Cost: a leaked credential stays valid until someone notices. Harbor's default of 30 days would triple the rotations                                                                        |
-| H17 | No watcher flips Harbor to read-only at a fill threshold. A full image filesystem refuses writes by itself. A five-minute host timer alerts at 80% and 90%                                                                                                                 | New                       | The timer also sets read-only at 90%. Cost: one more piece of bespoke lifecycle behaviour, and a read-only state the backup and the check must then tell apart from their own                            |
+| Id  | Assumption as it now stands                                                                                                                                                                                                                                                                                            | Verdict                   | Alternative and its cost                                                                                                                                                                                 |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H1  | Harbor runs on the existing k3s cluster on h4claw. Flux installs it from the official chart, vendored as an archive, every image locked by digest. In production a fleet-owned Flux unit reads a pinned public commit                                                                                                  | Kept, refined             | Advance the platform source pin. Cost: deploys every platform change merged since the pinned revision and unblocks held stages                                                                           |
+| H2  | Trivy scanning is off                                                                                                                                                                                                                                                                                                  | Kept                      | Turn it on. Cost: 512Mi request and 1Gi limit by chart default, one more 5Gi volume, vulnerability-database downloads                                                                                    |
+| H3  | Bundled database and cache, one replica each                                                                                                                                                                                                                                                                           | Kept                      | External PostgreSQL and Valkey. Cost: two services the platform does not run today. Harbor's documented backup covers the internal database only                                                         |
+| H4  | Four bounded filesystems, 40 GiB in total: image store 34, database 4, job logs 1, cache 1. Project quotas sum to 23 GiB. The filesystem bound is the write cutoff                                                                                                                                                     | Changed (decision 3)      | One 50 GiB filesystem. Cost: a full image store stops PostgreSQL, so garbage collection cannot free it; and the root disk keeps 28 G free, 5.5 G above the kubelet's image-filesystem eviction threshold |
+| H5  | Projects `website`, `wbs`, `platform`. Per project one push role and one pull role, each with two alternating robot names. No robot may delete. Pull robots reach the cluster as namespaced image pull secrets                                                                                                         | Kept, refined             | One system robot in each node's `registries.yaml`. Cost: a system-level robot with cross-project read, the class of account two of the October High advisories concern                                   |
+| H6  | Retention: newest ten per repository, anything carrying a promotion tag, anything pushed in the last seven days. Untagged artifacts get the seven-day rule and nothing else. Garbage collection deletes no artifact                                                                                                    | Kept, made exact (7)      | Unique immutable promotion tags. Cost: an immutable tag never releases, so the store only grows                                                                                                          |
+| H7  | Garbage collection runs daily after one dry run                                                                                                                                                                                                                                                                        | Changed (decision 7)      | Weekly. Cost: a week of deleted bytes either keeps projects at their quota or sits on disk outside it; for the same disk margin quotas would have to sum to about half the filesystem (17 GiB)           |
+| H8  | A Bun reconciler in `tool-fleet` applies the declared file through Harbor's API                                                                                                                                                                                                                                        | Decided (decision 6)      | The Terraform provider. Cost: robot secrets in Terraform state on a backend that has never run live; provider tested on Terraform 1.12 to 1.14 while the repository locks 1.16.3                         |
+| H9  | Harbor serves `registry.puni.internal:8443` over HTTPS with the existing internal certificate, on h4claw's private address only. Distribution on `:5000` stops once Harbor's readiness receipts pass                                                                                                                   | Changed (decisions 5, 10) | Port 443 through Traefik. Cost: Traefik listens on host ports of the ingress node, so Harbor's API would answer anyone who sends the host name unless an allow-list is added and proven                  |
+| H10 | Nightly backup of the database and image store to the existing bucket. A restore drill passes before any consumer moves                                                                                                                                                                                                | Kept, made exact (8)      | Velero, Harbor's documented path. Cost: the `backup` Flux stage is held in production; activating it is a wider platform step                                                                            |
+| H11 | Only the activation proof image is migrated, by digest, with `crane` v0.22.1                                                                                                                                                                                                                                           | Kept                      | Harbor replication from a "Docker registry" endpoint. Cost: copies by tag and needs a stored credential for the old registry. Depends on pull request #936                                               |
+| H12 | The hand-built lifecycle is frozen now. A separate change removes it after Harbor serves its first consumer                                                                                                                                                                                                            | Kept (decision 11)        | Remove it now. Cost: about 99k lines deleted before the replacement has run once                                                                                                                         |
+| H13 | Every Harbor container, init containers included, has CPU and memory requests equal to its limits, so its pods are Guaranteed. That protects Harbor only; ingress relies on the margin rule. Re-pinning the pool's headroom is the expected cost. h3mon is a weak fallback                                             | Changed (decision 2)      | Requests below limits. Cost: under host memory exhaustion the kernel kills Harbor's database before the gate's compiler                                                                                  |
+| H14 | Local admin plus robots. Self-registration off. SSO later                                                                                                                                                                                                                                                              | Kept                      | OIDC through Auth0 now. Cost: a new Auth0 application and an outbound dependency for the admin login                                                                                                     |
+| H15 | Harbor lives in the existing `puni-registry` namespace and reuses its `registry-ca` issuer and `registry-tls` certificate                                                                                                                                                                                              | New                       | A new namespace. Cost: the namespace comes from the `policy` stage, which follows the pinned revision, and the CA key would need a second encrypted copy                                                 |
+| H16 | Robots expire 90 days after creation. Each role has two robot names and rotation every 60 days alternates them: create the idle name, roll the consumer, delete the old one. Harbor counts expiry from creation and a secret refresh does not renew it. The daily check fails when a live robot expires within 21 days | New                       | Never expire. Cost: a leaked credential stays valid until someone notices. Harbor's default of 30 days would triple the rotations                                                                        |
+| H17 | No watcher flips Harbor to read-only at a fill threshold. A full image filesystem refuses writes by itself. A five-minute host timer alerts at 80% and 90%                                                                                                                                                             | New                       | The timer also sets read-only at 90%. Cost: one more piece of bespoke lifecycle behaviour, and a read-only state the backup and the check must then tell apart from their own                            |
 
 ## Decisions
 
@@ -139,6 +139,8 @@ What primary sources give:
   container of the chart's own, `data-permissions-ensurer`
   (<https://github.com/goharbor/harbor-helm/blob/v1.19.4/templates/database/database-ss.yaml>).
   Memory used in `/dev/shm` counts against the container.
+- The database's liveness and readiness probes run a command with a 1 second timeout and fail
+  after three misses (<https://github.com/goharbor/harbor-helm/blob/v1.19.4/values.yaml>).
 
 Planned budget. For every container, init containers included, the CPU request equals the CPU
 limit and the memory request equals the memory limit. Every figure is the author's estimate
@@ -162,15 +164,19 @@ init container and the sum of its containers. The storage guard gets 50m and 32 
 its four pods. The chart's `data-permissions-ensurer` gets 100m and 128 MiB through
 `database.internal.initContainer.permissions.resources`.
 
-CPU. 2.15 of 8 cores. A CPU limit throttles; it does not kill. Against host processes a CPU
-request is a weight, not a reservation, so a gate at load 10 still slows Harbor. Slice 1 records
-throttling during a push.
+CPU. 2.15 of 8 cores. A CPU limit throttles; it does not kill directly. Against host processes a
+CPU request is a weight, not a reservation, so a gate at load 10 still slows Harbor. A slowed
+probe is how throttling does kill: the database's command probe at 1 second, under a 500m cap
+on a saturated host, can miss three times and get PostgreSQL restarted. This plan raises both
+database probe timeouts to 5 seconds. Slice 1 records throttling during a push and passes only
+with zero restarts while the lab host's CPUs are saturated.
 
 Why requests equal limits, for CPU and memory both. A pod is Guaranteed only when every
 container has a CPU limit equal to its CPU request and a memory limit equal to its memory
-request (<https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/>). The kubelet counts init
-containers too. That page does not say so, so the proof is each pod's reported `qosClass` in the
-rehearsal. Memory alone would leave the pods Burstable. The kubelet gives containers of
+request (<https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/>). Init containers count
+too (<https://github.com/kubernetes/kubernetes/blob/v1.36.4/pkg/apis/core/v1/helper/qos/qos.go>).
+The rehearsal still asserts each pod's reported `qosClass`. Memory alone would leave the pods
+Burstable. The kubelet gives containers of
 Guaranteed pods `oom_score_adj` -997 and Burstable containers a value near 1000 when their
 request is small against node memory. The kernel kills the highest score
 (<https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/>). A gate runs
@@ -224,8 +230,9 @@ The first measurement (slice 1, on the local k3d `platform` profile; profile adm
    reclaims before it kills.
 6. Set each memory limit to the larger of its floor in the table and 1.5 times its peak of
    `anon` + `shmem` + `kernel`, rounded up to 32 MiB. Call the sum **L**.
-7. Run all four phases again at those limits. Pass: `oom_kill` stays 0 in every container and
-   every push completes. Record the `max` events and the push duration beside the first run.
+7. Run all four phases again at those limits, with the lab host's CPUs saturated by a load
+   generator. Pass: `oom_kill` stays 0 in every container, no container restarts and every push
+   completes. Record the `max` events and the push duration beside the first run.
 
 The numbers read on h4claw, read-only and attended (task A1):
 
@@ -234,28 +241,34 @@ The numbers read on h4claw, read-only and attended (task A1):
   `gate` (`ops job calibrate`). A calibration runs through the pool without the memory bound. An
   observe-mode gate is throttled at the 6 GiB estimate, so its reading would flatter the result,
   and [gate hosts](../../../docs/infra/gate-hosts.md) step 6 forbids further observe-mode gates
-  on h4claw until `gate` is calibrated.
+  on h4claw until `gate` is calibrated. This change starts no gate on h4claw. A exists only
+  after the host-pool work runs that calibration, and every attended step after A1 waits on it.
 
 Decision rule:
 
-| Condition                               | Outcome                                                  |
-| --------------------------------------- | -------------------------------------------------------- |
-| A − L − B ≥ 1,024 MiB                   | Install on h4claw as designed                            |
-| A − L − B < 1,024 MiB                   | Stop. The owner picks a fallback below                   |
-| N + L + B > 5 GiB (the pinned headroom) | Expected. Re-pin the headroom before Harbor is installed |
+| Condition                               | Outcome                                                                             |
+| --------------------------------------- | ----------------------------------------------------------------------------------- |
+| A − L − B ≥ 1,024 MiB                   | Install on h4claw as designed                                                       |
+| A − L − B < 1,024 MiB                   | Stop. The owner picks a fallback below                                              |
+| N + L + B > 5 GiB (the pinned headroom) | Expected. Re-enroll h4claw with more headroom before Harbor is installed (task A2a) |
 
 The rule is evaluated again whenever the `gate` envelope in `infra/jobs/catalogue.json` changes.
 
 Re-pinning means retiring the ledger and re-enrolling the host
-([gate hosts](../../../docs/infra/gate-hosts.md), step 7). Headroom of 8 or 9 GiB leaves the
+([gate hosts](../../../docs/infra/gate-hosts.md), step 7). Task A2a is that step, and task A4
+does not start without its receipt when the third row applies. Whether re-enrollment discards
+calibration samples is not verified. Headroom of 8 or 9 GiB leaves the
 pool 7 or 6 GiB for jobs. The first h4claw gate already peaked at 6.93 GiB while throttled. On
 these inferred figures the two roles do not fit on h4claw together. The measurement decides,
 and if it agrees, which role h4claw gives up is the owner's call.
 
 Fallbacks, in the order this design prefers them:
 
-1. **Resize h4claw.** h3mon was resized on 2026-10-19 for the same reason. Cost: provider spend
-   and a reboot of the k3s server.
+1. **Resize h4claw to 24 GiB or more.** On the inferred figures the host needs about 5.8 GiB
+   for everything else, 2.1 for Harbor, 0.75 for a backup, 7 or more for a gate and 1 in
+   reserve: near 17 GiB, above today's 15.6. h3mon was resized on 2026-10-19 for the same
+   reason. Costs: provider spend; a reboot of the k3s server; and re-enrollment as well, since
+   MemTotal is a pinned pool field. Provider sizes and prices were not checked.
 2. **Take h4claw out of the gate pool.** h2puni remains the canonical gate. Cost: the second gate
    host and its calibration week.
 3. **Pin Harbor to h3mon by host name.** Costs: h3mon's planned observability graph is already
@@ -433,19 +446,24 @@ infra/platform/registry/harbor/production/     static volumes and claims, node s
   `containerSecurityContext` drops all capabilities, forbids privilege escalation, sets the
   runtime-default seccomp profile and non-root. Admission of every rendered pod is not verified
   until slice 1's server-side dry run.
-- **Network policy.** Ingress to every Harbor pod is denied by default. Then: `nginx` 8443 from
-  the node's own address only, because every client arrives through the host socket and no pod
-  needs the API; each inner port (core, portal, jobservice, registry, registryctl, database,
-  Valkey) from the Harbor pods that use it; metrics ports from `observability`. Two reasons the
-  inner ports must be closed: the chart's internal Valkey has no password
-  (<https://github.com/goharbor/harbor-helm/blob/v1.19.4/values.yaml>), and the inner registry
-  is a Distribution 2.8.3 fork (`v2.8.3-harbor.2` in
-  <https://github.com/goharbor/harbor/releases/tag/v2.15.4>) that does not carry the 2026
+- **Network policy.** Ingress to every Harbor pod is denied by default. Then: each inner port
+  (core, portal, jobservice, registry, registryctl, database, Valkey) from the Harbor pods that
+  use it, and metrics ports from `observability`. `nginx` 8443 gets no rule: clients arrive
+  through the host socket, and k3s's network policy controller admits every source on the pod's
+  own node (<https://github.com/k3s-io/kube-router/blob/master/pkg/controllers/netpol/pod.go>,
+  the `--src-type LOCAL` rule; read on the default branch, not at the version k3s vendors). So
+  the policy closes Harbor to other pods and to other nodes. It cannot close anything to a
+  process on h4claw itself.
+- **What that leaves open.** Any process on h4claw can reach Harbor's inner ports. The chart's
+  internal Valkey has no password and the chart cannot set one
+  (<https://github.com/goharbor/harbor-helm/blob/v1.19.4/templates/_helpers.tpl>,
+  `harbor.redis.password`). The inner registry is a Distribution 2.8.3 fork (`v2.8.3-harbor.2`
+  in <https://github.com/goharbor/harbor/releases/tag/v2.15.4>) that does not carry the 2026
   Distribution fixes: by their titles its fork commits are Redis options, a Go module migration
   and dependency bumps
-  (<https://github.com/goharbor/distribution/compare/v2.8.3...v2.8.3-harbor.2>). Which
-  source address the policy sees for traffic from the host is not verified; the rehearsal finds
-  it.
+  (<https://github.com/goharbor/distribution/compare/v2.8.3...v2.8.3-harbor.2>). Gates run
+  repository code on that host. This residual is not closed by this design. An external Valkey
+  with a password would close the first part at the cost of one more service.
 
 ### 5. TLS, endpoint and clients
 
@@ -470,8 +488,8 @@ infra/platform/registry/harbor/production/     static volumes and claims, node s
 | Client                   | Needs                                                                                                                                                                                                                                                               |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | k3s / containerd nodes   | The existing hosts block and CA, plus a `registries.yaml` entry for `registry.puni.internal:8443` with the CA and no credential. `registry_client` needs a k3s mode without credentials. The `:5000` entry and its credential are removed when Distribution retires |
-| Workloads                | A `kubernetes.io/dockerconfigjson` pull secret per consuming namespace, holding that project's pull robot. Encrypted in the private fleet repository                                                                                                                |
-| Docker on the build host | `/etc/docker/certs.d/registry.puni.internal:8443/ca.crt` and an owner-only Docker config with the push robot                                                                                                                                                        |
+| Workloads                | Two `kubernetes.io/dockerconfigjson` pull secrets per consuming namespace, one for each of the project's two pull robot names, both listed in `imagePullSecrets`. Encrypted in the private fleet repository                                                         |
+| Docker on the build host | `/etc/docker/certs.d/registry.puni.internal:8443/ca.crt` and an owner-only Docker config with the live push robot, switched during a rotation                                                                                                                       |
 | `crane`                  | The same Docker config through `DOCKER_CONFIG`, and the CA through `SSL_CERT_FILE`                                                                                                                                                                                  |
 | Flux                     | Nothing. It reads Git sources and vendored charts only                                                                                                                                                                                                              |
 | Dagger                   | CA, name resolution and the push robot inside the engine container. Not part of this change; the product moves own it                                                                                                                                               |
@@ -493,13 +511,20 @@ slice 6:
   (<https://goharbor.io/docs/main/administration/robot-accounts/>). Expiry is the creation time
   plus the duration. An update recomputes it only when the duration changes. A secret refresh
   leaves it alone.
-- **Rotation.** Every 60 days, one robot at a time: write the new secret file; `apply --rotate`
-  deletes the robot, creates it again and refreshes it with the new secret; encrypt and merge;
-  roll the consumer. Refreshing the secret alone would leave the old expiry, and the robot would
-  stop authenticating on day 90. From the delete until the consumer's update, that robot's new
-  pulls or pushes fail and are retried. Running pods are unaffected.
 - **Name.** A project robot's name is the configured prefix, the project name, `+` and the robot
-  name. The reconciler still reads it back from Harbor.
+  name, and it is the same again after a delete and a create. The reconciler still reads it
+  back from Harbor.
+- **Two names per role.** Each role has two robot names, `<role>-a` and `<role>-b`. One is live;
+  the other does not exist between rotations. Rotating one name in place would leave a gap
+  from the delete until the new secret is encrypted, merged and reconciled by Flux.
+- **Rotation.** Every 60 days, one role at a time: write the new secret file; `apply --rotate`
+  creates the idle name and refreshes it with the new secret; encrypt and merge; wait until the
+  consumer holds it and a login with it succeeds; `apply --retire` deletes the old name. The old
+  robot works until the new one is in place, so there is no gap. Each robot lives about 60 days
+  plus the overlap, inside its 90. Refreshing a secret in place would leave the old expiry, and
+  the robot would stop authenticating on day 90.
+- **Unfinished rotation.** Two live names for one role for more than seven days is reported by
+  the daily check.
 - **Scope.** Robots are per project, not per repository (robot accounts page above).
 
 ### 6. Configuration as code
@@ -546,8 +571,8 @@ Declared file `infra/registry/harbor.json`, validated with ArkType:
       "retention": { "cron": "0 30 3 * * *", "rules": ["see decision 7"] },
       "immutableTags": [{ "tags": "hold-*", "repositories": "**" }],
       "robots": [
-        { "name": "push", "access": ["repository:pull", "repository:push"], "durationDays": 90 },
-        { "name": "pull", "access": ["repository:pull"], "durationDays": 90 }
+        { "role": "push", "access": ["repository:pull", "repository:push"], "durationDays": 90 },
+        { "role": "pull", "access": ["repository:pull"], "durationDays": 90 }
       ],
       "webhooks": [
         { "name": "quota", "events": ["QUOTA_WARNING", "QUOTA_EXCEED"], "kind": "slack" }
@@ -564,10 +589,13 @@ Commands:
 
 - `plan` reads Harbor, prints the changes and exits 0 with none or 2 with some. It prints no
   secret.
-- `apply --expect-sha256 <plan digest>` applies exactly that plan. `apply --rotate
-<project>/<robot>` is the rotation of decision 5.
-- `check` is `plan` plus three probes: each robot's secret file logs in; no robot expires within
-  21 days; the served certificate does not expire within 21 days. A daily host timer runs it.
+- `apply --expect-sha256 <plan digest>` applies exactly that plan. `apply --rotate` and
+  `apply --retire`, each naming one project and role, are the two halves of the rotation of
+  decision 5.
+- `check` is `plan` plus three probes: each live robot's secret file logs in; no live robot
+  expires within 21 days; the served certificate does not expire within 21 days. A host timer
+  runs it daily at 06:00 UTC, outside the backup window. If it finds a backup run in progress
+  it exits as deferred and reports nothing.
 - `--connect <address>:<port>` sends every request to that address while keeping
   `registry.puni.internal` as the TLS and host name. The first reconcile and its `check` run
   against the Service address before any host listener exists (decision 10, step 6).
@@ -575,8 +603,9 @@ Commands:
 Rules the planner enforces:
 
 - It never deletes a project, repository or artifact. An undeclared project is reported as drift.
-  The one thing it deletes is a robot, and only inside `apply --rotate`.
-- `readOnly: true` in the registry is drift. The backup is the only writer of that setting and
+  The one thing it deletes is a robot, only inside `apply --retire`, and never a role's only
+  live name.
+- `readOnly: true` in the registry is drift. The backup sets it only under its run marker and
   clears it when it ends (decision 8).
 - A declared `deleteUntagged: true`, or a retention policy in which no rule keeps untagged
   artifacts, is rejected (decision 7).
@@ -591,9 +620,12 @@ Rules the planner enforces:
 The reconciler authenticates as the local `admin`. A system robot would be narrower. System
 robots are the subject of two of the October High advisories, so this design does not create one.
 
-Bootstrap: Harbor starts with self-registration on by default
-(<https://goharbor.io/docs/main/install-config/configure-system-settings-cli/>). The endpoint
-socket is enabled only after the first reconcile, so no client reaches Harbor in between.
+Bootstrap: self-registration defaults to off in the 2.15.4 source
+(<https://github.com/goharbor/harbor/blob/v2.15.4/src/lib/config/metadata/metadatalist.go>),
+though the settings page lists it as on
+(<https://goharbor.io/docs/main/install-config/configure-system-settings-cli/>). The reconciler
+sets it either way, and the endpoint socket is enabled only after the first reconcile, so no
+client reaches Harbor before its settings are the declared ones.
 
 ### 7. Policy
 
@@ -640,11 +672,17 @@ decorations are from the 2.15.4 source
 - Read as one sentence: an artifact is removed only when it has no promotion tag, is not among
   the ten most recently pushed in its repository, and was pushed more than seven days ago.
 - If any tag of an artifact is kept, the artifact and all its tags are kept (same page).
-- Untagged artifacts get rule 3 and nothing else: kept for seven days after their push, then
-  removed. That window covers a multi-architecture push whose children arrive before its index,
-  and the old digest of a build tag that was pushed again. Whether retention then removes the
-  children of an index that is still kept is not verified; the lab test pushes an index,
-  back-dates it and pulls each child by digest after retention and collection.
+- Untagged artifacts get rule 3 and nothing else: kept until seven days after their push, then
+  removed. The seven days count from the push
+  (<https://github.com/goharbor/harbor/blob/v2.15.4/src/pkg/retention/dep/client.go>), not from
+  the moment a tag is lost. That covers a multi-architecture push whose children arrive before
+  its index. It covers the old digest of a re-pushed build tag only while that digest is itself
+  younger than seven days; an older one goes at the next retention run. A hold cannot save an
+  untagged artifact: the immutability matcher never matches one
+  (<https://github.com/goharbor/harbor/blob/v2.15.4/src/pkg/immutable/match/rule/match.go>).
+  Whether retention removes the children of an index that is still kept is not verified; the
+  lab test pushes an index, back-dates it and pulls each child by digest after retention and
+  collection.
 - Schedule: daily, `0 30 3 * * *`. The API file's examples use six-field cron. The time zone is
   not verified.
 - A dry run precedes the first real run in every project.
@@ -674,7 +712,7 @@ state a week of deletions is about a week of pushes, which can approach the quot
 23 GiB against 11 GiB of slack. Daily collection cuts either effect to about one seventh.
 Slice 6 records which one holds.
 
-Nightly order, UTC: backup 01:30, retention 03:30, collection 04:30.
+Daily order, UTC: backup 01:30, retention 03:30, collection 04:30, check 06:00.
 
 What this protects, against the lifecycle design:
 
@@ -702,17 +740,19 @@ Procedure, one run of `tool-fleet`'s Harbor backup command under a host timer at
 
 1. Preflight. Pinned `restic` binary by checksum, owner-only configuration, an existing
    repository (never initialised implicitly), no retention or collection execution running,
-   and `read_only` false. A registry that is already read-only means an earlier run did not
-   finish; the command refuses and says so. Any failure stops before any change.
-2. Set `read_only` true through the API.
+   and `read_only` false. A registry that is already read-only was set so by someone else: the
+   command refuses, says so and changes nothing. Any failure stops before any change.
+2. Write the run marker, a root-owned file on the host's disk, then set `read_only` true
+   through the API.
 3. Dump the database with `pg_dump` in custom format from inside the database pod, streamed
    into `restic backup --stdin`.
 4. `restic backup` of the `registry` and `jobs` contents directories, excluding `_uploads`.
    Harbor's own backup page warns that upload purging can break a file-level backup; unfinished
    uploads are not state worth restoring.
 5. Verify: `restic check`, and both snapshots exist with this run's tag.
-6. Set `read_only` back to false, the declared value. This step runs on success and on failure.
-   If it fails, the command exits non-zero and prints the one command that clears read-only.
+6. Set `read_only` back to false, the declared value, then remove the run marker. This step runs
+   on success and on failure. If it fails, the command exits non-zero and prints the one command
+   that clears read-only.
 7. Only after 5 and 6 succeed: write the success receipt, then
    `restic forget --keep-daily 7 --keep-weekly 4 --prune`.
 
@@ -726,9 +766,12 @@ Procedure, one run of `tool-fleet`'s Harbor backup command under a host timer at
   the private fleet repository under SOPS. Without `secretKey` a restored database cannot
   decrypt what Harbor stored encrypted.
 - **Killed or timed out.** Step 6 does not run when the process is killed. The unit therefore
-  has an `ExecStopPost` that clears `read_only` however the main process ended. If the host
-  itself goes down mid-run, the daily `check` reports `read_only: true` as drift and the next
-  backup refuses to start.
+  has an `ExecStopPost` that does step 6 when, and only when, the run marker exists. It also
+  runs after a preflight refusal; with no marker it touches nothing, so a read-only that an
+  operator set on purpose stays set. If the host itself goes down mid-run, the marker survives
+  on disk and the next start of the unit clears the setting through the same path before its
+  preflight. A read-only registry without a marker is reported by the daily `check` and is
+  never cleared automatically.
 - **Memory.** The unit has a `MemoryMax` at the measured B of decision 2.
 - **Failure.** The systemd unit fails and the previous receipt stays. Its `OnFailure` notifier
   tells a person (decision 9).
@@ -775,8 +818,8 @@ Restore drill, the gate before the first consumer:
 | Step | What                                                                                                                                                        | Receipt                                                            | Rollback                                                                                                  |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
 | 1    | Lab measurement (slice 1)                                                                                                                                   | Per-container memory table                                         | Lab down                                                                                                  |
-| 2    | Read h4claw: N, A, free disk, image filesystem, port 8443, firewall, platform revision, exporter (A1)                                                       | The numbers, dated                                                 | None needed; read-only                                                                                    |
-| 3    | Owner decides placement by the rule in decision 2 (A2)                                                                                                      | The decision, by id                                                | None                                                                                                      |
+| 2    | Read h4claw: N, A, free disk, the pool's disk budget, image filesystem, port 8443, firewall, platform revision (A1)                                         | The numbers, dated                                                 | None needed; read-only                                                                                    |
+| 3    | Owner decides placement by the rule in decision 2 (A2); h4claw is re-enrolled with more headroom where the rule's third row applies (A2a)                   | The decision, by id; the ledger's new headroom                     | Re-enroll with the previous headroom                                                                      |
 | 4    | Provision the four filesystems (A3)                                                                                                                         | Role output, receipts, second apply `changed=0`                    | Unmount, remove the fstab entries and backing files this step created                                     |
 | 5    | Encrypt Harbor's Secrets; add the two Flux units; Harbor Ready with no endpoint (A4)                                                                        | HelmRelease Ready, pods Guaranteed, guard passed                   | Suspend and delete the Harbor unit; volumes and Secrets remain                                            |
 | 6    | First reconcile and `check`, sent to the Service address with `--connect` (A5)                                                                              | Plan digest, `check` exit 0                                        | Nothing serves yet; delete the Harbor unit                                                                |
@@ -857,29 +900,30 @@ consumer. It is not written here.
 
 ### 12. What is given up and what is new toil
 
-| Area               | Given up or added                                                                                                                                                      |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Footprint          | One pod and about 64Mi requested becomes nine containers in eight pods, with about 2.1 GiB and 2.15 cores reserved on a 15.6 GiB, 8-core host that also runs gates     |
-| Database           | A PostgreSQL to keep alive, dump, restore and carry across major versions                                                                                              |
-| Cache              | A Valkey with a volume. Losing it loses sessions and queued jobs                                                                                                       |
-| Upgrades           | Every upgrade is an outage, migrates the schema and cannot be rolled back with Helm                                                                                    |
-| Advisories         | Fourteen in October 2026, six High. Someone reads the advisory page weekly and patches within 7 days for High                                                          |
-| Configuration      | Projects, robots and policies live in Harbor's database. Git reaches them only through a reconciler this repository must maintain against Harbor's API                 |
-| Web UI             | An admin can change policy by hand. The daily check reports it a day later at worst                                                                                    |
-| Credentials        | Six robots deleted and re-created every 60 days, by hand. Each rotation is a short gap for that robot                                                                  |
-| Certificate        | nginx must be restarted after each renewal                                                                                                                             |
-| Image protection   | No record of digests in use. Promotion tags only, one rollback step, as trustworthy as the push credential                                                             |
-| Backup ordering    | No verified backup gates a deletion                                                                                                                                    |
-| Backup path        | Not Harbor's documented one. Proven only by the drill                                                                                                                  |
-| Fill cutoff        | The filesystem refuses writes at 100%. No graceful refusal at 90%                                                                                                      |
-| Alerting           | A host timer and a failure notifier that this repository owns, until the `observability` stage activates                                                               |
-| Inner registry     | Harbor embeds Distribution 2.8.3 (`v2.8.3-harbor.2`). The 2026 Distribution advisories are not fixed in it. Harbor's authorization and a network policy stand in front |
-| Other pods         | Guaranteed QoS protects Harbor only. Ingress and every other Burstable pod are killed first when a gate exhausts memory, and Harbor makes that more likely             |
-| Gate pool          | Re-enrolling h4claw with more headroom is expected, which leaves less memory for gates there                                                                           |
-| Chart drift        | The receipts volume and the deployment strategy are a post-render patch that must be re-checked at every chart bump                                                    |
-| Kubernetes support | Kubernetes 1.36 is outside the chart's published test matrix                                                                                                           |
-| Sunk work          | About 99k lines of lifecycle source become dead weight until removed                                                                                                   |
-| Gained             | Quotas, retention, online collection, per-project robots with no delete right, tag immutability, a UI and an audit log, without writing them                           |
+| Area                     | Given up or added                                                                                                                                                           |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Footprint                | One pod and about 64Mi requested becomes nine containers in eight pods, with about 2.1 GiB and 2.15 cores reserved on a 15.6 GiB, 8-core host that also runs gates          |
+| Database                 | A PostgreSQL to keep alive, dump, restore and carry across major versions                                                                                                   |
+| Cache                    | A Valkey with a volume. Losing it loses sessions and queued jobs                                                                                                            |
+| Upgrades                 | Every upgrade is an outage, migrates the schema and cannot be rolled back with Helm                                                                                         |
+| Advisories               | Fourteen in October 2026, six High. Someone reads the advisory page weekly and patches within 7 days for High                                                               |
+| Configuration            | Projects, robots and policies live in Harbor's database. Git reaches them only through a reconciler this repository must maintain against Harbor's API                      |
+| Web UI                   | An admin can change policy by hand. The daily check reports it a day later at worst                                                                                         |
+| Credentials              | Twelve robot names for six roles. Every 60 days each role is rotated by hand in two steps, create and retire, with the consumer rolled in between                           |
+| Certificate              | nginx must be restarted after each renewal                                                                                                                                  |
+| Image protection         | No record of digests in use. Promotion tags only, one rollback step, as trustworthy as the push credential                                                                  |
+| Backup ordering          | No verified backup gates a deletion                                                                                                                                         |
+| Backup path              | Not Harbor's documented one. Proven only by the drill                                                                                                                       |
+| Fill cutoff              | The filesystem refuses writes at 100%. No graceful refusal at 90%                                                                                                           |
+| Alerting                 | A host timer and a failure notifier that this repository owns, until the `observability` stage activates                                                                    |
+| Inner registry           | Harbor embeds Distribution 2.8.3 (`v2.8.3-harbor.2`). The 2026 Distribution advisories are not fixed in it. Harbor's authorization and a network policy stand in front      |
+| Host processes on h4claw | No network policy can close Harbor's inner ports to a process on the same node. Valkey has no password and the chart cannot set one. Gates run repository code on that host |
+| Other pods               | Guaranteed QoS protects Harbor only. Ingress and every other Burstable pod are killed first when a gate exhausts memory, and Harbor makes that more likely                  |
+| Gate pool                | Re-enrolling h4claw with more headroom is expected, which leaves less memory for gates there                                                                                |
+| Chart drift              | The receipts volume and the deployment strategy are a post-render patch that must be re-checked at every chart bump                                                         |
+| Kubernetes support       | Kubernetes 1.36 is outside the chart's published test matrix                                                                                                                |
+| Sunk work                | About 99k lines of lifecycle source become dead weight until removed                                                                                                        |
+| Gained                   | Quotas, retention, online collection, per-project robots with no delete right, tag immutability, a UI and an audit log, without writing them                                |
 
 ### 13. Alternatives considered
 
@@ -932,18 +976,24 @@ free number.
 - **Memory.** Harbor may not fit beside a gate. Mitigation: the measurement and rule in
   decision 2. Residual: the owner may have to give up a role of h4claw or pay for a resize.
 - **A release tool bug moves a promotion tag.** The old image loses its tag. Mitigation: it
-  stays kept for seven days and while among the newest ten; the nightly backup keeps seven
-  dailies.
+  stays kept while it is among the newest ten or was pushed within the last seven days, which
+  an image that has been running for weeks is not; the nightly backup keeps seven dailies.
 - **Uncounted bytes fill the filesystem** (refused pushes, deletions awaiting collection).
-  Mitigation: 11 GiB of slack, daily collection, the filesystem bound. Residual: a full `registry` filesystem fails pushes until collection runs.
+  Mitigation: 11 GiB of slack, daily collection, hourly upload purging, the filesystem bound.
+  Residual: a full `registry` filesystem fails pushes until collection or the purger frees
+  space.
 - **Backup fails silently.** Mitigation: the unit fails, the receipt does not advance and the
   failure notifier posts. Residual: the destination is unproven until task A7.
-- **A killed backup leaves Harbor read-only.** Mitigation: `ExecStopPost` clears it; the daily
-  check reports it; the next backup refuses to start on it.
+- **A killed backup leaves Harbor read-only.** Mitigation: `ExecStopPost` clears it when the
+  run marker exists; the daily check reports any read-only it finds outside a backup.
+- **A gate's code reaches Harbor's inner ports.** Not mitigated (decision 4).
+- **A throttled probe restarts the database.** Mitigation: 5 second probe timeouts and the
+  zero-restart pass condition of slice 1.
 - **A gate kills ingress.** Harbor's reservation narrows the margin for every pod that is not
   Guaranteed. Mitigation: the margin rule of decision 2 only.
-- **A rotation is missed.** A robot stops authenticating 90 days after its creation.
-  Mitigation: the daily check fails 21 days before.
+- **A rotation is missed or left half done.** A robot stops authenticating 90 days after its
+  creation. Mitigation: the daily check fails 21 days before, and reports two live names for
+  one role after seven days.
 - **Harbor advisory with no chart release.** Mitigation: the image-override rule in decision 1.
 - **Post-render patch breaks at a chart bump.** Mitigation: `tool-fleet:check` renders with the
   patch and refuses a workload without the receipts volume or with a rolling strategy.
@@ -959,8 +1009,9 @@ free number.
 3. **Sizes.** 40 GiB in four filesystems with 10 / 10 / 3 GiB quotas, or other numbers? (H4)
 4. **Environments.** Which environment names may appear in `promoted-<environment>`? This design
    assumes `dev` and `prod` per product.
-5. **Alert destination.** Which Slack channel or other endpoint receives quota and fill alerts,
-   and who reads it? (decision 9)
+5. **Alert destination.** Which Slack channel or other endpoint receives quota, fill and failure
+   alerts, and who reads it? Until this is answered task A7 cannot produce its alert receipts
+   and readiness cannot be recorded. (decision 9)
 6. **Weekly advisory read.** Who does it?
 7. **Backup before deletion.** Accept deletion that is not gated on a verified backup, or have
    the backup command trigger retention and collection itself after it succeeds? The second
@@ -974,7 +1025,6 @@ free number.
 
 - Per-component memory and CPU of Harbor. No primary source gives it. B, the backup's memory.
 - Harbor 2.15.4 on Kubernetes 1.36, and admission of every chart pod under `restricted`.
-- That init containers count toward a pod's QoS class. The pods' reported `qosClass` is the proof.
 - Robot behaviour was read from source and not run: create ignores a supplied secret, refresh
   accepts one, expiry counts from creation.
 - That a push robot without delete permission can move an existing tag.
@@ -991,7 +1041,10 @@ free number.
 - `pg_dump` and `pg_restore` as a restore path for Harbor's database. Harbor documents Velero only.
 - That `crane copy` into Harbor preserves the manifest digest.
 - That a read-only volume is exempt from the pod's `fsGroup` ownership change.
-- Which source address a NetworkPolicy sees for traffic from the host to a pod.
+- That the kube-router version k3s v1.36.4 vendors has the local-node rule read on its default
+  branch. The rehearsal records whether a host process reaches Valkey.
+- Whether re-enrolling a host in the pool discards its calibration samples.
+- Provider sizes and prices for a larger h4claw.
 - On h4claw, all unread: the installed platform revision, whether port 8443 is free and admitted
   by the fleet firewall, whether container images share the root filesystem, whether UID 999 or
   10000 names a host account, N and A, the host pool's disk budget, and whether Traefik binds

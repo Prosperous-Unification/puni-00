@@ -83,6 +83,26 @@ Checks rerun on the second commit's tree, same commands as above:
 | `env -u CLAUDECODE bunx nx run tool-devsync:check:docs --skip-nx-cache` | succeeded, 18.1 s                         |
 | `plaintext-secrets.ts`, `private-nesting.ts`, `doc-caps.ts`             | each exit 0                               |
 
+## Second review round (2026-11-17, third commit)
+
+Five further findings and nine notes, each checked against its source and applied.
+
+| Read                                                                 | What it showed                                                                                    |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Harbor v2.15.4 `src/pkg/retention/dep/client.go`                     | the retention candidate's push time is the artifact's or its newest tag's; grace counts from push |
+| Harbor v2.15.4 `src/pkg/immutable/match/rule/match.go`               | the immutability matcher selects with `untagged` false                                            |
+| Harbor v2.15.4 `src/lib/config/metadata/metadatalist.go`             | `self_registration` defaults to false                                                             |
+| Chart v1.19.4 `templates/_helpers.tpl`, `values.yaml`                | internal Valkey gets an empty password; database probes time out at 1 second, three failures      |
+| `k3s-io/kube-router` `pkg/controllers/netpol/pod.go`, default branch | a rule accepts every source of address type LOCAL to a pod                                        |
+| Kubernetes v1.36.4 `pkg/apis/core/v1/helper/qos/qos.go`              | init containers are part of the QoS computation                                                   |
+
+Checks rerun on the third commit's tree: the eight commands of the table above, same results
+(tool-devsync document tests 40 pass in 107.13 s). The first attempt ran while the workstation's
+root disk was full and failed for that reason: 2 failures in the document tests, 5 in
+`tool-rename-work-package`, index check exit 1. After space was freed every command passed.
+`check-documents-target.test.ts` left a scratch directory of about 2.8 GB under `/tmp` on each
+run here; those from this work were removed by hand.
+
 ## Not run
 
 - No chart was rendered and no Harbor was started. Every memory figure in design.md is an

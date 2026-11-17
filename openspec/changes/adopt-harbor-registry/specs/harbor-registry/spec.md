@@ -25,9 +25,10 @@ requests and MUST NOT allow self-registration.
 
 #### Scenario: Pod reaches a registry port
 
-- **WHEN** a pod outside the registry installation connects to its API port or to an internal
-  port of its cache, database, inner registry, core or job service
-- **THEN** the connection is refused
+- **WHEN** a pod outside the registry installation, or a host other than the registry's node,
+  connects to its API port or to an internal port of its cache, database, inner registry, core
+  or job service
+- **THEN** no connection is established
 
 ### Requirement: Project storage quota
 
@@ -68,8 +69,9 @@ artifact, a tag or a repository.
 ### Requirement: Robot credentials are supplied and renewed
 
 A robot's secret SHALL be the one the operator supplied, and a secret the registry generates MUST
-NOT be printed, logged or stored. A robot MUST expire no later than 90 days after its creation,
-and a rotation MUST leave the robot with a fresh 90 days.
+NOT be printed, logged or stored. A robot MUST expire no later than 90 days after its creation.
+A rotation MUST replace a role's robot with one that has a fresh 90 days, and the role MUST be
+able to authenticate throughout.
 
 #### Scenario: First creation
 
@@ -79,9 +81,19 @@ and a rotation MUST leave the robot with a fresh 90 days.
 
 #### Scenario: Rotation renews expiry
 
-- **WHEN** a robot is rotated 60 days after its creation
-- **THEN** the new secret logs in, the old secret is refused, and the robot's expiry is 90 days
-  after the rotation
+- **WHEN** a role is rotated 60 days after its robot's creation
+- **THEN** the role's new robot logs in with the new secret and expires 90 days after the
+  rotation
+
+#### Scenario: Rotation leaves no gap
+
+- **WHEN** the new robot of a role exists and its consumer has not yet received the new secret
+- **THEN** the old robot still logs in, and it is refused only after it is retired
+
+#### Scenario: Unfinished rotation
+
+- **WHEN** a role has had two live robots for more than seven days
+- **THEN** the check exits non-zero and names the role
 
 #### Scenario: Malformed secret
 
@@ -122,8 +134,13 @@ tagged or not, pushed within the last seven days. It MUST remove every other tag
 #### Scenario: Untagged artifact inside seven days
 
 - **WHEN** an artifact has no tag, because its index has not arrived yet or because its build tag
-  was pushed again, and it was pushed within the last seven days
+  was pushed again, and the artifact itself was pushed within the last seven days
 - **THEN** retention and garbage collection both leave it pullable by digest
+
+#### Scenario: Untagged artifact after seven days
+
+- **WHEN** an artifact has no tag and was pushed more than seven days ago
+- **THEN** a retention run removes it, whenever it lost its tag
 
 #### Scenario: Multi-architecture image
 
@@ -219,6 +236,11 @@ Vulnerability scanning MUST stay disabled.
 - **WHEN** the installation is running
 - **THEN** every one of its pods reports the Guaranteed QoS class
 
+#### Scenario: Saturated node
+
+- **WHEN** other work saturates the node's CPUs while images are pushed and collected
+- **THEN** no container of the installation is restarted
+
 ### Requirement: Declared configuration
 
 Projects, quotas, retention rules, immutability rules, robots, schedules, webhooks and system
@@ -234,6 +256,11 @@ file and the registry, and MUST NOT print a secret.
 
 - **WHEN** the registry is read-only outside a backup run
 - **THEN** the check exits non-zero and names the setting
+
+#### Scenario: Check during a backup
+
+- **WHEN** the check starts while a backup run is in progress
+- **THEN** it exits as deferred, reports no drift and sends no notification
 
 #### Scenario: Undeclared project
 
@@ -282,8 +309,8 @@ restore drill MUST pass before the first consumer uses the registry.
 
 #### Scenario: Registry already read-only
 
-- **WHEN** a backup starts and finds the registry read-only
-- **THEN** it refuses to run and changes nothing
+- **WHEN** a backup starts and finds the registry read-only without a run marker of its own
+- **THEN** it refuses to run, and the registry is still read-only after the unit has stopped
 
 ### Requirement: Operational alerts
 
