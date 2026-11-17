@@ -3643,8 +3643,8 @@ gained `useContainerEvidence`, which `runResources` calls for every action when 
 
 - **S15-A1** The watch injects Docker evidence for every job, not only for the one it watches; a
   reading error keeps the charge (`container evidence unavailable: …`), as before.
-- **S15-A2** A host without Docker keeps the old behaviour: a declared bound stays charged until an
-  operator reads it. Both gate hosts have Docker.
+- **S15-A2** A host without Docker keeps the old behaviour: a declared bound stays charged, since
+  no reading exists there. Both gate hosts have Docker.
 - **S15-A3** h4claw's stale record settles once its launcher checkout carries this change and the
   watch restarts (the hourly refresh, or an operator restart).
 - **S15-A4** (review of #940, S2-1) The reading runs inside `settleHostJob`'s `BEGIN IMMEDIATE`
