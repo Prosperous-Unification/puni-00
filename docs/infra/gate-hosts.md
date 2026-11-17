@@ -406,8 +406,9 @@ The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
   in observe mode the holder is `dash-job-<job id>`, held through a file in the ledger's
   `legacy-holds/` until the job settles.
 - Every launcher enters through `run_heavy_job`, which takes this lock on a host that is not
-  enrolled in a Dash host pool, and admits the job through the pool on one that is. h4claw is
-  enrolled in observe mode; h2puni is not yet. See [heavy job launchers](heavy-job-launchers.md).
+  enrolled in a Dash host pool, and admits the job through the pool on one that is. Both hosts
+  are enrolled in observe mode (h4claw since 2026-11-08, h2puni since 2026-11-17; the `dash-host-jobs`
+  verify.md records each visit). See [heavy job launchers](heavy-job-launchers.md).
 
 ## Capacity reports into WBS
 

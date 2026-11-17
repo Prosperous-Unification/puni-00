@@ -228,8 +228,10 @@
       h4claw, 2026-11-12 (verify.md "2026-11-12 h4claw restart proof"): converging apply `changed=2`
       (the unit file and the daemon-reload) then `changed=0`; an observed `kill -9` of the watch's
       `MainPID` with systemd restarting it 30 s later (`NRestarts` 0 → 1) and `ops pool inspect`
-      identical before and after; `--tags validate` `changed=0`. Still owed: the same on h2puni
-      with its enrollment, and the guard holder surviving a restart (concurrent mode, 6.5).
+      identical before and after; `--tags validate` `changed=0`. h2puni, 2026-11-17 (verify.md
+      "2026-11-17 h2puni enrolled"): the same proof on the enrollment visit, `kill -9` at 20:44:54Z,
+      active again at 20:45:24Z with `NRestarts` 0 → 1. Still owed: the guard holder surviving a
+      restart (concurrent mode, 6.5).
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
       (`Restart=always`; `on-failure` until 2026-11-12, see 6.7; `RestartSec=30`, `KillMode=process`,
       skipped until the ledger exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
@@ -244,6 +246,11 @@
       the run record's container samples) before any type runs with `enforcement: cap`: their
       `--memory 1g --cpus 1` is the declared `gate` bound, applied only inside a Dash job and not
       yet measured (slice 6a review F4).
+      Enrollment half DONE: h4claw 2026-11-08 (verify.md "2026-11-08 h4claw enrolled in observe
+      mode"), h2puni 2026-11-17 (verify.md "2026-11-17 h2puni enrolled": apply `changed=4` then
+      `changed=0`, `ops pool init`, units started, `--tags validate` `ok=31 changed=0`; allocatable
+      6 cores, 9 GiB, 12 disk units, 4 slots). Open: the observe week on both hosts, the five
+      calibrations (`gate` on h4claw is armed behind job 22ce2369, see 6.14), the catalogue PRs.
 - [x] 6.5a Code (slice 6b): `ops pool switch-mode concurrent|observe`, with `--release-guard`
       and `--allow-empty`: the intake fence on new tickets (queued ones keep their place,
       S6B-A16), the pool and shell-lock drain, launcher shim verification (library, `bin/`
@@ -341,3 +348,17 @@
       branch and watch it fail. Done in PR #929 (slice 6i): `host-job-container-bound.ts`
       in tool-remote-scripts. `docker build` stays unattributed, and the peaks stay unmeasured
       until 6.4, so `gate` stays out of `concurrencyEligible`.
+
+- [ ] 6.14 Lift `MemoryHigh` before signalling at the runtime bound (incident 2026-11-17, h4claw job
+      22ce2369): the gate's `nx`, `eslint` and a `git checkout` sat in D state in
+      `mem_cgroup_handle_over_high` (scope `MemoryHigh` 6 GiB, `memory.current` 7.2 GiB,
+      `memory.events high` 462 420 112), so an operator `SIGTERM` to the launcher never reached
+      the payload; the launcher died, the scope and the hold stayed, and `ops job status` reports
+      `settlement unknown`. A task held in the reclaim loop takes no signal, SIGKILL included, so
+      the 6.11 bound's SIGTERM → SIGKILL escalation cannot end such a job either. `ops job run`
+      must raise the scope's `MemoryHigh` to `infinity` (the operator form is
+      `systemctl --user set-property --runtime <scope> MemoryHigh=infinity`) before the SIGTERM at
+      the bound, and the operator runbook
+      names the same step before a manual kill. Test: a payload pinned under `MemoryHigh` in
+      `job-run.test.ts`'s namespace ends at the bound within the settle budget; negative: without
+      the lift the test's fake throttle keeps it alive.

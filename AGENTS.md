@@ -79,8 +79,9 @@ Five rules govern this repo:
 
 ## Gate
 
-- Before claiming done on h2puni, run `bin/h2puni-gate.sh <sha>`. It takes the canonical
-  host-wide heavy lock, checks out that SHA under the lock, installs the locked dependencies
+- Before claiming done on h2puni, run `bin/h2puni-gate.sh <sha>` from `~/puni-00-gate-launcher`
+  (h2puni is enrolled in the Dash host pool in observe mode since 2026-11-17). It is admitted
+  through the pool, checks out that SHA in a pool gate tree, installs the locked dependencies
   frozen, then runs CI format, test, lint, typecheck and build. Do not run raw full Nx gates
   there or check out the SHA first.
 - Run the gate from a clean isolated h2 worktree. Never use
