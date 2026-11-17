@@ -2196,6 +2196,7 @@ export class ResourceRuntime {
       }
     }
   }
+  private containerEvidence: ContainerEvidence = declaredContainersOnly;
   /** Reconcile dead creators and retry pending/blocked cleanup; retention requires an explicit retry. */
   sweep(): ResourceUse[] {
     for (const snapshot of this.list()) {
@@ -2240,9 +2241,21 @@ export class ResourceRuntime {
       )
         this.cleanup(current.id);
     }
+    // Proof: settling with `declaredContainersOnly` here made `sweep settles a job with a declared
+    // containers bound once the reading says its containers are gone` (sweep-container-evidence
+    // .test.ts) receive `held` for `released` (2026-11-17, task 6.15).
     for (const job of this.listHostJobs())
-      if (job.state !== 'released') this.settleHostJob(job.id, declaredContainersOnly);
+      if (job.state !== 'released') this.settleHostJob(job.id, this.containerEvidence);
     return this.list();
+  }
+  /**
+   * The container evidence `sweep` settles host jobs with (J2'). `declaredContainersOnly` until
+   * the caller injects a reading: `resources watch` and `resources sweep` inject Docker's when the
+   * CLI is on `PATH`, so a job whose launcher died settles once its processes and containers are
+   * gone instead of staying charged forever (h4claw job 22ce2369, 2026-11-17).
+   */
+  useContainerEvidence(evidence: ContainerEvidence): void {
+    this.containerEvidence = evidence;
   }
   /** Record a bounded retry obligation without returning any reservation capacity. */
   private block(use: ResourceUse, cause: unknown): void {

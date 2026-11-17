@@ -3618,3 +3618,30 @@ live one.
   ledger.
 - **EV-A11** The holder-survives clause stays owed (observe mode, `guardHolder null`), as is h2puni's
   proof with its enrollment. Logs: puni-plan `evidence/2026-11-12-h4claw-restart-proof/`.
+
+## 2026-11-17 sweep settles a dead launcher's job with container evidence (task 6.15)
+
+Branch `ops/sweep-container-evidence-20261117` from `main` 1b94e080b; laptop, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset; no host touched. Found while ending h4claw job 22ce2369: with the
+scope inactive and no process left, `ops job status` kept `running … settlement unknown` and
+`resources sweep` released nothing, because `ResourceRuntime.sweep` settled every job with
+`declaredContainersOnly` (a declared bound is never "gone") while only `ops job run` built
+`dockerContainerEvidence`. The builder moved to `resources/container-evidence.ts` (ops imports
+resources, never the reverse); `ops/containers.ts` re-exports it and `JOB_LABEL`; the runtime
+gained `useContainerEvidence`, which `runResources` calls for every action but `init` when
+`docker` is on `PATH`.
+
+| Command                                                                  | Result                                                                                                 |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `bun test src/resources/sweep-container-evidence.test.ts`                | 3 pass, 0 fail                                                                                         |
+| the same with `declaredContainersOnly` restored in `sweep` (R5 negative) | 1 pass, 2 fail: `Expected: "released" Received: "held"` and the unavailable-reading reason not reached |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                    | see the PR                                                                                             |
+| `bunx eslint` on the five changed files                                  | see the PR                                                                                             |
+| the ops/resources tests importing the moved symbols                      | see the PR                                                                                             |
+
+- **S15-A1** The watch injects Docker evidence for every job, not only for the one it watches; a
+  reading error keeps the charge (`container evidence unavailable: …`), as before.
+- **S15-A2** A host without Docker keeps the old behaviour: a declared bound stays charged until an
+  operator reads it. Both gate hosts have Docker.
+- **S15-A3** h4claw's stale record settles once its launcher checkout carries this change and the
+  watch restarts (the hourly refresh, or an operator restart).

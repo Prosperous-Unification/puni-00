@@ -4,6 +4,7 @@ import type { DashRequest } from '../cli-parser';
 import type { WallClock } from '../clock';
 import type { ApiKey, McpEndpoint } from '../mcp/machine-token';
 import type { WbsTools } from '../mcp/wbs-tools';
+import { dockerContainerEvidence, findDocker } from './container-evidence';
 import type { LegacyLock } from './legacy-lock';
 import {
   type CreationRequest,
@@ -33,6 +34,11 @@ export async function runResources(
     request.action === 'init'
       ? ResourceRuntime.initialize(configuration, clock, linuxHostFacts)
       : ResourceRuntime.open(configuration, clock);
+  // Proof: without it `sweep settles a job with a declared containers bound once the reading
+  // says its containers are gone` (sweep-container-evidence.test.ts) left the job charged, the
+  // h4claw leak of 2026-11-17 (verify.md).
+  const docker = findDocker(process.env);
+  if (docker !== null) runtime.useContainerEvidence(dockerContainerEvidence(docker, process.env));
   const report = (value: unknown): void => {
     write(`${JSON.stringify(value)}\n`);
   };
