@@ -369,7 +369,8 @@ ssh puni1@<h4claw public address> \
   'cd ~/puni-00-gate-launcher && git fetch -q origin && bin/h2puni-gate.sh <sha>' > gate-<sha8>.log 2>&1
 ```
 
-Known issue, pending as of 2026-11-08 22:50Z. The first gate from this path, `gate:a5e9dbe9`, ran
+Known issue, pending as of 2026-11-08 22:50Z; the held gate was ended cgroup-wide on 2026-11-17
+(`dash-host-jobs` verify.md, task 6.14) and `gate` is still uncalibrated. The first gate from this path, `gate:a5e9dbe9`, ran
 under `MemoryHigh` at the `gate` type's estimated 6 GiB and was throttled: `memory.peak` reached
 6.93 GiB, `memory.pressure` stayed above 90 %, two `bun test` runs timed out and three `eslint`
 runs hit heap OOMs. At 3 h 05 min it was still in its first `nx run-many`, and its exit is not

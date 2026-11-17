@@ -3647,8 +3647,9 @@ after apply 1, both honoured. Full logs, credential lines stripped, in puni-plan
 …release ]` in tbf2, `bun -e setInterval` in tbf) had held the trees for 7 and 47 days.
   Enrollment therefore needs a cwd sweep of the gate trees before the apply; this change adds it
   to the runbook's drain step.
-- **EV-A13** The 6.4 observe week starts 2026-11-17 on h2puni; h4claw's started 2026-11-08 but its
-  only gate is still held (6.14), so no h4claw record counts yet.
+- **EV-A13** The 6.4 observe week starts 2026-11-17 on h2puni; h4claw's started 2026-11-08, but its
+  only gate was held until 21:02Z on 2026-11-17 (6.14) and ended without settling, so no h4claw
+  record counts yet.
 - **EV-A14** The watch's `kill -9` landed and systemd restarted it after `RestartSec`, the same
   shape as h4claw on 2026-11-12. The holder-survives clause stays owed (observe mode).
 
