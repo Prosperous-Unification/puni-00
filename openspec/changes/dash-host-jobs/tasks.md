@@ -349,5 +349,6 @@
       declares a containers bound; only `ops job run` read Docker. Now the runtime carries the
       evidence `useContainerEvidence` injects and `resources watch` / `resources sweep` inject
       Docker's reading when the CLI is on `PATH` (`resources/container-evidence.ts`, shared with
-      `ops/containers.ts`). Test: `sweep-container-evidence.test.ts` (three cases); negative: with
+      `ops/containers.ts`). Test: `sweep-container-evidence.test.ts` (four cases, one through `runResources` with a
+      stub `docker` on `PATH`); negative: with
       `declaredContainersOnly` restored in `sweep`, `Expected: "released" Received: "held"`.

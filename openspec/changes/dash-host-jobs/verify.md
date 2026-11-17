@@ -3628,16 +3628,18 @@ scope inactive and no process left, `ops job status` kept `running … settlemen
 `declaredContainersOnly` (a declared bound is never "gone") while only `ops job run` built
 `dockerContainerEvidence`. The builder moved to `resources/container-evidence.ts` (ops imports
 resources, never the reverse); `ops/containers.ts` re-exports it and `JOB_LABEL`; the runtime
-gained `useContainerEvidence`, which `runResources` calls for every action but `init` when
-`docker` is on `PATH`.
+gained `useContainerEvidence`, which `runResources` calls for every action when `docker` is on
+`PATH` (only the sweeping actions read it), with a 5 s deadline instead of a launcher's 30 s.
 
-| Command                                                                               | Result                                                                                                 |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `bun test src/resources/sweep-container-evidence.test.ts`                             | 3 pass, 0 fail                                                                                         |
-| the same with `declaredContainersOnly` restored in `sweep` (R5 negative)              | 1 pass, 2 fail: `Expected: "released" Received: "held"` and the unavailable-reading reason not reached |
-| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                 | `Successfully ran target typecheck`                                                                    |
-| `bunx eslint` on the five changed files                                               | exit 0                                                                                                 |
-| `bun test src/ops/containers.test.ts` (the one test file importing the moved symbols) | 3 pass, 0 fail                                                                                         |
+| Command                                                                                                     | Result                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `bun test src/resources/sweep-container-evidence.test.ts`                                                   | 4 pass, 0 fail                                                                                         |
+| the same `-t "through a docker on PATH"` with the injection removed from `command.ts` (R5 negative, S15-A5) | 1 fail: `Expected: "released" Received: "held"`                                                        |
+| the same with `declaredContainersOnly` restored in `sweep` (R5 negative)                                    | 1 pass, 2 fail: `Expected: "released" Received: "held"` and the unavailable-reading reason not reached |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                       | `Successfully ran target typecheck`                                                                    |
+| `bunx eslint` on the five changed files                                                                     | exit 0                                                                                                 |
+| `bun test src/ops/containers.test.ts` (the one test file importing the moved symbols)                       | 3 pass, 0 fail                                                                                         |
+| `bunx eslint` on the five files and `twilight-dash:typecheck` after the review fixes                        | exit 0, `Successfully ran target typecheck`                                                            |
 
 - **S15-A1** The watch injects Docker evidence for every job, not only for the one it watches; a
   reading error keeps the charge (`container evidence unavailable: …`), as before.
@@ -3645,3 +3647,12 @@ gained `useContainerEvidence`, which `runResources` calls for every action but `
   operator reads it. Both gate hosts have Docker.
 - **S15-A3** h4claw's stale record settles once its launcher checkout carries this change and the
   watch restarts (the hourly refresh, or an operator restart).
+- **S15-A4** (review of #940, S2-1) The reading runs inside `settleHostJob`'s `BEGIN IMMEDIATE`
+  transaction, once per unreleased job with a bound and no live process, every 1 s watch tick. A
+  hung daemon therefore holds the ledger's write lock for the reading's deadline per such job,
+  while contending writers (`ops job run` admission, launch records) wait `busy_timeout` 10 s and
+  then fail. The sweep deadline is 5 s so one stale job cannot outlast that timeout; the set is
+  normally empty. Reading outside the transaction is the follow-up if the set ever grows.
+- **S15-A5** (review S2-2) The command wiring has its own test: `resources sweep` through
+  `runResources` with a stub `docker` on `PATH` whose `ps` answers nothing releases the job;
+  negative: with the injection removed from `command.ts` the job stays `held`.

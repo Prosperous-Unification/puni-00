@@ -2,6 +2,7 @@ import { type Subprocess } from 'bun';
 
 import { execute, firstLine, spawnClient } from '../compute/execution';
 import {
+  DOCKER_DEADLINE_MS,
   dockerContainerEvidence,
   dockerEnvironment,
   JOB_LABEL,
@@ -18,7 +19,6 @@ export interface ContainerBound {
 }
 
 const GIB = 1024 ** 3;
-const DOCKER_DEADLINE_MS = 30_000;
 /** The longest `docker events` line the watch reads before it distrusts the stream. */
 const MAX_EVENT_BYTES = 1024 * 1024;
 const BYTE_UNITS: ReadonlyMap<string, number> = new Map([

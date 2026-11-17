@@ -3,7 +3,8 @@ import type { ContainerEvidence } from './runtime';
 /** The label every container a host job starts carries, valued with the job's use id (J16). */
 export const JOB_LABEL = 'puni.job';
 
-const DOCKER_DEADLINE_MS = 30_000;
+/** How long one `docker` reading may take before it is killed and counted as unavailable. */
+export const DOCKER_DEADLINE_MS = 30_000;
 
 /**
  * The environment the `docker` CLI gets: what selects its daemon and finds its contexts, so a
@@ -30,13 +31,16 @@ export function findDocker(
 /**
  * Settlement's container evidence (J2'): no running container carries the job's label. A
  * failed reading throws, which keeps the compute entry charged. `ops job run` reads it for the
- * job it launched; `resources watch` and `resources sweep` read it for every job whose launcher
- * is gone, since a declared bound otherwise stays charged forever (h4claw job 22ce2369,
- * 2026-11-17, `dash-host-jobs` verify.md).
+ * job it launched; `resources watch` and `resources sweep` read it for every unreleased job whose
+ * owned processes are gone, since a declared bound otherwise stays charged forever once the
+ * launcher is dead (h4claw job 22ce2369, 2026-11-17, `dash-host-jobs` verify.md). The reading runs
+ * inside the ledger's write transaction, so `deadlineMs` bounds how long a hung daemon can hold
+ * the write lock per job; sweeps pass a shorter deadline than a launcher does.
  */
 export function dockerContainerEvidence(
   docker: string,
   environment: Readonly<Record<string, string | undefined>>,
+  deadlineMs: number = DOCKER_DEADLINE_MS,
 ): ContainerEvidence {
   return {
     containersGone: (job) => {
@@ -48,7 +52,7 @@ export function dockerContainerEvidence(
           stdin: 'ignore',
           stdout: 'pipe',
           stderr: 'pipe',
-          timeout: DOCKER_DEADLINE_MS,
+          timeout: deadlineMs,
           killSignal: 'SIGKILL',
         },
       );
