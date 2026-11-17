@@ -341,3 +341,14 @@
       branch and watch it fail. Done in PR #929 (slice 6i): `host-job-container-bound.ts`
       in tool-remote-scripts. `docker build` stays unattributed, and the peaks stay unmeasured
       until 6.4, so `gate` stays out of `concurrencyEligible`.
+
+- [x] 6.15 `sweep` settles a dead launcher's job with real container evidence (incident 2026-11-17,
+      h4claw job 22ce2369): after a cgroup-wide SIGKILL ended every process, the job stayed
+      `running … settlement unknown` with 4 cores, 6 GiB and a gate tree reserved, because
+      `ResourceRuntime.sweep` settled with `declaredContainersOnly`, which never clears a type that
+      declares a containers bound; only `ops job run` read Docker. Now the runtime carries the
+      evidence `useContainerEvidence` injects and `resources watch` / `resources sweep` inject
+      Docker's reading when the CLI is on `PATH` (`resources/container-evidence.ts`, shared with
+      `ops/containers.ts`). Test: `sweep-container-evidence.test.ts` (four cases, one through `runResources` with a
+      stub `docker` on `PATH`); negative: with
+      `declaredContainersOnly` restored in `sweep`, `Expected: "released" Received: "held"`.
