@@ -6,7 +6,7 @@ import { basename, join, resolve } from 'node:path';
 
 import type { CheckRunner, CheckTools } from './check';
 import { readCheckTools } from './check';
-import { readToolchain } from './contracts';
+import { readToolchain, type Toolchain } from './contracts';
 
 interface Artifact {
   readonly name: string;
@@ -81,6 +81,39 @@ export async function installLockedTool(
     throw new Error(`${artifact.name}: cannot extract ${artifact.member}: ${untar.stderr.trim()}`);
   }
   return join(extracted, artifact.member);
+}
+
+type CraneLock = Extract<Toolchain['binaries'], { crane: unknown }>['crane'];
+
+/**
+ * Installs the locked crane client into `cache` and returns the extracted `crane` path. The
+ * archive goes through {@link installLockedTool}, so a download whose digest differs from
+ * `lock.sha256` throws before extraction. The extracted executable must then hash to
+ * `lock.executableSha256`; otherwise it is deleted and this throws naming both digests, so a
+ * mismatched client is never returned and never executed here.
+ */
+export async function installLockedCrane(
+  lock: CraneLock,
+  cache: string,
+  run: CheckRunner,
+): Promise<string> {
+  const executable = await installLockedTool(
+    { name: 'crane', ...lock, member: 'crane' },
+    cache,
+    run,
+  );
+  const actual = sha256Of(await readFile(executable));
+  // Proof: removing this comparison made check.test.ts `refuses an extracted crane whose digest
+  // differs from the lock, leaving no crane` install and return the mismatched client (2026-11-17).
+  if (actual !== lock.executableSha256) {
+    // Proof: removing this deletion made the same test find the mismatched crane left in the cache.
+    await rm(executable, { force: true });
+    throw new Error(
+      `crane ${lock.version} extracted from ${lock.url} has sha256 ${actual}; ` +
+        `the lock requires ${lock.executableSha256}`,
+    );
+  }
+  return executable;
 }
 
 /**

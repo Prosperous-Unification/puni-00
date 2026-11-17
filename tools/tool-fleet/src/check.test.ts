@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -19,7 +19,7 @@ import {
   parseIndexEntries,
 } from './check';
 import { runChecked } from './check-cli';
-import { installLockedTool, resolveController } from './check-provision';
+import { installLockedCrane, installLockedTool, resolveController } from './check-provision';
 
 const unsafe = (value: string) => ({ __ansible_unsafe: value });
 
@@ -234,6 +234,64 @@ describe('locked tool provisioning', () => {
       expect(await installLockedTool(exact, cache, runChecked)).toBe(
         join(cache, 'probe-1.0.0', 'probe'),
       );
+    } finally {
+      await server.stop(true);
+    }
+  });
+});
+
+describe('the locked crane client', () => {
+  function serveCraneArchive() {
+    const source = scratchSync('fleet-crane-release-');
+    const executable = new TextEncoder().encode('#!/bin/sh\necho 0.22.1\n');
+    writeFileSync(join(source, 'crane'), executable, { mode: 0o755 });
+    writeFileSync(join(source, 'gcrane'), 'other client\n', { mode: 0o755 });
+    const archive = join(source, 'go-containerregistry_Linux_x86_64.tar.gz');
+    const packed = Bun.spawnSync(['tar', '-czf', archive, '-C', source, 'crane', 'gcrane']);
+    if (packed.exitCode !== 0) throw new Error(packed.stderr.toString());
+    const bytes = Bun.file(archive);
+    const server = Bun.serve({ port: 0, fetch: () => new Response(bytes) });
+    return { server, executable, archive };
+  }
+
+  async function lockFor(archive: string, port: number | undefined, executableSha256: string) {
+    return {
+      version: 'v0.22.1',
+      url: `http://127.0.0.1:${String(port)}/go-containerregistry_Linux_x86_64.tar.gz`,
+      sha256: createHash('sha256')
+        .update(await Bun.file(archive).bytes())
+        .digest('hex'),
+      executableSha256,
+      os: 'linux' as const,
+      arch: 'amd64' as const,
+    };
+  }
+
+  it('refuses an extracted crane whose digest differs from the lock, leaving no crane', async () => {
+    const { server, archive } = serveCraneArchive();
+    const cache = scratchSync('fleet-crane-cache-');
+    try {
+      const lock = await lockFor(archive, server.port, 'c'.repeat(64));
+      const outcome = await installLockedCrane(lock, cache, runChecked).then(
+        () => 'installed',
+        (e: unknown) => String(e),
+      );
+      expect(outcome).toContain(`the lock requires ${'c'.repeat(64)}`);
+      expect(existsSync(join(cache, 'crane-v0.22.1', 'extracted', 'crane'))).toBe(false);
+    } finally {
+      await server.stop(true);
+    }
+  });
+
+  it('installs the locked crane member and returns its path', async () => {
+    const { server, executable, archive } = serveCraneArchive();
+    const cache = scratchSync('fleet-crane-cache-');
+    try {
+      const digest = createHash('sha256').update(executable).digest('hex');
+      const lock = await lockFor(archive, server.port, digest);
+      const installed = await installLockedCrane(lock, cache, runChecked);
+      expect(installed).toBe(join(cache, 'crane-v0.22.1', 'extracted', 'crane'));
+      expect(existsSync(join(cache, 'crane-v0.22.1', 'extracted', 'gcrane'))).toBe(false);
     } finally {
       await server.stop(true);
     }

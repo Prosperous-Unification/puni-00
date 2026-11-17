@@ -26,7 +26,11 @@ const BinaryLock = type({
   '+': 'reject',
 });
 
-const TerraformBinaryLock = type({
+/**
+ * A binary shipped inside a release archive: `sha256` binds the downloaded archive and
+ * `executableSha256` the extracted executable, which a caller compares before running it.
+ */
+const ArchivedBinaryLock = type({
   version: exactVersion,
   url: 'string.url',
   sha256,
@@ -47,6 +51,35 @@ const ChartLock = type({
   '+': 'reject',
 });
 
+const HistoricalBinaryLocks = type({
+  terraform: ArchivedBinaryLock,
+  // Proof: making this optional made the absent-Terragrunt production-reader negative fail.
+  terragrunt: BinaryLock,
+  // Proof: making k3s optional made the missing-lock production-reader
+  // negative fail on 2026-09-17.
+  k3s: BinaryLock,
+  k3d: BinaryLock,
+  flux: BinaryLock,
+  kubectl: BinaryLock,
+  helm: BinaryLock,
+  multipass: BinaryLock,
+  // Proof: making sops optional made the missing-SOPS production-reader negative resolve instead
+  // of reject on 2026-09-18; age shares the same required BinaryLock boundary.
+  sops: BinaryLock,
+  age: BinaryLock,
+  // Bun that runs the host-owned WBS solver supervisor (infra/ansible/roles/solver).
+  // Proof: making solverBun optional made the same missing-lock negative resolve.
+  solverBun: BinaryLock,
+  // Node that runs Nx's bin on a gate host (infra/ansible/roles/gate_host); required like the
+  // Bun lock, so a toolchain without it is refused before any gate exits 127 for want of node.
+  gateNode: BinaryLock,
+  // GitHub CLI at /usr/bin/gh on a gate host: twilight-dash's activation tests run the real
+  // offline `gh attestation verify` from that path. Required like the Node lock; GitHub's apt
+  // repository carries only the newest release, so the pin is the release .deb.
+  gateGh: BinaryLock,
+  '+': 'reject',
+});
+
 const HistoricalToolchainSchema = type({
   schemaVersion: '1',
   supportedHosts: type({
@@ -57,34 +90,7 @@ const HistoricalToolchainSchema = type({
   })
     .array()
     .atLeastLength(1),
-  binaries: {
-    terraform: TerraformBinaryLock,
-    // Proof: making this optional made the absent-Terragrunt production-reader negative fail.
-    terragrunt: BinaryLock,
-    // Proof: making k3s optional made the missing-lock production-reader
-    // negative fail on 2026-09-17.
-    k3s: BinaryLock,
-    k3d: BinaryLock,
-    flux: BinaryLock,
-    kubectl: BinaryLock,
-    helm: BinaryLock,
-    multipass: BinaryLock,
-    // Proof: making sops optional made the missing-SOPS production-reader negative resolve instead
-    // of reject on 2026-09-18; age shares the same required BinaryLock boundary.
-    sops: BinaryLock,
-    age: BinaryLock,
-    // Bun that runs the host-owned WBS solver supervisor (infra/ansible/roles/solver).
-    // Proof: making solverBun optional made the same missing-lock negative resolve.
-    solverBun: BinaryLock,
-    // Node that runs Nx's bin on a gate host (infra/ansible/roles/gate_host); required like the
-    // Bun lock, so a toolchain without it is refused before any gate exits 127 for want of node.
-    gateNode: BinaryLock,
-    // GitHub CLI at /usr/bin/gh on a gate host: twilight-dash's activation tests run the real
-    // offline `gh attestation verify` from that path. Required like the Node lock; GitHub's apt
-    // repository carries only the newest release, so the pin is the release .deb.
-    gateGh: BinaryLock,
-    '+': 'reject',
-  },
+  binaries: HistoricalBinaryLocks,
   // Ubuntu packages installed at an exact version by host roles.
   // Proof: making dockerIo optional made the missing-host-package production-reader negative
   // resolve instead of reject.
@@ -179,8 +185,38 @@ const HistoricalToolchainSchema = type({
   '+': 'reject',
 });
 
-const ToolchainSchema = HistoricalToolchainSchema.merge({ '+': 'reject', k3dHelpers: K3dHelpers });
-export type Toolchain = typeof HistoricalToolchainSchema.infer | typeof ToolchainSchema.infer;
+/**
+ * Retained only: the lock committed from the k3d helper selection (2026-10-28) until crane was
+ * pinned. Resources created from those revisions decode it from Git history; forward creation
+ * reads {@link ToolchainSchema}.
+ */
+const K3dHelpersToolchainSchema = HistoricalToolchainSchema.merge({
+  '+': 'reject',
+  k3dHelpers: K3dHelpers,
+});
+
+const ToolchainSchema = K3dHelpersToolchainSchema.merge({
+  '+': 'reject',
+  binaries: HistoricalBinaryLocks.merge({
+    '+': 'reject',
+    // The crane client (go-containerregistry) that registry tooling and release copy steps run.
+    // Proof: making crane optional made the `rejects a missing crane lock` contracts.test.ts
+    // negative resolve instead of reject (2026-11-17).
+    crane: ArchivedBinaryLock,
+  }),
+});
+export type Toolchain =
+  | typeof HistoricalToolchainSchema.infer
+  | typeof K3dHelpersToolchainSchema.infer
+  | typeof ToolchainSchema.infer;
+
+function assertHelperAgreement<Lock extends typeof K3dHelpersToolchainSchema.infer>(
+  toolchain: Lock,
+): Lock {
+  if (toolchain.binaries.k3d.version !== toolchain.k3dHelpers.version)
+    throw new Error('k3d binary version differs from helper selection');
+  return toolchain;
+}
 
 function parseToolchain(input: unknown): typeof ToolchainSchema.infer {
   // Proof: Task37 selection-boundary bypass failed nine current-reader negatives, including provider/platform and binary agreement.
@@ -188,9 +224,7 @@ function parseToolchain(input: unknown): typeof ToolchainSchema.infer {
   if (toolchain instanceof type.errors) {
     throw new Error(`Toolchain validation failed: ${toolchain.summary}`, { cause: toolchain });
   }
-  if (toolchain.binaries.k3d.version !== toolchain.k3dHelpers.version)
-    throw new Error('k3d binary version differs from helper selection');
-  return toolchain;
+  return assertHelperAgreement(toolchain);
 }
 
 const requiredImageRoles = {
@@ -302,8 +336,15 @@ export function decodeRetainedToolchain(bytes: Uint8Array, expectedSha256: strin
     // Proof: Task37 retained-hash bypass accepted another receipt hash; retained historical reader failed.
     throw new Error('Retained toolchain source identity differs');
   const input: unknown = JSON.parse(Buffer.from(bytes).toString('utf8'));
-  const retained = HistoricalToolchainSchema.or(ToolchainSchema).assert(input);
-  const lock = 'k3dHelpers' in retained ? parseToolchain(retained) : retained;
+  // Proof: dropping K3dHelpersToolchainSchema from this union made contracts.test.ts `still
+  // decodes a retained k3dHelpers lock committed before the crane pin` reject 1b94e080b's real
+  // lock bytes (2026-11-17).
+  const retained = HistoricalToolchainSchema.or(K3dHelpersToolchainSchema)
+    .or(ToolchainSchema)
+    .assert(input);
+  // Proof: dropping this agreement call made contracts.test.ts `still checks k3d agreement on a
+  // retained k3dHelpers lock` decode a lock whose k3d binary differs from its helpers (2026-11-17).
+  const lock = 'k3dHelpers' in retained ? assertHelperAgreement(retained) : retained;
   // Proof: Task37 retained-current missing chart role resolved before this shared completeness check was restored.
   assertCompleteImageLocks(lock);
   return lock;

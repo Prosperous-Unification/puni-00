@@ -1,10 +1,11 @@
+import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
-import { readToolchain } from './contracts';
+import { decodeRetainedToolchain, readToolchain } from './contracts';
 import { selectedHelpers } from './k3d-helper-images.fixture.test';
 
 const sha256 = 'a'.repeat(64);
@@ -99,6 +100,14 @@ const validToolchain = {
       version: '2.102.1',
       url: 'https://example.test/gh.deb',
       sha256,
+      os: 'linux',
+      arch: 'amd64',
+    },
+    crane: {
+      version: 'v0.22.1',
+      url: 'https://example.test/crane.tar.gz',
+      sha256,
+      executableSha256: sha256,
       os: 'linux',
       arch: 'amd64',
     },
@@ -232,6 +241,34 @@ describe('readToolchain', () => {
     expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
       /gateGh/,
     );
+  });
+
+  it('rejects a missing crane lock', async () => {
+    const { crane: _removed, ...binaries } = validToolchain.binaries;
+    expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
+      /crane/,
+    );
+  });
+
+  it('requires a separately locked crane executable digest', async () => {
+    const { executableSha256: _removed, ...crane } = validToolchain.binaries.crane;
+    const path = await writeToolchain({
+      ...validToolchain,
+      binaries: { ...validToolchain.binaries, crane },
+    });
+    expect(readToolchain(path)).rejects.toThrow(/executableSha256/);
+  });
+
+  it('reads the committed crane pin', async () => {
+    const path = join(import.meta.dir, '../../../infra/versions/toolchain.json');
+    expect((await readToolchain(path)).binaries.crane).toEqual({
+      version: 'v0.22.1',
+      url: 'https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_x86_64.tar.gz',
+      sha256: '0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0',
+      executableSha256: '8e75c326adb43b053cfd78b9b987663f8f4fe4557f4d3915905643f25c730992',
+      os: 'linux',
+      arch: 'amd64',
+    });
   });
 
   it('rejects a missing solver Bun lock and an unpinned host package', async () => {
@@ -382,5 +419,57 @@ describe('readToolchain', () => {
     const path = join(directory, 'toolchain.json');
     await writeFile(path, '{');
     expect(readToolchain(path)).rejects.toThrow(/required toolchain.*valid JSON/i);
+  });
+});
+
+describe('decodeRetainedToolchain', () => {
+  const repository = join(import.meta.dir, '../../..');
+  // The last main revision before crane was pinned; its lock carries k3dHelpers but no crane.
+  const helperRevision = '1b94e080b';
+  const helperLockSha256 = '5fa350e57fca1228287d101f41c8156f3845cb262f690cc29eb743bb3c31d31e';
+
+  function showLock(revision: string): Uint8Array {
+    const shown = Bun.spawnSync(
+      ['git', '-C', repository, 'show', `${revision}:infra/versions/toolchain.json`],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    if (shown.exitCode !== 0) {
+      throw new Error(`git show ${revision} failed: ${shown.stderr.toString()}`);
+    }
+    return shown.stdout;
+  }
+
+  it('still decodes a retained k3dHelpers lock committed before the crane pin', async () => {
+    const bytes = showLock(helperRevision);
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(helperLockSha256);
+    const lock = decodeRetainedToolchain(bytes, helperLockSha256);
+    expect('k3dHelpers' in lock).toBe(true);
+    expect(lock.binaries).not.toHaveProperty('crane');
+    const path = await writeToolchain(JSON.parse(Buffer.from(bytes).toString('utf8')));
+    expect(readToolchain(path)).rejects.toThrow(/crane/);
+  });
+
+  it('still checks k3d agreement on a retained k3dHelpers lock', () => {
+    const lock = JSON.parse(Buffer.from(showLock(helperRevision)).toString('utf8')) as {
+      binaries: { k3d: { version: string } };
+    };
+    lock.binaries.k3d.version = 'v5.9.1';
+    const bytes = new TextEncoder().encode(JSON.stringify(lock));
+    expect(() =>
+      decodeRetainedToolchain(bytes, createHash('sha256').update(bytes).digest('hex')),
+    ).toThrow(/k3d binary version differs/);
+  });
+
+  it('decodes a retained historical lock and the current lock', () => {
+    const historical = showLock('b312fca6b^');
+    const historicalLock = decodeRetainedToolchain(
+      historical,
+      createHash('sha256').update(historical).digest('hex'),
+    );
+    expect(historicalLock).not.toHaveProperty('k3dHelpers');
+    const current = new TextEncoder().encode(JSON.stringify(validToolchain));
+    expect(
+      decodeRetainedToolchain(current, createHash('sha256').update(current).digest('hex')).binaries,
+    ).toHaveProperty('crane');
   });
 });
