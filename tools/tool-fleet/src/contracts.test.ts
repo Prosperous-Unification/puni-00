@@ -479,23 +479,40 @@ describe('decodeRetainedToolchain', () => {
     const { bytes, sha256: lockSha256 } = sealed(withoutHelpers);
     // Proof: adding a historical variant that also admits crane (HistoricalToolchainSchema with
     // an optional crane) made this resolve instead of throw (2026-11-17).
-    expect(() => decodeRetainedToolchain(bytes, lockSha256)).toThrow(
-      /k3dHelpers must be an object \(was missing\) or binaries\.crane must be removed/,
-    );
+    expect(() => decodeRetainedToolchain(bytes, lockSha256)).toThrow(/crane must be removed/);
   });
+});
 
-  it('pins the same crane executable in the registry client and its install role', async () => {
-    const root = join(import.meta.dir, '../../..');
-    const { executableSha256 } = (await readToolchain(join(root, 'infra/versions/toolchain.json')))
-      .binaries.crane;
-    // The lifecycle code keeps its own literal digests; this ties them to the lock.
-    // Proof: changing binaries.crane.executableSha256 in the committed lock to 64 `d`s made this
-    // test fail on the registry-client-software.ts pin (2026-11-17).
-    const software = await Bun.file(join(import.meta.dir, 'registry-client-software.ts')).text();
-    expect(/x64: '([0-9a-f]{64})'/.exec(software)?.[1]).toBe(executableSha256);
-    const role = await Bun.file(
-      join(root, 'infra/ansible/roles/registry_storage/tasks/client-source.yml'),
-    ).text();
-    expect(/stat\.checksum == '([0-9a-f]{64})'/.exec(role)?.[1]).toBe(executableSha256);
-  });
+describe('crane digest copies', () => {
+  const root = join(import.meta.dir, '../../..');
+  // The lifecycle code keeps its own literal digests; each pattern must match exactly once.
+  const copies = [
+    { file: 'tools/tool-fleet/src/registry-client-software.ts', pattern: /x64: '([0-9a-f]{64})'/g },
+    {
+      file: 'infra/ansible/roles/registry_storage/tasks/client-source.yml',
+      pattern: /stat\.checksum == '([0-9a-f]{64})'/g,
+    },
+    {
+      file: 'tools/tool-fleet/src/registry-client-installation-role.native.py',
+      pattern: /hash_file\(options\.crane\)!='([0-9a-f]{64})'/g,
+    },
+    {
+      file: 'tools/tool-fleet/src/registry-client-role-worker.fixture.py',
+      pattern: /'registry_client_source':\{'stat':\{'isreg':False,'checksum':'([0-9a-f]{64})'\}/g,
+    },
+  ];
+
+  for (const { file, pattern } of copies) {
+    it(`pins the locked crane executable in ${file}`, async () => {
+      const { executableSha256 } = (
+        await readToolchain(join(root, 'infra/versions/toolchain.json'))
+      ).binaries.crane;
+      // Proof: changing binaries.crane.executableSha256 in the committed lock to 64 `d`s made
+      // all four cases fail (2026-11-17).
+      const digests = [...(await Bun.file(join(root, file)).text()).matchAll(pattern)].map(
+        (match) => match[1],
+      );
+      expect(digests).toEqual([executableSha256]);
+    });
+  }
 });

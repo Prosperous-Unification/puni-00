@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -283,6 +283,33 @@ describe('the locked crane client', () => {
       await server.stop(true);
     }
   });
+
+  for (const mismatch of ['archive', 'executable'] as const) {
+    it(`removes an earlier crane at the canonical path when the ${mismatch} differs`, async () => {
+      const { server, executable, archive } = serveCraneArchive();
+      const cache = scratchSync('fleet-crane-cache-');
+      try {
+        const digest = createHash('sha256').update(executable).digest('hex');
+        const exact = await lockFor(archive, server.port, digest);
+        const lock =
+          mismatch === 'archive'
+            ? { ...exact, sha256: 'e'.repeat(64) }
+            : { ...exact, executableSha256: 'c'.repeat(64) };
+        mkdirSync(join(cache, 'crane-v0.22.1'), { recursive: true });
+        writeFileSync(join(cache, 'crane-v0.22.1', 'crane'), '#!/bin/sh\necho planted\n', {
+          mode: 0o755,
+        });
+        const outcome = await installLockedCrane(lock, cache, runChecked).then(
+          () => 'installed',
+          (e: unknown) => String(e),
+        );
+        expect(outcome).toContain('the lock requires');
+        expect(existsSync(join(cache, 'crane-v0.22.1', 'crane'))).toBe(false);
+      } finally {
+        await server.stop(true);
+      }
+    });
+  }
 
   it('installs the locked crane member and returns its path', async () => {
     const { server, executable, archive } = serveCraneArchive();

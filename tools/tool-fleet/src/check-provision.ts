@@ -91,13 +91,19 @@ export async function installLockedTool(
  * is renamed onto the returned path. On a mismatch the staging directory is removed and this
  * throws naming both digests, so a mismatched client is never placed at the returned path, never
  * returned and never executed here. A kill before the check leaves at most the staging directory,
- * which the next install replaces.
+ * which the next install replaces. Any earlier file at the returned path is removed first, so a
+ * failed install leaves no executable there. The cache is single-writer: concurrent installs into
+ * one cache directory are not supported and fail loudly.
  */
 export async function installLockedCrane(
   lock: CraneLock,
   cache: string,
   run: CheckRunner,
 ): Promise<string> {
+  const executable = join(cache, `crane-${lock.version}`, 'crane');
+  // Proof: without this removal check.test.ts `removes an earlier crane at the canonical path when
+  // the archive differs` (and `… executable differs`) found the planted file still there (2026-11-17).
+  await rm(executable, { force: true });
   const staged = await installLockedTool({ name: 'crane', ...lock, member: 'crane' }, cache, run);
   const staging = dirname(staged);
   const actual = sha256Of(await readFile(staged));
@@ -111,7 +117,6 @@ export async function installLockedCrane(
         `the lock requires ${lock.executableSha256}`,
     );
   }
-  const executable = join(dirname(staging), 'crane');
   await rename(staged, executable);
   await rm(staging, { recursive: true, force: true });
   return executable;
