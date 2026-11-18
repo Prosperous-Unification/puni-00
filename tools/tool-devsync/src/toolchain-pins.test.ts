@@ -395,9 +395,16 @@ describe('the CI gate scope', () => {
       occurrences(
         steps,
         'bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache \\ ' +
-          '--exclude=twilight-burokrat,twilight-dash',
+          '--exclude=twilight-burokrat,twilight-dash,tool-remote-scripts',
       ),
     ).toBe(1);
+    // tool-remote-scripts' test target is CI-only on the host gate (A-GATE-REMOTE-1, task 6.18);
+    // its other targets still run there.
+    // Proof (2026-11-18): against the script before 6.18 this failed on `Expected: 1 · Received: 0`;
+    // with only the remote-scripts line deleted it failed on `Expected to contain` below.
+    expect(steps).toContain(
+      'bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=2 --skip-nx-cache',
+    );
     expect(steps).toContain(
       'bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=2',
     );

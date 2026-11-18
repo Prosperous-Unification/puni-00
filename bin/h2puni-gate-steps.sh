@@ -51,8 +51,20 @@ bunx nx format:check --all
 # The Twilight suite runs as CI's `gate_twilight` does: since 2026-10-12 (WBS a81d93a0)
 # twilight-dash is excluded beside Burokrat and its targets and lint run in the split below;
 # toolchain-pins.test.ts pins the `twilight-dash` half of the exclusion.
+# tool-remote-scripts' test target is skipped here (assumption A-GATE-REMOTE-1, `dash-host-jobs`
+# task 6.18, awaiting Dany): its canonical batch runs the remote model family 2.5-4x over its
+# fixed budgets on the gate hosts. The 2026-11-08 h2puni gate took 575 min 41 s, 521 min 57 s of
+# it in tool-remote-scripts:test, with model cases at 162-178 s against a ~70 s frozen budget and
+# two deadline-bound cases failing at ~264 s; on 2026-11-18 both calibrations sat 3+ h in that
+# batch. CI's `gate remote isolated leaf` jobs stay the authority for the family, so a green host
+# gate does not cover it. Lint, typecheck and build still run below. Revert by dropping
+# `,tool-remote-scripts` and the remote-scripts line. See docs/infra/gate-hosts.md.
+# Proof (2026-11-18): toolchain-pins.test.ts `runs the h2puni gate with the same Twilight split
+# as CI` failed on the pre-6.18 script (`Expected: 1 · Received: 0`) and, with only the line
+# below deleted, on `Expected to contain: bunx nx run-many -t lint typecheck build -p ...`.
 bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache \
-  --exclude=twilight-burokrat,twilight-dash
+  --exclude=twilight-burokrat,twilight-dash,tool-remote-scripts
+bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=2 --skip-nx-cache
 bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=2 \
   --skip-nx-cache
 bunx nx run twilight-burokrat:lint:source --skip-nx-cache

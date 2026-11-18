@@ -91,6 +91,8 @@ Five rules govern this repo:
   Exit 66 names tracked paths closed to other users; rerun with `H2PUNI_GATE_REPAIR_MODES=1`.
 - A held lock queues for 30 minutes; `HEAVY_LOCK_WAIT_SECONDS=0` opts into refusal.
   Format needs `--all`; the base-ref default is empty on main.
+- The host gate skips `tool-remote-scripts` tests (CI's isolated leaf jobs run them), so a green
+  host gate does not cover that family. See [gate hosts](docs/infra/gate-hosts.md#what-the-host-gate-runs).
 - Gate also runs `openspec validate --all --json`. CI adds secrets and migration lint;
   lefthook is bypassable, CI is not. Never `--no-verify`.
 - A missing required tool blocks the task: install it or report the block.

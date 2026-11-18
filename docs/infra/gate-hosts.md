@@ -11,6 +11,19 @@ enrolled in their Dash host pools in observe mode (h4claw since 2026-11-08, h2pu
 about 100 minutes for a full gate is from before enrollment; the first observe-mode gate was
 throttled by the estimated `gate` envelope (the known issue in that section).
 
+## What the host gate runs
+
+`bin/h2puni-gate-steps.sh` runs the same Nx targets as CI, with one exception since 2026-11-18
+(assumption A-GATE-REMOTE-1, `dash-host-jobs` task 6.18, awaiting Dany): it skips
+`tool-remote-scripts`'s `test` target and runs only that project's `lint`, `typecheck` and
+`build`. That target's canonical batch runs the remote model family 2.5 to 4 times over its fixed
+budgets on both hosts: the 2026-11-08 h2puni gate took 575 min, 522 of them in that target,
+and failed two deadline-bound cases, so no gate calibration could finish. CI's
+`gate remote isolated leaf` jobs stay the authority for the family; a green host gate does not
+cover it. To revert, drop `,tool-remote-scripts` from the first `run-many` exclusion and the
+remote-scripts `run-many` line, then update `toolchain-pins.test.ts`. Lift it only once the
+family's budgets account for host speed.
+
 ## What the role sets up
 
 `infra/ansible/roles/gate_host` makes the host match h2puni's gate environment:
