@@ -3710,3 +3710,323 @@ gained `useContainerEvidence`, which `runResources` calls for every action when 
 - **S15-A5** (review S2-2) The command wiring has its own test: `resources sweep` through
   `runResources` with a stub `docker` on `PATH` whose `ps` answers nothing releases the job;
   negative: with the injection removed from `command.ts` the job stays `held`.
+
+## 2026-11-18 the runtime bound ends a job cgroup-wide (task 6.14)
+
+Branch `ops/job-run-end-cgroup-wide-20261118` from `main` 23f7c5182; laptop, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset; no host touched. `endPayload` (`job-run.ts`) now lifts the
+scope's `MemoryHigh` to `infinity`, sends SIGTERM to the payload's session, and after the settle
+budget SIGKILLs the whole scope with `systemctl --user kill --signal=SIGKILL <unit>.scope`. A
+failed `systemctl` call is reported and the sequence goes on; a failed scope kill falls back to
+the session SIGKILL. The namespace harness has no user manager (`Failed to connect to bus`), so
+the tests run over the fake seam with a fake `systemctl` beside the fake `systemd-run`
+(`fakeSystemctl` in `ops.test.fixture.ts`). Its `kill` SIGKILLs every process carrying the job's
+`DASH_JOB_ID`, the fake scope's members, so the group-kill gap is proven against real processes.
+
+| Command                                                                                                                               | Result                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test src/ops/job-run.test.ts -t "runtime bound"` inside `unshare` with `DASH_OPS_TEST_NAMESPACE=1`                               | 6 pass, 0 fail (two new); 8 pass, 0 fail after the review fixes (two more)                                                            |
+| `bun test src/ops/job-run.test.ts src/ops/calibrate.test.ts src/ops/host-pool-mode.test.ts` (each in its namespace)                   | inner 42 pass 10 skip, 45 pass, 18 pass 1 skip; 0 fail. After the review fixes `job-run.test.ts` alone: inner 44 pass 10 skip, 0 fail |
+| `bun test src/ops/launchers.test.ts`                                                                                                  | 1 fail: `mkdir: cannot create directory '/home/puni1/.config'`, the laptop-only failure of 6.11; CI decides it                        |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                 | `Successfully ran target typecheck`                                                                                                   |
+| `bunx eslint` on the three changed TS files                                                                                           | exit 0                                                                                                                                |
+| `bunx prettier --check` on the changed files; `bunx openspec validate --all --json`                                                   | all formatted; 342 passed, 0 failed                                                                                                   |
+| `twilight-burokrat check-indexes working . HEAD` after `git add -A`; `repo-namespacing-handoff.test.ts -t "resolves its local links"` | 0; 1 pass, 0 fail                                                                                                                     |
+
+R5 negatives, each restored after it was watched failing:
+
+| Injected fault                                                    | Observed failure                                                                                                                            |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `killSession(pid, 'SIGKILL')` restored in place of the scope kill | `a setsid'd descendant that ignores SIGTERM ends with the scope at the bound`: `members` received `[93]` against `[]`                       |
+| the `MemoryHigh` lift dropped                                     | the same test: `systemctl.log` held only the kill line                                                                                      |
+| `killLeftovers` not called after the leader's exit (review S2-1)  | `a setsid'd descendant outlives a payload that honours SIGTERM, not the bound`: `members` received `[90]` against `[]`                      |
+| the `systemctl is not on PATH` answer dropped (review S3-1)       | `a host without systemctl still ends the job at the bound, reported`: the lift threw before the SIGTERM, elapsed 21119 ms against `< 15000` |
+| the session SIGKILL fallback dropped after a failed scope kill    | `a failed scope kill is reported and the session SIGKILLed instead`: elapsed 21153 ms against `< 15000`                                     |
+
+- **S14-A1** The ids follow 6.15's `S15-A` scheme for task 6.14.
+- **S14-A2** Forwarding an operator's SIGTERM, SIGINT or SIGHUP neither lifts `MemoryHigh` nor
+  escalates. The signal is the operator's own end, and lifting the bound on a Ctrl-C would let a
+  job outgrow its envelope on a shared host without the operator choosing it. The manual sequence
+  in `docs/infra/gate-hosts.md` (End a host job by hand, moved there from the h4claw section by
+  review S3-3) and resources.md takes the same three
+  steps as the bound.
+- **S14-A3** (revised by the review of #942, S2-1) The SIGKILL after the settle budget runs only
+  when the payload outlives it, as the task states. A payload that honours SIGTERM inside the
+  budget could therefore leave a `setsid`'d descendant in the scope, and that descendant kept the
+  job charged. This gap is now closed: once the leader has exited, `killLeftovers` reads the
+  scope's members and, if any remain, SIGKILLs the scope. The gated shell is gone by then, so the
+  exit sample has already been read. An empty or collected scope gets no call, because a
+  collected unit would answer "not loaded".
+- **S14-A4** A failed SIGTERM (not ESRCH) still aborts `endPayload`, and the caller reports it, as
+  in 6.11 review S2. Only the `systemctl` calls are report-and-continue.
+- **S14-A5** Each `systemctl` call has a 10 s deadline (SIGKILL after), so a hung user manager
+  cannot stall the bound. `systemctl` is looked up on the job environment's `PATH` at the bound,
+  not in preflight: a host without it still runs the job and falls back to the session SIGKILL,
+  reported (tested since review S3-1).
+- **S14-A6** Not proven on a real user manager. The namespace harness cannot reach one, and no
+  gate host was touched (a calibration is running on h4claw). The real `systemctl` call shape
+  matches the 2026-11-17 manual end of job 22ce2369.
+
+## 2026-11-18 tmp removal accepts hard links inside the directory (task 6.16)
+
+Branch `ops/tmp-remover-in-tree-hardlinks-20261118` from `main` 23f7c5182; laptop, `CLAUDECODE`
+and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched. Seen twice on h4claw (2026-11-17/18): a
+gate's `$TMPDIR` held be-01 backup fixtures hardlinked to each other inside it
+(`wbs-backup-*/wbs.db` and `wbs-backup-*.original/wbs.db`, `publication/.copy.db.partial` and
+its `.original` twin, nlink 2). `removeDirectory` refused every non-symlink with `st_nlink>1`,
+so the tmp entry stayed `blocked` (`tmp directory cleanup failed: descriptor-relative removal
+refused`) and the job kept its disk units until an operator deleted the directory. The script
+now surveys the tree first, under the same descriptor-relative, same-device, no-follow and
+identity rules, counting the in-tree paths of each multiply-linked inode; it refuses before any
+removal when an inode has more links than paths inside the tree. The erase pass refuses a file
+whose link count differs from the survey's count minus the links already removed. All four
+call sites (host-job tmp removal, managed cleanup, disposable outputs and the `inspect`
+preflight) share the script.
+
+| Command                                                                                                                      | Result                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `bun test src/resources/host-jobs.test.ts -t 'hardlink\|failed cleanup\|blocked tmp directory'` in `unshare`, before the fix | 3 pass, 1 fail: the in-tree test saw `blocked`, `descriptor-relative removal refused` (the h4claw defect) |
+| the same after the fix                                                                                                       | 4 pass, 0 fail                                                                                            |
+| `bun test src/resources/host-jobs.test.ts` in `unshare` (`DASH_RESOURCE_TEST_NAMESPACE=1`)                                   | 45 pass, 0 fail                                                                                           |
+| `bun test src/resources/runtime.test.ts` (self-wrapping namespace)                                                           | 1 pass (the namespace integration), 0 fail                                                                |
+| `bun test src/resources`                                                                                                     | 58 pass, 0 fail across 11 files                                                                           |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                        | `Successfully ran target typecheck`                                                                       |
+| `bunx eslint` on `runtime.ts` and `host-jobs.test.ts`                                                                        | exit 0                                                                                                    |
+
+| Injected fault                                                        | Observed                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the erase pass refuses every `nlink>1` file again (single-pass guard) | `hardlinks whose every link lies inside the tmp directory are removed` fails: `blocked`, `descriptor-relative removal refused`                                                                                                        |
+| the survey's outside-link refusal line removed                        | `an in-tree hardlink pair with a third link outside stays blocked and untouched`, `a failed cleanup leaves the tmp reservation charged`, `a blocked tmp directory adds no outbox rows` and both `runtime.test.ts` hardlink tests fail |
+
+- **S16-A1** A hard link is in-tree when the survey reaches it through the directory itself;
+  a link elsewhere, including in another job's directory, counts as outside and blocks, as before.
+- **S16-A2** The erase pass's count re-check guards a link added between the two passes. No
+  test injects that race; it is a narrowing of the old guard, which refused every such file.
+  It does not cover a swap: an in-tree link removed and an outside link added in the window
+  leave nlink unchanged, so erase unlinks the remaining in-tree path and the units release while
+  the bytes survive outside. That needs an actor racing the sweep with write access to the tmp
+  directory on the same filesystem, so it is an accounting-only exposure, recorded and untested.
+- **S16-A3** A refusal now comes before any removal, so a blocked directory keeps its in-tree
+  files (the outside test asserts the in-tree twin survives); before, removal stopped part way.
+- **S16-A4** Live tmp entries already `blocked` on h4claw stay so until an operator removes them
+  or the sweep retries with the launcher checkout carrying this change.
+- **S16-A5** (pre-existing, review S3-2) The "mount boundary" check compares `st_dev`, so a
+  same-device bind mount inside the tree is not a boundary; comparing mount ids (statx
+  `STATX_MNT_ID` or mountinfo) is the follow-up.
+- **S16-A6** (review observation, out of scope) Bun's hardlink install backend links
+  `node_modules` files to `~/.bun/install/cache`, so a gate test that runs `bun install` inside
+  `$TMPDIR` would still leave outside links and a `blocked` entry.
+- **S16-A7** (review S3-3) The survey refuses when an inode's link count differs from its in-tree
+  paths in either direction, so more in-tree paths than links (only reachable through a
+  duplicated traversal, S16-A5) is refused too.
+
+## 2026-11-18 h4claw gate calibrations fail on two host-coupled tool-fleet tests (task 6.17)
+
+Branch `ops/tool-fleet-tests-host-independent-20261118` from `main` 22d150553; laptop (uid 1000,
+gid 1000), `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched. The h4claw evidence
+comes from the coordinator's read of the calibration logs `~/gate-calibrate-cold-2026-11-17b-h4.log`
+and `~/gate-calibrate-warm2-2026-11-17b-h4.log` on h4claw (gates of `main` 213e1fa70); CI on
+`main` is green. In both the cold and the warm2 run `tool-fleet:test` failed on the same two tests:
+
+- `registry-managed-journal.test.ts`, the test
+  `refuses unenforced storage through the owner-only stdin CLI and bounds input`:
+  `expect(initialized[2]).toContain('ENOENT')` received
+  `EACCES: permission denied, realpath '/etc/puni/registry-maintenance.json'`. The CLI's
+  `readTrustedEnrollment` refuses through `realpath`; h4claw is also the registry host and its
+  `/etc/puni` is `root:root` mode 700 (mtime 2026-10-24), so `puni1` cannot traverse it.
+- `registry-maintenance-channel.test.ts`, the test
+  `actual Bun FD0 socket bootstrap verifies the transferred lock`:
+  `Expected: 2275903 Received: undefined` for the acknowledgement's peer pid.
+  `acceptMaintenanceChannel` refuses a bootstrap whose `credentials.gid !== uid`; on h4claw
+  `puni1` is uid 995 with gid 983, while h2puni (1000/1000) and the CI runners have uid == gid.
+
+The first test now accepts `ENOENT` or `EACCES` only in the enrollment `realpath` message
+(`/E(?:NOENT|ACCES): .*realpath '\/etc\/puni\/registry-maintenance\.json'/`), matched after
+`stripVTControlCharacters` because CI's Bun colours the child's stderr; the non-zero exit
+and empty stdout are still asserted. In the second, the `none` (acceptance) case is skipped where
+`process.getuid() !== process.getgid()`, and a new case, `refuses a same-uid bootstrap whose gid
+differs`, sends the `none` payload and is skipped where uid == gid, so exactly one of the two runs on
+any host and the gid invariant is proven with a real kernel credential where uid != gid. The gid
+check comes before `assertRegistryMaintenanceLock`, and the fixture reports only `accepted`, so
+on a uid != gid host the `wrong-file` and `unheld` cases are refused by the gid check, not by lock
+verification; lock verification is proven where uid == gid (CI, h2puni).
+
+| Command                                                                                                                                                                                                                                         | Result                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test --preload ../test/scratch/preload.ts --timeout=30000` on `registry-managed-journal`, `registry-maintenance-channel`, `registry-maintenance-cli` and `registry-installation-cli` `.test.ts` (in `tools/tool-fleet`), uid 1000 gid 1000 | 75 pass, 1 skip (`gid differs`), 0 fail across 4 files                                                                                                                                                                             |
+| the same under `sg docker` (uid 1000, gid 985)                                                                                                                                                                                                  | 75 pass, 1 skip (`verifies the transferred lock`), 0 fail; `refuses a same-uid bootstrap whose gid differs` passes                                                                                                                 |
+| `FORCE_COLOR=1 bun test --preload ../test/scratch/preload.ts --timeout=30000 src/registry-managed-journal.test.ts` (after the ANSI fix)                                                                                                         | 34 pass, 0 fail                                                                                                                                                                                                                    |
+| `bunx eslint` on the two test files (after the review fixes)                                                                                                                                                                                    | exit 0                                                                                                                                                                                                                             |
+| `bunx prettier --check` on every changed file                                                                                                                                                                                                   | all files use Prettier code style                                                                                                                                                                                                  |
+| `bunx openspec validate --all --json`                                                                                                                                                                                                           | exit 0; 343 items, 343 passed, 0 failed                                                                                                                                                                                            |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                                                                                                  | exit 0                                                                                                                                                                                                                             |
+| `bunx nx run tool-devsync:test --skip-nx-cache` (gate-hosts.md gained a relative link)                                                                                                                                                          | full target hit `ENOSPC` on the laptop (disk briefly filled), no failing test before it; then `bun test` on `repo-namespacing-handoff`, `current-documents`, `retired-roots` `.test.ts` (in `tools/tool-devsync`): 36 pass, 0 fail |
+| `bunx nx run tool-fleet:test`                                                                                                                                                                                                                   | not run on the laptop (tight disk; the coordinator waived it); CI runs it                                                                                                                                                          |
+
+| Injected fault                                                                                  | Observed                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| registry host with root-owned `/etc/puni` 0700 (h4claw, cold and warm2)                         | old assertion failed: `EACCES: permission denied, realpath '/etc/puni/registry-maintenance.json'` where `ENOENT` was expected                    |
+| test user with gid != uid (h4claw `puni1` 995/983, cold and warm2)                              | old acceptance case failed: `Expected: 2275903 Received: undefined`                                                                              |
+| the tightened journal assertion without ANSI stripping, on CI (run 44227343377)                 | failed: stderr was `\x1b[31mENOENT\x1b[0m\x1b[2m:\x1b[0m \x1b[1mno such file or directory, realpath …`, so `ENOENT: ` was not contiguous         |
+| the same, laptop, `FORCE_COLOR=1`                                                               | failed the same way (coloured `ENOENT` in `Received`); with `stripVTControlCharacters`: 34 pass, 0 fail                                          |
+| `origin/main` channel test file under `sg docker` (uid 1000, gid 985), laptop                   | `verifies the transferred lock` failed: `Expected: 929563 Received: undefined` (the h4claw failure, 8 pass, 1 fail)                              |
+| the `credentials.gid !== uid` clause removed from `acceptMaintenanceChannel`, under `sg docker` | `refuses a same-uid bootstrap whose gid differs` failed: `toBeNull` received an acknowledgement object (8 pass, 1 skip, 1 fail); source restored |
+| `process.getgid` stubbed to uid + 1 in a preload (first revision, before the new case)          | the acceptance case reported `(skip)`                                                                                                            |
+
+- **S17-A1** The h4claw gate now skips the acceptance case and runs the gid-differs refusal
+  case, so it proves the gid invariant; lock verification (`wrong-file`, `unheld` reaching
+  `assertRegistryMaintenanceLock`) is proven only where uid == gid, on CI and h2puni. The
+  production invariant (gid == uid for the maintenance peer) is not changed here.
+- **S17-A2** The cold run's third failure, `source-derived selection refuses duplicate labels…`
+  at 47 000 ms, did not recur in warm2 and is treated as a load timeout, not fixed here.
+- **S17-A3** The h4claw error lines and host facts (`/etc/puni` root:root 700 mtime 2026-10-24,
+  puni1 uid 995 gid 983) are the coordinator's, read over ssh on 2026-11-18; this change did not
+  touch h4claw, where a gate calibration is running. The gid failure no longer rests on those
+  logs alone: it is reproduced on the laptop under `sg docker`. The EACCES case was not
+  reproduced locally. The fix is proven on h4claw only by its next gate.
+
+## 2026-11-18 the host gate cannot calibrate: tool-remote-scripts runs 2.5–4× over its budgets on the hosts (task 6.18)
+
+Branch `ops/host-gate-skips-remote-scripts-test-20261118` from `main` fe3fdac56; laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched. The host evidence is the
+coordinator's read of the gate logs; it is filed as issue #945.
+
+`bin/h2puni-gate-steps.sh` ran `bunx nx run-many -t test lint typecheck build --parallel=2
+--skip-nx-cache --exclude=twilight-burokrat,twilight-dash`. Inside it `tool-remote-scripts:test`
+(`bun run test/run-tests.ts canonical`, one `bun test src test/edge-init.test.ts …` batch) runs
+the remote model family: 10 `src/lib/*.model.ts` models driven through 7
+`test/*-model-child.test.ts` leaf runs.
+
+- The complete h2puni gate `~/gate-895-1da3f799-h2.log` of 2026-11-08 took 575 min 41 s, of which
+  `tool-remote-scripts:test` took 521 min 57 s. Its model cases passed at 162–178 s each
+  (`(pass) backend coordinator authority boundary: foreign-pid [178215.36ms]`) where the
+  frozen budget assumes about 70 s (`dependency-product-process-model.test.ts`: "Frozen
+  measurement: 16 cases took 1111.14s"). Two deadline-bound tests failed at about 264 s:
+  `isolated source restoration retains original gateway authority through ready [264342.72ms]`
+  and `isolated source restoration refuses absent and copied phases before genuine continuation
+[263020.72ms]`.
+- Normal h2puni gates on 2026-11-02..04 took 60–66 min.
+- On 2026-11-18 both `gate` calibrations (h4claw since 05:08Z, h2puni since 05:13Z) sat inside
+  that batch for 3+ h, with cases taking about 280–300 s each under `--parallel=2`.
+- CI never runs the batch whole: `.github/workflows/ci.yml` runs the family as
+  `gate remote isolated leaf` partition jobs (remote-model, remote-model-continuation,
+  remote-source, remote-source-restoration, remote-participant-policy,
+  remote-complete-activation, remote-storage), each with a 90-minute job timeout.
+
+- The coordinator's h4claw scratch runs of 2026-11-18 (clone of 62e8bbf21, port constants 3100
+  moved to 3150, bare `catch {}` sites patched to print causes) show the lone case
+  `backend coordinator authority boundary: foreign-pid` failing deterministically in 200–210 s
+  (9 runs), where CI's frozen measurement assumes about 70 s and the h2puni gate passed it in
+  178 s. The printed chain ends in `product observer creation or session unproved`: the model's
+  local byte transport (`execDocker`, `dependency-product-process-model.model.ts:169`) never
+  proves its session before `runSession`'s deadline. Filesystem, busybox and port collisions are
+  ruled out; three nested catches (two bare, one dropping its cause) hide it from every report. Full chain in #945.
+
+The first `run-many` now also excludes `tool-remote-scripts` (its `test` and that target's
+`test:caddy` dependency), and a new line `bunx nx run-many -t lint typecheck build -p
+tool-remote-scripts --parallel=2 --skip-nx-cache --excludeTaskDependencies` runs that project's
+other targets right after it, before the Twilight split, without rebuilding the dependency
+builds the first `run-many` just made. CI's remote jobs run the family on a pull request only
+when the CI plan selects the `remote` partition, and always on a push to `main`; a pull request
+that does not reach the family's inputs has it run nowhere before `main`. The prod runbook now
+requires a green full-mode CI run on `main` for the SHA (or the leaf targets by hand) before
+`tool-remote-scripts:install`. `tool-remote-scripts`
+itself is unchanged. `toolchain-pins.test.ts` (`runs the h2puni gate with the same Twilight split
+as CI`) pins both lines. The note is in `docs/infra/gate-hosts.md` (What the host gate runs),
+`AGENTS.md` (Gate) and the `LLM_README.md` gate command line.
+
+| Command                                                                                                                                                               | Result                                                                                                                                                                                                                                                                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                                                                              | 36 pass, 0 fail                                                                                                                                                                                                                                                                       |
+| `bun test tools/tool-devsync/src/poller.test.ts -t 'canonical h2puni gate wiring'`                                                                                    | 1 pass, 0 fail                                                                                                                                                                                                                                                                        |
+| `bun test tools/tool-git-hooks/src/hooks/ci-plan.test.ts`                                                                                                             | 27 pass, 0 fail                                                                                                                                                                                                                                                                       |
+| `bun test apps/twilight-structure/twilight-dash/cli/src/ops/launchers.test.ts`                                                                                        | 1 pass, 0 fail                                                                                                                                                                                                                                                                        |
+| `bun test apps/twilight-structure/twilight-burokrat/cli/src/policy/gate-entrypoints.test.ts`                                                                          | 56 pass, 2 fail; the same two (`the host gate fails specifically at wiki lint for a stale enforced blob`, `the real Nx target reruns an omitted-input mutation and a controlled cache fault does not`) fail on unmodified `main` fe3fdac56 on the laptop, so they predate this change |
+| `bash bin/h2puni-gate.test.sh`                                                                                                                                        | exit 0, `all cases passed`                                                                                                                                                                                                                                                            |
+| `bash -n bin/h2puni-gate-steps.sh`                                                                                                                                    | exit 0                                                                                                                                                                                                                                                                                |
+| `bunx nx run tool-devsync:test --skip-nx-cache` (`AGENTS.md` gained a relative link)                                                                                  | exit 0; 1106 tests across 54 files                                                                                                                                                                                                                                                    |
+| `bunx prettier --check` on every changed Markdown and TypeScript file                                                                                                 | all files use Prettier code style (Prettier has no parser for the `.sh` file)                                                                                                                                                                                                         |
+| `bunx openspec validate --all --json`                                                                                                                                 | exit 0; 344 items, 344 passed, 0 failed                                                                                                                                                                                                                                               |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                        | exit 0 (review debt listed only for two unrelated pre-existing indexes)                                                                                                                                                                                                               |
+| `bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=2 --skip-nx-cache --excludeTaskDependencies` (after the #946 review)                      | exit 0; exactly three tasks ran (`typecheck`, `build`, `lint`), no dependency builds                                                                                                                                                                                                  |
+| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`, `bash bin/h2puni-gate.test.sh`, `bash -n`, prettier, openspec validate, check-indexes after the #946 review | 36 pass, 0 fail; `all cases passed`; exit 0; Prettier clean; 344 items, 344 passed; exit 0                                                                                                                                                                                            |
+| `bunx nx run tool-remote-scripts:test`, host gate                                                                                                                     | not run: no host touched; the next calibration measures the gate                                                                                                                                                                                                                      |
+
+| Injected fault                                                                                                | Observed                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bin/h2puni-gate-steps.sh` at `main` fe3fdac56 (no exclusion, no remote-scripts line) under the extended test | `runs the h2puni gate with the same Twilight split as CI` failed: `Expected: 1 · Received: 0` on the `--exclude=twilight-burokrat,twilight-dash,tool-remote-scripts` occurrence |
+| only the `-p tool-remote-scripts` lint/typecheck/build line deleted                                           | the same test failed: `Expected to contain: "bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=2 --skip-nx-cache"`; script restored, 36 pass           |
+| only `--excludeTaskDependencies` dropped from that line (after the #946 review)                               | the same test failed: `Expected to contain: "… --skip-nx-cache \\ --excludeTaskDependencies"`; script restored, 36 pass                                                         |
+
+- **S18-A1** A-GATE-REMOTE-1: the host gate skipping `tool-remote-scripts:test`, with CI's
+  isolated leaf jobs as the family's authority, is assumed and awaits Dany's confirmation. It is
+  reversible (see `docs/infra/gate-hosts.md`, What the host gate runs).
+- **S18-A2** The family's owners must make its budgets host-aware (a measured host factor, or
+  the leaf's own deadline instead of frozen wall-clock figures) before the exclusion is lifted;
+  tracked in #945.
+- **S18-A3** The host gate's duration after the exclusion is unknown until the next `gate`
+  calibration on each host; 60–66 min (h2puni, 2026-11-02..04) is the only earlier comparison.
+
+## 2026-11-18 the trimmed host gate exceeds h4claw's memory at --parallel=2 (task 6.19)
+
+Branch `ops/host-gate-parallel-1-20261118` from `main` 834fda4e5 (after #946); laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched. The host evidence is the
+coordinator's read of Dash's audit, the calibration logs and puni1's cgroup files on h4claw
+(8 cores, 15 GiB RAM).
+
+- Dash's audit records gate memory peaks of 12.94 GiB (run a498260b, 2026-11-17T23:18Z) and
+  11.79 GiB (run 2c0a5547, 2026-11-18T00:52Z) against the catalogue's 6 GiB envelope.
+- The cold unbounded calibration of the trimmed gate (job fa0a73a0, started 10:23:38Z) lost
+  `tool-fleet:test` at about 11:24Z, after 59 min: its bun process exited non-zero mid-file in
+  `tools/tool-fleet/src/observability-rehearsal-capacity.test.ts`, after the passing test
+  "standalone combined reconciliation preserves consumer retention and unrelated unsupported
+  declarations exactly", with no failing test and no bun summary. Beside it ran
+  `wbs-be-01:test` (47 min 30 s, the critical path) and `wbs-be-01:typecheck`
+  (`bunx tsc --build --force`). Nx then bailed and terminated the in-flight tasks (be-01
+  typecheck, store-sqlite typecheck, tool-fleet lint); the Nx run took 57 min 55 s.
+- In the warm calibration (started 11:25:34Z) puni1's slice `memory.events` `oom_kill` read 2 at
+  11:4xZ, before warm1's `tool-fleet` phase, and 3 at 12:24:32Z, 59 min in; the run exited 143
+  at 12:24:42Z; and `memory.peak` read 14,949,826,560 bytes (13.92 GiB)
+  against 15 GiB total. The calibration scope runs with `MemoryHigh=infinity` and `MemoryMax=infinity` by
+  design, so it measures the true peak.
+
+At `--parallel=2` the host gate's true peak does not fit the gate hosts, so the gate can be
+neither calibrated nor run there. All three `run-many` lines of `bin/h2puni-gate-steps.sh` (the
+workspace line, the `-p tool-remote-scripts` line and the Twilight line) now run at
+`--parallel=1`, so the peak is the largest single task's. `toolchain-pins.test.ts`
+(`runs the h2puni gate with the same Twilight split as CI`) pins the three lines; the note is in
+`docs/infra/gate-hosts.md` (What the host gate runs). CI's own `--parallel` settings
+(`.github/workflows/ci.yml`, `ci-run-runtime.ts`) are not the host gate and are unchanged, as is
+`bin/test-queued-payload.sh`'s `--parallel=2`, a separate job type outside this assumption.
+
+| Command                                                                                                        | Result                                                                        |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                       | 36 pass, 0 fail                                                               |
+| `bash bin/h2puni-gate.test.sh`                                                                                 | exit 0, `all cases passed`                                                    |
+| `bash -n bin/h2puni-gate-steps.sh`                                                                             | exit 0                                                                        |
+| `bunx prettier --check` on every changed Markdown and TypeScript file                                          | all files use Prettier code style (Prettier has no parser for the `.sh` file) |
+| `bunx openspec validate --all --json`                                                                          | exit 0; 344 items, 344 passed, 0 failed                                       |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A` | exit 0 (review debt listed only for two unrelated pre-existing indexes)       |
+| `bunx nx run tool-devsync:test`                                                                                | not run: no relative link added                                               |
+| host gate, `gate` calibration                                                                                  | not run: no host touched; the next calibration measures the gate              |
+
+| Injected fault                                                                                            | Observed                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bin/h2puni-gate-steps.sh` at `main` 834fda4e5 (all three lines at `--parallel=2`) under the updated test | `runs the h2puni gate with the same Twilight split as CI` failed: `Expected: 1 · Received: 0` on the workspace line                                                                                |
+| only the `-p tool-remote-scripts` line back at `--parallel=2`                                             | the same test failed: `Expected to contain: "bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=1 --skip-nx-cache \\ --excludeTaskDependencies"`; script restored, 36 pass |
+| only the Twilight line back at `--parallel=2`                                                             | the same test failed: `Expected to contain: "bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=1"`; script restored, 36 pass                                  |
+
+- **S19-A1** A-GATE-PARALLEL-1: the host gate running every `run-many` at `--parallel=1` is
+  assumed and awaits Dany's confirmation. It is reversible (see `docs/infra/gate-hosts.md`, What
+  the host gate runs).
+- **S19-A2** The gate's duration and peak memory at `--parallel=1` are unknown until the next
+  `gate` calibration; about 90 min is an estimate from the cold run's 47 min 30 s critical path
+  in a 57 min 55 s run.
+- **S19-A3** The OOM attribution rests on puni1's cgroup `oom_kill` counter and its timing; the
+  kernel logs that would name the killed process are unreadable to puni1.
+- **S19-A4** The `test-queued` job type (`bin/test-queued-payload.sh`) still runs
+  `--parallel=2` and still runs `tool-remote-scripts:test`, both outside A-GATE-PARALLEL-1 and
+  A-GATE-REMOTE-1; it is uncalibrated and unbounded (`docs/infra/heavy-job-launchers.md`), so it
+  carries the same memory risk on the hosts. Its comment now calls `--parallel=2` its own
+  setting rather than gate parity; aligning it is a follow-up, as is the pre-existing drift where
+  `infra/jobs/catalogue.json`'s test-queued basis says "nx.json parallel 4" while the script pins 2.

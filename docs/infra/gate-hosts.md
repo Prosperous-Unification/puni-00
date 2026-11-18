@@ -11,6 +11,36 @@ enrolled in their Dash host pools in observe mode (h4claw since 2026-11-08, h2pu
 about 100 minutes for a full gate is from before enrollment; the first observe-mode gate was
 throttled by the estimated `gate` envelope (the known issue in that section).
 
+## What the host gate runs
+
+`bin/h2puni-gate-steps.sh` runs the same Nx targets as CI, with one exception since 2026-11-18
+(assumption A-GATE-REMOTE-1, `dash-host-jobs` task 6.18, awaiting Dany): it skips
+`tool-remote-scripts`'s `test` target and its `test:caddy` dependency, and runs only that
+project's `lint`, `typecheck` and `build`. That target's canonical batch runs the remote model
+family 2.5 to 4 times over its fixed budgets on both hosts: the 2026-11-08 h2puni gate took
+575 min, 522 of them in that target, and failed two deadline-bound cases, so no gate calibration
+could finish.
+
+CI's `gate remote isolated leaf` jobs (and `gate remote` for `test:ci:rest`, which covers
+`test:caddy`) are now the only place the family runs. On a pull request they run only when the
+CI plan selects the `remote` partition, that is when the change reaches `tool-remote-scripts`'s
+inputs; on a push to `main` they always run. A pull request that does not touch those inputs
+therefore has the family run nowhere before `main`, and a green host gate says nothing about it.
+
+To revert, drop `,tool-remote-scripts` from the first `run-many` exclusion and the remote-scripts
+`run-many` line, then update `toolchain-pins.test.ts`. Lift it only once the family's budgets
+account for host speed.
+
+Since 2026-11-18 every host gate `run-many` runs with `--parallel=1` (assumption
+A-GATE-PARALLEL-1, `dash-host-jobs` task 6.19, awaiting Dany), because at `--parallel=2` the
+gate's peak memory (12.94 GiB recorded, an OOM kill on h4claw at a 13.9 GiB slice peak) does
+not fit a 15 GiB host. The flag bounds Nx task concurrency only: a single task can still fan out
+(vitest in `wbs-fe-01:test` uses one worker per core). The Nx run should take about 90 min
+instead of about 58 (57 min 55 s measured, not counting the install, `format:check`, OpenSpec
+validation and the solver smoke); the whole-gate figure that replaces the intro's "about 100
+minutes" comes from the next `gate` calibration. Restoring `--parallel=2` on the three lines of
+`bin/h2puni-gate-steps.sh` and in `toolchain-pins.test.ts` reverts it.
+
 ## What the role sets up
 
 `infra/ansible/roles/gate_host` makes the host match h2puni's gate environment:
@@ -396,6 +426,11 @@ ssh puni1@<h4claw public address> \
   'cd ~/puni-00-gate-tbf && git fetch -q origin && bin/h2puni-gate.sh <sha>' > gate-<sha8>.log 2>&1
 ```
 
+h4claw is also the PUNI registry host: `/etc/puni` is `root:root` mode 700, and `puni1` is uid 995
+with gid 983 (h2puni and CI runners have uid == gid). Tests must not assume a readable `/etc/puni`
+or a user-private group with gid == uid; two tool-fleet tests did and failed every h4claw gate
+([verification, task 6.17](../../openspec/changes/dash-host-jobs/verify.md#2026-11-18-h4claw-gate-calibrations-fail-on-two-host-coupled-tool-fleet-tests-task-617)).
+
 The sha must resolve in the launcher, because the admitted gate tree fetches it from there, so
 fetch the branch that carries it. A fetch moves no head. After `ops pool init`, never check
 out in the launcher: the refresh timer owns its head. Step 5's one-time bootstrap before init
@@ -418,6 +453,25 @@ The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
   are enrolled in observe mode (h4claw since 2026-11-08, h2puni since 2026-11-17; the
   [`dash-host-jobs` verify.md](../../openspec/changes/dash-host-jobs/verify.md) records each
   visit). See [heavy job launchers](heavy-job-launchers.md).
+
+## End a host job by hand
+
+This applies on any enrolled host. Use the same three steps `ops job run` takes at a type's
+`maxRuntimeMinutes` (task 6.14). A SIGTERM to the launcher alone is not enough: it reaches only
+the payload's process group, and under `MemoryHigh` a trapped SIGTERM runs its handler at one
+return to user mode per 2 s. With `<scope>` the job's `dash-job-<job id>.scope`:
+
+```sh
+systemctl --user set-property --runtime <scope> MemoryHigh=infinity
+kill -TERM <launcher pid>   # forwarded to the payload's process group
+sleep 30                    # the settle budget
+systemctl --user kill --signal=SIGKILL <scope>
+```
+
+The last step ends every process in the scope, including `setsid`'d descendants such as the nx
+daemon. Run it even when the payload ended on the SIGTERM: a forwarded signal reaches no
+descendant outside the payload's process group. `ops job status` then shows the job settling
+once `watch` sweeps it.
 
 ## Capacity reports into WBS
 

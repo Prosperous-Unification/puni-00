@@ -167,8 +167,9 @@ export function refusingSystemdRun(directory: string, diagnostic: string): strin
 export type FakeSystemdRun = 'exec' | 'exits' | 'sleeps' | 'vanishes';
 
 /**
- * A directory holding a fake `systemd-run` (see {@link FakeSystemdRun}), to put first on `PATH`.
- * A launch writes `<directory>/launched` before it behaves.
+ * A directory holding a fake `systemd-run` (see {@link FakeSystemdRun}) and a `kills`
+ * {@link fakeSystemctl} beside it, to put first on `PATH`. A launch writes
+ * `<directory>/launched` before it behaves.
  */
 export function fakeSystemdRun(directory: string, behaviour: FakeSystemdRun): string {
   mkdirSync(directory, { recursive: true });
@@ -188,6 +189,48 @@ export function fakeSystemdRun(directory: string, behaviour: FakeSystemdRun): st
       `: > ${join(directory, 'launched')}`,
       launch,
     ].join('\n'),
+  );
+  fakeSystemctl(directory, 'kills');
+  return directory;
+}
+
+/**
+ * How a fake `systemctl` treats the runtime bound's calls (task 6.14): `kills` accepts
+ * `--user set-property --runtime <scope> MemoryHigh=infinity` and answers
+ * `--user kill --signal=SIGKILL dash-job-<id>.scope` as a cgroup-wide kill would, SIGKILLing
+ * every process carrying `DASH_JOB_ID=<id>`, the fake scope's members
+ * ({@link fakeScopeTelemetry}); `fails` prints a diagnostic and exits 1 for every call. Any
+ * other argument list exits 2, a scope named without `.scope` included.
+ */
+export type FakeSystemctl = 'kills' | 'fails';
+
+/**
+ * Write a fake `systemctl` (see {@link FakeSystemctl}) into `directory`, which appends each
+ * call's arguments as one line to `<directory>/systemctl.log`.
+ */
+export function fakeSystemctl(directory: string, behaviour: FakeSystemctl): string {
+  mkdirSync(directory, { recursive: true });
+  const answer = {
+    kills: [
+      'case "$*" in',
+      '  "--user set-property --runtime dash-job-"*".scope MemoryHigh=infinity") exit 0 ;;',
+      '  "--user kill --signal=SIGKILL dash-job-"*".scope") ;;',
+      '  *) exit 2 ;;',
+      'esac',
+      'id=${4#dash-job-}',
+      'id=${id%.scope}',
+      'for environ in /proc/[0-9]*/environ; do',
+      '  if tr "\\0" "\\n" 2>/dev/null < "$environ" | grep -qx "DASH_JOB_ID=$id"; then',
+      '    pid=${environ#/proc/}',
+      '    kill -KILL "${pid%/environ}" 2>/dev/null || :',
+      '  fi',
+      'done',
+    ],
+    fails: ["printf '%s\\n' 'Failed to connect to bus: No medium found' >&2", 'exit 1'],
+  }[behaviour];
+  payloadScript(
+    join(directory, 'systemctl'),
+    [`printf '%s\\n' "$*" >> ${join(directory, 'systemctl.log')}`, ...answer].join('\n'),
   );
   return directory;
 }

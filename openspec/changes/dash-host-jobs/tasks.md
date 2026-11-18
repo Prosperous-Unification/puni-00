@@ -351,7 +351,7 @@
       in tool-remote-scripts. `docker build` stays unattributed, and the peaks stay unmeasured
       until 6.4, so `gate` stays out of `concurrencyEligible`.
 
-- [ ] 6.14 End a job cgroup-wide at the runtime bound, lifting `MemoryHigh` first (incident
+- [x] 6.14 End a job cgroup-wide at the runtime bound, lifting `MemoryHigh` first (incident
       2026-11-17, h4claw job 22ce2369, verify.md): an operator `SIGTERM` to the launcher ended the
       launcher but left the scope active for hours with the payload in D state under
       `mem_cgroup_handle_over_high`, until `systemctl --user kill --signal=SIGKILL <scope>` ended
@@ -363,11 +363,13 @@
       scope's `MemoryHigh` to `infinity` (the operator form is
       `systemctl --user set-property --runtime <scope> MemoryHigh=infinity`), SIGTERM the
       process group, then after the settle budget
-      `systemctl --user kill --signal=SIGKILL <scope>` (the remedy the runtime already prints for
-      held units) instead of a group SIGKILL; the operator runbook names the same three steps for
+      `systemctl --user kill --signal=SIGKILL <scope>` (the cgroup-wide kill the runbook names)
+      instead of a group SIGKILL; the operator runbook names the same three steps for
       a manual end. Test: a payload that `setsid`s a child in `job-run.test.ts`'s namespace leaves
       no process in the scope after the bound; negative: with the group kill restored the child
-      survives and the test fails.
+      survives and the test fails. Done (PR #942, verify.md 2026-11-18): `endPayload` lifts,
+      SIGTERMs and SIGKILLs the scope, and `killLeftovers` SIGKILLs what is left once the leader
+      exits; negatives `members` `[93]` and `[90]` against `[]`.
 - [x] 6.15 `sweep` settles a dead launcher's job with real container evidence (incident 2026-11-17,
       h4claw job 22ce2369): after a cgroup-wide SIGKILL ended every process, the job stayed
       `running … settlement unknown` with 4 cores, 6 GiB and a gate tree reserved, because
@@ -378,3 +380,30 @@
       `ops/containers.ts`). Test: `sweep-container-evidence.test.ts` (four cases, one through `runResources` with a
       stub `docker` on `PATH`); negative: with
       `declaredContainersOnly` restored in `sweep`, `Expected: "released" Received: "held"`.
+- [x] 6.16 Tmp removal accepts hard links that stay inside the directory (incident 2026-11-17/18,
+      h4claw, twice, PR #943): be-01 backup fixtures hardlink `wbs-backup-*/wbs.db` to its
+      `.original` twin inside the gate's `$TMPDIR`, and the remover refused every `nlink>1` file,
+      so every gate left its tmp entry `blocked` with its disk units charged. `removeDirectory`
+      now surveys the tree first and refuses only an inode with a link outside it. Test:
+      `host-jobs.test.ts` in-tree links released, an in-tree pair with an outside third link
+      blocked and untouched; negative: with the single-pass guard restored, the first sees
+      `descriptor-relative removal refused`.
+- [x] 6.17 tool-fleet gate tests are host-independent: a registry host's root-owned /etc/puni
+      (EACCES) and a test user whose gid differs from its uid (h4claw) no longer fail the gate
+      (PR #944). `registry-managed-journal.test.ts` accepts `ENOENT` or `EACCES` only from the
+      enrollment `realpath`; in `registry-maintenance-channel.test.ts` the acceptance case runs
+      where uid == gid and a new same-uid, different-gid refusal case runs where uid != gid, so
+      one of them runs on any host (lock verification itself is proven only where uid == gid);
+      negatives: the two h4claw calibration failures, reproduced under `sg docker` (verify.md,
+      2026-11-18).
+- [x] 6.18 host gate payload skips the tool-remote-scripts canonical test batch (A-GATE-REMOTE-1;
+      PR #946; issue #945): the hosts run the remote model family 2.5-4x over its fixed budgets,
+      so the gate took 9+ h and failed deadline-bound cases. `bin/h2puni-gate-steps.sh` excludes
+      `tool-remote-scripts` from the first `run-many` and runs its `lint`, `typecheck` and `build`
+      on their own line; CI's isolated leaf jobs stay the authority. Test: `toolchain-pins.test.ts`
+      pins both; negatives: the pre-6.18 script and the line deleted alone (verify.md, 2026-11-18).
+- [x] 6.19 host gate payload runs nx with --parallel=1 (A-GATE-PARALLEL-1; PR #947): at
+      `--parallel=2` the trimmed gate's true peak exceeds h4claw's 15 GiB (OOM kill 59 min into a
+      calibration). `bin/h2puni-gate-steps.sh` runs all three `run-many` lines at `--parallel=1`.
+      Test: `toolchain-pins.test.ts` pins the three lines; negatives: the `--parallel=2` script
+      and each later line restored alone (verify.md, 2026-11-18).
