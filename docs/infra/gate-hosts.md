@@ -15,14 +15,21 @@ throttled by the estimated `gate` envelope (the known issue in that section).
 
 `bin/h2puni-gate-steps.sh` runs the same Nx targets as CI, with one exception since 2026-11-18
 (assumption A-GATE-REMOTE-1, `dash-host-jobs` task 6.18, awaiting Dany): it skips
-`tool-remote-scripts`'s `test` target and runs only that project's `lint`, `typecheck` and
-`build`. That target's canonical batch runs the remote model family 2.5 to 4 times over its fixed
-budgets on both hosts: the 2026-11-08 h2puni gate took 575 min, 522 of them in that target,
-and failed two deadline-bound cases, so no gate calibration could finish. CI's
-`gate remote isolated leaf` jobs stay the authority for the family; a green host gate does not
-cover it. To revert, drop `,tool-remote-scripts` from the first `run-many` exclusion and the
-remote-scripts `run-many` line, then update `toolchain-pins.test.ts`. Lift it only once the
-family's budgets account for host speed.
+`tool-remote-scripts`'s `test` target and its `test:caddy` dependency, and runs only that
+project's `lint`, `typecheck` and `build`. That target's canonical batch runs the remote model
+family 2.5 to 4 times over its fixed budgets on both hosts: the 2026-11-08 h2puni gate took
+575 min, 522 of them in that target, and failed two deadline-bound cases, so no gate calibration
+could finish.
+
+CI's `gate remote isolated leaf` jobs (and `gate remote` for `test:ci:rest`, which covers
+`test:caddy`) are now the only place the family runs. On a pull request they run only when the
+CI plan selects the `remote` partition, that is when the change reaches `tool-remote-scripts`'s
+inputs; on a push to `main` they always run. A pull request that does not touch those inputs
+therefore has the family run nowhere before `main`, and a green host gate says nothing about it.
+
+To revert, drop `,tool-remote-scripts` from the first `run-many` exclusion and the remote-scripts
+`run-many` line, then update `toolchain-pins.test.ts`. Lift it only once the family's budgets
+account for host speed.
 
 ## What the role sets up
 

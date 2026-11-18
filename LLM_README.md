@@ -24,7 +24,7 @@ Three facts explain most decisions:
 ```sh
 bun install                                     # first, on a fresh clone
 bun run dev:setup                               # writes the .env files dev needs
-bin/h2puni-gate.sh <sha>                        # host gate (CI alone runs tool-remote-scripts tests); the pool checks <sha> out
+bin/h2puni-gate.sh <sha>                        # host gate, no tool-remote-scripts tests (CI remote jobs or main only); pool checks <sha> out
 bin/with-heavy-lock.sh status                   # who holds the host lock, and who is queued behind it
 bun run dev                                     # be + gw + fe locally; `bun run e2e` for the browser gate
 bun run test:unit                               # the fast tier: be-01 + every lib, ~17s
