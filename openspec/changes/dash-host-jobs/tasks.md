@@ -402,7 +402,7 @@
       `tool-remote-scripts` from the first `run-many` and runs its `lint`, `typecheck` and `build`
       on their own line; CI's isolated leaf jobs stay the authority. Test: `toolchain-pins.test.ts`
       pins both; negatives: the pre-6.18 script and the line deleted alone (verify.md, 2026-11-18).
-- [x] 6.19 host gate payload runs nx with --parallel=1 (A-GATE-PARALLEL-1; PR #TBD): at
+- [x] 6.19 host gate payload runs nx with --parallel=1 (A-GATE-PARALLEL-1; PR #947): at
       `--parallel=2` the trimmed gate's true peak exceeds h4claw's 15 GiB (OOM kill 59 min into a
       calibration). `bin/h2puni-gate-steps.sh` runs all three `run-many` lines at `--parallel=1`.
       Test: `toolchain-pins.test.ts` pins the three lines; negatives: the `--parallel=2` script
