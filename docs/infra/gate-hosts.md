@@ -396,6 +396,11 @@ ssh puni1@<h4claw public address> \
   'cd ~/puni-00-gate-tbf && git fetch -q origin && bin/h2puni-gate.sh <sha>' > gate-<sha8>.log 2>&1
 ```
 
+h4claw is also the PUNI registry host: `/etc/puni` is `root:root` mode 700, and `puni1` is uid 995
+with gid 983 (h2puni and CI runners have uid == gid). Tests must not assume a readable `/etc/puni`
+or a user-private group with gid == uid; two tool-fleet tests did and failed every h4claw gate
+([verification, task 6.17](../../openspec/changes/dash-host-jobs/verify.md#2026-11-18-h4claw-gate-calibrations-fail-on-two-host-coupled-tool-fleet-tests-task-617)).
+
 The sha must resolve in the launcher, because the admitted gate tree fetches it from there, so
 fetch the branch that carries it. A fetch moves no head. After `ops pool init`, never check
 out in the launcher: the refresh timer owns its head. Step 5's one-time bootstrap before init

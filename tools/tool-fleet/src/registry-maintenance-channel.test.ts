@@ -62,7 +62,14 @@ for (const fault of [
   'unheld',
   'eof',
 ] as const) {
-  test(`actual Bun FD0 socket bootstrap ${fault === 'none' ? 'verifies the transferred lock' : `refuses ${fault} without descriptor leaks`}`, async () => {
+  const title = `actual Bun FD0 socket bootstrap ${fault === 'none' ? 'verifies the transferred lock' : `refuses ${fault} without descriptor leaks`}`;
+  // acceptMaintenanceChannel refuses a bootstrap whose `credentials.gid !== uid` (user-private group
+  // invariant), so the acceptance case can only pass where uid == gid; the refusal cases run everywhere.
+  // Proof: on h4claw (puni1 uid 995, gid 983) gate calibrations of 213e1fa70 (2026-11-17/18) failed the
+  // `none` case with "Expected: 2275903 Received: undefined"; CI and h2puni (uid == gid) keep proving it.
+  const declareBootstrapTest =
+    fault === 'none' ? test.skipIf(process.getuid?.() !== process.getgid?.()) : test;
+  declareBootstrapTest(title, async () => {
     const { mkdtemp, rm, chmod } = await import('node:fs/promises');
     const { dlopen } = await import('bun:ffi');
     const directory = await mkdtemp('/tmp/task8-bootstrap-');

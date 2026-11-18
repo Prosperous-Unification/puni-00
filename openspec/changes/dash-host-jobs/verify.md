@@ -3763,3 +3763,54 @@ preflight) share the script.
 - **S16-A7** (review S3-3) The survey refuses when an inode's link count differs from its in-tree
   paths in either direction, so more in-tree paths than links (only reachable through a
   duplicated traversal, S16-A5) is refused too.
+
+## 2026-11-18 h4claw gate calibrations fail on two host-coupled tool-fleet tests (task 6.17)
+
+Branch `ops/tool-fleet-tests-host-independent-20261118` from `main` 22d150553; laptop (uid 1000,
+gid 1000), `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched. The h4claw evidence
+comes from the coordinator's read of the calibration logs `~/gate-calibrate-cold-2026-11-17b-h4.log`
+and `~/gate-calibrate-warm2-2026-11-17b-h4.log` on h4claw (gates of `main` 213e1fa70); CI on
+`main` is green. In both the cold and the warm2 run `tool-fleet:test` failed on the same two tests:
+
+- `registry-managed-journal.test.ts`, the test
+  `refuses unenforced storage through the owner-only stdin CLI and bounds input`:
+  `expect(initialized[2]).toContain('ENOENT')` received
+  `EACCES: permission denied, realpath '/etc/puni/registry-maintenance.json'`. The CLI's
+  `readTrustedEnrollment` refuses through `realpath`; h4claw is also the registry host and its
+  `/etc/puni` is `root:root` mode 700 (mtime 2026-10-24), so `puni1` cannot traverse it.
+- `registry-maintenance-channel.test.ts`, the test
+  `actual Bun FD0 socket bootstrap verifies the transferred lock`:
+  `Expected: 2275903 Received: undefined` for the acknowledgement's peer pid.
+  `acceptMaintenanceChannel` refuses a bootstrap whose `credentials.gid !== uid`; on h4claw
+  `puni1` is uid 995 with gid 983, while h2puni (1000/1000) and the CI runners have uid == gid.
+
+The first test now accepts `ENOENT|EACCES` (both come from the same `realpath`; the non-zero exit
+and empty stdout are still asserted). The second skips only its `none` case where
+`process.getuid() !== process.getgid()`; the seven refusal cases run on every host and the
+acceptance assertions are unchanged where uid == gid.
+
+| Command                                                                                                                                                                                                                      | Result                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test --preload ../test/scratch/preload.ts --timeout=30000` on `registry-managed-journal`, `registry-maintenance-channel`, `registry-maintenance-cli` and `registry-installation-cli` `.test.ts` (in `tools/tool-fleet`) | 75 pass, 0 fail across 4 files; the acceptance case passes (uid == gid here)                                                                                                                                                       |
+| the channel test file with an extra preload stubbing `process.getgid` to return uid + 1                                                                                                                                      | 8 pass, 1 skip (`verifies the transferred lock`), 0 fail                                                                                                                                                                           |
+| `bunx eslint` on the two test files                                                                                                                                                                                          | exit 0                                                                                                                                                                                                                             |
+| `bunx prettier --check` on every changed file                                                                                                                                                                                | all files use Prettier code style                                                                                                                                                                                                  |
+| `bunx openspec validate --all --json`                                                                                                                                                                                        | exit 0; 343 items, 343 passed, 0 failed                                                                                                                                                                                            |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                                                                               | exit 0                                                                                                                                                                                                                             |
+| `bunx nx run tool-devsync:test --skip-nx-cache` (gate-hosts.md gained a relative link)                                                                                                                                       | full target hit `ENOSPC` on the laptop (disk briefly filled), no failing test before it; then `bun test` on `repo-namespacing-handoff`, `current-documents`, `retired-roots` `.test.ts` (in `tools/tool-devsync`): 36 pass, 0 fail |
+| `bunx nx run tool-fleet:test`                                                                                                                                                                                                | not run on the laptop (tight disk; the coordinator waived it); CI runs it                                                                                                                                                          |
+
+| Injected fault                                                          | Observed                                                                                                                      |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| registry host with root-owned `/etc/puni` 0700 (h4claw, cold and warm2) | old assertion failed: `EACCES: permission denied, realpath '/etc/puni/registry-maintenance.json'` where `ENOENT` was expected |
+| test user with gid != uid (h4claw `puni1` 995/983, cold and warm2)      | old acceptance case failed: `Expected: 2275903 Received: undefined`                                                           |
+| `process.getgid` forced to uid + 1 on the laptop                        | the acceptance case reports `(skip)`; all seven refusal cases still pass                                                      |
+
+- **S17-A1** The h4claw gate now records the acceptance case as skipped; CI and h2puni (uid ==
+  gid) keep proving it. The production invariant (gid == uid for the maintenance peer) is not
+  changed here.
+- **S17-A2** The cold run's third failure, `source-derived selection refuses duplicate labels…`
+  at 47 000 ms, did not recur in warm2 and is treated as a load timeout, not fixed here.
+- **S17-A3** The h4claw error lines and host facts are taken from the coordinator's reading of
+  the two logs and of `/etc/puni` and `id puni1`; this change did not touch h4claw, where a gate
+  calibration is running. The fix is proven on h4claw only by its next gate.

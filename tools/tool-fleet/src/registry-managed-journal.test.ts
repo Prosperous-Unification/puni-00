@@ -426,7 +426,11 @@ it('refuses unenforced storage through the owner-only stdin CLI and bounds input
   );
   expect(initialized[0]).not.toBe(0);
   expect(initialized[1]).toBe('');
-  expect(initialized[2]).toContain('ENOENT');
+  // The refusal comes from realpath of /etc/puni/registry-maintenance.json: ENOENT where /etc/puni is
+  // absent or readable, EACCES on a registry host whose /etc/puni is root:root 0700 (h4claw).
+  // Proof: h4claw gate calibrations of 213e1fa70 (2026-11-17/18) failed `toContain('ENOENT')` with
+  // "EACCES: permission denied, realpath '/etc/puni/registry-maintenance.json'".
+  expect(initialized[2]).toMatch(/ENOENT|EACCES/);
   for (const [request, extra] of [
     ['{"command":"read"}' + ' '.repeat(65537), []],
     ['{"command":"read"}', ['--locked']],
