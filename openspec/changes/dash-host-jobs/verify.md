@@ -3746,7 +3746,20 @@ preflight) share the script.
   a link elsewhere, including in another job's directory, counts as outside and blocks, as before.
 - **S16-A2** The erase pass's count re-check guards a link added between the two passes. No
   test injects that race; it is a narrowing of the old guard, which refused every such file.
+  It does not cover a swap: an in-tree link removed and an outside link added in the window
+  leave nlink unchanged, so erase unlinks the remaining in-tree path and the units release while
+  the bytes survive outside. That needs an actor racing the sweep with write access to the tmp
+  directory on the same filesystem, so it is an accounting-only exposure, recorded and untested.
 - **S16-A3** A refusal now comes before any removal, so a blocked directory keeps its in-tree
   files (the outside test asserts the in-tree twin survives); before, removal stopped part way.
 - **S16-A4** Live tmp entries already `blocked` on h4claw stay so until an operator removes them
   or the sweep retries with the launcher checkout carrying this change.
+- **S16-A5** (pre-existing, review S3-2) The "mount boundary" check compares `st_dev`, so a
+  same-device bind mount inside the tree is not a boundary; comparing mount ids (statx
+  `STATX_MNT_ID` or mountinfo) is the follow-up.
+- **S16-A6** (review observation, out of scope) Bun's hardlink install backend links
+  `node_modules` files to `~/.bun/install/cache`, so a gate test that runs `bun install` inside
+  `$TMPDIR` would still leave outside links and a `blocked` entry.
+- **S16-A7** (review S3-3) The survey refuses when an inode's link count differs from its in-tree
+  paths in either direction, so more in-tree paths than links (only reachable through a
+  duplicated traversal, S16-A5) is refused too.

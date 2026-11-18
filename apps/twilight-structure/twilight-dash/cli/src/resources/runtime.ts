@@ -1538,12 +1538,12 @@ export function inspectHolds(locator: string, scope: HoldScope): void {
 /** The file in a host job's tmp directory that holds its {@link HostJob.tmpMarker}. */
 const TMP_MARKER = '.dash-tmp-identity';
 /**
- * Descriptor-relative removal never follows a symlink, crosses a mount, or accepts a replacement
- * inode. Options after the identity: `inspect` removes nothing; `marker=<token>` also requires
+ * Descriptor-relative removal never follows a symlink, crosses to another device, or accepts a
+ * replacement inode (a same-device bind mount inside the tree is not detected, S16-A5). Options after the identity: `inspect` removes nothing; `marker=<token>` also requires
  * {@link TMP_MARKER}, read through the opened directory, to hold that token.
  *
  * Two passes: the first walks the tree under the same rules and counts the in-tree paths of each
- * multiply-linked inode, refusing before any removal when an inode has a link outside the tree.
+ * multiply-linked inode, refusing before any removal when an inode's link count differs from its in-tree paths.
  * The second erases, refusing an inode whose link count no longer matches what the first pass
  * saw minus the links already removed, so a link added between passes still blocks.
  */
@@ -1585,7 +1585,7 @@ survey(fd)
 # (shared-hardlink.log). Dropping this line made 'an in-tree hardlink pair with a third link
 # outside stays blocked and untouched' (host-jobs.test.ts) see the entry released, and both
 # runtime.test.ts hardlink tests fail (2026-11-18, task 6.16).
-if any(seen['nlink']>seen['inside'] for seen in links.values()): raise RuntimeError('shared hardlink')
+if any(seen['nlink']!=seen['inside'] for seen in links.values()): raise RuntimeError('shared hardlink')
 def erase(directory):
  for name in os.listdir(directory):
   if markers and directory==fd and name=="${TMP_MARKER}": continue
