@@ -3884,3 +3884,85 @@ verification; lock verification is proven where uid == gid (CI, h2puni).
   touch h4claw, where a gate calibration is running. The gid failure no longer rests on those
   logs alone: it is reproduced on the laptop under `sg docker`. The EACCES case was not
   reproduced locally. The fix is proven on h4claw only by its next gate.
+
+## 2026-11-18 the host gate cannot calibrate: tool-remote-scripts runs 2.5–4× over its budgets on the hosts (task 6.18)
+
+Branch `ops/host-gate-skips-remote-scripts-test-20261118` from `main` fe3fdac56; laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched. The host evidence is the
+coordinator's read of the gate logs; it is filed as issue #945.
+
+`bin/h2puni-gate-steps.sh` ran `bunx nx run-many -t test lint typecheck build --parallel=2
+--skip-nx-cache --exclude=twilight-burokrat,twilight-dash`. Inside it `tool-remote-scripts:test`
+(`bun run test/run-tests.ts canonical`, one `bun test src test/edge-init.test.ts …` batch) runs
+the remote model family: 10 `src/lib/*.model.ts` models driven through 7
+`test/*-model-child.test.ts` leaf runs.
+
+- The complete h2puni gate `~/gate-895-1da3f799-h2.log` of 2026-11-08 took 575 min 41 s, of which
+  `tool-remote-scripts:test` took 521 min 57 s. Its model cases passed at 162–178 s each
+  (`(pass) backend coordinator authority boundary: foreign-pid [178215.36ms]`) where the
+  frozen budget assumes about 70 s (`dependency-product-process-model.test.ts`: "Frozen
+  measurement: 16 cases took 1111.14s"). Two deadline-bound tests failed at about 264 s:
+  `isolated source restoration retains original gateway authority through ready [264342.72ms]`
+  and `isolated source restoration refuses absent and copied phases before genuine continuation
+[263020.72ms]`.
+- Normal h2puni gates on 2026-11-02..04 took 60–66 min.
+- On 2026-11-18 both `gate` calibrations (h4claw since 05:08Z, h2puni since 05:13Z) sat inside
+  that batch for 3+ h, with cases taking about 280–300 s each under `--parallel=2`.
+- CI never runs the batch whole: `.github/workflows/ci.yml` runs the family as
+  `gate remote isolated leaf` partition jobs (remote-model, remote-model-continuation,
+  remote-source, remote-source-restoration, remote-participant-policy,
+  remote-complete-activation, remote-storage), each with a 90-minute job timeout.
+
+- The coordinator's h4claw scratch runs of 2026-11-18 (clone of 62e8bbf21, port constants 3100
+  moved to 3150, bare `catch {}` sites patched to print causes) show the lone case
+  `backend coordinator authority boundary: foreign-pid` failing deterministically in 200–210 s
+  (9 runs), where CI's frozen measurement assumes about 70 s and the h2puni gate passed it in
+  178 s. The printed chain ends in `product observer creation or session unproved`: the model's
+  local byte transport (`execDocker`, `dependency-product-process-model.model.ts:169`) never
+  proves its session before `runSession`'s deadline. Filesystem, busybox and port collisions are
+  ruled out; three nested catches (two bare, one dropping its cause) hide it from every report. Full chain in #945.
+
+The first `run-many` now also excludes `tool-remote-scripts` (its `test` and that target's
+`test:caddy` dependency), and a new line `bunx nx run-many -t lint typecheck build -p
+tool-remote-scripts --parallel=2 --skip-nx-cache --excludeTaskDependencies` runs that project's
+other targets right after it, before the Twilight split, without rebuilding the dependency
+builds the first `run-many` just made. CI's remote jobs run the family on a pull request only
+when the CI plan selects the `remote` partition, and always on a push to `main`; a pull request
+that does not reach the family's inputs has it run nowhere before `main`. The prod runbook now
+requires a green full-mode CI run on `main` for the SHA (or the leaf targets by hand) before
+`tool-remote-scripts:install`. `tool-remote-scripts`
+itself is unchanged. `toolchain-pins.test.ts` (`runs the h2puni gate with the same Twilight split
+as CI`) pins both lines. The note is in `docs/infra/gate-hosts.md` (What the host gate runs),
+`AGENTS.md` (Gate) and the `LLM_README.md` gate command line.
+
+| Command                                                                                                                                                               | Result                                                                                                                                                                                                                                                                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                                                                              | 36 pass, 0 fail                                                                                                                                                                                                                                                                       |
+| `bun test tools/tool-devsync/src/poller.test.ts -t 'canonical h2puni gate wiring'`                                                                                    | 1 pass, 0 fail                                                                                                                                                                                                                                                                        |
+| `bun test tools/tool-git-hooks/src/hooks/ci-plan.test.ts`                                                                                                             | 27 pass, 0 fail                                                                                                                                                                                                                                                                       |
+| `bun test apps/twilight-structure/twilight-dash/cli/src/ops/launchers.test.ts`                                                                                        | 1 pass, 0 fail                                                                                                                                                                                                                                                                        |
+| `bun test apps/twilight-structure/twilight-burokrat/cli/src/policy/gate-entrypoints.test.ts`                                                                          | 56 pass, 2 fail; the same two (`the host gate fails specifically at wiki lint for a stale enforced blob`, `the real Nx target reruns an omitted-input mutation and a controlled cache fault does not`) fail on unmodified `main` fe3fdac56 on the laptop, so they predate this change |
+| `bash bin/h2puni-gate.test.sh`                                                                                                                                        | exit 0, `all cases passed`                                                                                                                                                                                                                                                            |
+| `bash -n bin/h2puni-gate-steps.sh`                                                                                                                                    | exit 0                                                                                                                                                                                                                                                                                |
+| `bunx nx run tool-devsync:test --skip-nx-cache` (`AGENTS.md` gained a relative link)                                                                                  | exit 0; 1106 tests across 54 files                                                                                                                                                                                                                                                    |
+| `bunx prettier --check` on every changed Markdown and TypeScript file                                                                                                 | all files use Prettier code style (Prettier has no parser for the `.sh` file)                                                                                                                                                                                                         |
+| `bunx openspec validate --all --json`                                                                                                                                 | exit 0; 344 items, 344 passed, 0 failed                                                                                                                                                                                                                                               |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                        | exit 0 (review debt listed only for two unrelated pre-existing indexes)                                                                                                                                                                                                               |
+| `bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=2 --skip-nx-cache --excludeTaskDependencies` (after the #946 review)                      | exit 0; exactly three tasks ran (`typecheck`, `build`, `lint`), no dependency builds                                                                                                                                                                                                  |
+| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`, `bash bin/h2puni-gate.test.sh`, `bash -n`, prettier, openspec validate, check-indexes after the #946 review | 36 pass, 0 fail; `all cases passed`; exit 0; Prettier clean; 344 items, 344 passed; exit 0                                                                                                                                                                                            |
+| `bunx nx run tool-remote-scripts:test`, host gate                                                                                                                     | not run: no host touched; the next calibration measures the gate                                                                                                                                                                                                                      |
+
+| Injected fault                                                                                                | Observed                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bin/h2puni-gate-steps.sh` at `main` fe3fdac56 (no exclusion, no remote-scripts line) under the extended test | `runs the h2puni gate with the same Twilight split as CI` failed: `Expected: 1 · Received: 0` on the `--exclude=twilight-burokrat,twilight-dash,tool-remote-scripts` occurrence |
+| only the `-p tool-remote-scripts` lint/typecheck/build line deleted                                           | the same test failed: `Expected to contain: "bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=2 --skip-nx-cache"`; script restored, 36 pass           |
+| only `--excludeTaskDependencies` dropped from that line (after the #946 review)                               | the same test failed: `Expected to contain: "… --skip-nx-cache \\ --excludeTaskDependencies"`; script restored, 36 pass                                                         |
+
+- **S18-A1** A-GATE-REMOTE-1: the host gate skipping `tool-remote-scripts:test`, with CI's
+  isolated leaf jobs as the family's authority, is assumed and awaits Dany's confirmation. It is
+  reversible (see `docs/infra/gate-hosts.md`, What the host gate runs).
+- **S18-A2** The family's owners must make its budgets host-aware (a measured host factor, or
+  the leaf's own deadline instead of frozen wall-clock figures) before the exclusion is lifted;
+  tracked in #945.
+- **S18-A3** The host gate's duration after the exclusion is unknown until the next `gate`
+  calibration on each host; 60–66 min (h2puni, 2026-11-02..04) is the only earlier comparison.

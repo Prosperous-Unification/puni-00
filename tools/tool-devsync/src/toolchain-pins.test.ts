@@ -386,7 +386,8 @@ describe('the CI gate scope', () => {
 
   it('runs the h2puni gate with the same Twilight split as CI', async () => {
     // The host gate mirrors the two CI shards in one script: the workspace without the Twilight
-    // suite, then both Twilight projects' targets and their uncached lint.
+    // suite, then both Twilight projects' targets and their uncached lint. A third, remote-only
+    // line runs tool-remote-scripts' lint, typecheck and build, whose test is CI-only (6.18).
     // Proof (2026-10-12): with `,twilight-dash` dropped from bin/h2puni-gate-steps.sh's
     // exclusion this failed on `Expected: 1 · Received: 0`.
     const steps = oneLine(commandsOf(await read('bin/h2puni-gate-steps.sh')));
@@ -395,9 +396,18 @@ describe('the CI gate scope', () => {
       occurrences(
         steps,
         'bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache \\ ' +
-          '--exclude=twilight-burokrat,twilight-dash',
+          '--exclude=twilight-burokrat,twilight-dash,tool-remote-scripts',
       ),
     ).toBe(1);
+    // The host gate does not run tool-remote-scripts' test target (A-GATE-REMOTE-1, task 6.18);
+    // its other targets still run there, without rebuilding their task dependencies.
+    // Proof (2026-11-18): against the script before 6.18 this failed on `Expected: 1 · Received: 0`;
+    // with only the remote-scripts line deleted, or only its `--excludeTaskDependencies` dropped,
+    // it failed on `Expected to contain` below.
+    expect(steps).toContain(
+      'bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=2 --skip-nx-cache \\ ' +
+        '--excludeTaskDependencies',
+    );
     expect(steps).toContain(
       'bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=2',
     );
