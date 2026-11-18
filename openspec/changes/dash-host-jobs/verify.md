@@ -3966,3 +3966,67 @@ as CI`) pins both lines. The note is in `docs/infra/gate-hosts.md` (What the hos
   tracked in #945.
 - **S18-A3** The host gate's duration after the exclusion is unknown until the next `gate`
   calibration on each host; 60–66 min (h2puni, 2026-11-02..04) is the only earlier comparison.
+
+## 2026-11-18 the trimmed host gate exceeds h4claw's memory at --parallel=2 (task 6.19)
+
+Branch `ops/host-gate-parallel-1-20261118` from `main` 834fda4e5 (after #946); laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched. The host evidence is the
+coordinator's read of Dash's audit, the calibration logs and puni1's cgroup files on h4claw
+(8 cores, 15 GiB RAM).
+
+- Dash's audit records gate memory peaks of 12.94 GiB (run a498260b, 2026-11-17T23:18Z) and
+  11.79 GiB (run 2c0a5547, 2026-11-18T00:52Z) against the catalogue's 6 GiB envelope.
+- The cold unbounded calibration of the trimmed gate (job fa0a73a0, started 10:23:38Z) lost
+  `tool-fleet:test` at about 11:24Z, after 59 min: its bun process exited non-zero mid-file in
+  `tools/tool-fleet/src/observability-rehearsal-capacity.test.ts`, after the passing test
+  "standalone combined reconciliation preserves consumer retention and unrelated unsupported
+  declarations exactly", with no failing test and no bun summary. Beside it ran
+  `wbs-be-01:test` (47 min 30 s, the critical path) and `wbs-be-01:typecheck`
+  (`bunx tsc --build --force`). Nx then bailed and terminated the in-flight tasks (be-01
+  typecheck, store-sqlite typecheck, tool-fleet lint); the Nx run took 57 min 55 s.
+- In the warm calibration (started 11:25:34Z) puni1's slice `memory.events` `oom_kill` read 2 at
+  11:4xZ, before warm1's `tool-fleet` phase, and 3 at 12:24:32Z, 59 min in; the run exited 143
+  at 12:24:42Z; and `memory.peak` read 14,949,826,560 bytes (13.92 GiB)
+  against 15 GiB total. The calibration scope runs with `MemoryHigh=infinity` and `MemoryMax=infinity` by
+  design, so it measures the true peak.
+
+At `--parallel=2` the host gate's true peak does not fit the gate hosts, so the gate can be
+neither calibrated nor run there. All three `run-many` lines of `bin/h2puni-gate-steps.sh` (the
+workspace line, the `-p tool-remote-scripts` line and the Twilight line) now run at
+`--parallel=1`, so the peak is the largest single task's. `toolchain-pins.test.ts`
+(`runs the h2puni gate with the same Twilight split as CI`) pins the three lines; the note is in
+`docs/infra/gate-hosts.md` (What the host gate runs). CI's own `--parallel` settings
+(`.github/workflows/ci.yml`, `ci-run-runtime.ts`) are not the host gate and are unchanged, as is
+`bin/test-queued-payload.sh`'s `--parallel=2`, a separate job type outside this assumption.
+
+| Command                                                                                                        | Result                                                                        |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                       | 36 pass, 0 fail                                                               |
+| `bash bin/h2puni-gate.test.sh`                                                                                 | exit 0, `all cases passed`                                                    |
+| `bash -n bin/h2puni-gate-steps.sh`                                                                             | exit 0                                                                        |
+| `bunx prettier --check` on every changed Markdown and TypeScript file                                          | all files use Prettier code style (Prettier has no parser for the `.sh` file) |
+| `bunx openspec validate --all --json`                                                                          | exit 0; 344 items, 344 passed, 0 failed                                       |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A` | exit 0 (review debt listed only for two unrelated pre-existing indexes)       |
+| `bunx nx run tool-devsync:test`                                                                                | not run: no relative link added                                               |
+| host gate, `gate` calibration                                                                                  | not run: no host touched; the next calibration measures the gate              |
+
+| Injected fault                                                                                            | Observed                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bin/h2puni-gate-steps.sh` at `main` 834fda4e5 (all three lines at `--parallel=2`) under the updated test | `runs the h2puni gate with the same Twilight split as CI` failed: `Expected: 1 · Received: 0` on the workspace line                                                                                |
+| only the `-p tool-remote-scripts` line back at `--parallel=2`                                             | the same test failed: `Expected to contain: "bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=1 --skip-nx-cache \\ --excludeTaskDependencies"`; script restored, 36 pass |
+| only the Twilight line back at `--parallel=2`                                                             | the same test failed: `Expected to contain: "bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=1"`; script restored, 36 pass                                  |
+
+- **S19-A1** A-GATE-PARALLEL-1: the host gate running every `run-many` at `--parallel=1` is
+  assumed and awaits Dany's confirmation. It is reversible (see `docs/infra/gate-hosts.md`, What
+  the host gate runs).
+- **S19-A2** The gate's duration and peak memory at `--parallel=1` are unknown until the next
+  `gate` calibration; about 90 min is an estimate from the cold run's 47 min 30 s critical path
+  in a 57 min 55 s run.
+- **S19-A3** The OOM attribution rests on puni1's cgroup `oom_kill` counter and its timing; the
+  kernel logs that would name the killed process are unreadable to puni1.
+- **S19-A4** The `test-queued` job type (`bin/test-queued-payload.sh`) still runs
+  `--parallel=2` and still runs `tool-remote-scripts:test`, both outside A-GATE-PARALLEL-1 and
+  A-GATE-REMOTE-1; it is uncalibrated and unbounded (`docs/infra/heavy-job-launchers.md`), so it
+  carries the same memory risk on the hosts. Its comment now calls `--parallel=2` its own
+  setting rather than gate parity; aligning it is a follow-up, as is the pre-existing drift where
+  `infra/jobs/catalogue.json`'s test-queued basis says "nx.json parallel 4" while the script pins 2.
