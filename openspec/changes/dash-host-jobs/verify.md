@@ -3619,6 +3619,60 @@ live one.
 - **EV-A11** The holder-survives clause stays owed (observe mode, `guardHolder null`), as is h2puni's
   proof with its enrollment. Logs: puni-plan `evidence/2026-11-12-h4claw-restart-proof/`.
 
+## 2026-11-17 h2puni enrolled in observe mode (tasks 6.4 operator half, 6.7)
+
+From the operator laptop's fleet controller (image digest 372f6f43…, playbook tree `main`
+1b94e080b) with `$OPS/gate.json.enroll-h2puni.2026-11-12` (authority `h2puni-gate-host`, epoch
+`2026-11-enroll-1`, headroom 2 cores and 6 GiB, 12 disk units). Peers puni-00-ec and puni-00-62 were
+told before; ec asked that its website release directories stay and that a second session log in
+after apply 1, both honoured. Full logs, credential lines stripped, in puni-plan
+`evidence/2026-11-17-h2puni-enrollment/`.
+
+| Step                   | Observed (UTC)                                                                                                                                                                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| preconditions          | heavy lock `holder none`; no process with a gate tree as cwd (two orphan test fixtures, 7 and 47 days old, ended by the operator first, EV-A12); launcher, tbf, tbf2 `dirty=0` after three untracked test artefacts moved to `~/backups-2026-11-17-gate-tree-artefacts`; 23 GiB free; staged keys equal the live set (5) |
+| backups                | `~/backups-2026-11-17-pre-enroll/`: authorized_keys, bashrc, crontab, the Dash unit files                                                                                                                                                                                                                                |
+| drain                  | the two per-minute `poll.sh` cron lines commented out; no poller process                                                                                                                                                                                                                                                 |
+| apply 1                | `ok=73 changed=4 failed=0`: `Write the host pool configuration`, `Install the Dash user units` (h2puni's last apply, 2026-11-05, predates `Restart=always`), the daemon-reload it triggers, `Enable the Dash user units`; the pinned-fields pair is skipped until a ledger exists; authorized_keys unchanged             |
+| second-session login   | 20:42:31 `puni1` login from a fresh ssh session; key set unchanged; the peer's directories intact                                                                                                                                                                                                                        |
+| apply 2                | `ok=72 changed=0 failed=0`                                                                                                                                                                                                                                                                                               |
+| launcher checkout      | 0ff9b5a1f → 1b94e080b (`git fetch`, `git checkout --detach origin/main`), `bun install --frozen-lockfile` after `bun.lock` changed; `~/wbs-dev/src` already at 1b94e080b                                                                                                                                                 |
+| `ops pool init`, units | `initialized`, `h2puni-host-pool`, observe, guard on, allocatable 6 cores / 9 GiB / 12 disk units / 4 slots, `gate_tree`×2 + `dagger_engine` + `docker_build` free; watch, audit timer, refresh timer active                                                                                                             |
+| restart proof          | `kill -9` of the watch `MainPID` 1187665 at 20:44:54; `activating/auto-restart Result=signal` at 20:45:11; `active MainPID 1191964 NRestarts=1 ActiveEnterTimestamp 20:45:24`; `ops pool inspect` identical before and after                                                                                             |
+| pollers restored       | crontab byte-identical to the pre-enrollment backup                                                                                                                                                                                                                                                                      |
+| `--tags validate`      | `ok=31 changed=0 failed=0`                                                                                                                                                                                                                                                                                               |
+
+- **EV-A12** `ops pool init` refuses a unit any same-user process has as cwd (`inspectHolds`,
+  S6-A6; `OpsRefusal 70 … not initialized`), and two orphaned test fixtures (`bash -c while [ ! -e
+…release ]` in tbf2, `bun -e setInterval` in tbf) had held the trees for 7 and 47 days.
+  Enrollment therefore needs a cwd sweep of the gate trees before the apply; this change adds it
+  to the runbook's drain step.
+- **EV-A13** The 6.4 observe week starts 2026-11-17 on h2puni; h4claw's started 2026-11-08, but its
+  only gate was held until 21:02Z on 2026-11-17 (6.14) and ended without settling, so no h4claw
+  record counts yet.
+- **EV-A14** The watch's `kill -9` landed and systemd restarted it after `RestartSec`, the same
+  shape as h4claw on 2026-11-12. The holder-survives clause stays owed (observe mode).
+
+### 2026-11-17 h4claw job 22ce2369 ended by a cgroup-wide SIGKILL (task 6.14)
+
+The operator's `kill -TERM` of the launcher (pid 2837572) ended the launcher but not the job. What
+was observed afterwards: the scope `dash-job-22ce2369-….scope` stayed active with ten processes,
+the payload's `nx run-many` (2838931), `eslint` (4150028) and a `git checkout --detach` (2048548)
+in D state with wchan `mem_cgroup_handle_over_high`, `MemoryHigh=6442450944`, `MemoryCurrent`
+7.2 GiB, `memory.events high 462420112`; `ops job status` read `settlement unknown (compute
+unknown, tmp unknown, gate_tree unknown)` and the hold file stayed. The first reading of this
+record claimed the reclaim loop takes no signal; the review of #939 corrected it: that wchan is
+`schedule_timeout_killable` (TASK_KILLABLE, at most 2 s per return to user mode), and the loop
+begins with `task_is_dying()`, so a fatal signal wakes and ends the task. `systemctl --user kill
+--signal=SIGKILL dash-job-22ce2369-….scope` at 21:02:10 left the scope `inactive` within 17 s with
+no D-state process left. Two things explain the failed SIGTERM instead: the gated shell the scope
+runs traps `HUP INT TERM`, and the launcher's `killSession` is `process.kill(-pid, signal)`
+(`job-run.ts`), which reaches the leader's process group only, while the scope also held
+descendants outside it (the `git checkout` pid 2048548 was far from the launcher's range). The
+6.11 escalation uses the same call, so at the bound it would miss them too. Recorded as task 6.14:
+end a job cgroup-wide, with the `MemoryHigh` lift as the graceful prelude so handlers and the
+shell's trap finish inside the settle budget instead of crawling at 2 s per return.
+
 ## 2026-11-17 sweep settles a dead launcher's job with container evidence (task 6.15)
 
 Branch `ops/sweep-container-evidence-20261117` from `main` 1b94e080b; laptop, `CLAUDECODE` and

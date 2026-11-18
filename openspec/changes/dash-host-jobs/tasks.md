@@ -228,10 +228,13 @@
       h4claw, 2026-11-12 (verify.md "2026-11-12 h4claw restart proof"): converging apply `changed=2`
       (the unit file and the daemon-reload) then `changed=0`; an observed `kill -9` of the watch's
       `MainPID` with systemd restarting it 30 s later (`NRestarts` 0 → 1) and `ops pool inspect`
-      identical before and after; `--tags validate` `changed=0`. Still owed: the same on h2puni
-      with its enrollment, and the guard holder surviving a restart (concurrent mode, 6.5).
+      identical before and after; `--tags validate` `changed=0`. h2puni, 2026-11-17 (verify.md
+      "2026-11-17 h2puni enrolled"): the same proof on the enrollment visit, `kill -9` at 20:44:54Z,
+      active again at 20:45:24Z with `NRestarts` 0 → 1. Still owed: the guard holder surviving a
+      restart (concurrent mode, 6.5).
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
-      (`Restart=always`; `on-failure` until 2026-11-12, see 6.7; `RestartSec=30`, `KillMode=process`,
+      (`Restart=always`; `on-failure` until 2026-11-12, see 6.7; h2puni's unit carries `always` since
+      its 2026-11-17 apply; `RestartSec=30`, `KillMode=process`,
       skipped until the ledger exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
       enrolled host and never starts them. The restart proof on a host stays in 6.7
       (verify.md Slice 6c).
@@ -244,6 +247,12 @@
       the run record's container samples) before any type runs with `enforcement: cap`: their
       `--memory 1g --cpus 1` is the declared `gate` bound, applied only inside a Dash job and not
       yet measured (slice 6a review F4).
+      Enrollment half DONE: h4claw 2026-11-08 (verify.md "2026-11-08 h4claw enrolled in observe
+      mode"), h2puni 2026-11-17 (verify.md "2026-11-17 h2puni enrolled": apply `changed=4` then
+      `changed=0`, `ops pool init`, units started, `--tags validate` `ok=31 changed=0`; allocatable
+      6 cores, 9 GiB, 12 disk units, 4 slots). Open: the observe week on both hosts, the five
+      calibrations (`gate` on h4claw: job 22ce2369 ended 2026-11-17 21:02Z, see 6.14; the armed watcher
+      runs the three calibrations once its hold is reclaimed), the catalogue PRs.
 - [x] 6.5a Code (slice 6b): `ops pool switch-mode concurrent|observe`, with `--release-guard`
       and `--allow-empty`: the intake fence on new tickets (queued ones keep their place,
       S6B-A16), the pool and shell-lock drain, launcher shim verification (library, `bin/`
@@ -342,6 +351,23 @@
       in tool-remote-scripts. `docker build` stays unattributed, and the peaks stay unmeasured
       until 6.4, so `gate` stays out of `concurrencyEligible`.
 
+- [ ] 6.14 End a job cgroup-wide at the runtime bound, lifting `MemoryHigh` first (incident
+      2026-11-17, h4claw job 22ce2369, verify.md): an operator `SIGTERM` to the launcher ended the
+      launcher but left the scope active for hours with the payload in D state under
+      `mem_cgroup_handle_over_high`, until `systemctl --user kill --signal=SIGKILL <scope>` ended
+      it in 17 s. Two gaps: `killSession` is `process.kill(-pid, signal)`, which reaches the
+      leader's process group only while the scope also holds `setsid`'d descendants (the nx
+      daemon, a stray `git checkout`); and a handled or trapped SIGTERM under the `memory.high`
+      throttle runs its handler at 2 s per return to user mode, so the settle budget passes before
+      a clean exit. `ops job run` therefore ends a job at the bound in three steps: raise the
+      scope's `MemoryHigh` to `infinity` (the operator form is
+      `systemctl --user set-property --runtime <scope> MemoryHigh=infinity`), SIGTERM the
+      process group, then after the settle budget
+      `systemctl --user kill --signal=SIGKILL <scope>` (the remedy the runtime already prints for
+      held units) instead of a group SIGKILL; the operator runbook names the same three steps for
+      a manual end. Test: a payload that `setsid`s a child in `job-run.test.ts`'s namespace leaves
+      no process in the scope after the bound; negative: with the group kill restored the child
+      survives and the test fails.
 - [x] 6.15 `sweep` settles a dead launcher's job with real container evidence (incident 2026-11-17,
       h4claw job 22ce2369): after a cgroup-wide SIGKILL ended every process, the job stayed
       `running … settlement unknown` with 4 cores, 6 GiB and a gate tree reserved, because
