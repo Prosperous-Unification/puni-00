@@ -25,6 +25,17 @@ export NX_DAEMON=false
 # Defaulting to `HEAD` keeps the no-argument callers in AGENTS.md and the
 # runbooks working, and they lose nothing: the head is resolved here, once, and
 # that resolved sha is what gets checked out under the lock.
+is_calibration=false
+if [[ ${1:-} == --calibrate ]]; then
+  # Proof: the extra-argument and empty-target fixture faults independently reached a
+  # calibration and returned 0 where the outer launcher must refuse 64.
+  if [[ $# -ne 2 || -z ${2:-} ]]; then
+    printf 'usage: %s --calibrate <sha>\n' "${0##*/}" >&2
+    exit 64
+  fi
+  is_calibration=true
+  shift
+fi
 target=${1:-HEAD}
 
 # The lane's name in the heavy lock's queue, which `bin/with-heavy-lock.sh
@@ -119,6 +130,7 @@ export H2PUNI_GATE_TRUSTED_LAUNCHER="$trusted_launcher"
 # Proof (observed 2026-11-02): removed, `bin/h2puni-gate.sh not-a-commit` reached `run_heavy_job`
 # and was refused 70 for the absent canonical lock instead — `47 … want exit 64, got 70`
 # (bin/h2puni-gate.test.sh, case 47).
+# Proof: removing this refusal sent an empty SHA to Dash in the unresolvable calibration case.
 if [[ -z ${gate_sha:-} ]]; then
   printf 'h2puni gate: %s is not a commit in %s\n' "$target" "$repo_root" >&2
   exit 64
@@ -128,4 +140,21 @@ fi
 # an unenrolled host and runs the payload in this checkout, or, on an enrolled one, asks Dash to
 # admit a `gate` job, which hands the payload its own gate tree as `DASH_JOB_UNIT_GATE_TREE`.
 # Job type `gate` in infra/jobs/catalogue.json.
-HEAVY_LOCK_JOB_TYPE=gate run_heavy_job -- "$repo_root/bin/h2puni-gate-payload.sh" "$gate_sha"
+if [[ $is_calibration == true ]]; then
+  # Proof: dropping this guard let the set-but-empty Dash identity fixture calibrate and exit 0.
+  if [[ -n ${DASH_JOB_ID+set} ]]; then
+    printf 'h2puni gate: calibration must start outside a Dash job\n' >&2
+    exit 70
+  fi
+  enrollment=$(read_host_pool_enrollment)
+  # Proof: omitting this branch made the unenrolled calibration case submit to Dash.
+  if [[ $enrollment != enrolled ]]; then
+    printf 'h2puni gate: calibration requires an enrolled host\n' >&2
+    exit 70
+  fi
+  # Proof: the verb, payload and SHA faults failed the one-submission argv check independently.
+  # Dropping the trusted copy from this call refused at the verifier handoff fixture.
+  run_enrolled_heavy_job calibrate gate "$repo_root/bin/h2puni-gate-payload.sh" "$gate_sha"
+else
+  HEAVY_LOCK_JOB_TYPE=gate run_heavy_job -- "$repo_root/bin/h2puni-gate-payload.sh" "$gate_sha"
+fi
