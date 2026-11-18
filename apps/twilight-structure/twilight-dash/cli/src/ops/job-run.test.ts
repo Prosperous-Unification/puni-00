@@ -2,13 +2,16 @@ import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import {
+  accessSync,
   chmodSync,
+  constants,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -1190,14 +1193,27 @@ if (insideOpsNamespace(import.meta.path)) {
       );
       const bin = fakeBin('exec');
       rmSync(join(bin, 'systemctl'));
-      // Every tool on this host's PATH but systemctl.
+      // Every tool on this host's PATH but systemctl, each name linked once from the first PATH
+      // entry that has it, as a lookup would resolve it. A name in two entries (the CI runner's
+      // `now`), a dangling link or a non-executable entry is skipped, never linked twice.
       const tools = join(base, 'tools-without-systemctl');
       mkdirSync(tools);
+      const linked = new Set<string>(['systemctl']);
       for (const directory of (process.env['PATH'] ?? '').split(':')) {
         if (directory === '' || !existsSync(directory)) continue;
-        for (const name of readdirSync(directory))
-          if (name !== 'systemctl' && !existsSync(join(tools, name)))
-            symlinkSync(join(directory, name), join(tools, name));
+        for (const name of readdirSync(directory)) {
+          if (linked.has(name)) continue;
+          const path = join(directory, name);
+          try {
+            if (!statSync(path).isFile()) continue;
+            accessSync(path, constants.X_OK);
+          } catch {
+            // A dangling link or a tool this account cannot run is no tool for the payload.
+            continue;
+          }
+          linked.add(name);
+          symlinkSync(path, join(tools, name));
+        }
       }
       const report: string[] = [];
       const started = monotonic.now();
