@@ -1,5 +1,6 @@
 import { chmod, readdir, readFile, statfs, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { expect, it } from 'bun:test';
@@ -430,7 +431,9 @@ it('refuses unenforced storage through the owner-only stdin CLI and bounds input
   // absent or readable, EACCES on a registry host whose /etc/puni is root:root 0700 (h4claw).
   // Proof: h4claw gate calibrations of 213e1fa70 (2026-11-17/18) failed `toContain('ENOENT')` with
   // "EACCES: permission denied, realpath '/etc/puni/registry-maintenance.json'".
-  expect(initialized[2]).toMatch(
+  // CI's Bun colours the child CLI's stderr (`\x1b[31mENOENT\x1b[0m\x1b[2m:`), so strip ANSI first.
+  // Proof: CI run 44227343377 failed the un-stripped match; locally FORCE_COLOR=1 fails it the same way.
+  expect(stripVTControlCharacters(initialized[2])).toMatch(
     /E(?:NOENT|ACCES): .*realpath '\/etc\/puni\/registry-maintenance\.json'/,
   );
   for (const [request, extra] of [
