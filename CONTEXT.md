@@ -2170,6 +2170,38 @@ The fleet's separate cluster for isolated Twilight activity attempts; it does no
 own the durable authority for those attempts.
 _Avoid_: platform cluster (for activity execution)
 
+**Etcd member identity**:
+The name and persistent member ID of one etcd participant in a cluster's recorded membership.
+_Avoid_: server node name, Kubernetes Node identity
+
+**Kubernetes Node identity**:
+The name and UID of one Kubernetes Node object. Reusing the name creates a new identity.
+_Avoid_: etcd member identity, host identity
+
+**Machine identity**:
+The provider identity and machine ID of the host that carries a cluster membership.
+_Avoid_: hostname, inventory alias, Node name
+
+**Snapshot membership evidence**:
+The captured relationship between every etcd member, Kubernetes Node and machine for one identified snapshot.
+_Avoid_: current inventory, member-name list
+
+**Snapshot cut**:
+The consistent datastore view fixed for one snapshot, identified by its witnessed etcd cluster, leader, term and Raft indexes.
+_Avoid_: upload time, current membership
+
+**Capture publication**:
+The capture authority's record identifying the immutable version and digest of the snapshot membership evidence.
+_Avoid_: caller-supplied receipt, snapshot object
+
+**Machine fence**:
+Evidence that one identified original machine is powered off or deleted and cannot resume its original datastore writer.
+_Avoid_: cordon, drain, Node deletion
+
+**Replacement target**:
+The identified machine and intended Kubernetes Node name selected as the first server of a cold restore.
+_Avoid_: replacement hostname, restore host (alone)
+
 **Granularity policy**:
 One identified arrangement of the knowledge, review, ownership, task and integration
 boundaries used for model-assisted work. Different policies can organize the same work.

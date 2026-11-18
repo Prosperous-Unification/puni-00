@@ -4,6 +4,12 @@ import { join } from 'node:path';
 
 import { type } from 'arktype';
 
+import {
+  CapturedSnapshot,
+  CaptureObjectReadError,
+  SnapshotMemberMapping,
+  verifyCapturedSnapshot,
+} from './cold-restore-capture';
 import { readToolchain } from './contracts';
 
 const recoverableClusters = [
@@ -57,6 +63,20 @@ const RecoveryManifestSchema = type({
 
 export type RecoveryManifest = typeof RecoveryManifestSchema.infer;
 export type RecoveryStore = RecoveryManifest['stores'][number];
+
+const RecordedManifestSchema = type({
+  schemaVersion: '2',
+  clusterId: type.enumerated(...recoverableClusters),
+  k3sVersion: /^v\d+\.\d+\.\d+\+k3s\d+$/,
+  sourceRevision: /^[0-9a-f]{40}$/,
+  tokenSha256: Sha256,
+  sopsRecipient: /^age1[02-9ac-hj-np-z]{58}$/,
+  membershipEvidenceSha256: Sha256,
+  membership: SnapshotMemberMapping.array().atLeastLength(1),
+  etcdSnapshot: CapturedSnapshot,
+  stores: StoreSchema.array(),
+  '+': 'reject',
+});
 
 /** Decode a recorded recovery manifest; unknown keys and inexact identities throw. */
 export function decodeRecoveryManifest(input: unknown): RecoveryManifest {
@@ -741,37 +761,45 @@ async function readJson(path: string): Promise<unknown> {
   }
 }
 
-/** Build a recovery manifest from a downloaded snapshot and the escrowed secrets. */
+/** Record a v2 manifest only after independent authority proves the exact immutable snapshot. */
 export async function recordManifest(values: {
   readonly clusterId: string;
   readonly k3sVersion: string;
   readonly sourceRevision: string;
   readonly snapshotPath: string;
   readonly objectKey: string;
+  readonly objectVersion: string;
+  readonly captureId: string;
   readonly tokenPath: string;
   readonly sopsIdentityPath: string;
   readonly storesPath: string;
-  readonly etcdMembers: readonly string[];
-}): Promise<RecoveryManifest> {
-  const snapshot = await readFile(values.snapshotPath);
+}): Promise<typeof RecordedManifestSchema.infer> {
   const token = (await readFile(values.tokenPath, 'utf8')).trim();
-  const objectName = values.objectKey.split('/').at(-1) ?? values.objectKey;
-  return decodeRecoveryManifest({
-    schemaVersion: 1,
+  if (token.length === 0) throw new Error('Cold restore recorder requires the escrowed token');
+  const sopsRecipient = ageRecipientOf(await readFile(values.sopsIdentityPath, 'utf8'));
+  const stores = await readJson(values.storesPath);
+  const capture = await verifyCapturedSnapshot({
+    clusterId: values.clusterId,
+    captureId: values.captureId,
+    objectKey: values.objectKey,
+    versionId: values.objectVersion,
+    path: values.snapshotPath,
+  });
+  const manifest = RecordedManifestSchema({
+    schemaVersion: 2,
     clusterId: values.clusterId,
     k3sVersion: values.k3sVersion,
     sourceRevision: values.sourceRevision,
     tokenSha256: sha256(token),
-    sopsRecipient: ageRecipientOf(await readFile(values.sopsIdentityPath, 'utf8')),
-    etcdMembers: values.etcdMembers,
-    etcdSnapshot: {
-      name: objectName,
-      objectKey: values.objectKey,
-      sha256: sha256(snapshot),
-      bytes: snapshot.byteLength,
-    },
-    stores: await readJson(values.storesPath),
+    sopsRecipient,
+    membershipEvidenceSha256: capture.evidenceSha256,
+    membership: capture.membership,
+    etcdSnapshot: capture.snapshot,
+    stores,
   });
+  if (manifest instanceof type.errors)
+    throw new Error(`Cold restore manifest is invalid: ${manifest.summary}`);
+  return manifest;
 }
 
 async function runRecover(argv: readonly string[], root: string): Promise<unknown> {
@@ -784,10 +812,11 @@ async function runRecover(argv: readonly string[], root: string): Promise<unknow
         '--source-revision',
         '--snapshot',
         '--object-key',
+        '--object-version',
         '--token-file',
         '--sops-age-key-file',
         '--stores',
-        '--etcd-members',
+        '--membership-evidence',
       ] as const);
       const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
       return recordManifest({
@@ -796,10 +825,11 @@ async function runRecover(argv: readonly string[], root: string): Promise<unknow
         sourceRevision: values['--source-revision'],
         snapshotPath: values['--snapshot'],
         objectKey: values['--object-key'],
+        objectVersion: values['--object-version'],
+        captureId: values['--membership-evidence'],
         tokenPath: values['--token-file'],
         sopsIdentityPath: values['--sops-age-key-file'],
         storesPath: values['--stores'],
-        etcdMembers: values['--etcd-members'].split(','),
       });
     }
     case 'verify-cold-restore': {
@@ -866,11 +896,18 @@ async function runRecover(argv: readonly string[], root: string): Promise<unknow
 }
 
 if (import.meta.main) {
-  console.log(
-    JSON.stringify(
-      await runRecover(process.argv.slice(2), join(import.meta.dir, '../../..')),
-      null,
-      2,
-    ),
-  );
+  try {
+    console.log(
+      JSON.stringify(
+        await runRecover(process.argv.slice(2), join(import.meta.dir, '../../..')),
+        null,
+        2,
+      ),
+    );
+  } catch (fault) {
+    // Proof: bypassing this projection made the CLI case print its synthetic SDK cause markers.
+    if (!(fault instanceof CaptureObjectReadError)) throw fault;
+    process.stderr.write(`${fault.message}\n`);
+    process.exitCode = 1;
+  }
 }
