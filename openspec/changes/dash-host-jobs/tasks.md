@@ -408,7 +408,7 @@
       Test: `toolchain-pins.test.ts` pins the three lines; negatives: the `--parallel=2` script
       and each later line restored alone (verify.md, 2026-11-18).
 - [x] 6.20 J19 hold tests start their predating holder outside the gate's own Dash job scope
-      (PR #PRNUM): under the host gate the test process runs in a `dash-job-<uuid>.scope`, so a
+      (PR #950): under the host gate the test process runs in a `dash-job-<uuid>.scope`, so a
       plainly spawned non-dumpable holder shared it, counted as Dash-owned work and was refused
       (h4claw calibration job 0650f314, main 4cace4ed9). When its own cgroup is a Dash job scope,
       `resource-holds.test.ts` starts the two predating holders in a fresh user scope
