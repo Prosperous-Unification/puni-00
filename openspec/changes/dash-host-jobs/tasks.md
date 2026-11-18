@@ -388,3 +388,11 @@
       `host-jobs.test.ts` in-tree links released, an in-tree pair with an outside third link
       blocked and untouched; negative: with the single-pass guard restored, the first sees
       `descriptor-relative removal refused`.
+- [x] 6.17 tool-fleet gate tests are host-independent: a registry host's root-owned /etc/puni
+      (EACCES) and a test user whose gid differs from its uid (h4claw) no longer fail the gate
+      (PR #944). `registry-managed-journal.test.ts` accepts `ENOENT` or `EACCES` only from the
+      enrollment `realpath`; in `registry-maintenance-channel.test.ts` the acceptance case runs
+      where uid == gid and a new same-uid, different-gid refusal case runs where uid != gid, so
+      one of them runs on any host (lock verification itself is proven only where uid == gid);
+      negatives: the two h4claw calibration failures, reproduced under `sg docker` (verify.md,
+      2026-11-18).

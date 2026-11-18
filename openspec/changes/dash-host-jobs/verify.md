@@ -3819,3 +3819,68 @@ preflight) share the script.
 - **S16-A7** (review S3-3) The survey refuses when an inode's link count differs from its in-tree
   paths in either direction, so more in-tree paths than links (only reachable through a
   duplicated traversal, S16-A5) is refused too.
+
+## 2026-11-18 h4claw gate calibrations fail on two host-coupled tool-fleet tests (task 6.17)
+
+Branch `ops/tool-fleet-tests-host-independent-20261118` from `main` 22d150553; laptop (uid 1000,
+gid 1000), `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched. The h4claw evidence
+comes from the coordinator's read of the calibration logs `~/gate-calibrate-cold-2026-11-17b-h4.log`
+and `~/gate-calibrate-warm2-2026-11-17b-h4.log` on h4claw (gates of `main` 213e1fa70); CI on
+`main` is green. In both the cold and the warm2 run `tool-fleet:test` failed on the same two tests:
+
+- `registry-managed-journal.test.ts`, the test
+  `refuses unenforced storage through the owner-only stdin CLI and bounds input`:
+  `expect(initialized[2]).toContain('ENOENT')` received
+  `EACCES: permission denied, realpath '/etc/puni/registry-maintenance.json'`. The CLI's
+  `readTrustedEnrollment` refuses through `realpath`; h4claw is also the registry host and its
+  `/etc/puni` is `root:root` mode 700 (mtime 2026-10-24), so `puni1` cannot traverse it.
+- `registry-maintenance-channel.test.ts`, the test
+  `actual Bun FD0 socket bootstrap verifies the transferred lock`:
+  `Expected: 2275903 Received: undefined` for the acknowledgement's peer pid.
+  `acceptMaintenanceChannel` refuses a bootstrap whose `credentials.gid !== uid`; on h4claw
+  `puni1` is uid 995 with gid 983, while h2puni (1000/1000) and the CI runners have uid == gid.
+
+The first test now accepts `ENOENT` or `EACCES` only in the enrollment `realpath` message
+(`/E(?:NOENT|ACCES): .*realpath '\/etc\/puni\/registry-maintenance\.json'/`), matched after
+`stripVTControlCharacters` because CI's Bun colours the child's stderr; the non-zero exit
+and empty stdout are still asserted. In the second, the `none` (acceptance) case is skipped where
+`process.getuid() !== process.getgid()`, and a new case, `refuses a same-uid bootstrap whose gid
+differs`, sends the `none` payload and is skipped where uid == gid, so exactly one of the two runs on
+any host and the gid invariant is proven with a real kernel credential where uid != gid. The gid
+check comes before `assertRegistryMaintenanceLock`, and the fixture reports only `accepted`, so
+on a uid != gid host the `wrong-file` and `unheld` cases are refused by the gid check, not by lock
+verification; lock verification is proven where uid == gid (CI, h2puni).
+
+| Command                                                                                                                                                                                                                                         | Result                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test --preload ../test/scratch/preload.ts --timeout=30000` on `registry-managed-journal`, `registry-maintenance-channel`, `registry-maintenance-cli` and `registry-installation-cli` `.test.ts` (in `tools/tool-fleet`), uid 1000 gid 1000 | 75 pass, 1 skip (`gid differs`), 0 fail across 4 files                                                                                                                                                                             |
+| the same under `sg docker` (uid 1000, gid 985)                                                                                                                                                                                                  | 75 pass, 1 skip (`verifies the transferred lock`), 0 fail; `refuses a same-uid bootstrap whose gid differs` passes                                                                                                                 |
+| `FORCE_COLOR=1 bun test --preload ../test/scratch/preload.ts --timeout=30000 src/registry-managed-journal.test.ts` (after the ANSI fix)                                                                                                         | 34 pass, 0 fail                                                                                                                                                                                                                    |
+| `bunx eslint` on the two test files (after the review fixes)                                                                                                                                                                                    | exit 0                                                                                                                                                                                                                             |
+| `bunx prettier --check` on every changed file                                                                                                                                                                                                   | all files use Prettier code style                                                                                                                                                                                                  |
+| `bunx openspec validate --all --json`                                                                                                                                                                                                           | exit 0; 343 items, 343 passed, 0 failed                                                                                                                                                                                            |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                                                                                                  | exit 0                                                                                                                                                                                                                             |
+| `bunx nx run tool-devsync:test --skip-nx-cache` (gate-hosts.md gained a relative link)                                                                                                                                                          | full target hit `ENOSPC` on the laptop (disk briefly filled), no failing test before it; then `bun test` on `repo-namespacing-handoff`, `current-documents`, `retired-roots` `.test.ts` (in `tools/tool-devsync`): 36 pass, 0 fail |
+| `bunx nx run tool-fleet:test`                                                                                                                                                                                                                   | not run on the laptop (tight disk; the coordinator waived it); CI runs it                                                                                                                                                          |
+
+| Injected fault                                                                                  | Observed                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| registry host with root-owned `/etc/puni` 0700 (h4claw, cold and warm2)                         | old assertion failed: `EACCES: permission denied, realpath '/etc/puni/registry-maintenance.json'` where `ENOENT` was expected                    |
+| test user with gid != uid (h4claw `puni1` 995/983, cold and warm2)                              | old acceptance case failed: `Expected: 2275903 Received: undefined`                                                                              |
+| the tightened journal assertion without ANSI stripping, on CI (run 44227343377)                 | failed: stderr was `\x1b[31mENOENT\x1b[0m\x1b[2m:\x1b[0m \x1b[1mno such file or directory, realpath …`, so `ENOENT: ` was not contiguous         |
+| the same, laptop, `FORCE_COLOR=1`                                                               | failed the same way (coloured `ENOENT` in `Received`); with `stripVTControlCharacters`: 34 pass, 0 fail                                          |
+| `origin/main` channel test file under `sg docker` (uid 1000, gid 985), laptop                   | `verifies the transferred lock` failed: `Expected: 929563 Received: undefined` (the h4claw failure, 8 pass, 1 fail)                              |
+| the `credentials.gid !== uid` clause removed from `acceptMaintenanceChannel`, under `sg docker` | `refuses a same-uid bootstrap whose gid differs` failed: `toBeNull` received an acknowledgement object (8 pass, 1 skip, 1 fail); source restored |
+| `process.getgid` stubbed to uid + 1 in a preload (first revision, before the new case)          | the acceptance case reported `(skip)`                                                                                                            |
+
+- **S17-A1** The h4claw gate now skips the acceptance case and runs the gid-differs refusal
+  case, so it proves the gid invariant; lock verification (`wrong-file`, `unheld` reaching
+  `assertRegistryMaintenanceLock`) is proven only where uid == gid, on CI and h2puni. The
+  production invariant (gid == uid for the maintenance peer) is not changed here.
+- **S17-A2** The cold run's third failure, `source-derived selection refuses duplicate labels…`
+  at 47 000 ms, did not recur in warm2 and is treated as a load timeout, not fixed here.
+- **S17-A3** The h4claw error lines and host facts (`/etc/puni` root:root 700 mtime 2026-10-24,
+  puni1 uid 995 gid 983) are the coordinator's, read over ssh on 2026-11-18; this change did not
+  touch h4claw, where a gate calibration is running. The gid failure no longer rests on those
+  logs alone: it is reproduced on the laptop under `sg docker`. The EACCES case was not
+  reproduced locally. The fix is proven on h4claw only by its next gate.
