@@ -397,7 +397,7 @@
       negatives: the two h4claw calibration failures, reproduced under `sg docker` (verify.md,
       2026-11-18).
 - [x] 6.18 host gate payload skips the tool-remote-scripts canonical test batch (A-GATE-REMOTE-1;
-      PR #PRNUM; issue #945): the hosts run the remote model family 2.5-4x over its fixed budgets,
+      PR #946; issue #945): the hosts run the remote model family 2.5-4x over its fixed budgets,
       so the gate took 9+ h and failed deadline-bound cases. `bin/h2puni-gate-steps.sh` excludes
       `tool-remote-scripts` from the first `run-many` and runs its `lint`, `typecheck` and `build`
       on their own line; CI's isolated leaf jobs stay the authority. Test: `toolchain-pins.test.ts`
