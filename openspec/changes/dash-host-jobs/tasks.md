@@ -407,3 +407,12 @@
       calibration). `bin/h2puni-gate-steps.sh` runs all three `run-many` lines at `--parallel=1`.
       Test: `toolchain-pins.test.ts` pins the three lines; negatives: the `--parallel=2` script
       and each later line restored alone (verify.md, 2026-11-18).
+- [x] 6.20 J19 hold tests start their predating holder outside the gate's own Dash job scope
+      (PR #PRNUM): under the host gate the test process runs in a `dash-job-<uuid>.scope`, so a
+      plainly spawned non-dumpable holder shared it, counted as Dash-owned work and was refused
+      (h4claw calibration job 0650f314, main 4cace4ed9). When its own cgroup is a Dash job scope,
+      `resource-holds.test.ts` starts the two predating holders in a fresh user scope
+      `j19-holder-<uuid>` through `systemd-run --user --scope`, and skips with a reason naming
+      the cgroup only when that is unavailable there; production code unchanged. Negative: the
+      unmodified file under a fake `dash-job-<uuid>.scope` on the laptop failed both tests as on
+      h4claw (verify.md, 2026-11-18).
