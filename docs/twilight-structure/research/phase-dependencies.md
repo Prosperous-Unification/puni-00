@@ -1,5 +1,7 @@
 # Existing plans against the two product audiences
 
+The storage proposal discussed here was withdrawn on 2026-11-17. Its historical findings are retained below. [Current WBS decision](../../adr/0086-wbs-accepts-planning-references-and-progress.md).
+
 Inspected 2026-09-07 for the Wayfinder decision map. This is a source-grounded
 phase-placement recommendation, not an approved phase boundary or an implementation
 plan. The approved direction is Dany first, with delivery configurability and
@@ -31,7 +33,7 @@ task numbers remain references to the single implementation plan.
 
 Sources: [task dependencies and exits](../../../openspec/changes/twilight-control-plane/tasks.md),
 [installation direction](../discovery.md#installation-operating-model),
-[storage entry gate](../client-repositories.md#cutover-after-the-refactors-land),
+[storage entry gate](https://github.com/Prosperous-Unification/puni-00/blob/1b94e080b7b52c8babef77a8ff25d3acb9bb9d18/docs/twilight-structure/client-repositories.md#cutover-after-the-refactors-land),
 [knowledge benchmark](../knowledge.md#the-knowledge-profile),
 [parked memory](../../assistant/ideas.md),
 [pilot verification](../../../openspec/changes/twilight-sdlc-pilot/verify.md),

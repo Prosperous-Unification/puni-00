@@ -25,7 +25,7 @@ below remain technical dependency landmarks and do not define a releasable produ
 | Phase             | Required route                                                                                                                                                                                                                                                                           | Exit                                                                                                                                                                                                                                                                                                             |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Personal loop     | Tasks 1–8 → 11.1 → 13, with Task 15 after Tasks 5–7 and Task 16 joining Tasks 13 and 15. Planning range: about 280–560 human hours and 3.5–9.2M tokens, excluding benchmark, infrastructure and provider spend; re-estimate after Tasks 1–4. This estimate grants no spending authority. | Dany asks the secretary for a change, follows delegated work and searchable evidence, observes frequent branch-dev updates, accepts the current-main composition in production-like staging, publishes that exact candidate, observes dev-main, and explicitly promotes the same artifact to healthy production. |
-| Personal maturity | Tasks 9–10 and 12; Task 11.2 after Task 10; Task 14 after the complete operational dependencies                                                                                                                                                                                          | Backlog-backed WBS becomes the planning authority, knowledge operations mature, and a clean/self-growing client fixture proves portability before customer onboarding.                                                                                                                                           |
+| Personal maturity | Tasks 9–10 and 12; Task 11.2 after Task 10; Task 14 after the complete operational dependencies                                                                                                                                                                                          | WBS gains reference acceptance and pinned exports, knowledge operations mature, and a clean/self-growing client fixture proves portability before customer onboarding.                                                                                                                                           |
 | Customer phase    | A new OpenSpec change after the A63 discovery gate                                                                                                                                                                                                                                       | A named design partner and concrete problem determine tenancy, packaging, support, recovery and service commitments. This plan does not invent them.                                                                                                                                                             |
 
 Tasks on separate dependency paths may overlap. Phase 1 is incomplete until every
@@ -34,20 +34,15 @@ already started.
 
 ## Technical milestones and ordering
 
-| Milestone                               | Tasks                                          | Observable exit                                                                                                                                                                                                                                                              | Dependency                              |
-| --------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| M0 — repository SDLC trial              | [Pilot tasks](../twilight-sdlc-pilot/tasks.md) | Canonical docs, real CLI counterexamples and attributed plan review; delivered by this request                                                                                                                                                                               | None                                    |
-| M1 — usable factory core                | 1–8                                            | Operator starts in FE or MCP under a delivery profile, approves a revision with its budget, executes through a real multi-host K3s worker pool, restarts the service, pipelines deliverables through integration, proves fixed-quality scaling, inspects evidence and ledger | M0; tasks below specify internal edges  |
-| M2 — client planning backend            | 9–10                                           | WBS reads/writes complete plans through per-repo Backlog.md with atomic batches, undo and lossless migration                                                                                                                                                                 | WBS refactor closure + M1 planning port |
-| M3 — full workflow operations           | 11–12                                          | Multiple agent roles, hooks, capacity, schedules, escalation ladders and wiki operations are configurable and inspectable through all clients                                                                                                                                | M1; M2 for accepting WBS-origin plans   |
-| M4 — personal operation and portability | 13–16                                          | Assistant entry, visible/searchable work, branch-dev and staging acceptance, controlled release, tested client upgrades, and factory self-change use the same workflow                                                                                                       | Per-task edges below                    |
+| Milestone                               | Tasks                                          | Observable exit                                                                                                                                                                                                                                                              | Dependency                             |
+| --------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| M0 — repository SDLC trial              | [Pilot tasks](../twilight-sdlc-pilot/tasks.md) | Canonical docs, real CLI counterexamples and attributed plan review; delivered by this request                                                                                                                                                                               | None                                   |
+| M1 — usable factory core                | 1–8                                            | Operator starts in FE or MCP under a delivery profile, approves a revision with its budget, executes through a real multi-host K3s worker pool, restarts the service, pipelines deliverables through integration, proves fixed-quality scaling, inspects evidence and ledger | M0; tasks below specify internal edges |
+| M2 — WBS planning acceptance            | 9–10                                           | WBS accepts immutable references and explicitly applies bound progress once                                                                                                                                                                                                  | Task 2 for client artifact integration |
+| M3 — full workflow operations           | 11–12                                          | Multiple agent roles, hooks, capacity, schedules, escalation ladders and wiki operations are configurable and inspectable through all clients                                                                                                                                | M1; M2 for accepting WBS-origin plans  |
+| M4 — personal operation and portability | 13–16                                          | Assistant entry, visible/searchable work, branch-dev and staging acceptance, controlled release, tested client upgrades, and factory self-change use the same workflow                                                                                                       | Per-task edges below                   |
 
-M1 and the WBS refactor can proceed independently. M2 must not alter WBS storage
-before its entry criteria hold. Tasks 9–16 are bounded follow-on increments: create
-their own OpenSpec deltas from the contracts recorded in the design and the
-[client repository document](../../../docs/twilight-structure/client-repositories.md)
-when their dependencies land, so post-refactor file paths and provider facts are
-verified at the correct revision. They are not permission to begin a migration now.
+WBS acceptance can proceed independently of the factory core. Tasks 9–16 use their owning deltas and the client repository contract. Integration follows the actual per-task dependencies.
 
 ## Common execution contract
 
@@ -211,7 +206,7 @@ durability or compiler authority.
 ## Task 2: Define client repository identity and the planning port
 
 Proves: The factory uses the client repository contract; A planning revision has
-one owner; Plan resource units are carried without conversion (A43).
+one owner; the planning-read part of Plan resource units are carried without conversion (A43).
 
 - [ ] 2.1 Validate a clean client fixture and read one revision-bound plan without copying puni content.
 - [ ] 2.2 Carry per-task resource units through the planning port and prove no unit is converted.
@@ -225,13 +220,12 @@ one owner; Plan resource units are carried without conversion (A43).
 
 **Depends on:** Task 1 contract. **Produces:**
 `readRepository(root: string): RepositoryManifest` and
-`PlanningPort.readPlan(reference: PlanRef): Promise<WorkPlan>` using the design's
-repository/plan/change/source identity tuple. `WorkPlan` contains stable task IDs,
+`PlanningPort.readPlan(input: PlanningInput): Promise<WorkPlan>` using the design’s authored-file PlanRef or complete scoped WBS lock entry. `WorkPlan` contains stable task IDs,
 dependencies, requirements, owner, resource units in the ledger vocabulary beside
 WBS workdays, source revision, interface outputs, write scope, acceptance oracles,
 and estimated agent-duration provenance. Explicitly model unknown duration without
 workday conversion. Distinguish real predecessor contracts from resource conflicts;
-validate missing/duplicate predecessors and cycles before scheduling. A future Backlog implementation satisfies that port.
+validate missing/duplicate predecessors and cycles before scheduling. The WBS reader will resolve an exact accepted reference through that port.
 
 Validate stable repository ID/version/context roots, the manifest's planning,
 profile and policy references, and reject required paths outside the authorized
@@ -264,7 +258,7 @@ the same resolver. Record both controls before claiming independence from home s
 Bootstrap binds repository/organization/policy/integration references through a
 trusted operator command before first use, and `get_effective_policy` returns those
 bindings. The manifest distinguishes initial `openspec` planning from later
-`wbs-backlog`; untrusted content cannot grant its own server access. Test a missing
+`wbs`; untrusted content cannot grant its own server access. Test a missing
 binding and a second repo claiming the first's ID.
 
 **Estimate:** 5–10 human hours; 1–3 agent hours; 90k–220k tokens, one slot.
@@ -990,7 +984,7 @@ and retained-version recovery) (A39, A45).
 - [ ] 8.1 Run the complete M1 journey on puni-00 and a clean client fixture under two delivery profiles.
 - [ ] 8.2 Switch puni-00 and the template to `twilight-v1` with existing changes pinned.
 - [ ] 8.3 Rehearse incompatible-upgrade refusal and retained-closure recovery.
-- [ ] 8.4 Pass the fixed-quality scaling matrix before M1 acceptance, independently of WBS migration.
+- [ ] 8.4 Pass the fixed-quality scaling matrix before M1 acceptance, independently of the WBS export bridge.
 
 **Owns:** `apps/twilight-dash/fe/e2e/first-run.spec.ts`,
 `apps/twilight-dash/cli/src/template.ts`,
@@ -1125,103 +1119,20 @@ condition, and use independent receiver and workspace counters to prove no repea
 effect or second writer. Advertised node count, fake Pods on one host or local child
 processes cannot satisfy multi-host acceptance.
 
-## Task 9: Prove the Backlog/WBS storage adapter after refactors
+## Task 9: Accept references and apply operator progress in WBS
 
-Adopts the M2 delta's requirements from
-[client repositories](../../../docs/twilight-structure/client-repositories.md#contract-for-the-m2-storage-delta)
-(A31, A33, A44).
+- [ ] 9.1 Accept and retrieve a frozen ordinary export and complete reference under a scoped, current operator grant with exact prior-version comparison.
+- [ ] 9.2 Attribute a complete bound receipt, then explicitly apply it once against the current WBS basis under current issuer and caller policy. Prove refusal, rollback, replay recovery and journal/notification behavior.
 
-- [ ] 9.1 Run the storage spike at the client's declared scale and record the go/no-go on ADR 0027.
-- [ ] 9.2 Specify and prove a lossless revisioned planning adapter against the landed WBS repository contract.
+The [receipt authority tasks](../progress-receipt-authority/tasks.md) own the ordered implementation slices, production boundaries and proof obligations. The Backlog storage spike and proposed adapter were withdrawn before implementation. No storage cutover or refactor closure gates this work. Protected installation and execution-producer qualification have their own acceptance evidence.
 
-**Entry:** the concrete [refactor closure checklist](../../../docs/twilight-structure/client-repositories.md#cutover-after-the-refactors-land),
-including a recorded landing revision, dispositions of the remaining W4-3/W4-4/
-W2-1 work and associated deferred slices, verified source/spec typecheck coverage,
-the full WBS gate and explicit table/field/history inventory. Much of the refactor
-is already recorded as done; that is not evidence that the remaining closure
-conditions passed. The user sequenced this work after those refactors, so this
-trial does not start the adapter or migration. The typecheck-coverage row of that
-checklist is WBS work; Task 9 cannot start until the WBS owner records it. **Owns
-next increment:** proposed `libs/wbs-backlog/` codecs, broker, fixtures, tests;
-exact WBS integration paths are selected from that landing revision.
+## Task 10: Pin WBS planning artifacts in the client change
 
-9.1 is the spike: run the [storage acceptance profile](../../../docs/twilight-structure/client-repositories.md#storage-workload-acceptance-budget)
-at the repository's declared scale through actual broker/native adapter/WBS paths,
-retaining timing samples and conflict counts. Inject receiver delay above the
-single-edit budget and watch acceptance refuse; a full-field round trip cannot
-compensate for an exceeded latency or restart budget. ADR 0027 becomes accepted
-only after this proof.
+- [ ] 10.1 From a WBS acceptance, generate deterministic tasks and the change-keyed lock. Read the historical acceptance by organization/project/repository/change, version and complete reference digest. Pin two acceptances with identical six-field tuples/tasks and differing reference digests, then reaccept the first under a new version. Prove CI retrieves the original first acceptance and refuses a historical response with a different version or digest. Verify the frozen export/path/digest and input receipt snapshot. Refuse conflicting merged pins.
+- [ ] 10.2 Exercise WBS-origin task review, source verification against frozen inputs and a subsequent candidate consuming a prior receipt. Preserve the earlier candidate and snapshots. For divergence, regenerate from the pinned WBS acceptance, or explicitly edit WBS, reaccept and repin a new candidate. Prove a changed task file alone cannot move WBS acceptance. Explicitly switch a change from authored OpenSpec tasks to generated tasks after this bridge passes.
+- [ ] 10.3 Specify the outstanding Dash-to-WBS measured-usage proposal as its own versioned integration contract. Preserve task, run, attempt, profile epoch, original categories/units, observed or unavailable status and provenance through a planning round trip. Test overlapping attempts with distinct wall elapsed and additive effort. Reject lost provenance or category conversion. Schema-2 operator receipts carry only step status and optional `token_actual`/`hours_actual`; version 2 stays unchanged. Proposal transport grants no WBS application or execution authority.
 
-9.2: use the [client planning design](../../../docs/twilight-structure/client-repositories.md)
-and [Backlog source findings](../../../docs/twilight-structure/research/backlog-patterns.md).
-Pin the upstream release and test native create/edit/archive/restore/ID allocation
-and MCP behavior under the required Backlog configuration baseline. Preserve
-unsupported WBS fields, including the resource units of Task 2, in a versioned
-extension and prove native CLI/MCP round trips do not drop them.
-
-**Exit tests:** same repository contract suite on SQLite and Backlog; full
-canonical plan equality; real independent readers during interrupted multi-file
-batch; two-clone CAS race; reused archived ID cannot acquire earlier evidence; undo
-conflict refusal; invalid external edits quarantined; unauthorized direct
-accepted-ref push refused with separate broker and ordinary writer identities on
-the A31 remote (commit authorship or an HTTP field cannot impersonate the broker;
-a bypass from a second clone leaves the remote ref unchanged). Native Backlog
-CLI/MCP operate on materialized candidate views and import through the broker.
-
-Pin `PlanRef` and source-candidate export publication. Test a predecessor completed
-only on an unmerged branch: a dependent candidate from main must remain blocked.
-Test incompatible requirements/source basis, two plans in the same repo, stale
-exports, and progress-only receipt updates that preserve the approved task
-definition. Merge source branches with disjoint change-keyed plan-lock entries and
-exports; assert both entries survive and the merged candidate is verified against
-each pinned snapshot. Inject a single-value lock/last-writer replacement and watch
-the missing entry assertion fail. Freeze input receipt R, create candidate C, then
-accept C's output receipt; prove C/R remain unchanged and a later candidate can
-consume it. Force two exact commands from one ref: one acceptance and one 409.
-For authorized disjoint commands, preserve both edits with one receipt each through
-bounded CAS retries. Change a cross-plan edge, collection membership and shared
-reference between preparation and publication; each must refuse reconciliation.
-Remove the corresponding broker-derived predicate and observe the forbidden
-acceptance before recording Proof. A caller-supplied empty read set cannot bypass
-registry derivation. Run the storage profile's writer sweep, retain conflicts and
-retries in its denominators, and inject serialization delay to prove its throughput
-budget can fail. Restart after publication before acknowledgement and replay the
-same key: one accepted effect and receipt, including its original/reconciled bases.
-
-**Estimate:** 16–32 human hours for contract/spike, then re-estimate implementation
-from measured model coverage and Git latency. One repo writer; two isolated clones
-for conflict tests. No migration follows an incomplete field mapping.
-
-## Task 10: Migrate planning and make WBS the single editor
-
-- [ ] 10.1 Cut over a representative puni plan, then a clean client plan, with a tested lossless rollback path.
-
-**Depends on:** Task 9. **Owns next increment:** WBS backend selector/adapter, export
-and import utilities, generated OpenSpec task bridge, migration runbook and FE/MCP
-acceptance cases. Update R4's task ownership rule explicitly when the bridge lands.
-
-Shadow comparisons → verified backup → short write freeze → complete Git planning
-revision → canonical comparison → backend switch → FE/MCP checks. No dual writers.
-Show WBS connected repo/ref/revision. Edits and progress traverse the broker; the
-emitted `tasks.md` at the manifest's export path carries stable IDs/source revision
-and is checked for drift. Runtime leases and credentials remain outside versioned
-planning files.
-
-**Exit tests:** WBS rich edit/undo/saved-plan/concurrent-user cases, no hidden SQLite
-plan reads, export drift refusal, new writes after cutover preserved on rollback,
-fresh clone renders the same plan. Deliberately drop one estimate/reference/history
-field and watch cutover refuse before switching authority. Restore-backup-only is
-not an acceptable rollback once Git accepted new writes.
-
-Generate the source candidate's change-keyed plan lock/exports after immutable
-planning commits and input receipt snapshots exist. CI resolves those pinned
-inputs, never the latest branch. Output completion receipts are accepted afterward
-and appear only in later candidates' input snapshots/exports. Exercise the merged
-two-change candidate through the real WBS/export/CI path, including a shared-key
-conflict that cannot silently discard either plan.
-
-**Estimate:** 16–32 human hours after adapter proof; reserve one exclusive cutover
-window whose duration is measured in rehearsal, not chosen in advance.
+**Depends on:** Task 2's repository contract and Task 9's accepted-reference read for the export. Operator receipt application needs Task 9. Task 10.3 uses Task 2’s read model and Task 4’s settled attempt ledger. Its output is a proposal pending separate execution qualification. The former migration, shadow-read and backend cutover were withdrawn, without a claim of completion.
 
 ## Task 11: Expand agent roles, lifecycle hooks and automation
 
@@ -1229,7 +1140,7 @@ Proves: Activity defaults are benchmark-driven; later expansion of versioned
 workflow configuration and the authorized command surface.
 
 - [ ] 11.1 Expand roles/hooks/capacity, model routing and cron/webhook automation for OpenSpec-origin plans after M1.
-- [ ] 11.2 After Task 10, connect the same automation to accepted WBS/Backlog plan revisions.
+- [ ] 11.2 After Task 10, connect the same automation to accepted WBS plan revisions.
 
 **Depends on:** 11.1 depends only on M1; 11.2 alone depends on Task 10 and 11.1.
 **Owns next increment:** role registry, second ACP adapter, policy editor
@@ -1446,7 +1357,7 @@ Adopts the M4 delta's upgrade rollback contract from the
 **Depends on:** Tasks 10–13. **Owns next increment:** template upgrade planner,
 compatibility fixtures, self-improvement evaluation and operator recovery route.
 
-The canary is a real `puni-00` change using WBS/Backlog, OpenSpec, wiki, agent review,
+The canary is a real `puni-00` change using WBS, OpenSpec, wiki, agent review,
 capacity admission, dev evidence and release policy. Record no special factory-only
 passes. The new template produces a clean client repo and upgrades an older one
 with client-specific configuration intact. Propose improvements against fixed
@@ -1467,7 +1378,7 @@ transition and unknown effect survive and the external receiver count stays one.
 Inject backup-only rollback and observe lost accepted records; inject an unsupported
 reverse migration and require refusal before state is changed. Pin the tested
 compatibility matrix across control-plane build, compiler/schema and
-execution-profile versions, template/workflow/planning-adapter/extension versions
+execution-profile versions, template/workflow/planning-adapter versions
 and worker-image digests per pool. `readRepository` and `restoreRun` check that
 same record and retained executable/hook closure. No successful migration
 or rollback is promised for unsupported old/new combinations.
@@ -1542,41 +1453,41 @@ expires A17's 365-day operational evidence.
 
 Spec requirement to task:
 
-| Requirement (control-plane unless noted)                       | Tasks           |
-| -------------------------------------------------------------- | --------------- |
-| Bounded request-to-plan authoring                              | 3, 5            |
-| One authorized command surface                                 | 3, 5, 11        |
-| Versioned inspectable workflow configuration                   | 1, 5, 8, 11, 13 |
-| Profile overrides and epochs are explicit                      | 3, 5            |
-| Lifecycle points are the one key space                         | 1, 7            |
-| Executable restore compatibility                               | 1, 8, 14        |
-| Durable stage and activity lifecycle                           | 3, 4, 7, 13     |
-| Current authority constrains pinned runs                       | 3, 4            |
-| Revision-bound human decisions                                 | 3, 5, 13        |
-| Caller identity and human-decision provenance                  | 3, 5            |
-| Capacity and budget admission                                  | 4, 6, 13        |
-| Run clocks preserve distinct time quantities                   | 4, 13           |
-| Model pricing is revision-bound and category-complete          | 4               |
-| K3s provides an expandable worker substrate                    | 4, 6, 8         |
-| Levers are configurable and their effects are measured         | 4–8             |
-| Outcomes use an independent evaluation definition              | 7, 8            |
-| Activity defaults are benchmark-driven                         | 11              |
-| Context and tool optimization preserves isolation              | 11              |
-| Hooks, critics and judges preserve authority                   | 7               |
-| Observable evidence with focus access                          | 5, 7            |
-| Repository planning: client repository contract                | 2, 8, 14        |
-| Repository planning: a planning revision has one owner         | 2, 9, 10        |
-| Repository planning: resource units carried without conversion | 2, 9            |
-| Scheduling minimizes accepted delivery elapsed time            | 1–2, 4.4, 7.3   |
-| Integration is an independently scalable execution service     | 7.3, 8.4, 13.3  |
-| Speculation spends only bounded authorized capacity            | 3, 7.4          |
-| Scaling is proved at fixed quality before M1 acceptance        | 4.5, 8.4        |
-| Assistant: secretary availability and authority boundary       | 15              |
-| Assistant: worker identity, session search and work projection | 15–16           |
-| Delivery environments: lifecycle and development publication   | 13.1–13.2       |
-| Delivery environments: staging, publication and promotion      | 13.3            |
-| Assistant: personal home keeps work actionable                 | 16              |
-| Delivery environments: layered reports and scheduled sweeps    | 1.0, 7, 13.4    |
+| Requirement (control-plane unless noted)                       | Tasks                             |
+| -------------------------------------------------------------- | --------------------------------- |
+| Bounded request-to-plan authoring                              | 3, 5                              |
+| One authorized command surface                                 | 3, 5, 11                          |
+| Versioned inspectable workflow configuration                   | 1, 5, 8, 11, 13                   |
+| Profile overrides and epochs are explicit                      | 3, 5                              |
+| Lifecycle points are the one key space                         | 1, 7                              |
+| Executable restore compatibility                               | 1, 8, 14                          |
+| Durable stage and activity lifecycle                           | 3, 4, 7, 13                       |
+| Current authority constrains pinned runs                       | 3, 4                              |
+| Revision-bound human decisions                                 | 3, 5, 13                          |
+| Caller identity and human-decision provenance                  | 3, 5                              |
+| Capacity and budget admission                                  | 4, 6, 13                          |
+| Run clocks preserve distinct time quantities                   | 4, 13                             |
+| Model pricing is revision-bound and category-complete          | 4                                 |
+| K3s provides an expandable worker substrate                    | 4, 6, 8                           |
+| Levers are configurable and their effects are measured         | 4–8                               |
+| Outcomes use an independent evaluation definition              | 7, 8                              |
+| Activity defaults are benchmark-driven                         | 11                                |
+| Context and tool optimization preserves isolation              | 11                                |
+| Hooks, critics and judges preserve authority                   | 7                                 |
+| Observable evidence with focus access                          | 5, 7                              |
+| Repository planning: client repository contract                | 2, 8, 14                          |
+| Repository planning: a planning revision has one owner         | 2, 9, 10                          |
+| Repository planning: resource units carried without conversion | 2.2 (read), 10.3 (usage proposal) |
+| Scheduling minimizes accepted delivery elapsed time            | 1–2, 4.4, 7.3                     |
+| Integration is an independently scalable execution service     | 7.3, 8.4, 13.3                    |
+| Speculation spends only bounded authorized capacity            | 3, 7.4                            |
+| Scaling is proved at fixed quality before M1 acceptance        | 4.5, 8.4                          |
+| Assistant: secretary availability and authority boundary       | 15                                |
+| Assistant: worker identity, session search and work projection | 15–16                             |
+| Delivery environments: lifecycle and development publication   | 13.1–13.2                         |
+| Delivery environments: staging, publication and promotion      | 13.3                              |
+| Assistant: personal home keeps work actionable                 | 16                                |
+| Delivery environments: layered reports and scheduled sweeps    | 1.0, 7, 13.4                      |
 
 User requirement to delivery location:
 
@@ -1589,10 +1500,10 @@ User requirement to delivery location:
 | TS-14: observability and improvement                                          | Tasks 7–8, 12, 14                                                     |
 | TS-11–12: cloud browser, development and explicit production                  | Task 13                                                               |
 | TS-13, 21: Claire/OpenHands/OpenClaw/Dahl/LangChain research                  | M0 source notes; adopted boundaries in design and Tasks 4, 6–7, 11–12 |
-| TS-23–25: client Nx repos, Backlog-backed WBS, same self-growth               | Tasks 2, 8–10, 14                                                     |
+| TS-23–25: client Nx repos, WBS planning authority, same self-growth           | Tasks 2, 8–10, 14                                                     |
 | TS-26: autonomous assumptions and Claude Fable 5.1 review                     | M0 assumption ledger and review/evidence record                       |
 | TS-27: cost, model, review-depth and parallelism levers with quality tracking | Execution profile; Tasks 4, 6–8, 11                                   |
-| TS-28: money buys shorter accepted delivery at fixed quality                  | Tasks 1–8; Task 9 for planning contention                             |
+| TS-28: money buys shorter accepted delivery at fixed quality                  | Tasks 1–8; Task 9 for exact-basis conflict tests                      |
 | TS-29–30: operated client installations and expandable K3s worker pool        | Discovery/ADR 0028; Tasks 4, 6, 8                                     |
 | TS-31: personal assistant-to-production loop, then customer discovery         | Personal phase route; Tasks 13, 15–16                                 |
 | TS-32–35: exhaustive scenarios, layered tests, publication and reports        | Every implementation slice; Tasks 13.2–13.4                           |

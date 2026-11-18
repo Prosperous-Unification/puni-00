@@ -753,7 +753,13 @@ type BareRefusalCode =
   | 'pool_expired'
   // Delivery observation (`track-work-delivery`): every provider read slot
   // stayed taken for the bounded wait.
-  | 'delivery_busy';
+  | 'delivery_busy'
+  | 'invalid_plan_artifacts'
+  | 'unsupported_plan_version'
+  | 'reference_changed'
+  | 'live_plan_changed'
+  | 'connected_plan'
+  | 'live_plan_unavailable';
 
 type SharedCommandCode =
   | 'external_dependencies_inactive'

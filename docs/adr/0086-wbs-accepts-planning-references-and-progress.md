@@ -1,0 +1,5 @@
+# WBS accepts planning references and progress
+
+**Accepted 2026-11-17.** WBS owns each plan, its current accepted reference and the application of attributed progress. A single WBS SQLite transaction can resolve current authority, compare an exact basis, update leaf-step progress and retain its receipt consumption. Navigator compiles immutable references and command proposals. Client Git revisions identify source and exports.
+
+The alternative proposed a Git planning ref, a broker and per-client Backlog.md storage. It would have required a lossless cutover, new remote write protection and a second implementation of WBS batch and recovery semantics. The owner withdrew that migration and its unbuilt storage spike. A separate receipt publisher would split revocation, accepted-reference changes and progress writes across authorities. The [WBS acceptance contract](../../openspec/changes/progress-receipt-authority/design.md) places them under the current planning writer. This decision selects the authority. Its implementation and protected deployment have separate acceptance evidence.

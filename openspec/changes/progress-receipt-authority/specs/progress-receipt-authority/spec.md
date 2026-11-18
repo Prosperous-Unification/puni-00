@@ -1,51 +1,93 @@
 ## ADDED Requirements
 
-### Requirement: Producer authority is selected independently
+### Requirement: WBS owns the accepted planning reference
 
-A future authenticated progress admission path SHALL derive issuer authorization from independently selected protected policy, never from the requesting candidate's supplied artifacts. Until the owner decisions in design.md are resolved and reviewed, this change SHALL remain design-only and SHALL NOT introduce a production signed wire contract or enable authenticated admission.
+WBS SHALL reproduce the reference and tasks from the original ordinary export and requirements bytes and bind them to an organization, project, repository and change. Explicit acceptance SHALL require current operator permission, a matching complete live WBS plan and an exact prior version/digest or explicit initial absence, checked at the same SQLite mutation boundary.
 
-#### Scenario: Candidate supplies its own apparent authority
+#### Scenario: Two operators replace the same basis
 
-- **WHEN** a candidate supplies a receipt and matching key or policy under its own control
-- **THEN** their consistency alone SHALL NOT establish an authorized producer
-- **AND** the future authenticated path SHALL require independently established issuer scope before publication
+- **WHEN** both are authorized and request different references against the same version and digest
+- **THEN** only one advances the reference and the other receives a conflict with no partial record
 
-#### Scenario: Required policy cannot be read
+#### Scenario: A matching digest is presented for another plan or scope
 
-- **WHEN** the future authenticated path encounters missing or unreadable required trusted policy
-- **THEN** it SHALL refuse without output or a default policy
-- **AND** later production proofs SHALL distinguish missing from unreadable state
+- **WHEN** the supplied task export or reference disagrees with WBS planning contents, project identity or permitted scope
+- **THEN** WBS refuses acceptance and preserves the previous reference
 
-### Requirement: Attribution covers the complete bounded assertion
+#### Scenario: Submitted requirements change under the same offered reference
 
-The future authenticated path SHALL bind all progress entries and their planning identity to the authorized producer under the selected policy. Ordinary digest validation or a supplied verifier-success claim SHALL NOT replace actual authentication. Malformed or unauthorized input SHALL be refused before command publication.
+- **WHEN** the operator submits different requirements bytes with the original reference, export and tasks
+- **THEN** WBS refuses the mismatch before publishing a version
 
-#### Scenario: Entries change after attribution
+#### Scenario: The live plan becomes connected
 
-- **WHEN** an attacker changes receipt entries or their reference binding and recomputes ordinary digests without authorization
-- **THEN** the future authenticated path SHALL refuse despite ordinary consistency passing
+- **WHEN** a valid ordinary v11 export is presented for acceptance after its project became connected
+- **THEN** the writer refuses and preserves the prior binding
 
-#### Scenario: Issuer is valid outside the addressed scope
+#### Scenario: A reader retrieves the approved export later
 
-- **WHEN** an assertion authenticates to an issuer not authorized for the addressed planning scope
-- **THEN** the future authenticated path SHALL refuse without proposing commands
+- **WHEN** an authorized reader requests a previously accepted version
+- **THEN** WBS returns its exact original export bytes, complete reference and task identity even if live progress or the export clock has advanced
 
-### Requirement: Attribution preserves independent acceptance claims
+### Requirement: WBS attributes a bounded operator assertion
 
-Producer attribution SHALL NOT establish execution truth, current accepted-plan freshness, permission to apply progress or atomic replay protection. Existing schema-1/2 recording and proposal commands SHALL retain their documented semantics unless changed by a separately approved implementation contract.
+WBS SHALL derive the issuer from an independently authenticated invocation and consult protected current issuer policy for the exact scope. It SHALL bind a stable issuer-scoped assertion ID to a complete schema-2 receipt, accepted-reference version and policy revision. Submission alone SHALL have no progress effect.
 
-#### Scenario: Authorized operator asserts unexecuted work
+#### Scenario: An agent shares the granted human’s account
 
-- **WHEN** an authorized operator's assertion authenticates but no trusted execution evidence exists
-- **THEN** attribution SHALL remain an operator assertion without an execution-success claim
+- **WHEN** reference acceptance, assertion submission or a new application arrives under a machine or MCP-consent credential for the same account, or without verified human sign-in evidence
+- **THEN** WBS refuses the operator-only operation inside the writer even if the account still holds a grant
 
-#### Scenario: Authenticated assertion addresses an obsolete selected plan
+#### Scenario: Candidate asserts its own authority
 
-- **WHEN** an authenticated assertion matches a supplied accepted reference that is no longer current
-- **THEN** producer attribution SHALL NOT be reported as live freshness or authority to mutate current WBS state
+- **WHEN** a candidate supplies an issuer label, policy, verifier success or modified bound entries without matching independent authority and stored attribution
+- **THEN** the authenticated path refuses the substituted claim before any progress effect
 
-#### Scenario: Assertion is repeated during concurrent planning changes
+#### Scenario: Issuer has no current scoped grant
 
-- **WHEN** the same authenticated assertion is proposed again while accepted planning state changes
-- **THEN** attribution SHALL NOT be reported as one-time consumption or atomic publication
-- **AND** a later mutation authority SHALL establish its own accepted-basis and replay contract
+- **WHEN** a valid readable policy omits the grant, the issuer is revoked, or the grant excludes the organization, repository, plan, change, task or step
+- **THEN** WBS denies new attribution or application under that grant
+
+#### Scenario: Protected state fails
+
+- **WHEN** required trusted policy is missing, unreadable or malformed
+- **THEN** WBS reports the failure and retains no partial attribution or progress
+
+#### Scenario: Operator asserts unexecuted work
+
+- **WHEN** the authenticated operator submits a valid assertion without qualified execution evidence
+- **THEN** its attribution identifies an operator claim and conveys no execution verdict
+
+### Requirement: WBS applies a receipt explicitly and at most once
+
+On an explicit application command WBS SHALL derive the ordered effects from the attributed content, verify current issuer and caller permissions, current accepted version/digest and exact live targets/basis, and commit the resulting progress, journal, retained answer and unique assertion consumption in one transaction. Local Navigator schema-1/2 proposal semantics SHALL be preserved.
+
+#### Scenario: A grant, reference or live target changes
+
+- **WHEN** revocation wins serialization, the accepted-reference version changes (including A → B → A), or the observed ordinary live basis differs at application
+- **THEN** the application refuses the obsolete authorization or basis with no partial effects and requires explicit resolution
+
+#### Scenario: A second distinct receipt follows delivery of the first
+
+- **WHEN** an authorized caller uses the write-basis token returned by the first application, its tree notification has been delivered, and there has been no intervening change
+- **THEN** WBS accepts the second distinct applicable receipt against the first commit's full post-event basis, with each durable event sequenced once
+
+#### Scenario: Concurrent retries use different application IDs
+
+- **WHEN** two allowed requests consume the same bound receipt under different application or submission IDs, or the first acknowledgment is lost and retried after restart
+- **THEN** there is one accepted effect, journal and consumption, and a currently authorized reader recovers its historical result
+
+#### Scenario: Access is withdrawn before historical recovery
+
+- **WHEN** a requester attempts to recover the retained result after losing read permission
+- **THEN** WBS refuses disclosure and applies no effect
+
+#### Scenario: One identity carries different content
+
+- **WHEN** an assertion ID or application command ID is reused with changed content or target
+- **THEN** WBS reports a conflict, retains the original binding and applies nothing
+
+#### Scenario: Mutation fails after the first progress entry
+
+- **WHEN** a later operation or the consumption write fails
+- **THEN** the complete transaction rolls back without progress, journal, consumption or an emitted change notification

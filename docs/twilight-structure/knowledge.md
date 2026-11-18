@@ -48,21 +48,18 @@ schema, or future production operations.
 
 ## One owner for each kind of knowledge
 
-| Kind                                | Canonical owner                                        | How a wiki page uses it                                                          |
-| ----------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| Behavior                            | Accepted OpenSpec specs; proposed deltas in the change | Link a requirement and explain an example; never silently revise it              |
-| Vocabulary                          | The context's existing `CONTEXT.md`                    | Use the term and link its definition                                             |
-| Architectural choice                | Owning ADR                                             | Link the rationale; label proposed/accepted separately                           |
-| Symbol invariant                    | JSDoc on that symbol                                   | Link code at a revision when explaining cross-file behavior                      |
-| Work plan, now                      | Change `tasks.md`                                      | Read or show a focus brief; do not copy the task list                            |
-| Work plan, after the Backlog bridge | Per-repo Backlog/WBS planning revision                 | Generate the OpenSpec task artifact; detect hand-edited divergence               |
-| External claim                      | A dated source record with a stable URL/revision       | Attribute the source, confidence and inference; preserve licensed originals only |
-| Run outcome or approval             | Attributed evidence / authority record                 | Cite subject revision and limitations; a wiki sentence cannot create the record  |
+| Kind                         | Canonical owner                                        | How a wiki page uses it                                                          |
+| ---------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Behavior                     | Accepted OpenSpec specs; proposed deltas in the change | Link a requirement and explain an example; never silently revise it              |
+| Vocabulary                   | The context's existing `CONTEXT.md`                    | Use the term and link its definition                                             |
+| Architectural choice         | Owning ADR                                             | Link the rationale; label proposed/accepted separately                           |
+| Symbol invariant             | JSDoc on that symbol                                   | Link code at a revision when explaining cross-file behavior                      |
+| Work plan, now               | Change `tasks.md`                                      | Read or show a focus brief; do not copy the task list                            |
+| Work plan, WBS-origin change | WBS-accepted project planning revision                 | Generate the OpenSpec task artifact; detect hand-edited divergence               |
+| External claim               | A dated source record with a stable URL/revision       | Attribute the source, confidence and inference; preserve licensed originals only |
+| Run outcome or approval      | Attributed evidence / authority record                 | Cite subject revision and limitations; a wiki sentence cannot create the record  |
 
-The move from the “work plan, now” row to the “after the Backlog bridge” row is
-gated by the
-[refactor closure checklist](client-repositories.md#cutover-after-the-refactors-land)
-and, separately, by an explicit later change to this repo's own conventions.
+Enable the [WBS export bridge](client-repositories.md) for a change only after it can verify pinned artifacts. Changing this repository’s authoring conventions requires an explicit change.
 
 ## Four knowledge operations
 
@@ -100,8 +97,7 @@ evidence storage, with authorized references; credentials never go in Git.
 
 No wholesale WBS doc move is needed to test this pattern. The first maintenance
 benchmark asks a fresh reviewer five questions: where behavior is authoritative;
-which plan to execute; whether this run deployed anything; how Backlog relates to
-WBS; and which assumption changes production approvals. The reviewer must cite
+which plan to execute; whether this run deployed anything; where WBS accepts progress; and which assumption changes production approvals. The reviewer must cite
 the answer, and a misleading historical page is a failure to fix.
 
 ## When a custom knowledge tool becomes worthwhile

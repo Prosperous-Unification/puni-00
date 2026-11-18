@@ -54,6 +54,14 @@ test('captured command output preserves Nx command text across terminal styling'
 beforeAll(async () => {
   const directory = await scratchAsync('mcp-document-sync-');
   source = join(directory, 'source');
+  // Proof: Inheriting the caller's Nx workspace-data path let the MCP rehearsal overwrite
+  // three landing graph files. The owning mcp-document-sync.test.ts passed with all four intact.
+  const nxOverrides = {
+    NX_DAEMON: 'false',
+    NX_ISOLATE_PLUGINS: 'false',
+    NX_WORKSPACE_DATA_DIRECTORY: join(source, '.nx', 'workspace-data'),
+    NX_CACHE_DIRECTORY: join(source, '.nx', 'cache'),
+  };
   commands = join(directory, 'docker-commands');
   const executables = join(directory, 'bin');
   await mkdir(executables, { recursive: true });
@@ -71,6 +79,10 @@ beforeAll(async () => {
     // Cannot find module '@shared/delivery' from delivery-shapes.ts.
     'libs/shared/domain/delivery/src',
     'libs/shared/domain/delivery/tsconfig.json',
+    // Proof: initial MCP preparation failed to resolve @shared/plan-reference
+    // from accepted-plan-reference-shapes.ts before this source was copied.
+    'libs/shared/domain/plan-reference/src',
+    'libs/shared/domain/plan-reference/tsconfig.json',
     'apps/wbs/be-01/src/openapi',
     'apps/wbs/be-01/tsconfig.json',
     'apps/wbs/be-01/project.json',
@@ -124,7 +136,7 @@ import { execFileSync } from 'node:child_process';
 const args = process.argv.slice(2);
 appendFileSync(${JSON.stringify(commands)}, args.join(' ') + '\\n');
 if (args[0] === 'restart' && args[1] === 'mcp-document-rehearsal') {
-  execFileSync(${JSON.stringify(process.execPath)}, ['./node_modules/.bin/nx', 'run', 'wbs-mcp-01:prepare'], { cwd: ${JSON.stringify(source)}, env: { ...process.env, NX_DAEMON: 'false', NX_ISOLATE_PLUGINS: 'false' }, stdio: 'inherit' });
+  execFileSync(${JSON.stringify(process.execPath)}, ['./node_modules/.bin/nx', 'run', 'wbs-mcp-01:prepare'], { cwd: ${JSON.stringify(source)}, env: { ...process.env, ...${JSON.stringify(nxOverrides)} }, stdio: 'inherit' });
 } else if (args.join(' ') === 'exec mcp-document-rehearsal curl -sS -m 5 http://127.0.0.1:3100/health') {
   // Model healthy backend convergence independently of MCP restart/preparation.
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ${JSON.stringify(source)}, encoding: 'utf8' }).trim();
@@ -141,8 +153,7 @@ if (args[0] === 'restart' && args[1] === 'mcp-document-rehearsal') {
     source,
     {
       ...process.env,
-      NX_DAEMON: 'false',
-      NX_ISOLATE_PLUGINS: 'false',
+      ...nxOverrides,
     },
   );
 }, 30000);
@@ -157,6 +168,8 @@ const changes = [
   ['WBS validation aliases', 'libs/wbs/domain/validation/tsconfig.json'],
   ['shared validation aliases', 'libs/shared/domain/validation/tsconfig.json'],
   ['shared delivery aliases', 'libs/shared/domain/delivery/tsconfig.json'],
+  ['shared plan reference source', 'libs/shared/domain/plan-reference/src/reference.ts'],
+  ['shared plan reference aliases', 'libs/shared/domain/plan-reference/tsconfig.json'],
 ] as const;
 
 test.each(changes)(

@@ -109,7 +109,7 @@ flowchart LR
   structure and quick validation of artifacts.
 - Twilight Navigator and Twilight Dash exchange records, not calls. A plan goes one way.
   Progress receipts and findings come back. The glossary already names these records: plan
-  lock, progress receipt and planning broker. Both are artifacts Twilight Burokrat validates.
+  reference and progress receipt. Twilight Burokrat validates their consistency. WBS accepts current references and applies progress.
 - A fast loop uses the same records at a faster cadence. When execution discovers missing
   scope, Twilight Dash emits a finding and Twilight Navigator replans. A direct interface is
   added only if measurement shows the artifact round trip is too slow.

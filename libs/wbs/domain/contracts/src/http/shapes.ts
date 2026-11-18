@@ -1,4 +1,8 @@
 import {
+  readAcceptedPlanReference,
+  registerAcceptedPlanReference,
+} from './accepted-plan-reference-shapes';
+import {
   createAgentPool,
   listAgentPools,
   rekeyAgentPool,
@@ -290,6 +294,8 @@ const ordinaryHttpShapes = [
   listProjects,
   recordProjectOpen,
   exportProject,
+  readAcceptedPlanReference,
+  registerAcceptedPlanReference,
   importProject,
   readProject,
   patchProject,

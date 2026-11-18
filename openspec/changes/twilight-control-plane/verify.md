@@ -138,31 +138,31 @@ No runtime safety check was implemented in this revision, and no new runtime
 `Proof:` claim was written. The production-path negatives belong to these slices;
 all remain **unrun**, including their positive controls and injected faults.
 
-| Contract                         | Planned fault and observation                                                                                                       | Owner         |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Execution envelope               | Unconditional reapproval prevents an authorized launch; removed range guard permits an unauthorized launch                          | Task 3        |
-| Efficiency breakdown             | Drop a failed attempt, double-count cache input or treat unavailable tool-schema overhead as zero; reconciliation or coverage moves | Tasks 4, 7–8  |
-| Diagnostic completeness          | Offer a sampled trace as mandatory evidence or omit instrumentation overhead; settlement refusal or overhead-budget assertion moves | Tasks 4, 7–8  |
-| Shared charge attribution        | Duplicate one shared provider charge or invent allocations; run total or allocation coverage moves                                  | Tasks 4, 7    |
-| Required context preflight       | Remove absence/unreadability refusal; the production admission path reserves a full attempt against missing context                 | Task 4        |
-| Live budget headroom             | Omit an outstanding hold or zero an unavailable charge; FE/MCP parity or complete-headroom assertion moves                          | Task 5        |
-| Activity benchmark publication   | Mix revisions, leak the holdout, collapse strata or compare incompatible load; recommendation refusal moves                         | Task 11       |
-| Default rollout and rollback     | Omit effect-safe canary/shadow evidence or rollback thresholds; broad publication refusal moves                                     | Task 11       |
-| Cache and tool isolation         | Reuse a cross-client/revoked prefix or obey a malicious descriptor; digest or authority assertion moves                             | Task 11       |
-| Lazy tools and compound effects  | Reveal an unauthorized descriptor, reorder dependencies or drop sub-effect identity; catalog/receiver assertion moves               | Task 11       |
-| Optimization proposal            | Expose private trace content, self-edit a default or exceed analysis allowance; export/authority/budget assertion moves             | Task 11       |
-| Feasible scheduling and fairness | Head-only selection blocks backend work behind a browser; chain-first ordering starves an aged task                                 | Task 4.4      |
-| Coordinator capacity             | Await remote response inside serialized dispatch; unrelated dispatch misses its budget                                              | Task 4.5      |
-| Deliverable pipeline             | Restore run-wide stage join; finished sibling cannot complete review while another is held                                          | Task 7.3      |
-| Integration acceptance           | Publish before the candidate's staging report completes or reuse branch greens; source ref/combined assertion exposes the error     | Task 13.3     |
-| Speculation                      | Select first failing answer or let a losing worker publish; wrong candidate/forbidden effect is observed                            | Task 7.4      |
-| Fixed-quality scaling            | Advertise eight workers but execute one; speedup budget fails without changing task denominator or quality                          | Task 8.4      |
-| Planning concurrency             | Remove broker-derived cross-plan predicate; a forbidden reconciled command is accepted                                              | Task 9        |
-| K3s duplicate start              | Start two programs for one attempt; independent effect receiver and workspace counters observe duplication                          | Tasks 6, 8    |
-| K3s worker loss and drain        | Drain or abruptly lose an agent; capacity and scheduling observations retain holds and stop new placement                           | Tasks 5, 6, 8 |
-| Worker privilege boundary        | Request cluster, host, engine and deployment authority; live canaries and host inspection observe denial                            | Task 6        |
-| K3s observation loss             | Stop API or telemetry access; FE, MCP and `h3mon` show unknown/unavailable rather than empty or zero                                | Tasks 5, 6    |
-| K3s server reconstruction        | Rebuild from pinned inputs; recorded attempts reconcile before any replacement and durable records remain                           | Tasks 6, 8    |
+| Contract                                     | Planned fault and observation                                                                                                                               | Owner         |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Execution envelope                           | Unconditional reapproval prevents an authorized launch; removed range guard permits an unauthorized launch                                                  | Task 3        |
+| Efficiency breakdown                         | Drop a failed attempt, double-count cache input or treat unavailable tool-schema overhead as zero; reconciliation or coverage moves                         | Tasks 4, 7–8  |
+| Diagnostic completeness                      | Offer a sampled trace as mandatory evidence or omit instrumentation overhead; settlement refusal or overhead-budget assertion moves                         | Tasks 4, 7–8  |
+| Shared charge attribution                    | Duplicate one shared provider charge or invent allocations; run total or allocation coverage moves                                                          | Tasks 4, 7    |
+| Required context preflight                   | Remove absence/unreadability refusal; the production admission path reserves a full attempt against missing context                                         | Task 4        |
+| Live budget headroom                         | Omit an outstanding hold or zero an unavailable charge; FE/MCP parity or complete-headroom assertion moves                                                  | Task 5        |
+| Activity benchmark publication               | Mix revisions, leak the holdout, collapse strata or compare incompatible load; recommendation refusal moves                                                 | Task 11       |
+| Default rollout and rollback                 | Omit effect-safe canary/shadow evidence or rollback thresholds; broad publication refusal moves                                                             | Task 11       |
+| Cache and tool isolation                     | Reuse a cross-client/revoked prefix or obey a malicious descriptor; digest or authority assertion moves                                                     | Task 11       |
+| Lazy tools and compound effects              | Reveal an unauthorized descriptor, reorder dependencies or drop sub-effect identity; catalog/receiver assertion moves                                       | Task 11       |
+| Optimization proposal                        | Expose private trace content, self-edit a default or exceed analysis allowance; export/authority/budget assertion moves                                     | Task 11       |
+| Feasible scheduling and fairness             | Head-only selection blocks backend work behind a browser; chain-first ordering starves an aged task                                                         | Task 4.4      |
+| Coordinator capacity                         | Await remote response inside serialized dispatch; unrelated dispatch misses its budget                                                                      | Task 4.5      |
+| Deliverable pipeline                         | Restore run-wide stage join; finished sibling cannot complete review while another is held                                                                  | Task 7.3      |
+| Integration acceptance                       | Publish before the candidate's staging report completes or reuse branch greens; source ref/combined assertion exposes the error                             | Task 13.3     |
+| Speculation                                  | Select first failing answer or let a losing worker publish; wrong candidate/forbidden effect is observed                                                    | Task 7.4      |
+| Fixed-quality scaling                        | Advertise eight workers but execute one; speedup budget fails without changing task denominator or quality                                                  | Task 8.4      |
+| Planning concurrency (superseded 2026-11-17) | Historical proposed broker-derived cross-plan predicate. ADR 0086 withdrew the broker. Current Task 9 negatives belong to the WBS receipt authority change. | Task 9        |
+| K3s duplicate start                          | Start two programs for one attempt; independent effect receiver and workspace counters observe duplication                                                  | Tasks 6, 8    |
+| K3s worker loss and drain                    | Drain or abruptly lose an agent; capacity and scheduling observations retain holds and stop new placement                                                   | Tasks 5, 6, 8 |
+| Worker privilege boundary                    | Request cluster, host, engine and deployment authority; live canaries and host inspection observe denial                                                    | Task 6        |
+| K3s observation loss                         | Stop API or telemetry access; FE, MCP and `h3mon` show unknown/unavailable rather than empty or zero                                                        | Tasks 5, 6    |
+| K3s server reconstruction                    | Rebuild from pinned inputs; recorded attempts reconcile before any replacement and durable records remain                                                   | Tasks 6, 8    |
 
 Browser/deployment checks, live ACP calls, coordinator load, scaling benchmarks and
 all runtime fault injections, including K3s installation and multi-host execution,

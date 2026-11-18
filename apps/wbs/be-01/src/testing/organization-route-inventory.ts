@@ -310,6 +310,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
   { operationId: 'getApiProjects', method: 'GET', path: '/api/projects', kind: 'read' },
   { operationId: 'getApiProjectsById', method: 'GET', path: '/api/projects/:id', kind: 'read' },
   {
+    operationId: 'getApiProjectsByIdAcceptedPlanReferences',
+    method: 'GET',
+    path: '/api/projects/:id/accepted-plan-references',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdCalendar-markers',
     method: 'GET',
     path: '/api/projects/:id/calendar-markers',
@@ -678,6 +684,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   { operationId: 'postApiProjects', method: 'POST', path: '/api/projects', kind: 'mutation' },
+  {
+    operationId: 'postApiProjectsByIdAcceptedPlanReferences',
+    method: 'POST',
+    path: '/api/projects/:id/accepted-plan-references',
+    kind: 'mutation',
+  },
   {
     operationId: 'postApiProjectsByIdCalendar-markers',
     method: 'POST',

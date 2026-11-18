@@ -36,6 +36,7 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['libs/shared/adapters/ui-saas-01', 'shared-ui-saas-01'],
   ['libs/shared/domain/delivery', 'shared-delivery'],
   ['libs/shared/domain/failures', 'shared-failures'],
+  ['libs/shared/domain/plan-reference', 'shared-plan-reference'],
   ['libs/shared/domain/portability-format', 'shared-portability-format'],
   // Proof: omitting these committed candidates failed both the root/identity
   // and product-axis exhaustiveness cases on their exact product:shared tuples.

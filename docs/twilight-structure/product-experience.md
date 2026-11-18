@@ -27,12 +27,10 @@ decision and starts nothing twice.
 
 WBS remains the work-planning editor. Twilight Navigator links or embeds it with a scoped
 repository and planning revision, not an independent editable task board. The
-[Backlog-backed migration](client-repositories.md) supplies the later storage change.
-A candidate's evidence view separates pinned prior receipts from completions it
-produces and shows every change's plan reference. Concurrent planning edits show
-whether semantic preconditions were preserved by authorized disjoint reconciliation or
-a real conflict needs a new decision. The
-accepted receipt names both the requested basis and the committed revision.
+[client planning contract](client-repositories.md) links WBS revisions to pinned exports.
+A candidate's evidence view distinguishes prior receipts from completions it produces.
+A stale WBS basis refuses the edit and an operator explicitly resolves the conflict.
+The receipt retains the original requested basis and accepted revision.
 
 ## Environments
 

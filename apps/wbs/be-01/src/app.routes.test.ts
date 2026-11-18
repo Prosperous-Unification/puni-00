@@ -234,6 +234,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
+  'getApiProjectsByIdAcceptedPlanReferences',
   'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdCalendar-markers',
   'getApiProjectsByIdClaim-history',
@@ -266,6 +267,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiTimezones',
   'getApiWork-item-types',
   'postApiOrganizationActive',
+  'postApiProjectsByIdAcceptedPlanReferences',
 ] as const;
 const READ_SCOPE_OPERATIONS = [
   'getApiProjectsByIdExport',
@@ -437,6 +439,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationSso-connections',
   'postApiOrganizationTrusted-issuers',
   'postApiProjects',
+  'postApiProjectsByIdAcceptedPlanReferences',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
   'postApiProjectsByIdOpened',
@@ -491,6 +494,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
+  'getApiProjectsByIdAcceptedPlanReferences',
   'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdCalendar-markers',
   'getApiProjectsByIdClaim-history',

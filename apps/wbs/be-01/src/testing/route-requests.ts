@@ -2,6 +2,9 @@ import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 
 const ROUTE_ID = '00000000-0000-4000-8000-000000000001';
 const ROUTE_MARKER_ID = '00000000-0000-4000-8000-000000000002';
+const referenceScope = { repository: 'https://example.test/plan', change: 'route-probe' };
+const sha = 'a'.repeat(64);
+const coordinates = { planningCommit: 'b'.repeat(40), sourceBaseCommit: 'c'.repeat(40) };
 export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   acquireRuntimeAuthority: {
     schemaVersion: 1,
@@ -138,6 +141,25 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   patchApiOrganizationMembersByUserId: { role: 'member' },
   postApiProjects: { name: 'Reachable plan' },
   postApiProjectsImport: planDocumentFixture(),
+  postApiProjectsByIdAcceptedPlanReferences: {
+    ...referenceScope,
+    ...coordinates,
+    expected: { kind: 'absent' },
+    exportBytes: 'e30=',
+    requirementsBytes: 'YQ==',
+    reference: {
+      schemaVersion: 1,
+      kind: 'plan-reference',
+      planRef: { ...referenceScope, ...coordinates, plan: ROUTE_ID, requirementsDigest: sha },
+      planDocumentVersion: 11,
+      exportDigest: sha,
+      tasksDigest: sha,
+      taskCount: 0,
+      createdAt: '2026-11-17T20:00:00.000Z',
+      referenceDigest: sha,
+    },
+    tasks: { schemaVersion: 2, kind: 'plan-tasks', plan: ROUTE_ID, steps: [], tasks: [] },
+  },
   patchApiProjectsById: {
     pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
   },
@@ -215,6 +237,7 @@ export const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<st
     getApiAuthOktaCallback: { state: 'route-probe', error: 'access_denied' },
     getApiPeopleByPersonIdLoad: { from: '2026-10-05', to: '2026-10-09' },
     getApiPeopleLoad: { from: '2026-10-05', to: '2026-10-09' },
+    getApiProjectsByIdAcceptedPlanReferences: referenceScope,
     getApiProjectsByIdExport: { format: 'json' },
     'getApiProjectsByIdSaved-plansCompare': { left: 'current', right: 'current' },
     getApiProjectsByIdAddressReferences: { reference: 'P.010', revision: 'qar1:route-probe' },

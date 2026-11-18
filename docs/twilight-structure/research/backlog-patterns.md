@@ -1,5 +1,7 @@
 # Backlog.md as the client repository's planning store
 
+The storage proposal discussed here was withdrawn on 2026-11-17. Its historical findings are retained below. [Current WBS decision](../../adr/0086-wbs-accepts-planning-references-and-progress.md).
+
 Researched 2026-09-06. Primary documentation and source inspection; no
 Backlog.md installation, provider session, migration, or runtime test was run.
 
@@ -8,7 +10,7 @@ to `puni-00`, and its software is developed there. WBS supplies the planning UI;
 Backlog.md hosted for that client repository replaces SQLite as its planning
 store. `puni-00` must use the same evolving template and delivery workflow.
 Implementation planning starts after the single gate in
-[Cutover after the refactors land](../client-repositories.md#cutover-after-the-refactors-land).
+[Cutover after the refactors land](https://github.com/Prosperous-Unification/puni-00/blob/1b94e080b7b52c8babef77a8ff25d3acb9bb9d18/docs/twilight-structure/client-repositories.md#cutover-after-the-refactors-land).
 
 This rules out a design that leaves the authoritative plan in SQLite and merely
 exports tasks to Backlog.md. The remaining work is to specify a complete file
@@ -197,7 +199,7 @@ protocol.
 ## Migration and failure-proof plan
 
 The following are tests to write and execute after the closure in
-[Cutover after the refactors land](../client-repositories.md#cutover-after-the-refactors-land).
+[Cutover after the refactors land](https://github.com/Prosperous-Unification/puni-00/blob/1b94e080b7b52c8babef77a8ff25d3acb9bb9d18/docs/twilight-structure/client-repositories.md#cutover-after-the-refactors-land).
 **None has been run.** Record actual failure output in `verify.md`; add adjacent
 `Proof:` comments only after observing each injected fault on its production
 path. A direct parser test alone does not prove CLI, MCP, browser or hosted

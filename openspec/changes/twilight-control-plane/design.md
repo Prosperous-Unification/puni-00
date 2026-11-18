@@ -37,8 +37,8 @@ flowchart TD
   API --> Verification[Twilight Burokrat: verification operations]
   API --> Planning[Twilight Navigator: planning port]
   Planning --> WBS[WBS service and UI]
-  WBS --> Broker[Per-repo planning broker after refactors]
-  Broker --> Repo[Client Nx repo: Backlog, WBS extension, specs, wiki]
+  WBS --> SQLite[Accepted plans, progress and consumption]
+  Planning --> Repo[Client Nx repo: pinned exports, specs and wiki]
   Store --> Events[Authorized event stream and evidence]
   Events --> FE
   Events --> MCP
@@ -48,7 +48,7 @@ OpenClaw owns general conversation and session execution behind an adapter. Twil
 owns software-delivery workflow execution, authority, durable work projection,
 environment state and evidence. Twilight Navigator owns the planning port, while WBS owns
 its planning semantics.
-Backlog.md and its versioned extension own planning persistence after the migration.
+WBS retains SQLite as its planning store.
 Twilight Burokrat owns verification and knowledge operations over the requirements and
 artifact contracts in OpenSpec and the sourced explanations in the wiki.
 These are logical boundaries; the first service does not need a process per box.
@@ -225,18 +225,24 @@ type SubmitRequest = CommandScope & {
   outcome: string;
   workflowRevision: string;
   profile: ProfileSelection;
-  plan: PlanRef | null;
+  plan: PlanningInput | null;
   discoveryEnvelope: string | null;
 };
 
-type PlanRef = {
-  repositoryId: string;
-  planId: string;
-  changeId: string;
-  planningCommit: string;
-  sourceBaseCommit: string;
-  requirementsDigest: string;
+// PlanRef retains Navigator's six-field wire shape.
+import type { PlanRef } from '@twilight-burokrat/contracts';
+type WbsPlanLockEntry = {
+  kind: 'wbs';
+  organizationId: string;
+  planRef: PlanRef; // includes repository, plan (WBS project) and change
+  acceptedVersion: number;
+  referenceDigest: string;
+  exportPath: string;
+  exportDigest: string;
+  inputReceiptSnapshot: { revision: string; digest: string };
 };
+
+type PlanningInput = PlanRef | WbsPlanLockEntry;
 
 type DecideApproval = CommandScope & {
   approvalId: string;
@@ -946,7 +952,7 @@ Record raw samples, cold/warm conditions, provider limits, host identity, estima
 and realized dependency chains. Numerical thresholds are proposed acceptance budgets,
 not performance claims. A failed threshold blocks the scaling milestone and identifies
 the next constrained resource. No automatic change to quality or evaluation can
-manufacture a speedup. M1 remains independent of the Backlog migration.
+manufacture a speedup. M1 remains independent of the WBS export bridge.
 
 ## Planning, knowledge and client portability
 
@@ -958,20 +964,15 @@ Long-lived integration secrets stay in the secret store independent of trace
 retention, and credential values never enter evidence.
 
 The [client repository design](../../../docs/twilight-structure/client-repositories.md)
-owns the Backlog storage protocol and migration. Twilight Navigator owns the initial
-`PlanningPort`, which reads
-the canonical task artifact with a revision; the later WBS adapter reads and edits
-Backlog-backed planning revisions. `PlanningPort.readPlan(reference: PlanRef)`
-includes plan and change identity, not only repository and revision. Completion
-updates are proposed until the planning owner accepts them; a worker cannot check
-its own task without the required evidence.
+describes client planning artifacts and WBS authority. Twilight Navigator owns the initial
+`PlanningPort.readPlan(input: PlanningInput)`. An authored-file input keeps its existing revision-bound read by six-field PlanRef. For a WBS-origin change, pass the entire WBS lock entry. Use its organization, repository, project, change, acceptance version and complete reference digest to request the historical acceptance. Compare the response scope, version, digest and PlanRef to the lock, and verify the pinned artifact path/digest and input receipt snapshot. Two acceptances can share all six PlanRef fields. A lookup by tuple or current head cannot resolve the historical selection. A worker proposes completion for separate acceptance.
 
 WBS planning capacity and Twilight Dash admission are different quantities. The
 reconciliation contract is: a `WorkPlan` carries resource units per task in A12's
 vocabulary (human minutes, agent time, tokens, money, slots) beside WBS workdays;
 Twilight Dash reserves against its pools from those units and writes measured usage back
 as a progress receipt; no unit is converted into another implicitly. Task 2 owns
-the port shape and Task 9 the round trip through Backlog.
+the port read. Task 9 covers WBS reference acceptance and explicit schema-2 operator receipt application. Task 10.3 owns the outstanding Dash measured-usage proposal, provenance and round-trip proof.
 
 Source candidates pin a change-keyed map of plan references, generated exports and
 immutable input receipt snapshots in their plan lock. An unmerged predecessor
@@ -979,7 +980,7 @@ cannot unblock an incompatible branch. New completion receipts are outputs namin
 the already-created candidate, accepted afterwards and never written back into it.
 Progress receipt revisions are distinct from approved task definitions, so a
 checkbox does not churn approvals. The client-repo document owns the multi-change
-merge protocol, publication order and storage acceptance profile.
+merge protocol, publication order and export contract.
 
 Template versions and upgrades are work requests in `puni-00`, with clean-client
 fixture generation and deterministic checks. Repository ids scope retrieval,
@@ -1055,6 +1056,5 @@ Retention defaults are the profile's `retention` section until an organization
 policy is published.
 
 Critical unresolved facts are scheduled experiments: Task 1 fixes the package and
-checkpointer capability; Task 6 proves live ACP containment; Task 9 pins the landed
-refactor API and proves lossless planning transactions. Failure of an experiment
+checkpointer capability; Task 6 proves live ACP containment; Task 9 proves exact-basis reference replacement and atomic receipt consumption in WBS. Failure of an experiment
 revises the design before the dependent milestone starts.

@@ -1,13 +1,13 @@
 import { Buffer } from 'node:buffer';
 
+import { GitObjectId, IsoInstant, SchemaVersion, Sha256 } from '@shared/plan-reference';
 import { type } from '@shared/validation';
+
+export { GitObjectId, IsoInstant, SchemaVersion, Sha256 } from '@shared/plan-reference';
 
 const RelativePathPattern =
   /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))(?!.*[*?[\]{}\\])(?!.*\/\/)(?!.*\/$).+$/;
-const IsoInstantPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 const OpaqueIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
-export const GitObjectId = type(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/);
-export const Sha256 = type(/^[0-9a-f]{64}$/);
 export const RelativePath = type(RelativePathPattern).narrow((path, context) => {
   // Proof: removing this entire canonical-path narrow produced [0, 0, 0, 0];
   // removing only the NUL refusal accepted its third CLI case: [1, 1, 0, 1].
@@ -19,19 +19,6 @@ export const RelativePath = type(RelativePathPattern).narrow((path, context) => 
     : context.mustBe('a canonical repository-relative path without dot segments');
 });
 export const OpaqueId = type(OpaqueIdPattern);
-export const IsoInstant = type(IsoInstantPattern).narrow((instant, context) => {
-  const epochMs = Date.parse(instant);
-  const normalized = instant.length === 20 ? `${instant.slice(0, -1)}.000Z` : instant;
-  // Proof: removing this semantic check made the production CLI print
-  // `valid invocation-receipt` for 2026-02-30T17:00:00.000Z (expected exit 1).
-  return Number.isFinite(epochMs) && new Date(epochMs).toISOString() === normalized
-    ? true
-    : context.mustBe('a real ISO 8601 UTC instant');
-});
-// Proof: widening this to any positive integer made the production CLI print
-// `valid candidate-entry` for schemaVersion 99 (expected exit 1), and made artifact graph
-// version 99 exit 0 with artifactCount 2 instead of refusing before traversal.
-export const SchemaVersion = type('1');
 const NonNegativeInteger = type('number.integer>=0');
 const PositiveInteger = type('number.integer>=1');
 const PortNumber = type('number.integer>=1').and(type('number<=65535'));

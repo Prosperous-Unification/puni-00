@@ -3,6 +3,7 @@ export * from './commands/definitions';
 export * from './dependency-client';
 export * from './dependency-runtime';
 export * from './errors';
+export * from './http/accepted-plan-reference-shapes';
 export * from './http/agent-pool-shapes';
 export * from './http/auth-oidc-shapes';
 export * from './http/auth-password-shapes';
@@ -70,6 +71,14 @@ export * from './logger';
 export * from './mcp-authorization-server';
 export * from './oidc-identity';
 export * from './plan-command-values';
+export {
+  compileOrdinaryPlanReference,
+  compilePlanReferenceFromDocument,
+  decodeOrdinaryPlanDocument,
+  decodePlanReferenceBytes,
+  PlanReferenceInputError,
+  validateBlockageFacts,
+} from './plan-reference-compiler';
 export * from './principal';
 export * from './runtime-command-values';
 export { matchesRuntimeClaim, matchesRuntimeReceipt, matchesRuntimeScope } from './runtime-receipt';

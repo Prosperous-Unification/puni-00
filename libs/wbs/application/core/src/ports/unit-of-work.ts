@@ -1,3 +1,4 @@
+import type { AcceptedPlanReferenceStore } from './accepted-plan-reference-store';
 import type { FanoutCaptureStore } from './fanout-capture-store';
 import type { PlanTransactionalStores } from './stores';
 
@@ -13,6 +14,8 @@ export interface Scope<S extends PlanTransactionalStores = PlanTransactionalStor
   stores: S;
   /** Borrowed capture is a transaction capability, not a free-standing store. */
   fanoutCapture?: FanoutCaptureStore;
+  /** Retained references use this source-bound capability, installed on the SQLite writer. */
+  acceptedPlanReferences?: AcceptedPlanReferenceStore;
 }
 
 /**

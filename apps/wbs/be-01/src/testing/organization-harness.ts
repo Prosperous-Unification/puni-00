@@ -756,6 +756,7 @@ export class OrganizationHarness {
     upstreamCredential,
     trustedIssuers,
     machineGrants,
+    localIdentity,
     logDestination,
     delegationKey,
     migrate = (path) => {
@@ -807,6 +808,7 @@ export class OrganizationHarness {
       source,
       clock,
       commandAccess,
+      ...(localIdentity === undefined ? {} : { localIdentity }),
       logger: createLogger({
         service: 'be-01',
         ...(logDestination === undefined ? {} : { level: 'trace', destination: logDestination }),
@@ -1401,6 +1403,7 @@ export interface ComposedHarnessOptions {
   /** Delivery gate limits; absent uses the production defaults. */
   readonly deliveryLimits?: DeliveryGateLimits;
   readonly sessionBinding?: boolean;
+  readonly localIdentity?: AuthenticatedUser;
   /** One secret for the mounted backend and its outbound production push client. */
   readonly internalAuthSecret?: string;
   /** The services clock's time source; real time unless a test fixes it. */

@@ -1,12 +1,12 @@
 ## ADDED Requirements
 
-Twilight Navigator owns the repository-planning boundary described here.
+Twilight Navigator compiles repository planning artifacts. WBS owns plan and progress acceptance.
 
 ### Requirement: The factory uses the client repository contract
 
 `puni-00` and client repositories MUST use the same versioned Nx repository
-template/workflow contract. Client projects, OpenSpec, knowledge and planning
-files MUST belong to that client's repository. Factory self-improvement MUST
+template/workflow contract. Client projects, OpenSpec, knowledge and pinned planning
+artifacts MUST belong to that client's repository. Factory self-improvement MUST
 use the same review and release controls as other repository changes.
 
 #### Scenario: Create a fresh client repository
@@ -25,11 +25,9 @@ use the same review and release controls as other repository changes.
 ### Requirement: A planning revision has one owner
 
 Before the planning bridge exists, the OpenSpec task artifact MUST remain the
-single authored plan. The target architecture MUST use per-repo Backlog.md behind
-WBS as authoritative planning storage, with deterministic revision-bound task
-exports. Execution checkpoints and leases MUST remain distinct from planning.
+single authored plan. WBS MUST retain SQLite as the single authority for project plans, accepted references and progress. Bridged changes MUST emit deterministic revision-bound task exports. Execution checkpoints and leases MUST remain distinct from planning.
 
-Each source candidate MUST pin a versioned change-keyed map of plan references,
+Each source candidate MUST pin a versioned change-keyed map of plan references (with organization/project/repository/change scope, WBS acceptance version and complete reference digest for each WBS-origin change),
 export digests/paths and immutable input receipt snapshots. Snapshots MUST contain
 only accepted prior receipts and their integration status; missing/unreadable
 snapshots MUST fail validation, with an empty snapshot represented explicitly.
@@ -39,22 +37,26 @@ resolve the pinned inputs without consulting a moving planning/receipt head.
 
 #### Scenario: Export and edit diverge after bridge cutover
 
-- **WHEN** a generated task artifact differs from its accepted Backlog/WBS revision
-- **THEN** verification refuses the divergence and requires import or regeneration,
-  instead of executing whichever copy an agent encountered first
+- **WHEN** a generated task artifact differs from its WBS-accepted revision
+- **THEN** verification refuses the changed file. Regenerate it from the pinned acceptance, or explicitly edit WBS, reaccept the reference and repin a new candidate. The file alone cannot update the WBS pointer
 
 #### Scenario: A predecessor is complete only on another branch
 
 - **WHEN** its completion receipt names a source candidate not integrated or
   composed into the dependent activity's source basis
 - **THEN** admission refuses to treat that predecessor as available, even if a
-  Backlog status says Done
+  projected board column says Done
 
 #### Scenario: Planning advances during source verification
 
-- **WHEN** a source candidate's CI runs while newer planning commits are accepted
+- **WHEN** a source candidate's CI runs while WBS accepts newer planning references
 - **THEN** it verifies the exact plan and receipt revisions pinned by its plan
-  lock instead of reading the moving branch head
+  lock instead of reading the current WBS reference
+
+#### Scenario: Two WBS acceptances have equal six-field plan references
+
+- **WHEN** two accepted exports share a PlanRef and tasks but have different complete reference digests, and the first is subsequently reaccepted at another version
+- **THEN** the reader resolves each original lock entry by full scope, historical version and complete digest. CI verifies the originally pinned inputs and rejects a substituted version or digest
 
 #### Scenario: A candidate produces its own completion receipt
 
@@ -99,7 +101,7 @@ epoch, never as an edit of the approved task definition.
 
 - **WHEN** an activity attempt settles with measured token categories and agent time
 - **THEN** a progress receipt naming the task, run, attempt and profile epoch is
-  proposed to the planning owner, and the approved task definition's revision is unchanged
+  proposed to WBS with its original categories, quantities, units and observation provenance intact through the round trip. The approved task definition retains its revision
 
 #### Scenario: Parallel attempts update one task estimate
 

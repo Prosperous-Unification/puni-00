@@ -7,6 +7,7 @@ import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { OrganizationLimitValues } from '@wbs/domain';
 import type { Logger } from 'drizzle-orm';
 
+import { SqliteAcceptedPlanReferences } from './accepted-plan-reference';
 import { buildStores } from './build-stores';
 import { type CaptureReadSeam, inertSqliteCaptureReadSeam } from './capture-read-seam';
 import type { ConnectedCaptureOptions } from './captured-scheduler';
@@ -191,6 +192,10 @@ function openSqliteSourceWithSeams(
                   ...limits,
                   externalDependencyAuthoring: createWriterAuthority(lifetime),
                 },
+                // Proof: Omitting the borrowed reference store made "registers through the
+                // reference store supplied by the borrowed writer" fail. The faulted fixture
+                // received 500 instead of 201 with the named missing-writer report and zero rows.
+                acceptedPlanReferences: new SqliteAcceptedPlanReferences(process.db, lifetime),
                 fanoutCapture:
                   // Proof: omitting this borrowed capture made a cold mounted shared
                   // command fail 500 before the expected recipient row.

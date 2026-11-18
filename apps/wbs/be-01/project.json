@@ -65,8 +65,8 @@
         "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/bridge/**/*",
         "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/agents/**/*",
         "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/clock.ts",
-        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*",
-        "mcpAgentRuntime"
+        "mcpAgentRuntime",
+        "navigatorPlanReference"
       ],
       "options": {
         "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
@@ -91,7 +91,7 @@
         "cwd": "apps/wbs/be-01"
       },
       "dependsOn": ["prepare-mcp-document"],
-      "inputs": ["default", "^production", "mcpAgentRuntime"]
+      "inputs": ["default", "^production", "mcpAgentRuntime", "navigatorPlanReference"]
     },
     "typecheck": {
       "executor": "nx:run-commands",
@@ -156,6 +156,11 @@
     }
   },
   "namedInputs": {
+    "navigatorPlanReference": [
+      "{workspaceRoot}/apps/twilight-structure/twilight-navigator/cli/src/**/*.ts",
+      "{workspaceRoot}/apps/twilight-structure/twilight-navigator/cli/tsconfig.json",
+      "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*"
+    ],
     "mcpAgentRuntime": [
       "{projectRoot}/src/openapi/emit-openapi-cli.ts",
       "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/clock.ts",

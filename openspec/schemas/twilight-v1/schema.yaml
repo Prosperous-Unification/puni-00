@@ -87,14 +87,12 @@ artifacts:
       Link the approved execution envelope; defaults alone grant no authority.
       Separate estimated/measured tokens, currency, human effort, agent elapsed
       time and scarce slots. Missing telemetry is unknown, never zero.
-      Per-client Nx repos use the same workflow. The accepted target planning
-      backend is per-repo Backlog.md behind WBS, after its refactorings land.
-      Until the versioned bridge exists, this is the sole authored plan. Later
-      WBS/Backlog edits and this artifact must round-trip through one record whose
-      semantic preconditions and publication revision are checked on every write.
-      Exact writes refuse a stale basis; explicitly authorized disjoint writes use
-      the broker's bounded reconciliation contract. Never silently maintain
-      competing independently editable plans.
+      Per-client Nx repos use the same workflow. WBS owns project plans in SQLite.
+      Until the versioned export bridge is enabled for a change, this artifact
+      is its sole authored task list. Bridged changes pin deterministic exports
+      of WBS-accepted references. WBS checks current authority and expected
+      basis on progress application. Resolve conflicts explicitly.
+
       A focus brief and schedule are projections. Separate required safety
       gates from critic/judge advice. No task is done without evidence.
     # Proof: with `design` removed from this list, cli.integration.test.ts's
