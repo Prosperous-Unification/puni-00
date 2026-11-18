@@ -31,6 +31,13 @@ To revert, drop `,tool-remote-scripts` from the first `run-many` exclusion and t
 `run-many` line, then update `toolchain-pins.test.ts`. Lift it only once the family's budgets
 account for host speed.
 
+Since 2026-11-18 every host gate `run-many` runs with `--parallel=1` (assumption
+A-GATE-PARALLEL-1, `dash-host-jobs` task 6.19, awaiting Dany), because at `--parallel=2` the
+gate's peak memory (12.94 GiB recorded, an OOM kill on h4claw at a 13.9 GiB slice peak) does
+not fit a 15 GiB host; the gate should take about 90 min instead of about 58, and restoring
+`--parallel=2` on the three lines of `bin/h2puni-gate-steps.sh` and in `toolchain-pins.test.ts`
+reverts it.
+
 ## What the role sets up
 
 `infra/ansible/roles/gate_host` makes the host match h2puni's gate environment:
