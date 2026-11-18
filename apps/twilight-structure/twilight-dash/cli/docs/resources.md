@@ -307,8 +307,9 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   is gone and the 60-second launch grace has passed. `watch`'s sweep re-reads that evidence each
   tick for running and `unknown` jobs; a `blocked` job is re-read after one second, doubling to
   a one-minute cap, and records an event only when its evidence changes. `ops job run` settles
-  a job that declared containers with Docker's reading (below); `watch` does not read Docker
-  yet, so such a job whose launcher died stays charged until an operator settles it.
+  a job that declared containers with Docker's reading (below). `watch` and `resources sweep`
+  read Docker too when the CLI is on `PATH` (task 6.15), so such a job whose launcher died
+  settles once its containers are gone; on a host without Docker it stays charged.
 - **Unreadable processes.** Hold inspection reads every same-account process's `cwd`,
   descriptors and maps. A process that changed credentials (`(sd-pam)`, `sshd-session`) is not
   dumpable, and its `/proc/<pid>/fd` is access-denied. For a host job, such a process holds
@@ -526,12 +527,22 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     a gate and an exit sample. Peak tmp is the largest sample, a lower bound; disk outside
     `TMPDIR` is not covered;
   - SIGINT, SIGTERM and SIGHUP before the gate opens refuse the job at the gate (129, 130,
-    143); after it opens they are forwarded to the payload's session;
+    143); after it opens they are forwarded to the payload's session. Forwarding neither lifts
+    `MemoryHigh` nor escalates: an operator ending a job by hand takes the three steps below
+    ([gate hosts](../../../../../docs/infra/gate-hosts.md#launch-a-gate-on-h4claw));
   - bounded by its type's optional `maxRuntimeMinutes` in the catalogue (task 6.11). At the first
     sample after the payload has run longer than that, the launcher prints
-    `ops job: <id> exceeded maxRuntimeMinutes <n>: ended by the launcher` and sends SIGTERM to
-    the payload's session. If the payload has not ended within the settle budget (30 s), the
-    launcher sends SIGKILL. The command then exits 124, `timeout(1)`'s code, and the ledger
+    `ops job: <id> exceeded maxRuntimeMinutes <n>: ended by the launcher` and ends it in three
+    steps (task 6.14). It raises the scope's `MemoryHigh` to `infinity`
+    (`systemctl --user set-property --runtime <scope> MemoryHigh=infinity`), so a throttled
+    payload runs its handlers at full speed, then sends SIGTERM to the payload's session. If the
+    payload has not ended within the settle budget (30 s), it sends SIGKILL to every process of
+    the scope (`systemctl --user kill --signal=SIGKILL <scope>`), `setsid`'d descendants
+    included, which a process-group signal misses. A failed `systemctl` call is reported as an
+    `ops job: …` line and the sequence goes on; a failed scope kill falls back to SIGKILL to the
+    session. A payload that ends on SIGTERM within the budget is not SIGKILLed, so a
+    descendant that left its session survives it and keeps the job charged until it ends. The
+    command then exits 124, `timeout(1)`'s code, and the ledger
     records 124 too. The run record keeps the signal the payload ended with and that reason as
     `endedByLauncher`. The job settles and releases its reservation and shell lock hold as
     after any exit. A type without the field has no runtime bound. The bound is checked once

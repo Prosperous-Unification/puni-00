@@ -31,6 +31,7 @@ import {
   catalogueOf,
   CONTAINER_IMAGE,
   fakeScopeTelemetry,
+  fakeSystemctl,
   type FakeSystemdRun,
   fakeSystemdRun,
   type FixtureJobType,
@@ -1083,9 +1084,102 @@ if (insideOpsNamespace(import.meta.path)) {
         signal: 'SIGKILL',
         endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
       });
-      expect(report.some((line) => line.endsWith('outlived SIGTERM by 1000 ms; SIGKILL'))).toBe(
-        true,
+      expect(
+        report.some((line) =>
+          line.endsWith(
+            `outlived SIGTERM by 1000 ms; SIGKILL to every process of dash-job-${record.jobId}.scope`,
+          ),
+        ),
+      ).toBe(true);
+    }, 60000);
+
+    test("a setsid'd descendant that ignores SIGTERM ends with the scope at the bound", async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const childPid = join(base, 'child');
+      // The descendant leaves the payload's session and process group, as the nx daemon does.
+      const payload = payloadScript(
+        join(base, 'daemonizing.sh'),
+        [
+          "trap '' TERM",
+          `setsid sh -c 'echo $$ > ${childPid}; exec sleep 30' &`,
+          `while [ ! -s ${childPid} ]; do sleep 0.05; done`,
+          `touch ${marker}`,
+          'sleep 20',
+          'exit 0',
+        ].join('\n'),
       );
+      cleanups.push(() => {
+        if (existsSync(childPid)) spawn('kill', ['-KILL', readFileSync(childPid, 'utf8').trim()]);
+      });
+      const bin = fakeBin('exec');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      // Proof: restoring `killSession(pid, 'SIGKILL')` in place of the scope kill in `endPayload`
+      // left the descendant alive: `members` received its one pid against `[]` (2026-11-18).
+      expect(fake.telemetry.members(`/fake/${scope}`)).toEqual([]);
+      expect(code).toBe(124);
+      expect(runRecord(root, job.id)).toMatchObject({
+        exitCode: 124,
+        endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
+      });
+      // The lift comes first, so the trap and handlers run unthrottled; the scope kill last.
+      expect(readFileSync(join(bin, 'systemctl.log'), 'utf8')).toBe(
+        `--user set-property --runtime ${scope} MemoryHigh=infinity\n--user kill --signal=SIGKILL ${scope}\n`,
+      );
+    }, 60000);
+
+    test('a failed scope kill is reported and the session SIGKILLed instead', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(
+        join(base, 'stubborn.sh'),
+        `trap '' TERM\ntouch ${marker}\nsleep 20\nexit 0`,
+      );
+      const refusing = fakeSystemctl(join(base, 'refusing-bin'), 'fails');
+      const report: string[] = [];
+      const started = monotonic.now();
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: {
+            ...fake.environment,
+            PATH: `${refusing}:${fake.environment['PATH'] ?? ''}`,
+          },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      // Proof: dropping the fallback `killSession(pid, 'SIGKILL')` in `endPayload` made the payload
+      // run its full 20 s: the elapsed check failed (2026-11-18).
+      expect(monotonic.now() - started).toBeLessThan(15_000);
+      expect(code).toBe(124);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      expect(job.state).toBe('released');
+      expect(runRecord(root, job.id)).toMatchObject({ exitCode: 124, signal: 'SIGKILL' });
+      const diagnostic = 'Failed to connect to bus: No medium found';
+      expect(report).toContain(
+        `ops job: lifting MemoryHigh of ${scope} failed: systemctl set-property --runtime ${scope} MemoryHigh=infinity: ${diagnostic}; SIGTERM regardless`,
+      );
+      expect(
+        report.some((line) =>
+          line.startsWith(
+            `ops job: SIGKILL to ${scope} failed: systemctl kill --signal=SIGKILL ${scope}: ${diagnostic}; SIGKILL to session `,
+          ),
+        ),
+      ).toBe(true);
     }, 60000);
 
     test('a failed kill at the runtime bound still records 124 and settles', async () => {

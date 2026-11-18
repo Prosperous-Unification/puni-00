@@ -403,6 +403,21 @@ the pool would always hand out `tbf2`, and two gates would serialise without say
 `bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status --config ~/.config/dash/host-pool.json`
 from the launcher.
 
+To end a host job by hand, use the same three steps `ops job run` takes at a type's
+`maxRuntimeMinutes` (task 6.14). A SIGTERM to the launcher alone is not enough: it reaches only
+the payload's process group, and under `MemoryHigh` a trapped SIGTERM runs its handler at one
+return to user mode per 2 s. With `<scope>` the job's `dash-job-<job id>.scope`:
+
+```sh
+systemctl --user set-property --runtime <scope> MemoryHigh=infinity
+kill -TERM <launcher pid>   # forwarded to the payload's process group
+sleep 30                    # the settle budget
+systemctl --user kill --signal=SIGKILL <scope>
+```
+
+The last step ends every process in the scope, including `setsid`'d descendants such as the nx
+daemon. `ops job status` then shows the job settling once `watch` sweeps it.
+
 The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
 
 - Pass the sha. Do not check it out first.

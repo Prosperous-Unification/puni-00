@@ -351,7 +351,7 @@
       in tool-remote-scripts. `docker build` stays unattributed, and the peaks stay unmeasured
       until 6.4, so `gate` stays out of `concurrencyEligible`.
 
-- [ ] 6.14 End a job cgroup-wide at the runtime bound, lifting `MemoryHigh` first (incident
+- [x] 6.14 End a job cgroup-wide at the runtime bound, lifting `MemoryHigh` first (incident
       2026-11-17, h4claw job 22ce2369, verify.md): an operator `SIGTERM` to the launcher ended the
       launcher but left the scope active for hours with the payload in D state under
       `mem_cgroup_handle_over_high`, until `systemctl --user kill --signal=SIGKILL <scope>` ended
@@ -367,7 +367,8 @@
       held units) instead of a group SIGKILL; the operator runbook names the same three steps for
       a manual end. Test: a payload that `setsid`s a child in `job-run.test.ts`'s namespace leaves
       no process in the scope after the bound; negative: with the group kill restored the child
-      survives and the test fails.
+      survives and the test fails. Done (PR #PRNUM, verify.md 2026-11-18): `endPayload` lifts,
+      SIGTERMs and SIGKILLs the scope; negative `members` `[93]` against `[]`.
 - [x] 6.15 `sweep` settles a dead launcher's job with real container evidence (incident 2026-11-17,
       h4claw job 22ce2369): after a cgroup-wide SIGKILL ended every process, the job stayed
       `running … settlement unknown` with 4 cores, 6 GiB and a gate tree reserved, because
