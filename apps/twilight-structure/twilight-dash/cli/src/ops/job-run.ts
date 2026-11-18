@@ -608,6 +608,9 @@ async function systemctlFailure(
   args: readonly string[],
 ): Promise<string | null> {
   const systemctl = Bun.which('systemctl', { PATH: environment['PATH'] ?? '' });
+  // Proof: without this answer `a host without systemctl still ends the job at the bound,
+  // reported` (job-run.test.ts) saw the lift throw before the SIGTERM and the payload run its
+  // full 20 s, 21.1 s against 15 s (2026-11-18, review of #942 S3-1).
   if (systemctl === null) return 'systemctl is not on PATH';
   const call = Bun.spawn([systemctl, '--user', ...args], {
     env: { ...environment },
@@ -629,6 +632,11 @@ async function systemctlFailure(
   return `systemctl ${args.join(' ')}: ${diagnostic}`;
 }
 
+/** The name `systemctl` addresses `unit` by: without a suffix it would read a `.service`. */
+function scopeOf(unit: string): string {
+  return `${unit}.scope`;
+}
+
 /**
  * End a payload the launcher no longer lets run (task 6.14), in three steps: lift the scope's
  * `MemoryHigh` to `infinity`, so a throttled payload runs its handlers (and the gated shell its
@@ -647,8 +655,7 @@ async function endPayload(
   ending: Promise<void>,
   deps: JobRunDependencies,
 ): Promise<void> {
-  // `systemctl` reads a name without a suffix as `.service`; the job's unit is a scope.
-  const scope = `${unit}.scope`;
+  const scope = scopeOf(unit);
   // Proof: dropping the lift made `a setsid'd descendant that ignores SIGTERM ends with the scope
   // at the bound` (job-run.test.ts) find only the kill line in `systemctl.log` (2026-11-18).
   const unthrottled = await systemctlFailure(deps.environment, [
@@ -693,6 +700,40 @@ async function endPayload(
     }
   }
   await ending;
+}
+
+/**
+ * SIGKILL whatever is left in the scope of a job the launcher ended, once its leader has exited;
+ * a scope already empty (or collected) is left alone. A failure to read the members or to kill
+ * them is reported, and the run still records its exit and settles.
+ */
+async function killLeftovers(
+  unit: string,
+  cgroup: string,
+  deps: JobRunDependencies,
+): Promise<void> {
+  const scope = scopeOf(unit);
+  let members: number[] | null;
+  try {
+    members = deps.telemetry.members(cgroup);
+  } catch (cause) {
+    deps.report(
+      `ops job: members of ${scope} unreadable (${causeText(cause)}); SIGKILL regardless`,
+    );
+    members = null;
+  }
+  if (members !== null && members.length === 0) return;
+  deps.report(
+    members === null
+      ? `ops job: SIGKILL to ${scope} after its leader`
+      : `ops job: ${String(members.length)} processes left in ${scope} after its leader; SIGKILL`,
+  );
+  // Proof: not calling this after the leader's exit made `a setsid'd descendant outlives a
+  // payload that honours SIGTERM, not the bound` (job-run.test.ts) find it alive, `members`
+  // `[90]` against `[]` (2026-11-18, review of #942 S2-1).
+  const unkilled = await systemctlFailure(deps.environment, ['kill', '--signal=SIGKILL', scope]);
+  if (unkilled !== null)
+    deps.report(`ops job: SIGKILL to what is left of ${scope} failed: ${unkilled}`);
 }
 
 async function runAdmitted(
@@ -951,6 +992,10 @@ async function runAdmitted(
   // status, or with its own when it died before reporting one.
   launched.gate.end('done\n');
   const leaderStatus = await launched.leaderExit;
+  // At the bound nothing of the job may outlive it: a payload that honoured SIGTERM can leave a
+  // `setsid`'d descendant in the scope, holding cores, memory and its units. The gated shell is
+  // gone now, so the scope kill takes nothing the exit sample needed.
+  if (endedByLauncher !== undefined) await killLeftovers(unit, cgroup, deps);
   const payloadStatus = payload.status ?? leaderStatus;
   const status = endedByLauncher === undefined ? payloadStatus : RUNTIME_EXCEEDED_EXIT_CODE;
   // A status above 128 is how a shell reports a signal; the record names the signal it implies.

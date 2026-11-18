@@ -3723,40 +3723,46 @@ the tests run over the fake seam with a fake `systemctl` beside the fake `system
 (`fakeSystemctl` in `ops.test.fixture.ts`). Its `kill` SIGKILLs every process carrying the job's
 `DASH_JOB_ID`, the fake scope's members, so the group-kill gap is proven against real processes.
 
-| Command                                                                                                                               | Result                                                                                                         |
-| ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `bun test src/ops/job-run.test.ts -t "runtime bound"` inside `unshare` with `DASH_OPS_TEST_NAMESPACE=1`                               | 6 pass, 0 fail (two new)                                                                                       |
-| `bun test src/ops/job-run.test.ts src/ops/calibrate.test.ts src/ops/host-pool-mode.test.ts` (each in its namespace)                   | inner 42 pass 10 skip, 45 pass, 18 pass 1 skip; 0 fail                                                         |
-| `bun test src/ops/launchers.test.ts`                                                                                                  | 1 fail: `mkdir: cannot create directory '/home/puni1/.config'`, the laptop-only failure of 6.11; CI decides it |
-| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                 | `Successfully ran target typecheck`                                                                            |
-| `bunx eslint` on the three changed TS files                                                                                           | exit 0                                                                                                         |
-| `bunx prettier --check` on the changed files; `bunx openspec validate --all --json`                                                   | all formatted; 342 passed, 0 failed                                                                            |
-| `twilight-burokrat check-indexes working . HEAD` after `git add -A`; `repo-namespacing-handoff.test.ts -t "resolves its local links"` | 0; 1 pass, 0 fail                                                                                              |
+| Command                                                                                                                               | Result                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test src/ops/job-run.test.ts -t "runtime bound"` inside `unshare` with `DASH_OPS_TEST_NAMESPACE=1`                               | 6 pass, 0 fail (two new); 8 pass, 0 fail after the review fixes (two more)                                                            |
+| `bun test src/ops/job-run.test.ts src/ops/calibrate.test.ts src/ops/host-pool-mode.test.ts` (each in its namespace)                   | inner 42 pass 10 skip, 45 pass, 18 pass 1 skip; 0 fail. After the review fixes `job-run.test.ts` alone: inner 44 pass 10 skip, 0 fail |
+| `bun test src/ops/launchers.test.ts`                                                                                                  | 1 fail: `mkdir: cannot create directory '/home/puni1/.config'`, the laptop-only failure of 6.11; CI decides it                        |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                 | `Successfully ran target typecheck`                                                                                                   |
+| `bunx eslint` on the three changed TS files                                                                                           | exit 0                                                                                                                                |
+| `bunx prettier --check` on the changed files; `bunx openspec validate --all --json`                                                   | all formatted; 342 passed, 0 failed                                                                                                   |
+| `twilight-burokrat check-indexes working . HEAD` after `git add -A`; `repo-namespacing-handoff.test.ts -t "resolves its local links"` | 0; 1 pass, 0 fail                                                                                                                     |
 
 R5 negatives, each restored after it was watched failing:
 
-| Injected fault                                                    | Observed failure                                                                                                      |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `killSession(pid, 'SIGKILL')` restored in place of the scope kill | `a setsid'd descendant that ignores SIGTERM ends with the scope at the bound`: `members` received `[93]` against `[]` |
-| the `MemoryHigh` lift dropped                                     | the same test: `systemctl.log` held only the kill line                                                                |
-| the session SIGKILL fallback dropped after a failed scope kill    | `a failed scope kill is reported and the session SIGKILLed instead`: elapsed 21153 ms against `< 15000`               |
+| Injected fault                                                    | Observed failure                                                                                                                            |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `killSession(pid, 'SIGKILL')` restored in place of the scope kill | `a setsid'd descendant that ignores SIGTERM ends with the scope at the bound`: `members` received `[93]` against `[]`                       |
+| the `MemoryHigh` lift dropped                                     | the same test: `systemctl.log` held only the kill line                                                                                      |
+| `killLeftovers` not called after the leader's exit (review S2-1)  | `a setsid'd descendant outlives a payload that honours SIGTERM, not the bound`: `members` received `[90]` against `[]`                      |
+| the `systemctl is not on PATH` answer dropped (review S3-1)       | `a host without systemctl still ends the job at the bound, reported`: the lift threw before the SIGTERM, elapsed 21119 ms against `< 15000` |
+| the session SIGKILL fallback dropped after a failed scope kill    | `a failed scope kill is reported and the session SIGKILLed instead`: elapsed 21153 ms against `< 15000`                                     |
 
 - **S14-A1** The ids follow 6.15's `S15-A` scheme for task 6.14.
 - **S14-A2** Forwarding an operator's SIGTERM, SIGINT or SIGHUP neither lifts `MemoryHigh` nor
   escalates. The signal is the operator's own end, and lifting the bound on a Ctrl-C would let a
   job outgrow its envelope on a shared host without the operator choosing it. The manual sequence
-  in `docs/infra/gate-hosts.md` (Launch a gate on h4claw) and resources.md takes the same three
+  in `docs/infra/gate-hosts.md` (End a host job by hand, moved there from the h4claw section by
+  review S3-3) and resources.md takes the same three
   steps as the bound.
-- **S14-A3** The scope kill runs only when the payload outlives the settle budget, as the task
-  states. A payload that ends on SIGTERM within the budget while a descendant left its session
-  leaves that descendant running; the job stays charged until it ends, and the manual scope kill
-  applies. Killing the scope there would also end the gated shell before the exit sample.
+- **S14-A3** (revised by the review of #942, S2-1) The SIGKILL after the settle budget runs only
+  when the payload outlives it, as the task states. A payload that honours SIGTERM inside the
+  budget could therefore leave a `setsid`'d descendant in the scope, and that descendant kept the
+  job charged. This gap is now closed: once the leader has exited, `killLeftovers` reads the
+  scope's members and, if any remain, SIGKILLs the scope. The gated shell is gone by then, so the
+  exit sample has already been read. An empty or collected scope gets no call, because a
+  collected unit would answer "not loaded".
 - **S14-A4** A failed SIGTERM (not ESRCH) still aborts `endPayload`, and the caller reports it, as
   in 6.11 review S2. Only the `systemctl` calls are report-and-continue.
 - **S14-A5** Each `systemctl` call has a 10 s deadline (SIGKILL after), so a hung user manager
   cannot stall the bound. `systemctl` is looked up on the job environment's `PATH` at the bound,
   not in preflight: a host without it still runs the job and falls back to the session SIGKILL,
-  reported.
+  reported (tested since review S3-1).
 - **S14-A6** Not proven on a real user manager. The namespace harness cannot reach one, and no
   gate host was touched (a calibration is running on h4claw). The real `systemctl` call shape
   matches the 2026-11-17 manual end of job 22ce2369.

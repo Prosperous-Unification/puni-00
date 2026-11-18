@@ -529,7 +529,7 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   - SIGINT, SIGTERM and SIGHUP before the gate opens refuse the job at the gate (129, 130,
     143); after it opens they are forwarded to the payload's session. Forwarding neither lifts
     `MemoryHigh` nor escalates: an operator ending a job by hand takes the three steps below
-    ([gate hosts](../../../../../docs/infra/gate-hosts.md#launch-a-gate-on-h4claw));
+    ([gate hosts](../../../../../docs/infra/gate-hosts.md#end-a-host-job-by-hand));
   - bounded by its type's optional `maxRuntimeMinutes` in the catalogue (task 6.11). At the first
     sample after the payload has run longer than that, the launcher prints
     `ops job: <id> exceeded maxRuntimeMinutes <n>: ended by the launcher` and ends it in three
@@ -540,8 +540,9 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     the scope (`systemctl --user kill --signal=SIGKILL <scope>`), `setsid`'d descendants
     included, which a process-group signal misses. A failed `systemctl` call is reported as an
     `ops job: …` line and the sequence goes on; a failed scope kill falls back to SIGKILL to the
-    session. A payload that ends on SIGTERM within the budget is not SIGKILLed, so a
-    descendant that left its session survives it and keeps the job charged until it ends. The
+    session. Once the payload's leader has exited, by SIGTERM within the budget or
+    by the SIGKILL, the launcher SIGKILLs whatever is still in the scope, so a descendant that
+    left the payload's session does not outlive the bound. The
     command then exits 124, `timeout(1)`'s code, and the ledger
     records 124 too. The run record keeps the signal the payload ended with and that reason as
     `endedByLauncher`. The job settles and releases its reservation and shell lock hold as

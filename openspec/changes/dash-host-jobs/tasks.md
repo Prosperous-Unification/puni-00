@@ -363,12 +363,13 @@
       scope's `MemoryHigh` to `infinity` (the operator form is
       `systemctl --user set-property --runtime <scope> MemoryHigh=infinity`), SIGTERM the
       process group, then after the settle budget
-      `systemctl --user kill --signal=SIGKILL <scope>` (the remedy the runtime already prints for
-      held units) instead of a group SIGKILL; the operator runbook names the same three steps for
+      `systemctl --user kill --signal=SIGKILL <scope>` (the cgroup-wide kill the runbook names)
+      instead of a group SIGKILL; the operator runbook names the same three steps for
       a manual end. Test: a payload that `setsid`s a child in `job-run.test.ts`'s namespace leaves
       no process in the scope after the bound; negative: with the group kill restored the child
       survives and the test fails. Done (PR #942, verify.md 2026-11-18): `endPayload` lifts,
-      SIGTERMs and SIGKILLs the scope; negative `members` `[93]` against `[]`.
+      SIGTERMs and SIGKILLs the scope, and `killLeftovers` SIGKILLs what is left once the leader
+      exits; negatives `members` `[93]` and `[90]` against `[]`.
 - [x] 6.15 `sweep` settles a dead launcher's job with real container evidence (incident 2026-11-17,
       h4claw job 22ce2369): after a cgroup-wide SIGKILL ended every process, the job stayed
       `running … settlement unknown` with 4 cores, 6 GiB and a gate tree reserved, because
