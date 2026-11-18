@@ -641,6 +641,69 @@ if (insideLinuxNamespace(import.meta.path)) {
       });
       runtime.close();
     });
+
+    // Task 6.16: be-01 backup fixtures hardlink `wbs-backup-*/wbs.db` to its `.original` twin,
+    // both inside the gate's tmp directory; every h4claw gate stayed blocked on them.
+    test('hardlinks whose every link lies inside the tmp directory are removed', async () => {
+      const { runtime } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, {
+          descriptor: jobType('test-queued', 1, 1, [], 1),
+          label: 'q',
+          waitSeconds: 0,
+        }),
+      );
+      const payload = launch(runtime, job);
+      mkdirSync(join(job.locator, 'wbs-backup-1'));
+      mkdirSync(join(job.locator, 'wbs-backup-1.original'));
+      writeFileSync(join(job.locator, 'wbs-backup-1', 'wbs.db'), 'bytes');
+      linkSync(
+        join(job.locator, 'wbs-backup-1', 'wbs.db'),
+        join(job.locator, 'wbs-backup-1.original', 'wbs.db'),
+      );
+      linkSync(join(job.locator, 'wbs-backup-1', 'wbs.db'), join(job.locator, 'third-link'));
+      await payload.release();
+      runtime.sweep();
+      const settled = runtime.inspectHostJob(job.id);
+      expect(settled.tmpDisk).toEqual({
+        state: 'released',
+        reason: 'tmp directory removed and holds verified',
+      });
+      expect(settled.state).toBe('released');
+      expect(existsSync(job.locator)).toBe(false);
+      expect(runtime.hostPoolStatus().reserved.diskUnits).toBe(0);
+      runtime.close();
+    });
+
+    test('an in-tree hardlink pair with a third link outside stays blocked and untouched', async () => {
+      const { runtime, base } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, {
+          descriptor: jobType('test-queued', 1, 1, [], 1),
+          label: 'q',
+          waitSeconds: 0,
+        }),
+      );
+      const payload = launch(runtime, job);
+      mkdirSync(join(job.locator, 'nested'));
+      writeFileSync(join(job.locator, 'shared'), 'bytes');
+      linkSync(join(job.locator, 'shared'), join(job.locator, 'nested', 'twin'));
+      linkSync(join(job.locator, 'shared'), join(base, 'outside-link'));
+      await payload.release();
+      runtime.sweep();
+      const settled = runtime.inspectHostJob(job.id);
+      expect(settled.tmpDisk).toEqual({
+        state: 'blocked',
+        reason: 'tmp directory cleanup failed: descriptor-relative removal refused',
+      });
+      expect(readFileSync(join(base, 'outside-link'), 'utf8')).toBe('bytes');
+      expect(lstatSync(join(base, 'outside-link')).nlink).toBe(3);
+      expect(existsSync(join(job.locator, 'nested', 'twin'))).toBe(true);
+      expect(runtime.hostPoolStatus().reserved.diskUnits).toBe(1);
+      runtime.close();
+    });
   });
 
   describe('review fixes (Fable, PR #804)', () => {
