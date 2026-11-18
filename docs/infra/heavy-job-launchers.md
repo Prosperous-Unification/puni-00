@@ -9,7 +9,7 @@ directly (rows below). On a host that is not enrolled,
 enrolled host it runs `twilight-dash ops job run` from the launcher's own checkout. The design is
 [`dash-host-jobs`](../../openspec/changes/dash-host-jobs/design.md) (J3, J12, J13, J15, J16).
 
-**No host is enrolled yet.** J12's observe phase (a Dash job under the legacy queue protocol, so
+**Both gate hosts are enrolled in observe mode** (h4claw 2026-11-08, h2puni 2026-11-17). J12's observe phase (a Dash job under the legacy queue protocol, so
 legacy callers and Dash jobs share one order) and the singleton flock guard of concurrent mode
 landed with slice 6b, with `ops pool switch-mode`. A host is enrolled only once the `resources
 watch` user unit runs there (task 6.7 before 6.4); the mode lifecycle and the runbook are in

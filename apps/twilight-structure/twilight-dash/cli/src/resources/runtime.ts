@@ -441,8 +441,9 @@ export interface ContainerEvidence {
   containersGone(job: HostJob): boolean;
 }
 /**
- * The only container evidence the watch loop has before slice 3: a job that declared
- * `containers: none` has none to wait for; a declared bound stays charged until a reading.
+ * Container evidence without a reading: a job that declared `containers: none` has none to
+ * wait for; a declared bound stays charged until a reading says its containers are gone. The
+ * runtime's default until `useContainerEvidence` injects one.
  */
 export const declaredContainersOnly: ContainerEvidence = {
   containersGone: (job) => job.descriptor.containers === 'none',
@@ -2196,6 +2197,7 @@ export class ResourceRuntime {
       }
     }
   }
+  private containerEvidence: ContainerEvidence = declaredContainersOnly;
   /** Reconcile dead creators and retry pending/blocked cleanup; retention requires an explicit retry. */
   sweep(): ResourceUse[] {
     for (const snapshot of this.list()) {
@@ -2240,9 +2242,23 @@ export class ResourceRuntime {
       )
         this.cleanup(current.id);
     }
+    // Proof: settling with `declaredContainersOnly` here made `sweep settles a job with a declared
+    // containers bound once the reading says its containers are gone` (sweep-container-evidence
+    // .test.ts) receive `held` for `released` (2026-11-17, task 6.15).
     for (const job of this.listHostJobs())
-      if (job.state !== 'released') this.settleHostJob(job.id, declaredContainersOnly);
+      if (job.state !== 'released') this.settleHostJob(job.id, this.containerEvidence);
     return this.list();
+  }
+  /**
+   * The container evidence `sweep` settles host jobs with (J2'). `declaredContainersOnly` until
+   * the caller injects a reading: `runResources` injects Docker's when the CLI is on `PATH`, so a
+   * job whose launcher died settles once its processes and containers are gone instead of staying
+   * charged forever (h4claw job 22ce2369, 2026-11-17). The reading runs inside `settleHostJob`'s
+   * write transaction for every unreleased job whose owned processes are gone, so a slow reading
+   * holds the ledger's write lock for that long; the injected evidence bounds it (S15-A4).
+   */
+  useContainerEvidence(evidence: ContainerEvidence): void {
+    this.containerEvidence = evidence;
   }
   /** Record a bounded retry obligation without returning any reservation capacity. */
   private block(use: ResourceUse, cause: unknown): void {

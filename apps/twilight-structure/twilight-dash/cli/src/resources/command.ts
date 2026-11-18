@@ -4,6 +4,7 @@ import type { DashRequest } from '../cli-parser';
 import type { WallClock } from '../clock';
 import type { ApiKey, McpEndpoint } from '../mcp/machine-token';
 import type { WbsTools } from '../mcp/wbs-tools';
+import { dockerContainerEvidence, findDocker } from './container-evidence';
 import type { LegacyLock } from './legacy-lock';
 import {
   type CreationRequest,
@@ -13,6 +14,9 @@ import {
   ResourceWbsUnavailable,
 } from './runtime';
 import { SingletonGuard } from './singleton-guard';
+
+/** A sweep's `docker ps` runs under the ledger's write lock: shorter than a launcher's 30 s. */
+const SWEEP_DOCKER_DEADLINE_MS = 5_000;
 
 /**
  * Runs one parsed `resources` action (its grammar is `cli-parser.ts`'s, parsed before this reads
@@ -33,6 +37,16 @@ export async function runResources(
     request.action === 'init'
       ? ResourceRuntime.initialize(configuration, clock, linuxHostFacts)
       : ResourceRuntime.open(configuration, clock);
+  // Every action gets the reading; only the ones that sweep use it. Its deadline is shorter than
+  // a launcher's because sweeps read inside the ledger's write transaction (S15-A4).
+  // Proof: without it `resources sweep settles a job with a declared containers bound through a
+  // docker on PATH` (sweep-container-evidence.test.ts) left the job `held`, the h4claw leak of
+  // 2026-11-17 (verify.md).
+  const docker = findDocker(process.env);
+  if (docker !== null)
+    runtime.useContainerEvidence(
+      dockerContainerEvidence(docker, process.env, SWEEP_DOCKER_DEADLINE_MS),
+    );
   const report = (value: unknown): void => {
     write(`${JSON.stringify(value)}\n`);
   };
