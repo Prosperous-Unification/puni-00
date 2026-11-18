@@ -329,9 +329,9 @@ interface Interruption {
  * interval and at exit; record the exit, settle on terminal evidence and return the payload's
  * own status. A signal before the gate opens refuses 129/130/143 with the payload never run; one
  * after is forwarded to the payload's session. A type with `maxRuntimeMinutes` is ended by the
- * launcher once its payload has run longer, at the first sample past the bound: SIGTERM to the
- * payload's session, SIGKILL after the settle budget, and {@link RUNTIME_EXCEEDED_EXIT_CODE}
- * returned and recorded, the job settling as any exit does. A type without it is unbounded. A failure to read telemetry or to write a record
+ * launcher once its payload has run longer, at the first sample past the bound: `MemoryHigh`
+ * lifted, SIGTERM to the payload's session, SIGKILL to the whole scope after the settle budget
+ * (task 6.14), and {@link RUNTIME_EXCEEDED_EXIT_CODE} returned and recorded, the job settling as any exit does. A type without it is unbounded. A failure to read telemetry or to write a record
  * after the gate opened is recorded and reported, never substituted for the payload's status.
  * @throws OpsRefusal for every refusal before the payload runs (64, 70, 73, 75, 129, 130, 143).
  */
@@ -595,16 +595,79 @@ export function killSession(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
+/** How long one `systemctl --user` call at the runtime bound may take before it is killed. */
+const SYSTEMCTL_DEADLINE_MS = 10_000;
+
 /**
- * End a payload the launcher no longer lets run: SIGTERM to its session, then SIGKILL once the
- * settle budget passes without `ending` resolving, then wait for it. The gated shell traps
- * SIGTERM, so it still reports the payload's status; after SIGKILL it reports none.
+ * Run `systemctl --user <args>` with `environment`'s `PATH`: null once it exits 0, else why not
+ * (absent from `PATH`, its first diagnostic, or the deadline). Never throws for the call's own
+ * failure: the runtime bound reports it and goes on to its next step.
+ */
+async function systemctlFailure(
+  environment: Readonly<Record<string, string | undefined>>,
+  args: readonly string[],
+): Promise<string | null> {
+  const systemctl = Bun.which('systemctl', { PATH: environment['PATH'] ?? '' });
+  // Proof: without this answer `a host without systemctl still ends the job at the bound,
+  // reported` (job-run.test.ts) saw the lift throw before the SIGTERM and the payload run its
+  // full 20 s, 21.1 s against 15 s (2026-11-18, review of #942 S3-1).
+  if (systemctl === null) return 'systemctl is not on PATH';
+  const call = Bun.spawn([systemctl, '--user', ...args], {
+    env: { ...environment },
+    stdin: 'ignore',
+    stdout: 'ignore',
+    stderr: 'pipe',
+    timeout: SYSTEMCTL_DEADLINE_MS,
+    killSignal: 'SIGKILL',
+  });
+  const [code, stderr] = await Promise.all([call.exited, new Response(call.stderr).text()]);
+  if (code === 0) return null;
+  if (call.signalCode !== null)
+    return `systemctl ${args.join(' ')} ended by ${call.signalCode} after ${String(SYSTEMCTL_DEADLINE_MS)} ms`;
+  const diagnostic =
+    stderr
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line !== '') ?? `exit ${String(code)}`;
+  return `systemctl ${args.join(' ')}: ${diagnostic}`;
+}
+
+/** The name `systemctl` addresses `unit` by: without a suffix it would read a `.service`. */
+function scopeOf(unit: string): string {
+  return `${unit}.scope`;
+}
+
+/**
+ * End a payload the launcher no longer lets run (task 6.14), in three steps: lift the scope's
+ * `MemoryHigh` to `infinity`, so a throttled payload runs its handlers (and the gated shell its
+ * trap) at full speed instead of at one return to user mode per 2 s; SIGTERM to its session;
+ * then, once the settle budget passes without `ending` resolving, SIGKILL to every process of
+ * the scope through `systemctl --user kill`, which reaches `setsid`'d descendants (an nx daemon,
+ * a stray `git checkout`) that a process-group signal misses. A failed lift is reported and the
+ * SIGTERM sent regardless; a failed scope kill is reported and the session SIGKILLed instead, so
+ * at least the payload ends. The gated shell traps SIGTERM, so it still reports the payload's
+ * status; after SIGKILL it reports none.
+ * @throws Error when the SIGTERM itself fails other than for a session already gone.
  */
 async function endPayload(
   pid: number,
+  unit: string,
   ending: Promise<void>,
   deps: JobRunDependencies,
 ): Promise<void> {
+  const scope = scopeOf(unit);
+  // Proof: dropping the lift made `a setsid'd descendant that ignores SIGTERM ends with the scope
+  // at the bound` (job-run.test.ts) find only the kill line in `systemctl.log` (2026-11-18).
+  const unthrottled = await systemctlFailure(deps.environment, [
+    'set-property',
+    '--runtime',
+    scope,
+    'MemoryHigh=infinity',
+  ]);
+  if (unthrottled !== null)
+    deps.report(
+      `ops job: lifting MemoryHigh of ${scope} failed: ${unthrottled}; SIGTERM regardless`,
+    );
   killSession(pid, 'SIGTERM');
   let timer: ReturnType<typeof setTimeout> | undefined;
   const ended = await Promise.race([
@@ -620,11 +683,57 @@ async function endPayload(
   // budget` (job-run.test.ts) take the payload's full 20 s, 21.1 s against its 15 s (2026-11-12).
   if (!ended) {
     deps.report(
-      `ops job: session ${String(pid)} outlived SIGTERM by ${String(deps.settleBudgetMs)} ms; SIGKILL`,
+      `ops job: session ${String(pid)} outlived SIGTERM by ${String(deps.settleBudgetMs)} ms; SIGKILL to every process of ${scope}`,
     );
-    killSession(pid, 'SIGKILL');
+    // Proof: restoring `killSession(pid, 'SIGKILL')` here made `a setsid'd descendant that
+    // ignores SIGTERM ends with the scope at the bound` (job-run.test.ts) find the descendant
+    // alive, `members` `[93]` against `[]` (2026-11-18).
+    const unkilled = await systemctlFailure(deps.environment, ['kill', '--signal=SIGKILL', scope]);
+    // Proof: dropping the session SIGKILL below made `a failed scope kill is reported and the
+    // session SIGKILLed instead` (job-run.test.ts) take the payload's full 20 s, 21.2 s against
+    // its 15 s (2026-11-18).
+    if (unkilled !== null) {
+      deps.report(
+        `ops job: SIGKILL to ${scope} failed: ${unkilled}; SIGKILL to session ${String(pid)} instead`,
+      );
+      killSession(pid, 'SIGKILL');
+    }
   }
   await ending;
+}
+
+/**
+ * SIGKILL whatever is left in the scope of a job the launcher ended, once its leader has exited;
+ * a scope already empty (or collected) is left alone. A failure to read the members or to kill
+ * them is reported, and the run still records its exit and settles.
+ */
+async function killLeftovers(
+  unit: string,
+  cgroup: string,
+  deps: JobRunDependencies,
+): Promise<void> {
+  const scope = scopeOf(unit);
+  let members: number[] | null;
+  try {
+    members = deps.telemetry.members(cgroup);
+  } catch (cause) {
+    deps.report(
+      `ops job: members of ${scope} unreadable (${causeText(cause)}); SIGKILL regardless`,
+    );
+    members = null;
+  }
+  if (members !== null && members.length === 0) return;
+  deps.report(
+    members === null
+      ? `ops job: SIGKILL to ${scope} after its leader`
+      : `ops job: ${String(members.length)} processes left in ${scope} after its leader; SIGKILL`,
+  );
+  // Proof: not calling this after the leader's exit made `a setsid'd descendant outlives a
+  // payload that honours SIGTERM, not the bound` (job-run.test.ts) find it alive, `members`
+  // `[90]` against `[]` (2026-11-18, review of #942 S2-1).
+  const unkilled = await systemctlFailure(deps.environment, ['kill', '--signal=SIGKILL', scope]);
+  if (unkilled !== null)
+    deps.report(`ops job: SIGKILL to what is left of ${scope} failed: ${unkilled}`);
 }
 
 async function runAdmitted(
@@ -808,7 +917,9 @@ async function runAdmitted(
     throw cause;
   });
   onSignal((signal) => {
-    // The whole session: the payload and its children, not only the gated shell.
+    // The whole session: the payload and its children, not only the gated shell. Forwarding
+    // neither lifts `MemoryHigh` nor escalates (task 6.14, S14-A2): an operator's signal is the
+    // operator's own end, and the manual sequence in docs/infra/gate-hosts.md does both.
     try {
       killSession(pid, signal);
     } catch (cause) {
@@ -867,7 +978,7 @@ async function runAdmitted(
       // settles` (job-run.test.ts) reject with `kill EPERM` before the exit was recorded
       // (2026-11-12).
       try {
-        await endPayload(pid, ending, deps);
+        await endPayload(pid, unit, ending, deps);
       } catch (cause) {
         deps.report(`ops job: ending ${unit} at its runtime bound failed: ${causeText(cause)}`);
       }
@@ -881,6 +992,10 @@ async function runAdmitted(
   // status, or with its own when it died before reporting one.
   launched.gate.end('done\n');
   const leaderStatus = await launched.leaderExit;
+  // At the bound nothing of the job may outlive it: a payload that honoured SIGTERM can leave a
+  // `setsid`'d descendant in the scope, holding cores, memory and its units. The gated shell is
+  // gone now, so the scope kill takes nothing the exit sample needed.
+  if (endedByLauncher !== undefined) await killLeftovers(unit, cgroup, deps);
   const payloadStatus = payload.status ?? leaderStatus;
   const status = endedByLauncher === undefined ? payloadStatus : RUNTIME_EXCEEDED_EXIT_CODE;
   // A status above 128 is how a shell reports a signal; the record names the signal it implies.

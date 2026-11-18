@@ -150,7 +150,9 @@ observation boundary outlives the payload until the final sample and the run rec
 durable. Peak tmp disk is the largest sample, stated as a lower bound; disk outside `TMPDIR` and
 the managed worktree is not covered and the record says so. The payload's exit code passes
 through; a signalled payload returns 128 + signal. The one exception is a payload the launcher
-ends at its type's `maxRuntimeMinutes`, which returns 124 (task 6.11). A telemetry failure mid-run and a ledger
+ends at its type's `maxRuntimeMinutes`, which returns 124 (task 6.11); the launcher lifts the
+scope's `MemoryHigh`, sends SIGTERM to the session and SIGKILLs the whole scope after the settle
+budget (task 6.14). A telemetry failure mid-run and a ledger
 write failure are recorded apart from the payload's outcome.
 
 **J8. What cannot be measured is refused before the payload, never run unmeasured.** No

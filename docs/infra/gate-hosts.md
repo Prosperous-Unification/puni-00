@@ -419,6 +419,25 @@ The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
   [`dash-host-jobs` verify.md](../../openspec/changes/dash-host-jobs/verify.md) records each
   visit). See [heavy job launchers](heavy-job-launchers.md).
 
+## End a host job by hand
+
+This applies on any enrolled host. Use the same three steps `ops job run` takes at a type's
+`maxRuntimeMinutes` (task 6.14). A SIGTERM to the launcher alone is not enough: it reaches only
+the payload's process group, and under `MemoryHigh` a trapped SIGTERM runs its handler at one
+return to user mode per 2 s. With `<scope>` the job's `dash-job-<job id>.scope`:
+
+```sh
+systemctl --user set-property --runtime <scope> MemoryHigh=infinity
+kill -TERM <launcher pid>   # forwarded to the payload's process group
+sleep 30                    # the settle budget
+systemctl --user kill --signal=SIGKILL <scope>
+```
+
+The last step ends every process in the scope, including `setsid`'d descendants such as the nx
+daemon. Run it even when the payload ended on the SIGTERM: a forwarded signal reaches no
+descendant outside the payload's process group. `ops job status` then shows the job settling
+once `watch` sweeps it.
+
 ## Capacity reports into WBS
 
 Each gate host is meant to report its memory, `/tmp` disk and agent slots to WBS as an `ssh_host`
