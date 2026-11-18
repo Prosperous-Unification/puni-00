@@ -69,8 +69,9 @@ bunx nx format:check --all
 # recorded gate peaks of 12.94 GiB (2026-11-17) and 11.79 GiB (2026-11-18) against a 6 GiB
 # envelope; on 2026-11-18 two unbounded h4claw calibrations died 59 min in, the cold one losing
 # tool-fleet:test beside wbs-be-01's test and typecheck, the warm one with puni1's oom_kill counter
-# rising 2 -> 3 and memory.peak at 13.9 GiB. The peak drops to the largest single task; duration
-# grows from ~58 to an expected ~90 min. Revert by restoring --parallel=2 on the three lines.
+# rising 2 -> 3 and memory.peak at 13.9 GiB. The peak drops to the largest single task's, which
+# is still multi-process: --parallel bounds Nx task concurrency only, and vitest in wbs-fe-01:test
+# still fans out by nproc. The Nx run grows from ~58 min to an expected ~90. Revert by restoring --parallel=2 on the three lines.
 # Proof (2026-11-18): toolchain-pins.test.ts `runs the h2puni gate with the same Twilight split
 # as CI` failed on the --parallel=2 script (`Expected: 1 · Received: 0`) and, with only the
 # remote-scripts or only the Twilight line back at --parallel=2, on `Expected to contain: ...`.

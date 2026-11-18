@@ -3984,8 +3984,9 @@ coordinator's read of Dash's audit, the calibration logs and puni1's cgroup file
   `wbs-be-01:test` (47 min 30 s, the critical path) and `wbs-be-01:typecheck`
   (`bunx tsc --build --force`). Nx then bailed and terminated the in-flight tasks (be-01
   typecheck, store-sqlite typecheck, tool-fleet lint); the Nx run took 57 min 55 s.
-- In the warm calibration (started 11:25:34Z) puni1's slice `memory.events` `oom_kill` rose from
-  2 to 3 at 12:24:32Z, 59 min in, and `memory.peak` read 14,949,826,560 bytes (13.92 GiB)
+- In the warm calibration (started 11:25:34Z) puni1's slice `memory.events` `oom_kill` read 2 at
+  11:4xZ, before warm1's `tool-fleet` phase, and 3 at 12:24:32Z, 59 min in; the run exited 143
+  at 12:24:42Z; and `memory.peak` read 14,949,826,560 bytes (13.92 GiB)
   against 15 GiB total. The calibration scope runs with `MemoryHigh=infinity` and `MemoryMax=infinity` by
   design, so it measures the true peak.
 
@@ -4023,3 +4024,9 @@ workspace line, the `-p tool-remote-scripts` line and the Twilight line) now run
   in a 57 min 55 s run.
 - **S19-A3** The OOM attribution rests on puni1's cgroup `oom_kill` counter and its timing; the
   kernel logs that would name the killed process are unreadable to puni1.
+- **S19-A4** The `test-queued` job type (`bin/test-queued-payload.sh`) still runs
+  `--parallel=2` and still runs `tool-remote-scripts:test`, both outside A-GATE-PARALLEL-1 and
+  A-GATE-REMOTE-1; it is uncalibrated and unbounded (`docs/infra/heavy-job-launchers.md`), so it
+  carries the same memory risk on the hosts. Its comment now calls `--parallel=2` its own
+  setting rather than gate parity; aligning it is a follow-up, as is the pre-existing drift where
+  `infra/jobs/catalogue.json`'s test-queued basis says "nx.json parallel 4" while the script pins 2.
