@@ -4030,3 +4030,61 @@ workspace line, the `-p tool-remote-scripts` line and the Twilight line) now run
   carries the same memory risk on the hosts. Its comment now calls `--parallel=2` its own
   setting rather than gate parity; aligning it is a follow-up, as is the pre-existing drift where
   `infra/jobs/catalogue.json`'s test-queued basis says "nx.json parallel 4" while the script pins 2.
+
+## 2026-11-18 the host gate's own Dash job scope breaks two J19 hold tests (task 6.20)
+
+Branch `ops/j19-holds-tests-under-dash-scope-20261118` from `main` 4cace4ed9; laptop (a login
+session, `session-4.scope`), `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched.
+
+- The h4claw cold calibration of `main` 4cace4ed9 (job 0650f314, 2026-11-18 19:13Z) failed only
+  `twilight-dash:test` in its 117-min Twilight run, on two tests of
+  `apps/twilight-structure/twilight-dash/cli/src/resources/resource-holds.test.ts`, describe
+  "uninspectable processes outside Dash-owned work (J19)": `ops pool init succeeds beside a
+non-dumpable process that predates it` received `error: host pool …/dash-host-pool-EhmJjO/config.json
+not initialized: host pool unit … is held: cannot inspect process PID …` where empty stderr
+  and exit 0 were expected, and `cleanup releases a resource beside a non-dumpable process that
+predates its leader` received `Expected: "released" Received: "blocked"`.
+- In the same run `ops pool init refuses beside a non-dumpable process in a Dash job scope`
+  passed, and the login-session tests skipped with `this test runs in
+/user.slice/user-995.slice/user@995.service/app.slice/dash-job-0650f314….scope`.
+- Diagnosis: the gate runs as a Dash host job, so the test process and every plainly spawned
+  child live in the job's `dash-job-<uuid>.scope`. The production rule classifies a
+  non-dumpable process in a Dash job scope as Dash-owned work and refuses, exactly as the passing
+  sibling proves; the two tests asserted the un-nested case while nested. Not a product defect.
+  The `uninspectable_outside_scope: <pid> ((sd-pam))` notes are the expected, unrelated case.
+
+When `/proc/self/cgroup` ends in `/dash-job-[0-9a-f-]+.scope`, the two tests start their
+predating holder through `systemd-run --user --scope --unit j19-holder-<uuid>`, a fresh user
+scope outside any Dash job scope, which is what "outside Dash-owned work" means; elsewhere they
+spawn it plainly as before. Only when nested and the existing `systemd-run --user --scope` probe
+fails do they skip, with a reason naming the cgroup. The two login-session siblings keep their
+skip; production code is unchanged.
+
+| Command                                                                                                                 | Result                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `bun test … src/resources/resource-holds.test.ts` (project test command's preloads, plain, from the Dash CLI directory) | 14 pass, 0 skip, 0 fail                                                      |
+| the same with `-t J19` inside `systemd-run --user --scope --unit=dash-job-<uuid>.scope`                                 | 11 pass, 3 skip (the three login-session tests), 0 fail                      |
+| `bunx eslint` on the test file                                                                                          | exit 0 (only Nx's no-cached-ProjectGraph warning)                            |
+| `bunx prettier --check` on the changed files                                                                            | all files use Prettier code style                                            |
+| `bunx openspec validate --all --json`                                                                                   | exit 0; 344 items, 344 passed, 0 failed                                      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`          | exit 0 (review debt listed only for two unrelated pre-existing indexes)      |
+| host gate, `gate` calibration                                                                                           | not run: no host touched; the next calibration runs the nested path for real |
+
+| Injected fault                                                                               | Observed                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the unmodified file (holder spawned plainly) inside a fake `dash-job-<uuid>.scope`           | 9 pass, 3 skip, 2 fail: init stderr `error: host pool /tmp/dash-host-pool-G182sJ/config.json not initialized: host pool unit …/gate-tree-0 is held: cannot inspect process PID 2866264 (python3) …`, and `Expected: "released" Received: "blocked"` |
+| a fake scope named `dash-job-.scope` (no id), unmodified file                                | 11 pass, 3 skip, 0 fail: the production rule needs a job id, so this was no reproduction; the uuid-named scope above is                                                                                                                             |
+| a `systemd-run` shim on `PATH` that exits 1 like a missing user bus, inside a fake job scope | 5 pass, 9 skip, 0 fail: both tests skip with `this test runs in …/app.slice/dash-job-<uuid>.scope, a Dash job scope, and systemd-run --user --scope answered exit 1`                                                                                |
+| the same shim in the plain login-session run                                                 | 9 pass, 5 skip, 0 fail: both tests still run (the skip engages only when nested)                                                                                                                                                                    |
+
+- **S20-A1** The fake `dash-job-<uuid>.scope` started with `systemd-run --user --scope` on the
+  laptop stands in for the host gate's real scope: both sit under
+  `user@<uid>.service/app.slice/` and match the production `dash-job-<id>.scope` rule.
+- **S20-A2** Other Dash tests that read their own cgroup may hide similar nesting assumptions;
+  the h4claw run showed only these two.
+- **S20-A3** A `systemd-run` truly absent from `PATH` makes the module's probe throw
+  `Executable not found in $PATH` at load, failing the file loudly (pre-existing); the skip path
+  covers a present but unusable `systemd-run --user`, simulated by the shim.
+- **S20-A4** The nested match uses the brief's `/dash-job-[0-9a-f-]+\.scope$/`, narrower than
+  the production `dash-job-.+\.scope`; a non-hex job id would fail the two tests loudly, not
+  hide them.
