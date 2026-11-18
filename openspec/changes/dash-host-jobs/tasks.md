@@ -379,7 +379,7 @@
       stub `docker` on `PATH`); negative: with
       `declaredContainersOnly` restored in `sweep`, `Expected: "released" Received: "held"`.
 - [x] 6.16 Tmp removal accepts hard links that stay inside the directory (incident 2026-11-17/18,
-      h4claw, twice, PR #PRNUM): be-01 backup fixtures hardlink `wbs-backup-*/wbs.db` to its
+      h4claw, twice, PR #943): be-01 backup fixtures hardlink `wbs-backup-*/wbs.db` to its
       `.original` twin inside the gate's `$TMPDIR`, and the remover refused every `nlink>1` file,
       so every gate left its tmp entry `blocked` with its disk units charged. `removeDirectory`
       now surveys the tree first and refuses only an inode with a link outside it. Test:
