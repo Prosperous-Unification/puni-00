@@ -595,12 +595,17 @@ ten-run waste window and the ten-second CPU window are provisional (`HEURISTICS`
 `src/ops/measures.ts`, labelled in [`infra/jobs/README.md`](../../../../../infra/jobs/README.md)).
 
 ```sh
-bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job calibrate --config /path/to/host-pool.json \
-  --type gate -- bin/h2puni-gate.sh <sha>
+cd ~/puni-00-gate-launcher
+bin/h2puni-gate.sh --calibrate <sha>
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job propose --config /path/to/host-pool.json --type gate
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --config /path/to/host-pool.json [--now <instant>]
 ```
 
+- **Gate calibration** starts from the dedicated launcher outside a Dash job. The outer
+  launcher resolves the SHA and prepares any configured external wiki verifier, then Dash
+  admits the fixed gate payload once. Use the same catalogue path, argument profile, host
+  class and Bun revision for comparable records. The ordinary SHA gate has its own terminal
+  qualification after calibration and catalogue review.
 - **`ops job calibrate`** takes the flags of `ops job run` (`--wait-seconds` defaults to 7200,
   `--label` to `calibration`). Its ticket is admitted only once the pool has drained: nothing
   reserved in any dimension, no starting or held host job, free space for the whole disk

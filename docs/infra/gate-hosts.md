@@ -307,8 +307,10 @@ init` refuses a unit any same-user process has as cwd, and orphaned test fixture
    (on h4claw the journal is unreadable over ssh, as in step 5). It shows only the latest
    invocation, so a 70 followed by a 75 reads as 75. A running or waiting gate from the
    launcher works in the checkout, so 75 is the expected outcome while gates run.
-7. **Calibrate and propose (6.4).** Run `ops job calibrate` cold and warm for each type, then
-   `ops job propose`, and land the catalogue PRs. Budgets and headroom are pinned at step 5: once
+7. **Calibrate and propose (6.4).** For `gate`, run `bin/h2puni-gate.sh --calibrate <sha>`
+   cold and warm from `~/puni-00-gate-launcher` outside any Dash job. Use the supported
+   calibration entrypoint for each other type, then run `ops job propose` and land the
+   catalogue PRs. Budgets and headroom are pinned at step 5: once
    the pool is initialized, a changed `nproc`, MemTotal GiB, headroom, unit list, enrollment id or
    disk input stops the role before it rewrites the configuration ("pinned field differs from
    the ledger"). Choose headroom before init; changing it later needs re-enrollment, which with
