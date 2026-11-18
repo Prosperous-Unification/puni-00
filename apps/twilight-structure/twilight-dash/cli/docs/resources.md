@@ -520,7 +520,8 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     `DASH_JOB_TYPE`, `DASH_JOB_UNIT_<ID>` per exclusive unit (the id upper-cased) and
     `HEAVY_LOCK_LABEL` set to `--label`. `$TMPDIR` holds `.dash-tmp-identity`, the marker that
     proves the directory is the one prepared; a payload that deletes or rewrites it leaves its
-    tmp entry `blocked` for an operator (fail-closed, task 2.4);
+    tmp entry `blocked` for an operator (fail-closed, task 2.4). Hard links whose every link lies
+    inside the directory are removed with it; a file with a link outside it still blocks (6.16);
   - sampled every ten seconds and at exit: the counters, the tmp directory's allocated bytes
     (no link followed) and, for a containers bound, the labelled containers' `docker stats`.
     The gated shell keeps the scope alive until the exit sample is stored, so even `true` gets
@@ -607,12 +608,17 @@ ten-run waste window and the ten-second CPU window are provisional (`HEURISTICS`
 `src/ops/measures.ts`, labelled in [`infra/jobs/README.md`](../../../../../infra/jobs/README.md)).
 
 ```sh
-bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job calibrate --config /path/to/host-pool.json \
-  --type gate -- bin/h2puni-gate.sh <sha>
+cd ~/puni-00-gate-launcher
+bin/h2puni-gate.sh --calibrate <sha>
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job propose --config /path/to/host-pool.json --type gate
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --config /path/to/host-pool.json [--now <instant>]
 ```
 
+- **Gate calibration** starts from the dedicated launcher outside a Dash job. The outer
+  launcher resolves the SHA and prepares any configured external wiki verifier, then Dash
+  admits the fixed gate payload once. Use the same catalogue path, argument profile, host
+  class and Bun revision for comparable records. The ordinary SHA gate has its own terminal
+  qualification after calibration and catalogue review.
 - **`ops job calibrate`** takes the flags of `ops job run` (`--wait-seconds` defaults to 7200,
   `--label` to `calibration`). Its ticket is admitted only once the pool has drained: nothing
   reserved in any dimension, no starting or held host job, free space for the whole disk

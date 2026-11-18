@@ -3766,3 +3766,56 @@ R5 negatives, each restored after it was watched failing:
 - **S14-A6** Not proven on a real user manager. The namespace harness cannot reach one, and no
   gate host was touched (a calibration is running on h4claw). The real `systemctl` call shape
   matches the 2026-11-17 manual end of job 22ce2369.
+
+## 2026-11-18 tmp removal accepts hard links inside the directory (task 6.16)
+
+Branch `ops/tmp-remover-in-tree-hardlinks-20261118` from `main` 23f7c5182; laptop, `CLAUDECODE`
+and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched. Seen twice on h4claw (2026-11-17/18): a
+gate's `$TMPDIR` held be-01 backup fixtures hardlinked to each other inside it
+(`wbs-backup-*/wbs.db` and `wbs-backup-*.original/wbs.db`, `publication/.copy.db.partial` and
+its `.original` twin, nlink 2). `removeDirectory` refused every non-symlink with `st_nlink>1`,
+so the tmp entry stayed `blocked` (`tmp directory cleanup failed: descriptor-relative removal
+refused`) and the job kept its disk units until an operator deleted the directory. The script
+now surveys the tree first, under the same descriptor-relative, same-device, no-follow and
+identity rules, counting the in-tree paths of each multiply-linked inode; it refuses before any
+removal when an inode has more links than paths inside the tree. The erase pass refuses a file
+whose link count differs from the survey's count minus the links already removed. All four
+call sites (host-job tmp removal, managed cleanup, disposable outputs and the `inspect`
+preflight) share the script.
+
+| Command                                                                                                                      | Result                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `bun test src/resources/host-jobs.test.ts -t 'hardlink\|failed cleanup\|blocked tmp directory'` in `unshare`, before the fix | 3 pass, 1 fail: the in-tree test saw `blocked`, `descriptor-relative removal refused` (the h4claw defect) |
+| the same after the fix                                                                                                       | 4 pass, 0 fail                                                                                            |
+| `bun test src/resources/host-jobs.test.ts` in `unshare` (`DASH_RESOURCE_TEST_NAMESPACE=1`)                                   | 45 pass, 0 fail                                                                                           |
+| `bun test src/resources/runtime.test.ts` (self-wrapping namespace)                                                           | 1 pass (the namespace integration), 0 fail                                                                |
+| `bun test src/resources`                                                                                                     | 58 pass, 0 fail across 11 files                                                                           |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                        | `Successfully ran target typecheck`                                                                       |
+| `bunx eslint` on `runtime.ts` and `host-jobs.test.ts`                                                                        | exit 0                                                                                                    |
+
+| Injected fault                                                        | Observed                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the erase pass refuses every `nlink>1` file again (single-pass guard) | `hardlinks whose every link lies inside the tmp directory are removed` fails: `blocked`, `descriptor-relative removal refused`                                                                                                        |
+| the survey's outside-link refusal line removed                        | `an in-tree hardlink pair with a third link outside stays blocked and untouched`, `a failed cleanup leaves the tmp reservation charged`, `a blocked tmp directory adds no outbox rows` and both `runtime.test.ts` hardlink tests fail |
+
+- **S16-A1** A hard link is in-tree when the survey reaches it through the directory itself;
+  a link elsewhere, including in another job's directory, counts as outside and blocks, as before.
+- **S16-A2** The erase pass's count re-check guards a link added between the two passes. No
+  test injects that race; it is a narrowing of the old guard, which refused every such file.
+  It does not cover a swap: an in-tree link removed and an outside link added in the window
+  leave nlink unchanged, so erase unlinks the remaining in-tree path and the units release while
+  the bytes survive outside. That needs an actor racing the sweep with write access to the tmp
+  directory on the same filesystem, so it is an accounting-only exposure, recorded and untested.
+- **S16-A3** A refusal now comes before any removal, so a blocked directory keeps its in-tree
+  files (the outside test asserts the in-tree twin survives); before, removal stopped part way.
+- **S16-A4** Live tmp entries already `blocked` on h4claw stay so until an operator removes them
+  or the sweep retries with the launcher checkout carrying this change.
+- **S16-A5** (pre-existing, review S3-2) The "mount boundary" check compares `st_dev`, so a
+  same-device bind mount inside the tree is not a boundary; comparing mount ids (statx
+  `STATX_MNT_ID` or mountinfo) is the follow-up.
+- **S16-A6** (review observation, out of scope) Bun's hardlink install backend links
+  `node_modules` files to `~/.bun/install/cache`, so a gate test that runs `bun install` inside
+  `$TMPDIR` would still leave outside links and a `blocked` entry.
+- **S16-A7** (review S3-3) The survey refuses when an inode's link count differs from its in-tree
+  paths in either direction, so more in-tree paths than links (only reachable through a
+  duplicated traversal, S16-A5) is refused too.
