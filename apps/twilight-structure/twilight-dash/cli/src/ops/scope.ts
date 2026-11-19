@@ -118,6 +118,67 @@ export function scopeUnitOf(jobId: string): string {
 }
 
 /**
+ * The pids still in host job `jobId`'s own scope (task 6.24): `cgroup.procs` of that cgroup
+ * alone, which the kernel lists without the processes of any nested cgroup, so a `j19-holder-*`
+ * scope or any other nested group is never enumerated; empty once the scope emptied or was
+ * collected.
+ * @throws Error when `cgroup` is not `…/dash-job-<jobId>.scope` (a parent slice, another job's
+ * scope), or when its members are unreadable.
+ */
+export function leftoverMembers(
+  telemetry: ScopeTelemetry,
+  cgroup: string,
+  jobId: string,
+): number[] {
+  // Proof: without this refusal `a parent slice or another job's scope is never enumerated`
+  // (scope.test.ts) listed the slice's pid 7 (2026-11-19, task 6.24).
+  if (!cgroup.endsWith(`/${scopeUnitOf(jobId)}.scope`))
+    throw new Error(`${cgroup} is not the scope of host job ${jobId}`);
+  return telemetry.members(cgroup);
+}
+
+/** How much of a leftover's command line a run record keeps. */
+export const LEFTOVER_CMDLINE_LIMIT = 120;
+
+/** One process left in a job's scope after its session ended, as the run record keeps it. */
+export interface LeftoverProcess {
+  pid: number;
+  /** `/proc/<pid>/comm`. */
+  comm: string;
+  /** `/proc/<pid>/cmdline`, arguments joined by spaces, at most {@link LEFTOVER_CMDLINE_LIMIT}. */
+  cmdline: string;
+}
+
+/**
+ * `pid`'s comm and command line, or null once it is gone: a leftover that exits while it is
+ * described has ended on its own and is only counted. A file unreadable for another reason reads
+ * `?` and an empty command line: evidence text only, the pid is the record and changes no decision.
+ */
+export function describeLeftover(pid: number, proc = '/proc'): LeftoverProcess | null {
+  const read = (name: string): string | null => {
+    try {
+      return readFileSync(join(proc, String(pid), name), 'utf8');
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return null;
+      // Evidence text only, as the runtime's `commOf` reads it.
+      return '?';
+    }
+  };
+  const comm = read('comm');
+  const cmdline = read('cmdline');
+  if (comm === null || cmdline === null) return null;
+  return {
+    pid,
+    comm: comm.trim(),
+    cmdline: (cmdline === '?' ? '' : cmdline)
+      .split('\0')
+      .filter((word) => word !== '')
+      .join(' ')
+      .slice(0, LEFTOVER_CMDLINE_LIMIT),
+  };
+}
+
+/**
  * `systemd-run`'s arguments for a host job's scope (J7): a user scope named after the use,
  * collected even when it fails, `MemoryHigh` at the envelope and `MemoryMax` too for `cap`;
  * a calibration run sets neither, so its peak is the job's own (J9).

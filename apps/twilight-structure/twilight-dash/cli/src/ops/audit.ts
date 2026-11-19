@@ -8,7 +8,7 @@ import {
   nearestRankP95,
   tmpLowerBoundOf,
 } from './measures';
-import { type HostServiceBound, isAttributed, type RunRecord } from './run-records';
+import { type HostServiceBound, isAttributed, leftoverNote, type RunRecord } from './run-records';
 
 /** The envelope drifts `ops job audit` names (J9, J16), most urgent first. */
 export type DriftKind =
@@ -104,7 +104,8 @@ function hostServicesOf(record: RunRecord): string | null {
  * their declared bounds (task 6.22); they are attributed, not drift. A run whose tmp samples saw
  * unreadable subtrees gets one note listing those paths (task 6.23): its tmp peak is a lower
  * bound, which still proves an overrun but never waste. An entry whose calibrated provenance
- * marks `tmpDiskGibLowerBound` is never judged for tmp waste, and a note says so.
+ * marks `tmpDiskGibLowerBound` is never judged for tmp waste, and a note says so. A run whose
+ * scope still held processes after its session ended gets a note saying what ended them (task 6.24).
  */
 export function auditDrift(
   records: readonly RunRecord[],
@@ -131,6 +132,10 @@ export function auditDrift(
     }
     const services = hostServicesOf(record);
     if (services !== null) notes.push(services);
+    const leftovers = leftoverNote(record);
+    // Proof: dropping this note made `a run whose leftovers were ended gets one note naming them`
+    // (audit.test.ts) find no note (2026-11-19, task 6.24).
+    if (leftovers !== null) notes.push(leftovers);
     const lowerBound = tmpLowerBoundOf(record);
     // Proof: dropping this note made `a run with unreadable tmp subtrees gets one note listing
     // them` (audit.test.ts) find no note (2026-11-19, task 6.23).

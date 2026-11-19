@@ -4414,3 +4414,92 @@ Review fixes after the Fable review of #953 (S2-1, S3-2, S3-3), same laptop and 
 | the contract typing the marker `boolean`                            | `marks a calibrated tmp p95 as a lower bound with true alone` (job-catalogue.test.ts) accepted `false`                                  |
 | `propose` printing `excluded` for a record it used as a lower bound | the three-record lower-bound test failed                                                                                                |
 | one `lower bound only` wording for a mixed pool                     | `two measured records and one lower bound make a mixed lower bound` failed                                                              |
+
+## 2026-11-19 leftover scope processes held tmp after every gate (task 6.24)
+
+Branch `ops/dash-end-leftover-scope-processes-20261119` from `main` 6ac84e95d (carries #953);
+laptop, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the
+evidence below was gathered on h4claw and h2puni by the coordinator before it).
+
+- On every gate calibration on h4claw and h2puni the payload `bin/h2puni-gate-payload.sh <sha>`
+  exited 0 and left orphan test servers, `/bin/sh -c node serve.cjs` and `node serve.cjs`,
+  started by the frontend and website tests, alive in the job's own `dash-job-<id>.scope` after
+  the leader exited.
+- Dash then logged `ops job: <id> compute released: owned process group terminal and declared
+containers gone` and `tmp blocked: tmp directory unverified: live file hold remains charged;
+watch settles it`; the units and the shell lock were released and the record was complete,
+  but the tmp directory stayed charged.
+- The next calibration, or a peer's gate, then waited for admission and refused 75 after its
+  30-minute budget unless an operator ran `systemctl --user kill --signal=SIGKILL
+dash-job-<id>.scope`: done at 17:29Z on 2026-11-19 for job 29b8b406 on h4claw, and on
+  2026-11-18/19 for e15a97eb, 6ff558aa and 1d38876d.
+
+`endLeftovers` (`ops/job-run.ts`) runs after the leader's exit and before the exit is recorded
+and the job settled. Unless the job was ended at its runtime bound it first asks
+`ResourceRuntime.hostJobSessionEnded` (read-only, the compute evidence's own session
+inspection) and touches nothing while a member of the payload's session lives. It reads the
+scope's members through `leftoverMembers` (`ops/scope.ts`), which refuses any cgroup that is not
+`…/dash-job-<id>.scope` and reads that cgroup's `cgroup.procs` alone, so nested cgroups such as
+`j19-holder-*` scopes are never listed. It describes up to eight (`describeLeftover`: pid, comm,
+command line truncated to 120), sends `systemctl --user kill --signal=SIGTERM <scope>`, polls the
+members every 100 ms for 10 s, sends SIGKILL, and polls for 20 s more (`LEFTOVER_BUDGET`). The
+run record's outcome gains `leftoverProcesses: { count, examples, endedWith }` (`none`,
+`SIGTERM`, `SIGKILL`, `timeout`); the outcome column is JSON, so `user_version` stays 1 and an
+older outcome loads without the field. `leftoverNote` (`ops/run-records.ts`) gives
+`ops job audit` a note per run that left any, and `ops job status` the same note under an
+unreleased job's line. At the runtime bound (task 6.14) the old `killLeftovers` is absorbed:
+SIGKILL at once, then the same wait and record. The fake `systemctl` of `ops.test.fixture.ts`
+now answers `--signal=SIGTERM` too.
+
+| Command                                                                                                                                                                                                     | Result                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scope.test.ts`, `run-records.test.ts`, `audit.test.ts`, `status.test.ts`                                                                                                                                   | 38 pass, 0 fail outside; `status.test.ts` inside its namespace 7 pass, 0 fail                                                                                                                                                 |
+| `job-run.test.ts` with the project's preloads, inside its `unshare` namespace (`DASH_OPS_TEST_NAMESPACE=1`)                                                                                                 | exit 0; inside 45 pass, 17 skip (real seam: no systemd user bus; container tests: no `busybox:1.37.0-musl` image), 0 fail; the four new task 6.24 tests pass over the fake seam, the real-seam leftover test skipped (S24-A3) |
+| `scope`, `run-records`, `audit`, `status`, `measures`, `propose`, `calibrate`, `job-run`, `host-pool-mode`, `launchers`, `leaving-holds`, `host-job-holds` test files together, with the project's preloads | exit 0; outer 68 pass, 0 fail; inside: `calibrate` 18 pass 1 skip, `job-run` 45 pass 17 skip, `host-pool-mode` 45 pass, `status` 7 pass, `launchers` 41 pass, all 0 fail                                                      |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                                                                       | exit 0                                                                                                                                                                                                                        |
+| `bunx eslint` on the 14 changed TypeScript files                                                                                                                                                            | exit 0                                                                                                                                                                                                                        |
+| `bunx prettier --check` on the changed files                                                                                                                                                                | all files use Prettier code style                                                                                                                                                                                             |
+| `bunx openspec validate --all --json`                                                                                                                                                                       | exit 0; 346 items, 346 passed, 0 failed                                                                                                                                                                                       |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                                                              | exit 0                                                                                                                                                                                                                        |
+| a `gate` calibration on h4claw or h2puni with this change                                                                                                                                                   | not run: no host touched; follows the merge and a launcher refresh (S24-A3)                                                                                                                                                   |
+
+| Injected fault                                                                         | Observed                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| the graceful `endLeftovers` call dropped from `runAdmitted` (only the bound path kept) | `a leftover in the scope is ended before tmp settlement (task 6.24)` saw `tmp blocked: tmp directory unverified: live file hold remains charged; watch settles it` and the scope's members `[362]` against `[]`; the three other leftover tests failed on an absent `leftoverProcesses` or report line |
+| no SIGKILL after the grace (graceful path)                                             | `a leftover that ignores SIGTERM is SIGKILLed after the grace, recorded` recorded `endedWith: timeout` against `SIGKILL`                                                                                                                                                                               |
+| no SIGKILL on the bound path                                                           | `a setsid'd descendant outlives a payload that honours SIGTERM, not the bound` found the descendant alive, `members` `[1797]` against `[]`                                                                                                                                                             |
+| the session check skipped                                                              | `a member of the payload's own session is never ended as a leftover` found `survived` absent: the background child was ended                                                                                                                                                                           |
+| `leftoverMembers` without its scope-name refusal                                       | `a parent slice or another job's scope is never enumerated` received `[7]`, the slice's pid, and no throw                                                                                                                                                                                              |
+| `linuxScopeTelemetry().members` reading every nested `cgroup.procs`                    | `nested j19-holder scopes are not enumerated` received `[11, 12, 99]`                                                                                                                                                                                                                                  |
+| the audit's leftover note removed                                                      | `a run whose leftovers were ended gets one note naming them` found no note                                                                                                                                                                                                                             |
+| the status note line removed                                                           | `a job whose leftovers survived SIGKILL says so under its line` found `waiting none` where the note was expected                                                                                                                                                                                       |
+| `leftoverProcesses` required in the stored outcome shape                               | `an outcome recorded before task 6.24 loads with no leftovers` threw `leftoverProcesses must be an object (was missing)` in `recordOf`                                                                                                                                                                 |
+
+Alternatives considered: keeping the manual `systemctl --user kill` step, which blocked every
+calibration series until an operator noticed; making every test stop the servers it starts,
+unenforceable across hundreds of tests and silent when one forgets; signalling the recorded
+pids one by one instead of the unit, racy against pid reuse where the cgroup kill is not; and
+releasing tmp despite the live hold, which J2' forbids.
+
+- **S24-A1** A-SCOPE-LEFTOVER-1, processes still in a job's scope after its session ended
+  belong to the job and are ended before tmp settlement, is assumed and awaits Dany's
+  confirmation; no ADR, the amendment is under J2' in design.md.
+- **S24-A2** The grace is 10 s after SIGTERM, `docker stop`'s default, and the
+  scope gets 20 s after SIGKILL to empty, which only a process in uninterruptible sleep exceeds;
+  both are `LEFTOVER_BUDGET` in `ops/job-run.ts` and overridable per call
+  (`JobRunDependencies.leftoverBudget`, used by the tests). A survivor is recorded as `timeout`
+  in `leftoverProcesses` and reported; it is not added to `telemetryFailure`, because the
+  run's measurements are unaffected, and the tmp entry stays `blocked`. A start time per
+  leftover (`startedAt`) is not recorded: it would need `CLK_TCK` and the boot time, and the
+  command line already names the culprit.
+- **S24-A3** The laptop has no systemd user bus (`systemd-run --user --scope answered exit 1:
+Failed to connect to bus: No data available`), so the real-seam run of `a leftover in the
+scope is ended before tmp settlement (task 6.24)` skipped here and only the fake seam (fake
+  `systemd-run`, fake cgroup tree, fake `systemctl`) ran. The host proof is the next gate
+  calibration on h4claw or h2puni after the merge and a launcher refresh: its run record should
+  carry `leftoverProcesses` naming `node serve.cjs` and its tmp entry should release.
+- **S24-A4** The step runs only after the leader's session has ended. A payload that leaves a
+  plain background child in its own session (not `setsid`'d) still keeps compute held until that
+  child ends, and anything that child leaves in the scope is not ended by the launcher, since the
+  launcher has moved on to settlement and `watch` does not end processes. The observed servers
+  had left the session, so this case is not the incident.

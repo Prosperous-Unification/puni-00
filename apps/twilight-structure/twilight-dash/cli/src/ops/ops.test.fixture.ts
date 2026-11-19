@@ -195,12 +195,12 @@ export function fakeSystemdRun(directory: string, behaviour: FakeSystemdRun): st
 }
 
 /**
- * How a fake `systemctl` treats the runtime bound's calls (task 6.14): `kills` accepts
- * `--user set-property --runtime <scope> MemoryHigh=infinity` and answers
- * `--user kill --signal=SIGKILL dash-job-<id>.scope` as a cgroup-wide kill would, SIGKILLing
- * every process carrying `DASH_JOB_ID=<id>`, the fake scope's members
- * ({@link fakeScopeTelemetry}); `fails` prints a diagnostic and exits 1 for every call. Any
- * other argument list exits 2, a scope named without `.scope` included.
+ * How a fake `systemctl` treats the runtime bound's calls (task 6.14) and the leftover ending's
+ * (task 6.24): `kills` accepts `--user set-property --runtime <scope> MemoryHigh=infinity` and
+ * answers `--user kill --signal=SIGKILL|SIGTERM dash-job-<id>.scope` as a cgroup-wide kill
+ * would, sending that signal to every process carrying `DASH_JOB_ID=<id>`, the fake scope's
+ * members ({@link fakeScopeTelemetry}); `fails` prints a diagnostic and exits 1 for every call.
+ * Any other argument list exits 2, a scope named without `.scope` included.
  */
 export type FakeSystemctl = 'kills' | 'fails';
 
@@ -214,7 +214,8 @@ export function fakeSystemctl(directory: string, behaviour: FakeSystemctl): stri
     kills: [
       'case "$*" in',
       '  "--user set-property --runtime dash-job-"*".scope MemoryHigh=infinity") exit 0 ;;',
-      '  "--user kill --signal=SIGKILL dash-job-"*".scope") ;;',
+      '  "--user kill --signal=SIGKILL dash-job-"*".scope") signal=KILL ;;',
+      '  "--user kill --signal=SIGTERM dash-job-"*".scope") signal=TERM ;;',
       '  *) exit 2 ;;',
       'esac',
       'id=${4#dash-job-}',
@@ -222,7 +223,7 @@ export function fakeSystemctl(directory: string, behaviour: FakeSystemctl): stri
       'for environ in /proc/[0-9]*/environ; do',
       '  if tr "\\0" "\\n" 2>/dev/null < "$environ" | grep -qx "DASH_JOB_ID=$id"; then',
       '    pid=${environ#/proc/}',
-      '    kill -KILL "${pid%/environ}" 2>/dev/null || :',
+      '    kill -"$signal" "${pid%/environ}" 2>/dev/null || :',
       '  fi',
       'done',
     ],

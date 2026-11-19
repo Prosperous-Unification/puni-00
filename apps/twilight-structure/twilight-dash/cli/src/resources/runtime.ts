@@ -3242,6 +3242,18 @@ export class ResourceRuntime {
       alive(job.process);
     return { state: job.state, running };
   }
+  /**
+   * Whether host job `id`'s launched session has ended: its leader and every member the compute
+   * evidence would count ({@link computeEvidence}) gone. What `ops job run` asks before it ends
+   * the processes left in the job's scope (task 6.24): a member of the session is still the
+   * payload's own work, never a leftover. Reads only: no settlement, no lock, nothing saved.
+   * @throws Error when the job was never launched, or when `/proc` cannot be inspected.
+   */
+  hostJobSessionEnded(id: string): boolean {
+    const job = this.inspectHostJob(id);
+    if (job.process === null) throw new Error(`host job ${id} was never launched`);
+    return !ownedProcessesAlive({ process: job.process, descendants: captureDescendants(job) });
+  }
   /** Every host job, released history included, oldest admission first. */
   listHostJobs(): HostJob[] {
     return this.db

@@ -5,7 +5,12 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
 
-import { type ContainerVerdict, HostJobRunRecords, type RunOutcome } from './run-records';
+import {
+  type ContainerVerdict,
+  HostJobRunRecords,
+  leftoverNote,
+  type RunOutcome,
+} from './run-records';
 
 /**
  * `dash-host-jobs` task 6.22, the run record's container verdict shape: a `host-service`
@@ -89,6 +94,57 @@ describe('run record container verdicts (task 6.22, A-ATTR-HOSTSVC-1)', () => {
     }).toThrow();
     expect(records.inspect('run-one')?.endedAt).toBeNull();
     records.close();
+  });
+  describe('leftover processes (task 6.24)', () => {
+    test('a run keeps the leftovers it ended', () => {
+      const records = begun();
+      const leftovers = {
+        count: 9,
+        examples: [{ pid: 42, comm: 'node', cmdline: 'node serve.cjs' }],
+        endedWith: 'SIGTERM' as const,
+      };
+      records.finish('run-one', { ...outcome([]), leftoverProcesses: leftovers });
+      const record = records.inspect('run-one');
+      expect(record?.leftoverProcesses).toEqual(leftovers);
+      if (record === null) throw new Error('no record');
+      expect(leftoverNote(record)).toBe(
+        'run run-one ended 9 leftover processes with SIGTERM (node serve.cjs ×1, 8 more undescribed)',
+      );
+      records.close();
+    });
+
+    test('an outcome recorded before task 6.24 loads with no leftovers', () => {
+      const records = begun();
+      const root = roots.at(-1);
+      if (root === undefined) throw new Error('no records root');
+      // The outcome as a launcher before task 6.24 stored it.
+      const db = new Database(HostJobRunRecords.pathOf(root));
+      db.query('UPDATE runs SET outcome=? WHERE job_id=?').run(
+        JSON.stringify(outcome([])),
+        'run-one',
+      );
+      db.close();
+      // Proof: requiring the field made `inspect` throw `leftoverProcesses must be an object
+      // (was missing)` on the stored row (2026-11-19, task 6.24).
+      const record = records.inspect('run-one');
+      expect(record).not.toHaveProperty('leftoverProcesses');
+      if (record === null) throw new Error('no record');
+      expect(leftoverNote(record)).toBeNull();
+      records.close();
+    });
+
+    test('an unknown ending is refused before it is written', () => {
+      const records = begun();
+      expect(() => {
+        records.finish('run-one', {
+          ...outcome([]),
+          // A corrupt caller's value, which the type forbids.
+          leftoverProcesses: { count: 1, examples: [], endedWith: 'SIGHUP' as 'none' },
+        });
+      }).toThrow();
+      expect(records.inspect('run-one')?.endedAt).toBeNull();
+      records.close();
+    });
   });
   describe('unreadable tmp subtrees (task 6.23)', () => {
     test('a sample keeps the unreadable paths it saw', () => {

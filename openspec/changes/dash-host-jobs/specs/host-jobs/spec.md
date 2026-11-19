@@ -516,3 +516,48 @@ whose provenance carries that marker, printing a note that says so.
 - **WHEN** a sample finds the job's tmp directory unreadable or absent
 - **THEN** the sample's failure names the tmp directory, and the run records a telemetry
   failure that leaves it out of every dimension
+
+### Requirement: Processes left in a job's scope are ended before tmp settlement
+
+Once a host job's leader has exited and its launched session has no live member, `ops job
+run` and `ops job calibrate` SHALL end every process still in the job's own scope
+`dash-job-<id>.scope` before settling the job: they SHALL enumerate only that scope's
+`cgroup.procs`, never a nested scope's (such as `j19-holder-*`), the parent slice's or another
+job's, SHALL record the count and up to eight of them (pid, comm, command line truncated to 120
+characters), SHALL send SIGTERM to the whole scope through `systemctl --user kill`, SIGKILL
+after a bounded grace, and SHALL then wait, bounded, until the scope has no member. The run
+record SHALL keep `leftoverProcesses` with `count`, `examples` and `endedWith` (`none`,
+`SIGTERM`, `SIGKILL` or `timeout`); a record written before this requirement SHALL load without
+it. `ops job status` and `ops job audit` SHALL print a note naming how many leftovers were
+ended, with which signal, and their command lines by count. A scope that still has members after
+the wait SHALL be recorded as `timeout` and reported, and the tmp directory SHALL stay charged;
+it SHALL NOT be reported as released. While a member of the payload's own session lives, the
+launcher SHALL NOT signal anything in the scope.
+
+#### Scenario: A leftover is ended before tmp settlement
+
+- **WHEN** a gate's payload exits 0 and leaves a `setsid`'d `node serve.cjs` with its working
+  directory under `TMPDIR` in the job's scope
+- **THEN** the launcher sends SIGTERM to the scope, the server exits, the run record keeps
+  `leftoverProcesses` `{ count: 1, endedWith: SIGTERM }` with its command line, the tmp entry is
+  released, and `ops job audit` notes `run <id> ended 1 leftover processes with SIGTERM (node
+serve.cjs ×1)`
+
+#### Scenario: A leftover survives the SIGKILL wait
+
+- **WHEN** a process in the job's scope is still a member after the SIGKILL wait
+- **THEN** the run record keeps `endedWith: timeout`, the launcher reports that the scope still
+  has members, the tmp entry stays `blocked`, and `ops job status` prints the note under the
+  job's line
+
+#### Scenario: Nested holder scopes are untouched
+
+- **WHEN** the job's scope has a nested `j19-holder-<uuid>.scope` with its own processes
+- **THEN** the enumeration lists only the job scope's own `cgroup.procs`, and a cgroup that is
+  not the job's own scope (its parent slice, another job's scope) is refused
+
+#### Scenario: A member of the payload's session is the job's own work
+
+- **WHEN** the payload exits leaving a plain background child in its session
+- **THEN** nothing in the scope is signalled, the run record has no `leftoverProcesses`, and the
+  job settles once the child ends

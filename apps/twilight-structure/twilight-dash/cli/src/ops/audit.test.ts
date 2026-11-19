@@ -303,6 +303,31 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
       'not judged beyond throttling: 1 runs without an outcome: running',
     ]);
   });
+  test('a run whose leftovers were ended gets one note naming them (task 6.24)', () => {
+    const record: RunRecord = {
+      ...runRecord(atRun, { id: 'calibration-1', memoryGib: 5, cpuCores: 3, tmpGib: 5 }),
+      leftoverProcesses: {
+        count: 4,
+        examples: [
+          { pid: 41, comm: 'sh', cmdline: '/bin/sh -c node serve.cjs' },
+          { pid: 42, comm: 'node', cmdline: 'node serve.cjs' },
+          { pid: 43, comm: 'sh', cmdline: '/bin/sh -c node serve.cjs' },
+          { pid: 44, comm: 'node', cmdline: 'node serve.cjs' },
+        ],
+        endedWith: 'SIGKILL',
+      },
+    };
+    const quiet: RunRecord = {
+      ...runRecord(atRun, { id: 'run-2', memoryGib: 5, cpuCores: 3, tmpGib: 5 }),
+      leftoverProcesses: { count: 0, examples: [], endedWith: 'none' },
+    };
+    expect(auditDrift([record, quiet], atRun, NOW)).toEqual({
+      drifts: [],
+      notes: [
+        'run calibration-1 ended 4 leftover processes with SIGKILL (/bin/sh -c node serve.cjs ×2, node serve.cjs ×2)',
+      ],
+    });
+  });
   describe('tmp lower bounds (task 6.23, A-TMP-TELEMETRY-1)', () => {
     const PATH = 'wbs-shared-process-XYrBbJ/inaccessible';
 

@@ -516,6 +516,12 @@ daemon. Run it even when the payload ended on the SIGTERM: a forwarded signal re
 descendant outside the payload's process group. `ops job status` then shows the job settling
 once `watch` sweeps it.
 
+A job whose payload exited on its own but left processes in its scope (the gate's `node
+serve.cjs` test servers) needs no hand step: Dash ends leftovers since #PRNUM, and a surviving
+leftover is reported in the run record (`leftoverProcesses`, `endedWith: timeout`) and as a note
+in `ops job status` and `ops job audit`, with the tmp directory still `blocked`. Only then use the
+last step above.
+
 ## Capacity reports into WBS
 
 Each gate host is meant to report its memory, `/tmp` disk and agent slots to WBS as an `ssh_host`

@@ -5,7 +5,13 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 
-import { directoryUsage, UNREADABLE_PATH_LIMIT } from './scope';
+import {
+  describeLeftover,
+  directoryUsage,
+  leftoverMembers,
+  linuxScopeTelemetry,
+  UNREADABLE_PATH_LIMIT,
+} from './scope';
 
 /**
  * `dash-host-jobs` task 6.23, the tmp walk of every sample: a subtree the sampler may not read
@@ -111,5 +117,68 @@ describe('directoryUsage (task 6.23, A-TMP-TELEMETRY-1)', () => {
       readdir.mockRestore();
       lstat.mockRestore();
     }
+  });
+});
+
+/**
+ * `dash-host-jobs` task 6.24, which pids the leftover ending enumerates: the job scope's own
+ * `cgroup.procs`, never a nested scope's (a `j19-holder-*` scope the gate's own tests start),
+ * never a parent slice or another job's scope.
+ */
+describe('leftoverMembers (task 6.24, A-SCOPE-LEFTOVER-1)', () => {
+  const roots: string[] = [];
+  afterEach(() => {
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+  const id = '29b8b406-0000-4000-8000-000000000000';
+  const slice = '/user.slice/user-1001.slice/user@1001.service/app.slice';
+  const scope = `${slice}/dash-job-${id}.scope`;
+
+  /** A cgroup hierarchy: the slice holds pid 7, the job scope 11 and 12, its nested holder 99. */
+  function hierarchy(): string {
+    const root = mkdtempSync(join(tmpdir(), 'dash-leftover-cgroup-'));
+    roots.push(root);
+    const holder = join(root, scope, `j19-holder-${id}.scope`);
+    mkdirSync(holder, { recursive: true });
+    writeFileSync(join(root, slice, 'cgroup.procs'), '7\n');
+    writeFileSync(join(root, scope, 'cgroup.procs'), '11\n12\n');
+    writeFileSync(join(holder, 'cgroup.procs'), '99\n');
+    return root;
+  }
+
+  test('nested j19-holder scopes are not enumerated', () => {
+    // Proof: reading every nested `cgroup.procs` in `linuxScopeTelemetry().members` made this
+    // list `[11, 12, 99]` (2026-11-19, task 6.24).
+    expect(leftoverMembers(linuxScopeTelemetry(hierarchy()), scope, id)).toEqual([11, 12]);
+  });
+
+  test("a parent slice or another job's scope is never enumerated", () => {
+    const telemetry = linuxScopeTelemetry(hierarchy());
+    expect(() => leftoverMembers(telemetry, slice, id)).toThrow(
+      `${slice} is not the scope of host job ${id}`,
+    );
+    expect(() => leftoverMembers(telemetry, `${slice}/dash-job-other.scope`, id)).toThrow(
+      'is not the scope of host job',
+    );
+  });
+
+  test('a collected scope has no leftovers', () => {
+    const root = hierarchy();
+    rmSync(join(root, scope), { recursive: true });
+    expect(leftoverMembers(linuxScopeTelemetry(root), scope, id)).toEqual([]);
+  });
+
+  test('a leftover is described by comm and truncated command line; a gone one is null', () => {
+    const proc = mkdtempSync(join(tmpdir(), 'dash-leftover-proc-'));
+    roots.push(proc);
+    mkdirSync(join(proc, '42'));
+    writeFileSync(join(proc, '42', 'comm'), 'node\n');
+    writeFileSync(join(proc, '42', 'cmdline'), `node\0serve.cjs\0${'x'.repeat(200)}\0`);
+    expect(describeLeftover(42, proc)).toEqual({
+      pid: 42,
+      comm: 'node',
+      cmdline: `node serve.cjs ${'x'.repeat(200)}`.slice(0, 120),
+    });
+    expect(describeLeftover(43, proc)).toBeNull();
   });
 });
