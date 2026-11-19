@@ -289,6 +289,8 @@ export function fakeScopeTelemetry(root: string): ScopeTelemetry & {
       return cgroup;
     },
     read: (cgroup) => real.read(cgroup),
+    // A fake scope holds counter files only: no cgroup is ever nested below it.
+    children: () => [],
     members: (cgroup) => {
       const id = /\/dash-job-(.+)\.scope$/.exec(cgroup)?.[1];
       if (id === undefined) return [];

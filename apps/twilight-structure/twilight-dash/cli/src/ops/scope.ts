@@ -30,6 +30,8 @@ export interface ScopeTelemetry {
   read(cgroup: string): ScopeCounters;
   /** The scope's member pids; empty once the scope is gone or has emptied. */
   members(cgroup: string): number[];
+  /** The cgroup paths directly below `cgroup`; empty once it is gone. */
+  children(cgroup: string): string[];
 }
 
 function counterFile(directory: string, name: string): string {
@@ -109,6 +111,16 @@ export function linuxScopeTelemetry(root = '/sys/fs/cgroup'): ScopeTelemetry {
         .filter((line) => line.trim() !== '')
         .map(Number);
     },
+    children: (cgroup) => {
+      try {
+        return readdirSync(directoryOf(cgroup), { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => join(cgroup, entry.name));
+      } catch (cause) {
+        if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return [];
+        throw new Error(`cgroups below ${cgroup} unreadable: ${causeText(cause)}`, { cause });
+      }
+    },
   };
 }
 
@@ -117,24 +129,60 @@ export function scopeUnitOf(jobId: string): string {
   return `dash-job-${jobId}`;
 }
 
+/** Refuse any cgroup but host job `jobId`'s own scope: a parent slice, another job's scope. */
+function checkJobScope(cgroup: string, jobId: string): void {
+  // Proof: without this refusal `a parent slice or another job's scope is never enumerated`
+  // (scope.test.ts) listed the slice's pid 7 (2026-11-19, task 6.24).
+  if (!cgroup.endsWith(`/${scopeUnitOf(jobId)}.scope`))
+    throw new Error(`${cgroup} is not the scope of host job ${jobId}`);
+}
+
 /**
- * The pids still in host job `jobId`'s own scope (task 6.24): `cgroup.procs` of that cgroup
- * alone, which the kernel lists without the processes of any nested cgroup, so a `j19-holder-*`
- * scope or any other nested group is never enumerated; empty once the scope emptied or was
- * collected.
- * @throws Error when `cgroup` is not `…/dash-job-<jobId>.scope` (a parent slice, another job's
- * scope), or when its members are unreadable.
+ * The pids directly in host job `jobId`'s own scope (task 6.24), the ones its run record
+ * describes: `cgroup.procs` of that cgroup alone, which the kernel lists without the processes of
+ * any cgroup nested below it; empty once the scope emptied or was collected. A `j19-holder-*`
+ * scope the gate's tests start is a sibling under the slice, never below the job's scope
+ * (`systemd-run --scope` puts each transient unit under a slice); a cgroup a payload creates
+ * below its own scope is counted by {@link scopeSubtreeMembers} instead, never described.
+ * @throws Error when `cgroup` is not `…/dash-job-<jobId>.scope`, or when its members are
+ * unreadable.
  */
 export function leftoverMembers(
   telemetry: ScopeTelemetry,
   cgroup: string,
   jobId: string,
 ): number[] {
-  // Proof: without this refusal `a parent slice or another job's scope is never enumerated`
-  // (scope.test.ts) listed the slice's pid 7 (2026-11-19, task 6.24).
-  if (!cgroup.endsWith(`/${scopeUnitOf(jobId)}.scope`))
-    throw new Error(`${cgroup} is not the scope of host job ${jobId}`);
+  checkJobScope(cgroup, jobId);
   return telemetry.members(cgroup);
+}
+
+/** How many cgroups {@link scopeSubtreeMembers} reads before it refuses. */
+export const SCOPE_SUBTREE_LIMIT = 64;
+
+/**
+ * Every pid in host job `jobId`'s scope and in any cgroup nested below it: what
+ * `systemctl --user kill` reaches, since it signals the unit's whole subtree, so what the
+ * leftover ending must see gone before it calls the scope empty (task 6.24, review of #954 S3-2).
+ * @throws Error when `cgroup` is not the job's own scope, when any cgroup of the subtree is
+ * unreadable, or past {@link SCOPE_SUBTREE_LIMIT} cgroups.
+ */
+export function scopeSubtreeMembers(
+  telemetry: ScopeTelemetry,
+  cgroup: string,
+  jobId: string,
+): number[] {
+  checkJobScope(cgroup, jobId);
+  const pending = [cgroup];
+  const pids: number[] = [];
+  for (let read = 0; pending.length > 0; read++) {
+    if (read === SCOPE_SUBTREE_LIMIT)
+      throw new Error(`${cgroup} has more than ${String(SCOPE_SUBTREE_LIMIT)} cgroups`);
+    const next = pending.pop();
+    if (next === undefined) break;
+    pids.push(...telemetry.members(next));
+    pending.push(...telemetry.children(next));
+  }
+  return pids;
 }
 
 /** How much of a leftover's command line a run record keeps. */

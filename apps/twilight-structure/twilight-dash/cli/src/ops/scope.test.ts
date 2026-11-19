@@ -10,6 +10,8 @@ import {
   directoryUsage,
   leftoverMembers,
   linuxScopeTelemetry,
+  SCOPE_SUBTREE_LIMIT,
+  scopeSubtreeMembers,
   UNREADABLE_PATH_LIMIT,
 } from './scope';
 
@@ -121,9 +123,11 @@ describe('directoryUsage (task 6.23, A-TMP-TELEMETRY-1)', () => {
 });
 
 /**
- * `dash-host-jobs` task 6.24, which pids the leftover ending enumerates: the job scope's own
- * `cgroup.procs`, never a nested scope's (a `j19-holder-*` scope the gate's own tests start),
- * never a parent slice or another job's scope.
+ * `dash-host-jobs` task 6.24, which pids the leftover ending reads: the job scope's own
+ * `cgroup.procs` for the record's descriptions, the scope's whole subtree for its count and its
+ * wait (what `systemctl --user kill` reaches), never a parent slice or another job's scope. A
+ * `j19-holder-*` scope is a sibling under the slice in practice; the nested cgroup below is the
+ * defence case of a payload that made one below its own scope (review of #954 S3-2).
  */
 describe('leftoverMembers (task 6.24, A-SCOPE-LEFTOVER-1)', () => {
   const roots: string[] = [];
@@ -134,7 +138,7 @@ describe('leftoverMembers (task 6.24, A-SCOPE-LEFTOVER-1)', () => {
   const slice = '/user.slice/user-1001.slice/user@1001.service/app.slice';
   const scope = `${slice}/dash-job-${id}.scope`;
 
-  /** A cgroup hierarchy: the slice holds pid 7, the job scope 11 and 12, its nested holder 99. */
+  /** A cgroup hierarchy: the slice holds pid 7, the job scope 11 and 12, a cgroup nested below it 99. */
   function hierarchy(): string {
     const root = mkdtempSync(join(tmpdir(), 'dash-leftover-cgroup-'));
     roots.push(root);
@@ -146,10 +150,29 @@ describe('leftoverMembers (task 6.24, A-SCOPE-LEFTOVER-1)', () => {
     return root;
   }
 
-  test('nested j19-holder scopes are not enumerated', () => {
+  test('a cgroup nested below the job scope is never described', () => {
     // Proof: reading every nested `cgroup.procs` in `linuxScopeTelemetry().members` made this
     // list `[11, 12, 99]` (2026-11-19, task 6.24).
     expect(leftoverMembers(linuxScopeTelemetry(hierarchy()), scope, id)).toEqual([11, 12]);
+  });
+
+  test('a cgroup nested below the job scope is counted and awaited (review of #954 S3-2)', () => {
+    const root = hierarchy();
+    // Proof: walking only the scope itself in `scopeSubtreeMembers` made this list `[11, 12]`
+    // (2026-11-19, review of #954 S3-2).
+    expect(scopeSubtreeMembers(linuxScopeTelemetry(root), scope, id).sort()).toEqual([11, 12, 99]);
+    expect(() => scopeSubtreeMembers(linuxScopeTelemetry(root), slice, id)).toThrow(
+      `${slice} is not the scope of host job ${id}`,
+    );
+  });
+
+  test('a subtree past its cgroup bound is refused, not read in part', () => {
+    const root = hierarchy();
+    for (let index = 0; index < SCOPE_SUBTREE_LIMIT; index++)
+      mkdirSync(join(root, scope, `nested-${String(index)}`));
+    expect(() => scopeSubtreeMembers(linuxScopeTelemetry(root), scope, id)).toThrow(
+      `has more than ${String(SCOPE_SUBTREE_LIMIT)} cgroups`,
+    );
   });
 
   test("a parent slice or another job's scope is never enumerated", () => {

@@ -232,11 +232,16 @@ calibration or a peer's gate waited for admission until its 30-minute budget ref
 unless an operator ran `systemctl --user kill --signal=SIGKILL dash-job-<id>.scope` (29b8b406 on
 h4claw at 17:29Z, e15a97eb, 6ff558aa and 1d38876d before). Processes still in a job's scope
 once its leader has exited and its session has no live member belong to the job: `ops job run`
-ends them before settlement, SIGTERM to the scope, SIGKILL after 10 s, then waits up to 20 s for
-the scope to empty, and records them (`leftoverProcesses`). Only the scope's own
-`cgroup.procs` is read; a nested cgroup (a `j19-holder-*` scope) is not, and `systemctl --user
-kill` addresses the job's unit alone. A leftover that survives is recorded as `timeout`, the tmp
-directory staying charged as before. This absorbs the runtime bound's after-leader SIGKILL (task
+records the payload's end first (the record's `endedAt` and the ledger's exit, so the leftover
+ending never counts as the job's wall time), then ends them before settlement, SIGTERM to the
+scope, SIGKILL after 10 s, then waits up to 20 s for the scope to empty, and records them
+(`leftoverProcesses`). `systemctl --user kill` signals the unit's whole cgroup subtree, so the
+count and the wait read the subtree too; the record describes only the scope's own
+`cgroup.procs`, and any cgroup other than the job's own scope is refused. A `j19-holder-*` scope
+is not below the job's scope: `systemd-run --scope` puts every transient unit under a slice, so
+it is a sibling the unit kill cannot reach. A leftover that survives is recorded as `timeout`; a
+failed `systemctl` call as `signal-failed` with its diagnostic and no wait; members unreadable
+during a wait as `unverified`; each leaves the tmp directory charged as before. This absorbs the runtime bound's after-leader SIGKILL (task
 6.14), which keeps its immediate SIGKILL. Rejected: keeping the manual step, which blocked every
 calibration series; making every test stop its servers, unenforceable across hundreds of tests
 and silent when one forgets; and releasing tmp regardless of live holds, which J2' forbids.

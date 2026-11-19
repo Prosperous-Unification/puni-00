@@ -97,17 +97,26 @@ export interface RunStart {
 
 /**
  * What the launcher did with the processes left in the job's scope once its session had ended
- * (task 6.24, A-SCOPE-LEFTOVER-1): how many there were, at most
- * {@link LEFTOVER_EXAMPLE_LIMIT} of them described, and what ended them: `none` (there were none,
- * or they exited before any signal), `SIGTERM` within the grace, `SIGKILL` after it, or
- * `timeout` when the scope still had members after the SIGKILL wait, which leaves the tmp
- * directory charged.
+ * (task 6.24, A-SCOPE-LEFTOVER-1): how many there were (the scope's subtree), at most
+ * {@link LEFTOVER_EXAMPLE_LIMIT} of the scope's own described, and what ended them: `none` (there
+ * were none), `SIGTERM` within the grace, `SIGKILL` after it, or `timeout` when the scope still
+ * had members after the SIGKILL wait. Two outcomes carry their `failure` (review of #954 S3-1):
+ * `signal-failed` when `systemctl --user kill` failed, so no signal was delivered and nothing was
+ * waited for, and `unverified` when the scope's members became unreadable during the wait. Every
+ * outcome but `none`, `SIGTERM` and `SIGKILL` leaves the tmp directory charged.
  */
-export interface LeftoverProcesses {
-  count: number;
-  examples: LeftoverProcess[];
-  endedWith: 'none' | 'SIGTERM' | 'SIGKILL' | 'timeout';
-}
+export type LeftoverProcesses =
+  | {
+      count: number;
+      examples: LeftoverProcess[];
+      endedWith: 'none' | 'SIGTERM' | 'SIGKILL' | 'timeout';
+    }
+  | {
+      count: number;
+      examples: LeftoverProcess[];
+      endedWith: 'signal-failed' | 'unverified';
+      failure: string;
+    };
 
 /** How many leftovers a run record describes; the rest are only counted. */
 export const LEFTOVER_EXAMPLE_LIMIT = 8;
@@ -148,6 +157,10 @@ export interface RunRecord extends RunStart {
   peakMemoryBytes: number | null;
   /** The largest tmp sample, bytes: a lower bound, disk outside `TMPDIR` not covered (J7). */
   peakTmpBytes: number | null;
+  /**
+   * The payload's own wall time, gate to leader exit; the leftover ending after it (task 6.24)
+   * is excluded. Null before the outcome is recorded.
+   */
   wallMs: number | null;
   samples: RunSample[];
 }
@@ -201,6 +214,7 @@ const StartShape = type({
   units: type({ exclusiveId: 'string', path: 'string' }).array(),
   startedAt: 'number',
 });
+const Leftover = type({ pid: 'number.integer > 0', comm: 'string', cmdline: 'string' });
 const OutcomeShape = type({
   endedAt: 'number',
   exitCode: 'number',
@@ -210,11 +224,16 @@ const OutcomeShape = type({
   attributionIncomplete: 'boolean',
   'guardLost?': 'string > 0',
   'endedByLauncher?': 'string > 0',
-  'leftoverProcesses?': {
+  'leftoverProcesses?': type({
     count: 'number.integer >= 0',
-    examples: type({ pid: 'number.integer > 0', comm: 'string', cmdline: 'string' }).array(),
+    examples: Leftover.array(),
     endedWith: "'none'|'SIGTERM'|'SIGKILL'|'timeout'",
-  },
+  }).or({
+    count: 'number.integer >= 0',
+    examples: Leftover.array(),
+    endedWith: "'signal-failed'|'unverified'",
+    failure: 'string > 0',
+  }),
   containers: type({
     id: 'string',
     verdict: "'bounded'|'unlabelled'|'unbounded'|'unverified'",
@@ -464,11 +483,24 @@ export function leftoverNote(record: RunRecord): string | null {
     ...(undescribed > 0 ? [`${String(undescribed)} more undescribed`] : []),
   ].join(', ');
   const count = String(leftovers.count);
-  const ending = {
-    none: `found ${count} leftover processes that exited before any signal`,
-    SIGTERM: `ended ${count} leftover processes with SIGTERM`,
-    SIGKILL: `ended ${count} leftover processes with SIGKILL`,
-    timeout: `could not end ${count} leftover processes: its scope still had members after SIGKILL, so its tmp directory stays charged`,
-  }[leftovers.endedWith];
+  const charged = 'so its tmp directory stays charged';
+  let ending: string;
+  switch (leftovers.endedWith) {
+    case 'none':
+      return null;
+    case 'SIGTERM':
+    case 'SIGKILL':
+      ending = `ended ${count} leftover processes with ${leftovers.endedWith}`;
+      break;
+    case 'timeout':
+      ending = `could not end ${count} leftover processes: its scope still had members after SIGKILL, ${charged}`;
+      break;
+    case 'signal-failed':
+      ending = `could not signal ${count} leftover processes, no signal was delivered (${leftovers.failure}), ${charged}`;
+      break;
+    case 'unverified':
+      ending = `could not verify that ${count} leftover processes ended (${leftovers.failure}), ${charged}`;
+      break;
+  }
   return `run ${record.jobId} ${ending} (${names})`;
 }

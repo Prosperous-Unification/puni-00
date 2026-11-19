@@ -518,9 +518,11 @@ once `watch` sweeps it.
 
 A job whose payload exited on its own but left processes in its scope (the gate's `node
 serve.cjs` test servers) needs no hand step: Dash ends leftovers since #954, and a surviving
-leftover is reported in the run record (`leftoverProcesses`, `endedWith: timeout`) and as a note
-in `ops job status` and `ops job audit`, with the tmp directory still `blocked`. Only then use the
-last step above.
+leftover is reported in the run record (`leftoverProcesses`, `endedWith` `timeout`,
+`signal-failed` or `unverified`) and as a note in `ops job status` and `ops job audit`, with the
+tmp directory still `blocked`. Only then use the last step above. A calibration series already
+running keeps the launcher code it started with until it ends (on h4claw, runner h today), so
+until its runner is restarted after the launcher refresh its jobs still need the hand step.
 
 ## Capacity reports into WBS
 

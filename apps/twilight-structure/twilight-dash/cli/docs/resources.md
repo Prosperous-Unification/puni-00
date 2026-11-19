@@ -313,14 +313,18 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   Before it settles, `ops job run` ends what is left in the job's scope once the leader's
   session has ended (task 6.24, A-SCOPE-LEFTOVER-1): a server a test started and never stopped
   (`node serve.cjs` on every gate) would otherwise hold the tmp directory after the job is
-  otherwise released. It reads only the scope's own `cgroup.procs`, never a nested scope or the
-  parent slice, records each pid's comm and command line (at most eight, the rest counted), sends
+  otherwise released. The run's `endedAt` and the ledger's exit are taken at the leader's
+  exit first, so the step is never the job's wall time. It counts the scope's processes and those
+  of any cgroup below it (what the scope kill reaches), never the parent slice or another job's
+  scope, describes up to eight of the scope's own (comm and command line), sends
   `systemctl --user kill --signal=SIGTERM` to the scope, SIGKILL after 10 s, and waits up to
-  20 s for the scope to empty. The run record keeps
-  `leftoverProcesses: { count, examples, endedWith }`, `endedWith` one of `none`, `SIGTERM`,
-  `SIGKILL` or `timeout`, and `ops job status` and `ops job audit` print
-  `run <id> ended N leftover processes with SIGKILL (node serve.cjs ×N)`. A leftover that
-  survives the wait is recorded as `timeout` and the tmp directory stays `blocked`. While a member
+  20 s for it to empty. The run record keeps `leftoverProcesses: { count, examples, endedWith }`,
+  `endedWith` one of `none`, `SIGTERM`, `SIGKILL`, `timeout`, `signal-failed` (a `systemctl`
+  call failed: its diagnostic is kept and nothing is waited for) or `unverified` (the members
+  became unreadable), and `ops job status` and `ops job audit` print
+  `run <id> ended N leftover processes with SIGKILL (node serve.cjs ×N)`, or that no signal was
+  delivered. After `timeout`, `signal-failed` or `unverified` the tmp directory stays `blocked`.
+  While a member
   of the payload's own session lives, nothing is ended: it is still the job's work.
 - **Unreadable processes.** Hold inspection reads every same-account process's `cwd`,
   descriptors and maps. A process that changed credentials (`(sd-pam)`, `sshd-session`) is not

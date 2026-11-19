@@ -40,7 +40,9 @@ import {
   describeLeftover,
   directoryUsage,
   leftoverMembers,
+  type LeftoverProcess,
   scopeArguments,
+  scopeSubtreeMembers,
   type ScopeTelemetry,
   scopeUnitOf,
 } from './scope';
@@ -741,25 +743,34 @@ export const LEFTOVER_BUDGET: LeftoverBudget = { termGraceMs: 10_000, killWaitMs
 /** How often the leftover ending re-reads the scope's members. */
 const LEFTOVER_POLL_MS = 100;
 
+/** What a bounded wait for the job's scope to empty saw. */
+type ScopeWait = { kind: 'empty' } | { kind: 'members' } | { kind: 'unreadable'; failure: string };
+
 /**
- * Whether the job's scope has no member left within `budgetMs`. A members reading that fails is
- * reported and answers false: an unread scope is not shown empty.
+ * Wait up to `budgetMs` for the job's scope and every cgroup nested below it
+ * ({@link scopeSubtreeMembers}, what the scope kill reaches) to have no member. A reading that
+ * fails ends the wait as `unreadable`: an unread scope is never shown empty.
  */
-async function scopeEmptied(
+async function awaitEmptyScope(
   cgroup: string,
   jobId: string,
   budgetMs: number,
   deps: JobRunDependencies,
-): Promise<boolean> {
+): Promise<ScopeWait> {
   const deadline = deps.monotonic.now() + budgetMs;
   for (;;) {
     try {
-      if (leftoverMembers(deps.telemetry, cgroup, jobId).length === 0) return true;
+      // Proof: answering `empty` for an unreadable scope made `members that become unreadable
+      // during the wait are unverified, never ended` (job-run.test.ts) record `endedWith:
+      // SIGTERM` (2026-11-19, review of #954 S3-5).
+      if (scopeSubtreeMembers(deps.telemetry, cgroup, jobId).length === 0) return { kind: 'empty' };
     } catch (cause) {
-      deps.report(`ops job: ${jobId} members of ${cgroup} unreadable: ${causeText(cause)}`);
-      return false;
+      return {
+        kind: 'unreadable',
+        failure: `members of ${cgroup} unreadable: ${causeText(cause)}`,
+      };
     }
-    if (deps.monotonic.now() >= deadline) return false;
+    if (deps.monotonic.now() >= deadline) return { kind: 'members' };
     await Bun.sleep(LEFTOVER_POLL_MS);
   }
 }
@@ -769,14 +780,16 @@ async function scopeEmptied(
  * a server a test started and never stopped (`node serve.cjs` on every gate calibration) holds
  * the tmp directory, which then stays charged after the job is otherwise released. Only after
  * the leader's session ended ({@link ResourceRuntime.hostJobSessionEnded}): a member of the
- * session is the payload's own work, left to settlement. The scope's direct members
- * ({@link leftoverMembers}) are counted and up to {@link LEFTOVER_EXAMPLE_LIMIT} described,
- * then `systemctl --user kill --signal=SIGTERM` reaches every process of the scope, a SIGKILL
- * follows after `termGraceMs`, and the scope must empty within `killWaitMs`. `immediate` is the
- * runtime bound's ending (task 6.14): nothing of the job may outlive it, so the session is not
- * consulted and the SIGKILL comes at once. Undefined when the step did not run: the session
- * still had members, or the members or session were unreadable (reported, nothing signalled
- * unless `immediate`).
+ * session is the payload's own work, left to settlement. The scope's subtree is counted
+ * ({@link scopeSubtreeMembers}) and up to {@link LEFTOVER_EXAMPLE_LIMIT} of its own members
+ * ({@link leftoverMembers}) described; then `systemctl --user kill --signal=SIGTERM` reaches
+ * every process of the scope, a SIGKILL follows after `termGraceMs`, and the subtree must empty
+ * within `killWaitMs`. A `systemctl` call that fails ends the step at once as `signal-failed`
+ * with its diagnostic, nothing waited for; a reading that fails during a wait ends it as
+ * `unverified`. `immediate` is the runtime bound's ending (task 6.14): nothing of the job may
+ * outlive it, so the session is not consulted and the SIGKILL comes at once. Undefined when the
+ * step did not run: the session still had members, or the members or session were unreadable
+ * (reported, nothing signalled unless `immediate`).
  */
 async function endLeftovers(
   runtime: Pick<ResourceRuntime, 'hostJobSessionEnded'>,
@@ -808,9 +821,13 @@ async function endLeftovers(
       return undefined;
     }
   }
-  let members: number[];
+  let count: number;
+  let examples: LeftoverProcess[];
   try {
-    members = leftoverMembers(deps.telemetry, cgroup, jobId);
+    count = scopeSubtreeMembers(deps.telemetry, cgroup, jobId).length;
+    examples = leftoverMembers(deps.telemetry, cgroup, jobId)
+      .slice(0, LEFTOVER_EXAMPLE_LIMIT)
+      .flatMap((pid) => describeLeftover(pid) ?? []);
   } catch (cause) {
     if (!immediate) {
       deps.report(
@@ -826,26 +843,39 @@ async function endLeftovers(
       deps.report(`ops job: SIGKILL to what is left of ${scope} failed: ${unkilled}`);
     return undefined;
   }
-  if (members.length === 0) return { count: 0, examples: [], endedWith: 'none' };
-  const count = members.length;
-  const examples = members
-    .slice(0, LEFTOVER_EXAMPLE_LIMIT)
-    .flatMap((pid) => describeLeftover(pid) ?? []);
+  if (count === 0) return { count: 0, examples: [], endedWith: 'none' };
+  const unsignalled = (failure: string): LeftoverProcesses => {
+    deps.report(
+      `ops job: ${jobId} ${String(count)} leftover processes in ${scope} were not signalled: ${failure}; its tmp directory stays charged`,
+    );
+    return { count, examples, endedWith: 'signal-failed', failure };
+  };
+  const unverified = (failure: string): LeftoverProcesses => {
+    deps.report(
+      `ops job: ${jobId} leftovers in ${scope} unverified: ${failure}; its tmp directory stays charged`,
+    );
+    return { count, examples, endedWith: 'unverified', failure };
+  };
   if (!immediate) {
     deps.report(
       `ops job: ${jobId} ${String(count)} leftover processes in ${scope} after its session ended; SIGTERM`,
     );
+    // Proof: waiting out the grace after a failed SIGTERM made `a failed SIGTERM is recorded as
+    // signal-failed, nothing waited for` (job-run.test.ts) take the 2 s grace and record the
+    // SIGKILL's failure instead, and `a leftover that exits on its own after a failed SIGTERM is
+    // not labelled SIGTERM` record `SIGTERM` (2026-11-19, review of #954 S3-1).
     const unterminated = await systemctlFailure(deps.environment, [
       'kill',
       '--signal=SIGTERM',
       scope,
     ]);
-    if (unterminated !== null)
-      deps.report(
-        `ops job: SIGTERM to ${scope} failed: ${unterminated}; SIGKILL after the grace regardless`,
-      );
-    if (await scopeEmptied(cgroup, jobId, budget.termGraceMs, deps))
-      return { count, examples, endedWith: 'SIGTERM' };
+    if (unterminated !== null) return unsignalled(`SIGTERM: ${unterminated}`);
+    const termed = await awaitEmptyScope(cgroup, jobId, budget.termGraceMs, deps);
+    if (termed.kind === 'empty') return { count, examples, endedWith: 'SIGTERM' };
+    if (termed.kind === 'unreadable') return unverified(termed.failure);
+    // Proof: dropping this SIGKILL made `a leftover that ignores SIGTERM is SIGKILLed after the
+    // grace, recorded` (job-run.test.ts) record `endedWith: timeout` against `SIGKILL`
+    // (2026-11-19, task 6.24).
     deps.report(
       `ops job: ${jobId} leftovers in ${scope} outlived SIGTERM by ${String(budget.termGraceMs)} ms; SIGKILL`,
     );
@@ -857,10 +887,13 @@ async function endLeftovers(
   // `[90]` against `[]` (2026-11-18, review of #942 S2-1); skipping it on the bound path once it
   // moved here, `[1797]` (2026-11-19, task 6.24).
   const unkilled = await systemctlFailure(deps.environment, ['kill', '--signal=SIGKILL', scope]);
-  if (unkilled !== null)
+  if (unkilled !== null) {
     deps.report(`ops job: SIGKILL to what is left of ${scope} failed: ${unkilled}`);
-  if (await scopeEmptied(cgroup, jobId, budget.killWaitMs, deps))
-    return { count, examples, endedWith: 'SIGKILL' };
+    return unsignalled(`SIGKILL: ${unkilled}`);
+  }
+  const killed = await awaitEmptyScope(cgroup, jobId, budget.killWaitMs, deps);
+  if (killed.kind === 'empty') return { count, examples, endedWith: 'SIGKILL' };
+  if (killed.kind === 'unreadable') return unverified(killed.failure);
   deps.report(
     `ops job: ${jobId} ${scope} still has members ${String(budget.killWaitMs)} ms after SIGKILL; its tmp directory stays charged`,
   );
@@ -1123,18 +1156,9 @@ async function runAdmitted(
   // status, or with its own when it died before reporting one.
   launched.gate.end('done\n');
   const leaderStatus = await launched.leaderExit;
-  // What is left in the scope now is no longer the payload's: a server a test never stopped, or
-  // at the bound a `setsid`'d descendant of a payload that honoured SIGTERM, holding the tmp
-  // directory, cores, memory and its units. The gated shell is gone, so ending them takes nothing
-  // the exit sample needed; settlement below then sees the scope empty (task 6.24).
-  const leftoverProcesses = await endLeftovers(
-    runtime,
-    job.id,
-    unit,
-    cgroup,
-    endedByLauncher !== undefined,
-    deps,
-  );
+  // The run ends with its payload: the leftover ending below takes up to 30 s that are not the
+  // job's wall time, so neither the record's `endedAt` nor the ledger's exit waits for it.
+  const payloadEndedAt = deps.clock.read();
   const payloadStatus = payload.status ?? leaderStatus;
   const status = endedByLauncher === undefined ? payloadStatus : RUNTIME_EXCEEDED_EXIT_CODE;
   // A status above 128 is how a shell reports a signal; the record names the signal it implies.
@@ -1144,12 +1168,29 @@ async function runAdmitted(
   let ledgerFailure: string | null = null;
   // Proof: letting this throw made `a ledger write failure is recorded apart; the status is
   // still the payload's` (job-run.test.ts) reject instead of returning 4 (2026-11-01, Slice 3).
+  // Recording it after the leftover ending below put the ledger's exit 2034 ms after the
+  // leftover line in `a leftover's grace is not the job's wall time` (2026-11-19, #954 S2-1).
   try {
     runtime.recordHostJobExit(job.id, status);
   } catch (cause) {
     ledgerFailure = `exit unrecorded in the resource ledger: ${causeText(cause)}`;
     deps.report(`ops job: ${job.id} ${ledgerFailure}`);
   }
+  // What is left in the scope now is no longer the payload's: a server a test never stopped, or
+  // at the bound a `setsid`'d descendant of a payload that honoured SIGTERM, holding the tmp
+  // directory, cores, memory and its units. The gated shell is gone, so ending them takes nothing
+  // the exit sample needed; settlement below then sees the scope empty (task 6.24).
+  // Proof: dropping this call (keeping only the bound's) made `a leftover in the scope is ended
+  // before tmp settlement (task 6.24)` (job-run.test.ts) see `tmp blocked: tmp directory
+  // unverified: live file hold remains charged` and the scope's members `[362]` (2026-11-19).
+  const leftoverProcesses = await endLeftovers(
+    runtime,
+    job.id,
+    unit,
+    cgroup,
+    endedByLauncher !== undefined,
+    deps,
+  );
   const telemetryFailure = failures.length === 0 ? null : failures.join('; ');
   // A run during which the singleton guard's holder died had no guarantee against a stale
   // launcher beside it: its attribution is incomplete (review H5).
@@ -1182,7 +1223,10 @@ async function runAdmitted(
     );
   try {
     records.finish(job.id, {
-      endedAt: deps.clock.read(),
+      // Proof: reading the clock here, after the leftover ending, made `a leftover's grace is
+      // not the job's wall time (review of #954 S2-1)` (job-run.test.ts) record `wallMs` above
+      // the 2 s grace (2026-11-19).
+      endedAt: payloadEndedAt,
       exitCode: status,
       signal,
       telemetryFailure,
