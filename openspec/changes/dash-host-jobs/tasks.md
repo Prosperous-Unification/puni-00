@@ -417,7 +417,7 @@
       unmodified file under a fake `dash-job-<uuid>.scope` on the laptop failed both tests as on
       h4claw (verify.md, 2026-11-18).
 - [x] 6.21 gate hosts install docker-buildx; the solver smoke refuses the legacy builder inside a
-      job (PR #PENDING): without the buildx plugin, Ubuntu's `docker.io` 29.1.3 runs the smoke's
+      job (PR #951): without the buildx plugin, Ubuntu's `docker.io` 29.1.3 runs the smoke's
       `docker build` on the legacy builder, whose per-step intermediate containers carry no
       `puni.job` label, so `ops job propose` excluded every gate record as "container attribution
       incomplete" (h4claw job ef8e1ce6). The `gate_host` role installs `docker-buildx` pinned at
