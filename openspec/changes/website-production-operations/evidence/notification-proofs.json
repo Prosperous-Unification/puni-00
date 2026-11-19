@@ -1,0 +1,514 @@
+[
+  {
+    "fault": "capture",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "ac4d531033b815e09ac99d9bfd6ff82b68d1a54a5fa1f89ad598fde942c7fe19",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "proposal commit",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-capture.log",
+        "bytes": 877,
+        "sha256": "d630bedec4fee167d254efed271cad4eb9d56ae23b41e259f12339cf0cf21757"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-capture.log",
+        "bytes": 301,
+        "sha256": "00d65e81e9e91b30ab44596e3ec4f2016c22a61fb4cf34cfd0f54c2d5b6d5d58"
+      }
+    ]
+  },
+  {
+    "fault": "erase",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "ac4d531033b815e09ac99d9bfd6ff82b68d1a54a5fa1f89ad598fde942c7fe19",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "compatible predecessor",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-erase.log",
+        "bytes": 1288,
+        "sha256": "c1948200193830bb50047966e9b9ee02329a4e5c4102d6c67be0d02321d4d4b6"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-erase.log",
+        "bytes": 282,
+        "sha256": "07f5afbd0638516c89508e3994132fde236974cfb2bc06e3454aeacd7eb3b9bb"
+      }
+    ]
+  },
+  {
+    "fault": "backfill",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "ac4d531033b815e09ac99d9bfd6ff82b68d1a54a5fa1f89ad598fde942c7fe19",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "migration backfills",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-backfill.log",
+        "bytes": 1027,
+        "sha256": "a63fa86c4bda2c1232fd1e2d2583954d934199bb190d73b3b1e1c30c66cc3e10"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-backfill.log",
+        "bytes": 296,
+        "sha256": "c3e620b2578c5fdf78ab53668048e1dd9359695e15d1bc24fb2f41bfdf14882b"
+      }
+    ]
+  },
+  {
+    "fault": "due",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "3c81225dacce5c0f890642840ce24d0fd8d81ca59e0116dec5cae33cf5d803cb",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "leases survive",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-due.log",
+        "bytes": 944,
+        "sha256": "82efd982046ff7574e91e34d6432e6adb62e154edfd016f43bdf65c116c194f9"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-due.log",
+        "bytes": 305,
+        "sha256": "8c393cc674efebe98ccdd3f4ffd6a9c28df581f4d4aa1ebbed454ef7eda97c74"
+      }
+    ]
+  },
+  {
+    "fault": "delivered",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "3c81225dacce5c0f890642840ce24d0fd8d81ca59e0116dec5cae33cf5d803cb",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "leases survive",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-delivered.log",
+        "bytes": 1138,
+        "sha256": "cad1a3d0612ce957397819771bab888db0b358e2a4746176aea1ccf152c9b085"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-delivered.log",
+        "bytes": 305,
+        "sha256": "d9bfe38d0a5a5af660af8feee068ecf9fec2526fe9e82eeef350acbdb0570efd"
+      }
+    ]
+  },
+  {
+    "fault": "token",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "3c81225dacce5c0f890642840ce24d0fd8d81ca59e0116dec5cae33cf5d803cb",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "leases survive",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-token.log",
+        "bytes": 1088,
+        "sha256": "e77528d2b9340caa3f018c4a6314442aed372558f1e8b097425c88daa2866eec"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-token.log",
+        "bytes": 305,
+        "sha256": "82df0ea3f5d4f91fc8005eacf4e490fed778c2bcc188ca97d38809468980deda"
+      }
+    ]
+  },
+  {
+    "fault": "expiry",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "3c81225dacce5c0f890642840ce24d0fd8d81ca59e0116dec5cae33cf5d803cb",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "failed delivery",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-expiry.log",
+        "bytes": 1038,
+        "sha256": "f1054bc148516c9a334818fc6a03147dcaa83984d3ac247ce52cafcb826d6c2a"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-expiry.log",
+        "bytes": 295,
+        "sha256": "b49e6f192c544cf72497de4a0dace1f4e0d71e39c44860d102b9add71a48d8b5"
+      }
+    ]
+  },
+  {
+    "fault": "ack",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "3c81225dacce5c0f890642840ce24d0fd8d81ca59e0116dec5cae33cf5d803cb",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "leases survive",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-ack.log",
+        "bytes": 1088,
+        "sha256": "7f1168ee0a98f298ef23d5ec11697cbed4e00657f9f741d5351387aa21d9bc11"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-ack.log",
+        "bytes": 305,
+        "sha256": "5532a38b8c9a7a05b7d09db4dbc9b370af2fc25fed4182476efe3ad37be964a2"
+      }
+    ]
+  },
+  {
+    "fault": "backoff",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "3c81225dacce5c0f890642840ce24d0fd8d81ca59e0116dec5cae33cf5d803cb",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "failed delivery",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-backoff.log",
+        "bytes": 1123,
+        "sha256": "1f690848891b0990bce880bd82125f1b6628451df665ec0f09ca487d0ec1afa9"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-backoff.log",
+        "bytes": 295,
+        "sha256": "2fdc7c99072bc0a6d46efc54d2c3abf544177d95eb82e7351a15a42bdb88d028"
+      }
+    ]
+  },
+  {
+    "fault": "origin",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "cad58d4ee2fbcd046d347f2c754c98ec2028b9baf498adb5de6935b718e3e142",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "invalid configuration",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-origin.log",
+        "bytes": 894,
+        "sha256": "0d3fcb1b80d91c3f57e82301d92fcec39955a38aff69dc6b651c79409a6b50f7"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-origin.log",
+        "bytes": 289,
+        "sha256": "01e33286191834ff7bf0fb1b315ee169d4b008cadb4533902b7387071de49069"
+      }
+    ]
+  },
+  {
+    "fault": "https",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "cad58d4ee2fbcd046d347f2c754c98ec2028b9baf498adb5de6935b718e3e142",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "invalid configuration",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-https.log",
+        "bytes": 893,
+        "sha256": "66e2005da0a738fea983e592833d11388b367fe4dbcffaf2b3a194b49596ce49"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-https.log",
+        "bytes": 289,
+        "sha256": "9813a32ba93810789e58f6d5e60f0e09fd80861c5383f56206e646d70bf2d21c"
+      }
+    ]
+  },
+  {
+    "fault": "userinfo",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "cad58d4ee2fbcd046d347f2c754c98ec2028b9baf498adb5de6935b718e3e142",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "invalid configuration",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-userinfo.log",
+        "bytes": 893,
+        "sha256": "be9836ea5614d1b6919437fd5a550898f7f9509ede6c7922426e8964588e6215"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-userinfo.log",
+        "bytes": 289,
+        "sha256": "e8132ea41ff4e10de657623139fba7bd60ecce33ad69dee8ba118db112903af7"
+      }
+    ]
+  },
+  {
+    "fault": "fragment",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "cad58d4ee2fbcd046d347f2c754c98ec2028b9baf498adb5de6935b718e3e142",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "invalid configuration",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-fragment.log",
+        "bytes": 894,
+        "sha256": "d5de2515c8e0671a5300bd5579dde7e36fd0b801a8fefe5d7acc7ad0df0969a4"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-fragment.log",
+        "bytes": 289,
+        "sha256": "70f5555e6823975f41f862a1fabfdf654bd59a2c0a35b344e86eddfd70288282"
+      }
+    ]
+  },
+  {
+    "fault": "acceptance",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "cad58d4ee2fbcd046d347f2c754c98ec2028b9baf498adb5de6935b718e3e142",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "receiver http",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-acceptance.log",
+        "bytes": 892,
+        "sha256": "aff4974f622468f94555a135a4a83af592a41c347c13e52f458f31622ed6fd9c"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-acceptance.log",
+        "bytes": 257,
+        "sha256": "f5349096fc9e1dd3c71cca3db44ac90c343315668cad1e53155cd4370ebfa926"
+      }
+    ]
+  },
+  {
+    "fault": "deadline",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "cad58d4ee2fbcd046d347f2c754c98ec2028b9baf498adb5de6935b718e3e142",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "silent receiver",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-deadline.log",
+        "bytes": 1325,
+        "sha256": "aac5bf067299fd123950a58489d7d1b20871b2232e436b0655e4a1bb7f0defe8"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-deadline.log",
+        "bytes": 274,
+        "sha256": "6772019c89aaa2cf50d80a1b86f063adcd03c61be44d90a75320aad731ec0f54"
+      }
+    ]
+  },
+  {
+    "fault": "batch",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "cad58d4ee2fbcd046d347f2c754c98ec2028b9baf498adb5de6935b718e3e142",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "bounded to twenty",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-batch.log",
+        "bytes": 759,
+        "sha256": "159d276bbae56f11705b909ec9dd857300dfc994522f59fd1b1e179b74e46a38"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-batch.log",
+        "bytes": 262,
+        "sha256": "7db8da6f028e267f32468ffb6e073b8f50d5690d6695e44f16d1c8c85c609f0e"
+      }
+    ]
+  },
+  {
+    "fault": "secret-errors",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "cad58d4ee2fbcd046d347f2c754c98ec2028b9baf498adb5de6935b718e3e142",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "actual command defect",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-secret-errors.log",
+        "bytes": 1670,
+        "sha256": "ab3389e039d7371902dff65167df261b431df4473557d2c91f7c5f78dc77dc97"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-secret-errors.log",
+        "bytes": 280,
+        "sha256": "259601c2d982922536bb7cac1f3f4009cc7941e3a6448e5bd954f2be61195def"
+      }
+    ]
+  },
+  {
+    "fault": "redirect",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "88f85b3916b4b2aca096db9d72efe64334e3234a17049540c013efc8968f0d83",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "actual HTTPS receiver status 302",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-redirect.log",
+        "bytes": 886,
+        "sha256": "439e5ec292003d7dfe328a31ba424a373b21fc2412749abc67d8f407ee5ae0e1"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-redirect.log",
+        "bytes": 289,
+        "sha256": "b35a827cdd0ffdf70a5b867514ad93a26ad8737f0e2a9839ab08a9afc0f09cc5"
+      }
+    ]
+  },
+  {
+    "fault": "parse",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "88f85b3916b4b2aca096db9d72efe64334e3234a17049540c013efc8968f0d83",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "invalid configuration",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-parse.log",
+        "bytes": 803,
+        "sha256": "7a9f0458792c54491dce6fbcf9cabd73bfa494ef0489143d3405a6389207022f"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-parse.log",
+        "bytes": 289,
+        "sha256": "e9ffd602faa496865a8c3b984411759dc36dbb2962241b53f1403c22294ef88b"
+      }
+    ]
+  },
+  {
+    "fault": "unexpected",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "88f85b3916b4b2aca096db9d72efe64334e3234a17049540c013efc8968f0d83",
+    "test": "apps/website/be-01/src/request-notifications-cli.test.ts",
+    "selector": "actual command defect",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-unexpected.log",
+        "bytes": 724,
+        "sha256": "bc66df0a14de2213b5f20b815e3855d28a78fe0bcea03bdf78600f0ad679a5a6"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-unexpected.log",
+        "bytes": 280,
+        "sha256": "8f01e93d6b94139a8a1b165085bd130f91237424fcbff47fffeae5afb3c09a97"
+      }
+    ]
+  },
+  {
+    "fault": "cancel",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "eee59ca742bfab8a79ff241f9f87bd325c56576ef2bb9ad3d64862108529f2c6",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "erasure while",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-cancel.log",
+        "bytes": 972,
+        "sha256": "436ea1ba545478a16439602b638bb33b39de31e0ecfd5fc99658c703c9987b44"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-cancel.log",
+        "bytes": 290,
+        "sha256": "bd049ad3fab13def8b3fb28a285bd699362d3d07f008356a7e6bd53e8add40e4"
+      }
+    ]
+  },
+  {
+    "fault": "backfill-filter",
+    "mutantExit": 1,
+    "restoredExit": 0,
+    "sourceSha256": "1c1e9c388b43ab4dc7e479788307222872af1ab1f102c2be76bd515b33eb061d",
+    "test": "libs/website/adapters/store-sqlite/src/request-notifications.test.ts",
+    "selector": "migration backfills",
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-fault-backfill-filter.log",
+        "bytes": 1173,
+        "sha256": "97c18190ae625c6cf0d238fa72c708b8ac969d3170481a5ef1662fa3cb06a8b3"
+      },
+      {
+        "path": "/tmp/website-prod-notification-restored-backfill-filter.log",
+        "bytes": 297,
+        "sha256": "a9984188233f6089ed1b91995817f6654fa23bd361e201c36b9021416db3b251"
+      }
+    ]
+  },
+  {
+    "fault": "missing-worker",
+    "exit": 1,
+    "expectedExit": 1,
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-package-missing-worker.log",
+        "bytes": 534,
+        "sha256": "1aa9796523336dd57b4159e0a9775148cd6e1a47d0c6b50d2fb82df69407e369"
+      }
+    ]
+  },
+  {
+    "fault": "missing-capability",
+    "exit": 1,
+    "expectedExit": 1,
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-package-missing-capability.log",
+        "bytes": 1038,
+        "sha256": "300984caf8cffb51bc6d6032763cb311b92f3c6201dc33c44840c4c9c1017e3d"
+      }
+    ]
+  },
+  {
+    "fault": "empty-selection",
+    "exit": 1,
+    "expectedExit": 1,
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-package-empty-selection.log",
+        "bytes": 622,
+        "sha256": "99aef2e21c20efbd298a11edc540e1288c90a5428f3387396f2e7674fd4d851b"
+      }
+    ]
+  },
+  {
+    "fault": "incomplete-selection",
+    "exit": 1,
+    "expectedExit": 1,
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-package-incomplete-selection.log",
+        "bytes": 832,
+        "sha256": "d71fc6e6dcc548eeb1ac3f5bab95f9c39b5023ca306bc57addf30783097739a7"
+      }
+    ]
+  },
+  {
+    "fault": "incomplete-selection-guard-removed",
+    "exit": 0,
+    "expectedExit": 0,
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-package-incomplete-selection-guard-removed.log",
+        "bytes": 460,
+        "sha256": "59b452b7e9ef6f955be8e55474c7a39ea7dd6ba2a3b465a2ef8e009049fd8d56"
+      }
+    ]
+  },
+  {
+    "fault": "restored",
+    "exit": 0,
+    "expectedExit": 0,
+    "logs": [
+      {
+        "path": "/tmp/website-prod-notification-package-restored.log",
+        "bytes": 572,
+        "sha256": "230f3b24c641c4b881f9e2ca56b5cc22b20e7ed0455bbbb5b1a26cd640a081db"
+      }
+    ]
+  }
+]

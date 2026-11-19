@@ -3,7 +3,6 @@ import { chmod, copyFile, lstat, open, readFile, writeFile } from 'node:fs/promi
 import { createConnection } from 'node:net';
 import { join, resolve } from 'node:path';
 
-import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import {
@@ -12,6 +11,7 @@ import {
   initialHandoffLayout,
   RUNTIME_SESSION_HOST,
 } from './fixtures/initial-handoff';
+import { createSolverScratch, readSolverChild } from './fixtures/solver-scratch';
 import { envLayout } from './lib/env';
 import { withCanonicalLock } from './lib/lock';
 
@@ -35,13 +35,14 @@ function canonical(value: unknown): string {
 }
 
 async function activeFixture(
+  scratch: ReturnType<typeof createSolverScratch>,
   fault: 'normal' | 'unknown' | 'pipe' = 'normal',
   holdRequest = false,
   sessionMode: 'none' | 'identities' | 'zero-to-two' = 'none',
   imageReadFault = false,
   programFault: 'none' | 'oversize' | 'expired' = 'none',
 ) {
-  const root = scratchSync('active-cli-');
+  const root = scratch.root;
   const executable = join(root, 'bun');
   const bundle = join(root, 'supervisor.js');
   const config = join(root, 'config.json');
@@ -384,12 +385,16 @@ fi
   );
   const path = process.env['PATH'];
   if (path === undefined) throw new Error('owned CLI requires PATH');
-  const spawn = () =>
-    Bun.spawn([executable, bundle, '--config=' + config, '--admission=policy'], {
+  const spawn = () => {
+    const observeRetirement = scratch.requireRetirement();
+    const child = Bun.spawn([executable, bundle, '--config=' + config, '--admission=policy'], {
       env: { ...process.env, PATH: root + ':' + path, WBS_EDGE_STATE: root },
       stdout: 'pipe',
       stderr: 'pipe',
     });
+    const stdout = new Response(child.stdout).text();
+    return { child, stdout, observeRetirement };
+  };
   return {
     ...graph,
     executable,
@@ -433,13 +438,17 @@ async function isListener(path: string): Promise<boolean> {
   }
 }
 type ActiveChild = ReturnType<Awaited<ReturnType<typeof activeFixture>>['spawn']>;
-async function waitForChild(child: ActiveChild): Promise<number> {
+async function waitForChild(started: ActiveChild): Promise<number> {
+  const { child, stdout, observeRetirement } = started;
+  const stderr = new Response(child.stderr).text();
+  const retirement = observeRetirement([child.exited, stdout, stderr]);
   const timer = setTimeout(() => {
     child.kill('SIGKILL');
   }, 10000);
   try {
     return await child.exited;
   } finally {
+    await retirement;
     clearTimeout(timer);
   }
 }
@@ -462,13 +471,15 @@ async function refusesLock(path: string): Promise<void> {
 }
 
 test('actual compiled active CLI starts while original edge.lock is held and excludes runtime contender through listener lifetime', async () => {
-  const fixture = await activeFixture();
+  await using scratch = createSolverScratch('active-cli-');
+  const fixture = await activeFixture(scratch);
   await withCanonicalLock(join(fixture.root, 'edge.lock'), async () => {
-    const child = fixture.spawn();
+    const { child, stdout, observeRetirement } = fixture.spawn();
     let diagnostic = '';
     const stderr = new Response(child.stderr).text().then((contents) => {
       diagnostic = contents;
     });
+    const retirement = observeRetirement([child.exited, stdout, stderr]);
     try {
       await until(async () => {
         if (child.exitCode !== null) throw new Error('owned active startup exited: ' + diagnostic);
@@ -487,6 +498,7 @@ test('actual compiled active CLI starts while original edge.lock is held and exc
       child.kill('SIGTERM');
       await child.exited;
       await stderr;
+      await retirement;
     }
     expect(diagnostic).toBe('');
   });
@@ -495,7 +507,8 @@ test('actual compiled active CLI starts while original edge.lock is held and exc
 
 for (const fault of ['machine', 'effective-command', 'definition'] as const) {
   test(`actual active CLI refuses independent current ${fault} mismatch`, async () => {
-    const fixture = await activeFixture();
+    await using scratch = createSolverScratch('active-cli-');
+    const fixture = await activeFixture(scratch);
     if (fault === 'machine') await writeFile(fixture.machine, 'fedcba9876543210fedcba9876543210\n');
     if (fault === 'effective-command') await writeFile(fixture.command, '/usr/bin/false');
     if (fault === 'definition')
@@ -512,7 +525,8 @@ for (const fault of ['machine', 'effective-command', 'definition'] as const) {
 }
 for (const fault of ['config', 'unit', 'policy', 'pointer', 'capture'] as const) {
   test(`actual active CLI refuses ${fault} drift between opening and closing after real image lookup`, async () => {
-    const fixture = await activeFixture();
+    await using scratch = createSolverScratch('active-cli-');
+    const fixture = await activeFixture(scratch);
     await writeFile(fixture.drift, fault + '\n');
     const child = fixture.spawn();
     expect(await waitForChild(child)).toBe(78);
@@ -527,14 +541,16 @@ for (const fault of ['config', 'unit', 'policy', 'pointer', 'capture'] as const)
 
 for (const fault of ['unknown', 'pipe'] as const) {
   test(`actual active consumer retains runtime lock for original ${fault} child and pipe custody`, async () => {
-    const fixture = await activeFixture(fault);
-    const child = fixture.spawn();
+    await using scratch = createSolverScratch('active-cli-');
+    const fixture = await activeFixture(scratch, fault);
+    const { child, stdout, observeRetirement } = fixture.spawn();
     let diagnostic = '';
     const readErrors = (async () => {
       for await (const chunk of child.stderr) {
         diagnostic += Buffer.from(chunk).toString('utf8');
       }
     })();
+    const retirement = observeRetirement([child.exited, stdout, readErrors]);
     try {
       await until(() => Bun.file(fixture.waited).exists());
       expect(await Bun.file(fixture.waited).text()).toBe('0');
@@ -555,21 +571,27 @@ for (const fault of ['unknown', 'pipe'] as const) {
       child.kill('SIGTERM');
       await child.exited;
       await readErrors;
+      await retirement;
     }
     await withCanonicalLock(join(fixture.root, 'solver-runtime.lock'), () => Promise.resolve());
   }, 30000);
 }
 
 test('actual active listener retains runtime exclusion during real accepted-socket request pipe continuation', async () => {
-  const fixture = await activeFixture('normal', true);
-  const created = Bun.spawn(['/usr/bin/mkfifo', fixture.requestPipe], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  expect(await created.exited).toBe(0);
+  await using scratch = createSolverScratch('active-cli-');
+  const fixture = await activeFixture(scratch, 'normal', true);
+  const created = await readSolverChild(scratch, () =>
+    Bun.spawn(['/usr/bin/mkfifo', fixture.requestPipe], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }),
+  );
+  expect(created.code).toBe(0);
   await chmod(fixture.requestPipe, 0o600);
-  const child = fixture.spawn();
+  const { child, stdout, observeRetirement } = fixture.spawn();
   const stderr = new Response(child.stderr).text();
+  const retirement = observeRetirement([child.exited, stdout, stderr]);
   let client: ReturnType<typeof createConnection> | undefined;
   let writer: Awaited<ReturnType<typeof open>> | undefined;
   try {
@@ -601,14 +623,18 @@ test('actual active listener retains runtime exclusion during real accepted-sock
     child.kill('SIGTERM');
     await child.exited;
     await stderr;
+    await retirement;
   }
   await withCanonicalLock(join(fixture.root, 'solver-runtime.lock'), () => Promise.resolve());
 }, 30000);
 
 for (const sessionMode of ['identities', 'zero-to-two'] as const) {
   test(`actual compiled active CLI accepts coherent ${sessionMode} across both current observations with unchanged prepared pins`, async () => {
-    const fixture = await activeFixture('normal', false, sessionMode);
-    const child = fixture.spawn();
+    await using scratch = createSolverScratch('active-cli-');
+    const fixture = await activeFixture(scratch, 'normal', false, sessionMode);
+    const { child, stdout, observeRetirement } = fixture.spawn();
+    const stderr = new Response(child.stderr).text();
+    const retirement = observeRetirement([child.exited, stdout, stderr]);
     try {
       await until(async () => {
         if (child.exitCode !== null)
@@ -616,7 +642,7 @@ for (const sessionMode of ['identities', 'zero-to-two'] as const) {
             'owned active process exited, program bytes ' +
               (await readFile(join(fixture.root, 'program-bytes'), 'utf8')) +
               ': ' +
-              (await new Response(child.stderr).text()),
+              (await stderr),
           );
         return isListener(fixture.socket);
       });
@@ -628,13 +654,15 @@ for (const sessionMode of ['identities', 'zero-to-two'] as const) {
     } finally {
       child.kill('SIGTERM');
       await child.exited;
+      await retirement;
     }
-    expect(await new Response(child.stderr).text()).toBe('');
+    expect(await stderr).toBe('');
   });
 }
 
 test('review actual active image read failure retains original child and each stream inside runtime lock', async () => {
-  const fixture = await activeFixture('normal', false, 'none', true);
+  await using scratch = createSolverScratch('active-cli-');
+  const fixture = await activeFixture(scratch, 'normal', false, 'none', true);
   const finish = join(fixture.root, 'finish-image');
   const originalPid = join(fixture.root, 'image-pid');
   const imageProgram = `import os,time;open(${JSON.stringify(originalPid)},'w').write(str(os.getpid()));print('owned stdout failure',flush=True);\nwhile not os.path.exists(${JSON.stringify(finish)}):time.sleep(0.01)\n`;
@@ -643,11 +671,12 @@ test('review actual active image read failure retains original child and each st
     '#!/bin/sh\nexec /usr/bin/python3 -I -c ' + quoteShell(imageProgram) + '\n',
     { mode: 0o700 },
   );
-  const child = fixture.spawn();
+  const { child, stdout, observeRetirement } = fixture.spawn();
   let diagnostic = '';
   const stderr = (async () => {
     for await (const chunk of child.stderr) diagnostic += Buffer.from(chunk).toString('utf8');
   })();
+  const retirement = observeRetirement([child.exited, stdout, stderr]);
   try {
     await until(() => {
       if (child.exitCode !== null)
@@ -673,13 +702,15 @@ test('review actual active image read failure retains original child and each st
     child.kill('SIGTERM');
     await child.exited;
     await stderr;
+    await retirement;
   }
   await withCanonicalLock(join(fixture.root, 'solver-runtime.lock'), () => Promise.resolve());
 }, 30000);
 
 for (const fault of ['oversize', 'expired'] as const) {
   test(`review actual compiled launch ${fault} construction refuses before spawning its original child`, async () => {
-    const fixture = await activeFixture('normal', false, 'none', false, fault);
+    await using scratch = createSolverScratch('active-cli-');
+    const fixture = await activeFixture(scratch, 'normal', false, 'none', false, fault);
     const child = fixture.spawn();
     expect(await waitForChild(child)).toBe(78);
     const bytes = Number(await readFile(join(fixture.root, 'program-bytes'), 'utf8'));

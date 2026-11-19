@@ -26,6 +26,9 @@
       "@tools/controller-account-fixture": [
         "./tools/tool-remote-scripts/src/fixtures/controller-account.ts"
       ],
+      "@tools/solver-scratch-fixture": [
+        "./tools/tool-remote-scripts/src/fixtures/solver-scratch.ts"
+      ],
       "@tools/fleet-operation-plan-schema": ["./infra/fleet/schemas/operation-plan.json"],
       "@tools/registry-publication": ["./tools/tool-fleet/src/registry-publication-facade.ts"],
       "@tools/fleet-plan": ["./tools/tool-fleet/src/plan-facade.ts"],

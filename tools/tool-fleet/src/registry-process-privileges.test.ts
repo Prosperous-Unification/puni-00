@@ -14,6 +14,10 @@ const safe =
   'CapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\n' +
   'CapAmb:\t0000000000000000\nNoNewPrivs:\t1\n';
 
+/**
+ * Keep modeled root/cwd on the host root filesystem even when scratch uses another device.
+ * The empty-view guard checks real descriptor identities against the actual host root.
+ */
 async function createView(status = safe) {
   const directory = await scratchAsync('registry-process-privileges-');
   const proc = join(directory, 'proc');
@@ -25,8 +29,8 @@ async function createView(status = safe) {
   await writeFile(join(proc, '42/maps'), '');
   await writeFile(join(proc, '42/status'), status);
   await symlink('/usr/bin/true', join(proc, '42/exe'));
-  await symlink(directory, join(proc, '42/root'));
-  await symlink(directory, join(proc, '42/cwd'));
+  await symlink('/', join(proc, '42/root'));
+  await symlink('/', join(proc, '42/cwd'));
   // A real different audited device keeps modeled proc observations truthful about root/cwd.
   return { proc, storage: '/proc', status: join(proc, '42/status') };
 }

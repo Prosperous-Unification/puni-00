@@ -1,4 +1,13 @@
-import { chmod, mkdir, readdir, readFile, rename, utimes, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
@@ -7,10 +16,19 @@ import {
   mapControllerShell,
   verifyControllerFile,
 } from '@tools/controller-account-fixture';
-import { scratchAsync } from '@tools/test-scratch';
+import { createSolverScratch, readSolverChild } from '@tools/solver-scratch-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { STALE_BOOT_EXIT_CODE } from './boot-convergence';
+
+/**
+ * Case-owned repository and command state; inherited disposal waits for original
+ * children and pipes. Worker-lifetime fixtures retained 37 distinct Bun copies
+ * (3.97 GB) on the 8 GiB gate volume on 2026-11-12.
+ * Proof: the next-case filesystem probe failed eight of nine served-commit cases
+ * before lexical disposal, then passed all nine and the complete 33-case suite.
+ */
+type PollerScratch = ReturnType<typeof createSolverScratch>;
 
 const ownedStateAnchor = '/__owned_poller_edge_state__';
 const readerCompilation = await Bun.build({
@@ -95,18 +113,24 @@ interface CommandResult {
   stderr: string;
 }
 
-async function command(argv: string[], env: Record<string, string> = {}): Promise<CommandResult> {
-  const state = await scratchAsync('edge-state-');
-  const child = Bun.spawn(await preparePollerCommand(argv, state), {
-    env: { ...process.env, WBS_EDGE_STATE: state, ...env },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
+async function command(
+  scratch: PollerScratch,
+  argv: string[],
+  env: Record<string, string> = {},
+): Promise<CommandResult> {
+  const state = await mkdtemp(join(scratch.root, 'edge-state-'));
+  const prepared = await preparePollerCommand(argv, state);
+  // Proof: holding the original stdout after child exit retained this case root
+  // through a 1s case timeout, then removed it after release. The rejected afterEach
+  // cleanup removed state early and failed the same pending-pipe retention oracle.
+  const { code, stdout, stderr } = await readSolverChild(scratch, () =>
+    Bun.spawn(prepared, {
+      env: { ...process.env, WBS_EDGE_STATE: state, ...env },
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }),
+  );
   return { code, stdout, stderr };
 }
 
@@ -132,10 +156,10 @@ function captureText(stream: ReadableStream<Uint8Array>): {
  * early leaves the survivor waiting out its patience. {@link command} resolves
  * a nonzero exit as a value, and `Promise.all` over those values waited for the
  * survivor: the dead partner's exit was hidden behind a test timeout. Here the
- * first nonzero exit rejects at once with the run's index, code and the stderr
- * read so far, without waiting for a pipe a descendant may still hold. Each run
- * leads its own process group, and every group is killed on the way out, so a
- * parked fixture `git` does not outlive the test.
+ * first nonzero exit starts cleanup with the run's index, code and stderr read so
+ * far. Each run leads its own process group; cleanup kills every group and joins
+ * the original exits and pipes before propagating the failure. Pending or rejected
+ * observations retain the owning case root through its lexical disposer.
  *
  * Proof: with the fixture's second `clone` made to exit 5 once its partner had
  * parked in the barrier, the overlap case failed in 38ms on `overlapping run 0
@@ -145,28 +169,42 @@ function captureText(stream: ReadableStream<Uint8Array>): {
  * `child.kill()` in place of the group kill, and none with it.
  */
 async function requireOverlappingRuns(
+  scratch: PollerScratch,
   argvs: string[][],
   env: Record<string, string>,
 ): Promise<CommandResult[]> {
   // Each candidate-race fixture represents an independent host; shared-host exclusion
   // is exercised through the actual writer entrypoints in edge-admission.test.ts.
-  const edgeStates = await Promise.all(argvs.map(() => scratchAsync('edge-state-')));
-  const prepared = await Promise.all(
-    argvs.map((argv, index) => preparePollerCommand(argv, edgeStates[index])),
-  );
-  const children = prepared.map((argv, index) =>
-    Bun.spawn(argv, {
-      env: { ...process.env, WBS_EDGE_STATE: edgeStates[index], ...env },
-      stdout: 'pipe',
-      stderr: 'pipe',
-      detached: true,
-    }),
-  );
+  const edgeStates = await Promise.all(argvs.map(() => mkdtemp(join(scratch.root, 'edge-state-'))));
+  const prepared: string[][] = [];
+  for (const [index, argv] of argvs.entries())
+    prepared.push(await preparePollerCommand(argv, edgeStates[index]));
+  const children: {
+    child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
+    stdout: ReturnType<typeof captureText>;
+    stderr: ReturnType<typeof captureText>;
+    retirement: Promise<void>;
+  }[] = [];
   try {
+    for (const [index, argv] of prepared.entries()) {
+      // Proof: injected exit 5 in one racer plus a rejected original stdout in
+      // its killed sibling retained the case root. Omitting this registration
+      // removed it and failed the rejected-original-overlap retention oracle.
+      const observeRetirement = scratch.requireRetirement();
+      const child = Bun.spawn(argv, {
+        env: { ...process.env, WBS_EDGE_STATE: edgeStates[index], ...env },
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+        detached: true,
+      });
+      const stdout = captureText(child.stdout);
+      const stderr = captureText(child.stderr);
+      const retirement = observeRetirement([child.exited, stdout.done, stderr.done]);
+      children.push({ child, stdout, stderr, retirement });
+    }
     return await Promise.all(
-      children.map(async (child, index) => {
-        const stdout = captureText(child.stdout);
-        const stderr = captureText(child.stderr);
+      children.map(async ({ child, stdout, stderr }, index) => {
         const code = await child.exited;
         if (code !== 0)
           throw new Error(
@@ -176,7 +214,8 @@ async function requireOverlappingRuns(
       }),
     );
   } finally {
-    for (const child of children) killProcessGroup(child.pid);
+    for (const { child } of children) killProcessGroup(child.pid);
+    await Promise.all(children.map(({ retirement }) => retirement));
   }
 }
 
@@ -189,10 +228,33 @@ function killProcessGroup(leader: number): void {
   }
 }
 
-async function requireCommand(argv: string[]): Promise<string> {
-  const result = await command(argv);
+async function requireCommand(scratch: PollerScratch, argv: string[]): Promise<string> {
+  const result = await command(scratch, argv);
   if (result.code !== 0) throw new Error(`${argv.join(' ')}: ${result.stderr}`);
   return result.stdout.trim();
+}
+
+/** Copies the real committed tree onto the fixture filesystem before the loader's local clone. */
+async function copyRepository(
+  scratch: PollerScratch,
+  root: string,
+): Promise<{ source: string; head: string }> {
+  const repository = new URL('../../../', import.meta.url).pathname;
+  const head = await requireCommand(scratch, ['git', '-C', repository, 'rev-parse', 'HEAD']);
+  const source = join(root, 'source');
+  // Proof: using the real repository directly made both real-deployer cases fail
+  // with exit 128 across devices; the complete-tree case reported EXDEV (2026-11-11).
+  await requireCommand(scratch, [
+    'git',
+    'clone',
+    '--quiet',
+    '--no-hardlinks',
+    '--no-checkout',
+    repository,
+    source,
+  ]);
+  await requireCommand(scratch, ['git', '-C', source, 'checkout', '--quiet', '--detach', head]);
+  return { source, head };
 }
 
 const HELPER = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
@@ -255,9 +317,9 @@ async function seedDeployerTree(source: string, contract: string, deployer: stri
   await writeFile(join(source, DEPLOYER), deployer);
 }
 
-async function initFixtureRepository(source: string): Promise<void> {
-  await requireCommand(['git', 'init', '--quiet', '--initial-branch=main', source]);
-  await requireCommand([
+async function initFixtureRepository(scratch: PollerScratch, source: string): Promise<void> {
+  await requireCommand(scratch, ['git', 'init', '--quiet', '--initial-branch=main', source]);
+  await requireCommand(scratch, [
     'git',
     '-C',
     source,
@@ -265,17 +327,20 @@ async function initFixtureRepository(source: string): Promise<void> {
     'user.email',
     'poller-test@example.invalid',
   ]);
-  await requireCommand(['git', '-C', source, 'config', 'user.name', 'poller test']);
+  await requireCommand(scratch, ['git', '-C', source, 'config', 'user.name', 'poller test']);
 }
 
-async function commitAll(source: string, message: string): Promise<string> {
-  await requireCommand(['git', '-C', source, 'add', '-A']);
-  await requireCommand(['git', '-C', source, 'commit', '--quiet', '-m', message]);
-  return await requireCommand(['git', '-C', source, 'rev-parse', 'HEAD']);
+async function commitAll(scratch: PollerScratch, source: string, message: string): Promise<string> {
+  await requireCommand(scratch, ['git', '-C', source, 'add', '-A']);
+  await requireCommand(scratch, ['git', '-C', source, 'commit', '--quiet', '-m', message]);
+  return await requireCommand(scratch, ['git', '-C', source, 'rev-parse', 'HEAD']);
 }
 
 /** A shared source whose requested remote target is newer than its checked-out HEAD. */
-async function seedBorrowedSource(root: string): Promise<{
+async function seedBorrowedSource(
+  scratch: PollerScratch,
+  root: string,
+): Promise<{
   backing: string;
   source: string;
   base: string;
@@ -283,20 +348,20 @@ async function seedBorrowedSource(root: string): Promise<{
 }> {
   const backing = join(root, 'backing');
   const source = join(root, 'src');
-  await initFixtureRepository(backing);
+  await initFixtureRepository(scratch, backing);
   await seedDeployerTree(
     backing,
     "export const PROBE = 'base';\n",
     "import { PROBE } from '@wbs/probe-contract';\nconsole.log(PROBE);\n",
   );
-  const base = await commitAll(backing, 'base');
+  const base = await commitAll(scratch, backing, 'base');
   await writeFile(
     join(backing, 'tools/tool-remote-scripts/src/lib/probe-contract.ts'),
     "export const PROBE = 'borrowed target';\n",
   );
-  const target = await commitAll(backing, 'target');
-  await requireCommand(['git', 'clone', '--quiet', '--shared', backing, source]);
-  await requireCommand(['git', '-C', source, 'reset', '--hard', '--quiet', base]);
+  const target = await commitAll(scratch, backing, 'target');
+  await requireCommand(scratch, ['git', 'clone', '--quiet', '--shared', backing, source]);
+  await requireCommand(scratch, ['git', '-C', source, 'reset', '--hard', '--quiet', base]);
   return { backing, source, base, target };
 }
 
@@ -323,7 +388,8 @@ describe('durable dev poller', () => {
   });
 
   it('refuses an unexpected origin before fetching', async () => {
-    const root = await scratchAsync('wbs-dev-poller-origin-');
+    await using scratch = createSolverScratch('wbs-dev-poller-origin-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const state = join(root, 'state');
     const installed = join(root, 'bin');
@@ -344,7 +410,7 @@ printf 'fetch-reached\\n' >> "$OBSERVATIONS"
     await chmod(join(commands, 'git'), 0o755);
 
     const script = new URL('../../../bin/dev-poll.sh', import.meta.url).pathname;
-    const result = await command(['bash', script], {
+    const result = await command(scratch, ['bash', script], {
       PATH: `${commands}:${process.env['PATH'] ?? ''}`,
       WBS_DEV_SRC: source,
       WBS_DEV_BIN: installed,
@@ -383,7 +449,8 @@ printf 'fetch-reached\\n' >> "$OBSERVATIONS"
       null,
     ],
   ])('reads served commit fixture: %s', async (_name, body, status, expected) => {
-    const root = await scratchAsync('wbs-dev-poller-health-');
+    await using scratch = createSolverScratch('wbs-dev-poller-health-');
+    const root = scratch.root;
     const commands = join(root, 'commands');
     const fakeDocker = join(commands, 'docker');
     await mkdir(commands, { recursive: true });
@@ -395,6 +462,7 @@ printf 'fetch-reached\\n' >> "$OBSERVATIONS"
 
     const script = new URL('../../../bin/dev-poll.sh', import.meta.url).pathname;
     const result = await command(
+      scratch,
       ['bash', '-c', 'DEV_POLL_SOURCE_ONLY=1 source "$1"; read_served_commit', '_', script],
       {
         PATH: `${commands}:${process.env['PATH'] ?? ''}`,
@@ -407,7 +475,8 @@ printf 'fetch-reached\\n' >> "$OBSERVATIONS"
   });
 
   it('retries proof on the next tick after checkout already reached the target', async () => {
-    const root = await scratchAsync('wbs-dev-poller-proof-retry-');
+    await using scratch = createSolverScratch('wbs-dev-poller-proof-retry-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const state = join(root, 'state');
     const installed = join(root, 'bin');
@@ -490,9 +559,9 @@ fi
 
     // Proof: restoring the old HEAD == origin/main early exit makes the second
     // invocation return without the seventh health observation or last-proven.
-    expect((await command(['bash', script], env)).code).not.toBe(0);
+    expect((await command(scratch, ['bash', script], env)).code).not.toBe(0);
     expect(await Bun.file(join(state, 'last-proven')).exists()).toBe(false);
-    expect((await command(['bash', script], env)).code).toBe(0);
+    expect((await command(scratch, ['bash', script], env)).code).toBe(0);
     expect((await readFile(join(state, 'last-proven'), 'utf8')).trim()).toBe(targetSha);
     expect((await readFile(observations, 'utf8')).trim().split('\n')).toEqual([
       'deploy',
@@ -507,7 +576,8 @@ fi
   });
 
   it('re-runs sync instead of proving a checkout left by a failed sync', async () => {
-    const root = await scratchAsync('wbs-dev-poller-sync-retry-');
+    await using scratch = createSolverScratch('wbs-dev-poller-sync-retry-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const state = join(root, 'state');
     const installed = join(root, 'bin');
@@ -576,10 +646,10 @@ esac
       OBSERVATIONS: observations,
     };
 
-    expect((await command(['bash', script], env)).code).not.toBe(0);
+    expect((await command(scratch, ['bash', script], env)).code).not.toBe(0);
     expect((await readFile(join(state, 'last-synced'), 'utf8')).trim()).toBe(oldSha);
     expect(await Bun.file(join(state, 'last-proven')).exists()).toBe(false);
-    expect((await command(['bash', script], env)).code).toBe(0);
+    expect((await command(scratch, ['bash', script], env)).code).toBe(0);
     expect((await readFile(join(state, 'last-synced'), 'utf8')).trim()).toBe(targetSha);
     expect((await readFile(join(state, 'last-proven'), 'utf8')).trim()).toBe(targetSha);
     expect((await readFile(observations, 'utf8')).trim().split('\n')).toEqual([
@@ -590,8 +660,9 @@ esac
   });
 
   it('pins the stale-boot exit to the deployer constant', async () => {
+    await using scratch = createSolverScratch('wbs-dev-poller-stale-boot-exit-');
     const script = new URL('../../../bin/dev-poll.sh', import.meta.url).pathname;
-    const result = await command([
+    const result = await command(scratch, [
       'bash',
       '-c',
       'DEV_POLL_SOURCE_ONLY=1 source "$1"; printf %s "$STALE_BOOT_EXIT"',
@@ -605,7 +676,8 @@ esac
     // The 2026-10-27 review's S1: a sync that throws after its reset left
     // last-synced behind, so every tick reset back, synced forward and
     // restarted the container again, on a host shared with prod.
-    const root = await scratchAsync('wbs-dev-poller-stale-boot-');
+    await using scratch = createSolverScratch('wbs-dev-poller-stale-boot-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const state = join(root, 'state');
     const installed = join(root, 'bin');
@@ -672,7 +744,7 @@ esac
     };
 
     for (let tick = 0; tick < 3; tick += 1) {
-      expect((await command(['bash', script], env)).code).not.toBe(0);
+      expect((await command(scratch, ['bash', script], env)).code).not.toBe(0);
     }
 
     // Proof: with the poller's stale-boot branch removed, the second tick
@@ -696,13 +768,14 @@ esac
   });
 
   it('names the managed Bun installation remedy before reading the target', async () => {
-    const root = await scratchAsync('wbs-dev-poller-missing-bun-');
+    await using scratch = createSolverScratch('wbs-dev-poller-missing-bun-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const helper = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
 
-    await requireCommand(['git', 'init', '--quiet', '--initial-branch=main', source]);
-    const failed = await command([
+    await requireCommand(scratch, ['git', 'init', '--quiet', '--initial-branch=main', source]);
+    const failed = await command(scratch, [
       'bash',
       helper,
       source,
@@ -719,7 +792,8 @@ esac
   });
 
   it('removes its private candidate when target extraction fails', async () => {
-    const root = await scratchAsync('wbs-dev-poller-extract-failure-');
+    await using scratch = createSolverScratch('wbs-dev-poller-extract-failure-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const commands = join(root, 'commands');
@@ -727,7 +801,7 @@ esac
     const fakeBun = join(root, 'bun');
     const helper = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
 
-    await requireCommand(['mkdir', '-p', source, commands]);
+    await requireCommand(scratch, ['mkdir', '-p', source, commands]);
     await writeFile(fakeGit, '#!/usr/bin/env bash\nexit 17\n');
     await writeFile(
       fakeBun,
@@ -737,6 +811,7 @@ esac
     await chmod(fakeBun, 0o755);
 
     const failed = await command(
+      scratch,
       ['bash', helper, source, installed, fakeBun, 'a'.repeat(40), '1.3.14'],
       { PATH: `${commands}:${process.env['PATH'] ?? ''}` },
     );
@@ -746,7 +821,8 @@ esac
   });
 
   it('prunes stale candidates while preserving a fresh interrupted candidate', async () => {
-    const root = await scratchAsync('wbs-dev-poller-prune-');
+    await using scratch = createSolverScratch('wbs-dev-poller-prune-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const commands = join(root, 'commands');
@@ -760,7 +836,7 @@ esac
     const staleSingleFile = join(installed, `sync.${staleSha}.ts`);
     const freshInterrupted = join(installed, `sync.${'c'.repeat(40)}.deadbeef`);
 
-    await requireCommand(['mkdir', '-p', source, installed, commands]);
+    await requireCommand(scratch, ['mkdir', '-p', source, installed, commands]);
     await writeFile(fakeGit, fakeGitArchiving('CONTENT=CURRENT'));
     await writeFile(
       fakeBun,
@@ -781,9 +857,13 @@ esac
     await chmod(fakeGit, 0o755);
     await chmod(fakeBun, 0o755);
 
-    const result = await command(['bash', helper, source, installed, fakeBun, sha, '1.3.14'], {
-      PATH: `${commands}:${process.env['PATH'] ?? ''}`,
-    });
+    const result = await command(
+      scratch,
+      ['bash', helper, source, installed, fakeBun, sha, '1.3.14'],
+      {
+        PATH: `${commands}:${process.env['PATH'] ?? ''}`,
+      },
+    );
 
     // Proof: the prune glob narrowed back to `sync.*.ts` keeps both stale
     // directories and fails here on `Received + 2`: `sync.bbbb…` and
@@ -795,7 +875,8 @@ esac
   });
 
   it('prunes stale candidates before refusing a managed Bun version mismatch', async () => {
-    const root = await scratchAsync('wbs-dev-poller-prune-refusal-');
+    await using scratch = createSolverScratch('wbs-dev-poller-prune-refusal-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const staleCandidate = join(installed, `sync.${'b'.repeat(40)}.deadbeef`);
@@ -813,7 +894,7 @@ esac
     await utimes(staleCandidate, staleTime, staleTime);
     await chmod(fakeBun, 0o755);
 
-    const failed = await command([
+    const failed = await command(scratch, [
       'bash',
       helper,
       source,
@@ -829,21 +910,22 @@ esac
   });
 
   it('a repaired target deployer replaces a broken candidate without bypassing sync', async () => {
-    const root = await scratchAsync('wbs-dev-poller-');
+    await using scratch = createSolverScratch('wbs-dev-poller-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const fakeBun = join(root, 'bun');
     const helper = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
 
-    await initFixtureRepository(source);
+    await initFixtureRepository(scratch, source);
     const sync = join(source, DEPLOYER);
     await seedDeployerTree(source, '', 'BASE\n');
-    const base = await commitAll(source, 'base');
+    const base = await commitAll(scratch, source, 'base');
     await writeFile(sync, 'BROKEN\n');
-    const broken = await commitAll(source, 'broken');
+    const broken = await commitAll(scratch, source, 'broken');
     await writeFile(sync, 'FIXED\n');
-    const fixed = await commitAll(source, 'fixed');
-    await requireCommand(['git', '-C', source, 'reset', '--hard', '--quiet', base]);
+    const fixed = await commitAll(scratch, source, 'fixed');
+    await requireCommand(scratch, ['git', '-C', source, 'reset', '--hard', '--quiet', base]);
 
     await writeFile(
       fakeBun,
@@ -855,42 +937,51 @@ esac
     );
     await chmod(fakeBun, 0o755);
 
-    const failed = await command(['bash', helper, source, installed, fakeBun, broken, '1.3.14'], {
-      POLL_TEST_SRC: source,
-    });
+    const failed = await command(
+      scratch,
+      ['bash', helper, source, installed, fakeBun, broken, '1.3.14'],
+      {
+        POLL_TEST_SRC: source,
+      },
+    );
     expect(failed.code).toBe(23);
-    expect(await requireCommand(['git', '-C', source, 'rev-parse', 'HEAD'])).toBe(base);
+    expect(await requireCommand(scratch, ['git', '-C', source, 'rev-parse', 'HEAD'])).toBe(base);
 
-    const recovered = await command(['bash', helper, source, installed, fakeBun, fixed, '1.3.14'], {
-      POLL_TEST_SRC: source,
-    });
+    const recovered = await command(
+      scratch,
+      ['bash', helper, source, installed, fakeBun, fixed, '1.3.14'],
+      {
+        POLL_TEST_SRC: source,
+      },
+    );
     expect(recovered).toEqual({ code: 0, stdout: '', stderr: '' });
-    expect(await requireCommand(['git', '-C', source, 'rev-parse', 'HEAD'])).toBe(fixed);
+    expect(await requireCommand(scratch, ['git', '-C', source, 'rev-parse', 'HEAD'])).toBe(fixed);
     expect(await readFile(candidateDeployer(installed, fixed), 'utf8')).toBe('FIXED\n');
   });
 
   it('runs the target deployer against the contract the target commit carries', async () => {
-    const root = await scratchAsync('wbs-dev-poller-contract-');
+    await using scratch = createSolverScratch('wbs-dev-poller-contract-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const installed = join(root, 'bin');
 
-    await initFixtureRepository(source);
+    await initFixtureRepository(scratch, source);
     await seedDeployerTree(
       source,
       "export const PROBE = 'the contract as the checkout still has it';\n",
       "import { PROBE } from '@wbs/probe-contract';\nconsole.log(PROBE);\n",
     );
-    const base = await commitAll(source, 'base');
+    const base = await commitAll(scratch, source, 'base');
     await writeFile(
       join(source, 'tools/tool-remote-scripts/src/lib/probe-contract.ts'),
       "export const PROBE = 'the contract the target was written against';\n",
     );
-    const target = await commitAll(source, 'target');
-    await requireCommand(['git', '-C', source, 'reset', '--hard', '--quiet', base]);
+    const target = await commitAll(scratch, source, 'target');
+    await requireCommand(scratch, ['git', '-C', source, 'reset', '--hard', '--quiet', base]);
 
     // The managed interpreter is this test's own Bun, so the resolution under
     // test is the real resolver's and not a fake's.
-    const run = await command([
+    const run = await command(scratch, [
       'bash',
       HELPER,
       source,
@@ -914,11 +1005,11 @@ esac
   });
 
   it('extracts everything the committed deployer imports, resolved by the real bundler', async () => {
-    const root = await scratchAsync('wbs-dev-poller-repository-');
+    await using scratch = createSolverScratch('wbs-dev-poller-repository-');
+    const root = scratch.root;
     const installed = join(root, 'bin');
     const out = join(root, 'out');
-    const repository = new URL('../../../', import.meta.url).pathname;
-    const head = await requireCommand(['git', '-C', repository, 'rev-parse', 'HEAD']);
+    const { source, head } = await copyRepository(scratch, root);
     // Resolves the whole import graph of the candidate's deployer without
     // running it: an alias whose target the clone does not carry fails the
     // build. `build` is forwarded verbatim because the loader now runs its
@@ -935,10 +1026,10 @@ exec ${process.execPath} build --target=bun --outdir=${out} "$1"
     );
     await chmod(bundlingBun, 0o755);
 
-    const built = await command([
+    const built = await command(scratch, [
       'bash',
       HELPER,
-      repository,
+      source,
       installed,
       bundlingBun,
       head,
@@ -961,11 +1052,12 @@ exec ${process.execPath} build --target=bun --outdir=${out} "$1"
   });
 
   it('refuses a target whose deployer needs a package the source install does not have', async () => {
-    const root = await scratchAsync('wbs-dev-poller-thirdparty-');
+    await using scratch = createSolverScratch('wbs-dev-poller-thirdparty-');
+    const root = scratch.root;
     const source = join(root, 'source');
     const installed = join(root, 'bin');
     const ran = join(root, 'ran');
-    await initFixtureRepository(source);
+    await initFixtureRepository(scratch, source);
     // The target adds a real npm dependency to the deployer's graph. Nothing
     // about that is unreasonable; it is the case the loader has to survive.
     await seedDeployerTree(
@@ -975,7 +1067,7 @@ exec ${process.execPath} build --target=bun --outdir=${out} "$1"
         `import { fixtureOnly } from 'fixture-only-dependency';\n` +
         `console.log(PROBE, fixtureOnly);\n`,
     );
-    const head = await commitAll(source, 'deployer that needs a third-party package');
+    const head = await commitAll(scratch, source, 'deployer that needs a third-party package');
     // The source checkout's install is the one it had BEFORE that commit: the
     // pinned install can never contain a package the target just added. This
     // is the stale-install fixture the pre-TASK-376 symlink borrowed from.
@@ -999,7 +1091,7 @@ echo deployed >> ${ran}
     );
     await chmod(recordingBun, 0o755);
 
-    const attempt = await command([
+    const attempt = await command(scratch, [
       'bash',
       HELPER,
       source,
@@ -1012,7 +1104,7 @@ echo deployed >> ${ran}
     // Before TASK-376 the candidate linked `$SRC/node_modules`, the bare
     // specifier resolved against the pinned install or not at all, and the
     // loader ran the deployer regardless — so this file existed.
-    expect(await command(['test', '-e', ran])).toMatchObject({ code: 1 });
+    expect(await command(scratch, ['test', '-e', ran])).toMatchObject({ code: 1 });
     expect(attempt.code).not.toBe(0);
     expect(attempt.stderr).toContain('fixture-only-dependency');
     expect(attempt.stderr).toContain('@wbs/* aliases and Bun/Node builtins');
@@ -1021,11 +1113,12 @@ echo deployed >> ${ran}
   });
 
   it('refuses a target whose deployer hides its dependency behind an opaque dynamic import', async () => {
-    const root = await scratchAsync('wbs-dev-poller-opaque-');
+    await using scratch = createSolverScratch('wbs-dev-poller-opaque-');
+    const root = scratch.root;
     const source = join(root, 'source');
     const installed = join(root, 'bin');
     const ran = join(root, 'ran');
-    await initFixtureRepository(source);
+    await initFixtureRepository(scratch, source);
     // Bun's default is `--allow-unresolved='*'`, so a specifier the bundler
     // cannot see through is waved past unless the guard rejects it. This is
     // the same defect as the static case wearing a disguise: a deployer that
@@ -1037,7 +1130,11 @@ echo deployed >> ${ran}
         `const name = ['fixture-only', 'dependency'].join('-');\n` +
         `console.log(PROBE, await import(name));\n`,
     );
-    const head = await commitAll(source, 'deployer hiding a dependency behind a dynamic import');
+    const head = await commitAll(
+      scratch,
+      source,
+      'deployer hiding a dependency behind a dynamic import',
+    );
     await mkdir(join(source, 'node_modules'), { recursive: true });
 
     const recordingBun = join(root, 'bun');
@@ -1052,7 +1149,7 @@ echo deployed >> ${ran}
     );
     await chmod(recordingBun, 0o755);
 
-    const attempt = await command([
+    const attempt = await command(scratch, [
       'bash',
       HELPER,
       source,
@@ -1064,18 +1161,19 @@ echo deployed >> ${ran}
 
     // Without `--reject-unresolved` on the guard build this passes the guard
     // and the deployer runs, so this file exists.
-    expect(await command(['test', '-e', ran])).toMatchObject({ code: 1 });
+    expect(await command(scratch, ['test', '-e', ran])).toMatchObject({ code: 1 });
     expect(attempt.code).not.toBe(0);
     expect(attempt.stderr).toContain('@wbs/* aliases and Bun/Node builtins');
     expect(await readdir(installed)).toEqual([]);
   });
 
   it('refuses a target whose deployer reaches out of the candidate into the pinned install', async () => {
-    const root = await scratchAsync('wbs-dev-poller-escape-');
+    await using scratch = createSolverScratch('wbs-dev-poller-escape-');
+    const root = scratch.root;
     const source = join(root, 'source');
     const installed = join(root, 'bin');
     const ran = join(root, 'ran');
-    await initFixtureRepository(source);
+    await initFixtureRepository(scratch, source);
     // Resolving is not the same as staying home. This import resolves
     // perfectly — straight into the pinned checkout's install, which is the
     // borrowed stale dependency the whole task is about, arriving by absolute
@@ -1088,7 +1186,7 @@ echo deployed >> ${ran}
         `import { borrowed } from '${borrowed}';\n` +
         `console.log(PROBE, borrowed);\n`,
     );
-    const head = await commitAll(source, 'deployer reaching into the pinned install');
+    const head = await commitAll(scratch, source, 'deployer reaching into the pinned install');
     // Written after the commit: the install is never part of the archive, which
     // is exactly why the candidate cannot legitimately reach it.
     await mkdir(join(source, 'node_modules/borrowed'), { recursive: true });
@@ -1106,7 +1204,7 @@ echo deployed >> ${ran}
     );
     await chmod(recordingBun, 0o755);
 
-    const attempt = await command([
+    const attempt = await command(scratch, [
       'bash',
       HELPER,
       source,
@@ -1118,7 +1216,7 @@ echo deployed >> ${ran}
 
     // The build itself succeeds here — that is the point. Only the audit of
     // the resolved input set catches it.
-    expect(await command(['test', '-e', ran])).toMatchObject({ code: 1 });
+    expect(await command(scratch, ['test', '-e', ran])).toMatchObject({ code: 1 });
     expect(attempt.code).not.toBe(0);
     expect(attempt.stderr).toContain('resolves files outside the extracted candidate');
     // Named, so an operator reading a tick log sees which file escaped. Bun's
@@ -1130,11 +1228,11 @@ echo deployed >> ${ran}
   });
 
   it('runs the deployer from a complete, clean, uninstalled target-revision tree', async () => {
-    const root = await scratchAsync('wbs-dev-poller-build-tree-');
+    await using scratch = createSolverScratch('wbs-dev-poller-build-tree-');
+    const root = scratch.root;
     const installed = join(root, 'bin');
     const probe = join(root, 'probe');
-    const repository = new URL('../../../', import.meta.url).pathname;
-    const head = await requireCommand(['git', '-C', repository, 'rev-parse', 'HEAD']);
+    const { source, head } = await copyRepository(scratch, root);
     // Two contracts meet on the candidate. TASK-326 needs the target's whole
     // build context — Dockerfile, publisher, supervisor unit, lockfile — at
     // the target SHA, clean, with the deployer's cwd at its root. TASK-376
@@ -1166,8 +1264,11 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
     await chmod(probingBun, 0o755);
 
     const run = await command(
-      ['bash', HELPER, repository, installed, probingBun, head, Bun.version],
-      { POLL_TARGET_PROBE: probe },
+      scratch,
+      ['bash', HELPER, source, installed, probingBun, head, Bun.version],
+      {
+        POLL_TARGET_PROBE: probe,
+      },
     );
 
     // Proof, each watched failing on the merged loader (2026-09-09), all as
@@ -1200,16 +1301,19 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
   });
 
   it('keeps borrowed non-HEAD target objects readable without either source object store', async () => {
-    const root = await scratchAsync('wbs-dev-poller-borrowed-target-');
-    const { backing, source, base, target } = await seedBorrowedSource(root);
+    await using scratch = createSolverScratch('wbs-dev-poller-borrowed-target-');
+    const root = scratch.root;
+    const { backing, source, base, target } = await seedBorrowedSource(scratch, root);
     const installed = join(root, 'bin');
-    expect(await requireCommand(['git', '-C', source, 'rev-parse', 'HEAD'])).toBe(base);
-    expect(await requireCommand(['git', '-C', source, 'rev-parse', 'origin/main'])).toBe(target);
+    expect(await requireCommand(scratch, ['git', '-C', source, 'rev-parse', 'HEAD'])).toBe(base);
+    expect(await requireCommand(scratch, ['git', '-C', source, 'rev-parse', 'origin/main'])).toBe(
+      target,
+    );
     expect(await readFile(join(source, '.git/objects/info/alternates'), 'utf8')).toBe(
       `${backing}/.git/objects\n`,
     );
 
-    const run = await command([
+    const run = await command(scratch, [
       'bash',
       HELPER,
       source,
@@ -1224,7 +1328,7 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
     await rename(join(backing, '.git/objects'), join(root, 'backing-objects'));
     await rename(join(source, '.git/objects'), join(root, 'source-objects'));
     expect(
-      await command([
+      await command(scratch, [
         'git',
         '-C',
         candidate,
@@ -1232,7 +1336,7 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
         `${target}:tools/tool-remote-scripts/src/lib/probe-contract.ts`,
       ]),
     ).toEqual({ code: 0, stdout: "export const PROBE = 'borrowed target';\n", stderr: '' });
-    expect(await command(['git', '-C', candidate, 'fsck', '--full'])).toEqual({
+    expect(await command(scratch, ['git', '-C', candidate, 'fsck', '--full'])).toEqual({
       code: 0,
       stdout: '',
       stderr: '',
@@ -1245,11 +1349,12 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
     if (searchPath === undefined || searchPath === '') {
       throw new Error('PATH is required for the object-copy failure fixture');
     }
-    const root = await scratchAsync('wbs-dev-poller-copy-failure-');
-    const { source, target } = await seedBorrowedSource(root);
+    await using scratch = createSolverScratch('wbs-dev-poller-copy-failure-');
+    const root = scratch.root;
+    const { source, target } = await seedBorrowedSource(scratch, root);
     const installed = join(root, 'bin');
     const commands = join(root, 'commands');
-    const realGit = await requireCommand(['bash', '-c', 'command -v git']);
+    const realGit = await requireCommand(scratch, ['bash', '-c', 'command -v git']);
     await mkdir(commands);
     await writeFile(
       join(commands, 'git'),
@@ -1265,6 +1370,7 @@ exec "$POLL_REAL_GIT" "$@"
     await chmod(join(commands, 'git'), 0o755);
 
     const failed = await command(
+      scratch,
       ['bash', HELPER, source, installed, process.execPath, target, Bun.version],
       { PATH: `${commands}:${searchPath}`, POLL_REAL_GIT: realGit },
     );
@@ -1277,7 +1383,8 @@ exec "$POLL_REAL_GIT" "$@"
   });
 
   it('keeps concurrent target candidates isolated by commit', async () => {
-    const root = await scratchAsync('wbs-dev-poller-race-');
+    await using scratch = createSolverScratch('wbs-dev-poller-race-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const commands = join(root, 'commands');
@@ -1290,7 +1397,7 @@ exec "$POLL_REAL_GIT" "$@"
     const firstSha = 'b'.repeat(40);
     const secondSha = 'c'.repeat(40);
 
-    await requireCommand(['mkdir', '-p', source, commands]);
+    await requireCommand(scratch, ['mkdir', '-p', source, commands]);
     await writeFile(
       fakeGit,
       fakeGitArchiving(`case "$sha" in
@@ -1340,6 +1447,7 @@ esac`),
       RACE_RELEASE: release,
     };
     const results = await requireOverlappingRuns(
+      scratch,
       [
         ['bash', helper, source, installed, fakeBun, firstSha, '1.3.14'],
         ['bash', helper, source, installed, fakeBun, secondSha, '1.3.14'],
@@ -1354,7 +1462,8 @@ esac`),
   });
 
   it('runs byte-identical candidates when the same target overlaps itself', async () => {
-    const root = await scratchAsync('wbs-dev-poller-same-sha-');
+    await using scratch = createSolverScratch('wbs-dev-poller-same-sha-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const commands = join(root, 'commands');
@@ -1365,7 +1474,7 @@ esac`),
     const helper = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
     const sha = 'd'.repeat(40);
 
-    await requireCommand(['mkdir', '-p', source, commands, arrivals]);
+    await requireCommand(scratch, ['mkdir', '-p', source, commands, arrivals]);
     await writeFile(
       fakeGit,
       // A barrier, not a lock: each checkout records its own arrival and waits
@@ -1408,6 +1517,7 @@ CONTENT=SAME`),
     };
 
     const runs = await requireOverlappingRuns(
+      scratch,
       [
         ['bash', helper, source, installed, fakeBun, sha, '1.3.14'],
         ['bash', helper, source, installed, fakeBun, sha, '1.3.14'],
@@ -1429,7 +1539,8 @@ CONTENT=SAME`),
   // wait, it timed out at 20004.52ms and left the helper and its fake `git` alive afterwards
   // (2026-09-20); with the bound they exit 97 and the test passes in under a second.
   it('ends a race whose partner never arrives, rather than waiting forever', async () => {
-    const root = await scratchAsync('wbs-dev-poller-lonely-');
+    await using scratch = createSolverScratch('wbs-dev-poller-lonely-');
+    const root = scratch.root;
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const commands = join(root, 'commands');
@@ -1438,7 +1549,7 @@ CONTENT=SAME`),
     const helper = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
     const sha = 'e'.repeat(40);
 
-    await requireCommand(['mkdir', '-p', source, commands]);
+    await requireCommand(scratch, ['mkdir', '-p', source, commands]);
     await writeFile(
       fakeGit,
       fakeGitArchiving(`waited=0
@@ -1456,11 +1567,15 @@ CONTENT=NEVER`),
     await chmod(fakeGit, 0o755);
     await chmod(fakeBun, 0o755);
 
-    const lonely = await command(['bash', helper, source, installed, fakeBun, sha, '1.3.14'], {
-      PATH: `${commands}:${process.env['PATH'] ?? ''}`,
-      RACE_RELEASE: join(root, 'release-that-never-comes'),
-      RACE_PATIENCE: '20',
-    });
+    const lonely = await command(
+      scratch,
+      ['bash', helper, source, installed, fakeBun, sha, '1.3.14'],
+      {
+        PATH: `${commands}:${process.env['PATH'] ?? ''}`,
+        RACE_RELEASE: join(root, 'release-that-never-comes'),
+        RACE_PATIENCE: '20',
+      },
+    );
 
     expect(lonely.code).not.toBe(0);
     expect(lonely.stderr).toContain('race partner never arrived');

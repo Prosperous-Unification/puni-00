@@ -185,8 +185,8 @@ export function connectRegistryAuthority(
         );
       return parseRegistryCommandResponse(JSON.parse(new TextDecoder().decode(output)));
     } catch (cause) {
-      // Proof: removing termination leaves oversized stdout/stderr fixture processes to exit
-      // normally; production transport tests require SIGKILL and an already-reaped process.
+      // Proof: removing termination makes the oversized stdout/stderr fixtures require their
+      // test-owned watchdog; its use fails the live-child kill/reap proof before acceptance.
       if (child.exitCode === null) child.kill('SIGKILL');
       await child.exited;
       await Promise.allSettled([stdout, stderr]);

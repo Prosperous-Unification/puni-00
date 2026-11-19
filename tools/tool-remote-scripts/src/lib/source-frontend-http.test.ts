@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, realpathSync, writeFileSync, writeSync } from 'node:fs';
 import { access, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { expect, spyOn, test } from 'bun:test';
 
@@ -1394,21 +1394,77 @@ async function prepareOwnedProducer(historicalCommit: boolean) {
   );
   // The copied source and program equal the frozen actual modules; its owned fixed ROOT is the only relocation.
   const producer = (await import(copied)) as typeof ProducerModule;
-  return { root, producer, current, historical, sourceSha, roster };
+  return { root, producerParent: dirname(root), producer, current, historical, sourceSha, roster };
 }
 
-function readProducerRefusal(fault: unknown): { directory: string; cause: Error } {
+/** Recognizes only a canonically spelled direct child of the captured provenance temp parent. */
+function matchesProducerDirectory(directory: string, parent: string): boolean {
+  return (
+    // Proof: P01-parent omission admitted another parent; the direct-child refusal test failed.
+    directory === join(parent, basename(directory)) &&
+    // Proof: P02-basename omission admitted a wrong basename; the direct-child refusal test failed.
+    /^puni-source-frontend-wire-[A-Za-z0-9]+$/.test(basename(directory))
+  );
+}
+
+function readProducerRefusal(fault: unknown, parent: string): { directory: string; cause: Error } {
   if (!(fault instanceof Error) || !(fault.cause instanceof Error))
     throw new Error('producer refusal attribution absent', { cause: fault });
-  const match =
-    /^frontend producer scratch retained: (\/tmp\/puni-source-frontend-wire-[A-Za-z0-9]+)$/.exec(
-      fault.message,
-    );
-  const directory = match?.at(1);
-  if (directory === undefined)
+  const prefix = 'frontend producer scratch retained: ';
+  const directory = fault.message.slice(prefix.length);
+  // Proof: P03-prefix omission admitted a replaced attribution prefix; the direct-child refusal test failed.
+  if (!fault.message.startsWith(prefix) || !matchesProducerDirectory(directory, parent))
     throw new Error('producer refusal directory absent', { cause: fault });
   return { directory, cause: fault.cause };
 }
+
+test('producer refusal accepts the captured temp parent literally', () => {
+  const parent = join(tmpdir(), 'frontend-parent.[x]+');
+  const directory = join(parent, 'puni-source-frontend-wire-aB09Zx');
+  const cause = new Error('source frontend producer selected epoch changed');
+  expect(
+    readProducerRefusal(
+      new Error(`frontend producer scratch retained: ${directory}`, { cause }),
+      parent,
+    ),
+  ).toEqual({ directory, cause });
+});
+
+test('producer refusal rejects paths outside the exact direct-child capability', () => {
+  const parent = join(tmpdir(), 'frontend-parent.[x]+');
+  const basename = 'puni-source-frontend-wire-aB09Zx';
+  for (const directory of [
+    join(`${parent}-other`, basename),
+    join(parent, 'nested', basename),
+    `${parent}/nested/../${basename}`,
+    `${parent}/./${basename}`,
+    `relative/${basename}`,
+    join(parent, 'other-source-frontend-wire-aB09Zx'),
+    join(parent, 'puni-source-frontend-wire-'),
+    join(parent, 'puni-source-frontend-wire-aB09_Zx'),
+    `${join(parent, basename)}\n`,
+  ]) {
+    const cause = new Error('source frontend producer selected epoch changed');
+    throws(
+      () =>
+        readProducerRefusal(
+          new Error(`frontend producer scratch retained: ${directory}`, { cause }),
+          parent,
+        ),
+      /producer refusal directory absent/,
+    );
+  }
+  throws(
+    () =>
+      readProducerRefusal(
+        new Error(`frontend producer scratch replaced: ${join(parent, basename)}`, {
+          cause: new Error('epoch'),
+        }),
+        parent,
+      ),
+    /producer refusal directory absent/,
+  );
+});
 
 async function retainProvenanceEvidence(
   label: string,
@@ -1452,7 +1508,7 @@ test('producer rejects separately supported Git and live epochs before Node', as
         return Promise.resolve();
       }),
       (fault: unknown) => {
-        const refusal = readProducerRefusal(fault);
+        const refusal = readProducerRefusal(fault, prepared.producerParent);
         retained = refusal.directory;
         expect(refusal.cause.message).toBe('source frontend producer selected epoch changed');
         return true;
@@ -1502,7 +1558,7 @@ test('producer rejects a different supported live epoch after the actual child c
     const isProbe =
       typeof probe === 'string' &&
       typeof directory === 'string' &&
-      /^\/tmp\/puni-source-frontend-wire-[A-Za-z0-9]+$/.test(directory) &&
+      matchesProducerDirectory(directory, prepared.producerParent) &&
       probe === join(directory, 'probe.mjs') &&
       options?.cwd === join(directory, 'snapshot/apps/wbs/fe-01');
     if (isProbe) {
@@ -1561,7 +1617,7 @@ test('producer rejects a different supported live epoch after the actual child c
         return Promise.resolve();
       }),
       (fault: unknown) => {
-        const refusal = readProducerRefusal(fault);
+        const refusal = readProducerRefusal(fault, prepared.producerParent);
         retained = refusal.directory;
         propagateClosingFailure(fault, returned);
         expect(refusal.cause.message).toBe('source frontend producer selected epoch changed');

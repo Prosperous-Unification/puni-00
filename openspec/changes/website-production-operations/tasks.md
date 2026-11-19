@@ -1,0 +1,11 @@
+# Production operations implementation plan
+
+Execute inline, preserving the current development release. Intent and design are in this directory; this plan covers the full owner objective and records incomplete work explicitly.
+
+- [x] 1. Add migration 015_request_notifications and down.sql, a transactional lease/acknowledgement module and tests in website-store-sqlite. Prove committed/replayed/aborted submissions, predecessor inserts, restart, concurrent leases, expiry/stale acknowledgement, erasure cancellation, backfill and rollback. Watch each safety boundary fail under injected faults.
+- [x] 2. Add request-notifications-cli.ts to the API build. Test actual existing-database delivery through a controlled receiver, failure/retry, secret-free payload, configuration refusal, process invocation and packaged CLI. Run scoped test/lint/typecheck/build and record mutation proofs.
+- [ ] 3. Prepare isolated website-prod manifests, production notification CronJob, Secret declarations, persistent volume, environment-scoped backups and log configuration in puni-fleet. Preserve current development pins. Run rendered policy checks and fault proofs.
+- [ ] 4. Build exact production source using the canonical host lock and full required source checks. Publish immutable image digests and pin a compatible recovery pair with canonical request origins; run fleet checks. Keep licensed source private.
+- [ ] 5. Provision production-only operator configuration and necessary pull/backup/notification bindings. Bring up isolated production without relying on unresolved public DNS. Verify actual origins, TLS, migration ledger, persisted synthetic intake and operator inbox, notification acceptance, backup and restore.
+- [ ] 6. Restore or provide working bounded production logs; prove fresh API/gateway/worker events are retrievable after restart without request content or credentials. Record access and retention procedure.
+- [ ] 7. Recheck DNS authority and use available authorized DNS tooling; otherwise prepare exact records and continue direct-host verification. Complete public endpoint checks when records resolve. Audit all objective requirements and retain explicit remaining external blockers.

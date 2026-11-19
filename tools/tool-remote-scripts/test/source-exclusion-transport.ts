@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
+import { isAbsolute, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+
+import { scratchRoot } from '@tools/test-scratch';
 
 import type { RunDocker } from '../src/lib/docker-deadline';
 import { EDGE_CONTAINER } from '../src/lib/env';
@@ -213,13 +216,19 @@ export function bindStartedSource(
 export function createFixtureDocker(options: FixtureDockerOptions): RunDocker {
   const { token, root, sourceName, sourceTag, runtime, caddyName, plans, run } = options;
   assertProof(/^[a-f0-9-]{36}$/.test(token), 'fixture UUID required');
-  // Proof: omitting only the allowed-parent predicate admitted /home with the
-  // correct UUID; the outside-parent constructor negative failed. Restoring the
-  // old /tmp-only predicate also reproduces the genuine /var/tmp mock refusal.
+  // Proof: configured-process relative/outside/escape/sibling controls fail when
+  // absolute/capability/candidate-normalization/separator checks are omitted.
+  // Removing parent normalization fails the normalized-parent positive.
+  // Removing the UUID check fails wrong-token and missing-token negatives.
   assertProof(
-    (root.startsWith('/tmp/') || root.startsWith('/var/tmp/')) && root.includes(token),
+    (root.startsWith('/tmp/') ||
+      root.startsWith('/var/tmp/') ||
+      (isAbsolute(root) && resolve(root).startsWith(`${resolve(scratchRoot())}/`))) &&
+      root.includes(token),
     'fixture root must contain UUID',
   );
+  // Proof: runtime-escape loses constructor refusal when containment is omitted;
+  // the injected census then reaches the independent physical-mount fence.
   assertProof(runtime.startsWith(`${root}/`), 'fixture runtime outside root');
   assertProof(
     [sourceName, sourceTag, caddyName].every((name) => name.includes(token)),

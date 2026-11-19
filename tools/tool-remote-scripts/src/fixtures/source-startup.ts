@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { chmod, cp, lstat, mkdir, mkdtemp, readdir, symlink, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createSourceStartupManifest, type SourceConfigPin } from '../lib/source-startup-manifest';
@@ -28,7 +27,7 @@ export async function git(root: string, ...args: string[]) {
   return stdout.trim();
 }
 export async function artifact() {
-  const root = await mkdtemp(join(tmpdir(), 'source-pins-'));
+  const root = await mkdtemp('/var/tmp/source-pins-');
   roots.push(root);
   await mkdir(join(root, 'apps/wbs'), { recursive: true });
   await writeFile(join(root, '.gitignore'), 'node_modules/\n');
@@ -102,7 +101,7 @@ export async function installed() {
   return installArtifact(await artifact());
 }
 export async function installArtifact(prepared: Awaited<ReturnType<typeof artifact>>) {
-  const root = await mkdtemp(join(tmpdir(), 'source-installed-'));
+  const root = await mkdtemp('/var/tmp/source-installed-');
   roots.push(root);
   await cp(prepared.root, root, {
     recursive: true,

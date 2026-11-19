@@ -209,6 +209,29 @@ accepted late 401. A focused 2026-10-24 local replay measured 4502 ms inside the
 and 4762 ms for the case, below the earlier 4.8 s value used above. The configured node-tier
 worker count remains four.
 
+## Source observation and activation cases
+
+The source observer's two model cases each have a 300-second child allowance. Each now runs
+in its own sequential parent with a 310-second child-abort deadline and a 320-second test
+allowance. A single 310-second abort must not cover both 300-second cases. Both models and
+their refusal assertions still run; the maximum duration of the file can increase.
+
+The following allowances cover the durable owner, observation and activation work in named
+integration cases. They leave the project's 10-second default in place:
+
+| Case                                                   | Supplied operation allowance | Test allowance |
+| ------------------------------------------------------ | ---------------------------- | -------------- |
+| First source database-binding positive                 | 30 s                         | 45 s           |
+| Combined source/solver protected-work coordinator      | 60 s, unchanged              | 90 s           |
+| Joint prod+dev activation evidence and initial handoff | 360 s                        | 420 s          |
+
+The database fixture's default remains 10 seconds for other cases. Prod-only and dev-only
+activation cases retain their 180-second allowances. These are test inputs and harness
+allowances; the production deadline checks, live owner audits, durable intent/readback
+publication and file/directory synchronization remain in use. Short-deadline refusal cases
+and ordinary test hangs remain bounded. Diagnostic replay results belong in the change's
+verification record rather than changing a target-wide default.
+
 ## Found under load, outside this budget
 
 These tests failed on the loaded run, but not at a time budget. They need their own work items:

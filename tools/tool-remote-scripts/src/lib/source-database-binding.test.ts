@@ -21,6 +21,7 @@ afterEach(async () => {
 });
 test('binds actual arbitrary prod and dev filenames with independent live source probes', async () => {
   const f = await sourceDatabaseFixture();
+  // Proof: real fsync plus 4 ms per sync exhausted the original 10 s operation; this 30 s allowance passed all five assertions.
   await f.scoped(async (owner, source, solver, deadline) => {
     const observed = await observeSourceDatabaseBindings(
       owner,
@@ -37,8 +38,8 @@ test('binds actual arbitrary prod and dev filenames with independent live source
     expect(observed.activation).toBe('blocked');
     expect(f.probes()).toBe(4);
     expect(Object.isFrozen(observed.dev)).toBe(true);
-  });
-});
+  }, 30_000);
+}, 45_000);
 
 test('admits inherited agreement, export and CRLF with stable native mount permutations', async () => {
   const f = await sourceDatabaseFixture(

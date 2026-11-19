@@ -40,14 +40,64 @@ try {
   };
   if (counts.deletion !== 'disabled' || counts.activation !== 'ready')
     throw new Error('Bundled request retention report returned the wrong state');
+  // Proof: before adding the build entrypoint this actual packaged command failed its empty-queue smoke.
+  const notifications = Bun.spawnSync(
+    [process.execPath, join(bundle, 'request-notifications-cli.js'), databasePath],
+    {
+      env: {
+        PATH: process.env['PATH'],
+        APP_ORIGIN: 'https://request.puni.dev',
+        REQUEST_WEBHOOK_URL: 'https://notifications.example.test/build-smoke',
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+  if (
+    notifications.exitCode !== 0 ||
+    new TextDecoder().decode(notifications.stdout).trim() !==
+      '{"event":"request_notifications","accepted":0,"failed":0,"cancelled":0}'
+  )
+    throw new Error('Bundled request notification command failed its empty-queue smoke');
+  const notificationDelivery = Bun.spawn(
+    [
+      process.execPath,
+      'test',
+      join(import.meta.dir, 'src/request-notifications-cli.test.ts'),
+      '-t',
+      'actual HTTPS',
+    ],
+    {
+      env: {
+        PATH: process.env['PATH'],
+        CLAUDECODE: '0',
+        AGENT: '0',
+        PUNI_NOTIFICATION_PACKAGE_CLI: join(bundle, 'request-notifications-cli.js'),
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+  const notificationExit = await notificationDelivery.exited;
+  const notificationOutput = await new Response(notificationDelivery.stderr).text();
+  console.log(notificationOutput);
+  // Proof: omitting the HTTPS acceptance case produced 2 passes; removing this count check
+  // admitted that incomplete package run (exit 0); restoring it refused the same fault.
+  if (
+    notificationExit !== 0 ||
+    !/^ 3 pass$/m.test(notificationOutput) ||
+    !/^ 0 fail$/m.test(notificationOutput)
+  )
+    throw new Error('Bundled request notification HTTPS delivery smoke failed');
   const capabilities: unknown = JSON.parse(readFileSync(join(bundle, 'capabilities.json'), 'utf8'));
   // Proof: with conversion-scoping/1 absent from the actual built output, this refusal
   // failed test:package on 2026-10-25 before the journal stand-in; restoring it passed.
   if (
-    JSON.stringify(capabilities) !== JSON.stringify(['retention-journal/1', 'conversion-scoping/1'])
+    JSON.stringify(capabilities) !==
+    JSON.stringify(['retention-journal/1', 'conversion-scoping/1', 'request-notifications/1'])
   )
     throw new Error(
-      'Bundled capabilities.json must declare retention-journal/1 and conversion-scoping/1',
+      'Bundled capabilities.json must declare retention-journal/1, conversion-scoping/1 and request-notifications/1',
     );
   const countryAssets = join(bundle, 'assets/country');
   const packagedRelease: unknown = JSON.parse(

@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { chmod, cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { fenceBackendsUnderOwner } from '../lib/backend-exclusion';
@@ -128,7 +127,7 @@ export async function sourceDatabaseFixture(
       manifestSha256: generated.sha256,
     };
   }
-  const root = await mkdtemp(join(tmpdir(), 'source-database-'));
+  const root = await mkdtemp('/var/tmp/source-database-');
   await writeFile(join(root, 'edge.lock'), '');
   roots.push(root);
   const layouts = {
