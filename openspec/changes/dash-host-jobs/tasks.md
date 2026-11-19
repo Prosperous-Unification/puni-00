@@ -439,7 +439,7 @@
       `audit.test.ts`, `propose.test.ts`, `job-run.test.ts`; negatives: each new check removed
       in turn (verify.md, 2026-11-19). Changing the host scripts follows the merge (S22-A2).
 - [x] 6.23 tmp telemetry tolerates unreadable subtrees; completeness per dimension
-      (A-TMP-TELEMETRY-1; PR #PRNUM): the gate's own be-01 test leaves a mode-0 `inaccessible`
+      (A-TMP-TELEMETRY-1; PR #953): the gate's own be-01 test leaves a mode-0 `inaccessible`
       directory under `TMPDIR`, so the tmp walk's EACCES voided h4claw's first complete BuildKit
       calibration e15a97eb whole. The walk now lists unreadable subtrees (`tmpUnreadable`, at
       most 32, the rest counted) and counts the rest as a lower bound; the tmp directory itself
