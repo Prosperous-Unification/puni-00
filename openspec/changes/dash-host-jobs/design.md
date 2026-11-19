@@ -263,6 +263,21 @@ gate's solver smoke must therefore run its containers bounded and labelled befor
 overlap. `cap` bounds the scope and the declared containers, nothing more, and the README says
 so.
 
+_Amendment (task 6.22, 2026-11-19, assumption A-ATTR-HOSTSVC-1 for Dany)._ Host services
+unrelated to any job start containers on the gate hosts: h2puni's hourly
+`goaccess-reports.sh` cron (`allinurl/goaccess`) and h4claw's daily
+`puni-registry-backup.timer` (`keinos/sqlite3`). Under the rule above every gate longer than an
+hour on h2puni recorded one unlabelled container and could never be a complete calibration. A
+container without `puni.job` that carries `puni.host-service=<name>` and both `--memory` and
+`--cpus` is recorded as verdict `host-service` with its name and bounds; it leaves the
+attribution complete, `ops job audit` lists it beside the run, and its bound is not added to
+the job's envelope. Without either bound it stays unattributed, the reason naming the missing
+one. `puni.job` wins over `puni.host-service`, and the rule for unlabelled containers is
+unchanged. Rejected: ignoring containers by image name, which no record could trace back to a
+declaring operator and which any job could imitate; and making the crons Dash jobs, which run
+without Dash on unenrolled hosts and, as admitted jobs, would block a gate's admission or queue
+behind it.
+
 **J17. One tool; `ops job …` now; the `dev` migration is its own change (Codex's
 recommendation).** The job commands land as `twilight-dash ops job run|calibrate|propose|
 audit|status` and `ops pool init|inspect|switch-mode`. Moving today's commands under `dev` and

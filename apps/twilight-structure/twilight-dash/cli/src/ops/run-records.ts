@@ -10,11 +10,36 @@ import {
 } from '../resources/run-record-file';
 import type { ScopeCounters } from './scope';
 
-/** One container the run saw start, and whether it ran labelled and inside the declared bound. */
-export interface ContainerVerdict {
-  id: string;
-  verdict: 'bounded' | 'unlabelled' | 'unbounded' | 'unverified';
-  reason: string;
+/** The service a `puni.host-service` container declared, and the bounds Docker enforces on it. */
+export interface HostServiceBound {
+  name: string;
+  memoryBytes: number;
+  cpuCores: number;
+}
+
+/**
+ * One container the run saw start, and whether it ran labelled and inside the declared bound.
+ * `host-service` is a declared host service's container beside the job, run under its own
+ * bounds (`dash-host-jobs` J16 amendment, A-ATTR-HOSTSVC-1); it is listed, never charged.
+ */
+export type ContainerVerdict =
+  | { id: string; verdict: 'bounded' | 'unlabelled' | 'unbounded' | 'unverified'; reason: string }
+  | { id: string; verdict: 'host-service'; reason: string; hostService: HostServiceBound };
+
+/** Whether `container` is accounted for: the job's own bounded container or a bounded host service. */
+export function isAttributed(container: ContainerVerdict): boolean {
+  // Proof: dropping the host-service term made `a record whose only other container is a bounded
+  // host service is complete (task 6.22)` (propose.test.ts) refuse with two complete records, and
+  // three host-service tests in audit.test.ts fail (2026-11-19).
+  return container.verdict === 'bounded' || container.verdict === 'host-service';
+}
+
+/**
+ * Whether the containers a run saw leave its attribution incomplete (J16): any one neither the
+ * job's bounded container nor a declared, bounded host service.
+ */
+export function isAttributionIncomplete(containers: readonly ContainerVerdict[]): boolean {
+  return containers.some((container) => !isAttributed(container));
 }
 
 /** The labelled containers' advisory usage at one sample (J16), or why it could not be read. */
@@ -158,7 +183,16 @@ const OutcomeShape = type({
     id: 'string',
     verdict: "'bounded'|'unlabelled'|'unbounded'|'unverified'",
     reason: 'string',
-  }).array(),
+  })
+    // Proof: admitting 'host-service' in the branch above made `a host-service verdict without
+    // its declared bounds is refused` (run-records.test.ts) write the record (2026-11-19).
+    .or({
+      id: 'string',
+      verdict: "'host-service'",
+      reason: 'string',
+      hostService: { name: 'string > 0', memoryBytes: 'number > 0', cpuCores: 'number > 0' },
+    })
+    .array(),
 });
 
 /**

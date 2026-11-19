@@ -438,3 +438,38 @@ Started inside an admitted job, `test-queued` SHALL be refused 70 as a type with
 
 - **WHEN** `bin/test-queued.sh` runs with no argument, with two, or with one naming no commit
 - **THEN** it exits 64 before any lock or admission
+
+### Requirement: A declared, bounded host-service container beside a job is attributed
+
+During a host job's container watch, a container created without `puni.job` that carries
+`puni.host-service=<name>` with a non-empty name SHALL be recorded as verdict `host-service`
+with its name, `--memory` bytes and `--cpus` cores when both bounds were given, and SHALL NOT
+make the run's attribution incomplete. Without either bound, or with an empty name, it SHALL be
+recorded `unlabelled` with a reason naming what is missing. A container carrying `puni.job`
+SHALL be judged by the job-container rules whatever its `puni.host-service` label.
+`ops job propose` SHALL count such a run as complete, and `ops job audit` SHALL print a note
+listing the run's host services with their declared bounds and counts, adding nothing to the
+job's envelope. A run that saw only host-service containers SHALL NOT clear an earlier
+`attribution_incomplete`.
+
+#### Scenario: A bounded host service beside a gate
+
+- **WHEN** a gate is running and a cron starts a container three times with
+  `--label puni.host-service=goaccess-reports --memory 512m --cpus 1`
+- **THEN** the run record holds three `host-service` verdicts naming goaccess-reports with
+  536870912 bytes and 1 core, the run's attribution is complete, `ops job propose` uses it, and
+  `ops job audit` prints `note: host services beside run` followed by the job id and
+  `goaccess-reports (512 MiB, 1 cpu) ×3`
+
+#### Scenario: An unbounded host service
+
+- **WHEN** a container labelled `puni.host-service=goaccess-reports` starts during a job without
+  `--cpus`
+- **THEN** it is recorded `unlabelled` with a reason naming `--cpus`, and the run's attribution
+  is incomplete
+
+#### Scenario: Both labels
+
+- **WHEN** a container labelled `puni.job` with the running job's id and
+  `puni.host-service=goaccess-reports` starts with memory above the type's declared bound
+- **THEN** it is recorded `unbounded` by the job-container rules

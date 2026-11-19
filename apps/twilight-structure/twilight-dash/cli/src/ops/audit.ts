@@ -7,7 +7,7 @@ import {
   measuresOf,
   nearestRankP95,
 } from './measures';
-import type { RunRecord } from './run-records';
+import { type HostServiceBound, isAttributed, type RunRecord } from './run-records';
 
 /** The envelope drifts `ops job audit` names (J9, J16), most urgent first. */
 export type DriftKind =
@@ -55,6 +55,31 @@ function throttleOf(record: RunRecord, head: JobType): Drift | null {
   };
 }
 
+const MIB = 1024 ** 2;
+
+/**
+ * The host services that ran containers beside `record` (task 6.22), each with its declared
+ * bounds and how many containers it started, or null when none did: background load the
+ * operator declared, listed so it is seen, never added to the job's envelope (S22-A3).
+ */
+function hostServicesOf(record: RunRecord): string | null {
+  const counted = new Map<string, { service: HostServiceBound; count: number }>();
+  for (const container of record.containers) {
+    if (container.verdict !== 'host-service') continue;
+    const { name, memoryBytes, cpuCores } = container.hostService;
+    const key = `${name}\0${String(memoryBytes)}\0${String(cpuCores)}`;
+    const seen = counted.get(key);
+    if (seen === undefined) counted.set(key, { service: container.hostService, count: 1 });
+    else seen.count += 1;
+  }
+  if (counted.size === 0) return null;
+  const listed = [...counted.values()].map(
+    ({ service, count }) =>
+      `${service.name} (${figure(service.memoryBytes / MIB)} MiB, ${figure(service.cpuCores)} ${service.cpuCores > 1 ? 'cpus' : 'cpu'}) ×${String(count)}`,
+  );
+  return `host services beside run ${record.jobId}: ${listed.join(', ')}`;
+}
+
 /**
  * The envelope drift of the run records against the audit's own catalogue at its HEAD
  * (`dash-host-jobs` J9, J16), each record judged by its job id whatever checkout it ran from
@@ -71,8 +96,11 @@ function throttleOf(record: RunRecord, head: JobType): Drift | null {
  *   complete runs of the HEAD entry (memory from unthrottled, uncapped runs).
  * - `estimate_expired`: an `estimated` entry whose `until` ended before `now`.
  * - `attribution_incomplete`: a run during which a container ran unlabelled, unbounded or
- *   unverified, kept until a later run of the type saw containers and every one bounded
- *   (slice 4 assumption S4-A8).
+ *   unverified, kept until a later run of the type saw a bounded job container and every
+ *   other one a bounded host service (slice 4 assumption S4-A8, task 6.22).
+ *
+ * A run beside which declared host services started containers gets a note listing them with
+ * their declared bounds (task 6.22); they are attributed, not drift.
  */
 export function auditDrift(
   records: readonly RunRecord[],
@@ -97,6 +125,8 @@ export function auditDrift(
       unended.push(record.jobId);
       continue;
     }
+    const services = hostServicesOf(record);
+    if (services !== null) notes.push(services);
     const measures = measuresOf(record);
     const envelope = descriptorOf(record).envelope;
     const at = new Date(record.startedAt).toISOString();
@@ -121,9 +151,13 @@ export function auditDrift(
           later.endedAt !== null &&
           !later.attributionIncomplete &&
           // Proof: without it `a later run that started no container does not clear
-          // attribution_incomplete` (audit.test.ts) found no drift (2026-11-02, review A13).
-          later.containers.length > 0 &&
-          later.containers.every((container) => container.verdict === 'bounded'),
+          // attribution_incomplete` (audit.test.ts) found no drift (2026-11-02, review A13);
+          // `.length > 0` in its place made `a later run that saw only host-service containers
+          // does not clear attribution_incomplete` find no drift (2026-11-19, task 6.22).
+          later.containers.some((container) => container.verdict === 'bounded') &&
+          // Proof: requiring every container `bounded` made the same test find the drift after
+          // a run with a bounded job container and a host service (2026-11-19, task 6.22).
+          later.containers.every(isAttributed),
       );
       // Proof: dropping this kind made `a run with an unbounded container is
       // attribution_incomplete …` (audit.test.ts) find no drift (2026-11-02, Slice 4).
@@ -132,7 +166,9 @@ export function auditDrift(
           kind: 'attribution_incomplete',
           type: record.type,
           line: `${record.type} attribution_incomplete in run ${record.jobId} at ${at}: ${record.guardLost === undefined ? '' : `${record.guardLost}; `}${record.containers
-            .filter((container) => container.verdict !== 'bounded')
+            // Proof: listing every non-bounded verdict made `are not named as unattributed in
+            // an attribution_incomplete line` (audit.test.ts) name the host service (2026-11-19).
+            .filter((container) => !isAttributed(container))
             .map((container) => `${container.id.slice(0, 12)} ${container.verdict}`)
             .join(
               ', ',
