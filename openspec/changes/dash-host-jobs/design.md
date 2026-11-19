@@ -223,6 +223,29 @@ crash between reservation and launch, a dead launcher with surviving children, a
 cleanup leave the use charged (`blocked` or `unknown`), reconciled by the runtime's existing
 watch loop; nothing reclaims on launcher death alone.
 
+_Amendment (task 6.24, 2026-11-19, assumption A-SCOPE-LEFTOVER-1 for Dany)._ Every gate
+calibration on h4claw and h2puni ended with its payload's exit 0 and orphan test servers
+(`/bin/sh -c node serve.cjs` and `node serve.cjs`, started by the frontend and website tests)
+still alive in `dash-job-<id>.scope`. They had left the payload's session, so compute released,
+but they held `TMPDIR`: tmp stayed `blocked` (`live file hold remains charged`) and the next
+calibration or a peer's gate waited for admission until its 30-minute budget refused it 75,
+unless an operator ran `systemctl --user kill --signal=SIGKILL dash-job-<id>.scope` (29b8b406 on
+h4claw at 17:29Z, e15a97eb, 6ff558aa and 1d38876d before). Processes still in a job's scope
+once its leader has exited and its session has no live member belong to the job: `ops job run`
+records the payload's end first (the record's `endedAt` and the ledger's exit, so the leftover
+ending never counts as the job's wall time), then ends them before settlement, SIGTERM to the
+scope, SIGKILL after 10 s, then waits up to 20 s for the scope to empty, and records them
+(`leftoverProcesses`). `systemctl --user kill` signals the unit's whole cgroup subtree, so the
+count and the wait read the subtree too; the record describes only the scope's own
+`cgroup.procs`, and any cgroup other than the job's own scope is refused. A `j19-holder-*` scope
+is not below the job's scope: `systemd-run --scope` puts every transient unit under a slice, so
+it is a sibling the unit kill cannot reach. A leftover that survives is recorded as `timeout`; a
+failed `systemctl` call as `signal-failed` with its diagnostic and no wait; members unreadable
+during a wait as `unverified`; each leaves the tmp directory charged as before. This absorbs the runtime bound's after-leader SIGKILL (task
+6.14), which keeps its immediate SIGKILL. Rejected: keeping the manual step, which blocked every
+calibration series; making every test stop its servers, unenforceable across hundreds of tests
+and silent when one forgets; and releasing tmp regardless of live holds, which J2' forbids.
+
 **J11. Each host is one pool, as each host is one lock today.** No `--host`; cross-host
 choice is the fleet's later work and reads the capacity reports of J10.
 

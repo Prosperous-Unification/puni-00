@@ -24,7 +24,7 @@ import { calibrateHostJob, type JobRunDependencies, runHostJob } from './job-run
 import { measuresOf } from './measures';
 import { proposeEnvelope } from './propose';
 import { causeText, OpsRefusal } from './refusal';
-import { HostJobRunRecords } from './run-records';
+import { HostJobRunRecords, leftoverNote, type RunRecord } from './run-records';
 import type { ScopeTelemetry } from './scope';
 import { formatHostPoolStatus } from './status';
 import { checkEligibleTypes, switchPoolMode } from './switch-mode';
@@ -172,6 +172,12 @@ function auditInstant(now: string | undefined, clock: WallClock): number {
  * One handler per `ops` command, keyed by its words after `ops`; each returns its exit code.
  * `cli.test.ts` holds this table equal to the parser's `ops` commands.
  */
+/** A status entry's leftover note for `record`, when it has one (task 6.24). */
+function noteOf(record: RunRecord | null): { leftoverNote?: string } {
+  const note = record === null ? null : leftoverNote(record);
+  return note === null ? {} : { leftoverNote: note };
+}
+
 export const opsHandlers: OpsHandlers = {
   'job run': (command, deps) => runHostJob(command, launcherDependencies(deps)),
   'job calibrate': (command, deps) => calibrateHostJob(command, launcherDependencies(deps)),
@@ -282,6 +288,7 @@ export const opsHandlers: OpsHandlers = {
                 // Proof: passing 0 here failed `a throttled job says so beside its peak`
                 // (status.test.ts) on the running line (2026-11-12).
                 memoryHighEvents: record === null ? 0 : measuresOf(record).memoryHighEvents,
+                ...noteOf(record),
               },
             ];
           }),

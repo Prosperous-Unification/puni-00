@@ -452,3 +452,18 @@
       samples load with no paths. Tests: `scope.test.ts`, `measures.test.ts`,
       `propose.test.ts`, `audit.test.ts`, `run-records.test.ts`, `job-run.test.ts`,
       Burokrat `job-catalogue.test.ts`; negatives: each new check removed in turn (verify.md, 2026-11-19).
+- [x] 6.24 a job's leftover scope processes are ended before tmp settlement
+      (A-SCOPE-LEFTOVER-1; PR #954): every gate calibration left `node serve.cjs` test servers
+      in `dash-job-<id>.scope` after an exit 0, holding `TMPDIR`, so tmp stayed blocked until an
+      operator SIGKILLed the scope. Once the leader has exited and its session has no live
+      member, and after the run's end time and the ledger's exit are taken, `endLeftovers`
+      (`ops/job-run.ts`, absorbing the bound's `killLeftovers`) counts the scope's cgroup
+      subtree (`scopeSubtreeMembers`, `ops/scope.ts`), describes up to eight of its own members
+      (`leftoverMembers`), sends SIGTERM to the scope, SIGKILL after 10 s, waits up to 20 s for
+      it to empty, and records `leftoverProcesses` (`none`, `SIGTERM`, `SIGKILL`, `timeout`,
+      or `signal-failed` and `unverified` with their failure); every other outcome than the
+      first three leaves tmp blocked and says so. `ops job status` and `ops job audit` print the
+      note. Tests: `scope.test.ts`, `run-records.test.ts`, `audit.test.ts`, `status.test.ts`,
+      `job-run.test.ts` (fake seam, and the real seam outside the namespace); negatives: each
+      new check removed in turn, Fable review fixes included (verify.md, 2026-11-19). The host
+      proof follows the next calibration (S24-A3).

@@ -8,7 +8,7 @@ import {
   checkRunRecordsVersion,
   runRecordsPathOf,
 } from '../resources/run-record-file';
-import type { ScopeCounters } from './scope';
+import type { LeftoverProcess, ScopeCounters } from './scope';
 
 /** The service a `puni.host-service` container declared, and the bounds Docker enforces on it. */
 export interface HostServiceBound {
@@ -95,6 +95,32 @@ export interface RunStart {
   startedAt: number;
 }
 
+/**
+ * What the launcher did with the processes left in the job's scope once its session had ended
+ * (task 6.24, A-SCOPE-LEFTOVER-1): how many there were (the scope's subtree), at most
+ * {@link LEFTOVER_EXAMPLE_LIMIT} of the scope's own described, and what ended them: `none` (there
+ * were none), `SIGTERM` within the grace, `SIGKILL` after it, or `timeout` when the scope still
+ * had members after the SIGKILL wait. Two outcomes carry their `failure` (review of #954 S3-1):
+ * `signal-failed` when `systemctl --user kill` failed, so no signal was delivered and nothing was
+ * waited for, and `unverified` when the scope's members became unreadable during the wait. Every
+ * outcome but `none`, `SIGTERM` and `SIGKILL` leaves the tmp directory charged.
+ */
+export type LeftoverProcesses =
+  | {
+      count: number;
+      examples: LeftoverProcess[];
+      endedWith: 'none' | 'SIGTERM' | 'SIGKILL' | 'timeout';
+    }
+  | {
+      count: number;
+      examples: LeftoverProcess[];
+      endedWith: 'signal-failed' | 'unverified';
+      failure: string;
+    };
+
+/** How many leftovers a run record describes; the rest are only counted. */
+export const LEFTOVER_EXAMPLE_LIMIT = 8;
+
 /** What a run record adds after the payload exits. */
 export interface RunOutcome {
   endedAt: number;
@@ -108,6 +134,8 @@ export interface RunOutcome {
   guardLost?: string;
   /** Why the launcher ended the payload itself (its type's `maxRuntimeMinutes`); absent otherwise. */
   endedByLauncher?: string;
+  /** Absent on a record written before task 6.24, or when the ending step could not run. */
+  leftoverProcesses?: LeftoverProcesses;
 }
 
 /** A run record as `ops job status` and the tests read it. */
@@ -123,10 +151,16 @@ export interface RunRecord extends RunStart {
   guardLost?: string;
   /** Why the launcher ended the payload itself (its type's `maxRuntimeMinutes`); absent otherwise. */
   endedByLauncher?: string;
+  /** Absent on a record written before task 6.24, or when the ending step could not run. */
+  leftoverProcesses?: LeftoverProcesses;
   /** The largest `memory.peak` sampled, bytes; null before any counter was read. */
   peakMemoryBytes: number | null;
   /** The largest tmp sample, bytes: a lower bound, disk outside `TMPDIR` not covered (J7). */
   peakTmpBytes: number | null;
+  /**
+   * The payload's own wall time, gate to leader exit; the leftover ending after it (task 6.24)
+   * is excluded. Null before the outcome is recorded.
+   */
   wallMs: number | null;
   samples: RunSample[];
 }
@@ -180,6 +214,7 @@ const StartShape = type({
   units: type({ exclusiveId: 'string', path: 'string' }).array(),
   startedAt: 'number',
 });
+const Leftover = type({ pid: 'number.integer > 0', comm: 'string', cmdline: 'string' });
 const OutcomeShape = type({
   endedAt: 'number',
   exitCode: 'number',
@@ -189,6 +224,16 @@ const OutcomeShape = type({
   attributionIncomplete: 'boolean',
   'guardLost?': 'string > 0',
   'endedByLauncher?': 'string > 0',
+  'leftoverProcesses?': type({
+    count: 'number.integer >= 0',
+    examples: Leftover.array(),
+    endedWith: "'none'|'SIGTERM'|'SIGKILL'|'timeout'",
+  }).or({
+    count: 'number.integer >= 0',
+    examples: Leftover.array(),
+    endedWith: "'signal-failed'|'unverified'",
+    failure: 'string > 0',
+  }),
   containers: type({
     id: 'string',
     verdict: "'bounded'|'unlabelled'|'unbounded'|'unverified'",
@@ -407,10 +452,55 @@ export class HostJobRunRecords {
       ...(outcome?.endedByLauncher === undefined
         ? {}
         : { endedByLauncher: outcome.endedByLauncher }),
+      // A record written before task 6.24 has no field: nothing was ended for it.
+      ...(outcome?.leftoverProcesses === undefined
+        ? {}
+        : { leftoverProcesses: outcome.leftoverProcesses }),
       peakMemoryBytes: peaks.length === 0 ? null : Math.max(...peaks),
       peakTmpBytes: tmp.length === 0 ? null : Math.max(...tmp),
       wallMs: outcome === null ? null : outcome.endedAt - start.startedAt,
       samples,
     };
   }
+}
+
+/**
+ * `run <id> ended N leftover processes with SIGKILL (node serve.cjs ×2, …)` for `ops job status`
+ * and `ops job audit` (task 6.24), naming the described command lines by count; null for a run
+ * that left none or whose record predates the ending step.
+ */
+export function leftoverNote(record: RunRecord): string | null {
+  const leftovers = record.leftoverProcesses;
+  if (leftovers === undefined || leftovers.count === 0) return null;
+  const counted = new Map<string, number>();
+  for (const example of leftovers.examples) {
+    const name = example.cmdline === '' ? example.comm : example.cmdline;
+    counted.set(name, (counted.get(name) ?? 0) + 1);
+  }
+  const undescribed = leftovers.count - leftovers.examples.length;
+  const names = [
+    ...[...counted].map(([name, count]) => `${name} ×${String(count)}`),
+    ...(undescribed > 0 ? [`${String(undescribed)} more undescribed`] : []),
+  ].join(', ');
+  const count = String(leftovers.count);
+  const charged = 'so its tmp directory stays charged';
+  let ending: string;
+  switch (leftovers.endedWith) {
+    case 'none':
+      return null;
+    case 'SIGTERM':
+    case 'SIGKILL':
+      ending = `ended ${count} leftover processes with ${leftovers.endedWith}`;
+      break;
+    case 'timeout':
+      ending = `could not end ${count} leftover processes: its scope still had members after SIGKILL, ${charged}`;
+      break;
+    case 'signal-failed':
+      ending = `could not signal ${count} leftover processes, no signal was delivered (${leftovers.failure}), ${charged}`;
+      break;
+    case 'unverified':
+      ending = `could not verify that ${count} leftover processes ended (${leftovers.failure}), ${charged}`;
+      break;
+  }
+  return `run ${record.jobId} ${ending} (${names})`;
 }

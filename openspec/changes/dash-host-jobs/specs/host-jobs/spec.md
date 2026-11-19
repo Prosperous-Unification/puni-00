@@ -516,3 +516,67 @@ whose provenance carries that marker, printing a note that says so.
 - **WHEN** a sample finds the job's tmp directory unreadable or absent
 - **THEN** the sample's failure names the tmp directory, and the run records a telemetry
   failure that leaves it out of every dimension
+
+### Requirement: Processes left in a job's scope are ended before tmp settlement
+
+Once a host job's leader has exited and its launched session has no live member, `ops job
+run` and `ops job calibrate` SHALL end every process still in the job's own scope
+`dash-job-<id>.scope` before settling the job. They SHALL first record the payload's end:
+the run record's `endedAt` (so its wall time) and the ledger's exit SHALL be taken at the
+leader's exit, never after the leftover ending. They SHALL read only the job's own scope and the
+cgroups nested below it, never the parent slice or another job's scope (a `j19-holder-*` scope
+the gate's tests start is a sibling under the slice, not below the job's scope); they SHALL
+count the subtree's processes, describe up to eight of the scope's own (pid, comm, command line
+truncated to 120 characters), send SIGTERM to the whole scope through `systemctl --user kill`,
+SIGKILL after a bounded grace, and SHALL then wait, bounded, until the subtree has no member.
+The run record SHALL keep `leftoverProcesses` with `count`, `examples` and `endedWith`:
+`none`, `SIGTERM`, `SIGKILL`, `timeout`, or, with the `failure` text, `signal-failed` when a
+`systemctl --user kill` call failed (no wait follows, and a leftover that exits on its own
+afterwards SHALL NOT be labelled with the signal) or `unverified` when the members became
+unreadable during a wait. A record written before this requirement SHALL load without it.
+`ops job status` and `ops job audit` SHALL print a note naming how many leftovers were ended,
+with which signal, or that no signal was delivered, and their command lines by count. Every
+outcome other than `none`, `SIGTERM` and `SIGKILL` SHALL leave the tmp directory charged and be
+reported; none SHALL be reported as released. While a member of the payload's own session
+lives, the launcher SHALL NOT signal anything in the scope.
+
+#### Scenario: A leftover is ended before tmp settlement
+
+- **WHEN** a gate's payload exits 0 and leaves a `setsid`'d `node serve.cjs` with its working
+  directory under `TMPDIR` in the job's scope
+- **THEN** the launcher sends SIGTERM to the scope, the server exits, the run record keeps
+  `leftoverProcesses` `{ count: 1, endedWith: SIGTERM }` with its command line, the tmp entry is
+  released, and `ops job audit` notes `run <id> ended 1 leftover processes with SIGTERM (node
+serve.cjs ×1)`
+
+#### Scenario: The leftover ending is not the job's wall time
+
+- **WHEN** a leftover ignores SIGTERM and is SIGKILLed after the grace
+- **THEN** the run record's wall time ends at the leader's exit, below the grace, and the
+  ledger's exit precedes the leftover ending's first report line
+
+#### Scenario: A leftover survives the SIGKILL wait
+
+- **WHEN** a process in the job's scope is still a member after the SIGKILL wait
+- **THEN** the run record keeps `endedWith: timeout`, the launcher reports that the scope still
+  has members, the tmp entry stays `blocked`, and `ops job status` prints the note under the
+  job's line
+
+#### Scenario: The scope kill fails
+
+- **WHEN** `systemctl --user kill --signal=SIGTERM` fails for the job's scope
+- **THEN** the run record keeps `endedWith: signal-failed` with the diagnostic, nothing is waited
+  for, the tmp entry stays `blocked`, and the note says no signal was delivered
+
+#### Scenario: A nested cgroup is counted and awaited, never described
+
+- **WHEN** a cgroup below the job's scope holds a process
+- **THEN** the leftover count and the wait include it, the record's examples come from the job
+  scope's own `cgroup.procs` only, and a cgroup that is not the job's own scope (its parent
+  slice, another job's scope) is refused
+
+#### Scenario: A member of the payload's session is the job's own work
+
+- **WHEN** the payload exits leaving a plain background child in its session
+- **THEN** nothing in the scope is signalled, the run record has no `leftoverProcesses`, and the
+  job settles once the child ends

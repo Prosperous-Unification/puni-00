@@ -585,6 +585,59 @@ if (insideOpsNamespace(import.meta.path)) {
         ]);
       });
 
+      // Task 6.24: the gate's frontend tests leave `node serve.cjs` in the scope after a payload
+      // that exits 0; its hold on TMPDIR kept the tmp directory charged after every calibration.
+      measured('a leftover in the scope is ended before tmp settlement (task 6.24)', async () => {
+        const { config, checkout, base, root } = pool();
+        const leftover = join(base, 'leftover');
+        const payload = payloadScript(
+          join(base, 'leaves-a-server.sh'),
+          [
+            'cd "$TMPDIR"',
+            `setsid sh -c 'echo $$ > ${leftover}; exec sleep 300' &`,
+            `while [ ! -s ${leftover} ]; do sleep 0.05; done`,
+            'exit 0',
+          ].join('\n'),
+        );
+        cleanups.push(() => {
+          if (existsSync(leftover)) spawn('kill', ['-KILL', readFileSync(leftover, 'utf8').trim()]);
+        });
+        const report: string[] = [];
+        expect(await run(config, checkout, 'test-queued', [payload], report)).toBe(0);
+        const job = onlyJob(config);
+        const scope = `dash-job-${job.id}.scope`;
+        const record = runRecord(root, job.id);
+        // Proof: dropping the graceful `endLeftovers` call in `runAdmitted` made this see
+        // `tmp blocked: tmp directory unverified: live file hold remains charged` and the
+        // scope's members still `[<sleep pid>]` (2026-11-19, task 6.24).
+        // Outside a PID namespace (the real seam run from a login session) settlement also names
+        // the session's non-dumpable processes (`keepassxc`, `ssh-agent`, `(sd-pam)`) as outside
+        // the scope; that suffix is J19's evidence text, not a hold.
+        const tmpLine = report.find((line) => line.startsWith(`ops job: ${job.id} tmp `)) ?? '';
+        expect({
+          tmp: tmpLine.replace(/; uninspectable_outside_scope: .*$/, ''),
+          members: seam.telemetry.members(record.cgroup),
+        }).toEqual({
+          tmp: `ops job: ${job.id} tmp released: tmp directory removed and holds verified`,
+          members: [],
+        });
+        expect(job.state).toBe('released');
+        expect(record.leftoverProcesses).toEqual({
+          count: 1,
+          examples: [
+            {
+              pid: Number(readFileSync(leftover, 'utf8').trim()),
+              comm: 'sleep',
+              cmdline: 'sleep 300',
+            },
+          ],
+          endedWith: 'SIGTERM',
+        });
+        expect(report).toContain(
+          `ops job: ${job.id} 1 leftover processes in ${scope} after its session ended; SIGTERM`,
+        );
+      });
+
       measured('a one-second job is still measured', async () => {
         const { config, checkout, root } = pool();
         expect(await run(config, checkout, 'test-queued', ['true'])).toBe(0);
@@ -685,6 +738,7 @@ if (insideOpsNamespace(import.meta.path)) {
           // The scope's own counter file is made unreadable before the production read.
           const breaking: ScopeTelemetry = {
             cgroupOf: (pid) => seam.telemetry.cgroupOf(pid),
+            children: (cgroup) => seam.telemetry.children(cgroup),
             members: (cgroup) => seam.telemetry.members(cgroup),
             read: (cgroup) => {
               chmodSync(seam.telemetry.counterPath(cgroup, 'memory.peak'), 0o000);
@@ -715,6 +769,7 @@ if (insideOpsNamespace(import.meta.path)) {
           // asks for members), every process left in the scope is killed and the scope empties.
           const tearing: ScopeTelemetry = {
             cgroupOf: (pid) => seam.telemetry.cgroupOf(pid),
+            children: (cgroup) => seam.telemetry.children(cgroup),
             read: (cgroup) => seam.telemetry.read(cgroup),
             members: (cgroup) => {
               for (const member of seam.telemetry.members(cgroup)) process.kill(member, 'SIGKILL');
@@ -920,6 +975,7 @@ if (insideOpsNamespace(import.meta.path)) {
       });
       const holding: ScopeTelemetry = {
         cgroupOf: (pid) => fake.telemetry.cgroupOf(pid),
+        children: (cgroup) => fake.telemetry.children(cgroup),
         members: (cgroup) => fake.telemetry.members(cgroup),
         read: (cgroup) => {
           if (!blocker.inTransaction) blocker.run('BEGIN EXCLUSIVE');
@@ -946,6 +1002,7 @@ if (insideOpsNamespace(import.meta.path)) {
       const payload = payloadScript(join(base, 'payload.sh'), `touch ${marker}`);
       const moving: ScopeTelemetry = {
         cgroupOf: (pid) => fake.telemetry.cgroupOf(pid),
+        children: (cgroup) => fake.telemetry.children(cgroup),
         members: (cgroup) => fake.telemetry.members(cgroup),
         read: (cgroup) => {
           fixtureGit(checkout, 'commit', '--quiet', '--allow-empty', '-m', 'moved on');
@@ -1013,6 +1070,7 @@ if (insideOpsNamespace(import.meta.path)) {
       // The reviewer's probe: the signal lands inside the synchronous stretch before the gate.
       const interrupting: ScopeTelemetry = {
         cgroupOf: (pid) => fake.telemetry.cgroupOf(pid),
+        children: (cgroup) => fake.telemetry.children(cgroup),
         members: (cgroup) => fake.telemetry.members(cgroup),
         read: (cgroup) => {
           process.kill(process.pid, 'SIGINT');
@@ -1069,6 +1127,282 @@ if (insideOpsNamespace(import.meta.path)) {
         killSession(gone.pid ?? 0, 'SIGKILL');
       }).not.toThrow();
     });
+  });
+
+  describe('leftover scope processes over the fake seam (task 6.24, A-SCOPE-LEFTOVER-1)', () => {
+    /** A payload that leaves `leftover`'s process holding `TMPDIR`, `prefix` run before it. */
+    function leavingPayload(base: string, prefix: string, life = 300): string {
+      const leftover = join(base, 'leftover');
+      cleanups.push(() => {
+        if (existsSync(leftover)) spawn('kill', ['-KILL', readFileSync(leftover, 'utf8').trim()]);
+      });
+      return payloadScript(
+        join(base, 'leaves-a-server.sh'),
+        [
+          'cd "$TMPDIR"',
+          `setsid sh -c '${prefix}echo $$ > ${leftover}; exec sleep ${String(life)}' &`,
+          `while [ ! -s ${leftover} ]; do sleep 0.05; done`,
+          'exit 0',
+        ].join('\n'),
+      );
+    }
+
+    /** A report that remembers when each line arrived, on the wall clock the ledger reads. */
+    function timedReport(): { lines: string[]; at: number[]; report: (line: string) => void } {
+      const lines: string[] = [];
+      const at: number[] = [];
+      return {
+        lines,
+        at,
+        report: (line) => {
+          lines.push(line);
+          at.push(clock.read());
+        },
+      };
+    }
+
+    test("a leftover's grace is not the job's wall time (review of #954 S2-1)", async () => {
+      const { config, checkout, base, root } = pool();
+      const payload = leavingPayload(base, 'trap "" TERM; ');
+      const bin = fakeBin('exec');
+      const timed = timedReport();
+      const code = await runHostJob(request(config, 'test-queued', [payload]), {
+        ...runDependencies(checkout, [], {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          leftoverBudget: { termGraceMs: 2000, killWaitMs: 5000 },
+        }),
+        report: timed.report,
+      });
+      expect(code).toBe(0);
+      const job = onlyJob(config);
+      const record = runRecord(root, job.id);
+      expect(record.leftoverProcesses).toMatchObject({ count: 1, endedWith: 'SIGKILL' });
+      // Proof: reading the clock for `endedAt` after the leftover ending made `wallMs` 2092 against
+      // the 2 s grace; recording the ledger's exit after it put the exit 2034 ms after the
+      // leftover line (2026-11-19, review of #954 S2-1).
+      expect(record.wallMs ?? Infinity).toBeLessThan(2000);
+      const leftoverLine = timed.lines.findIndex((line) => line.includes('leftover processes in'));
+      expect(leftoverLine).toBeGreaterThan(-1);
+      expect(job.endedAt).toBeLessThanOrEqual(timed.at[leftoverLine] ?? -Infinity);
+    }, 60000);
+
+    test('a failed SIGTERM is recorded as signal-failed, nothing waited for (review of #954 S3-1)', async () => {
+      const { config, checkout, base, root } = pool();
+      const payload = leavingPayload(base, '');
+      const bin = fakeBin('exec');
+      fakeSystemctl(bin, 'fails');
+      const timed = timedReport();
+      expect(
+        await runHostJob(request(config, 'test-queued', [payload]), {
+          ...runDependencies(checkout, [], {
+            environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+            leftoverBudget: { termGraceMs: 2000, killWaitMs: 5000 },
+            settleBudgetMs: 1000,
+          }),
+          report: timed.report,
+        }),
+      ).toBe(0);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      const failure =
+        'SIGTERM: systemctl kill --signal=SIGTERM ' +
+        scope +
+        ': Failed to connect to bus: No medium found';
+      expect(runRecord(root, job.id).leftoverProcesses).toMatchObject({
+        count: 1,
+        endedWith: 'signal-failed',
+        failure,
+      });
+      const started = timed.lines.findIndex((line) =>
+        line.endsWith('after its session ended; SIGTERM'),
+      );
+      const unsignalled = timed.lines.indexOf(
+        `ops job: ${job.id} 1 leftover processes in ${scope} were not signalled: ${failure}; its tmp directory stays charged`,
+      );
+      expect(unsignalled).toBeGreaterThan(started);
+      expect((timed.at[unsignalled] ?? Infinity) - (timed.at[started] ?? 0)).toBeLessThan(1000);
+      expect(job.tmpDisk.state).toBe('blocked');
+      expect(readFileSync(join(bin, 'systemctl.log'), 'utf8')).toBe(
+        `--user kill --signal=SIGTERM ${scope}\n`,
+      );
+    }, 60000);
+
+    test('a leftover that exits on its own after a failed SIGTERM is not labelled SIGTERM', async () => {
+      const { config, checkout, base, root } = pool();
+      const payload = leavingPayload(base, '', 1);
+      const bin = fakeBin('exec');
+      fakeSystemctl(bin, 'fails');
+      expect(
+        await runHostJob(
+          request(config, 'test-queued', [payload]),
+          runDependencies(checkout, [], {
+            environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+            leftoverBudget: { termGraceMs: 3000, killWaitMs: 3000 },
+          }),
+        ),
+      ).toBe(0);
+      expect(runRecord(root, onlyJob(config).id).leftoverProcesses).toMatchObject({
+        endedWith: 'signal-failed',
+      });
+    }, 60000);
+
+    test('members that become unreadable during the wait are unverified, never ended', async () => {
+      const { config, checkout, base, root } = pool();
+      const payload = leavingPayload(base, '');
+      const bin = fakeBin('exec');
+      const log = join(bin, 'systemctl.log');
+      // Unreadable from the scope kill on, as a cgroup.procs mode change would make it.
+      const unreadable: ScopeTelemetry = {
+        ...fake.telemetry,
+        members: (cgroup) => {
+          if (existsSync(log))
+            throw Object.assign(
+              new Error(`EACCES: permission denied, open '${cgroup}/cgroup.procs'`),
+              {
+                code: 'EACCES',
+              },
+            );
+          return fake.telemetry.members(cgroup);
+        },
+      };
+      expect(
+        await runHostJob(
+          request(config, 'test-queued', [payload]),
+          runDependencies(checkout, [], {
+            environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+            telemetry: unreadable,
+            leftoverBudget: { termGraceMs: 2000, killWaitMs: 2000 },
+            settleBudgetMs: 1000,
+          }),
+        ),
+      ).toBe(0);
+      const leftovers = runRecord(root, onlyJob(config).id).leftoverProcesses;
+      expect(leftovers).toMatchObject({ count: 1, endedWith: 'unverified' });
+      expect(leftovers !== undefined && 'failure' in leftovers ? leftovers.failure : '').toContain(
+        'EACCES',
+      );
+    }, 60000);
+
+    test('a leftover that ignores SIGTERM is SIGKILLed after the grace, recorded', async () => {
+      const { config, checkout, base, root } = pool();
+      const leftover = join(base, 'leftover');
+      // An ignored signal stays ignored across `exec`, so `sleep` itself ignores SIGTERM.
+      const payload = payloadScript(
+        join(base, 'leaves-a-stubborn-server.sh'),
+        [
+          'cd "$TMPDIR"',
+          `setsid sh -c 'trap "" TERM; echo $$ > ${leftover}; exec sleep 300' &`,
+          `while [ ! -s ${leftover} ]; do sleep 0.05; done`,
+          'exit 0',
+        ].join('\n'),
+      );
+      cleanups.push(() => {
+        if (existsSync(leftover)) spawn('kill', ['-KILL', readFileSync(leftover, 'utf8').trim()]);
+      });
+      const bin = fakeBin('exec');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'test-queued', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          leftoverBudget: { termGraceMs: 500, killWaitMs: 5000 },
+        }),
+      );
+      expect(code).toBe(0);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      // Proof: dropping the SIGKILL after the grace in `endLeftovers` made this record
+      // `endedWith: 'timeout'` against `SIGKILL` (2026-11-19, task 6.24).
+      expect(runRecord(root, job.id).leftoverProcesses).toMatchObject({
+        count: 1,
+        endedWith: 'SIGKILL',
+      });
+      expect(job.state).toBe('released');
+      expect(fake.telemetry.members(`/fake/${scope}`)).toEqual([]);
+      expect(report).toContain(
+        `ops job: ${job.id} leftovers in ${scope} outlived SIGTERM by 500 ms; SIGKILL`,
+      );
+      expect(readFileSync(join(bin, 'systemctl.log'), 'utf8')).toBe(
+        `--user kill --signal=SIGTERM ${scope}\n--user kill --signal=SIGKILL ${scope}\n`,
+      );
+    }, 60000);
+
+    test('a leftover that survives SIGKILL is a recorded timeout; tmp stays blocked', async () => {
+      const { config, checkout, base, root } = pool();
+      const leftover = join(base, 'leftover');
+      const payload = payloadScript(
+        join(base, 'leaves-a-server.sh'),
+        [
+          'cd "$TMPDIR"',
+          `setsid sh -c 'echo $$ > ${leftover}; exec sleep 300' &`,
+          `while [ ! -s ${leftover} ]; do sleep 0.05; done`,
+          'exit 0',
+        ].join('\n'),
+      );
+      cleanups.push(() => {
+        if (existsSync(leftover)) spawn('kill', ['-KILL', readFileSync(leftover, 'utf8').trim()]);
+      });
+      // A user manager whose kill reaches nothing: every call is logged and answers 0.
+      const bin = fakeBin('exec');
+      payloadScript(
+        join(bin, 'systemctl'),
+        `printf '%s\\n' "$*" >> ${join(bin, 'systemctl.log')}\nexit 0`,
+      );
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'test-queued', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          leftoverBudget: { termGraceMs: 200, killWaitMs: 300 },
+          settleBudgetMs: 1000,
+        }),
+      );
+      expect(code).toBe(0);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      expect(runRecord(root, job.id).leftoverProcesses).toMatchObject({
+        count: 1,
+        endedWith: 'timeout',
+      });
+      expect(job.tmpDisk.state).toBe('blocked');
+      expect(fake.telemetry.members(`/fake/${scope}`)).toEqual([
+        Number(readFileSync(leftover, 'utf8').trim()),
+      ]);
+      expect(report).toContain(
+        `ops job: ${job.id} ${scope} still has members 300 ms after SIGKILL; its tmp directory stays charged`,
+      );
+    }, 60000);
+
+    test("a member of the payload's own session is never ended as a leftover", async () => {
+      const { config, checkout, base, root } = pool();
+      const survived = join(base, 'survived');
+      // A plain background child stays in the payload's session: it is the job's own work.
+      const payload = payloadScript(
+        join(base, 'background.sh'),
+        `(sleep 1; touch ${survived}) &\nexit 0`,
+      );
+      const bin = fakeBin('exec');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'test-queued', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          leftoverBudget: { termGraceMs: 200, killWaitMs: 300 },
+        }),
+      );
+      expect(code).toBe(0);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      // Proof: skipping the session check in `endLeftovers` ended the background child:
+      // `survived` absent (2026-11-19, task 6.24).
+      expect(existsSync(survived)).toBe(true);
+      expect(existsSync(join(bin, 'systemctl.log'))).toBe(false);
+      expect(runRecord(root, job.id)).not.toHaveProperty('leftoverProcesses');
+      expect(report).toContain(
+        `ops job: ${job.id} leftovers in ${scope} not ended: the payload's session still has members; watch settles it`,
+      );
+      expect(job.state).toBe('released');
+    }, 60000);
   });
 
   describe('the runtime bound over the fake seam (task 6.11)', () => {
@@ -1221,8 +1555,9 @@ if (insideOpsNamespace(import.meta.path)) {
       );
       const job = onlyJob(config);
       const scope = `dash-job-${job.id}.scope`;
-      // Proof: dropping `killLeftovers` after the leader's exit (job-run.ts) left the descendant
-      // alive: `members` received `[90]` against `[]` (2026-11-18, review of #942 S2-1).
+      // Proof: dropping the SIGKILL after the leader's exit (`endLeftovers`, job-run.ts) left the
+      // descendant alive: `members` received `[90]` against `[]` (2026-11-18, review of #942
+      // S2-1; `[1797]` again on 2026-11-19, task 6.24).
       expect(fake.telemetry.members(`/fake/${scope}`)).toEqual([]);
       expect(code).toBe(124);
       expect(runRecord(root, job.id)).toMatchObject({ exitCode: 124, signal: 'SIGTERM' });
