@@ -192,6 +192,16 @@
   # Proof (Docker lab, 2026-10-21): removing puni1 from the docker group failed this with
   # `permission denied while trying to connect to the docker API`.
 
+# The solver smoke refuses the legacy builder inside a Dash job; this is its own check, run the
+# way a gate resolves `docker`. A failing `docker buildx version` fails the task.
+# Proof: ansible.test.ts runs this exact argv against a fake `docker` whose `buildx` is an
+# unknown command and against no `docker` at all; both exited non-zero, a working one exited 0.
+- name: Resolve BuildKit the way the solver smoke does
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [bash, -c, '. "$HOME/.bashrc" && docker buildx version']
+  changed_when: false
+
 - name: Resolve the solver Python and its pinned solver
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:

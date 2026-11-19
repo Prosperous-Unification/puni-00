@@ -44,9 +44,10 @@ pinned=$(resolve_gate_commit "$tree" "$checkout" "$1")
 
 # The install is the gate steps' first step (bin/h2puni-gate-steps.sh carries its reason and
 # proofs): the steps script takes no step list and cannot source a library under its PATH-stubbed
-# fixture, so the one command is repeated rather than its body. The tests run as the gate's test
-# step does, `--skip-nx-cache --parallel=2`: a gate tree is long-lived, so its cache would replay a
-# result from an earlier run at the same inputs.
+# fixture, so the one command is repeated rather than its body. The tests run with
+# `--skip-nx-cache`, as the gate's do: a gate tree is long-lived, so its cache would replay a result
+# from an earlier run at the same inputs. `--parallel=2` is this job's own setting, no longer the
+# gate's (the gate runs at 1 since `dash-host-jobs` task 6.19); revisiting it is a follow-up.
 # Proof (observed 2026-11-12): with the install's status ignored (`bun install … || :`), `a failed
 # frozen install refuses test-queued before the tests` (launchers.test.ts) exited 0 and ran them.
 run_pinned_checkout "$tree" "$pinned" "$settle" \

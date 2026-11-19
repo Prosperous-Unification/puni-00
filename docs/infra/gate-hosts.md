@@ -31,6 +31,32 @@ To revert, drop `,tool-remote-scripts` from the first `run-many` exclusion and t
 `run-many` line, then update `toolchain-pins.test.ts`. Lift it only once the family's budgets
 account for host speed.
 
+Since 2026-11-18 every host gate `run-many` runs with `--parallel=1` (assumption
+A-GATE-PARALLEL-1, `dash-host-jobs` task 6.19, awaiting Dany), because at `--parallel=2` the
+gate's peak memory (12.94 GiB recorded, an OOM kill on h4claw at a 13.9 GiB slice peak) does
+not fit a 15 GiB host. The flag bounds Nx task concurrency only: a single task can still fan out
+(vitest in `wbs-fe-01:test` uses one worker per core). The Nx run should take about 90 min
+instead of about 58 (57 min 55 s measured, not counting the install, `format:check`, OpenSpec
+validation and the solver smoke); the whole-gate figure that replaces the intro's "about 100
+minutes" comes from the next `gate` calibration. Restoring `--parallel=2` on the three lines of
+`bin/h2puni-gate-steps.sh` and in `toolchain-pins.test.ts` reverts it.
+
+Gate hosts need BuildKit, which Ubuntu ships as the `docker-buildx` package (`dash-host-jobs`
+task 6.21). Ubuntu's `docker.io` comes without the buildx plugin, and then the solver smoke's
+`docker build` falls back to the deprecated legacy builder, which runs every Dockerfile step in
+an intermediate container ("Running in …", "Removed intermediate container …"). No `--label`
+reaches those containers, so `ops job propose` excluded every gate record as "container
+attribution incomplete" (J16). BuildKit runs the steps inside the daemon instead. Verify it as
+`puni1` with `docker buildx version`, which prints the plugin's version and exits 0. The
+`gate_host` role installs the pinned package and asserts it; inside a Dash job the smoke itself
+refuses to build when `docker buildx version` fails, and `bin/h2puni-gate.sh` refuses (exit 70)
+an enrolled host's gate or calibration before queueing it, since the smoke is the gate's last
+step. Installing the plugin also switches every other `docker build` on the host to BuildKit,
+such as the `website-dev-build` lane's builds on h2puni.
+
+Between merging task 6.21 and the fleet apply of `playbooks/gate-host.yml`, launch no pool gate:
+the operator sequence is merge, apply the playbook on h2puni and h4claw, then the next gate.
+
 ## What the role sets up
 
 `infra/ansible/roles/gate_host` makes the host match h2puni's gate environment:
@@ -90,7 +116,9 @@ account for host speed.
   `shellcheck`, `unzip`, `bubblewrap` and `busybox` from Ubuntu apt. The sandbox tools are
   required by existing gate tests; installing them does not grant namespace capability. A
   nested heavy job bounds its admission query with `timeout`, from `coreutils`, which Ubuntu
-  marks Essential, so the role installs nothing for it. Docker must already be running. The role does not change Docker,
+  marks Essential, so the role installs nothing for it. It also installs `docker-buildx` at
+  `puni_gate_docker_buildx_version` and asserts that version with `dpkg-query`, so the solver
+  smoke builds under BuildKit. Docker must already be running. The role does not change Docker,
   k3s, the firewall or the network.
 
 The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
@@ -108,7 +136,7 @@ The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
   on any other host, neither the configuration nor a ledger exists;
 - once a ledger exists, `ops pool inspect` and `ops job audit` pass (an envelope drift fails the
   play); before that, a skip line names the missing ledger.
-- `docker ps` works;
+- `docker ps` works, and so does `docker buildx version`;
 - `python3` is the venv's and imports the locked OR-Tools;
 - the production lock resolver names `~/.cache/wbs-heavy-work.lock` in a writable directory.
 
@@ -154,6 +182,9 @@ To rerun only the probes, pass `--tags validate`.
    bug wrote h2puni's five keys as one line and locked out every caller but the first until the
    backup was restored, is closed by construction. The count is not a login test (sshd may refuse
    a key that parses), which is why the second-session login stays.
+4. Before the host's first gate, confirm BuildKit as `puni1`: `docker buildx version` exits 0.
+   The role installs `docker-buildx`; a host prepared before task 6.21 needs this playbook
+   applied again, or the solver smoke refuses inside its first Dash job.
 
 For h4claw, the controller is the one the 2026-09-27 enrollment used. It runs on the operator
 laptop and reaches `10.1.0.4` as root through a jump via h2puni. Its inputs are in
@@ -322,6 +353,8 @@ init` refuses a unit any same-user process has as cwd, and orphaned test fixture
    changed. Then it restarts the watch, which runs from the same checkout, only if it was
    running. Otherwise it exits 75 and the next hour retries. A checkout with edited tracked
    files is refused 65, never moved over. A failed fetch, checkout, install or restart is 70.
+   Because it moves only an idle checkout, a calibration series already running keeps the code
+   it started with until it ends; restart the series' runner after the refresh (task 6.23).
    Read the most recent run's outcome with
    `systemctl --user show -p ExecMainStatus,ExecMainExitTimestamp gate-launcher-refresh.service`
    (on h4claw the journal is unreadable over ssh, as in step 5). It shows only the latest
@@ -443,6 +476,26 @@ The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
   are enrolled in observe mode (h4claw since 2026-11-08, h2puni since 2026-11-17; the
   [`dash-host-jobs` verify.md](../../openspec/changes/dash-host-jobs/verify.md) records each
   visit). See [heavy job launchers](heavy-job-launchers.md).
+
+## Host services beside the gate
+
+A gate host's own timers and crons start containers that belong to no job, and Dash's container
+watch records every container created during a job. Unless it is declared, such a container
+makes the job's run record attribution-incomplete, so `ops job propose` leaves the run out.
+Start each host-service container labelled and bounded:
+
+```sh
+docker run --rm --label puni.host-service=goaccess-reports --memory 512m --cpus 1 …
+```
+
+The run record then keeps it as verdict `host-service`, and `ops job audit` lists it beside the
+run with its declared bounds. A label without both `--memory` and `--cpus` still leaves the
+run incomplete, and a container that also carries `puni.job` is judged as that job's. Two
+scripts need it today: h2puni's hourly `~/monitoring/bin/goaccess-reports.sh` (cron at :07,
+`allinurl/goaccess`) and h4claw's daily `puni-registry-backup.timer`, whose
+`/root/.puni/registry/backup-registry.ts` runs `keinos/sqlite3` snapshots (h2puni has a
+root-owned `keinos/sqlite3` backup too). See `dash-host-jobs` task 6.22 in
+[verify.md](../../openspec/changes/dash-host-jobs/verify.md).
 
 ## End a host job by hand
 

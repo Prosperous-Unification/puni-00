@@ -402,3 +402,53 @@
       `tool-remote-scripts` from the first `run-many` and runs its `lint`, `typecheck` and `build`
       on their own line; CI's isolated leaf jobs stay the authority. Test: `toolchain-pins.test.ts`
       pins both; negatives: the pre-6.18 script and the line deleted alone (verify.md, 2026-11-18).
+- [x] 6.19 host gate payload runs nx with --parallel=1 (A-GATE-PARALLEL-1; PR #947): at
+      `--parallel=2` the trimmed gate's true peak exceeds h4claw's 15 GiB (OOM kill 59 min into a
+      calibration). `bin/h2puni-gate-steps.sh` runs all three `run-many` lines at `--parallel=1`.
+      Test: `toolchain-pins.test.ts` pins the three lines; negatives: the `--parallel=2` script
+      and each later line restored alone (verify.md, 2026-11-18).
+- [x] 6.20 J19 hold tests start their predating holder outside the gate's own Dash job scope
+      (PR #950): under the host gate the test process runs in a `dash-job-<uuid>.scope`, so a
+      plainly spawned non-dumpable holder shared it, counted as Dash-owned work and was refused
+      (h4claw calibration job 0650f314, main 4cace4ed9). When its own cgroup is a Dash job scope,
+      `resource-holds.test.ts` starts the two predating holders in a fresh user scope
+      `j19-holder-<uuid>` through `systemd-run --user --scope`, and skips with a reason naming
+      the cgroup only when that is unavailable there; production code unchanged. Negative: the
+      unmodified file under a fake `dash-job-<uuid>.scope` on the laptop failed both tests as on
+      h4claw (verify.md, 2026-11-18).
+- [x] 6.21 gate hosts install docker-buildx; the solver smoke refuses the legacy builder inside a
+      job (PR #951): without the buildx plugin, Ubuntu's `docker.io` 29.1.3 runs the smoke's
+      `docker build` on the legacy builder, whose per-step intermediate containers carry no
+      `puni.job` label, so `ops job propose` excluded every gate record as "container attribution
+      incomplete" (h4claw job ef8e1ce6). The `gate_host` role installs `docker-buildx` pinned at
+      `puni_gate_docker_buildx_version`, asserts it with `dpkg-query` and validates
+      `docker buildx version` as `puni1`; inside a Dash job `solver-image-smoke.sh` refuses to
+      build when `docker buildx version` fails and forces `DOCKER_BUILDKIT=1`, and, since the
+      smoke is the gate's last step, `bin/h2puni-gate.sh` refuses 70 on an enrolled host before
+      queueing. Tests: `ansible.test.ts`,
+      `solver-image-smoke.test.ts`, `launchers.test.ts`; negatives: the pre-6.21 role, the probe with its status
+      masked, the smoke without its guard or export, and the launcher without its preflight (verify.md, 2026-11-19). A fleet apply on h2puni and
+      h4claw follows the merge (S21-A2).
+- [x] 6.22 host-service containers beside a job are attributed when labelled and bounded
+      (A-ATTR-HOSTSVC-1; PR #952): h2puni's hourly goaccess cron and the `keinos/sqlite3`
+      backups start containers without `puni.job`, so every gate longer than an hour recorded
+      an unlabelled container. A container labelled `puni.host-service=<name>` with `--memory`
+      and `--cpus` is now verdict `host-service` (name and bounds in the run record), leaves the
+      attribution complete and is listed by `ops job audit`; without a bound it stays
+      `unlabelled`; `puni.job` wins. Tests: `containers.test.ts`, `run-records.test.ts`,
+      `audit.test.ts`, `propose.test.ts`, `job-run.test.ts`; negatives: each new check removed
+      in turn (verify.md, 2026-11-19). Changing the host scripts follows the merge (S22-A2).
+- [x] 6.23 tmp telemetry tolerates unreadable subtrees; completeness per dimension
+      (A-TMP-TELEMETRY-1; PR #953): the gate's own be-01 test leaves a mode-0 `inaccessible`
+      directory under `TMPDIR`, so the tmp walk's EACCES voided h4claw's first complete BuildKit
+      calibration e15a97eb whole. The walk now lists unreadable subtrees (`tmpUnreadable`, at
+      most 32, the rest counted) and counts the rest as a lower bound; the tmp directory itself
+      absent or unreadable is still a telemetry failure. `dimensionStandings` (`measures.ts`)
+      makes such a record complete for memory, CPU and duration and a tmp lower bound;
+      `ops job propose` names it `tmp lower bound only` and falls back to lower bounds for
+      tmp only below three measured records, never lowering the entry and marking the
+      provenance `tmpDiskGibLowerBound: true` (Burokrat `JobType`); `ops job audit` notes the
+      paths, keeps them out of `waste` and never judges tmp waste for a marked entry. Old
+      samples load with no paths. Tests: `scope.test.ts`, `measures.test.ts`,
+      `propose.test.ts`, `audit.test.ts`, `run-records.test.ts`, `job-run.test.ts`,
+      Burokrat `job-catalogue.test.ts`; negatives: each new check removed in turn (verify.md, 2026-11-19).

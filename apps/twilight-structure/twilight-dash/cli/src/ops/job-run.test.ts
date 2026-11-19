@@ -29,6 +29,7 @@ import { privateLegacyLock } from '../resources/legacy-lock.test.fixture';
 import { loadResourceConfiguration, ResourceRuntime } from '../resources/runtime';
 import { type OpsDependencies, opsHandlers, runOps } from './commands';
 import { type JobRunDependencies, type JobRunRequest, killSession, runHostJob } from './job-run';
+import { dimensionStandings, incompleteness } from './measures';
 import {
   catalogueCheckout,
   catalogueOf,
@@ -596,6 +597,53 @@ if (insideOpsNamespace(import.meta.path)) {
         ]);
         expect(record.telemetryFailure).toBeNull();
       });
+
+      measured(
+        'a mode-0 test fixture under TMPDIR is a listed tmp lower bound, not a telemetry failure (task 6.23)',
+        async () => {
+          const { config, checkout, base, root } = pool();
+          // What `shared-people-host-restore-process.db.test.ts` does under the gate: a
+          // directory closed to its own user inside a mkdtemp fixture, reopened later.
+          const payload = payloadScript(
+            join(base, 'fixture.sh'),
+            [
+              'fixture="$TMPDIR/wbs-shared-process-XYrBbJ"',
+              'mkdir -p "$fixture/inaccessible/mount"',
+              'head -c 1048576 /dev/zero > "$TMPDIR/scratch"',
+              'chmod 0 "$fixture/inaccessible"',
+              'sleep 1',
+              'chmod 700 "$fixture/inaccessible"',
+            ].join('\n'),
+          );
+          const report: string[] = [];
+          const code = await run(config, checkout, 'test-queued', [payload], report, {
+            sampleIntervalMs: 100,
+          });
+          expect(code).toBe(0);
+          const record = runRecord(root, onlyJob(config).id);
+          // Proof: rethrowing EACCES below the tmp directory in `directoryUsage` made this
+          // test record `telemetryFailure` `interval: tmp directory … unreadable: EACCES:
+          // permission denied, scandir '…/inaccessible'`, as e15a97eb did (2026-11-19).
+          expect(record.telemetryFailure).toBeNull();
+          expect(incompleteness(record)).toBeNull();
+          const partial = record.samples.filter((sample) => sample.tmpUnreadable.length > 0);
+          expect(partial.length).toBeGreaterThan(0);
+          for (const sample of partial) {
+            expect(sample).toMatchObject({
+              kind: 'interval',
+              tmpUnreadable: ['wbs-shared-process-XYrBbJ/inaccessible'],
+              tmpUnreadableOmitted: 0,
+              failure: null,
+            });
+            expect(sample.tmpBytes).toBeGreaterThanOrEqual(1048576);
+          }
+          expect(dimensionStandings(record).tmpDiskGib).toEqual({
+            kind: 'lower-bound',
+            reason: `tmp lower bound only: ${String(partial.length)} samples saw unreadable subtrees (wbs-shared-process-XYrBbJ/inaccessible)`,
+          });
+          expect(report.some((line) => line.includes('telemetry failure'))).toBe(false);
+        },
+      );
 
       measured("a job's failure passes through", async () => {
         const { config, checkout, base, root } = pool();
@@ -1429,9 +1477,33 @@ if (insideOpsNamespace(import.meta.path)) {
         expect(mine.map((verdict) => verdict.verdict)).toEqual(['bounded']);
         // Other agents on the host may start unlabelled containers in the same window.
         expect(record.attributionIncomplete).toBe(
-          record.containers.some((verdict) => verdict.verdict !== 'bounded'),
+          record.containers.some(
+            (verdict) => verdict.verdict !== 'bounded' && verdict.verdict !== 'host-service',
+          ),
         );
         expect(job.compute.state).toBe('released');
+      },
+      90000,
+    );
+
+    test.skipIf(!ready)(
+      'a labelled, bounded host-service container beside the job keeps attribution complete (task 6.22)',
+      async () => {
+        const { code, record } = await runBoxed(
+          [
+            `docker run --rm --label puni.job="$DASH_JOB_ID" --memory 256m --cpus 1 ${CONTAINER_IMAGE} sleep 1`,
+            `docker run --rm --label puni.host-service=dash-test-service --memory 64m --cpus 0.5 ${CONTAINER_IMAGE} sleep 1`,
+          ].join('\n'),
+        );
+        expect(code).toBe(0);
+        const mine = record.containers.filter((verdict) => verdict.verdict !== 'unlabelled');
+        expect(mine.map((verdict) => verdict.verdict)).toEqual(['bounded', 'host-service']);
+        expect(mine[1]).toMatchObject({
+          hostService: { name: 'dash-test-service', memoryBytes: 64 * 1024 ** 2, cpuCores: 0.5 },
+        });
+        expect(record.attributionIncomplete).toBe(
+          record.containers.some((verdict) => verdict.verdict === 'unlabelled'),
+        );
       },
       90000,
     );

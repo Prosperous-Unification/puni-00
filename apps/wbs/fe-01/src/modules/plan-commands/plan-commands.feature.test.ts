@@ -7,13 +7,18 @@ import {
 } from './contract';
 import { createPlanCommands } from './plan-commands.feature';
 
+interface ProgressRoutes {
+  setProgress(id: string, stepId: string, state: 'in_progress' | 'done'): Promise<void>;
+  clearProgress(id: string, stepId: string): Promise<void>;
+}
+
 /**
  * The port, recording every call and answering each with a promise of its own
  * that never settles: what these tests are about happens when a command is
  * called, and whose promise comes back is asserted by identity.
  */
 function recordingRoutes(): {
-  readonly routes: PlanCommandRoutes;
+  readonly routes: PlanCommandRoutes & ProgressRoutes;
   readonly calls: unknown[][];
   readonly answers: Map<string, Promise<unknown>>;
 } {
@@ -58,6 +63,8 @@ function recordingRoutes(): {
       setDemands: (...args) => answer('setDemands', args),
       patchWorkItem: (...args) => answer('patchWorkItem', args),
       setStatus: (...args) => answer('setStatus', args),
+      setProgress: (...args) => answer<undefined>('setProgress', args),
+      clearProgress: (...args) => answer<undefined>('clearProgress', args),
       setStepBlocked: (...args) => answer('setStepBlocked', args),
       startAttempt: (...args) => answer('startAttempt', args),
       endAttempt: (...args) => answer('endAttempt', args),
@@ -188,6 +195,8 @@ describe('the plan commands of one project', () => {
     const sent = [
       commands.patchWorkItem('w1', { name: 'Paint the fence' }),
       commands.setStatus('w1', 'done', '2026-09-24'),
+      commands.setProgress('w1', 'step-1', 'done'),
+      commands.clearProgress('w1', 'step-1'),
       commands.setStepBlocked('w1', 'step-1', true),
       commands.startAttempt('w1', 'step-1'),
       commands.endAttempt('w1', 'step-1', 'failed', 'PR #12'),
@@ -227,6 +236,8 @@ describe('the plan commands of one project', () => {
     expect(calls).toStrictEqual([
       ['patchWorkItem', 'w1', { name: 'Paint the fence' }],
       ['setStatus', 'w1', 'done', '2026-09-24'],
+      ['setProgress', 'w1', 'step-1', 'done'],
+      ['clearProgress', 'w1', 'step-1'],
       ['setStepBlocked', 'w1', 'step-1', true],
       ['startAttempt', 'w1', 'step-1'],
       ['endAttempt', 'w1', 'step-1', 'failed', 'PR #12'],
@@ -286,5 +297,47 @@ describe('the plan commands of one project', () => {
 
     expect(later).toEqual(['freeze:p1', 'patch:w1']);
     expect(calls).toEqual([]);
+  });
+
+  it('looks up setProgress at invocation and returns its rejected promise unchanged', async () => {
+    const { routes, calls } = recordingRoutes();
+    const commands = createPlanCommands({ projectId: 'p1', routes });
+    expect(calls).toEqual([]);
+    const seen: unknown[][] = [];
+    const refusal = new Error('set refused');
+    let routePromise: Promise<void> | undefined;
+    routes.setProgress = (...args) => {
+      seen.push(['setProgress', ...args]);
+      routePromise = Promise.reject(refusal);
+      return routePromise;
+    };
+
+    const forwarded = commands.setProgress('w1', 'step-1', 'in_progress');
+    const refusalAssertion = expect(forwarded).rejects.toBe(refusal);
+    expect(forwarded).toBe(routePromise);
+    expect(seen).toEqual([['setProgress', 'w1', 'step-1', 'in_progress']]);
+    expect(calls).toEqual([]);
+    await refusalAssertion;
+  });
+
+  it('looks up clearProgress at invocation and returns its rejected promise unchanged', async () => {
+    const { routes, calls } = recordingRoutes();
+    const commands = createPlanCommands({ projectId: 'p1', routes });
+    expect(calls).toEqual([]);
+    const seen: unknown[][] = [];
+    const refusal = new Error('clear refused');
+    let routePromise: Promise<void> | undefined;
+    routes.clearProgress = (...args) => {
+      seen.push(['clearProgress', ...args]);
+      routePromise = Promise.reject(refusal);
+      return routePromise;
+    };
+
+    const forwarded = commands.clearProgress('w2', 'step-2');
+    const refusalAssertion = expect(forwarded).rejects.toBe(refusal);
+    expect(forwarded).toBe(routePromise);
+    expect(seen).toEqual([['clearProgress', 'w2', 'step-2']]);
+    expect(calls).toEqual([]);
+    await refusalAssertion;
   });
 });

@@ -5,6 +5,9 @@
       "file": "playwright-config.test.ts"
     },
     {
+      "file": "src/components/board/step-board-action.test.ts"
+    },
+    {
       "file": "src/components/board/step-board.test.ts"
     },
     {
@@ -234,6 +237,9 @@
     },
     {
       "file": "src/testing/fake-project-api.test.ts"
+    },
+    {
+      "file": "src/testing/board-journal.test.ts"
     },
     {
       "file": "src/testing/plan-fixture-command-results.test.ts"

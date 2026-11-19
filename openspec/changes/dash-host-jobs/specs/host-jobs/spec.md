@@ -438,3 +438,81 @@ Started inside an admitted job, `test-queued` SHALL be refused 70 as a type with
 
 - **WHEN** `bin/test-queued.sh` runs with no argument, with two, or with one naming no commit
 - **THEN** it exits 64 before any lock or admission
+
+### Requirement: A declared, bounded host-service container beside a job is attributed
+
+During a host job's container watch, a container created without `puni.job` that carries
+`puni.host-service=<name>` with a non-empty name SHALL be recorded as verdict `host-service`
+with its name, `--memory` bytes and `--cpus` cores when both bounds were given, and SHALL NOT
+make the run's attribution incomplete. Without either bound, or with an empty name, it SHALL be
+recorded `unlabelled` with a reason naming what is missing. A container carrying `puni.job`
+SHALL be judged by the job-container rules whatever its `puni.host-service` label.
+`ops job propose` SHALL count such a run as complete, and `ops job audit` SHALL print a note
+listing the run's host services with their declared bounds and counts, adding nothing to the
+job's envelope. A run that saw only host-service containers SHALL NOT clear an earlier
+`attribution_incomplete`.
+
+#### Scenario: A bounded host service beside a gate
+
+- **WHEN** a gate is running and a cron starts a container three times with
+  `--label puni.host-service=goaccess-reports --memory 512m --cpus 1`
+- **THEN** the run record holds three `host-service` verdicts naming goaccess-reports with
+  536870912 bytes and 1 core, the run's attribution is complete, `ops job propose` uses it, and
+  `ops job audit` prints `note: host services beside run` followed by the job id and
+  `goaccess-reports (512 MiB, 1 cpu) ×3`
+
+#### Scenario: An unbounded host service
+
+- **WHEN** a container labelled `puni.host-service=goaccess-reports` starts during a job without
+  `--cpus`
+- **THEN** it is recorded `unlabelled` with a reason naming `--cpus`, and the run's attribution
+  is incomplete
+
+#### Scenario: Both labels
+
+- **WHEN** a container labelled `puni.job` with the running job's id and
+  `puni.host-service=goaccess-reports` starts with memory above the type's declared bound
+- **THEN** it is recorded `unbounded` by the job-container rules
+
+### Requirement: An unreadable subtree under a job's tmp directory is a listed tmp lower bound
+
+Each sample of a host job SHALL walk the job's tmp directory past any subtree its user may not
+read (EACCES or EPERM) and past entries that vanish mid-walk, recording the readable bytes as a
+lower bound and the unreadable paths, relative to the tmp directory, deduplicated and at most
+32 with a count of the rest. Such a sample SHALL NOT be a telemetry failure; the tmp directory
+itself absent or unreadable SHALL be. A record whose only defect is unreadable tmp subtrees
+SHALL be complete for memory, CPU and duration, and a lower bound for tmp disk: `ops job
+propose` SHALL name it `tmp lower bound only` and leave it out of tmp disk, taking tmp disk from
+lower bounds only when fewer than three records measured it, then never below the entry's
+current `tmpDiskGib`, naming those records `used as a lower bound` and not `excluded`, saying
+how many tmp records were measured, and marking the proposed provenance
+`tmpDiskGibLowerBound: true`. `ops job audit` SHALL print one note per such run listing the
+paths, SHALL NOT count its tmp figure toward `waste`, and SHALL NOT judge tmp waste for an entry
+whose provenance carries that marker, printing a note that says so.
+
+#### Scenario: A mode-0 test fixture under TMPDIR
+
+- **WHEN** a gate's payload creates `wbs-shared-process-XYrBbJ/inaccessible` under `TMPDIR`
+  with mode 0 and reopens it later
+- **THEN** the samples taken meanwhile list `wbs-shared-process-XYrBbJ/inaccessible`, their
+  tmp bytes count the rest of the directory, and the run records no telemetry failure
+
+#### Scenario: Three calibrations whose only defect is unreadable tmp subtrees
+
+- **WHEN** `ops job propose --type gate` reads three such calibration records
+- **THEN** it proposes memory, CPU and duration from them, prints `tmp lower bound only` for
+  each, and proposes tmp disk as a lower bound only, at least the entry's current figure, with
+  `tmpDiskGibLowerBound: true` in the provenance
+
+#### Scenario: An accepted lower-bound tmp entry
+
+- **WHEN** the catalogue's entry carries `tmpDiskGibLowerBound: true` and ten complete runs
+  measured tmp disk below half its `tmpDiskGib`
+- **THEN** `ops job audit` names no tmp waste and prints a note that the tmp entry is a lower
+  bound and waste cannot fire for tmpDiskGib
+
+#### Scenario: The tmp directory itself unreadable
+
+- **WHEN** a sample finds the job's tmp directory unreadable or absent
+- **THEN** the sample's failure names the tmp directory, and the run records a telemetry
+  failure that leaves it out of every dimension

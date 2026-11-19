@@ -155,6 +155,27 @@ scope's `MemoryHigh`, sends SIGTERM to the session and SIGKILLs the whole scope 
 budget (task 6.14). A telemetry failure mid-run and a ledger
 write failure are recorded apart from the payload's outcome.
 
+_Amendment (task 6.23, 2026-11-19, assumption A-TMP-TELEMETRY-1 for Dany)._ The gate's own
+`apps/wbs/be-01/src/shared-people-host-restore-process.db.test.ts` makes a directory
+`inaccessible` with mode 0 inside its `mkdtemp(join(tmpdir(), 'wbs-shared-process-'))`
+fixture, which is under the job's `TMPDIR`, and reopens it later. The tmp walk's `scandir` of
+it failed with EACCES, every such sample became a telemetry failure, and the whole record was
+excluded: the first complete BuildKit calibration on h4claw (e15a97eb) lost its memory, CPU and
+duration with its tmp figure. The walk now skips a subtree it may not read (EACCES, EPERM) and
+an entry that vanishes, counts the rest and lists the skipped paths in the sample
+(`tmpUnreadable`, relative, at most 32, the rest counted); the tmp directory itself absent or
+unreadable stays a telemetry failure. Completeness is per dimension: such a record is complete
+for memory, CPU and duration and a lower bound for tmp disk, which `propose` takes only when
+too few records measured it, never lowering the entry, and which `audit` notes and never
+counts as waste. A proposal that took any lower bound marks its provenance
+`tmpDiskGibLowerBound: true` in the Burokrat `JobType` contract, because the entry's
+`tmpDiskGib` becomes the pool's disk reservation; `audit` never judges such an entry for tmp
+waste and says so in a note. Rejected: making the test reopen the directory in time, racy by
+construction against a ten-second sampler; running the sampler as root, out because the
+launcher runs as the gate user; dropping tmp measurement, which loses the dimension; and
+moving the fixture outside `TMPDIR`, left to Dany (S23-A2) because it changes a WBS test for a
+Dash measurement.
+
 **J8. What cannot be measured is refused before the payload, never run unmeasured.** No
 `systemd-run`, no user manager, scope counters unreadable at the gate: exit 70 before the
 payload starts, naming the fix (`loginctl enable-linger puni1`; h4claw today). The gate host role
@@ -262,6 +283,21 @@ unlabelled or unbounded container, build engine or Dagger session started is rec
 gate's solver smoke must therefore run its containers bounded and labelled before two gates may
 overlap. `cap` bounds the scope and the declared containers, nothing more, and the README says
 so.
+
+_Amendment (task 6.22, 2026-11-19, assumption A-ATTR-HOSTSVC-1 for Dany)._ Host services
+unrelated to any job start containers on the gate hosts: h2puni's hourly
+`goaccess-reports.sh` cron (`allinurl/goaccess`) and h4claw's daily
+`puni-registry-backup.timer` (`keinos/sqlite3`). Under the rule above every gate longer than an
+hour on h2puni recorded one unlabelled container and could never be a complete calibration. A
+container without `puni.job` that carries `puni.host-service=<name>` and both `--memory` and
+`--cpus` is recorded as verdict `host-service` with its name and bounds; it leaves the
+attribution complete, `ops job audit` lists it beside the run, and its bound is not added to
+the job's envelope. Without either bound it stays unattributed, the reason naming the missing
+one. `puni.job` wins over `puni.host-service`, and the rule for unlabelled containers is
+unchanged. Rejected: ignoring containers by image name, which no record could trace back to a
+declaring operator and which any job could imitate; and making the crons Dash jobs, which run
+without Dash on unenrolled hosts and, as admitted jobs, would block a gate's admission or queue
+behind it.
 
 **J17. One tool; `ops job …` now; the `dev` migration is its own change (Codex's
 recommendation).** The job commands land as `twilight-dash ops job run|calibrate|propose|

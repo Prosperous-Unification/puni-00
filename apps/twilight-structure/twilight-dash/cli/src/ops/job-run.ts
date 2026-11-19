@@ -28,10 +28,10 @@ import {
 } from './catalogue';
 import { checkDockerAvailable, ContainerWatch, dockerContainerEvidence } from './containers';
 import { causeText, type OpsExitCode, OpsRefusal } from './refusal';
-import { HostJobRunRecords, type RunSample } from './run-records';
+import { HostJobRunRecords, isAttributed, type RunSample } from './run-records';
 import {
   checkScopeAvailable,
-  directoryBytes,
+  directoryUsage,
   scopeArguments,
   type ScopeTelemetry,
   scopeUnitOf,
@@ -293,9 +293,16 @@ function readSample(
   } catch (cause) {
     failures.push(causeText(cause));
   }
-  let tmpBytes: number | null = null;
+  // An unreadable subtree makes the figure a lower bound, listed, not a telemetry failure: the
+  // gate's own tests leave a mode-0 directory under TMPDIR (task 6.23). The tmp directory itself
+  // unreadable or absent still is one.
+  let tmp: { bytes: number | null; unreadable: string[]; unreadableOmitted: number } = {
+    bytes: null,
+    unreadable: [],
+    unreadableOmitted: 0,
+  };
   try {
-    tmpBytes = directoryBytes(tmpDirectory);
+    tmp = directoryUsage(tmpDirectory);
   } catch (cause) {
     failures.push(`tmp directory ${tmpDirectory} unreadable: ${causeText(cause)}`);
   }
@@ -303,7 +310,9 @@ function readSample(
     kind,
     observedAt,
     counters,
-    tmpBytes,
+    tmpBytes: tmp.bytes,
+    tmpUnreadable: tmp.unreadable,
+    tmpUnreadableOmitted: tmp.unreadableOmitted,
     containers: null,
     failure: failures.length === 0 ? null : failures.join('; '),
   };
@@ -1032,7 +1041,11 @@ async function runAdmitted(
   if (guardLost !== undefined) deps.report(`ops job: ${job.id} ${guardLost}`);
   if (telemetryFailure !== null)
     deps.report(`ops job: ${job.id} telemetry failure recorded: ${telemetryFailure}`);
-  const incomplete = verdicts.filter((verdict) => verdict.verdict !== 'bounded');
+  // A declared, bounded host service beside the job is attributed, not charged (task 6.22).
+  // Proof: counting only `bounded` here made `a labelled, bounded host-service container beside
+  // the job keeps attribution complete (task 6.22)` (job-run.test.ts) record attribution
+  // incomplete (2026-11-19).
+  const incomplete = verdicts.filter((verdict) => !isAttributed(verdict));
   for (const verdict of incomplete)
     deps.report(
       `ops job: ${job.id} attribution incomplete: ${verdict.id.slice(0, 12)} ${verdict.verdict}: ${verdict.reason}`,

@@ -1,4 +1,4 @@
-import { chmod, readFile, statfs, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, readlink, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -6,6 +6,7 @@ import { expect, it } from 'bun:test';
 
 import { executeRegistryCommand } from './registry-journal';
 import { admitPublication } from './registry-policy';
+import { consumeRegistryStream } from './registry-stream';
 
 const GiB = 1024 ** 3;
 const root = `sha256:${'1'.repeat(64)}`;
@@ -393,58 +394,354 @@ it('rejects malformed claims and insecure journal paths before mutations', async
 });
 
 it('runs the owner-only stdin CLI with real measurements and bounds input', async () => {
-  const directory = await scratchAsync('registry-command-');
-  await chmod(directory, 0o700);
-  const filesystem = await statfs(directory);
-  const localEnrollment = {
-    ...enrollment,
-    registryPath: directory,
-    rootPath: directory,
-    // Smoke test only: statfs measures this whole shared filesystem, so enrolling its full size
-    // admits commands without proving the dedicated journal filesystem a deployment requires.
-    journalMaximumBytes: filesystem.blocks * filesystem.bsize,
-  };
-  const run = (request: string, extra: string[] = []) => {
-    const process_ = Bun.spawn(
-      [process.execPath, join(import.meta.dir, 'registry-journal-cli.ts'), directory, ...extra],
-      {
-        stdin: new TextEncoder().encode(request),
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
-    );
-    return Promise.all([
-      process_.exited,
-      new Response(process_.stdout).text(),
-      new Response(process_.stderr).text(),
-    ]);
-  };
-  const initialized = await run(
-    JSON.stringify({ command: 'initialize', enrollment: localEnrollment }),
-  );
-  expect(initialized[0]).toBe(0);
-  expect(
-    (JSON.parse(initialized[1]) as { state: { enrollment: { registryId: string } } }).state
-      .enrollment.registryId,
-  ).toBe('proof-registry');
-  const orphan = join(directory, `journal.${crypto.randomUUID()}.json`);
-  await writeFile(orphan, 'crashed replacement', { mode: 0o600 });
-  const readback = await run('{"command":"read"}');
-  expect(
-    (await import('node:fs/promises').then(({ readdir }) => readdir(directory))).sort(),
-  ).toEqual(['authority.lock', 'journal.json']);
-  expect(readback[0]).toBe(0);
-  expect((JSON.parse(readback[1]) as { state: { revision: number } }).state.revision).toBe(0);
-  for (const [request, extra] of [
-    ['{"command":"read"}' + ' '.repeat(65537), []],
-    ['{"command":"read"}', ['--locked']],
-    [JSON.stringify({ ...publication(), capacity }), []],
-  ] as const) {
-    const refused = await run(request, [...extra]);
-    expect(refused[0]).not.toBe(0);
-    expect(refused[1]).toBe('');
+  const observation = await runJournalFilesystemFixture();
+  expect(observation.hasTimedOut, JSON.stringify(observation)).toBe(false);
+  expect(observation.stdoutFailure, JSON.stringify(observation)).toBeNull();
+  expect(observation.stderrFailure, JSON.stringify(observation)).toBeNull();
+  expect(observation.exitCode, JSON.stringify(observation)).toBe(0);
+  expect(observation.stderr, JSON.stringify(observation)).toBe('');
+  const frames: Record<string, unknown>[] = observation.stdout
+    .trimEnd()
+    .split('\n')
+    .map((line) => {
+      const frame: unknown = JSON.parse(line);
+      if (typeof frame !== 'object' || frame === null || Array.isArray(frame))
+        throw new Error('Malformed journal fixture observation');
+      return frame as Record<string, unknown>;
+    });
+  // Proof: faults07/08/09 in controlled-journal-final-semantic reject omitted completion, corrupted request association and unknown diagnostic event through this actual parser.
+  const stages = frames.filter((frame) => {
+    if (frame['stage'] !== 'diagnostic') return true;
+    expect(frame['fixture']).toBe('registry-journal-cli-v1');
+    expect([
+      'stream-prefix',
+      'stream-overflow',
+      'stream-failure',
+      'deadline',
+      'settlement-failed',
+    ]).toContain(String(frame['event']));
+    return false;
+  });
+  expect(stages.map((frame) => frame['stage'])).toEqual([
+    'admission',
+    'initialize-request',
+    'initialize',
+    'journal',
+    'orphan',
+    'read-request',
+    'read',
+    'files',
+    'complete',
+  ]);
+  expect(stages.at(-1)).toEqual({
+    schemaVersion: 1,
+    fixture: 'registry-journal-cli-v1',
+    stage: 'complete',
+    status: 'passed',
+    stages: [
+      'admission',
+      'initialize-request',
+      'initialize',
+      'journal',
+      'orphan',
+      'read-request',
+      'read',
+      'files',
+    ],
+    childCount: 2,
+  });
+  const admission = stages.at(0);
+  expect(admission?.['filesystemType']).toBe('tmpfs');
+  expect(admission?.['capacityBytes']).toBe(4194304);
+  expect(admission?.['uid']).toBe(1000);
+  expect(admission?.['gid']).toBe(1000);
+  for (const stage of ['initialize', 'read']) {
+    const child = stages.find((frame) => frame['stage'] === stage);
+    expect(child?.['exitCode'], JSON.stringify(child)).toBe(0);
+    expect(child?.['stderr'], JSON.stringify(child)).toBe('');
+    expect(child?.['settled']).toBe(true);
+    expect(child?.['hasTimedOut']).toBe(false);
+    const request = stages.find((frame) => frame['stage'] === `${stage}-request`);
+    expect(child?.['request']).toBe(request?.['request']);
+    expect(child?.['argv']).toEqual(request?.['argv']);
   }
 });
+
+it('refuses oversized stdin before creating journal artifacts', async () => {
+  const directory = await scratchAsync('registry-command-oversized-');
+  await chmod(directory, 0o700);
+  const observation = await runJournalCli(
+    directory,
+    '{"command":"read"}' + ' '.repeat(65537),
+    [],
+    'oversized-stdin',
+  );
+  requireJournalCliRefusal(observation, 'Registry request exceeds read bound');
+  expect(await readdir(directory)).toEqual([]);
+});
+
+it('refuses the locked argument before creating journal artifacts', async () => {
+  const directory = await scratchAsync('registry-command-argument-');
+  await chmod(directory, 0o700);
+  const observation = await runJournalCli(
+    directory,
+    '{"command":"read"}',
+    ['--locked'],
+    'locked-argument',
+  );
+  requireJournalCliRefusal(
+    observation,
+    'Usage: registry-journal-cli.ts <owner-only-journal-directory>',
+  );
+  expect(await readdir(directory)).toEqual([]);
+});
+
+it('refuses caller capacity before creating journal artifacts', async () => {
+  const directory = await scratchAsync('registry-command-grammar-');
+  await chmod(directory, 0o700);
+  const observation = await runJournalCli(
+    directory,
+    JSON.stringify({ ...publication(), capacity }),
+    [],
+    'caller-capacity',
+  );
+  requireJournalCliRefusal(observation, 'Malformed registry command:');
+  expect(await readdir(directory)).toEqual([]);
+});
+
+it('refuses a non-owner-only CLI directory before journal access', async () => {
+  const directory = await scratchAsync('registry-command-owner-');
+  await chmod(directory, 0o755);
+  const observation = await runJournalCli(directory, '{"command":"read"}', [], 'owner-mode');
+  requireJournalCliRefusal(
+    observation,
+    'Registry journal directory must be owner-only and owned by the current user',
+  );
+  expect(await readdir(directory)).toEqual([]);
+});
+
+it('refuses a one-byte CLI journal budget without a canonical journal', async () => {
+  const directory = await scratchAsync('registry-command-budget-');
+  await chmod(directory, 0o700);
+  const observation = await runJournalCli(
+    directory,
+    JSON.stringify({
+      command: 'initialize',
+      enrollment: {
+        ...enrollment,
+        registryPath: directory,
+        rootPath: directory,
+        journalMaximumBytes: 1,
+      },
+    }),
+    [],
+    'one-byte-budget',
+  );
+  requireJournalCliRefusal(
+    observation,
+    'Insufficient journal capacity for durable replacement and failure receipt',
+  );
+  expect(await readdir(directory)).toEqual(['authority.lock']);
+});
+
+/** Collect the actual fixed CLI or namespace child; kill on overflow/deadline and await exit plus both readers before returning to scratch cleanup. */
+async function observeJournalChild(
+  argv: string[],
+  request: string | null,
+  stage: string,
+  deadlineMs: number,
+  environment?: Record<string, string>,
+) {
+  const cwd = process.cwd();
+  process.stderr.write(
+    `${JSON.stringify({ event: 'journal-child-request', stage, argv, request, cwd })}\n`,
+  );
+  const child = Bun.spawn(argv, {
+    cwd,
+    env: environment ?? {
+      PATH: '/usr/bin:/bin',
+      LANG: 'C.UTF-8',
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
+    },
+    stdin: request === null ? 'ignore' : new TextEncoder().encode(request),
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const stopChild = () => {
+    if (child.exitCode === null) child.kill('SIGKILL');
+  };
+  let hasTimedOut = false;
+  // Proof: parent-stall fault12 retained prefix then deadline before actual stopped-child/reader settlement; this is not a universal settlement-time bound.
+  const deadline = setTimeout(() => {
+    hasTimedOut = true;
+    process.stderr.write(
+      `${JSON.stringify({ event: 'journal-child-deadline', stage, pid: child.pid, hasTimedOut, settlement: 'pending' })}\n`,
+    );
+    stopChild();
+  }, deadlineMs);
+  const collectStream = async (stream: ReadableStream<Uint8Array>, context: string) => {
+    const chunks: Uint8Array[] = [];
+    let failure: string | null = null;
+    let receivedBytes = 0;
+    let retainedBytes = 0;
+    const observed = stream.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          receivedBytes += chunk.byteLength;
+          if (receivedBytes > 256 * 1024) {
+            // Proof: parent-noise fault11 retained prefix then overflow before the actual joined terminal; publication precedes upstream cancellation.
+            // Publish and stop before consumeRegistryStream waits for upstream cancellation.
+            process.stderr.write(
+              `${JSON.stringify({ event: 'journal-child-overflow', stage, context, pid: child.pid, receivedBytes, retainedBytes, complete: false, settlement: 'pending' })}\n`,
+            );
+            stopChild();
+          }
+          controller.enqueue(chunk);
+        },
+      }),
+    );
+    try {
+      await consumeRegistryStream(observed, 256 * 1024, context, (chunk) => {
+        chunks.push(chunk);
+        retainedBytes += chunk.byteLength;
+        process.stderr.write(
+          `${JSON.stringify({ event: 'journal-child-prefix', stage, context, pid: child.pid, retainedBytes, prefixBase64: Buffer.from(chunk).toString('base64'), complete: false })}\n`,
+        );
+      });
+    } catch (cause) {
+      failure = String(cause);
+      process.stderr.write(
+        `${JSON.stringify({ event: 'journal-child-stream-failure', stage, context, pid: child.pid, receivedBytes, retainedBytes, failure, complete: false, settlement: 'pending' })}\n`,
+      );
+      stopChild();
+    }
+    const bytes = Buffer.concat(chunks);
+    return { text: bytes.toString('utf8'), base64: bytes.toString('base64'), failure };
+  };
+  try {
+    const [terminal, stdout, stderr] = await Promise.allSettled([
+      child.exited,
+      collectStream(child.stdout, 'Journal child stdout'),
+      collectStream(child.stderr, 'Journal child stderr'),
+    ]);
+    if (
+      terminal.status !== 'fulfilled' ||
+      stdout.status !== 'fulfilled' ||
+      stderr.status !== 'fulfilled'
+    ) {
+      process.stderr.write(
+        `${JSON.stringify({ event: 'journal-child-settlement-failed', stage, argv, pid: child.pid, terminal, stdout, stderr })}\n`,
+      );
+      throw new Error('Journal fixture child process or stream settlement is unconfirmed');
+    }
+    const observation = {
+      stage,
+      argv,
+      request,
+      cwd,
+      pid: child.pid,
+      exitCode: terminal.value,
+      signal: child.signalCode,
+      hasTimedOut,
+      settled: true,
+      stdout: stdout.value.text,
+      stderr: stderr.value.text,
+      stdoutBase64: stdout.value.base64,
+      stderrBase64: stderr.value.base64,
+      stdoutFailure: stdout.value.failure,
+      stderrFailure: stderr.value.failure,
+    };
+    process.stderr.write(
+      `${JSON.stringify({ event: 'journal-child-observation', ...observation })}\n`,
+    );
+    return observation;
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
+/** Invoke only the existing CLI; grammar cases retain their own complete request and exact refusal. */
+function runJournalCli(directory: string, request: string, extra: string[], stage: string) {
+  return observeJournalChild(
+    [
+      process.execPath,
+      '--no-env-file',
+      join(import.meta.dir, 'registry-journal-cli.ts'),
+      directory,
+      ...extra,
+    ],
+    request,
+    stage,
+    5000,
+  );
+}
+
+// Proof: fault10 supplied real usage-error stderr with actual exit0; this shared predicate refused the false refusal.
+function requireJournalCliRefusal(
+  observation: Awaited<ReturnType<typeof runJournalCli>>,
+  prefix: string,
+): void {
+  expect(observation.hasTimedOut, JSON.stringify(observation)).toBe(false);
+  expect(observation.stdoutFailure, JSON.stringify(observation)).toBeNull();
+  expect(observation.stderrFailure, JSON.stringify(observation)).toBeNull();
+  expect(observation.settled).toBe(true);
+  expect(observation.exitCode, JSON.stringify(observation)).not.toBe(0);
+  expect(observation.signal, JSON.stringify(observation)).toBeNull();
+  expect(observation.stdout, JSON.stringify(observation)).toBe('');
+  expect(observation.stderr, JSON.stringify(observation)).toContain(`error: ${prefix}`);
+}
+
+/** One namespace owns one bounded filesystem through initialization, orphan recovery and readback. */
+async function runJournalFilesystemFixture() {
+  if (process.platform !== 'linux') throw new Error('Journal filesystem fixture requires Linux');
+  const bubblewrap = Bun.which('bwrap');
+  if (bubblewrap === null) throw new Error('Journal filesystem fixture requires bubblewrap');
+  const directory = await scratchAsync('registry-cli-filesystem-');
+  await chmod(directory, 0o700);
+  const mountpoint = join(directory, 'mount');
+  await mkdir(mountpoint, { mode: 0o700 });
+  const canonical = await realpath(mountpoint);
+  const parentUserNamespace = await readlink('/proc/self/ns/user');
+  const parentMountNamespace = await readlink('/proc/self/ns/mnt');
+  const argv = [
+    bubblewrap,
+    '--die-with-parent',
+    '--new-session',
+    '--unshare-all',
+    '--uid',
+    '1000',
+    '--gid',
+    '1000',
+    '--ro-bind',
+    '/',
+    '/',
+    '--proc',
+    '/proc',
+    '--dev',
+    '/dev',
+    '--size',
+    '4194304',
+    '--tmpfs',
+    canonical,
+    '--chdir',
+    process.cwd(),
+    process.execPath,
+    '--no-env-file',
+    join(import.meta.dir, 'registry-journal-cli.fixture.ts'),
+    '--registry-journal-smoke-v1',
+    canonical,
+  ];
+  // Proof: actual full mount omission and 2MiB size faults reached worker domain/size refusals before admission; controlled-journal-finite-sequence records both and the restored positive.
+  const observation = await observeJournalChild(argv, null, 'namespace-worker', 20000, {
+    PATH: '/usr/bin:/bin',
+    LANG: 'C.UTF-8',
+    BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
+    REGISTRY_FIXTURE_PARENT_USER_NAMESPACE: parentUserNamespace,
+    REGISTRY_FIXTURE_PARENT_MOUNT_NAMESPACE: parentMountNamespace,
+  });
+  // observeJournalChild returns only after the exact process and both streams settled; scratch's normal preload owns later removal.
+  return observation;
+}
 
 async function requireRefusal(
   operation: Promise<unknown>,

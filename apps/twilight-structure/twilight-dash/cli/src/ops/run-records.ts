@@ -10,11 +10,36 @@ import {
 } from '../resources/run-record-file';
 import type { ScopeCounters } from './scope';
 
-/** One container the run saw start, and whether it ran labelled and inside the declared bound. */
-export interface ContainerVerdict {
-  id: string;
-  verdict: 'bounded' | 'unlabelled' | 'unbounded' | 'unverified';
-  reason: string;
+/** The service a `puni.host-service` container declared, and the bounds Docker enforces on it. */
+export interface HostServiceBound {
+  name: string;
+  memoryBytes: number;
+  cpuCores: number;
+}
+
+/**
+ * One container the run saw start, and whether it ran labelled and inside the declared bound.
+ * `host-service` is a declared host service's container beside the job, run under its own
+ * bounds (`dash-host-jobs` J16 amendment, A-ATTR-HOSTSVC-1); it is listed, never charged.
+ */
+export type ContainerVerdict =
+  | { id: string; verdict: 'bounded' | 'unlabelled' | 'unbounded' | 'unverified'; reason: string }
+  | { id: string; verdict: 'host-service'; reason: string; hostService: HostServiceBound };
+
+/** Whether `container` is accounted for: the job's own bounded container or a bounded host service. */
+export function isAttributed(container: ContainerVerdict): boolean {
+  // Proof: dropping the host-service term made `a record whose only other container is a bounded
+  // host service is complete (task 6.22)` (propose.test.ts) refuse with two complete records, and
+  // three host-service tests in audit.test.ts fail (2026-11-19).
+  return container.verdict === 'bounded' || container.verdict === 'host-service';
+}
+
+/**
+ * Whether the containers a run saw leave its attribution incomplete (J16): any one neither the
+ * job's bounded container nor a declared, bounded host service.
+ */
+export function isAttributionIncomplete(containers: readonly ContainerVerdict[]): boolean {
+  return containers.some((container) => !isAttributed(container));
 }
 
 /** The labelled containers' advisory usage at one sample (J16), or why it could not be read. */
@@ -30,7 +55,15 @@ export interface RunSample {
   kind: 'gate' | 'interval' | 'exit';
   observedAt: number;
   counters: ScopeCounters | null;
+  /** The tmp directory's readable bytes; a lower bound when `tmpUnreadable` is not empty. */
   tmpBytes: number | null;
+  /**
+   * Paths under the tmp directory the walk could not read (task 6.23), relative, at most 32;
+   * empty on a sample recorded before task 6.23.
+   */
+  tmpUnreadable: string[];
+  /** How many more unreadable paths this sample saw than `tmpUnreadable` lists. */
+  tmpUnreadableOmitted: number;
   containers: ContainerSample | null;
   failure: string | null;
 }
@@ -116,6 +149,8 @@ const SampleShape = type({
   observedAt: 'number',
   counters: Counters.or('null'),
   tmpBytes: 'number | null',
+  'tmpUnreadable?': 'string[]',
+  'tmpUnreadableOmitted?': 'number.integer >= 0',
   containers: type({
     labelled: 'number',
     sampled: 'number',
@@ -158,7 +193,16 @@ const OutcomeShape = type({
     id: 'string',
     verdict: "'bounded'|'unlabelled'|'unbounded'|'unverified'",
     reason: 'string',
-  }).array(),
+  })
+    // Proof: admitting 'host-service' in the branch above made `a host-service verdict without
+    // its declared bounds is refused` (run-records.test.ts) write the record (2026-11-19).
+    .or({
+      id: 'string',
+      verdict: "'host-service'",
+      reason: 'string',
+      hostService: { name: 'string > 0', memoryBytes: 'number > 0', cpuCores: 'number > 0' },
+    })
+    .array(),
 });
 
 /**
@@ -333,7 +377,19 @@ export class HostJobRunRecords {
         'SELECT sample FROM samples WHERE job_id=? ORDER BY sequence',
       )
       .all(jobId)
-      .map((sample) => SampleShape.assert(JSON.parse(sample.sample)));
+      .map((stored): RunSample => {
+        const { tmpUnreadable, tmpUnreadableOmitted, ...sample } = SampleShape.assert(
+          JSON.parse(stored.sample),
+        );
+        // A sample written before task 6.23 has neither field: its walk listed nothing.
+        // Proof: requiring both fields made `a sample recorded before task 6.23 loads with no
+        // unreadable paths` (run-records.test.ts) throw on the stored row (2026-11-19).
+        return {
+          ...sample,
+          tmpUnreadable: tmpUnreadable ?? [],
+          tmpUnreadableOmitted: tmpUnreadableOmitted ?? 0,
+        };
+      });
     const peaks = samples.flatMap((sample) =>
       sample.counters ? [sample.counters.memoryPeak] : [],
     );

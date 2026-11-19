@@ -1262,6 +1262,9 @@ design.md after J18.
 | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | `bash bin/heavy-lock.test.sh`                                                                                        | `all heavy-lock checks passed` (cases 1-28 unchanged, 40-45 new)                       |
 | `bash bin/h2puni-gate.test.sh`                                                                                       | `all cases passed` (44a-44h, 45a-45d new)                                              |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)                   | 54 pass, 0 fail                                                                        |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)              | 58 pass, 0 fail                                                                        |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                        | all pass, 0 fail                                                                       |
 | `shellcheck -x` on every edited or new `bin/*.sh`; `shellcheck -s bash apps/wbs/be-01/scripts/solver-image-smoke.sh` | exit 0                                                                                 |
 | `bun test src/ops/launchers.test.ts` (namespace)                                                                     | 7 inner pass, outer pass                                                               |
 | `bun test` resource-holds, host-job-holds, host-jobs, host-jobs.model, host-pool, runtime, no-ambient-clock          | 22 pass after renaming a `self` local the clock detector flagged                       |
@@ -1432,6 +1435,9 @@ Each fault was applied by script, watched red, and restored with SHA-256 equal b
 | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | `bash bin/heavy-lock.test.sh`                                                                                                            | `all heavy-lock checks passed` (1–28, 40–47) |
 | `bash bin/h2puni-gate.test.sh`                                                                                                           | `all cases passed` (44a–i, 45a–d, 46, 47)    |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)                                       | 54 pass, 0 fail                              |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)                                  | 58 pass, 0 fail                              |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                                            | all pass, 0 fail                             |
 | shellcheck on every edited or new script                                                                                                 | exit 0                                       |
 | `bun test src/ops src/cli.test.ts src/no-ambient-clock.test.ts` plus host-jobs, host-jobs.model, host-job-holds, resource-holds, runtime | exit 0, no `(fail)`                          |
 | `solver-image-smoke.test.ts`, tool-devsync `poller` + `solver-binding-runtime`, tool-dagger `heavy-lock`, Burokrat `whole tree`          | 40, 39, 9, 1 pass                            |
@@ -2741,18 +2747,21 @@ refuses, and removing `failed_when` lets it through. The run's lines are in the 
 
 ### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
 
-| Command                                                                             | Result                                                                           |
-| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `bash bin/heavy-lock.test.sh`                                                       | `all heavy-lock checks passed`, cases 49a–49g included                           |
-| `bash bin/gate-launcher-refresh.test.sh`                                            | `all gate launcher refresh checks passed`                                        |
-| `bash bin/h2puni-gate.test.sh`                                                      | exit 0, `all cases passed`                                                       |
-| evaluator (`gate-host-assertions.py`, controller `@sha256:372f6f43…`, `--user 0:0`) | 102 `ok`, `{"failures": 0}`, exit 0                                              |
-| `bunx nx run twilight-dash:test --skip-nx-cache`                                    | 5714 pass, 53 skip, 0 fail across 183 files; exit 0                              |
-| `bunx nx run tool-fleet:check --skip-nx-cache`                                      | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
-| `bunx nx format:check --all`                                                        | exit 0                                                                           |
-| `bunx openspec validate --all --json`                                               | 328 passed, 0 failed, exit 0                                                     |
-| Burokrat `check-indexes working <worktree> origin/main`                             | exit 0 (two pre-existing review-debt rows)                                       |
-| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                | 10 projects, exit 0                                                              |
+| Command                                                                                                 | Result                                                                           |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bash bin/heavy-lock.test.sh`                                                                           | `all heavy-lock checks passed`, cases 49a–49g included                           |
+| `bash bin/gate-launcher-refresh.test.sh`                                                                | `all gate launcher refresh checks passed`                                        |
+| `bash bin/h2puni-gate.test.sh`                                                                          | exit 0, `all cases passed`                                                       |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)      | 54 pass, 0 fail                                                                  |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment) | 58 pass, 0 fail                                                                  |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                           | all pass, 0 fail                                                                 |
+| evaluator (`gate-host-assertions.py`, controller `@sha256:372f6f43…`, `--user 0:0`)                     | 102 `ok`, `{"failures": 0}`, exit 0                                              |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                        | 5714 pass, 53 skip, 0 fail across 183 files; exit 0                              |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                                                          | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
+| `bunx nx format:check --all`                                                                            | exit 0                                                                           |
+| `bunx openspec validate --all --json`                                                                   | 328 passed, 0 failed, exit 0                                                     |
+| Burokrat `check-indexes working <worktree> origin/main`                                                 | exit 0 (two pre-existing review-debt rows)                                       |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                                    | 10 projects, exit 0                                                              |
 
 Not done: no host apply, so the units are not installed on h2puni or h4claw. That apply is owed
 with 6.3e's converging apply, and the timer starts at step 5 of the enrollment. No gate ran on a
@@ -2876,19 +2885,22 @@ namespace.
 
 ### Commands (fresh, 2026-11-05, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, this workstation)
 
-| Command                                                              | Result                                                                           |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `bun test src/resources/host-jobs.test.ts` (twilight-dash cli)       | 39 pass, 0 fail inside the namespace; outer wrapper 1 pass                       |
-| `bun test src/ops/admission.test.ts src/cli.test.ts`                 | 5 pass in the namespace; 127 pass with `no-ambient-clock.test.ts`, 0 fail        |
-| `bunx nx run twilight-dash:test --skip-nx-cache`                     | 5717 pass, 53 skip, 0 fail across 184 files (3129 s); exit 0                     |
-| `bash bin/heavy-lock.test.sh`                                        | `all heavy-lock checks passed`, cases 49a–49k included                           |
-| `bash bin/h2puni-gate.test.sh`                                       | exit 0                                                                           |
-| `bun test tools/tool-dagger/src/heavy-lock.test.ts`                  | 9 pass, 0 fail                                                                   |
-| `bunx nx run tool-fleet:check --skip-nx-cache`                       | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
-| `bunx nx format:check --all`                                         | exit 0                                                                           |
-| `bunx openspec validate --all --json`                                | 328 passed, 0 failed, exit 0                                                     |
-| Burokrat `check-indexes working <worktree> origin/main`              | exit 0 (two pre-existing review-debt rows)                                       |
-| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2` | 8 projects, exit 0                                                               |
+| Command                                                                                                 | Result                                                                           |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bun test src/resources/host-jobs.test.ts` (twilight-dash cli)                                          | 39 pass, 0 fail inside the namespace; outer wrapper 1 pass                       |
+| `bun test src/ops/admission.test.ts src/cli.test.ts`                                                    | 5 pass in the namespace; 127 pass with `no-ambient-clock.test.ts`, 0 fail        |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                        | 5717 pass, 53 skip, 0 fail across 184 files (3129 s); exit 0                     |
+| `bash bin/heavy-lock.test.sh`                                                                           | `all heavy-lock checks passed`, cases 49a–49k included                           |
+| `bash bin/h2puni-gate.test.sh`                                                                          | exit 0                                                                           |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)      | 54 pass, 0 fail                                                                  |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment) | 58 pass, 0 fail                                                                  |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                           | all pass, 0 fail                                                                 |
+| `bun test tools/tool-dagger/src/heavy-lock.test.ts`                                                     | 9 pass, 0 fail                                                                   |
+| `bunx nx run tool-fleet:check --skip-nx-cache`                                                          | 604 pass, 0 fail; `shellcheck 0.11.0: 14 scripts`, `every family passed`, exit 0 |
+| `bunx nx format:check --all`                                                                            | exit 0                                                                           |
+| `bunx openspec validate --all --json`                                                                   | 328 passed, 0 failed, exit 0                                                     |
+| Burokrat `check-indexes working <worktree> origin/main`                                                 | exit 0 (two pre-existing review-debt rows)                                       |
+| `bunx nx affected -t lint typecheck --base=origin/main --parallel=2`                                    | 8 projects, exit 0                                                               |
 
 Not done: no host apply and no gate on a host. The admission check takes effect on h2puni and
 h4claw when their launcher checkouts move to a commit carrying it (the hourly refresh, S6D-A4).
@@ -3521,6 +3533,9 @@ Fresh on 2026-11-12 on the workstation, from `/home/df/wd/puni/wt-tq`, `CLAUDECO
 | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `bash bin/heavy-lock.test.sh`                                                                                  | `all heavy-lock checks passed`, exit 0                                                                           |
 | `bash bin/h2puni-gate.test.sh`                                                                                 | `all cases passed`, exit 0                                                                                       |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)             | 54 pass, 0 fail                                                                                                  |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)        | 58 pass, 0 fail                                                                                                  |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                  | all pass, 0 fail                                                                                                 |
 | `bun test …/ops/launchers.test.ts`                                                                             | exit 1: `mkdir: cannot create directory '/home/puni1/.config': Permission denied` (this host's root-owned path)  |
 | the same file's inner suite under `unshare` with `/home/puni1` left unbound (`DASH_LAUNCHER_TEST_NAMESPACE=1`) | 15 pass, 0 fail, exit 0                                                                                          |
 | `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `twilight-dash:lint`                                    | exit 0, exit 0                                                                                                   |
@@ -3943,6 +3958,9 @@ as CI`) pins both lines. The note is in `docs/infra/gate-hosts.md` (What the hos
 | `bun test apps/twilight-structure/twilight-dash/cli/src/ops/launchers.test.ts`                                                                                        | 1 pass, 0 fail                                                                                                                                                                                                                                                                        |
 | `bun test apps/twilight-structure/twilight-burokrat/cli/src/policy/gate-entrypoints.test.ts`                                                                          | 56 pass, 2 fail; the same two (`the host gate fails specifically at wiki lint for a stale enforced blob`, `the real Nx target reruns an omitted-input mutation and a controlled cache fault does not`) fail on unmodified `main` fe3fdac56 on the laptop, so they predate this change |
 | `bash bin/h2puni-gate.test.sh`                                                                                                                                        | exit 0, `all cases passed`                                                                                                                                                                                                                                                            |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)                                                                    | 54 pass, 0 fail                                                                                                                                                                                                                                                                       |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)                                                               | 58 pass, 0 fail                                                                                                                                                                                                                                                                       |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                                                                         | all pass, 0 fail                                                                                                                                                                                                                                                                      |
 | `bash -n bin/h2puni-gate-steps.sh`                                                                                                                                    | exit 0                                                                                                                                                                                                                                                                                |
 | `bunx nx run tool-devsync:test --skip-nx-cache` (`AGENTS.md` gained a relative link)                                                                                  | exit 0; 1106 tests across 54 files                                                                                                                                                                                                                                                    |
 | `bunx prettier --check` on every changed Markdown and TypeScript file                                                                                                 | all files use Prettier code style (Prettier has no parser for the `.sh` file)                                                                                                                                                                                                         |
@@ -3966,3 +3984,433 @@ as CI`) pins both lines. The note is in `docs/infra/gate-hosts.md` (What the hos
   tracked in #945.
 - **S18-A3** The host gate's duration after the exclusion is unknown until the next `gate`
   calibration on each host; 60–66 min (h2puni, 2026-11-02..04) is the only earlier comparison.
+
+## 2026-11-18 the trimmed host gate exceeds h4claw's memory at --parallel=2 (task 6.19)
+
+Branch `ops/host-gate-parallel-1-20261118` from `main` 834fda4e5 (after #946); laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched. The host evidence is the
+coordinator's read of Dash's audit, the calibration logs and puni1's cgroup files on h4claw
+(8 cores, 15 GiB RAM).
+
+- Dash's audit records gate memory peaks of 12.94 GiB (run a498260b, 2026-11-17T23:18Z) and
+  11.79 GiB (run 2c0a5547, 2026-11-18T00:52Z) against the catalogue's 6 GiB envelope.
+- The cold unbounded calibration of the trimmed gate (job fa0a73a0, started 10:23:38Z) lost
+  `tool-fleet:test` at about 11:24Z, after 59 min: its bun process exited non-zero mid-file in
+  `tools/tool-fleet/src/observability-rehearsal-capacity.test.ts`, after the passing test
+  "standalone combined reconciliation preserves consumer retention and unrelated unsupported
+  declarations exactly", with no failing test and no bun summary. Beside it ran
+  `wbs-be-01:test` (47 min 30 s, the critical path) and `wbs-be-01:typecheck`
+  (`bunx tsc --build --force`). Nx then bailed and terminated the in-flight tasks (be-01
+  typecheck, store-sqlite typecheck, tool-fleet lint); the Nx run took 57 min 55 s.
+- In the warm calibration (started 11:25:34Z) puni1's slice `memory.events` `oom_kill` read 2 at
+  11:4xZ, before warm1's `tool-fleet` phase, and 3 at 12:24:32Z, 59 min in; the run exited 143
+  at 12:24:42Z; and `memory.peak` read 14,949,826,560 bytes (13.92 GiB)
+  against 15 GiB total. The calibration scope runs with `MemoryHigh=infinity` and `MemoryMax=infinity` by
+  design, so it measures the true peak.
+
+At `--parallel=2` the host gate's true peak does not fit the gate hosts, so the gate can be
+neither calibrated nor run there. All three `run-many` lines of `bin/h2puni-gate-steps.sh` (the
+workspace line, the `-p tool-remote-scripts` line and the Twilight line) now run at
+`--parallel=1`, so the peak is the largest single task's. `toolchain-pins.test.ts`
+(`runs the h2puni gate with the same Twilight split as CI`) pins the three lines; the note is in
+`docs/infra/gate-hosts.md` (What the host gate runs). CI's own `--parallel` settings
+(`.github/workflows/ci.yml`, `ci-run-runtime.ts`) are not the host gate and are unchanged, as is
+`bin/test-queued-payload.sh`'s `--parallel=2`, a separate job type outside this assumption.
+
+| Command                                                                                                        | Result                                                                        |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                       | 36 pass, 0 fail                                                               |
+| `bash bin/h2puni-gate.test.sh`                                                                                 | exit 0, `all cases passed`                                                    |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)             | 54 pass, 0 fail                                                               |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)        | 58 pass, 0 fail                                                               |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                  | all pass, 0 fail                                                              |
+| `bash -n bin/h2puni-gate-steps.sh`                                                                             | exit 0                                                                        |
+| `bunx prettier --check` on every changed Markdown and TypeScript file                                          | all files use Prettier code style (Prettier has no parser for the `.sh` file) |
+| `bunx openspec validate --all --json`                                                                          | exit 0; 344 items, 344 passed, 0 failed                                       |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A` | exit 0 (review debt listed only for two unrelated pre-existing indexes)       |
+| `bunx nx run tool-devsync:test`                                                                                | not run: no relative link added                                               |
+| host gate, `gate` calibration                                                                                  | not run: no host touched; the next calibration measures the gate              |
+
+| Injected fault                                                                                            | Observed                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bin/h2puni-gate-steps.sh` at `main` 834fda4e5 (all three lines at `--parallel=2`) under the updated test | `runs the h2puni gate with the same Twilight split as CI` failed: `Expected: 1 · Received: 0` on the workspace line                                                                                |
+| only the `-p tool-remote-scripts` line back at `--parallel=2`                                             | the same test failed: `Expected to contain: "bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=1 --skip-nx-cache \\ --excludeTaskDependencies"`; script restored, 36 pass |
+| only the Twilight line back at `--parallel=2`                                                             | the same test failed: `Expected to contain: "bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=1"`; script restored, 36 pass                                  |
+
+- **S19-A1** A-GATE-PARALLEL-1: the host gate running every `run-many` at `--parallel=1` is
+  assumed and awaits Dany's confirmation. It is reversible (see `docs/infra/gate-hosts.md`, What
+  the host gate runs).
+- **S19-A2** The gate's duration and peak memory at `--parallel=1` are unknown until the next
+  `gate` calibration; about 90 min is an estimate from the cold run's 47 min 30 s critical path
+  in a 57 min 55 s run.
+- **S19-A3** The OOM attribution rests on puni1's cgroup `oom_kill` counter and its timing; the
+  kernel logs that would name the killed process are unreadable to puni1.
+- **S19-A4** The `test-queued` job type (`bin/test-queued-payload.sh`) still runs
+  `--parallel=2` and still runs `tool-remote-scripts:test`, both outside A-GATE-PARALLEL-1 and
+  A-GATE-REMOTE-1; it is uncalibrated and unbounded (`docs/infra/heavy-job-launchers.md`), so it
+  carries the same memory risk on the hosts. Its comment now calls `--parallel=2` its own
+  setting rather than gate parity; aligning it is a follow-up, as is the pre-existing drift where
+  `infra/jobs/catalogue.json`'s test-queued basis says "nx.json parallel 4" while the script pins 2.
+
+## 2026-11-18 the host gate's own Dash job scope breaks two J19 hold tests (task 6.20)
+
+Branch `ops/j19-holds-tests-under-dash-scope-20261118` from `main` 4cace4ed9; laptop (a login
+session, `session-4.scope`), `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched.
+
+- The h4claw cold calibration of `main` 4cace4ed9 (job 0650f314, 2026-11-18 19:13Z) failed only
+  `twilight-dash:test` in its 117-min Twilight run, on two tests of
+  `apps/twilight-structure/twilight-dash/cli/src/resources/resource-holds.test.ts`, describe
+  "uninspectable processes outside Dash-owned work (J19)": `ops pool init succeeds beside a
+non-dumpable process that predates it` received `error: host pool …/dash-host-pool-EhmJjO/config.json
+not initialized: host pool unit … is held: cannot inspect process PID …` where empty stderr
+  and exit 0 were expected, and `cleanup releases a resource beside a non-dumpable process that
+predates its leader` received `Expected: "released" Received: "blocked"`.
+- In the same run `ops pool init refuses beside a non-dumpable process in a Dash job scope`
+  passed, and the login-session tests skipped with `this test runs in
+/user.slice/user-995.slice/user@995.service/app.slice/dash-job-0650f314….scope`.
+- Diagnosis: the gate runs as a Dash host job, so the test process and every plainly spawned
+  child live in the job's `dash-job-<uuid>.scope`. The production rule classifies a
+  non-dumpable process in a Dash job scope as Dash-owned work and refuses, exactly as the passing
+  sibling proves; the two tests asserted the un-nested case while nested. Not a product defect.
+  The `uninspectable_outside_scope: <pid> ((sd-pam))` notes are the expected, unrelated case.
+
+When `/proc/self/cgroup` ends in `/dash-job-[0-9a-f-]+.scope`, the two tests start their
+predating holder through `systemd-run --user --scope --unit j19-holder-<uuid>`, a fresh user
+scope outside any Dash job scope, which is what "outside Dash-owned work" means; elsewhere they
+spawn it plainly as before. Only when nested and the existing `systemd-run --user --scope` probe
+fails do they skip, with a reason naming the cgroup. The two login-session siblings keep their
+skip; production code is unchanged.
+
+| Command                                                                                                                 | Result                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `bun test … src/resources/resource-holds.test.ts` (project test command's preloads, plain, from the Dash CLI directory) | 14 pass, 0 skip, 0 fail                                                      |
+| the same with `-t J19` inside `systemd-run --user --scope --unit=dash-job-<uuid>.scope`                                 | 11 pass, 3 skip (the three login-session tests), 0 fail                      |
+| `bunx eslint` on the test file                                                                                          | exit 0 (only Nx's no-cached-ProjectGraph warning)                            |
+| `bunx prettier --check` on the changed files                                                                            | all files use Prettier code style                                            |
+| `bunx openspec validate --all --json`                                                                                   | exit 0; 344 items, 344 passed, 0 failed                                      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`          | exit 0 (review debt listed only for two unrelated pre-existing indexes)      |
+| host gate, `gate` calibration                                                                                           | not run: no host touched; the next calibration runs the nested path for real |
+
+| Injected fault                                                                               | Observed                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the unmodified file (holder spawned plainly) inside a fake `dash-job-<uuid>.scope`           | 9 pass, 3 skip, 2 fail: init stderr `error: host pool /tmp/dash-host-pool-G182sJ/config.json not initialized: host pool unit …/gate-tree-0 is held: cannot inspect process PID 2866264 (python3) …`, and `Expected: "released" Received: "blocked"` |
+| a fake scope named `dash-job-.scope` (no id), unmodified file                                | 11 pass, 3 skip, 0 fail: the production rule needs a job id, so this was no reproduction; the uuid-named scope above is                                                                                                                             |
+| a `systemd-run` shim on `PATH` that exits 1 like a missing user bus, inside a fake job scope | 5 pass, 9 skip, 0 fail: both tests skip with `this test runs in …/app.slice/dash-job-<uuid>.scope, a Dash job scope, and systemd-run --user --scope answered exit 1`                                                                                |
+| the same shim in the plain login-session run                                                 | 9 pass, 5 skip, 0 fail: both tests still run (the skip engages only when nested)                                                                                                                                                                    |
+
+- **S20-A1** The fake `dash-job-<uuid>.scope` started with `systemd-run --user --scope` on the
+  laptop stands in for the host gate's real scope: both sit under
+  `user@<uid>.service/app.slice/` and match the production `dash-job-<id>.scope` rule.
+- **S20-A2** Other Dash tests that read their own cgroup may hide similar nesting assumptions;
+  the h4claw run showed only these two.
+- **S20-A3** A `systemd-run` truly absent from `PATH` makes the module's probe throw
+  `Executable not found in $PATH` at load, failing the file loudly (pre-existing); the skip path
+  covers a present but unusable `systemd-run --user`, simulated by the shim.
+- **S20-A4** The nested match uses the brief's `/dash-job-[0-9a-f-]+\.scope$/`, narrower than
+  the production `dash-job-.+\.scope`; a non-hex job id would fail the two tests loudly, not
+  hide them.
+
+## 2026-11-19 the legacy docker builder makes every gate record attribution-incomplete (task 6.21)
+
+Branch `ops/gate-hosts-docker-buildx-20261119` from `main` 74843642a; laptop, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the evidence below was gathered
+on the hosts by the coordinator before it).
+
+- `ops job propose` excluded every `gate` calibration record as "container attribution
+  incomplete". h4claw's first complete gate run, job ef8e1ce6 (2026-11-18 20:38Z to 2026-11-19
+  01:57Z, exit 0, 5 h 19 min, memory 9.08 GiB, 6.34 cores at `--parallel=1`), recorded about ten
+  unlabelled containers.
+- `docker events` on h4claw shows them as anonymous containers (`frosty_leavitt`,
+  `thirsty_meninsky`, …) created 01:51:53Z to 01:56:48Z from untagged `sha256:` images chained
+  from `oven/bun`, exactly while `wbs-be-01:solver-image-smoke` built its image
+  (`docker build --file apps/wbs/be-01/Dockerfile`, 17 FROM/COPY/RUN steps). Every run container
+  of the smoke (baseline, `registry:2`, the five callers, `wbs-solver-*`, `wbs-orphan-*`) carried
+  `puni.job=<id>`.
+- Both gate hosts run Ubuntu 26.04 `docker.io` 29.1.3 without the buildx plugin
+  (`docker buildx version` answers "unknown command"), so `docker build` uses the legacy
+  builder. A probe on h2puni (a busybox Dockerfile with three RUN steps) printed
+  "DEPRECATED: The legacy builder is deprecated…" and, per step, "Running in be4e5c7c78d9" then
+  "Removed intermediate container be4e5c7c78d9": each step is a container create event without
+  the job label, which J16's `judge` in `ops/containers.ts` records as `unlabelled`.
+- Ubuntu 26.04 offers `docker-buildx` 0.30.1-0ubuntu1 (not installed on either host).
+
+The `gate_host` role now installs `docker-buildx={{ puni_gate_docker_buildx_version }}`
+(default 0.30.1-0ubuntu1), reads it back with `dpkg-query` and asserts the pin (both tagged
+`validate`), and validate runs `docker buildx version` as `puni1` through its `~/.bashrc`.
+`solver-image-smoke.sh`, inside a Dash job (`DASH_JOB_ID` set) and when it builds (no
+`--image=`), refuses with exit 1 before any other Docker call when `docker buildx version`
+fails, and exports `DOCKER_BUILDKIT=1` so an inherited `DOCKER_BUILDKIT=0` cannot restore the
+legacy builder. Outside a job its behaviour is unchanged. Because the smoke is the gate's last
+step, `bin/h2puni-gate.sh` runs the same check on an enrolled host before it queues a gate or a
+calibration and refuses 70, the code it and `heavy-lock-lib.sh` use for other missing host
+prerequisites. `tools/tool-dagger/src/heavy-lock.test.ts`'s lock-library mock now also defines
+`read_host_pool_enrollment` (answering `unenrolled`), which the launcher calls before
+`run_heavy_job`. The three role tasks sit after the Docker group read: the package depends on
+`docker.io`, which the role never installs. `tools/tool-dagger/src/main.test.ts` now clears
+`DASH_JOB_ID` for its smoke invocation, because a gate runs its tests inside a Dash job and the
+guard would reach that test's fake Docker first. The gate's `provenance.basis` in
+`infra/jobs/catalogue.json` records the BuildKit requirement.
+
+| Command                                                                                                        | Result                                                                  |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `bun test --preload ../test/scratch/preload.ts --timeout=30000 src/ansible.test.ts` (from `tools/tool-fleet`)  | 38 pass, 0 fail                                                         |
+| `bun test scripts/solver-image-smoke.test.ts` (from `apps/wbs/be-01`)                                          | 96 pass, 0 fail                                                         |
+| `bun test … src/ops/launchers.test.ts` (Dash CLI, the project test command's preloads)                         | outer 1 pass; inside its namespace 41 pass, 0 fail                      |
+| `bash bin/h2puni-gate.test.sh`                                                                                 | all cases passed                                                        |
+| `bun test src/heavy-lock.test.ts src/main.test.ts` with `DASH_JOB_ID=x` (from `tools/tool-dagger`)             | 54 pass, 0 fail                                                         |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)        | 58 pass, 0 fail                                                         |
+| `publication-entrypoints.test.ts`, `host-pool-mode.test.ts`, `status.test.ts`                                  | all pass, 0 fail                                                        |
+| `DASH_JOB_ID=x bun test src/main.test.ts` (from `tools/tool-dagger`)                                           | 45 pass, 0 fail                                                         |
+| `bun test src/ops/gate-host-pool.test.ts` (from the Dash CLI directory)                                        | 13 pass, 0 fail                                                         |
+| `bash -n` and `shellcheck -s bash` on `solver-image-smoke.sh` and `bin/h2puni-gate.sh`                         | all exit 0                                                              |
+| `bunx eslint` on the four changed test files                                                                   | exit 0 (only Nx's no-cached-ProjectGraph warning)                       |
+| `bunx tsc --build --force` for `tool-fleet`, `tool-dagger`, `wbs-be-01` and `twilight-dash`                    | exit 0 each                                                             |
+| `bunx prettier --check` on the changed files                                                                   | all files use Prettier code style                                       |
+| `bunx openspec validate --all --json`                                                                          | exit 0; 344 items, 344 passed, 0 failed                                 |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A` | exit 0 (review debt listed only for two unrelated pre-existing indexes) |
+| `ansible-playbook --syntax-check playbooks/gate-host.yml`                                                      | not run: Ansible is not installed on the laptop                         |
+| fleet apply of `gate-host.yml` (twice, second `changed=0`) and a `gate` calibration                            | not run: no host touched; follows the merge (S21-A2)                    |
+
+| Injected fault                                                                                                  | Observed                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| the role before task 6.21 (new tests added first)                                                               | 4 fail: no `puni_gate_docker_buildx_version` default, and `Required gate BuildKit probe absent` for each of the three probe runs |
+| the validate probe with its status masked (`docker buildx version; true`)                                       | `buildx-missing` and `docker-missing` probe runs failed (exit 0 where non-zero was expected); `healthy` passed                   |
+| the smoke without its guard, fake `docker buildx` answering "unknown command" exit 1, `DASH_JOB_ID` set         | `refuses the legacy builder inside a Dash job before any build` failed: exit 0, the build ran                                    |
+| the same fake Docker without `DASH_JOB_ID`, guard in place                                                      | `builds without BuildKit outside a Dash job` passed: the build ran and `buildx version` was never called                         |
+| `tools/tool-dagger/src/main.test.ts` unchanged, run with `DASH_JOB_ID=x` inherited, guard in place              | `resolves the solver image smoke repository root after the app move` failed (exit 1 where its fake Docker's 86 was expected)     |
+| `bin/h2puni-gate.sh` with both `require_buildkit_when_enrolled` calls removed, fake `docker buildx` exiting 1   | `refuses an enrolled gate without BuildKit before admission` and `… calibration …` failed: `Expected: 70 Received: 0`            |
+| the smoke without `export DOCKER_BUILDKIT=1`, run in a job with `DOCKER_BUILDKIT=0` inherited                   | `forces BuildKit for its builds inside a Dash job` failed: both builds saw `0`                                                   |
+| the role's previous task order (the buildx tasks above "Read the Docker group")                                 | the docker-buildx test failed: `Expected: > 5 Received: 2`                                                                       |
+| the launcher preflight with `heavy-lock.test.ts`'s lock-library mock unchanged (no `read_host_pool_enrollment`) | the three `keeps gate queue budget … in the lock shell only` cases failed with exit 127; the mock now answers `unenrolled`       |
+
+- **S21-A1** The Ubuntu package version pin 0.30.1-0ubuntu1 holds on both hosts until the fleet
+  apply says otherwise; if the 26.04 archive has moved on, the role's version assertion fails
+  and the pin follows.
+- **S21-A2** A fleet apply of the gate-host playbook is needed on h2puni and h4claw before the
+  next calibration. The smoke is the gate's last step (`bin/h2puni-gate-steps.sh`; h4claw's run
+  took 5 h 19 min to reach it), so `bin/h2puni-gate.sh` refuses 70 on an enrolled host without
+  `docker buildx` before queueing; still, no pool gate may be launched between the merge and the
+  apply. The operator sequence is merge, apply `playbooks/gate-host.yml` on both hosts, then the
+  next gate.
+- **S21-A3** The host-service containers (h2puni's hourly goaccess cron, h4claw's daily
+  registry backup with `keinos/sqlite3`) are a second, smaller unlabelled class, left for a
+  later task.
+- **S21-A4** BuildKit's default `docker` driver runs build steps inside the daemon without
+  creating containers, so `docker events` shows no per-step create; inferred from the builder's
+  design and the absence of "Running in" lines in BuildKit output, not yet observed on a host
+  (the next calibration's record shows it).
+- **S21-A5** `docker-buildx` depends on `docker.io` without a version (as on Ubuntu 24.04's
+  `apt-cache show docker-buildx`, read on the laptop), so the install leaves the hosts' 29.1.3
+  engine as it is; the 26.04 package's dependency line was not read.
+- **S21-A6** The appended `provenance.basis` sentence changes the `gate` descriptor digest that
+  run records pin; the records under the old digest were all attribution-incomplete, so `audit`
+  and `propose` lose no usable record.
+
+## 2026-11-19 host-service containers beside a job are attributed when labelled and bounded (task 6.22)
+
+Branch `ops/dash-host-service-containers-20261119` from `main` 059c76b05; laptop, `CLAUDECODE`
+and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the evidence below was
+gathered on the hosts by the coordinator before it).
+
+- h2puni's cold calibration be835130 of 2026-11-18 recorded unlabelled containers from
+  `allinurl/goaccess:1.9.4` and `keinos/sqlite3`, while every container the gate itself started
+  carried `puni.job=<id>`.
+- h2puni's crontab has `7 * * * * /home/puni1/monitoring/bin/goaccess-reports.sh` (since
+  2026-08-21), which runs `docker run --rm -i allinurl/goaccess:1.9.4 …` once per site every
+  hour; h2puni also sees `keinos/sqlite3` runs from a root-owned backup.
+- h4claw's daily `puni-registry-backup.timer` (02:37) runs root's
+  `/root/.puni/registry/backup-registry.ts`, which starts `keinos/sqlite3@sha256:a5610a155a8c…`
+  snapshot containers.
+- So every gate longer than an hour on h2puni recorded at least one `unlabelled` verdict, and
+  `ops job propose` excluded it as "container attribution incomplete" (`ops/measures.ts`).
+
+`ContainerWatch.judge` (`ops/containers.ts`) now judges a container without `puni.job` that
+carries a named `puni.host-service` label by reading its `HostConfig.Memory` and
+`HostConfig.NanoCpus` with the same `docker inspect` as a job container: both present make it
+verdict `host-service` with `{ name, memoryBytes, cpuCores }`; a missing one keeps it
+`unlabelled`, the reason naming `--memory`, `--cpus` or both. `puni.job` is read first, so a
+container with both labels is judged as a job container, and an unknown-job `puni.job` stays
+`unlabelled`. `ContainerVerdict` (`ops/run-records.ts`) gains the `host-service` member and its
+shape refuses one without its bounds; `isAttributed` and `isAttributionIncomplete` are the one
+completeness rule, used by `ops job run` and the run-record test fixture. `ops job audit` adds a
+`note: host services beside run …` line per run and clears an earlier `attribution_incomplete`
+only after a run with a bounded job container and every other container attributed.
+`measures.ts` is unchanged: it reads the record's `attributionIncomplete`.
+
+| Command                                                                                                                                              | Result                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| new tests in `containers.test.ts`, `run-records.test.ts`, `audit.test.ts`, `propose.test.ts` before the change (the project test command's preloads) | 8 fail, 27 pass: two of the ten new tests passed already, the refusal test (nothing then accepted `host-service`) and `a container with both labels is judged as the job container it names` (the `puni.job` path was unchanged on main)             |
+| the same four files after the change                                                                                                                 | 35 pass, 0 fail                                                                                                                                                                                                                                      |
+| `job-run.test.ts -t container` inside its `unshare` namespace (`DASH_OPS_TEST_NAMESPACE=1`), real Docker 29.7.2 with `busybox:1.37.0-musl`           | 5 pass, 0 fail, the new host-service run included                                                                                                                                                                                                    |
+| `containers`, `run-records`, `audit`, `propose`, `job-run`, `calibrate` and `status` test files together                                             | `job-run.test.ts` inside: 45 pass, 10 skip (no systemd user bus on the laptop), 0 fail; `calibrate.test.ts` inside: 10 fail, the same 10 on unchanged `main` 059c76b05, refused for the laptop's 1.69 GB free disk below the 2 GiB the fixtures need |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                | exit 0                                                                                                                                                                                                                                               |
+| `bunx eslint` on the ten changed TypeScript files                                                                                                    | exit 0                                                                                                                                                                                                                                               |
+| `bunx prettier --check` on the changed files                                                                                                         | all files use Prettier code style                                                                                                                                                                                                                    |
+| `bunx openspec validate --all --json`                                                                                                                | exit 0; 344 items, 344 passed, 0 failed                                                                                                                                                                                                              |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                       | exit 0                                                                                                                                                                                                                                               |
+| a `gate` calibration on h2puni across a goaccess hour                                                                                                | not run: no host touched; follows the host script change (S22-A2)                                                                                                                                                                                    |
+
+| Injected fault                                                                     | Observed                                                                                                                     |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| every container without `puni.job` judged `unlabelled` (the rule before task 6.22) | `a labelled, bounded host-service container is attributed as host-service` failed: verdict `unlabelled`                      |
+| the empty-name check removed                                                       | `a host-service label with no name is unlabelled` failed: verdict `host-service`                                             |
+| the missing-bound check removed                                                    | `a host-service container without --memory or --cpus stays unlabelled, naming the missing bound` failed: both `host-service` |
+| `puni.host-service` read before `puni.job`                                         | `a container with both labels is judged as the job container it names` failed: `host-service` where `unbounded` was expected |
+| `'host-service'` admitted in the plain verdict branch of the outcome shape         | `a host-service verdict without its declared bounds is refused` failed: the record was written                               |
+| `isAttributed` without its `host-service` term                                     | the propose test refused with two complete records; three host-service audit tests failed                                    |
+| `ops job run` counting only `bounded` as attributed (real Docker)                  | `a labelled, bounded host-service container beside the job keeps attribution complete` failed: `attributionIncomplete` true  |
+| the audit's host-service note removed                                              | `are attributed, and listed with their declared bounds beside the run` failed: no note                                       |
+| the clearing rule's `some(bounded)` replaced by `length > 0`                       | `a later run that saw only host-service containers does not clear attribution_incomplete` failed: no drift                   |
+| the clearing rule requiring every container `bounded`                              | the same test failed: the drift stayed after a run with a job container and a host service                                   |
+| the drift line listing every non-`bounded` verdict                                 | `are not named as unattributed in an attribution_incomplete line` failed: the host service was named                         |
+
+Alternatives considered: ignoring containers by image name (`allinurl/goaccess`,
+`keinos/sqlite3`), rejected because no record traces such a container to an operator's
+declaration and any job could start the same image unbounded; making the crons Dash host jobs,
+rejected because they run without Dash on hosts not enrolled and, admitted, would block a
+gate's admission or queue behind it; leaving them unlabelled and calibrating only between the
+crons, rejected because h2puni's goaccess cron runs hourly and a gate takes longer.
+
+- **S22-A1** A-ATTR-HOSTSVC-1, the `puni.host-service` label with required `--memory` and
+  `--cpus`, is assumed and awaits Dany's confirmation; no ADR, the amendment is under J16 in
+  design.md.
+- **S22-A2** The host scripts still have to be changed on the hosts: h2puni's
+  `~/monitoring/bin/goaccess-reports.sh` by the coordinator, with a backup taken first; the
+  root-owned `keinos/sqlite3` backups (h4claw's `backup-registry.ts`, h2puni's) by Dany or the
+  fleet roles. Until then those containers stay `unlabelled`.
+- **S22-A3** A host-service container's declared bound is listed by `ops job audit`, not added
+  to the job's envelope or to admission: the operator who declared it owns that load.
+- **S22-A4** A host-service container is judged by the same `docker inspect` right after its
+  create event; one that ended before that read, as a `--rm` run can when the stream lags and
+  only the closing replay sees it, is `unverified` and still incomplete, as for job containers.
+  The reviewer of #952 measured the race with this tree's `ContainerWatch` in-process and an
+  async `docker run --rm --label puni.host-service=probe --memory 64m --cpus 1 busybox sh -c`
+  run: the inspect won 10 of 10 for `true` (about 250 ms lifetime) on an idle host and 10 of 10
+  under 24 `yes` processes saturating every core, and 10 of 10 for `sleep 0.3` and `sleep 1`.
+  The only losing case was a watch whose event loop was blocked: a `spawnSync` probe got 10 of
+  10 `unverified` even for `sleep 2`, and `ops job run` never blocks its loop in the job
+  window. The residual is that blocked-loop case, not ordinary short containers.
+- **S22-A5** For Dany (reviewer's note on #952): host-service bounds are listed, not counted
+  against the pool's allocatable vector. The honest counterpart would be a declared
+  host-service reserve in the pool headroom, plus an `ops job audit` drift when an observed
+  host-service bound exceeds that reserve; not part of this change.
+
+## 2026-11-19 an unreadable test fixture under TMPDIR voided whole gate records (task 6.23)
+
+Branch `ops/dash-tmp-telemetry-unreadable-subtrees-20261119` from `main` d40d0aee8; laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the evidence
+below was gathered on h4claw by the coordinator before it).
+
+- h4claw's gate calibration e15a97eb, the first complete one with BuildKit, ran 2026-11-19
+  04:53:44Z to 10:09:12Z at `--parallel=1` with `GATE_EXIT=0`, peak memory 9.3 GiB, 7.82
+  cores and 8 GiB of tmp.
+- `ops job propose` excluded it whole, as `incomplete: telemetry failure: interval:` then
+  `tmp directory /home/puni1/.local/share/dash/host-pool/e15a97eb-… unreadable:` then
+  `EACCES: permission denied, scandir '…/wbs-shared-process-XYrBbJ/inaccessible'`.
+- The directory is the gate's own test fixture:
+  `apps/wbs/be-01/src/shared-people-host-restore-process.db.test.ts` makes `inaccessible` inside
+  its `mkdtemp(join(tmpdir(), 'wbs-shared-process-'))` directory (lines 405 and 481), chmods it
+  0 (line 410) and back to 0700 after its assertion; `TMPDIR` is the Dash job's tmp directory.
+- `readSample` (`ops/job-run.ts`) turned the `directoryBytes` throw into the sample's failure,
+  the run's `telemetryFailure`, and `incompleteness` (`ops/measures.ts`) voided every dimension
+  for it. Every gate on both hosts runs that test, so no gate record could be complete.
+
+`directoryUsage` (`ops/scope.ts`) replaces `directoryBytes`: below the tmp directory it skips a
+subtree it may not read (EACCES, EPERM) and lists it, relative and sorted, at most 32 with the
+rest counted; an entry that vanishes between the listing and its `lstat`, or between `lstat`
+and its listing, counts as gone. The tmp directory itself absent or unreadable still throws, so
+it is still a telemetry failure (before, an absent one was silently 0 bytes). A run sample gains
+`tmpUnreadable` and `tmpUnreadableOmitted`; a stored sample without them loads with none.
+`dimensionStandings` and `tmpLowerBoundOf` (`ops/measures.ts`) make a record whose only defect
+is unreadable tmp subtrees complete for memory, CPU and duration and `lower-bound` for tmp disk;
+`incompleteness` is unchanged and answers null for it. `ops job propose` names such a record
+`excluded … from tmpDiskGib: tmp lower bound only: <n> samples saw unreadable subtrees (path)`,
+falls back to the lower bounds for tmp disk only when fewer than three records measured it, then
+names them `used as a lower bound`, never goes below the entry's `tmpDiskGib`, cites the
+records and marks the provenance `tmpDiskGibLowerBound: true`; `ops job audit` prints one note per
+such run listing the paths and keeps its tmp figure out of `waste`, while a lower bound above
+the envelope is still an `overrun`.
+
+| Command                                                                                                                                                                                | Result                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the new tests in `scope.test.ts`, `measures.test.ts`, `propose.test.ts`, `audit.test.ts`, `run-records.test.ts` against `main`'s six source files                                      | 32 pass, 7 fail: five new tests, and `scope.test.ts` and `measures.test.ts`, which do not load (`directoryUsage`, `dimensionStandings` not exported); four new tests passed already, kept as guards: the new fields' round trip, the raise test, the two-record refusal and the lower-bound overrun |
+| the same five files after the change                                                                                                                                                   | 46 pass, 0 fail                                                                                                                                                                                                                                                                                     |
+| `job-run.test.ts -t "TMPDIR\|a gate is measured\|one-second"` inside its `unshare` namespace (`DASH_OPS_TEST_NAMESPACE=1`)                                                             | 3 pass (fake seam), 3 skip (real seam: no systemd user bus on the laptop)                                                                                                                                                                                                                           |
+| `scope`, `measures`, `propose`, `audit`, `run-records`, `status`, `host-job-publication`, `calibrate`, `job-run` and `host-pool-mode` test files together, with the project's preloads | exit 0; `job-run.test.ts` inside: 41 pass, 16 skip (no systemd user bus, no `busybox:1.37.0-musl` image on the laptop); `host-pool-mode.test.ts` inside: 45 pass; `calibrate.test.ts` inside: 18 pass, 1 skip (no user bus); outer 51 pass                                                          |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                                                  | exit 0                                                                                                                                                                                                                                                                                              |
+| `bunx eslint` on the 15 changed TypeScript files                                                                                                                                       | exit 0                                                                                                                                                                                                                                                                                              |
+| `bunx prettier --check` on the changed files                                                                                                                                           | all files use Prettier code style                                                                                                                                                                                                                                                                   |
+| `bunx openspec validate --all --json`                                                                                                                                                  | exit 0; 346 items, 346 passed, 0 failed                                                                                                                                                                                                                                                             |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                                         | exit 0                                                                                                                                                                                                                                                                                              |
+| a `gate` calibration on h4claw or h2puni with this change                                                                                                                              | not run: no host touched; follows the merge and a launcher update (S23-A3)                                                                                                                                                                                                                          |
+
+| Injected fault                                                                         | Observed                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `directoryUsage` rethrowing EACCES below the tmp directory (the rule before task 6.23) | `a mode-0 subdirectory is listed and the rest is counted` and the bounded-list test threw; over the production path the `job-run.test.ts` fixture test recorded `telemetryFailure` `interval: tmp directory … unreadable: EACCES: permission denied, scandir '…/wbs-shared-process-XYrBbJ/inaccessible'`, as e15a97eb did |
+| EACCES tolerated for the tmp directory itself                                          | `an unreadable tmp directory is still a failure` failed: no throw                                                                                                                                                                                                                                                         |
+| ENOENT tolerated for the tmp directory itself                                          | `an absent tmp directory is still a failure` failed: zero bytes returned                                                                                                                                                                                                                                                  |
+| ENOENT rethrown at an entry's `lstat`, or at its listing                               | `an entry that vanishes mid-walk counts as gone` failed, each in turn                                                                                                                                                                                                                                                     |
+| every unreadable path listed                                                           | `unreadable paths are sorted and bounded, the rest counted` failed: 35 paths                                                                                                                                                                                                                                              |
+| the tmp standing answering the whole record's                                          | `a record whose only defect is unreadable tmp subtrees is a lower bound for tmp alone` failed, and the two propose lower-bound tests                                                                                                                                                                                      |
+| `propose` taking a lower bound as a measured tmp peak                                  | the three-record lower-bound test printed `tmpDiskGib: 4 (p95 3 GiB over 3 records: …)`; the beside-three test failed too                                                                                                                                                                                                 |
+| `propose` never falling back to lower bounds                                           | the three-record and raise tests refused with `0 records for tmpDiskGib`                                                                                                                                                                                                                                                  |
+| lower bounds never cited                                                               | the raise test refused in validation, `provenance.recordCount must be at least 1 (was 0)`; the three-record test failed                                                                                                                                                                                                   |
+| lower bounds always cited                                                              | `a record with unreadable tmp subtrees beside three measured ones is not cited` failed                                                                                                                                                                                                                                    |
+| the entry term dropped from the lower-bound tmp figure                                 | the three-record test proposed `tmpDiskGib` 4 under the entry's 8                                                                                                                                                                                                                                                         |
+| the audit's lower-bound note removed                                                   | `a run with unreadable tmp subtrees gets one note listing them` failed: no note                                                                                                                                                                                                                                           |
+| lower bounds counted toward `waste`                                                    | `tmp lower bounds are not waste` failed: a `tmpDiskGib` waste                                                                                                                                                                                                                                                             |
+| the two sample fields required in the stored shape                                     | `a sample recorded before task 6.23 loads with no unreadable paths` threw on the stored row                                                                                                                                                                                                                               |
+
+Alternatives considered: making the be-01 test reopen the directory before any sample, racy
+by construction against a sampler that reads every ten seconds; running the sampler as root,
+out because the launcher and its scope run as the gate user; skipping tmp measurement, which
+loses the dimension; excluding the record from tmp disk only but never proposing tmp from lower
+bounds, which with the current test suite would refuse every gate proposal forever (S23-A2).
+
+- **S23-A1** A-TMP-TELEMETRY-1, unreadable subtrees as a listed tmp lower bound and
+  completeness per dimension, is assumed and awaits Dany's confirmation; no ADR, the amendment
+  is under J7 in design.md.
+- **S23-A2** The tmp envelope stays provisional, a lower bound, until a run sees no unreadable
+  subtree, which the current test suite never allows: every gate runs
+  `shared-people-host-restore-process.db.test.ts`. Dany may prefer the test to make its
+  inaccessible directory in a dedicated directory outside `TMPDIR`; that changes a WBS test for
+  a Dash measurement and is left to him.
+- **S23-A3** The measured h4claw figures for e15a97eb above (9.3 GiB, 7.82 cores, 8 GiB tmp at
+  `--parallel=1`) are the coordinator's reading of the host record; they are not re-read here,
+  and the record's existing `telemetryFailure` text stays: records written before this change
+  are not rewritten, so e15a97eb stays excluded and a new calibration with this change is
+  needed.
+- **S23-A4** When tmp disk falls back to lower bounds the proposal never lowers the entry's
+  `tmpDiskGib`, only raises it to ⌈1.25 × the lower-bound p95⌉, and any lower bound in the pool
+  (all of it, or mixed with measured records) marks the provenance
+  `tmpDiskGibLowerBound: true`, a new optional field of the Burokrat `CalibratedProvenance`
+  (`true` only, absent otherwise). The entry is the durable artifact and its `tmpDiskGib`
+  becomes a pool disk reservation, so an unmarked lower bound could over-commit disk in
+  concurrent mode unnoticed. The blind spot the #953 review named stays: while every gate
+  carries the mode-0 fixture, `waste` can never fire for gate tmp, so an inflated tmp entry is
+  not flagged. The marker makes that visible: `ops job audit` prints, for a marked entry, that
+  its tmp entry is a lower bound and waste cannot fire for tmpDiskGib.
+- **S23-A5** The sampler tolerates EACCES and EPERM below the tmp directory and ENOENT for
+  entries that vanish; any other error (EIO, ELOOP, ENOTDIR from a replaced entry) is still a
+  telemetry failure, as before.
+- **S23-A6** `gate-launcher-refresh` moves only an idle launcher checkout, so a calibration
+  series already running keeps the old sampler until it ends; restart the series' runner after
+  the refresh for its next runs to record unreadable subtrees as lower bounds.
+
+Review fixes after the Fable review of #953 (S2-1, S3-2, S3-3), same laptop and environment:
+
+| Command                                                                                                             | Result                                |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `scope`, `measures`, `propose`, `audit`, `run-records` test files                                                   | 48 pass, 0 fail                       |
+| Burokrat `contracts/job-catalogue.test.ts` and `rules/job-catalogue.test.ts` with the project's preload             | 28 pass, 0 fail                       |
+| `calibrate.test.ts` with the project's preloads                                                                     | inside: 18 pass, 1 skip (no user bus) |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache` and `bunx nx run twilight-burokrat:typecheck --skip-nx-cache` | both exit 0                           |
+
+| Injected fault                                                      | Observed                                                                                                                                |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `propose` omitting `tmpDiskGibLowerBound` in the fallback           | the lower-bound and mixed propose tests found no marker; `a lower-bound tmp entry is not waste-checkable` (audit.test.ts) named a waste |
+| the audit's tmp-waste skip for a marked entry removed               | `a lower-bound tmp entry is not waste-checkable` failed: a `tmpDiskGib` waste                                                           |
+| the audit's marked-entry note removed                               | the same test failed: no note                                                                                                           |
+| the contract typing the marker `boolean`                            | `marks a calibrated tmp p95 as a lower bound with true alone` (job-catalogue.test.ts) accepted `false`                                  |
+| `propose` printing `excluded` for a record it used as a lower bound | the three-record lower-bound test failed                                                                                                |
+| one `lower bound only` wording for a mixed pool                     | `two measured records and one lower bound make a mixed lower bound` failed                                                              |
