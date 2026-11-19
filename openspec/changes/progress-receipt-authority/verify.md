@@ -271,3 +271,32 @@ its own hosted CI and canonical gate evidence. Clone-backed documentation
 and pilot checks still require a normal local checkpoint. The separate
 empty-marker negative remains open, along with live activation, deployment,
 and receipt application.
+
+### Committed repair checks
+
+On checkpoint `427d090c`, the two historical-link cases passed with two
+expectations. All six owning documentation cases passed with 40 expectations.
+Each of their six nested clones matched the committed tree and all 73 changed
+paths before the test applied any fixture overlays. Scratch was empty afterward.
+
+The first trusted pilot reached its authority check and refused
+`check.be-01.test`. The relationship still expected `navigatorPlanReference`.
+Commit `c5144111` updated only the relationship's literal input list to match
+the backend target. The first failure and its clone receipt are retained.
+The same pilot case then passed with 64 expectations. Its single nested clone
+matched the new tree and all 74 changed paths before fixture overlays. Scratch
+was empty afterward.
+
+The fixture emptied its pending PID marker before the real rename. The
+selected ECHILD case rejected the published empty marker with
+`adopted child published an invalid PID`. The recorded Bash process identity
+disappeared, the scope held only the dispatcher, and scratch was empty before
+the ordinary case began. The ordinary runner reported one pass and five
+expectations. Its isolated child verified ECHILD and removal of the adopted
+process.
+
+Only the trusted relationship changed between the two checkpoints. The
+documentation results remain evidence for `427d090c`. The pilot and PID proof
+used `c5144111`. The corrective PR head still needs fresh hosted CI and
+canonical gate evidence. Live activation, deployment and receipt application
+remain open.
