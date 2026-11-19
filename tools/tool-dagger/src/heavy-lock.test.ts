@@ -200,6 +200,7 @@ describe('with-heavy-lock', () => {
          bash -c 'printf "child=%s\\nlabel=%s\\n" "\${HEAVY_LOCK_WAIT_SECONDS-unset}" "$HEAVY_LOCK_LABEL"'
        }
        run_heavy_job() { with_heavy_lock; }
+       read_host_pool_enrollment() { printf 'unenrolled\\n'; }
       `,
     );
     for (const args of [

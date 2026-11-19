@@ -58,6 +58,12 @@ openspec/changes/dual-optimized-scheduler/tasks.md
 openspec/changes/archive/2026-08-30-token-tracking/tasks.md
 openspec/changes/work-item-deadline/tasks.md
 
+# Retained toolchain locks: the exact bytes of infra/versions/toolchain.json at two past
+# revisions. contracts.test.ts asserts their SHA-256 before decoding them, so a reformat would
+# break that pin; they already match Prettier's output, which this rule keeps from drifting.
+tools/tool-fleet/src/fixtures/toolchain-historical.json
+tools/tool-fleet/src/fixtures/toolchain-k3d-helpers-without-crane.json
+
 # Deterministic signal artifacts are emitted and checked by observability-generate.ts.
 # Keep their exact generator bytes; validatePlatform rejects any drift.
 infra/platform/observability/base/signals.yaml

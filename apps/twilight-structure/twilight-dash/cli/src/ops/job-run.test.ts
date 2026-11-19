@@ -2,13 +2,16 @@ import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import {
+  accessSync,
   chmodSync,
+  constants,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -31,6 +34,7 @@ import {
   catalogueOf,
   CONTAINER_IMAGE,
   fakeScopeTelemetry,
+  fakeSystemctl,
   type FakeSystemdRun,
   fakeSystemdRun,
   type FixtureJobType,
@@ -1083,9 +1087,207 @@ if (insideOpsNamespace(import.meta.path)) {
         signal: 'SIGKILL',
         endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
       });
-      expect(report.some((line) => line.endsWith('outlived SIGTERM by 1000 ms; SIGKILL'))).toBe(
-        true,
+      expect(
+        report.some((line) =>
+          line.endsWith(
+            `outlived SIGTERM by 1000 ms; SIGKILL to every process of dash-job-${record.jobId}.scope`,
+          ),
+        ),
+      ).toBe(true);
+    }, 60000);
+
+    test("a setsid'd descendant that ignores SIGTERM ends with the scope at the bound", async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const childPid = join(base, 'child');
+      // The descendant leaves the payload's session and process group, as the nx daemon does.
+      const payload = payloadScript(
+        join(base, 'daemonizing.sh'),
+        [
+          "trap '' TERM",
+          `setsid sh -c 'echo $$ > ${childPid}; exec sleep 30' &`,
+          `while [ ! -s ${childPid} ]; do sleep 0.05; done`,
+          `touch ${marker}`,
+          'sleep 20',
+          'exit 0',
+        ].join('\n'),
       );
+      cleanups.push(() => {
+        if (existsSync(childPid)) spawn('kill', ['-KILL', readFileSync(childPid, 'utf8').trim()]);
+      });
+      const bin = fakeBin('exec');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      // Proof: restoring `killSession(pid, 'SIGKILL')` in place of the scope kill in `endPayload`
+      // left the descendant alive: `members` received its one pid against `[]` (2026-11-18).
+      expect(fake.telemetry.members(`/fake/${scope}`)).toEqual([]);
+      expect(code).toBe(124);
+      expect(runRecord(root, job.id)).toMatchObject({
+        exitCode: 124,
+        endedByLauncher: 'exceeded maxRuntimeMinutes 1: ended by the launcher',
+      });
+      // The lift comes first, so the trap and handlers run unthrottled; the scope kill last.
+      expect(readFileSync(join(bin, 'systemctl.log'), 'utf8')).toBe(
+        `--user set-property --runtime ${scope} MemoryHigh=infinity\n--user kill --signal=SIGKILL ${scope}\n`,
+      );
+    }, 60000);
+
+    test("a setsid'd descendant outlives a payload that honours SIGTERM, not the bound", async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const childPid = join(base, 'child');
+      // The payload ends on SIGTERM inside the settle budget; only its descendant ignores it.
+      const payload = payloadScript(
+        join(base, 'honouring.sh'),
+        [
+          `setsid sh -c 'trap "" TERM; echo $$ > ${childPid}; exec sleep 30' &`,
+          `while [ ! -s ${childPid} ]; do sleep 0.05; done`,
+          `touch ${marker}`,
+          'sleep 20',
+          'exit 0',
+        ].join('\n'),
+      );
+      cleanups.push(() => {
+        if (existsSync(childPid)) spawn('kill', ['-KILL', readFileSync(childPid, 'utf8').trim()]);
+      });
+      const bin = fakeBin('exec');
+      const report: string[] = [];
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 5000,
+        }),
+      );
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      // Proof: dropping `killLeftovers` after the leader's exit (job-run.ts) left the descendant
+      // alive: `members` received `[90]` against `[]` (2026-11-18, review of #942 S2-1).
+      expect(fake.telemetry.members(`/fake/${scope}`)).toEqual([]);
+      expect(code).toBe(124);
+      expect(runRecord(root, job.id)).toMatchObject({ exitCode: 124, signal: 'SIGTERM' });
+      expect(report).toContain(`ops job: 1 processes left in ${scope} after its leader; SIGKILL`);
+      expect(readFileSync(join(bin, 'systemctl.log'), 'utf8')).toBe(
+        `--user set-property --runtime ${scope} MemoryHigh=infinity\n--user kill --signal=SIGKILL ${scope}\n`,
+      );
+    }, 60000);
+
+    test('a host without systemctl still ends the job at the bound, reported', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(
+        join(base, 'stubborn.sh'),
+        `trap '' TERM\ntouch ${marker}\nsleep 20\nexit 0`,
+      );
+      const bin = fakeBin('exec');
+      rmSync(join(bin, 'systemctl'));
+      // Every tool on this host's PATH but systemctl, each name linked once from the first PATH
+      // entry that has it, as a lookup would resolve it. A name in two entries (the CI runner's
+      // `now`), a dangling link or a non-executable entry is skipped, never linked twice.
+      const tools = join(base, 'tools-without-systemctl');
+      mkdirSync(tools);
+      const linked = new Set<string>(['systemctl']);
+      for (const directory of (process.env['PATH'] ?? '').split(':')) {
+        if (directory === '' || !existsSync(directory)) continue;
+        for (const name of readdirSync(directory)) {
+          if (linked.has(name)) continue;
+          const path = join(directory, name);
+          try {
+            if (!statSync(path).isFile()) continue;
+            accessSync(path, constants.X_OK);
+          } catch {
+            // A dangling link or a tool this account cannot run is no tool for the payload.
+            continue;
+          }
+          linked.add(name);
+          symlinkSync(path, join(tools, name));
+        }
+      }
+      const report: string[] = [];
+      const started = monotonic.now();
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: { ...process.env, PATH: `${bin}:${tools}` },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      // Proof: dropping the `not on PATH` answer in `systemctlFailure` made the lift throw before
+      // the SIGTERM, and the payload ran its full 20 s: 21119 ms against `< 15000`
+      // (2026-11-18, review of #942 S3-1).
+      expect(monotonic.now() - started).toBeLessThan(15_000);
+      expect(code).toBe(124);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      expect(job.state).toBe('released');
+      expect(runRecord(root, job.id)).toMatchObject({ exitCode: 124, signal: 'SIGKILL' });
+      expect(report).toContain(
+        `ops job: lifting MemoryHigh of ${scope} failed: systemctl is not on PATH; SIGTERM regardless`,
+      );
+      expect(
+        report.some((line) =>
+          line.startsWith(
+            `ops job: SIGKILL to ${scope} failed: systemctl is not on PATH; SIGKILL to session `,
+          ),
+        ),
+      ).toBe(true);
+    }, 60000);
+
+    test('a failed scope kill is reported and the session SIGKILLed instead', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const payload = payloadScript(
+        join(base, 'stubborn.sh'),
+        `trap '' TERM\ntouch ${marker}\nsleep 20\nexit 0`,
+      );
+      const refusing = fakeSystemctl(join(base, 'refusing-bin'), 'fails');
+      const report: string[] = [];
+      const started = monotonic.now();
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: {
+            ...fake.environment,
+            PATH: `${refusing}:${fake.environment['PATH'] ?? ''}`,
+          },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      // Proof: dropping the fallback `killSession(pid, 'SIGKILL')` in `endPayload` made the payload
+      // run its full 20 s: the elapsed check failed (2026-11-18).
+      expect(monotonic.now() - started).toBeLessThan(15_000);
+      expect(code).toBe(124);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      expect(job.state).toBe('released');
+      expect(runRecord(root, job.id)).toMatchObject({ exitCode: 124, signal: 'SIGKILL' });
+      const diagnostic = 'Failed to connect to bus: No medium found';
+      expect(report).toContain(
+        `ops job: lifting MemoryHigh of ${scope} failed: systemctl set-property --runtime ${scope} MemoryHigh=infinity: ${diagnostic}; SIGTERM regardless`,
+      );
+      expect(
+        report.some((line) =>
+          line.startsWith(
+            `ops job: SIGKILL to ${scope} failed: systemctl kill --signal=SIGKILL ${scope}: ${diagnostic}; SIGKILL to session `,
+          ),
+        ),
+      ).toBe(true);
     }, 60000);
 
     test('a failed kill at the runtime bound still records 124 and settles', async () => {

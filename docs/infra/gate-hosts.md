@@ -4,11 +4,58 @@ A gate host runs `bin/h2puni-gate.sh <sha>` exactly as h2puni does, under its ow
 lock, so gates on different hosts run in parallel. h2puni is the original gate host. h4claw is the
 second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and live since
 2026-10-21: the apply converged twice and a full gate exited 0 there, recorded in
-[the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md). Since 2026-11-08
-h4claw is enrolled in its Dash host pool in observe mode, so gate on it as `puni1` from
-`~/puni-00-gate-launcher` ([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of
+[the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md). Both hosts are
+enrolled in their Dash host pools in observe mode (h4claw since 2026-11-08, h2puni since
+2026-11-17), so gate on either as `puni1` from `~/puni-00-gate-launcher`
+([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of
 about 100 minutes for a full gate is from before enrollment; the first observe-mode gate was
 throttled by the estimated `gate` envelope (the known issue in that section).
+
+## What the host gate runs
+
+`bin/h2puni-gate-steps.sh` runs the same Nx targets as CI, with one exception since 2026-11-18
+(assumption A-GATE-REMOTE-1, `dash-host-jobs` task 6.18, awaiting Dany): it skips
+`tool-remote-scripts`'s `test` target and its `test:caddy` dependency, and runs only that
+project's `lint`, `typecheck` and `build`. That target's canonical batch runs the remote model
+family 2.5 to 4 times over its fixed budgets on both hosts: the 2026-11-08 h2puni gate took
+575 min, 522 of them in that target, and failed two deadline-bound cases, so no gate calibration
+could finish.
+
+CI's `gate remote isolated leaf` jobs (and `gate remote` for `test:ci:rest`, which covers
+`test:caddy`) are now the only place the family runs. On a pull request they run only when the
+CI plan selects the `remote` partition, that is when the change reaches `tool-remote-scripts`'s
+inputs; on a push to `main` they always run. A pull request that does not touch those inputs
+therefore has the family run nowhere before `main`, and a green host gate says nothing about it.
+
+To revert, drop `,tool-remote-scripts` from the first `run-many` exclusion and the remote-scripts
+`run-many` line, then update `toolchain-pins.test.ts`. Lift it only once the family's budgets
+account for host speed.
+
+Since 2026-11-18 every host gate `run-many` runs with `--parallel=1` (assumption
+A-GATE-PARALLEL-1, `dash-host-jobs` task 6.19, awaiting Dany), because at `--parallel=2` the
+gate's peak memory (12.94 GiB recorded, an OOM kill on h4claw at a 13.9 GiB slice peak) does
+not fit a 15 GiB host. The flag bounds Nx task concurrency only: a single task can still fan out
+(vitest in `wbs-fe-01:test` uses one worker per core). The Nx run should take about 90 min
+instead of about 58 (57 min 55 s measured, not counting the install, `format:check`, OpenSpec
+validation and the solver smoke); the whole-gate figure that replaces the intro's "about 100
+minutes" comes from the next `gate` calibration. Restoring `--parallel=2` on the three lines of
+`bin/h2puni-gate-steps.sh` and in `toolchain-pins.test.ts` reverts it.
+
+Gate hosts need BuildKit, which Ubuntu ships as the `docker-buildx` package (`dash-host-jobs`
+task 6.21). Ubuntu's `docker.io` comes without the buildx plugin, and then the solver smoke's
+`docker build` falls back to the deprecated legacy builder, which runs every Dockerfile step in
+an intermediate container ("Running in …", "Removed intermediate container …"). No `--label`
+reaches those containers, so `ops job propose` excluded every gate record as "container
+attribution incomplete" (J16). BuildKit runs the steps inside the daemon instead. Verify it as
+`puni1` with `docker buildx version`, which prints the plugin's version and exits 0. The
+`gate_host` role installs the pinned package and asserts it; inside a Dash job the smoke itself
+refuses to build when `docker buildx version` fails, and `bin/h2puni-gate.sh` refuses (exit 70)
+an enrolled host's gate or calibration before queueing it, since the smoke is the gate's last
+step. Installing the plugin also switches every other `docker build` on the host to BuildKit,
+such as the `website-dev-build` lane's builds on h2puni.
+
+Between merging task 6.21 and the fleet apply of `playbooks/gate-host.yml`, launch no pool gate:
+the operator sequence is merge, apply the playbook on h2puni and h4claw, then the next gate.
 
 ## What the role sets up
 
@@ -69,7 +116,9 @@ throttled by the estimated `gate` envelope (the known issue in that section).
   `shellcheck`, `unzip`, `bubblewrap` and `busybox` from Ubuntu apt. The sandbox tools are
   required by existing gate tests; installing them does not grant namespace capability. A
   nested heavy job bounds its admission query with `timeout`, from `coreutils`, which Ubuntu
-  marks Essential, so the role installs nothing for it. Docker must already be running. The role does not change Docker,
+  marks Essential, so the role installs nothing for it. It also installs `docker-buildx` at
+  `puni_gate_docker_buildx_version` and asserts that version with `dpkg-query`, so the solver
+  smoke builds under BuildKit. Docker must already be running. The role does not change Docker,
   k3s, the firewall or the network.
 
 The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
@@ -87,7 +136,7 @@ The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
   on any other host, neither the configuration nor a ledger exists;
 - once a ledger exists, `ops pool inspect` and `ops job audit` pass (an envelope drift fails the
   play); before that, a skip line names the missing ledger.
-- `docker ps` works;
+- `docker ps` works, and so does `docker buildx version`;
 - `python3` is the venv's and imports the locked OR-Tools;
 - the production lock resolver names `~/.cache/wbs-heavy-work.lock` in a writable directory.
 
@@ -133,6 +182,9 @@ To rerun only the probes, pass `--tags validate`.
    bug wrote h2puni's five keys as one line and locked out every caller but the first until the
    backup was restored, is closed by construction. The count is not a login test (sshd may refuse
    a key that parses), which is why the second-session login stays.
+4. Before the host's first gate, confirm BuildKit as `puni1`: `docker buildx version` exits 0.
+   The role installs `docker-buildx`; a host prepared before task 6.21 needs this playbook
+   applied again, or the solver smoke refuses inside its first Dash job.
 
 For h4claw, the controller is the one the 2026-09-27 enrollment used. It runs on the operator
 laptop and reaches `10.1.0.4` as root through a jump via h2puni. Its inputs are in
@@ -149,12 +201,12 @@ fleet_ansible --limit h4claw --extra-vars @"$OPS/gate.json" playbooks/gate-host.
 
 Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in this order:
 
-0. **Onboard h2puni to the role (h2puni only, once).** h2puni has never been role-managed. It is
-   now listed in `gate_hosts` (`ansible_host: 10.1.0.3`) and in no k3s group. The k3s plays that
-   target `all` stop at their input asserts on it (read from the plays, not run; `discover.yml`
-   only reads `/etc/machine-id`), and `tool-fleet:check` renders the k3s sysctl only for k3s
-   hosts. The role has not been applied to it. Its first apply is a larger change than
-   enrollment, and it is owed by task 6.3's operator half, which Dany sees before it runs:
+0. **Onboard h2puni to the role (h2puni only, once; done 2026-11-05, enrolled 2026-11-17).** The
+   notes below are what the first apply had to take into account and remain the record of why the
+   inventory looks as it does. h2puni is listed in `gate_hosts` (`ansible_host: 10.1.0.3`) and in
+   no k3s group. The k3s plays that target `all` stop at their input asserts on it (read from the
+   plays, not run; `discover.yml` only reads `/etc/machine-id`), and `tool-fleet:check` renders
+   the k3s sysctl only for k3s hosts. Its first apply was a larger change than enrollment:
    - `puni1` on h2puni escalates: it is in the `sudo` group and `sudo -n true` exits 0, because
      the dev poller and the monitoring scripts run `sudo docker` and `sudo openssl` as `puni1`.
      h2puni passes the input asserts, but without an exception validate's "Require the gate
@@ -238,7 +290,11 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
 3. **Drain.** Stop intake, including unattended intake: on h2puni the dev poller's
    `solver-image-publish` launches heavy jobs by itself, so stop the poller first. Then let the
    host's heavy queue drain (`bin/with-heavy-lock.sh status` reads `holder none`). Enrolling while
-   a gate is queued is operator error (S6-A14).
+   a gate is queued is operator error (S6-A14). Then sweep the gate trees for processes: `ops pool
+init` refuses a unit any same-user process has as cwd, and orphaned test fixtures survive for
+   weeks (two held h2puni's trees for 7 and 47 days on 2026-11-17). List them with
+   `find /proc/[0-9]*/cwd -maxdepth 0 -lname "$HOME/puni-00-gate*"` and end them before the
+   apply.
 4. **Apply.** Run the playbook twice as in [Add a gate host](#add-a-gate-host). The second run
    must print `changed=0`. The configuration now exists, so the host is enrolled; until step 5 a
    launcher refuses, because the ledger is missing.
@@ -302,8 +358,10 @@ Enrollment is an operator step (`dash-host-jobs` tasks 6.7, 6.4 and 6.5), in thi
    (on h4claw the journal is unreadable over ssh, as in step 5). It shows only the latest
    invocation, so a 70 followed by a 75 reads as 75. A running or waiting gate from the
    launcher works in the checkout, so 75 is the expected outcome while gates run.
-7. **Calibrate and propose (6.4).** Run `ops job calibrate` cold and warm for each type, then
-   `ops job propose`, and land the catalogue PRs. Budgets and headroom are pinned at step 5: once
+7. **Calibrate and propose (6.4).** For `gate`, run `bin/h2puni-gate.sh --calibrate <sha>`
+   cold and warm from `~/puni-00-gate-launcher` outside any Dash job. Use the supported
+   calibration entrypoint for each other type, then run `ops job propose` and land the
+   catalogue PRs. Budgets and headroom are pinned at step 5: once
    the pool is initialized, a changed `nproc`, MemTotal GiB, headroom, unit list, enrollment id or
    disk input stops the role before it rewrites the configuration ("pinned field differs from
    the ledger"). Choose headroom before init; changing it later needs re-enrollment, which with
@@ -364,7 +422,8 @@ ssh puni1@<h4claw public address> \
   'cd ~/puni-00-gate-launcher && git fetch -q origin && bin/h2puni-gate.sh <sha>' > gate-<sha8>.log 2>&1
 ```
 
-Known issue, pending as of 2026-11-08 22:50Z. The first gate from this path, `gate:a5e9dbe9`, ran
+Known issue, pending as of 2026-11-08 22:50Z; the held gate was ended cgroup-wide on 2026-11-17
+(`dash-host-jobs` verify.md, task 6.14) and `gate` is still uncalibrated. The first gate from this path, `gate:a5e9dbe9`, ran
 under `MemoryHigh` at the `gate` type's estimated 6 GiB and was throttled: `memory.peak` reached
 6.93 GiB, `memory.pressure` stayed above 90 %, two `bun test` runs timed out and three `eslint`
 runs hit heap OOMs. At 3 h 05 min it was still in its first `nx run-many`, and its exit is not
@@ -388,6 +447,11 @@ ssh puni1@<h4claw public address> \
   'cd ~/puni-00-gate-tbf && git fetch -q origin && bin/h2puni-gate.sh <sha>' > gate-<sha8>.log 2>&1
 ```
 
+h4claw is also the PUNI registry host: `/etc/puni` is `root:root` mode 700, and `puni1` is uid 995
+with gid 983 (h2puni and CI runners have uid == gid). Tests must not assume a readable `/etc/puni`
+or a user-private group with gid == uid; two tool-fleet tests did and failed every h4claw gate
+([verification, task 6.17](../../openspec/changes/dash-host-jobs/verify.md#2026-11-18-h4claw-gate-calibrations-fail-on-two-host-coupled-tool-fleet-tests-task-617)).
+
 The sha must resolve in the launcher, because the admitted gate tree fetches it from there, so
 fetch the branch that carries it. A fetch moves no head. After `ops pool init`, never check
 out in the launcher: the refresh timer owns its head. Step 5's one-time bootstrap before init
@@ -406,8 +470,29 @@ The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
   in observe mode the holder is `dash-job-<job id>`, held through a file in the ledger's
   `legacy-holds/` until the job settles.
 - Every launcher enters through `run_heavy_job`, which takes this lock on a host that is not
-  enrolled in a Dash host pool, and admits the job through the pool on one that is. h4claw is
-  enrolled in observe mode; h2puni is not yet. See [heavy job launchers](heavy-job-launchers.md).
+  enrolled in a Dash host pool, and admits the job through the pool on one that is. Both hosts
+  are enrolled in observe mode (h4claw since 2026-11-08, h2puni since 2026-11-17; the
+  [`dash-host-jobs` verify.md](../../openspec/changes/dash-host-jobs/verify.md) records each
+  visit). See [heavy job launchers](heavy-job-launchers.md).
+
+## End a host job by hand
+
+This applies on any enrolled host. Use the same three steps `ops job run` takes at a type's
+`maxRuntimeMinutes` (task 6.14). A SIGTERM to the launcher alone is not enough: it reaches only
+the payload's process group, and under `MemoryHigh` a trapped SIGTERM runs its handler at one
+return to user mode per 2 s. With `<scope>` the job's `dash-job-<job id>.scope`:
+
+```sh
+systemctl --user set-property --runtime <scope> MemoryHigh=infinity
+kill -TERM <launcher pid>   # forwarded to the payload's process group
+sleep 30                    # the settle budget
+systemctl --user kill --signal=SIGKILL <scope>
+```
+
+The last step ends every process in the scope, including `setsid`'d descendants such as the nx
+daemon. Run it even when the payload ended on the SIGTERM: a forwarded signal reaches no
+descendant outside the payload's process group. `ops job status` then shows the job settling
+once `watch` sweeps it.
 
 ## Capacity reports into WBS
 

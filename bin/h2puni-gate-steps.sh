@@ -51,9 +51,35 @@ bunx nx format:check --all
 # The Twilight suite runs as CI's `gate_twilight` does: since 2026-10-12 (WBS a81d93a0)
 # twilight-dash is excluded beside Burokrat and its targets and lint run in the split below;
 # toolchain-pins.test.ts pins the `twilight-dash` half of the exclusion.
-bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache \
-  --exclude=twilight-burokrat,twilight-dash
-bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=2 \
+# tool-remote-scripts' test target and its test:caddy dependency are skipped here (assumption
+# A-GATE-REMOTE-1, `dash-host-jobs` task 6.18, awaiting Dany): its canonical batch runs the remote model family 2.5-4x over its
+# fixed budgets on the gate hosts. The 2026-11-08 h2puni gate took 575 min 41 s, 521 min 57 s of
+# it in tool-remote-scripts:test, with model cases at 162-178 s against a ~70 s frozen budget and
+# two deadline-bound cases failing at ~264 s; on 2026-11-18 both calibrations sat 3+ h in that
+# batch. CI's remote jobs stay the authority for the family, but run on a PR only when the plan
+# selects the remote partition (always on main), so a green host gate does not cover it. Lint,
+# typecheck and build still run below; --excludeTaskDependencies skips the dependency builds the
+# first run-many already made in this tree. Revert by dropping `,tool-remote-scripts` and the
+# remote-scripts line. See docs/infra/gate-hosts.md.
+# Proof (2026-11-18): toolchain-pins.test.ts `runs the h2puni gate with the same Twilight split
+# as CI` failed on the pre-6.18 script (`Expected: 1 · Received: 0`) and, with only the line
+# below deleted or only its --excludeTaskDependencies dropped, on `Expected to contain: ...`.
+# Every run-many below runs at --parallel=1 (assumption A-GATE-PARALLEL-1, `dash-host-jobs` task
+# 6.19, awaiting Dany): at --parallel=2 the gate's true peak does not fit a 15 GiB gate host. Dash
+# recorded gate peaks of 12.94 GiB (2026-11-17) and 11.79 GiB (2026-11-18) against a 6 GiB
+# envelope; on 2026-11-18 two unbounded h4claw calibrations died 59 min in, the cold one losing
+# tool-fleet:test beside wbs-be-01's test and typecheck, the warm one with puni1's oom_kill counter
+# rising 2 -> 3 and memory.peak at 13.9 GiB. The peak drops to the largest single task's, which
+# is still multi-process: --parallel bounds Nx task concurrency only, and vitest in wbs-fe-01:test
+# still fans out by nproc. The Nx run grows from ~58 min to an expected ~90. Revert by restoring --parallel=2 on the three lines.
+# Proof (2026-11-18): toolchain-pins.test.ts `runs the h2puni gate with the same Twilight split
+# as CI` failed on the --parallel=2 script (`Expected: 1 · Received: 0`) and, with only the
+# remote-scripts or only the Twilight line back at --parallel=2, on `Expected to contain: ...`.
+bunx nx run-many -t test lint typecheck build --parallel=1 --skip-nx-cache \
+  --exclude=twilight-burokrat,twilight-dash,tool-remote-scripts
+bunx nx run-many -t lint typecheck build -p tool-remote-scripts --parallel=1 --skip-nx-cache \
+  --excludeTaskDependencies
+bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=1 \
   --skip-nx-cache
 bunx nx run twilight-burokrat:lint:source --skip-nx-cache
 bunx nx run twilight-dash:lint --skip-nx-cache

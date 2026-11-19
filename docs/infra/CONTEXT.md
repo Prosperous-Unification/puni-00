@@ -28,3 +28,15 @@ _Avoid_: rejection, acknowledgement, absence of a message
 **Registry backup budget**:
 The maximum combined size of stored backup files, including retained object versions and uploaded multipart parts. Provider billing overhead and minimum billable object sizes are outside this measure.
 _Avoid_: billing limit, host filesystem capacity, logical snapshot size
+
+**Promotion tag**:
+A registry tag that release tooling moves onto the image an environment runs, or ran last, so that the image carries an image protection.
+_Avoid_: release tag, environment pin, latest
+
+**Registry project**:
+A named group of repositories in the platform registry that shares one storage quota, one retention policy and its own robots.
+_Avoid_: namespace, organisation, tenant
+
+**Registry robot**:
+A non-human registry account that belongs to one registry project and holds an explicit list of permissions.
+_Avoid_: service account, bot user, machine credential

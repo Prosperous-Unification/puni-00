@@ -79,18 +79,21 @@ Five rules govern this repo:
 
 ## Gate
 
-- Before claiming done on h2puni, run `bin/h2puni-gate.sh <sha>`. It takes the canonical
-  host-wide heavy lock, checks out that SHA under the lock, installs the locked dependencies
-  frozen, then runs CI format, test, lint, typecheck and build. Do not run raw full Nx gates
-  there or check out the SHA first.
-- Run the gate from a clean isolated h2 worktree. Never use
-  `/home/puni1/wbs-dev/src` as the gate tree: its poller can reset it independently
-  of the heavy lock. See [dev gate workspace safety](docs/runbook-dev-deploy.md#gate-workspace-safety).
+- Before claiming done on h2puni, run `bin/h2puni-gate.sh <sha>` from `~/puni-00-gate-launcher`.
+  The Dash host pool admits it, checks the SHA out in the gate tree it hands over, installs the
+  locked dependencies frozen, then runs CI format, test, lint, typecheck and build. Do not run
+  raw full Nx gates there or check out the SHA first.
+- The pool chooses the gate tree; never run the gate from `/home/puni1/wbs-dev/src`, whose
+  poller resets it independently of the heavy lock. See
+  [dev gate workspace safety](docs/runbook-dev-deploy.md#gate-workspace-safety).
 - Trust the printed `h2puni gate: running on <sha>`, not intent. Exit 65 means the shared
   gate tree is dirty; move or commit named files and rerun—never unattended `git clean`.
   Exit 66 names tracked paths closed to other users; rerun with `H2PUNI_GATE_REPAIR_MODES=1`.
 - A held lock queues for 30 minutes; `HEAVY_LOCK_WAIT_SECONDS=0` opts into refusal.
   Format needs `--all`; the base-ref default is empty on main.
+- The host gate skips `tool-remote-scripts` tests. CI runs them on a PR only when its plan selects
+  the remote partition, and always on the push to main, so a green host gate does not cover that
+  family. See [gate hosts](docs/infra/gate-hosts.md#what-the-host-gate-runs).
 - Gate also runs `openspec validate --all --json`. CI adds secrets and migration lint;
   lefthook is bypassable, CI is not. Never `--no-verify`.
 - A missing required tool blocks the task: install it or report the block.

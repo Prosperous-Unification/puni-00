@@ -1,12 +1,16 @@
 import { type Subprocess } from 'bun';
 
 import { execute, firstLine, spawnClient } from '../compute/execution';
-import type { ContainerEvidence } from '../resources/runtime';
+import {
+  DOCKER_DEADLINE_MS,
+  dockerContainerEvidence,
+  dockerEnvironment,
+  JOB_LABEL,
+} from '../resources/container-evidence';
 import { causeText, OpsRefusal } from './refusal';
 import type { ContainerSample, ContainerVerdict } from './run-records';
 
-/** The label every container a host job starts carries, valued with the job's use id (J16). */
-export const JOB_LABEL = 'puni.job';
+export { dockerContainerEvidence, JOB_LABEL };
 
 /** The bound a type's containers run under, as the catalogue declares it. */
 export interface ContainerBound {
@@ -15,7 +19,6 @@ export interface ContainerBound {
 }
 
 const GIB = 1024 ** 3;
-const DOCKER_DEADLINE_MS = 30_000;
 /** The longest `docker events` line the watch reads before it distrusts the stream. */
 const MAX_EVENT_BYTES = 1024 * 1024;
 const BYTE_UNITS: ReadonlyMap<string, number> = new Map([
@@ -30,21 +33,6 @@ const BYTE_UNITS: ReadonlyMap<string, number> = new Map([
   ['GiB', 1024 ** 3],
   ['TiB', 1024 ** 4],
 ]);
-
-/**
- * The environment the `docker` CLI gets: what selects its daemon and finds its contexts, so the
- * watch reads the daemon the payload's own `docker` reaches.
- */
-function dockerEnvironment(
-  environment: Readonly<Record<string, string | undefined>>,
-): Record<string, string> {
-  const kept: Record<string, string> = {};
-  for (const key of ['PATH', 'HOME', 'DOCKER_CONFIG', 'DOCKER_HOST', 'DOCKER_CONTEXT']) {
-    const value = environment[key];
-    if (value !== undefined) kept[key] = value;
-  }
-  return kept;
-}
 
 /**
  * The `docker` CLI for a type that declared a containers bound, checked before anything is
@@ -79,37 +67,6 @@ export function checkDockerAvailable(
       `ops job run: job type ${typeId} declares a containers bound, and the docker daemon does not answer (${firstLine(info.stderr.toString('utf8')) || `exit ${String(info.exitCode)}`})`,
     );
   return docker;
-}
-
-/**
- * Settlement's container evidence (J2'): no running container carries the job's label. A
- * failed reading throws, which keeps the compute entry charged.
- */
-export function dockerContainerEvidence(
-  docker: string,
-  environment: Readonly<Record<string, string | undefined>>,
-): ContainerEvidence {
-  return {
-    containersGone: (job) => {
-      if (job.descriptor.containers === 'none') return true;
-      const listed = Bun.spawnSync(
-        [docker, 'ps', '--quiet', '--filter', `label=${JOB_LABEL}=${job.id}`],
-        {
-          env: dockerEnvironment(environment),
-          stdin: 'ignore',
-          stdout: 'pipe',
-          stderr: 'pipe',
-          timeout: DOCKER_DEADLINE_MS,
-          killSignal: 'SIGKILL',
-        },
-      );
-      if (listed.exitCode !== 0)
-        throw new Error(
-          `docker ps answered exit ${String(listed.exitCode)}: ${firstLine(listed.stderr.toString('utf8'))}`,
-        );
-      return listed.stdout.toString('utf8').trim() === '';
-    },
-  };
 }
 
 function parseBytes(text: string): number {

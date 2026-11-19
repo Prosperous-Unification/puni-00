@@ -441,8 +441,9 @@ export interface ContainerEvidence {
   containersGone(job: HostJob): boolean;
 }
 /**
- * The only container evidence the watch loop has before slice 3: a job that declared
- * `containers: none` has none to wait for; a declared bound stays charged until a reading.
+ * Container evidence without a reading: a job that declared `containers: none` has none to
+ * wait for; a declared bound stays charged until a reading says its containers are gone. The
+ * runtime's default until `useContainerEvidence` injects one.
  */
 export const declaredContainersOnly: ContainerEvidence = {
   containersGone: (job) => job.descriptor.containers === 'none',
@@ -1537,9 +1538,14 @@ export function inspectHolds(locator: string, scope: HoldScope): void {
 /** The file in a host job's tmp directory that holds its {@link HostJob.tmpMarker}. */
 const TMP_MARKER = '.dash-tmp-identity';
 /**
- * Descriptor-relative removal never follows a symlink, crosses a mount, or accepts a replacement
- * inode. Options after the identity: `inspect` removes nothing; `marker=<token>` also requires
+ * Descriptor-relative removal never follows a symlink, crosses to another device, or accepts a
+ * replacement inode (a same-device bind mount inside the tree is not detected, S16-A5). Options after the identity: `inspect` removes nothing; `marker=<token>` also requires
  * {@link TMP_MARKER}, read through the opened directory, to hold that token.
+ *
+ * Two passes: the first walks the tree under the same rules and counts the in-tree paths of each
+ * multiply-linked inode, refusing before any removal when an inode's link count differs from its in-tree paths.
+ * The second erases, refusing an inode whose link count no longer matches what the first pass
+ * saw minus the links already removed, so a link added between passes still blocks.
  */
 const removeDirectory = String.raw`
 import os,sys,stat
@@ -1558,6 +1564,28 @@ if markers:
  ms=os.fstat(m)
  if not stat.S_ISREG(ms.st_mode) or ms.st_nlink!=1 or os.read(m,64).decode('ascii','replace')!=markers[0]: raise RuntimeError('identity changed')
  os.close(m)
+links={}
+def survey(directory):
+ for name in os.listdir(directory):
+  if markers and directory==fd and name=="${TMP_MARKER}": continue
+  entry=os.stat(name,dir_fd=directory,follow_symlinks=False)
+  if entry.st_dev!=s.st_dev: raise RuntimeError('mount boundary')
+  if stat.S_ISDIR(entry.st_mode):
+   child=os.open(name,flags,dir_fd=directory)
+   opened=os.fstat(child)
+   if (opened.st_dev,opened.st_ino)!=(entry.st_dev,entry.st_ino): raise RuntimeError('identity changed')
+   survey(child)
+   os.close(child)
+  elif not stat.S_ISLNK(entry.st_mode) and entry.st_nlink>1:
+   seen=links.setdefault((entry.st_dev,entry.st_ino),{'nlink':entry.st_nlink,'inside':0,'removed':0})
+   if seen['nlink']!=entry.st_nlink: raise RuntimeError('shared hardlink')
+   seen['inside']+=1
+survey(fd)
+# Proof: bypassing the single-pass form of this guard released shared hardlinked storage
+# (shared-hardlink.log). Dropping this line made 'an in-tree hardlink pair with a third link
+# outside stays blocked and untouched' (host-jobs.test.ts) see the entry released, and both
+# runtime.test.ts hardlink tests fail (2026-11-18, task 6.16).
+if any(seen['nlink']!=seen['inside'] for seen in links.values()): raise RuntimeError('shared hardlink')
 def erase(directory):
  for name in os.listdir(directory):
   if markers and directory==fd and name=="${TMP_MARKER}": continue
@@ -1573,9 +1601,17 @@ def erase(directory):
    if remove: os.rmdir(name,dir_fd=directory)
    os.close(child)
   else:
-   # Proof: bypassing this guard released shared hardlinked storage (shared-hardlink.log).
-   if not stat.S_ISLNK(before.st_mode) and before.st_nlink>1: raise RuntimeError('shared hardlink')
-   if remove: os.unlink(name,dir_fd=directory)
+   # Proof: refusing every nlink>1 file again, without the survey's in-tree count, made
+   # 'hardlinks whose every link lies inside the tmp directory are removed' (host-jobs.test.ts)
+   # see 'descriptor-relative removal refused', as on h4claw (2026-11-18, task 6.16).
+   # The count re-check refuses a link added between passes; no test injects that race (S16-A2).
+   seen=None
+   if not stat.S_ISLNK(before.st_mode) and before.st_nlink>1:
+    seen=links.get((before.st_dev,before.st_ino))
+    if seen is None or before.st_nlink!=seen['nlink']-seen['removed']: raise RuntimeError('shared hardlink')
+   if remove:
+    os.unlink(name,dir_fd=directory)
+    if seen is not None: seen['removed']+=1
 erase(fd)
 # The marker goes last, so a refused removal leaves the directory still provably the original.
 # Proof: erasing it with the rest made 'a blocked tmp directory adds no outbox rows' (host-jobs.test.ts)
@@ -2196,6 +2232,7 @@ export class ResourceRuntime {
       }
     }
   }
+  private containerEvidence: ContainerEvidence = declaredContainersOnly;
   /** Reconcile dead creators and retry pending/blocked cleanup; retention requires an explicit retry. */
   sweep(): ResourceUse[] {
     for (const snapshot of this.list()) {
@@ -2240,9 +2277,23 @@ export class ResourceRuntime {
       )
         this.cleanup(current.id);
     }
+    // Proof: settling with `declaredContainersOnly` here made `sweep settles a job with a declared
+    // containers bound once the reading says its containers are gone` (sweep-container-evidence
+    // .test.ts) receive `held` for `released` (2026-11-17, task 6.15).
     for (const job of this.listHostJobs())
-      if (job.state !== 'released') this.settleHostJob(job.id, declaredContainersOnly);
+      if (job.state !== 'released') this.settleHostJob(job.id, this.containerEvidence);
     return this.list();
+  }
+  /**
+   * The container evidence `sweep` settles host jobs with (J2'). `declaredContainersOnly` until
+   * the caller injects a reading: `runResources` injects Docker's when the CLI is on `PATH`, so a
+   * job whose launcher died settles once its processes and containers are gone instead of staying
+   * charged forever (h4claw job 22ce2369, 2026-11-17). The reading runs inside `settleHostJob`'s
+   * write transaction for every unreleased job whose owned processes are gone, so a slow reading
+   * holds the ledger's write lock for that long; the injected evidence bounds it (S15-A4).
+   */
+  useContainerEvidence(evidence: ContainerEvidence): void {
+    this.containerEvidence = evidence;
   }
   /** Record a bounded retry obligation without returning any reservation capacity. */
   private block(use: ResourceUse, cause: unknown): void {
