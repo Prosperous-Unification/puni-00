@@ -215,6 +215,31 @@ describe('ops job propose (task 4.1, J9)', () => {
     ]);
   });
 
+  test('a record whose only other container is a bounded host service is complete (task 6.22)', () => {
+    const proposal = propose('gate', [
+      ...calibrations(4, 4),
+      {
+        id: 'beside-goaccess',
+        calibration: true,
+        memoryGib: 4,
+        containers: [
+          { id: 'beef', verdict: 'bounded', reason: 'labelled, bounded' },
+          {
+            id: 'cafe',
+            verdict: 'host-service',
+            reason: 'host service goaccess-reports',
+            hostService: { name: 'goaccess-reports', memoryBytes: 512 * 1024 ** 2, cpuCores: 1 },
+          },
+        ],
+      },
+    ]);
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines.filter((line) => line.startsWith('excluded'))).toEqual([]);
+    expect(proposal.entry.provenance).toMatchObject({
+      recordIds: ['calibration-1', 'calibration-2', 'beside-goaccess'],
+    });
+  });
+
   test('CPU is the peak rate over a ten-second window, or the whole of a shorter run', () => {
     const sample = (second: number, usec: number): RunSample => ({
       kind: 'interval',

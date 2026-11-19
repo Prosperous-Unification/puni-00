@@ -28,7 +28,7 @@ import {
 } from './catalogue';
 import { checkDockerAvailable, ContainerWatch, dockerContainerEvidence } from './containers';
 import { causeText, type OpsExitCode, OpsRefusal } from './refusal';
-import { HostJobRunRecords, type RunSample } from './run-records';
+import { HostJobRunRecords, isAttributed, type RunSample } from './run-records';
 import {
   checkScopeAvailable,
   directoryBytes,
@@ -1032,7 +1032,11 @@ async function runAdmitted(
   if (guardLost !== undefined) deps.report(`ops job: ${job.id} ${guardLost}`);
   if (telemetryFailure !== null)
     deps.report(`ops job: ${job.id} telemetry failure recorded: ${telemetryFailure}`);
-  const incomplete = verdicts.filter((verdict) => verdict.verdict !== 'bounded');
+  // A declared, bounded host service beside the job is attributed, not charged (task 6.22).
+  // Proof: counting only `bounded` here made `a labelled, bounded host-service container beside
+  // the job keeps attribution complete (task 6.22)` (job-run.test.ts) record attribution
+  // incomplete (2026-11-19).
+  const incomplete = verdicts.filter((verdict) => !isAttributed(verdict));
   for (const verdict of incomplete)
     deps.report(
       `ops job: ${job.id} attribution incomplete: ${verdict.id.slice(0, 12)} ${verdict.verdict}: ${verdict.reason}`,

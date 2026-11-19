@@ -1429,9 +1429,33 @@ if (insideOpsNamespace(import.meta.path)) {
         expect(mine.map((verdict) => verdict.verdict)).toEqual(['bounded']);
         // Other agents on the host may start unlabelled containers in the same window.
         expect(record.attributionIncomplete).toBe(
-          record.containers.some((verdict) => verdict.verdict !== 'bounded'),
+          record.containers.some(
+            (verdict) => verdict.verdict !== 'bounded' && verdict.verdict !== 'host-service',
+          ),
         );
         expect(job.compute.state).toBe('released');
+      },
+      90000,
+    );
+
+    test.skipIf(!ready)(
+      'a labelled, bounded host-service container beside the job keeps attribution complete (task 6.22)',
+      async () => {
+        const { code, record } = await runBoxed(
+          [
+            `docker run --rm --label puni.job="$DASH_JOB_ID" --memory 256m --cpus 1 ${CONTAINER_IMAGE} sleep 1`,
+            `docker run --rm --label puni.host-service=dash-test-service --memory 64m --cpus 0.5 ${CONTAINER_IMAGE} sleep 1`,
+          ].join('\n'),
+        );
+        expect(code).toBe(0);
+        const mine = record.containers.filter((verdict) => verdict.verdict !== 'unlabelled');
+        expect(mine.map((verdict) => verdict.verdict)).toEqual(['bounded', 'host-service']);
+        expect(mine[1]).toMatchObject({
+          hostService: { name: 'dash-test-service', memoryBytes: 64 * 1024 ** 2, cpuCores: 0.5 },
+        });
+        expect(record.attributionIncomplete).toBe(
+          record.containers.some((verdict) => verdict.verdict === 'unlabelled'),
+        );
       },
       90000,
     );

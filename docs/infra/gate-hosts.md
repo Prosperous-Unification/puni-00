@@ -475,6 +475,26 @@ The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
   [`dash-host-jobs` verify.md](../../openspec/changes/dash-host-jobs/verify.md) records each
   visit). See [heavy job launchers](heavy-job-launchers.md).
 
+## Host services beside the gate
+
+A gate host's own timers and crons start containers that belong to no job, and Dash's container
+watch records every container created during a job. Unless it is declared, such a container
+makes the job's run record attribution-incomplete, so `ops job propose` leaves the run out.
+Start each host-service container labelled and bounded:
+
+```sh
+docker run --rm --label puni.host-service=goaccess-reports --memory 512m --cpus 1 …
+```
+
+The run record then keeps it as verdict `host-service`, and `ops job audit` lists it beside the
+run with its declared bounds. A label without both `--memory` and `--cpus` still leaves the
+run incomplete, and a container that also carries `puni.job` is judged as that job's. Two
+scripts need it today: h2puni's hourly `~/monitoring/bin/goaccess-reports.sh` (cron at :07,
+`allinurl/goaccess`) and h4claw's daily `puni-registry-backup.timer`, whose
+`/root/.puni/registry/backup-registry.ts` runs `keinos/sqlite3` snapshots (h2puni has a
+root-owned `keinos/sqlite3` backup too). See `dash-host-jobs` task 6.22 in
+[verify.md](../../openspec/changes/dash-host-jobs/verify.md).
+
 ## End a host job by hand
 
 This applies on any enrolled host. Use the same three steps `ops job run` takes at a type's

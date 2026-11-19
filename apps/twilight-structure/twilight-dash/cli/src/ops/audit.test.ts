@@ -143,7 +143,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
     ]);
   });
 
-  test('a run with an unbounded container is attribution_incomplete until a run sees every container bounded', () => {
+  test('a run with an unbounded container is attribution_incomplete until a run sees a bounded job container and every other container attributed', () => {
     const unbounded = {
       id: 'unbounded',
       memoryGib: 5,
@@ -154,7 +154,7 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
       ],
     };
     expect(audit([unbounded, ...fitting(2)]).drifts).toEqual([
-      'gate attribution_incomplete in run unbounded at 2027-01-15T08:00:00.000Z: c0ffee012345 unbounded; the type is not eligible for concurrency until a run sees every container bounded',
+      'gate attribution_incomplete in run unbounded at 2027-01-15T08:00:00.000Z: c0ffee012345 unbounded; the type is not eligible for concurrency until a run sees a bounded job container and every other container attributed',
     ]);
     const bounded = {
       ...fitting(1, 9)[0],
@@ -175,6 +175,69 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
       ],
     };
     expect(audit([unbounded, ...fitting(1)]).kinds).toEqual(['attribution_incomplete']);
+  });
+
+  describe('host-service containers beside a run (task 6.22, A-ATTR-HOSTSVC-1)', () => {
+    const MIB = 1024 ** 2;
+    const goaccess = (index: number) => ({
+      id: String(index).repeat(12),
+      verdict: 'host-service' as const,
+      reason: 'host service goaccess-reports',
+      hostService: { name: 'goaccess-reports', memoryBytes: 512 * MIB, cpuCores: 1 },
+    });
+    const job = { id: 'beef', verdict: 'bounded' as const, reason: 'labelled, bounded' };
+
+    test('are attributed, and listed with their declared bounds beside the run', () => {
+      const backup = {
+        id: 'ffffffffffff',
+        verdict: 'host-service' as const,
+        reason: 'host service registry-backup',
+        hostService: { name: 'registry-backup', memoryBytes: 256 * MIB, cpuCores: 0.5 },
+      };
+      expect(
+        audit([
+          {
+            ...fitting(1)[0],
+            id: 'beside',
+            containers: [job, goaccess(1), goaccess(2), backup, goaccess(3)],
+          },
+        ]),
+      ).toEqual({
+        drifts: [],
+        notes: [
+          'host services beside run beside: goaccess-reports (512 MiB, 1 cpu) ×3, registry-backup (256 MiB, 0.5 cpu) ×1',
+        ],
+        kinds: [],
+      });
+    });
+
+    test('are not named as unattributed in an attribution_incomplete line', () => {
+      const unlabelled = {
+        ...fitting(1)[0],
+        id: 'mixed',
+        containers: [
+          goaccess(1),
+          { id: 'c0ffee0123456789', verdict: 'unlabelled' as const, reason: 'no label' },
+        ],
+      };
+      expect(audit([unlabelled]).drifts).toEqual([
+        'gate attribution_incomplete in run mixed at 2027-01-15T08:00:00.000Z: c0ffee012345 unlabelled; the type is not eligible for concurrency until a run sees a bounded job container and every other container attributed',
+      ]);
+    });
+
+    test('a later run that saw only host-service containers does not clear attribution_incomplete', () => {
+      const unbounded = {
+        ...fitting(1)[0],
+        id: 'unbounded',
+        containers: [
+          { id: 'c0ffee0123456789', verdict: 'unbounded' as const, reason: 'no --memory' },
+        ],
+      };
+      const onlyServices = { ...fitting(1, 9)[0], id: 'services', containers: [goaccess(1)] };
+      const withJob = { ...fitting(1, 10)[0], id: 'with-job', containers: [job, goaccess(2)] };
+      expect(audit([unbounded, onlyServices]).kinds).toEqual(['attribution_incomplete']);
+      expect(audit([unbounded, withJob]).kinds).toEqual([]);
+    });
   });
 
   test('a run from another checkout is judged against this catalogue by its job id', () => {

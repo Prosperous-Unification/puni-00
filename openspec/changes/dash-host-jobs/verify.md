@@ -4205,3 +4205,92 @@ guard would reach that test's fake Docker first. The gate's `provenance.basis` i
 - **S21-A6** The appended `provenance.basis` sentence changes the `gate` descriptor digest that
   run records pin; the records under the old digest were all attribution-incomplete, so `audit`
   and `propose` lose no usable record.
+
+## 2026-11-19 host-service containers beside a job are attributed when labelled and bounded (task 6.22)
+
+Branch `ops/dash-host-service-containers-20261119` from `main` 059c76b05; laptop, `CLAUDECODE`
+and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the evidence below was
+gathered on the hosts by the coordinator before it).
+
+- h2puni's cold calibration be835130 of 2026-11-18 recorded unlabelled containers from
+  `allinurl/goaccess:1.9.4` and `keinos/sqlite3`, while every container the gate itself started
+  carried `puni.job=<id>`.
+- h2puni's crontab has `7 * * * * /home/puni1/monitoring/bin/goaccess-reports.sh` (since
+  2026-08-21), which runs `docker run --rm -i allinurl/goaccess:1.9.4 …` once per site every
+  hour; h2puni also sees `keinos/sqlite3` runs from a root-owned backup.
+- h4claw's daily `puni-registry-backup.timer` (02:37) runs root's
+  `/root/.puni/registry/backup-registry.ts`, which starts `keinos/sqlite3@sha256:a5610a155a8c…`
+  snapshot containers.
+- So every gate longer than an hour on h2puni recorded at least one `unlabelled` verdict, and
+  `ops job propose` excluded it as "container attribution incomplete" (`ops/measures.ts`).
+
+`ContainerWatch.judge` (`ops/containers.ts`) now judges a container without `puni.job` that
+carries a named `puni.host-service` label by reading its `HostConfig.Memory` and
+`HostConfig.NanoCpus` with the same `docker inspect` as a job container: both present make it
+verdict `host-service` with `{ name, memoryBytes, cpuCores }`; a missing one keeps it
+`unlabelled`, the reason naming `--memory`, `--cpus` or both. `puni.job` is read first, so a
+container with both labels is judged as a job container, and an unknown-job `puni.job` stays
+`unlabelled`. `ContainerVerdict` (`ops/run-records.ts`) gains the `host-service` member and its
+shape refuses one without its bounds; `isAttributed` and `isAttributionIncomplete` are the one
+completeness rule, used by `ops job run` and the run-record test fixture. `ops job audit` adds a
+`note: host services beside run …` line per run and clears an earlier `attribution_incomplete`
+only after a run with a bounded job container and every other container attributed.
+`measures.ts` is unchanged: it reads the record's `attributionIncomplete`.
+
+| Command                                                                                                                                              | Result                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| new tests in `containers.test.ts`, `run-records.test.ts`, `audit.test.ts`, `propose.test.ts` before the change (the project test command's preloads) | 8 fail, 27 pass: two of the ten new tests passed already, the refusal test (nothing then accepted `host-service`) and `a container with both labels is judged as the job container it names` (the `puni.job` path was unchanged on main)             |
+| the same four files after the change                                                                                                                 | 35 pass, 0 fail                                                                                                                                                                                                                                      |
+| `job-run.test.ts -t container` inside its `unshare` namespace (`DASH_OPS_TEST_NAMESPACE=1`), real Docker 29.7.2 with `busybox:1.37.0-musl`           | 5 pass, 0 fail, the new host-service run included                                                                                                                                                                                                    |
+| `containers`, `run-records`, `audit`, `propose`, `job-run`, `calibrate` and `status` test files together                                             | `job-run.test.ts` inside: 45 pass, 10 skip (no systemd user bus on the laptop), 0 fail; `calibrate.test.ts` inside: 10 fail, the same 10 on unchanged `main` 059c76b05, refused for the laptop's 1.69 GB free disk below the 2 GiB the fixtures need |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                | exit 0                                                                                                                                                                                                                                               |
+| `bunx eslint` on the ten changed TypeScript files                                                                                                    | exit 0                                                                                                                                                                                                                                               |
+| `bunx prettier --check` on the changed files                                                                                                         | all files use Prettier code style                                                                                                                                                                                                                    |
+| `bunx openspec validate --all --json`                                                                                                                | exit 0; 344 items, 344 passed, 0 failed                                                                                                                                                                                                              |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                       | exit 0                                                                                                                                                                                                                                               |
+| a `gate` calibration on h2puni across a goaccess hour                                                                                                | not run: no host touched; follows the host script change (S22-A2)                                                                                                                                                                                    |
+
+| Injected fault                                                                     | Observed                                                                                                                     |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| every container without `puni.job` judged `unlabelled` (the rule before task 6.22) | `a labelled, bounded host-service container is attributed as host-service` failed: verdict `unlabelled`                      |
+| the empty-name check removed                                                       | `a host-service label with no name is unlabelled` failed: verdict `host-service`                                             |
+| the missing-bound check removed                                                    | `a host-service container without --memory or --cpus stays unlabelled, naming the missing bound` failed: both `host-service` |
+| `puni.host-service` read before `puni.job`                                         | `a container with both labels is judged as the job container it names` failed: `host-service` where `unbounded` was expected |
+| `'host-service'` admitted in the plain verdict branch of the outcome shape         | `a host-service verdict without its declared bounds is refused` failed: the record was written                               |
+| `isAttributed` without its `host-service` term                                     | the propose test refused with two complete records; three host-service audit tests failed                                    |
+| `ops job run` counting only `bounded` as attributed (real Docker)                  | `a labelled, bounded host-service container beside the job keeps attribution complete` failed: `attributionIncomplete` true  |
+| the audit's host-service note removed                                              | `are attributed, and listed with their declared bounds beside the run` failed: no note                                       |
+| the clearing rule's `some(bounded)` replaced by `length > 0`                       | `a later run that saw only host-service containers does not clear attribution_incomplete` failed: no drift                   |
+| the clearing rule requiring every container `bounded`                              | the same test failed: the drift stayed after a run with a job container and a host service                                   |
+| the drift line listing every non-`bounded` verdict                                 | `are not named as unattributed in an attribution_incomplete line` failed: the host service was named                         |
+
+Alternatives considered: ignoring containers by image name (`allinurl/goaccess`,
+`keinos/sqlite3`), rejected because no record traces such a container to an operator's
+declaration and any job could start the same image unbounded; making the crons Dash host jobs,
+rejected because they run without Dash on hosts not enrolled and, admitted, would block a
+gate's admission or queue behind it; leaving them unlabelled and calibrating only between the
+crons, rejected because h2puni's goaccess cron runs hourly and a gate takes longer.
+
+- **S22-A1** A-ATTR-HOSTSVC-1, the `puni.host-service` label with required `--memory` and
+  `--cpus`, is assumed and awaits Dany's confirmation; no ADR, the amendment is under J16 in
+  design.md.
+- **S22-A2** The host scripts still have to be changed on the hosts: h2puni's
+  `~/monitoring/bin/goaccess-reports.sh` by the coordinator, with a backup taken first; the
+  root-owned `keinos/sqlite3` backups (h4claw's `backup-registry.ts`, h2puni's) by Dany or the
+  fleet roles. Until then those containers stay `unlabelled`.
+- **S22-A3** A host-service container's declared bound is listed by `ops job audit`, not added
+  to the job's envelope or to admission: the operator who declared it owns that load.
+- **S22-A4** A host-service container is judged by the same `docker inspect` right after its
+  create event; one that ended before that read, as a `--rm` run can when the stream lags and
+  only the closing replay sees it, is `unverified` and still incomplete, as for job containers.
+  The reviewer of #952 measured the race with this tree's `ContainerWatch` in-process and an
+  async `docker run --rm --label puni.host-service=probe --memory 64m --cpus 1 busybox sh -c`
+  run: the inspect won 10 of 10 for `true` (about 250 ms lifetime) on an idle host and 10 of 10
+  under 24 `yes` processes saturating every core, and 10 of 10 for `sleep 0.3` and `sleep 1`.
+  The only losing case was a watch whose event loop was blocked: a `spawnSync` probe got 10 of
+  10 `unverified` even for `sleep 2`, and `ops job run` never blocks its loop in the job
+  window. The residual is that blocked-loop case, not ordinary short containers.
+- **S22-A5** For Dany (reviewer's note on #952): host-service bounds are listed, not counted
+  against the pool's allocatable vector. The honest counterpart would be a declared
+  host-service reserve in the pool headroom, plus an `ops job audit` drift when an observed
+  host-service bound exceeds that reserve; not part of this change.
