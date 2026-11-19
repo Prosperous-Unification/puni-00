@@ -1581,3 +1581,10 @@ superseded by the independently reconstructed actualLF0a contract.
 - [x] RS3. Extend both exact test-only reversal chains through validated G and full fourth intermediate; cover malformed/missing/duplicate hunks and observe scoped intended dependency faults, exact restoration and accurate adjacent Proof classifications.
 - [x] RS4. Run finite source/materializer/selector controls and entry-necessity omissions, changed statics, then form normal clean candidate before actual pinned Vite positive/opening/closing/mixed controls; preserve all original captures/response hashes/process settlement.
 - [x] RS5. Freeze exact five-source-plus-artifact report/manifest and submit one scoped appendix; preserve G failure and actual head/tree/clean evidence. Parent owns push and final published-head hosted CI; native/provider/installed/adoption/physical and deployment gates remain open.
+
+## Accepted-reference frontend profile compatibility
+
+- [x] ARF1. Observe the published materializer refusal and independent current selector and producer input refusals. Retain the historical selector positives and mixed or changed input refusals.
+- [x] ARF2. Admit the sixth exact Vite, package and lock triple at all three existing input checks. Preserve the five historical triples, complete source and split transport proofs, and unchanged wire inspectors.
+- [x] ARF3. Watch each sixth-member omission refuse its own current positive and each coupling fault admit a forbidden crossover. Restore exact source and rerun the selected positives and same-length digest refusals.
+- [ ] ARF4. Run owning profile and provenance tests, scoped format, lint and type checks, and strict and global OpenSpec checks. Record exact successor CI and retain any independent failures.

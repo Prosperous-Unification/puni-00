@@ -267,7 +267,6 @@ const SIGNED_IN_OPERATIONS = [
   'getApiTimezones',
   'getApiWork-item-types',
   'postApiOrganizationActive',
-  'postApiProjectsByIdAcceptedPlanReferences',
 ] as const;
 const READ_SCOPE_OPERATIONS = [
   'getApiProjectsByIdExport',
@@ -327,6 +326,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOrganizationSso-connections',
   'postApiOrganizationTrusted-issuers',
   'postApiProjects',
+  'postApiProjectsByIdAcceptedPlanReferences',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
   'postApiProjectsByIdOpened',

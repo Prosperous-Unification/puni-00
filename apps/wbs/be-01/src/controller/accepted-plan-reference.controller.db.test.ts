@@ -1141,6 +1141,20 @@ async function directCaller(fixture: Fixture, username: string) {
   return { principal, expectedAccess };
 }
 
+test('refuses a valid direct read-only registration inside the writer', async () => {
+  const fixture = await open();
+  setPolicy(fixture, [fixture.grant]);
+  const candidate = offer(await exportPlan(fixture.request, fixture.path));
+  const caller = await directCaller(fixture, 'ada');
+  const reader = { ...caller, principal: { ...caller.principal, scopes: ['read'] as const } };
+  const references = new AcceptedPlanReferences(fixture.harness.publicWrites(), directClock);
+  const decision = await references.register(fixture.projectId, reader, candidate);
+  expect({ decision, rows: countAccepted(fixture) }).toEqual({
+    decision: { ok: false, error: 'insufficient_scope' },
+    rows: 0,
+  });
+});
+
 test.each(['register', 'read'] as const)(
   'retains direct %s caller evidence after alias replacement and revocation',
   async (operation) => {

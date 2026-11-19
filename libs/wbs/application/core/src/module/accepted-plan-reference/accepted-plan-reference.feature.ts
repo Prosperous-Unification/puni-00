@@ -402,9 +402,8 @@ export class AcceptedPlanReferences {
       const current = await this.source.commandAccess.resolve({ kind: 'human', ...caller });
       if (!current.ok) return rollback(current);
       const { access } = current;
-      // Proof: Omitting the writer scope check made "admits the verified upstream human and refuses
-      // a delegation carrying that same granted subject" fail. The faulted fixture received 201
-      // with a version-two registration for read-only POST instead of 403.
+      // Proof: Omitting this check made "refuses a valid direct read-only registration inside the
+      // writer" succeed and retain one row. Restoring it returned insufficient_scope and zero rows.
       if (!caller.principal.scopes.includes(permission))
         return rollback({ ok: false, error: 'insufficient_scope' });
       if (access.kind !== 'scoped') return rollback({ ok: false, error: 'forbidden' });

@@ -400,3 +400,27 @@ CodeQL run `42464928450` independently failed C/C++ initialization at job `12868
 Specific-job retry requests were rejected without execution. The CodeQL failed-jobs workflow retry was also rejected with `This workflow run cannot be retried`; its check suite reports `rerequestable:false`. These service responses do not justify altering language coverage, tool versions, required setup, safety predicates, retry budgets or merge rules. No actual retry was accepted and no source repair is indicated.
 
 This evidence-only update requests one fresh ordinary verification round through the existing publication triggers. All I code/input/program/inspector/corpus blobs remain unchanged, and no local qualification is repeated or attributed to this documentation commit. The resulting published head must obtain its own complete hosted CI, infra, pixels and CodeQL verdicts before merge; existing canonical-host and operational qualifications remain open. If the same acquisition failure recurs, preserve its actual result and stop automatic publication retries rather than creating a commit loop. Full failure logs, metadata and rejected-request receipts are retained in the protected session evidence.
+
+## Accepted-reference input profile
+
+PR 948 synthetic commit `c28bac3287321a1faec984033de833078ed6ea3d` failed six remote CI leaves at the fixed-root materializer. The added plan-reference alias changed only the selected Vite config identity. PR head `ab628956c37cef774dd8dbfe7aea1b00f56c24a1` supplies the actual committed alias for the local producer checks.
+
+Local Bun 1.4.4 checks with the owning scratch preload settled before the admission changes. The current materializer case failed at its input check. The independent selector matrix had 28 passing controls and one refusal of the sixth exact triple. The actual producer case failed at its live input check before Node or Vite. Both fixed-root boundary control groups passed, twelve cases in total. The three differing error messages and complete case outputs were retained. These checks establish the admission failures. Producer output qualification, deliberate guard fault and restoration checks, scoped quality and successor CI remain pending.
+
+The six-member profile passed the current materializer (1 pass, 7 assertions), canonical matrix (29 passes, 70 assertions), actual producer (1 pass, 96 assertions), and fixed-root controls (12 passes, 284 assertions). The producer recorded all eighteen inputs at the committed alias, epoch `accepted-reference-registry-s3`, the original full document and entry hashes, joined Node and pipes, and server and watcher cleanup with no watched directories left.
+
+Each independent guard refused its own current case with the sixth tuple removed. The five historical canonical selections still passed during the selector omission. The narrowly admitted current-Vite/before-ctt crossover instead fulfilled the materializer promise, passed canonical selection and reached the producer's Git lookup in its owned no-Git fixture. The same cases passed after each exact inverse. The initial selector attempt matched zero tests and gave no proof. Its acceptance-title successor selected exactly six and established the selector witness.
+
+The post-restoration profile file passed all 211 cases with 774 assertions,
+including committed same-length Vite config, package and lock mutations.
+The later eight-case HTTP run qualified all six fixed-root refusal controls.
+The other two tests exposed a fixture path assumption. The opening fixture
+discarded the producer's valid private scratch receipt, and the closing
+fixture missed the real probe and skipped its mutation. A test-only temp-root
+binding corrected both. The same opening and closing cases then passed with
+206 assertions. The opening case refused the two individually supported
+input epochs before Node. The closing case changed the live epoch after the
+real Node/Vite child and pipes settled, refused consumption, and retained
+the original response and watcher assertions. The fresh scratch was empty.
+The earlier receipt and its three owned forensic roots remain unchanged.
+The profile gate and successor hosted run remain pending.

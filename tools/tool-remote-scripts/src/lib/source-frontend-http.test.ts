@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, realpathSync, writeFileSync, writeSync } from 'node:fs';
 import { access, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { expect, spyOn, test } from 'bun:test';
 
@@ -23,6 +23,13 @@ import {
   decodeSourceStartupManifest,
 } from './source-startup-manifest';
 
+const VITE_CONFIG = 'apps/wbs/fe-01/vite.config.ts';
+const CURRENT_EPOCH = 'accepted-reference-registry-s3';
+const HISTORICAL_VITE = {
+  bytes: 19302,
+  sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+};
+
 const CAPTURED_INPUTS = {
   'apps/wbs/fe-01/index.html': {
     bytes: 2482,
@@ -32,9 +39,9 @@ const CAPTURED_INPUTS = {
     bytes: 527,
     sha256: '9da12f96ac12958e268241fe0c8c6cdd6cbcb0f56db569830af1ced291a7200e',
   },
-  'apps/wbs/fe-01/vite.config.ts': {
-    bytes: 19302,
-    sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+  [VITE_CONFIG]: {
+    bytes: 19438,
+    sha256: 'ceb016b70c79de85d220a8e1e38a31a2b94cffdad2f4a0b4bb84faf0070cf97b',
   },
   'apps/wbs/fe-01/project.json': {
     bytes: 8117,
@@ -124,7 +131,7 @@ test('registry S3 current frontend pair materializes and selects without Vite', 
       sourceSha,
       manifestSha256: generated.sha256,
     });
-    for (const path of ['package.json', 'bun.lock'] as const) {
+    for (const path of ['package.json', 'bun.lock', VITE_CONFIG] as const) {
       const bytes = await readFile(join(prepared.root, path));
       const observed = {
         bytes: bytes.byteLength,
@@ -160,7 +167,7 @@ test('actual pinned Vite producer reaches the complete frontend document and ent
     const fields = readFields(packet);
     const selectedInputs = readFields(fields['selectedInputs']);
     const sourceFiles = readFields(fields['files']);
-    expect(fields['epoch']).toBe('registry-s3-20261108');
+    expect(fields['epoch']).toBe(CURRENT_EPOCH);
     expect(Object.keys(selectedInputs).sort()).toEqual(Object.keys(CAPTURED_INPUTS).sort());
     const captured = new Map<string, Buffer>();
     for (const [path, expected] of Object.entries(CAPTURED_INPUTS)) {
@@ -1101,18 +1108,44 @@ test.each([
   ['before-ctt', 'bun.lock'],
   ['fourth', 'package.json'],
   ['fourth', 'bun.lock'],
+  ['current', VITE_CONFIG],
+  ['current', 'historical pair'],
 ] as const)(
   'producer fixed-root boundary refuses mixed %s %s before consumer or runtime',
   async (epoch, path) => {
     const root = await mkdtemp(join(tmpdir(), 'frontend-producer-boundary-'));
     try {
-      await prepareSourceFrontendProfile(root);
-      const bytes = await readFile(join(root, path));
-      const historical =
-        epoch === 'fourth'
-          ? reconstructFourthInput(path, bytes)
-          : reconstructHistoricalInput(path, bytes);
-      await writeFile(join(root, path), historical);
+      const repository = resolve(import.meta.dir, '../../../..');
+      for (const [name, expected] of Object.entries(CAPTURED_INPUTS)) {
+        const selected = await readFile(join(repository, name));
+        expect(describeBytes(selected)).toEqual(expected);
+        const target = join(root, name);
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, selected);
+      }
+      const vitePath = join(root, VITE_CONFIG);
+      const vite = await readFile(vitePath);
+      if (path === VITE_CONFIG) {
+        const original = vite.toString('utf8');
+        const changed = original.replace('// `loadEnv` is typed', '// `loadEnv` Is typed');
+        expect(changed).not.toBe(original);
+        expect(Buffer.byteLength(changed)).toBe(CAPTURED_INPUTS[VITE_CONFIG].bytes);
+        await writeFile(vitePath, changed);
+      } else if (path === 'historical pair') {
+        for (const name of ['package.json', 'bun.lock'] as const) {
+          const target = join(root, name);
+          await writeFile(target, reconstructHistoricalInput(name, await readFile(target)));
+        }
+      } else {
+        await writeFile(vitePath, reconstructHistoricalVite(vite));
+        const target = join(root, path);
+        const bytes = await readFile(target);
+        const historical =
+          epoch === 'fourth'
+            ? reconstructFourthInput(path, bytes)
+            : reconstructHistoricalInput(path, bytes);
+        await writeFile(target, historical);
+      }
       const copied = join(
         root,
         'tools/tool-remote-scripts/src/fixtures/source-frontend-producer.ts',
@@ -1304,6 +1337,23 @@ async function removeFrontendRoots(
     throw new AggregateError(failures, 'frontend owned root removals failed');
 }
 
+function reconstructHistoricalVite(bytes: Buffer): Buffer {
+  expect(describeBytes(bytes)).toEqual(CAPTURED_INPUTS[VITE_CONFIG]);
+  const before = Buffer.from(
+    bytes
+      .toString('utf8')
+      .replace(
+        "      '@shared/plan-reference': resolve(\n" +
+          '        __dirname,\n' +
+          "        '../../../libs/shared/domain/plan-reference/src/index.ts',\n" +
+          '      ),\n',
+        '',
+      ),
+  );
+  expect(describeBytes(before)).toEqual(HISTORICAL_VITE);
+  return before;
+}
+
 async function prepareOwnedProducer(historicalCommit: boolean) {
   const repository = resolve(import.meta.dir, '../../../..');
   const root = await mkdtemp(join(tmpdir(), 'frontend-owned-provenance-'));
@@ -1330,11 +1380,14 @@ async function prepareOwnedProducer(historicalCommit: boolean) {
   expect(extracted.stderr.byteLength).toBe(0);
   const current = new Map<string, Buffer>();
   const historical = new Map<string, Buffer>();
-  for (const path of ['package.json', 'bun.lock'] as const) {
+  for (const path of ['package.json', 'bun.lock', VITE_CONFIG] as const) {
     const bytes = await readFile(join(root, path));
     expect(describeBytes(bytes)).toEqual(CAPTURED_INPUTS[path]);
     current.set(path, bytes);
-    const old = reconstructHistoricalInput(path, bytes);
+    const old =
+      path === VITE_CONFIG
+        ? reconstructHistoricalVite(bytes)
+        : reconstructHistoricalInput(path, bytes);
     historical.set(path, old);
     if (historicalCommit) await writeFile(join(root, path), old);
   }
@@ -1397,15 +1450,22 @@ async function prepareOwnedProducer(historicalCommit: boolean) {
   return { root, producer, current, historical, sourceSha, roster };
 }
 
+function isProducerScratchDirectory(directory: string): boolean {
+  const name = basename(directory);
+  return (
+    dirname(directory) === realpathSync(tmpdir()) &&
+    /^puni-source-frontend-wire-[A-Za-z0-9]+$/.exec(name)?.[0] === name &&
+    lstatSync(directory).isDirectory() &&
+    realpathSync(directory) === directory
+  );
+}
+
 function readProducerRefusal(fault: unknown): { directory: string; cause: Error } {
   if (!(fault instanceof Error) || !(fault.cause instanceof Error))
     throw new Error('producer refusal attribution absent', { cause: fault });
-  const match =
-    /^frontend producer scratch retained: (\/tmp\/puni-source-frontend-wire-[A-Za-z0-9]+)$/.exec(
-      fault.message,
-    );
-  const directory = match?.at(1);
-  if (directory === undefined)
+  const prefix = 'frontend producer scratch retained: ';
+  const directory = fault.message.slice(prefix.length);
+  if (!fault.message.startsWith(prefix) || !isProducerScratchDirectory(directory))
     throw new Error('producer refusal directory absent', { cause: fault });
   return { directory, cause: fault.cause };
 }
@@ -1462,12 +1522,12 @@ test('producer rejects separately supported Git and live epochs before Node', as
     expect(resolutions).toBe(0);
     expect(consumed).toBe(false);
     if (retained === undefined) throw new Error('opening refusal capture absent');
-    for (const path of ['package.json', 'bun.lock'] as const) {
+    for (const path of ['package.json', 'bun.lock', VITE_CONFIG] as const) {
       expect(describeBytes(await readFile(join(prepared.root, path)))).toEqual(
         CAPTURED_INPUTS[path],
       );
       expect(describeBytes(await readFile(join(retained, 'snapshot', path)))).toEqual(
-        HISTORICAL_PAIR[path],
+        path === VITE_CONFIG ? HISTORICAL_VITE : HISTORICAL_PAIR[path],
       );
       expect(await git(prepared.root, 'rev-parse', `${prepared.sourceSha}:${path}`)).toMatch(
         /^[a-f0-9]{40}$/,
@@ -1502,7 +1562,7 @@ test('producer rejects a different supported live epoch after the actual child c
     const isProbe =
       typeof probe === 'string' &&
       typeof directory === 'string' &&
-      /^\/tmp\/puni-source-frontend-wire-[A-Za-z0-9]+$/.test(directory) &&
+      isProducerScratchDirectory(directory) &&
       probe === join(directory, 'probe.mjs') &&
       options?.cwd === join(directory, 'snapshot/apps/wbs/fe-01');
     if (isProbe) {
@@ -1580,16 +1640,16 @@ test('producer rejects a different supported live epoch after the actual child c
       JSON.parse(await readFile(join(retained, 'source-manifest.json'), 'utf8')),
     );
     expect(packet['head']).toBe(prepared.sourceSha);
-    expect(packet['epoch']).toBe('registry-s3-20261108');
+    expect(packet['epoch']).toBe(CURRENT_EPOCH);
     expect(packet['selectedInputs']).toEqual(CAPTURED_INPUTS);
     for (const [path, expected] of Object.entries(CAPTURED_INPUTS))
       expect(describeBytes(await readFile(join(retained, 'snapshot', path)))).toEqual(expected);
-    for (const path of ['package.json', 'bun.lock'] as const) {
+    for (const path of ['package.json', 'bun.lock', VITE_CONFIG] as const) {
       expect(describeBytes(await readFile(join(retained, 'snapshot', path)))).toEqual(
         CAPTURED_INPUTS[path],
       );
       expect(describeBytes(await readFile(join(prepared.root, path)))).toEqual(
-        HISTORICAL_PAIR[path],
+        path === VITE_CONFIG ? HISTORICAL_VITE : HISTORICAL_PAIR[path],
       );
     }
     const observation = readFields(

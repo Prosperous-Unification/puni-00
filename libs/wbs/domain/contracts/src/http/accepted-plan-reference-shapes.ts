@@ -93,7 +93,7 @@ export const registerAcceptedPlanReference = defineEndpointShape({
     // instead of 409 for a mismatched expected browser organization.
     { kind: 'organization-resource', operation: 'mutation' },
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
-    { kind: 'identity', require: 'signed-in' },
+    { kind: 'identity', require: 'write-scope' },
   ],
   body: requestSchema(registration),
   bodyMedia: ['application/json'],

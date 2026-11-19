@@ -3,6 +3,12 @@ import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
+const VITE_CONFIG = 'apps/wbs/fe-01/vite.config.ts';
+const HISTORICAL_VITE = {
+  bytes: 19302,
+  sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+};
+
 const PINS = {
   'apps/wbs/fe-01/index.html': {
     bytes: 2482,
@@ -11,10 +17,6 @@ const PINS = {
   'apps/wbs/fe-01/src/main.tsx': {
     bytes: 527,
     sha256: '9da12f96ac12958e268241fe0c8c6cdd6cbcb0f56db569830af1ced291a7200e',
-  },
-  'apps/wbs/fe-01/vite.config.ts': {
-    bytes: 19302,
-    sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
   },
   'apps/wbs/fe-01/project.json': {
     bytes: 8117,
@@ -70,9 +72,10 @@ const PINS = {
   },
 };
 
-const PAIRS = [
+const PROFILES = [
   {
     epoch: 'before-ctt',
+    vite: HISTORICAL_VITE,
     'package.json': {
       bytes: 4885,
       sha256: 'bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74',
@@ -84,6 +87,7 @@ const PAIRS = [
   },
   {
     epoch: 'ctt-0.12.0',
+    vite: HISTORICAL_VITE,
     'package.json': {
       bytes: 4930,
       sha256: '74ba36c471df0f1dd7ca4221a49f1dd9bab2c7feb7d022a5ff6be39a3aff0e8a',
@@ -95,6 +99,7 @@ const PAIRS = [
   },
   {
     epoch: 'fresh-main-20261104',
+    vite: HISTORICAL_VITE,
     'package.json': {
       bytes: 4992,
       sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
@@ -107,6 +112,7 @@ const PAIRS = [
   // Proof: removing this fourth pair made the actual canonical-fixture materializer consumer refuse; the same selected HTTP test passed after exact restoration (2026-11-05).
   {
     epoch: 'fresh-main-20261105-ctt-0.13.0',
+    vite: HISTORICAL_VITE,
     'package.json': {
       bytes: 4992,
       sha256: '0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131',
@@ -120,6 +126,22 @@ const PAIRS = [
   // this proves valid-input entry necessity, not invalid-input admission.
   {
     epoch: 'registry-s3-20261108',
+    vite: HISTORICAL_VITE,
+    'package.json': {
+      bytes: 5030,
+      sha256: '275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf',
+    },
+    'bun.lock': {
+      bytes: 543082,
+      sha256: '983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6',
+    },
+  },
+  {
+    epoch: 'accepted-reference-registry-s3',
+    vite: {
+      bytes: 19438,
+      sha256: 'ceb016b70c79de85d220a8e1e38a31a2b94cffdad2f4a0b4bb84faf0070cf97b',
+    },
     'package.json': {
       bytes: 5030,
       sha256: '275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf',
@@ -134,7 +156,7 @@ const PAIRS = [
 /** Materializes only the reviewed public selection inputs in a disposable restoration artifact; this is not a complete frontend producer or private environment copy. */
 export async function prepareSourceFrontendProfile(root: string): Promise<void> {
   const retained = new Map<string, Buffer>();
-  for (const path of [...Object.keys(PINS), 'package.json', 'bun.lock'])
+  for (const path of [...Object.keys(PINS), VITE_CONFIG, 'package.json', 'bun.lock'])
     retained.set(path, await readFile(join(ROOT, path)));
   const matches = (path: string, expected: { bytes: number; sha256: string }) => {
     const bytes = retained.get(path);
@@ -144,10 +166,14 @@ export async function prepareSourceFrontendProfile(root: string): Promise<void> 
       createHash('sha256').update(bytes).digest('hex') === expected.sha256
     );
   };
+  // Proof: omitting the sixth tuple refused the current materializer case. Admitting the before-ctt
+  // crossover made the actual fixed-root copy fulfill. Both cases passed after exact restoration.
   if (
-    !PAIRS.some(
-      (pair) =>
-        matches('package.json', pair['package.json']) && matches('bun.lock', pair['bun.lock']),
+    !PROFILES.some(
+      (profile) =>
+        matches(VITE_CONFIG, profile.vite) &&
+        matches('package.json', profile['package.json']) &&
+        matches('bun.lock', profile['bun.lock']),
     ) ||
     !Object.entries(PINS).every(([path, expected]) => matches(path, expected))
   )

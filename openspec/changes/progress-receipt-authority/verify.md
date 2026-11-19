@@ -195,3 +195,22 @@ is `e4b653959d28d4eabb07448e3078502c527cd3f897924763ed0fcf3b0656b364`.
 Release-head validation, hosted CI and the canonical h2 gate are pending for
 this tranche. Receipt attribution and application, delivery proof, protected
 credential enrollment, live policy installation and deployment remain open.
+
+### Registration authorization and migration compatibility
+
+PR 948's backend job failed 35 cases on the published synthetic commit. The scoped
+candidate check passed all 35 plus 15 directly affected controls. Those checks
+cover the exact historical rollback order and protected schema and ledger,
+the current register migration's pristine restoration and refusal cases, and
+the mounted and direct authorization paths. The two original permission
+failures are retained. The two owning fixtures passed in the subsequent normal
+local loopback and IPC venue. Each test's scratch was verified empty after its
+actual terminal.
+
+Changing only registration's mounted write-scope policy back to signed-in made
+the unchanged malformed reader POST produce 400 instead of 403. Its exact
+restoration passed the same probe. Separately, removing only the actual writer
+scope check made the valid direct read-only call succeed and retain one row.
+Restoring the exact writer returned `insufficient_scope` and retained zero
+rows. Both fault children settled before their inverses and classification.
+The scope and storage checks use their own entry points.
