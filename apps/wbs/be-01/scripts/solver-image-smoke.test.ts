@@ -33,6 +33,10 @@ key() { printf '%s' "$1" | sha256sum | cut -c1-64; }
 store_path() { printf '%s/%s' "$WBS_FAKE_IMAGE_STORE" "$(key "$1")"; }
 last="\${*: -1}"
 case "$1" in
+  buildx)
+    if [ "\${WBS_FAKE_FAULT:-}" = buildx-missing ]; then echo "docker: unknown command: docker buildx" >&2; exit 1; fi
+    echo 'github.com/docker/buildx 0.30.1 0.30.1-0ubuntu1'
+    ;;
   build)
     while [ "$#" -gt 0 ]; do
       if [ "$1" = --tag ]; then printf '%s' "$2" > "$(store_path "$2")"; fi
@@ -147,6 +151,7 @@ esac
 
 /** One injected Docker failure, named for the step that goes wrong. */
 type SmokeFault =
+  | 'buildx-missing'
   | 'solver-run'
   | 'solver-run-partial'
   | 'solver-run-interrupt'
@@ -369,6 +374,22 @@ describe('solver-image-smoke container bounds (dash-host-jobs J16)', () => {
     // The named baseline, registry and five authenticated clients.
     expect(runs).toHaveLength(7);
     for (const call of runs) expect(call).toContain(`${bound} --label puni.job=job-under-test `);
+  });
+
+  // The legacy builder runs every Dockerfile step in an unlabelled intermediate container, which
+  // J16 records as attribution_incomplete (dash-host-jobs task 6.21).
+  it('refuses the legacy builder inside a Dash job before any build', () => {
+    const smoke = runSmoke('buildx-missing', { jobId: 'job-under-test' });
+    expect(smoke.exitCode).not.toBe(0);
+    expect(smoke.stderr).toContain('install docker-buildx');
+    expect(smoke.dockerCalls).toEqual(['buildx version']);
+  });
+
+  it('builds without BuildKit outside a Dash job', () => {
+    const smoke = runSmoke('buildx-missing');
+    expect(smoke.exitCode).toBe(0);
+    expect(smoke.dockerCalls.some((call) => call.startsWith('build '))).toBe(true);
+    expect(smoke.dockerCalls).not.toContain('buildx version');
   });
 
   it('leaves its containers unbounded outside a Dash job', () => {

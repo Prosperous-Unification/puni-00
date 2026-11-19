@@ -36,6 +36,11 @@ puni_gate_node_version: '{{ puni_gate_node_lock.version }}'
 # repository keeps only the newest release, so the pin is the release .deb in toolchain.json.
 puni_gate_gh_lock: "{{ (lookup('ansible.builtin.file', puni_gate_repository_root + '/infra/versions/toolchain.json') | from_json).binaries.gateGh }}"
 puni_gate_gh_version: '{{ puni_gate_gh_lock.version }}'
+# The solver smoke's `docker build` must run under BuildKit inside a Dash job: Ubuntu's docker.io
+# ships without the buildx plugin, and its legacy fallback runs each Dockerfile step in an
+# unlabelled intermediate container (dash-host-jobs task 6.21). The Ubuntu 26.04 candidate on
+# 2026-11-19; a host whose archive moves on fails the version assertion until this pin follows.
+puni_gate_docker_buildx_version: 0.30.1-0ubuntu1
 puni_gate_solver_requirements: '{{ puni_gate_repository_root }}/libs/wbs/adapters/solver-py/requirements.lock'
 
 # The second gate tree (J15) and the launcher-only checkout (docs/infra/heavy-job-launchers.md):

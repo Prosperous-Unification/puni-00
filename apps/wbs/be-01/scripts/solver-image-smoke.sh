@@ -29,6 +29,19 @@ if [ "$#" -ne 0 ]; then
   fi
 fi
 
+# Inside a Dash host job the builds below must run under BuildKit: without the buildx plugin
+# `docker build` falls back to the legacy builder, which runs every Dockerfile step in an
+# intermediate container no `--label` reaches, so J16 records the whole job as attribution
+# incomplete (`dash-host-jobs` task 6.21). Supplied-image mode builds nothing. Outside a job
+# (CI, unenrolled gates) the legacy builder stays acceptable.
+# Proof: with this guard removed, solver-image-smoke.test.ts `refuses the legacy builder inside a
+# Dash job before any build` failed (exit 0, the build ran); `builds without BuildKit outside a
+# Dash job` keeps the guard scoped (2026-11-19).
+if [ -n "${DASH_JOB_ID:-}" ] && [ -z "$supplied_image" ] && ! docker buildx version >/dev/null; then
+  echo "[solver-image-smoke] docker buildx version failed inside a Dash job: the legacy builder's intermediate containers would be unlabelled; install docker-buildx (docs/infra/gate-hosts.md)" >&2
+  exit 1
+fi
+
 attempt_token="$(cat /proc/sys/kernel/random/uuid)"
 cleanup_receipt_token="${WBS_SOLVER_SMOKE_CLEANUP_TOKEN-$attempt_token}"
 if [[ ! "$cleanup_receipt_token" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then

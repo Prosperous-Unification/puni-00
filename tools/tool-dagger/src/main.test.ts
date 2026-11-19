@@ -165,6 +165,9 @@ describe('candidate image inputs', () => {
         PATH: `${commands}:${process.env['PATH'] ?? ''}`,
         WBS_DOCKER_LOG: dockerLog,
         WBS_FAKE_SOCKET_DIRECTORY: socketDirectory,
+        // A gate runs its tests inside a Dash job; the smoke's BuildKit guard would then reach
+        // this fake Docker first. Proof: with DASH_JOB_ID=x inherited, this test failed (exit 1).
+        DASH_JOB_ID: '',
       },
       stdout: 'pipe',
       stderr: 'pipe',

@@ -4088,3 +4088,80 @@ skip; production code is unchanged.
 - **S20-A4** The nested match uses the brief's `/dash-job-[0-9a-f-]+\.scope$/`, narrower than
   the production `dash-job-.+\.scope`; a non-hex job id would fail the two tests loudly, not
   hide them.
+
+## 2026-11-19 the legacy docker builder makes every gate record attribution-incomplete (task 6.21)
+
+Branch `ops/gate-hosts-docker-buildx-20261119` from `main` 74843642a; laptop, `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the evidence below was gathered
+on the hosts by the coordinator before it).
+
+- `ops job propose` excluded every `gate` calibration record as "container attribution
+  incomplete". h4claw's first complete gate run, job ef8e1ce6 (2026-11-18 20:38Z to 2026-11-19
+  01:57Z, exit 0, 5 h 19 min, memory 9.08 GiB, 6.34 cores at `--parallel=1`), recorded about ten
+  unlabelled containers.
+- `docker events` on h4claw shows them as anonymous containers (`frosty_leavitt`,
+  `thirsty_meninsky`, …) created 01:51:53Z to 01:56:48Z from untagged `sha256:` images chained
+  from `oven/bun`, exactly while `wbs-be-01:solver-image-smoke` built its image
+  (`docker build --file apps/wbs/be-01/Dockerfile`, 17 FROM/COPY/RUN steps). Every run container
+  of the smoke (baseline, `registry:2`, the five callers, `wbs-solver-*`, `wbs-orphan-*`) carried
+  `puni.job=<id>`.
+- Both gate hosts run Ubuntu 26.04 `docker.io` 29.1.3 without the buildx plugin
+  (`docker buildx version` answers "unknown command"), so `docker build` uses the legacy
+  builder. A probe on h2puni (a busybox Dockerfile with three RUN steps) printed
+  "DEPRECATED: The legacy builder is deprecated…" and, per step, "Running in be4e5c7c78d9" then
+  "Removed intermediate container be4e5c7c78d9": each step is a container create event without
+  the job label, which J16's `judge` in `ops/containers.ts` records as `unlabelled`.
+- Ubuntu 26.04 offers `docker-buildx` 0.30.1-0ubuntu1 (not installed on either host).
+
+The `gate_host` role now installs `docker-buildx={{ puni_gate_docker_buildx_version }}`
+(default 0.30.1-0ubuntu1), reads it back with `dpkg-query` and asserts the pin (both tagged
+`validate`), and validate runs `docker buildx version` as `puni1` through its `~/.bashrc`.
+`solver-image-smoke.sh`, inside a Dash job (`DASH_JOB_ID` set) and when it builds (no
+`--image=`), refuses with exit 1 before any other Docker call when `docker buildx version`
+fails. Outside a job its behaviour is unchanged. `tools/tool-dagger/src/main.test.ts` now clears
+`DASH_JOB_ID` for its smoke invocation, because a gate runs its tests inside a Dash job and the
+guard would reach that test's fake Docker first. The gate's `provenance.basis` in
+`infra/jobs/catalogue.json` records the BuildKit requirement.
+
+| Command                                                                                                        | Result                                                                  |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `bun test --preload ../test/scratch/preload.ts --timeout=30000 src/ansible.test.ts` (from `tools/tool-fleet`)  | 38 pass, 0 fail                                                         |
+| `bun test scripts/solver-image-smoke.test.ts` (from `apps/wbs/be-01`)                                          | 95 pass, 0 fail                                                         |
+| `DASH_JOB_ID=x bun test src/main.test.ts` (from `tools/tool-dagger`)                                           | 45 pass, 0 fail                                                         |
+| `bun test src/ops/gate-host-pool.test.ts` (from the Dash CLI directory)                                        | 13 pass, 0 fail                                                         |
+| `bash -n` and `shellcheck -s bash` on `solver-image-smoke.sh`                                                  | both exit 0                                                             |
+| `bunx eslint` on the three changed test files                                                                  | exit 0 (only Nx's no-cached-ProjectGraph warning)                       |
+| `bunx tsc --build --force` for `tool-fleet`, `tool-dagger` and `wbs-be-01`                                     | exit 0 each                                                             |
+| `bunx prettier --check` on the changed files                                                                   | all files use Prettier code style                                       |
+| `bunx openspec validate --all --json`                                                                          | exit 0; 344 items, 344 passed, 0 failed                                 |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A` | exit 0 (review debt listed only for two unrelated pre-existing indexes) |
+| `ansible-playbook --syntax-check playbooks/gate-host.yml`                                                      | not run: Ansible is not installed on the laptop                         |
+| fleet apply of `gate-host.yml` (twice, second `changed=0`) and a `gate` calibration                            | not run: no host touched; follows the merge (S21-A2)                    |
+
+| Injected fault                                                                                          | Observed                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| the role before task 6.21 (new tests added first)                                                       | 4 fail: no `puni_gate_docker_buildx_version` default, and `Required gate BuildKit probe absent` for each of the three probe runs |
+| the validate probe with its status masked (`docker buildx version; true`)                               | `buildx-missing` and `docker-missing` probe runs failed (exit 0 where non-zero was expected); `healthy` passed                   |
+| the smoke without its guard, fake `docker buildx` answering "unknown command" exit 1, `DASH_JOB_ID` set | `refuses the legacy builder inside a Dash job before any build` failed: exit 0, the build ran                                    |
+| the same fake Docker without `DASH_JOB_ID`, guard in place                                              | `builds without BuildKit outside a Dash job` passed: the build ran and `buildx version` was never called                         |
+| `tools/tool-dagger/src/main.test.ts` unchanged, run with `DASH_JOB_ID=x` inherited, guard in place      | `resolves the solver image smoke repository root after the app move` failed (exit 1 where its fake Docker's 86 was expected)     |
+
+- **S21-A1** The Ubuntu package version pin 0.30.1-0ubuntu1 holds on both hosts until the fleet
+  apply says otherwise; if the 26.04 archive has moved on, the role's version assertion fails
+  and the pin follows.
+- **S21-A2** A fleet apply of the gate-host playbook is needed on h2puni and h4claw before the
+  next calibration; until then the smoke refuses inside every Dash gate job, so gates launched
+  through the pool fail at the smoke instead of recording unattributed containers.
+- **S21-A3** The host-service containers (h2puni's hourly goaccess cron, h4claw's daily
+  registry backup with `keinos/sqlite3`) are a second, smaller unlabelled class, left for a
+  later task.
+- **S21-A4** BuildKit's default `docker` driver runs build steps inside the daemon without
+  creating containers, so `docker events` shows no per-step create; inferred from the builder's
+  design and the absence of "Running in" lines in BuildKit output, not yet observed on a host
+  (the next calibration's record shows it).
+- **S21-A5** `docker-buildx` depends on `docker.io` without a version (as on Ubuntu 24.04's
+  `apt-cache show docker-buildx`, read on the laptop), so the install leaves the hosts' 29.1.3
+  engine as it is; the 26.04 package's dependency line was not read.
+- **S21-A6** The appended `provenance.basis` sentence changes the `gate` descriptor digest that
+  run records pin; the records under the old digest were all attribution-incomplete, so `audit`
+  and `propose` lose no usable record.

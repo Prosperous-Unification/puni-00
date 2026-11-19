@@ -818,6 +818,105 @@ describe('the Ansible host and k3s contract', () => {
     });
   }
 
+  // Without the buildx plugin `docker build` uses the legacy builder, whose per-step intermediate
+  // containers carry no `puni.job` label, so every gate record was attribution incomplete
+  // (dash-host-jobs task 6.21). Proof: against the role before task 6.21 this test failed (no
+  // install task, no pin in the defaults).
+  it('installs the pinned docker-buildx package and asserts its version', async () => {
+    const role = join(import.meta.dir, '../../../infra/ansible/roles/gate_host');
+    const defaults = parse(await readFile(join(role, 'defaults/main.yml'), 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    expect(defaults['puni_gate_docker_buildx_version']).toBe('0.30.1-0ubuntu1');
+    const tasks = parse(await readFile(join(role, 'tasks/main.yml'), 'utf8')) as {
+      name: string;
+      register?: string;
+      changed_when?: boolean;
+      tags?: string[];
+      'ansible.builtin.apt'?: { name?: string[]; state?: string };
+      'ansible.builtin.command'?: { argv: string[] };
+      'ansible.builtin.assert'?: { that: string[] };
+    }[];
+    const names = tasks.map(({ name }) => name);
+    const install = names.indexOf('Install the pinned docker-buildx package');
+    expect(names.slice(install, install + 3)).toEqual([
+      'Install the pinned docker-buildx package',
+      'Read the installed docker-buildx package version',
+      'Require the pinned docker-buildx package',
+    ]);
+    expect(install).toBeLessThan(names.indexOf('Prove the gate account can run a gate'));
+    const [apt, read, pinned] = tasks.slice(install, install + 3);
+    expect(apt['ansible.builtin.apt']?.name).toEqual([
+      'docker-buildx={{ puni_gate_docker_buildx_version }}',
+    ]);
+    expect(apt['ansible.builtin.apt']?.state).toBe('present');
+    expect(read['ansible.builtin.command']?.argv).toEqual([
+      'dpkg-query',
+      '--showformat=${Version}',
+      '--show',
+      'docker-buildx',
+    ]);
+    expect(read.changed_when).toBe(false);
+    expect(read.tags).toContain('validate');
+    expect(pinned['ansible.builtin.assert']?.that).toEqual([
+      `${read.register ?? 'unregistered'}.stdout == puni_gate_docker_buildx_version`,
+    ]);
+    expect(pinned.tags).toContain('validate');
+  });
+
+  for (const fault of ['healthy', 'buildx-missing', 'docker-missing'] as const) {
+    it(`propagates ${fault} from the exact gate BuildKit probe`, async () => {
+      const tasks = parse(
+        await readFile(
+          join(import.meta.dir, '../../../infra/ansible/roles/gate_host/tasks/validate.yml'),
+          'utf8',
+        ),
+      ) as {
+        name: string;
+        become_user?: string;
+        changed_when?: boolean;
+        'ansible.builtin.command'?: { argv: string[] };
+      }[];
+      const probe = tasks.find(
+        ({ name }) => name === 'Resolve BuildKit the way the solver smoke does',
+      );
+      const argv = probe?.['ansible.builtin.command']?.argv;
+      if (argv === undefined) throw Error('Required gate BuildKit probe absent');
+      expect(probe?.become_user).toBe('{{ puni_gate_user }}');
+      expect(probe?.changed_when).toBe(false);
+      const home = await mkdtemp(join(tmpdir(), 'gate-buildx-probe-'));
+      try {
+        const bin = join(home, 'bin');
+        await mkdir(bin);
+        await writeFile(join(home, '.bashrc'), 'export PATH="$PROBE_BIN"\n');
+        if (fault !== 'docker-missing') {
+          await writeFile(
+            join(bin, 'docker'),
+            fault === 'buildx-missing'
+              ? '#!/bin/sh\necho "docker: unknown command: docker $1" >&2\nexit 1\n'
+              : "#!/bin/sh\n[ \"$1 $2\" = 'buildx version' ] || exit 2\necho 'github.com/docker/buildx 0.30.1'\n",
+          );
+          await chmod(join(bin, 'docker'), 0o700);
+        }
+        const execution = Bun.spawnSync(argv, {
+          env: { ...process.env, HOME: home, PROBE_BIN: bin },
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: 5000,
+        });
+        if (fault === 'healthy') {
+          expect(execution.exitCode).toBe(0);
+          expect(execution.stdout.toString()).toBe('github.com/docker/buildx 0.30.1\n');
+        } else {
+          expect(execution.exitCode).not.toBe(0);
+        }
+      } finally {
+        await rm(home, { recursive: true });
+      }
+    });
+  }
+
   it('configures a gate host whose lock and toolchain match the gate scripts', async () => {
     const root = join(import.meta.dir, '../../..');
     const defaults = parse(
