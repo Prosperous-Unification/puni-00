@@ -19,7 +19,7 @@ does not approve future implementation spend or release. Product admission needs
 an explicit scope/budget; production always needs a candidate-bound human command.
 
 Parked: Backlog implementation and cutover await the closure recorded in
-[Cutover after the refactors land](../client-repositories.md#cutover-after-the-refactors-land);
+[Cutover after the refactors land](https://github.com/Prosperous-Unification/puni-00/blob/3a7f081f09b9e4c73576c4153fa852496be01b67/docs/twilight-structure/client-repositories.md#cutover-after-the-refactors-land);
 cloud-browser/release work remains in its scheduled increment. See the complete
 [delivery plan](../../../openspec/changes/twilight-control-plane/tasks.md),
 [assumptions](../assumptions.md) and [full product controls](../product-experience.md).

@@ -26,4 +26,4 @@ Use the existing WBS command and SQLite boundaries. Preserve schema-1/2 records 
 
 ## Impact
 
-WBS HTTP contracts, command execution, SQLite persistence and mounted tests will change during implementation. Navigator and Burokrat supply planning artifacts and consistency semantics. [ADR 0086](../../../docs/adr/0086-wbs-accepts-planning-references-and-progress.md) records the authority decision.
+WBS HTTP contracts, command execution, SQLite persistence and mounted tests will change during implementation. Navigator and Burokrat supply planning artifacts and consistency semantics. [ADR 0079](../../../docs/adr/0079-wbs-accepts-planning-references-and-progress.md) records the authority decision.

@@ -14,6 +14,7 @@ const sourceRoot = `${root}src/`;
 const allowedDebt = new Set<string>();
 const debt = new Set(allowedDebt);
 const auditedModules = [
+  'accepted-plan-reference',
   'plan-commands',
   'plan-history',
   'realtime',

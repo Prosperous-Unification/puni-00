@@ -1,6 +1,6 @@
 # Planning commits are the transaction boundary
 
-**Superseded before implementation on 2026-11-17 by [ADR 0086](0086-wbs-accepts-planning-references-and-progress.md).** The owner withdrew the proposed Backlog backend, Git broker, storage spike and cutover. The following is the proposal of 2026-09-06, with its original Navigator ownership assignment of 2026-09-19.
+**Superseded before implementation on 2026-11-17 by [ADR 0079](0079-wbs-accepts-planning-references-and-progress.md).** The owner withdrew the proposed Backlog backend, Git broker, storage spike and cutover. The following is the proposal of 2026-09-06, with its original Navigator ownership assignment of 2026-09-19.
 
 A plan edit is published as an immutable Git tree on a per-repository planning
 ref, and that ref is advanced by one authorized broker with a compare-and-swap

@@ -83,6 +83,6 @@ The WBS transaction and its first implementation slice are specified in the [pro
 The OpenSpec/wiki authority boundary, once recorded in a withdrawn ADR, is an
 already-accepted direction and lives in
 [requirements and the wiki](knowledge.md#requirements-and-the-wiki-the-boundary).
-[ADR 0086](../adr/0086-wbs-accepts-planning-references-and-progress.md) records
+[ADR 0079](../adr/0079-wbs-accepts-planning-references-and-progress.md) records
 the planning transaction boundary. [ADR 0028](../adr/0028-k3s-schedules-the-expandable-worker-pool.md)
 records the accepted K3s worker-pool decision.

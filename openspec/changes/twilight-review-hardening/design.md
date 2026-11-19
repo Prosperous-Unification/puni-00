@@ -14,7 +14,7 @@ Put corresponding acceptance experiments into the existing product tasks.
 
 Separate immutable input receipt snapshots from completion receipts produced by
 a source candidate. Support multiple change-keyed plan references and test merging
-independent changes. WBS holds each current accepted reference. [ADR 0086](../../../docs/adr/0086-wbs-accepts-planning-references-and-progress.md) supersedes the proposed Git storage spike and remote ref protocol.
+independent changes. WBS holds each current accepted reference. [ADR 0079](../../../docs/adr/0079-wbs-accepts-planning-references-and-progress.md) supersedes the proposed Git storage spike and remote ref protocol.
 
 ## Repository workflow
 

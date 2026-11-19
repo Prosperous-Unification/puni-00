@@ -99,6 +99,9 @@ const EXEMPT = new Set([
   'eventLog',
   'commandJournal',
   'planEvent',
+  // An immutable receipt. The mounted acceptance test pins its explicit verified
+  // subject and acceptance instant on the retained row.
+  'acceptedPlanReference',
   'eventSequencer',
   'examples',
   // The four optimizer tables are machine state keyed by generation, not

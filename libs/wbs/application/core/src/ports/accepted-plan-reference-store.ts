@@ -1,37 +1,19 @@
+import type { ActivePlanReference, HistoricalPlanReference } from '@wbs/contracts';
+
 import type {
-  AcceptedReferenceArtifacts,
-  AcceptedReferenceLock,
-  ActivePlanReference,
-  HistoricalPlanReference,
-} from '@wbs/contracts';
+  AcceptedReferenceScope,
+  AcceptedReferenceSelector,
+  PlanReferencePolicy,
+  RetainedPlanReference,
+} from './accepted-plan-reference-values';
 
-export type AcceptedReferenceScope = Omit<AcceptedReferenceLock, 'version' | 'referenceDigest'>;
-export type AcceptedReferenceSelector = Pick<AcceptedReferenceLock, 'version' | 'referenceDigest'>;
-
-export type PlanReferenceSubject =
-  | { readonly kind: 'first_party'; readonly accountId: string }
-  | {
-      readonly kind: 'upstream';
-      readonly accountId: string;
-      readonly issuer: string;
-      readonly subject: string;
-    };
-
-export interface PlanReferencePolicy {
-  readonly revision: number;
-  readonly grants: readonly {
-    readonly scope: AcceptedReferenceScope;
-    readonly operation: 'accept_reference' | 'submit_assertion' | 'apply_assertion';
-    readonly subject: PlanReferenceSubject;
-  }[];
-}
-
-export interface RetainedPlanReference extends ActivePlanReference {
-  readonly artifacts: AcceptedReferenceArtifacts;
-  readonly subject: PlanReferenceSubject;
-  readonly acceptedAt: number;
-  readonly policyRevision: number;
-}
+export type {
+  AcceptedReferenceScope,
+  AcceptedReferenceSelector,
+  PlanReferencePolicy,
+  PlanReferenceSubject,
+  RetainedPlanReference,
+} from './accepted-plan-reference-values';
 
 /** Protected policy and immutable reference rows borrowed on the live WBS writer. */
 export interface AcceptedPlanReferenceStore {

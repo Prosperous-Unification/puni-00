@@ -21,10 +21,13 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-80 tools in all:
+81 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - bounded project discovery, project-qualified dependency endpoint lookup and address resolution;
+- the accepted plan reference read (`getApiProjectsByIdAcceptedPlanReferences`), which returns the
+  active reference or an exact historical version for an authorized project; registration requires
+  a directly signed-in human and is outside the MCP tool surface;
 - the saved-reference delivery read, which observes public GitHub delivery without changing planning progress;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
   claimed);

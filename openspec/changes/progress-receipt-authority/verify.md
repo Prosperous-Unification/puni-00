@@ -214,3 +214,60 @@ scope check made the valid direct read-only call succeed and retain one row.
 Restoring the exact writer returned `insufficient_scope` and retained zero
 rows. Both fault children settled before their inverses and classification.
 The scope and storage checks use their own entry points.
+
+### Workspace CI repair
+
+Hosted CI run 44473065269 tested PR 948 head `24440cb4` in synthetic commit
+`b8c61f9a`. The workspace job failed during a 129-target run with zero cache hits. Its
+log recorded 107 distinct SQLite case failures, a missing accepted-reference
+module compiler boundary, and failures in related operation inventory,
+workspace input, documentation, and MCP checks. The hosted result is retained
+against that exact synthetic commit.
+
+The repair gives accepted-plan-reference an owning module and scoped writer
+resource, pins both protected HTTP operations, and restores exact migration
+expectations at their historical horizons. The append-only acceptance row
+retains the verified acting subject and acceptance time. The mutable policy
+keeps its existing checks.
+
+- The uncached core module check passed all 18 modules. The core boundary suite
+  passed all 15 cases and the contracts protected-operation suite passed both
+  cases.
+- The mounted and SQLite suites passed 742 distinct cases across 40 files,
+  including fresh passes for all 107 hosted failure identities. On the
+  receiver repair, five selected cases passed with 65 expectations and empty
+  scratch. They exercised the borrowed writer, active and historical reads, and
+  ordinary-capture refusal.
+- The native compiler ran `--build --force --builders 1` on the core, backend,
+  and SQLite store roots with zero diagnostics. Eight fresh build-info files
+  accounted for 1,412 root entries. The 52 mapped source witnesses included
+  the 38 store test files. Of those 52 witnesses, 46 also had fresh output
+  timestamps. The run archived and verified all 4,084 preimages before
+  compilation.
+- Prettier passed the 71-path format cohort and checked both amended TypeScript
+  files after the receiver repair. The two uncached ESLint cohorts covered 51
+  paths. They reported zero active diagnostics, with one separately reviewed
+  inherited suppression in the corrupt-database test fixture.
+
+- The owning Bun selectors passed the outside-read case, all seven runtime
+  dispatch cases, and the adopted `ECHILD` case. The latter confirmed that the
+  owner reaped the adopted PID after recording the injected wait error. Each
+  selected test left empty scratch.
+- Uncached Nx `wbs-mcp-01:prepare` ran the backend document producer. The
+  producer exited zero and emitted the accepted-reference GET and POST with
+  only POST declared human-only. The first wrapper refused the Nx summary
+  wording. The saved output and document were verified separately. Both
+  owning MCP suites used that same document and passed all 58 cases with 491
+  expectations. The catalog and README agreed on 81 tools, including the GET
+  and excluding the POST.
+- Local `openspec validate progress-receipt-authority --strict --json` passed the
+  owning change with no issues. `openspec validate --all --json` passed all 344
+  entries in standard mode. It reported 769 warnings and 26 informational
+  findings, with zero errors. Both full reports are retained.
+
+These are local checks on the isolated repair. The previous hosted workspace
+failure remains the result for `24440cb4`. The corrective head still needs
+its own hosted CI and canonical gate evidence. Clone-backed documentation
+and pilot checks still require a normal local checkpoint. The separate
+empty-marker negative remains open, along with live activation, deployment,
+and receipt application.

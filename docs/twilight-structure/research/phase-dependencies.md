@@ -1,6 +1,6 @@
 # Existing plans against the two product audiences
 
-The storage proposal discussed here was withdrawn on 2026-11-17. Its historical findings are retained below. [Current WBS decision](../../adr/0086-wbs-accepts-planning-references-and-progress.md).
+The storage proposal discussed here was withdrawn on 2026-11-17. Its historical findings are retained below. [Current WBS decision](../../adr/0079-wbs-accepts-planning-references-and-progress.md).
 
 Inspected 2026-09-07 for the Wayfinder decision map. This is a source-grounded
 phase-placement recommendation, not an approved phase boundary or an implementation

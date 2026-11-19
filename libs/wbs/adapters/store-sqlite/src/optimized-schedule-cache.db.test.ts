@@ -342,10 +342,13 @@ describe('the optimizer migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       const migrated = tables(db.path);
+      expect(migrated).toContain('accepted_plan_reference');
+      expect(migrated).toContain('accepted_plan_reference_policy');
 
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261117190000_add_accepted_plan_references',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -431,6 +434,8 @@ describe('the optimizer migration', () => {
       expect(rolledBack).toEqual(
         migrated.filter(
           (name) =>
+            name !== 'accepted_plan_reference' &&
+            name !== 'accepted_plan_reference_policy' &&
             name !== 'optimization_boundary_certificate' &&
             name !== 'optimization_boundary_certificate' &&
             name !== 'cross_project_dependency_activation' &&

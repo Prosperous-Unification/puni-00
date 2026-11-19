@@ -1,6 +1,6 @@
 # Backlog.md as the client repository's planning store
 
-The storage proposal discussed here was withdrawn on 2026-11-17. Its historical findings are retained below. [Current WBS decision](../../adr/0086-wbs-accepts-planning-references-and-progress.md).
+The storage proposal discussed here was withdrawn on 2026-11-17. Its historical findings are retained below. [Current WBS decision](../../adr/0079-wbs-accepts-planning-references-and-progress.md).
 
 Researched 2026-09-06. Primary documentation and source inspection; no
 Backlog.md installation, provider session, migration, or runtime test was run.

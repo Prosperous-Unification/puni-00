@@ -35,7 +35,7 @@ recovery and delivery order; other product assumptions remain proposed.
   run store is the coordinator. LangGraph is retired when the interpreter passes the
   prototype's tests. ADR 0057; amends the control-plane constraint line and Tasks 1 and 6.
 - **A3 Planning authority.** WBS be-01 is the planning store this layer reads and writes.
-  [ADR 0086](../../../docs/adr/0086-wbs-accepts-planning-references-and-progress.md) retains SQLite. WBS accepts planning references and progress under its own transaction.
+  [ADR 0079](../../../docs/adr/0079-wbs-accepts-planning-references-and-progress.md) retains SQLite. WBS accepts planning references and progress under its own transaction.
 
 - **A4 Where the binding lives.** During the first compatibility milestone, before W0–W12 deliver type-specific DAGs, the workflow
   binding is a repository file, `.twilight/workflows.yaml`, keyed by work item type then

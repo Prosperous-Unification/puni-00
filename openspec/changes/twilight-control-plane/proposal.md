@@ -61,7 +61,7 @@ Use the [Twilight Structure glossary](../../../docs/twilight-structure/CONTEXT.m
 
 The requirements/wiki authority split is recorded in
 [knowledge maintenance](../../../docs/twilight-structure/knowledge.md);
-the [accepted WBS planning boundary](../../../docs/adr/0086-wbs-accepts-planning-references-and-progress.md)
+the [accepted WBS planning boundary](../../../docs/adr/0079-wbs-accepts-planning-references-and-progress.md)
 and the [accepted K3s worker-pool boundary](../../../docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md)
 are ADRs because they are hard to reverse and had real alternatives.
 

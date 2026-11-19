@@ -17,7 +17,7 @@ import {
   validateSchema,
   type VerifiedOrganizationCredential,
 } from '@wbs/contracts';
-import { AcceptedPlanReferences } from '@wbs/core/module/accepted-plan-reference/accepted-plan-reference.feature';
+import { installAcceptedPlanReference } from '@wbs/core/module/accepted-plan-reference/check';
 import { PlanDocumentService } from '@wbs/core/module/plan-document/plan-document.resource';
 import type { PlanReferencePolicy } from '@wbs/core/ports/accepted-plan-reference-store';
 import { clockOf } from '@wbs/core/ports/clock';
@@ -108,12 +108,13 @@ async function createProject(harness: OrganizationHarness, request: MountedReque
 
 async function open(options: ComposedHarnessOptions = {}) {
   let clockOffset = 0;
+  const now = () => Date.now() + clockOffset;
   let observeQueue: (() => void) | undefined;
   const messages: string[] = [];
   const harness = OrganizationHarness.openComposedWith({
     ...options,
     sessionBinding: true,
-    now: () => Date.now() + clockOffset,
+    now,
     onBorrowedUnitOfWork: () => observeQueue?.(),
     logDestination: {
       write(chunk) {
@@ -162,6 +163,7 @@ async function open(options: ComposedHarnessOptions = {}) {
     collection,
     scope,
     accountId,
+    now,
     grant,
     messages,
     ...project,
@@ -335,6 +337,7 @@ test('registers a scoped ordinary reference and retrieves the immutable artifact
     reference,
     tasks,
   };
+  const beforeAcceptance = fixture.now();
   const accepted = await expectRegistration(fixture, {
     expected: { kind: 'absent' },
     repository,
@@ -343,10 +346,23 @@ test('registers a scoped ordinary reference and retrieves the immutable artifact
     sourceBaseCommit,
     ...artifacts,
   });
+  const afterAcceptance = fixture.now();
   const lock = { ...fixture.scope, version: 1, referenceDigest };
   expect(accepted).toMatchObject({ lock });
   expect(typeof accepted.writeBasis).toBe('string');
   expect(accepted.writeBasis).not.toBe('');
+  const retained = readReferenceRow(fixture, [
+    lock.organizationId,
+    lock.projectId,
+    lock.repository,
+    lock.change,
+    lock.version,
+    lock.referenceDigest,
+  ]);
+  if (retained === null) throw new Error('accepted reference was not retained');
+  expect(JSON.parse(retained.subject)).toEqual(fixture.grant.subject);
+  expect(retained.accepted_at).toBeGreaterThanOrEqual(beforeAcceptance);
+  expect(retained.accepted_at).toBeLessThanOrEqual(afterAcceptance);
 
   fixture.advance();
   const activeQuery = new URLSearchParams({ repository, change });
@@ -356,6 +372,7 @@ test('registers a scoped ordinary reference and retrieves the immutable artifact
   const restored = await fixture.request('GET', historicalPath(fixture, 1, referenceDigest));
   expect(restored.status, await restored.clone().text()).toBe(200);
   expect(await restored.json()).toMatchObject({ lock, ...artifacts });
+  expect(readReferenceRow(fixture, rowAddress(retained))).toEqual(retained);
 });
 
 test.each([
@@ -1147,7 +1164,10 @@ test('refuses a valid direct read-only registration inside the writer', async ()
   const candidate = offer(await exportPlan(fixture.request, fixture.path));
   const caller = await directCaller(fixture, 'ada');
   const reader = { ...caller, principal: { ...caller.principal, scopes: ['read'] as const } };
-  const references = new AcceptedPlanReferences(fixture.harness.publicWrites(), directClock);
+  const { acceptedPlanReferences: references } = installAcceptedPlanReference({
+    source: fixture.harness.publicWrites(),
+    clock: directClock,
+  });
   const decision = await references.register(fixture.projectId, reader, candidate);
   expect({ decision, rows: countAccepted(fixture) }).toEqual({
     decision: { ok: false, error: 'insufficient_scope' },
@@ -1172,7 +1192,10 @@ test.each(['register', 'read'] as const)(
     ]);
     const candidate = offer(await exportPlan(fixture.request, fixture.path));
     const previous = operation === 'read' ? await expectRegistration(fixture, candidate) : null;
-    const references = new AcceptedPlanReferences(harness.publicWrites(), directClock);
+    const { acceptedPlanReferences: references } = installAcceptedPlanReference({
+      source: harness.publicWrites(),
+      clock: directClock,
+    });
     const decision = await duringWriterQueue(
       fixture,
       async () =>
@@ -1195,7 +1218,10 @@ test('refuses a non-finite direct reference task count at registration', async (
   setPolicy(fixture, [fixture.grant]);
   const candidate = offer(await exportPlan(fixture.request, fixture.path));
   const caller = await directCaller(fixture, 'ada');
-  const references = new AcceptedPlanReferences(fixture.harness.publicWrites(), directClock);
+  const { acceptedPlanReferences: references } = installAcceptedPlanReference({
+    source: fixture.harness.publicWrites(),
+    clock: directClock,
+  });
   const overflow = {
     ...candidate,
     reference: { ...candidate.reference, taskCount: Number.POSITIVE_INFINITY },
@@ -1223,7 +1249,10 @@ test('archives the original offer when the in-process caller replaces its input 
   const candidate = offer(bytes);
   const original = structuredClone(candidate);
   const alternate = offer(bytes, { planningCommit: '4'.repeat(40), sourceBaseCommit });
-  const references = new AcceptedPlanReferences(fixture.harness.publicWrites(), directClock);
+  const { acceptedPlanReferences: references } = installAcceptedPlanReference({
+    source: fixture.harness.publicWrites(),
+    clock: directClock,
+  });
   const decision = await duringWriterQueue(
     fixture,
     () => references.register(fixture.projectId, caller, candidate),
@@ -1254,8 +1283,8 @@ test('archives the artifact intent even when the caller mutates compared nested 
   const candidate = offer(await exportPlan(fixture.request, fixture.path));
   const original = structuredClone(candidate);
   const writer = fixture.harness.publicWrites();
-  const references = new AcceptedPlanReferences(
-    {
+  const { acceptedPlanReferences: references } = installAcceptedPlanReference({
+    source: {
       ...writer,
       batch: (...args) => {
         candidate.reference.taskCount += 1;
@@ -1265,8 +1294,8 @@ test('archives the artifact intent even when the caller mutates compared nested 
         return writer.batch(...args);
       },
     },
-    directClock,
-  );
+    clock: directClock,
+  });
   const decision = await references.register(fixture.projectId, caller, candidate);
   expect(decision).toMatchObject({
     ok: true,
@@ -1301,7 +1330,10 @@ test.each(['address', 'selector'] as const)(
         referenceDigest: first.lock.referenceDigest,
       },
     });
-    const references = new AcceptedPlanReferences(fixture.harness.publicWrites(), directClock);
+    const { acceptedPlanReferences: references } = installAcceptedPlanReference({
+      source: fixture.harness.publicWrites(),
+      clock: directClock,
+    });
     const address = { repository, change };
     const selector = { version: first.lock.version, referenceDigest: first.lock.referenceDigest };
     const read = await duringWriterQueue(
@@ -1509,7 +1541,10 @@ test.each([
     await expectRefusal(response, 400, error);
     expect(countAccepted(fixture)).toBe(0);
     const caller = await directCaller(fixture, 'ada');
-    const references = new AcceptedPlanReferences(fixture.harness.publicWrites(), directClock);
+    const { acceptedPlanReferences: references } = installAcceptedPlanReference({
+      source: fixture.harness.publicWrites(),
+      clock: directClock,
+    });
     const overflow = {
       ...candidate,
       tasks: {
