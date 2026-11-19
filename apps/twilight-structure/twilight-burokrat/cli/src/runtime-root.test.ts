@@ -460,3 +460,475 @@ for (const mode of ['closed', 'stalled'] as const)
     },
     15000,
   );
+
+/** Real selected roles and trusted Git record entry before executing their unchanged behavior. */
+function createRequiredSettingFixture() {
+  const observations = createRoot();
+  const gitStage = join(observations, 'git-stage');
+  const launcherStage = join(observations, 'launcher-stage');
+  const validatorStage = join(observations, 'validator-stage');
+  const verdict = 'normal lint selected fixture verdict\n';
+  const fixture = createLint(
+    'import{appendFileSync}from"node:fs";appendFileSync(' +
+      JSON.stringify(validatorStage) +
+      ',"validator\\n");process.stdout.write(' +
+      JSON.stringify(verdict) +
+      ');process.exitCode=37;',
+  );
+  const launcherSource = readFileSync(join(fixture.toolkit, 'launcher.mjs'), 'utf8');
+  const newline = launcherSource.indexOf('\n');
+  if (newline < 0) throw new Error('selected fixture launcher has no shebang boundary');
+  fixture.writeLauncher(
+    Buffer.from(
+      launcherSource.slice(0, newline + 1) +
+        '{const requiredStageFs=await import("node:fs");requiredStageFs.appendFileSync(' +
+        JSON.stringify(launcherStage) +
+        ',"launcher\\n");}\n' +
+        launcherSource.slice(newline + 1),
+    ),
+  );
+  const bin = join(observations, 'trusted-bin');
+  mkdirSync(bin);
+  symlinkSync(process.execPath, join(bin, 'bun'));
+  const git = join(bin, 'git');
+  writeFileSync(
+    git,
+    createShebang() +
+      '\nimport{appendFileSync}from"node:fs";appendFileSync(' +
+      JSON.stringify(gitStage) +
+      ',"git\\n");const child=Bun.spawnSync(["/usr/bin/git",...process.argv.slice(2)],{env:process.env,stdin:"inherit",stdout:"inherit",stderr:"inherit"});if(child.signalCode!==undefined)throw new Error("owned required-setting Git signaled");process.exit(child.exitCode);',
+  );
+  chmodSync(git, 0o755);
+  return {
+    ...fixture,
+    verdict,
+    stages: [gitStage, launcherStage, validatorStage],
+    environment: {
+      PATH: bin + ':/usr/bin:/bin',
+      TOOL_WIKI_ACTIVATION_ROOT: fixture.archive,
+      TMPDIR: fixture.scratch,
+    },
+  };
+}
+
+for (const alias of ['b', 'bur', 'burokrat'] as const) {
+  for (const setting of [
+    { name: 'true', value: 'true' },
+    { name: '2', value: '2' },
+    { name: 'whitespace', value: ' 1 ' },
+    { name: 'empty', value: '' },
+  ] as const) {
+    it(
+      alias +
+        ' refuses invalid normal lint required setting ' +
+        setting.name +
+        ' before any installed stage',
+      () => {
+        const fixture = createRequiredSettingFixture();
+        const args = [alias, 'lint', 'working', fixture.candidate, 'HEAD'];
+        const healthy = invoke(fixture.entrypoint, args, fixture.candidate, {
+          ...fixture.environment,
+          TOOL_WIKI_REQUIRE_CERTIFIED: '0',
+        });
+        expect(healthy.exitCode, healthy.stderr.toString()).toBe(37);
+        expect(healthy.stdout.toString()).toBe(fixture.verdict);
+        expect(healthy.stderr.length).toBe(0);
+        for (const stage of fixture.stages) {
+          expect(readFileSync(stage, 'utf8').length).toBeGreaterThan(0);
+          rmSync(stage);
+          expect(existsSync(stage)).toBe(false);
+        }
+        expect(readdirSync(fixture.scratch)).toEqual([]);
+        const child = invoke(fixture.entrypoint, args, fixture.candidate, {
+          ...fixture.environment,
+          TOOL_WIKI_REQUIRE_CERTIFIED: setting.value,
+        });
+        expect(child.exitCode, child.stderr.toString()).toBe(64);
+        expect(child.stdout.length).toBe(0);
+        expect(child.stderr).toEqual(
+          Buffer.from('tool-wiki lint: TOOL_WIKI_REQUIRE_CERTIFIED must be 0 or 1\n'),
+        );
+        for (const stage of fixture.stages) expect(existsSync(stage)).toBe(false);
+        expect(readdirSync(fixture.scratch)).toEqual([]);
+      },
+    );
+  }
+}
+
+it('the configured Nx working lint caller uses the current PUNI installation without Bash or Node', () => {
+  const fixture = createInstalledLintFixture(
+    launcher,
+    (directory) =>
+      'import{appendFileSync}from"node:fs";appendFileSync(' +
+      JSON.stringify(join(directory, 'nx-validator-called')) +
+      ',"validator\\n");process.stdout.write("Nx caller lint\\n");process.exitCode=37;',
+  );
+  roots.push(fixture.root);
+  const installedEntrypoint = writeRoot(fixture.installedDirectory);
+  const environment = {
+    PATH: '/usr/bin:/bin',
+    TOOL_WIKI_ACTIVATION_ROOT: fixture.archive,
+    TOOL_WIKI_REQUIRE_CERTIFIED: '0',
+    TMPDIR: fixture.scratch,
+  };
+  const healthy = invoke(
+    installedEntrypoint,
+    ['burokrat', 'lint', 'working', fixture.candidate, 'HEAD'],
+    fixture.candidate,
+    environment,
+  );
+  expect(healthy.exitCode, healthy.stderr.toString()).toBe(37);
+  expect(healthy.stdout.toString()).toBe('Nx caller lint\n');
+  expect(healthy.stderr.length).toBe(0);
+  const validatorMarker = join(fixture.root, 'nx-validator-called');
+  expect(readFileSync(validatorMarker, 'utf8')).toBe('validator\n');
+  rmSync(validatorMarker);
+
+  const configured = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../project.json', import.meta.url)), 'utf8'),
+  ) as { targets: { lint: { cache: boolean; inputs: string[]; options: { command: string } } } };
+  expect(configured.targets.lint.cache).toBe(false);
+  expect(configured.targets.lint.inputs).toEqual(['{workspaceRoot}/**/*']);
+  const words = configured.targets.lint.options.command.trim().split(/\s+/u);
+  expect(words.slice(-3)).toEqual(['working', '.', 'HEAD']);
+  // This owner consumes this actual literal Nx vector; it is not a general shell parser.
+  if (words.some((word) => /[\s'";|&`$<>]/u.test(word)))
+    throw new Error('Nx lint fixture requires a supported literal command vector');
+  const entry = words.findIndex((word) => word.startsWith('bin/'));
+  if (entry < 1) throw new Error('Nx lint fixture requires its explicit repository entrypoint');
+  const workspace = fileURLToPath(new URL('../../../../../', import.meta.url));
+  const entrypoint = words[entry];
+  words[entry] = join(workspace, entrypoint);
+
+  const forbiddenMarker = join(fixture.root, 'forbidden-caller-runtime');
+  const tools = join(fixture.root, 'caller-tools');
+  mkdirSync(tools);
+  symlinkSync(process.execPath, join(tools, 'bun'));
+  const refusal =
+    createShebang() +
+    '\nimport{appendFileSync}from"node:fs";appendFileSync(' +
+    JSON.stringify(forbiddenMarker) +
+    ',process.argv[1]+"\\n");process.exitCode=64;';
+  for (const name of ['bash', 'sh', 'node']) {
+    const path = join(tools, name);
+    writeFileSync(path, refusal);
+    chmodSync(path, 0o755);
+  }
+  const called = Bun.spawnSync(words, {
+    cwd: fixture.candidate,
+    env: {
+      ...environment,
+      PATH: tools + ':/usr/bin:/bin',
+      // Proposed explicit delivered-entrypoint input; the current Bash caller ignores it.
+      PUNI_EXECUTABLE: installedEntrypoint,
+    },
+    stdin: Buffer.from('caller must not reparse stdin'),
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 12000,
+  });
+  expect(called.signalCode).toBeUndefined();
+  expect(existsSync(forbiddenMarker)).toBe(false);
+  expect(called.exitCode, called.stderr.toString()).toBe(37);
+  expect(called.stdout.toString()).toBe('Nx caller lint\n');
+  expect(called.stderr.length).toBe(0);
+  expect(readFileSync(validatorMarker, 'utf8')).toBe('validator\n');
+  expect(readdirSync(fixture.scratch)).toEqual([]);
+});
+
+it('the delivered PUNI main export imports without ambient dispatch and retains real lint bytes and completion', () => {
+  const fixture = createLint(
+    'process.stdout.write(Buffer.from([0,255,65,10]));process.stderr.write(Buffer.from([0,254,66,10]));process.exitCode=37;',
+  );
+  const harness = join(fixture.root, 'installed-main-contract.mjs');
+  const completionPath = join(fixture.root, 'installed-main-completion.json');
+  const script =
+    'import{writeFileSync}from"node:fs";import{dirname}from"node:path";import{tmpdir}from"node:os";import{pathToFileURL}from"node:url";' +
+    'process.argv=[process.execPath,process.argv[1],"--version"];const entrypoint=' +
+    JSON.stringify(fixture.entrypoint) +
+    ';const directory=dirname(entrypoint);const environment={...process.env};const imported=await import(pathToFileURL(entrypoint).href);' +
+    'const completion=await imported.main(["bur","lint","working",' +
+    JSON.stringify(fixture.candidate) +
+    ',"HEAD"],{installation:{directory,entrypoint},lookup:{directory,path:environment.PATH},callerDirectory:process.cwd(),' +
+    'runtime:process.execPath,temporaryDirectory:tmpdir(),environment,stdout:(chunk)=>{process.stdout.write(chunk)},stderr:(chunk)=>{process.stderr.write(chunk)}});' +
+    'writeFileSync(' +
+    JSON.stringify(completionPath) +
+    ',JSON.stringify(completion));if(completion.kind==="exit")process.exit(completion.status);process.exitCode=completion.status;';
+  writeFileSync(harness, script);
+  const child = Bun.spawnSync([...createLaunch(process.execPath, harness)], {
+    cwd: fixture.candidate,
+    env: {
+      PATH: '/usr/bin:/bin',
+      TOOL_WIKI_ACTIVATION_ROOT: fixture.archive,
+      TMPDIR: fixture.scratch,
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 12000,
+  });
+  expect(child.signalCode).toBeUndefined();
+  expect(child.exitCode).toBe(37);
+  expect(child.stdout).toEqual(Buffer.from([0, 255, 65, 10]));
+  expect(child.stderr).toEqual(Buffer.from([0, 254, 66, 10]));
+  expect(JSON.parse(readFileSync(completionPath, 'utf8'))).toEqual({ kind: 'exit', status: 37 });
+  expect(readdirSync(fixture.scratch)).toEqual([]);
+});
+
+for (const [name, moduleText, instruction] of [
+  [
+    'missing main',
+    'export const unrelated=true;',
+    'selected PUNI must export callable main; provision the reviewed current PUNI artifact',
+  ],
+  [
+    'invalid kind',
+    'export function main(){return {kind:"unknown",status:0}}',
+    'selected PUNI returned an invalid completion; provision the reviewed current PUNI artifact',
+  ],
+  [
+    'invalid status',
+    'export function main(){return {kind:"drain",status:256}}',
+    'selected PUNI returned an invalid completion; provision the reviewed current PUNI artifact',
+  ],
+] as const)
+  it('the repository lint adapter refuses delivered ' + name, () => {
+    const root = createRoot();
+    const selected = join(root, 'invalid-puni.mjs');
+    writeFileSync(selected, moduleText);
+    const adapter = fileURLToPath(new URL('../../../../../bin/tool-wiki-lint.ts', import.meta.url));
+    const child = Bun.spawnSync(
+      [...createLaunch(process.execPath, adapter), 'working', '.', 'HEAD'],
+      {
+        cwd: root,
+        env: { PATH: '/usr/bin:/bin', PUNI_EXECUTABLE: selected },
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: 12000,
+      },
+    );
+    expect(child.signalCode).toBeUndefined();
+    expect(child.exitCode).toBe(1);
+    expect(child.stdout.length).toBe(0);
+    expect(child.stderr.toString()).toBe('tool-wiki lint: ' + instruction + '\n');
+  });
+
+for (const selected of [undefined, './puni.mjs'])
+  it(
+    'the repository lint adapter refuses a nonabsolute installation selection: ' + String(selected),
+    () => {
+      const root = createRoot();
+      const adapter = fileURLToPath(
+        new URL('../../../../../bin/tool-wiki-lint.ts', import.meta.url),
+      );
+      const child = Bun.spawnSync(
+        [...createLaunch(process.execPath, adapter), 'working', '.', 'HEAD'],
+        {
+          cwd: root,
+          env: { PATH: '/usr/bin:/bin', PUNI_EXECUTABLE: selected },
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: 12000,
+        },
+      );
+      expect(child.signalCode).toBeUndefined();
+      expect(child.exitCode).toBe(1);
+      expect(child.stdout.length).toBe(0);
+      expect(child.stderr.toString()).toBe(
+        'tool-wiki lint: set PUNI_EXECUTABLE to the absolute entrypoint of a separately provisioned reviewed current PUNI installation\n',
+      );
+    },
+  );
+
+it('the repository lint adapter captures operands and caller context before the delivered import changes globals', () => {
+  const root = createRoot();
+  const caller = join(root, 'caller');
+  const changed = join(root, 'changed');
+  mkdirSync(caller);
+  mkdirSync(changed);
+  const selected = join(root, 'capture-puni.mjs');
+  const observation = join(root, 'caller-context.json');
+  writeFileSync(
+    selected,
+    'import{writeFileSync}from"node:fs";await Promise.resolve();process.chdir(' +
+      JSON.stringify(changed) +
+      ');process.env.PATH="changed-path";process.env.PUNI_EXECUTABLE="changed-entry";process.argv.splice(2,99,"changed-operand");' +
+      'export function main(args,context){writeFileSync(' +
+      JSON.stringify(observation) +
+      ',JSON.stringify({args,installation:context.installation,lookup:context.lookup,callerDirectory:context.callerDirectory,' +
+      'runtime:context.runtime,temporaryDirectory:context.temporaryDirectory,environment:{PATH:context.environment.PATH,PUNI_EXECUTABLE:context.environment.PUNI_EXECUTABLE,TMPDIR:context.environment.TMPDIR}}));return {kind:"drain",status:37}}',
+  );
+  const adapter = fileURLToPath(new URL('../../../../../bin/tool-wiki-lint.ts', import.meta.url));
+  const child = Bun.spawnSync([...createLaunch(process.execPath, adapter), 'staged', '.', 'HEAD'], {
+    cwd: caller,
+    env: { PATH: '/usr/bin:/bin', PUNI_EXECUTABLE: selected, TMPDIR: root },
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 12000,
+  });
+  expect(child.signalCode).toBeUndefined();
+  expect(child.exitCode, child.stderr.toString()).toBe(37);
+  expect(child.stdout.length).toBe(0);
+  expect(child.stderr.length).toBe(0);
+  const captured = JSON.parse(readFileSync(observation, 'utf8')) as {
+    args: string[];
+    installation: { directory: string; entrypoint: string };
+    lookup: { directory: string; path: string };
+    callerDirectory: string;
+    runtime: string;
+    temporaryDirectory: string;
+    environment: { PATH: string; PUNI_EXECUTABLE: string; TMPDIR: string };
+  };
+  expect(captured).toEqual({
+    args: ['bur', 'lint', 'staged', '.', 'HEAD'],
+    installation: { directory: root, entrypoint: selected },
+    lookup: { directory: root, path: '/usr/bin:/bin' },
+    callerDirectory: caller,
+    runtime: process.execPath,
+    temporaryDirectory: root,
+    environment: { PATH: '/usr/bin:/bin', PUNI_EXECUTABLE: selected, TMPDIR: root },
+  });
+});
+
+for (const boundary of ['import', 'completion'] as const)
+  it(
+    'the repository lint adapter terminates a retained timer after delivered ' +
+      boundary +
+      ' failure',
+    () => {
+      const root = createRoot();
+      const selected = join(root, 'retained-puni.mjs');
+      const ready = join(root, 'retained-boundary-reached');
+      const retention =
+        'setInterval(()=>{},1000);writeFileSync(' + JSON.stringify(ready) + ',"ready");';
+      writeFileSync(
+        selected,
+        'import{writeFileSync}from"node:fs";' +
+          (boundary === 'import'
+            ? retention + 'throw new Error("private-module-error");'
+            : 'export function main(){' + retention + 'return {kind:"unknown",status:0}}'),
+      );
+      const adapter = fileURLToPath(
+        new URL('../../../../../bin/tool-wiki-lint.ts', import.meta.url),
+      );
+      const child = Bun.spawnSync(
+        [...createLaunch(process.execPath, adapter), 'working', '.', 'HEAD'],
+        {
+          cwd: root,
+          env: { PATH: '/usr/bin:/bin', PUNI_EXECUTABLE: selected },
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: 5000,
+        },
+      );
+      expect(readFileSync(ready, 'utf8')).toBe('ready');
+      expect(child.signalCode).toBeUndefined();
+      expect(child.exitCode).toBe(1);
+      expect(child.stdout.length).toBe(0);
+      expect(child.stderr.toString()).toBe(
+        boundary === 'import'
+          ? 'tool-wiki lint: selected installed PUNI could not complete; verify its reviewed provisioning and PUNI_EXECUTABLE\n'
+          : 'tool-wiki lint: selected PUNI returned an invalid completion; provision the reviewed current PUNI artifact\n',
+      );
+    },
+  );
+
+for (const boundary of ['missing', 'unreadable'] as const)
+  it(
+    'the repository lint adapter refuses a ' +
+      boundary +
+      ' selected file before its module executes',
+    () => {
+      const root = createRoot();
+      const selected = join(root, 'unavailable-puni.mjs');
+      const marker = join(root, 'unavailable-module-called');
+      if (boundary === 'unreadable') {
+        writeFileSync(
+          selected,
+          'import{writeFileSync}from"node:fs";writeFileSync(' +
+            JSON.stringify(marker) +
+            ',"unexpected");export function main(){return {kind:"drain",status:0}}',
+        );
+        chmodSync(selected, 0);
+      }
+      try {
+        const adapter = fileURLToPath(
+          new URL('../../../../../bin/tool-wiki-lint.ts', import.meta.url),
+        );
+        const child = Bun.spawnSync(
+          [...createLaunch(process.execPath, adapter), 'working', '.', 'HEAD'],
+          {
+            cwd: root,
+            env: { PATH: '/usr/bin:/bin', PUNI_EXECUTABLE: selected },
+            stdout: 'pipe',
+            stderr: 'pipe',
+            timeout: 5000,
+          },
+        );
+        expect(child.signalCode).toBeUndefined();
+        expect(child.exitCode).toBe(1);
+        expect(child.stdout.length).toBe(0);
+        expect(child.stderr.toString()).toBe(
+          'tool-wiki lint: selected installed PUNI could not complete; verify its reviewed provisioning and PUNI_EXECUTABLE\n',
+        );
+        expect(existsSync(marker)).toBe(false);
+      } finally {
+        if (boundary === 'unreadable') chmodSync(selected, 0o600);
+      }
+    },
+  );
+
+for (const boundary of ['import', 'completion'] as const)
+  it(
+    'the repository lint adapter retains native diagnostic sinks when delivered ' +
+      boundary +
+      ' failure replaces Bun outputs',
+    () => {
+      const root = createRoot();
+      const selected = join(root, 'replace-output-puni.mjs');
+      const ready = join(root, 'output-replacement-ready');
+      const replacement = join(root, 'replacement-writer-called');
+      const poison =
+        'import{appendFileSync,writeFileSync}from"node:fs";' +
+        'const factory=(channel)=>({writer(){appendFileSync(' +
+        JSON.stringify(replacement) +
+        ',channel+" writer\\n");return {write(bytes){appendFileSync(' +
+        JSON.stringify(replacement) +
+        ',channel+" write "+Buffer.from(bytes).toString("hex")+"\\n");return bytes.byteLength},flush(){return 0},unref(){}}}});' +
+        'const stdout=factory("stdout"),stderr=factory("stderr");Object.defineProperty(Bun,"stdout",{value:stdout});' +
+        'Object.defineProperty(Bun,"stderr",{value:stderr});if(Bun.stdout!==stdout||Bun.stderr!==stderr)throw new Error("fixture output replacement failed");';
+      const witness =
+        'writeFileSync(' + JSON.stringify(ready) + ',"stdout/stderr actually replaced");';
+      writeFileSync(
+        selected,
+        poison +
+          (boundary === 'import'
+            ? witness + 'throw new Error("private-import-failure");'
+            : 'export function main(){' + witness + 'return {kind:"drain",status:256}}'),
+      );
+      const adapter = fileURLToPath(
+        new URL('../../../../../bin/tool-wiki-lint.ts', import.meta.url),
+      );
+      const child = Bun.spawnSync(
+        [...createLaunch(process.execPath, adapter), 'working', '.', 'HEAD'],
+        {
+          cwd: root,
+          env: { PATH: '/usr/bin:/bin', PUNI_EXECUTABLE: selected },
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: 5000,
+        },
+      );
+      expect(readFileSync(ready, 'utf8')).toBe('stdout/stderr actually replaced');
+      expect(child.signalCode).toBeUndefined();
+      expect(child.exitCode).toBe(1);
+      const diagnostic =
+        boundary === 'import'
+          ? 'tool-wiki lint: selected installed PUNI could not complete; verify its reviewed provisioning and PUNI_EXECUTABLE\n'
+          : 'tool-wiki lint: selected PUNI returned an invalid completion; provision the reviewed current PUNI artifact\n';
+      expect({
+        stdout: [...child.stdout],
+        stderr: [...child.stderr],
+        replacement: existsSync(replacement) ? readFileSync(replacement, 'utf8') : null,
+      }).toEqual({ stdout: [], stderr: [...Buffer.from(diagnostic)], replacement: null });
+    },
+  );

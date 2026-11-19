@@ -2,7 +2,7 @@ import { posix } from 'node:path';
 
 import ts from 'typescript';
 
-import type { CommittedSource } from '../policy/committed-source';
+import type { SourceFiles } from '../policy/source-files';
 
 const dash = 'apps/twilight-structure/twilight-dash/cli/src/';
 const format = dash + 'runs/sqlite/format.ts';
@@ -28,9 +28,10 @@ const templatePaths = ['observation.service.tmpl', 'observation.timer.tmpl'];
  * of inheriting readFileSync's replacement decoding. Regular captured files are required.
  * Callers must not globally rewrite emitted strings to normalize compiler metadata paths.
  * This is a package build transform, not runtime filesystem or release authentication.
+ * Only captured paths, modes and bytes are consumed; source-kind admission belongs to its producer.
  */
 export function embedDashAssets(
-  source: CommittedSource,
+  source: SourceFiles,
   path: string,
   bytes: Uint8Array,
 ): Uint8Array {

@@ -8,7 +8,7 @@ import { readLintCandidate } from '../run-lint';
 import { anchorPath } from '../validator-paths';
 import { runPreparationGit } from './preparation-git';
 import { RelocationRefusal } from './relocation-refusal';
-import { type BunToolkit, readBunToolkit } from './toolkit';
+import { type CommittedBunExecutionToolkit, readCommittedBunToolkit } from './toolkit';
 
 export interface PreparationSelection {
   readonly candidateRepository: string;
@@ -30,7 +30,7 @@ export type PreparationSource =
       readonly kind: 'ready';
       readonly candidateDirectory: string;
       readonly sourceRevision: string;
-      readonly toolkit: BunToolkit;
+      readonly toolkit: CommittedBunExecutionToolkit;
       readonly runtime: LintRuntime;
     };
 
@@ -112,7 +112,7 @@ export async function readPreparationSource(
   // Proof: prep-prior-cancel; `replays prior cancellation before reading absent toolkit or candidate` failed under its recorded source fault and passed after restoration.
   if (cancellation.status !== undefined) return { kind: 'cancelled', status: cancellation.status };
   // Proof: prep-format; `refuses legacy toolkit format before candidate-dependent Git IO` failed under its recorded source fault and passed after restoration.
-  const toolkit = readBunToolkit(
+  const toolkit = readCommittedBunToolkit(
     // Proof: prep-toolkit-native; `preserves native symlink-parent semantics for toolkit selection` failed under its recorded source fault and passed after restoration.
     realpathSync.native(anchorPath(toolkitDirectory, callerDirectory)),
   );

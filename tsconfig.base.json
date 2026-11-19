@@ -62,6 +62,10 @@
         "./apps/twilight-structure/twilight-burokrat/cli/src/grammar-facade.ts"
       ],
       "@puni/dash/runtime": ["./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts"],
+      "@puni/dash/performance-level": ["./apps/twilight-structure/twilight-dash/cli/src/performance-level-facade.ts"],
+      "@puni/dash/browser-level": ["./apps/twilight-structure/twilight-dash/cli/src/browser-level-facade.ts"],
+      "@puni/dash/performance-processes": ["./apps/twilight-structure/twilight-dash/cli/src/performance-processes-facade.ts"],
+      "@puni/dash/test-level-evidence": ["./apps/twilight-structure/twilight-dash/cli/src/test-level-evidence-facade.ts"],
       "@puni/dash/grammar": ["./apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts"],
       "@twilight-burokrat/contracts": [
         "./apps/twilight-structure/twilight-burokrat/cli/src/contracts/index.ts"
@@ -206,6 +210,9 @@
       "@website/contracts": ["./libs/website/domain/contracts/src/index.ts"],
       "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"],
       "@website/analytics": ["./libs/website/adapters/analytics/src/index.ts"],
+      "@puni/packaging": ["./apps/puni/cli/src/packaging-facade.ts"],
+      "@puni/burokrat/test-levels": ["./apps/twilight-structure/twilight-burokrat/cli/src/test-level-facade.ts"],
+      "@puni/burokrat/installation": ["./apps/twilight-structure/twilight-burokrat/cli/src/installation-facade.ts"],
       "@puni/burokrat/packaging": [
         "./apps/twilight-structure/twilight-burokrat/cli/src/packaging-facade.ts"
       ]

@@ -28,4 +28,4 @@ RUN apt-get update \
   && bun --version
 
 WORKDIR /src
-CMD ["bun", "run", "dev"]
+CMD ["bun", "--no-env-file", "--config=/dev/null", "run", "--shell=bun", "dev"]

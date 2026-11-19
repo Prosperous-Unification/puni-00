@@ -29,6 +29,7 @@ export async function createToolkitProducerFixture(roots: string[], privateClosu
     );
   symlinkSync(closure, join(installation, 'node_modules'));
   for (const path of [
+    'performance-judge.ts',
     'cli.ts',
     'lint-cli.ts',
     'policy/snapshot-validator.ts',

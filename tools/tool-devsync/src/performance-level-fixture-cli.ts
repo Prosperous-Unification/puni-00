@@ -15,6 +15,7 @@ const descriptors =
         cwd: string;
         url: string;
         env: Record<string, string>;
+        bunArguments: readonly ['--eval',string];
       }[]);
 
 await runPerformanceLevel(

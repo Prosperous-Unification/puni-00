@@ -231,3 +231,126 @@ describe('PUNI package composition boundary', () => {
       30000,
     );
 });
+
+describe('PUNI local installation composition boundary', () => {
+  const installer = 'apps/puni/cli/src/packaging/install.ts';
+  it('changes only the exact packaging allowance in the local installation purpose', async () => {
+    const options = await readBoundaryConfig(installer);
+    const inherited = await readBoundaryConfig('apps/puni/cli/src/namespaces.ts');
+    expect(options['allow']).toEqual(['^@puni/burokrat/packaging$']);
+    const withoutAllow: Record<string, unknown> = { ...options, allow: [] };
+    expect(withoutAllow).toEqual(inherited);
+  }, 30000);
+  it('admits the local installer through its exact packaging facade', async () => {
+    const source = await readFile(new URL('../../../' + installer, import.meta.url), 'utf8');
+    expect(await findBoundaryFailures(installer, source)).toEqual([]);
+  }, 30000);
+  for (const alias of [
+    '@puni/burokrat/runtime',
+    '@puni/burokrat/grammar',
+    '@puni/dash/runtime',
+    '../../../../twilight-structure/twilight-burokrat/cli/src/packaging/installed',
+  ]) {
+    it(
+      'rejects ' + alias + ' from local installation composition',
+      async () => {
+        expect(
+          await findBoundaryFailures(installer, 'await import(' + JSON.stringify(alias) + ');'),
+        ).toHaveLength(1);
+      },
+      30000,
+    );
+  }
+  it('keeps the local installation allowance out of the adjacent package test', async () => {
+    expect(
+      await findBoundaryFailures(
+        'apps/puni/cli/src/packaging/build.test.ts',
+        "await import('@puni/burokrat/packaging');",
+      ),
+    ).toHaveLength(1);
+  }, 30000);
+});
+
+it('Forge installed selection facade changes only its exact acquisition importer allowance', async () => {
+  const selected = await readBoundaryConfig('tools/tool-devsync/src/k3s/forge-installation.ts');
+  const inherited = await readBoundaryConfig('tools/tool-devsync/src/k3s/forge-namespace.ts');
+  const inheritedAllow = inherited['allow'];
+  if (!Array.isArray(inheritedAllow) || !inheritedAllow.every((entry: unknown): entry is string => typeof entry === 'string'))
+    throw new Error('inherited module-boundary allowances are malformed');
+  expect(inheritedAllow).toEqual(["^@wbs/contracts/solver/supervisor-protocol$","^@wbs/domain$"]);
+  expect(selected['allow']).toEqual([...inheritedAllow, '^@puni/packaging$']);
+  const withoutAllow: Record<string, unknown> = { ...selected, allow: inheritedAllow };
+  expect(withoutAllow).toEqual(inherited);
+}, 30000);
+
+it('PUNI selection verifier changes only its exact current-profile installation allowance', async () => {
+  const selected = await readBoundaryConfig('apps/puni/cli/src/packaging/selection.ts');
+  const inherited = await readBoundaryConfig('apps/puni/cli/src/namespaces.ts');
+  const inheritedAllow = inherited['allow'];
+  if (!Array.isArray(inheritedAllow) || !inheritedAllow.every((entry: unknown): entry is string => typeof entry === 'string'))
+    throw new Error('inherited module-boundary allowances are malformed');
+  expect(inheritedAllow).toEqual([]);
+  expect(selected['allow']).toEqual([...inheritedAllow, '^@puni/burokrat/installation$']);
+  const withoutAllow: Record<string, unknown> = { ...selected, allow: inheritedAllow };
+  expect(withoutAllow).toEqual(inherited);
+}, 30000);
+
+it('admits the real Forge acquisition source only through its public PUNI packaging facade', async () => {
+  const importer = 'tools/tool-devsync/src/k3s/forge-installation.ts';
+  const source = await readFile(new URL('../../../' + importer, import.meta.url), 'utf8');
+  expect(await findBoundaryFailures(importer, source)).toEqual([]);
+}, 30000);
+it('admits the real PUNI selection verifier only through its current-profile facade', async () => {
+  const importer = 'apps/puni/cli/src/packaging/selection.ts';
+  const source = await readFile(new URL('../../../' + importer, import.meta.url), 'utf8');
+  expect(await findBoundaryFailures(importer, source)).toEqual([]);
+}, 30000);
+for (const neighbor of ['tools/tool-devsync/src/k3s/dev-environment.ts', 'tools/tool-devsync/src/k3s/forge-supervisor.ts'])
+  it('keeps the PUNI packaging capability out of ' + neighbor, async () => {
+    expect(await findBoundaryFailures(neighbor, "await import('@puni/packaging');")).toHaveLength(1);
+  }, 30000);
+for (const alias of [
+  '@puni/burokrat/packaging', '@puni/dash/runtime',
+  '../../../../apps/puni/cli/src/packaging/selection',
+])
+  it('keeps ' + alias + ' out of the Forge acquisition capability', async () => {
+    expect(await findBoundaryFailures('tools/tool-devsync/src/k3s/forge-installation.ts', 'await import(' + JSON.stringify(alias) + ');')).toHaveLength(1);
+  }, 30000);
+it('keeps provider-private packaging out of the PUNI selection verifier', async () => {
+  expect(await findBoundaryFailures('apps/puni/cli/src/packaging/selection.ts', "await import('../../../../twilight-structure/twilight-burokrat/cli/src/packaging/installed');")).toHaveLength(1);
+}, 30000);
+
+
+it('current source installation verification permits only its exact public PUNI packaging facade importer', async () => {
+  const importer = 'tools/tool-remote-scripts/src/lib/source-puni-installation.ts';
+  const selected = await readBoundaryConfig(importer);
+  const inherited = await readBoundaryConfig('tools/tool-remote-scripts/src/lib/source-dev-inputs.ts');
+  const inheritedAllow = inherited['allow'];
+  if (!Array.isArray(inheritedAllow) || !inheritedAllow.every((entry: unknown): entry is string => typeof entry === 'string'))
+    throw new Error('source installation inherited boundary allowances are malformed');
+  expect(inheritedAllow).toEqual(['^@wbs/contracts/solver/supervisor-protocol$', '^@wbs/domain$']);
+  expect(selected['allow']).toEqual([...inheritedAllow, '^@puni/packaging$']);
+  expect<unknown>({ ...selected, allow: inheritedAllow }).toEqual(inherited);
+}, 30000);
+
+describe('PUNI SDK installation-only composition boundary', () => {
+  const verifier = 'apps/puni/cli/src/packaging/selection.ts';
+  it('replaces only the exact SDK allowance with the narrow installed-verifier facade', async () => {
+    const selected = await readBoundaryConfig(verifier);
+    const inherited = await readBoundaryConfig('apps/puni/cli/src/namespaces.ts');
+    expect(inherited['allow']).toEqual([]);
+    expect(selected['allow']).toEqual(['^@puni/burokrat/installation$']);
+    const withoutAllow: Record<string, unknown> = { ...selected, allow: [] };
+    expect(withoutAllow).toEqual(inherited);
+  }, 30000);
+  it('admits the actual SDK verifier without builder or private provider imports', async () => {
+    const source = await readFile(new URL('../../../' + verifier, import.meta.url), 'utf8');
+    expect(await findBoundaryFailures(verifier, source)).toEqual([]);
+    for (const alias of ['@puni/burokrat/packaging', '../../../../twilight-structure/twilight-burokrat/cli/src/packaging/installation'])
+      expect(await findBoundaryFailures(verifier, 'await import(' + JSON.stringify(alias) + ');')).toHaveLength(1);
+  }, 30000);
+  for (const neighbor of ['apps/puni/cli/src/packaging/build.ts', 'apps/puni/cli/src/namespaces.ts'])
+    it('keeps the narrow verifier facade out of ' + neighbor, async () => {
+      expect(await findBoundaryFailures(neighbor, "await import('@puni/burokrat/installation');")).toHaveLength(1);
+    }, 30000);
+});

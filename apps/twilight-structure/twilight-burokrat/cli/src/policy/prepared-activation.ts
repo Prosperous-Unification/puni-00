@@ -14,7 +14,7 @@ import {
 } from './activation';
 import { checkPreparedActivation } from './prepared-self-check';
 import type { RelocationPlan } from './relocation-activation';
-import type { BunToolkit } from './toolkit';
+import type { CommittedBunExecutionToolkit } from './toolkit';
 import { copyTrustedModules, hashTrustedModules } from './trusted-modules';
 
 export interface ExecutableRoles {
@@ -45,7 +45,7 @@ interface Request {
   readonly plan: RelocationPlan;
   readonly roleSources: PrepareActivationRequest['roleSources'];
   readonly launcherBytes: Uint8Array;
-  readonly toolkit: BunToolkit;
+  readonly toolkit: CommittedBunExecutionToolkit;
   readonly committerEpoch: string;
   readonly heading: 'toolkit activation' | 'relocation activation';
   readonly notices: readonly PreparationNotice[];

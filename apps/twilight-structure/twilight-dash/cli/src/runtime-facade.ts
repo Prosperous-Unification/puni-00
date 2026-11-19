@@ -6,7 +6,8 @@ import {
   UsageRefusal,
 } from './cli-parser';
 import type { Monotonic, WallClock } from './clock';
-import type { Request } from './grammar-facade';
+import type { DevelopmentContext } from './development';
+import type { DevelopmentRequest, Request } from './grammar-facade';
 import type { FetchLike } from './mcp/machine-token';
 
 export { monotonicClock, wallClock } from './clock';
@@ -103,3 +104,16 @@ export async function executeRequest(request: Request, context: Context): Promis
     stdout: { write: context.write },
   });
 }
+
+export type { DevelopmentContext, DevelopmentExecutableIO } from './development';
+
+/** Run only the typed PUNI development purpose; legacy standalone Dash remains unchanged. */
+export async function runDevelopment(
+  request: DevelopmentRequest,
+  context: DevelopmentContext,
+): Promise<number> {
+  const { runDevelopment: runOwnedDevelopment } = await import('./development');
+  return await runOwnedDevelopment(request, context);
+}
+
+export {runBrowser,runPerformance} from './test-level-runtime';

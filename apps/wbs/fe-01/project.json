@@ -3,7 +3,13 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/wbs/fe-01/src",
   "projectType": "application",
-  "tags": ["scope:app", "type:app", "runtime:browser", "ring:adapter", "product:wbs"],
+  "tags": [
+    "scope:app",
+    "type:app",
+    "runtime:browser",
+    "ring:adapter",
+    "product:wbs"
+  ],
   "targets": {
     "serve": {
       "executor": "nx:run-commands",
@@ -20,10 +26,14 @@
         "command": "bunx vite build",
         "cwd": "apps/wbs/fe-01"
       },
-      "outputs": ["{workspaceRoot}/dist/apps/wbs/fe-01"]
+      "outputs": [
+        "{workspaceRoot}/dist/apps/wbs/fe-01"
+      ]
     },
     "test": {
-      "dependsOn": ["test:unit"],
+      "dependsOn": [
+        "test:unit"
+      ],
       "executor": "nx:run-commands",
       "options": {
         "command": "TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 && TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
@@ -43,7 +53,10 @@
       "options": {
         "command": "mkdir -p ../../../tmp/junit && rm -f ../../../tmp/junit/wbs-fe-01.unit.xml ../../../tmp/junit/wbs-fe-01.unit.root.xml && TZ=UTC bunx vitest run --config vitest.node.config.ts --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.unit.xml && TZ=UTC bunx vitest run --config vitest.unit-root.config.ts --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.unit.root.xml",
         "cwd": "apps/wbs/fe-01",
-        "env": { "CLAUDECODE": "0", "AGENT": "0" },
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
         "forwardAllArgs": false
       }
     },
@@ -53,7 +66,10 @@
       "options": {
         "command": "mkdir -p ../../../tmp/junit && rm -f ../../../tmp/junit/wbs-fe-01.view.utc.xml ../../../tmp/junit/wbs-fe-01.view.auckland.xml && TZ=UTC bunx vitest run --config vitest.view.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.view.utc.xml && TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.view.auckland.xml",
         "cwd": "apps/wbs/fe-01",
-        "env": { "CLAUDECODE": "0", "AGENT": "0" },
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
         "forwardAllArgs": false
       }
     },
@@ -61,25 +77,64 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "bun tools/tool-devsync/src/performance-level.ts",
-        "forwardAllArgs": false
-      }
+        "command": "bun --no-env-file --config=/dev/null apps/puni/cli/src/entrypoint.ts dash performance --repository .",
+        "forwardAllArgs": false,
+        "envFile": "tmp/puni-source-test-level.env",
+        "env": {
+          "PUNI_TEST_LEVEL_ROLE": "source"
+        }
+      },
+      "dependsOn": [
+        {
+          "target": "prepare-test-level-assets",
+          "projects": [
+            "puni-cli"
+          ],
+          "params": "ignore"
+        }
+      ]
     },
     "test:browser:ordinary:level": {
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "bun tools/tool-devsync/src/browser-level.ts ordinary",
-        "forwardAllArgs": false
-      }
+        "command": "bun --no-env-file --config=/dev/null apps/puni/cli/src/entrypoint.ts dash browser ordinary --repository .",
+        "forwardAllArgs": false,
+        "envFile": "tmp/puni-source-test-level.env",
+        "env": {
+          "PUNI_TEST_LEVEL_ROLE": "source"
+        }
+      },
+      "dependsOn": [
+        {
+          "target": "prepare-test-level-assets",
+          "projects": [
+            "puni-cli"
+          ],
+          "params": "ignore"
+        }
+      ]
     },
     "test:browser:packaged:level": {
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "bun tools/tool-devsync/src/browser-level.ts packaged",
-        "forwardAllArgs": false
-      }
+        "command": "bun --no-env-file --config=/dev/null apps/puni/cli/src/entrypoint.ts dash browser packaged --repository .",
+        "forwardAllArgs": false,
+        "envFile": "tmp/puni-source-test-level.env",
+        "env": {
+          "PUNI_TEST_LEVEL_ROLE": "source"
+        }
+      },
+      "dependsOn": [
+        {
+          "target": "prepare-test-level-assets",
+          "projects": [
+            "puni-cli"
+          ],
+          "params": "ignore"
+        }
+      ]
     },
     "test:browser:level": {
       "executor": "nx:run-commands",
@@ -109,7 +164,10 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "bunx playwright test --config=apps/wbs/fe-01/playwright.organization.config.ts",
-        "env": { "CLAUDECODE": "0", "AGENT": "0" }
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
       },
       "cache": false
     },
@@ -138,7 +196,9 @@
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "dependsOn": ["typecheck:module"],
+      "dependsOn": [
+        "typecheck:module"
+      ],
       "options": {
         "command": "bunx tsc --build --force apps/wbs/fe-01/tsconfig.json"
       }
@@ -169,9 +229,15 @@
       ],
       "options": {
         "command": "bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts",
-        "env": { "CLAUDECODE": "0", "AGENT": "0" }
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
       }
     }
   },
-  "implicitDependencies": ["wbs-be-01", "wbs-gw-01"]
+  "implicitDependencies": [
+    "wbs-be-01",
+    "wbs-gw-01"
+  ]
 }

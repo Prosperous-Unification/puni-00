@@ -78,8 +78,24 @@ spec:
           (has(volume.hostPath) && volume.hostPath.type == 'Directory' &&
            ((object.metadata.namespace == 'wbs-solver' && volume.hostPath.path == '/run/puni/solver') ||
             (variables.isForge &&
-             volume.hostPath.path in params.data.forgeWorktreeRoots.split(','))))))
+             (volume.hostPath.path in params.data.forgeWorktreeRoots.split(',') ||
+              ('forgePuniInstallationRoots' in params.data && volume.hostPath.path in params.data.forgePuniInstallationRoots.split(','))))))))
       message: trusted workloads may use only Restricted volume types or their exact directory root
+    - expression: >-
+        !variables.isForge || !('forgePuniInstallationRoots' in params.data) ||
+        (!has(object.spec.volumes) || object.spec.volumes.all(volume,
+          !has(volume.hostPath) ||
+          !(volume.hostPath.path in params.data.forgePuniInstallationRoots.split(',')) ||
+          (object.spec.containers.all(container,
+            !has(container.volumeMounts) || container.volumeMounts.all(mount,
+              mount.name != volume.name || (has(mount.readOnly) && mount.readOnly))) &&
+           (!has(object.spec.initContainers) || object.spec.initContainers.all(container,
+             !has(container.volumeMounts) || container.volumeMounts.all(mount,
+               mount.name != volume.name || (has(mount.readOnly) && mount.readOnly)))) &&
+           (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(container,
+             !has(container.volumeMounts) || container.volumeMounts.all(mount,
+               mount.name != volume.name || (has(mount.readOnly) && mount.readOnly))))))))
+      message: Forge PUNI installation mounts must be read-only for every container type
     - expression: >-
         object.metadata.namespace != 'wbs-solver' ||
         (object.spec.serviceAccountName == 'wbs-backend' &&

@@ -446,3 +446,11 @@ copies and captured launch/restart configuration remain declared surfaces, with
 loaded cron/systemd/Docker authority and the solver supervisor unresolved. The
 offline command always returns blocked activation; it performs no installation,
 restart, prior-holder drain, owner publication or live host acceptance.
+
+## PUNI development installation selection
+
+Before recreating the source-development container, independently provision and review a complete current PUNI installation outside the source checkout. Cold start uses standard external Bun package installation. An already trusted PUNI may install an authenticated local archive with the independently obtained expected digest, preserving the emitted absolute selection. Do not derive that authority from a candidate-nominated archive, digest or source-root entrypoint.
+
+Supply two explicit operator inputs to Compose: `PUNI_INSTALLATION_DIRECTORY` is the absolute host directory containing that complete installation; `PUNI_CONTAINER_EXECUTABLE` is the emitted entrypoint mapped under the read-only `/opt/puni-dev` mount. Preserve its suffix relative to the installation directory, including package assets. These values belong in the trusted operator process environment or an explicit trusted external Compose env file, not the candidate checkout's automatic `.env`. Compose requires both inputs and disables implicit host-directory creation for this mount. The container receives the mapped value as `PUNI_EXECUTABLE`.
+
+The Dockerfile and Compose command both select protected Bun and its internal package-script shell. Keep the existing source/data/solver mounts, user, limits, network and Nx-daemon setting. This change requires the normal reviewed container recreation path; it does not authorize a host action, CI resumption or infer public release provenance. Container configuration/startup/native-control and the installed caller still require their own actual observations. A package-only publication without this external installation/selection would leave container startup unconfigured.

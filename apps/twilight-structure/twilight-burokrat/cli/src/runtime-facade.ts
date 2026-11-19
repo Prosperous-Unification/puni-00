@@ -3,21 +3,23 @@ import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { assertGitVersion, createGitEnvironment } from './git-environment';
 import type { Request } from './grammar-facade';
-import { type InstalledLintContext, readInstalledLint } from './installed-lint';
+import { type InstalledLint, type InstalledLintContext, readInstalledLint } from './installed-lint';
 import { runInstalledLintLauncher } from './installed-lint-launcher';
 import { assertInstalledPlacement } from './installed-placement';
 import { decodeCandidateRoot } from './inventory/read-candidate';
+import { LintActivationRefusal } from './lint-activation';
 import { runLintOperation } from './lint-execution';
 import type { LintDiagnostic, LintOutput } from './lint-output';
 import { lintParentMode } from './lint-parent-control';
-import type { LintRequest } from './lint-request';
+import { type LintInvocation, type LintRequest, LintUsageRefusal } from './lint-request';
 import { readLintRuntime } from './lint-runtime';
 import { readInstalledPuniToolkit, readInstalledToolkit } from './packaging/installed';
 import { prepareToolkit, type Toolkit } from './policy/prepare-activation-cli';
 import { prepareRelocation } from './policy/prepare-relocation-activation-cli';
 import { toolkitRoles } from './policy/release';
-import type { BunToolkit } from './policy/toolkit';
+import { type BunExecutionToolkit, readCommittedBunToolkit } from './policy/toolkit';
 import { anchorPreparation } from './preparation-paths';
+import { readPushAudit } from './push-audit';
 import { anchorPath } from './validator-paths';
 import type { Request as ValidatorRequest } from './validator-request';
 
@@ -98,7 +100,10 @@ function assertInstallation(
   assertExternal(candidate, join(toolkitDirectory, 'trusted-node-modules'), 'runtime closure');
 }
 
-type ExecutableRequest = Exclude<Request, { command: 'lint' }>;
+type ExecutableRequest = Exclude<Request, { command: 'lint' | 'audit-push' }>;
+
+/** A current-only committed audit request; legacy dispatch never receives this operation. */
+export type PushAuditRequest = Extract<Request, { command: 'audit-push' }>;
 
 /**
  * Verify the installation before dispatching validation or typed preparation. Ordinary requests
@@ -140,7 +145,7 @@ export function executeRequest(
 }
 
 /**
- * Execute a typed current ordinary request through its independently verified PUNI0.3/toolkit2
+ * Execute a typed current ordinary request through its independently verified PUNI/toolkit
  * child. Native installation selection precedes child-path joining; current physical placement
  * enumerates the verified current roles. Lint/preparation retain their separate owned routes.
  * @throws for package/runtime/placement failures or signaled validator execution.
@@ -149,6 +154,7 @@ export function executeCurrentRequest(request: ValidatorRequest, context: Contex
   const directory = realpathSync.native(context.installedDirectory);
   // Proof: c28-ordinary-current-profile; Old package with otherwise valid toolkit2; asserts no candidate Git or launch before diagnostic.; injected fault failed `refuses a complete old package profile with valid toolkit2 before ordinary candidate Git or launch`; restoration passed.
   const toolkit = readInstalledPuniToolkit(directory, join(directory, 'toolkit'));
+  if(request.command==='lint-ci')readCommittedBunToolkit(toolkit.directory);
   return executeValidator(request, { ...context, installedDirectory: directory }, toolkit);
 }
 
@@ -156,7 +162,7 @@ export function executeCurrentRequest(request: ValidatorRequest, context: Contex
 function executeValidator(
   request: ValidatorRequest,
   context: Context,
-  toolkit: Toolkit | BunToolkit,
+  toolkit: Toolkit | BunExecutionToolkit,
 ): number {
   const environment: Record<string, string> = {
     ...createGitEnvironment(context.path),
@@ -169,7 +175,7 @@ function executeValidator(
       binding.length === 0 ? binding : anchorPath(binding, context.callerDirectory);
   const candidate = readCandidateDirectory(request, context, toolkit.directory, environment);
   if (candidate !== undefined) {
-    if (toolkit.schemaVersion === 2)
+    if (toolkit.schemaVersion !== 1)
       assertInstalledPlacement(candidate, context.installedDirectory, toolkit);
     else assertInstallation(candidate, context.installedDirectory, toolkit.directory);
   }
@@ -227,6 +233,16 @@ export async function executeLint(request: LintRequest, context: LintContext): P
   const invocation = { version: 1 as const, callerDirectory: context.callerDirectory, request };
   const selected = await readInstalledLint(invocation, context);
   if (selected.kind === 'cancelled') return selected.status;
+  return executeSelectedLint(invocation, selected, context);
+}
+
+/** Launch once from the already verified installed selection, preserving its exact owned route. */
+function executeSelectedLint(
+  invocation: LintInvocation,
+  selected: Extract<InstalledLint, { kind: 'ready' }>,
+  context: LintContext,
+): Promise<number> {
+  if(context.required)readCommittedBunToolkit(selected.toolkit.directory);
   const environment: Record<string, string> = {
     // Proof: facade-environment; `passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher` failed with the recorded source fault and passed after restoration.
     ...selected.runtime.environment,
@@ -255,16 +271,102 @@ export async function executeLint(request: LintRequest, context: LintContext): P
   });
 }
 
+/** The reusable audit caller owns outputs/signals; configured required policy is not optional input. */
+export type PushAuditContext = Omit<LintContext, 'required'>;
+
+/**
+ * Verify the current installation/candidate first, then apply the configured archive release join.
+ * Wholly absent configuration returns the historical explicit push inactivity report. Configured
+ * audit always uses committed lint with required certification, through the same selected owner.
+ * @throws for unexpected preflight, output or ownership failures; modeled archive refusals return78.
+ */
+export async function executePushAudit(
+  request: PushAuditRequest,
+  context: PushAuditContext,
+): Promise<number> {
+  const invocation: LintInvocation = {
+    version: 1,
+    callerDirectory: context.callerDirectory,
+    request: {
+      command: 'lint',
+      // Proof: replacing committed with working made
+      // `joins the configured root release and runs committed certification through one installed launcher`
+      // receive 1 at its initial expected-0 assertion; later argv/stdin checks were unreached.
+      kind: 'committed',
+      repository: request.repository,
+      revision: request.revision,
+    },
+  };
+  const selected = await readInstalledLint(invocation, context);
+  // Proof: omitting this selected-cancellation return made
+  // `returns prior cancellation before absent installation or configured authority IO`
+  // receive 78 instead of 143; shared preflight guards remained unchanged.
+  if (selected.kind === 'cancelled') return selected.status;
+  let policy: 'inactive' | 'configured';
+  try {
+    policy = readPushAudit({
+      activationRoot: context.activationRoot,
+      callerDirectory: context.callerDirectory,
+      candidateRoot: selected.candidateDirectory,
+      toolkit: selected.toolkit,
+    });
+  } catch (cause) {
+    // Proof: omitting this unexpected-cause rethrow made
+    // `preserves an unexpected policy dependency failure exactly: undefined`
+    // receive TypeError instead of the exact thrown undefined.
+    if (!(cause instanceof LintActivationRefusal)) throw cause;
+    const written = await context.stderr(
+      Buffer.from('tool-wiki push audit: ' + cause.message + '\n'),
+    );
+    // Proof: ignoring the returned stderr cancellation made
+    // `preserves configured refusal stderr cancellation as SIGTERM`
+    // receive 78 instead of 143; no independent SIGINT or output-throw proof.
+    return written.kind === 'cancelled' ? (written.signal === 'SIGINT' ? 130 : 143) : cause.status;
+  }
+  if (policy === 'inactive') {
+    const written = await context.stdout(
+      Buffer.from(
+        '{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation marker is not provisioned"}\n',
+      ),
+    );
+    // Proof: ignoring the returned stdout cancellation made
+    // `preserves inactive stdout cancellation as SIGTERM`
+    // receive 0 instead of 143; no independent SIGINT or absence-policy proof.
+    return written.kind === 'cancelled' ? (written.signal === 'SIGINT' ? 130 : 143) : 0;
+  }
+  // Proof: changing only this inner required override to false made
+  // `forces required certification despite a reusable caller required=false: {}`
+  // receive 0 instead of 78; the outer override is not an independent proof.
+  return executeSelectedLint(invocation, selected, { ...context, required: true });
+}
+
+/**
+ * Normalize only the executable boundary's raw environment spelling or trusted Boolean input.
+ * Undefined and exact0 mean optional, exact1 means required; no trimming or alternate spelling.
+ * @throws LintUsageRefusal for every other raw string, including an explicitly empty setting.
+ */
+function readRequiredSetting(required: boolean | string | undefined): boolean {
+  if (typeof required === 'boolean') return required;
+  if (required === undefined || required === '0') return false;
+  if (required === '1') return true;
+  // Proof: removing this throw made the raw executable setting "true" control
+  // execute its forbidden validator and return 1 instead of 64 (N2).
+  throw new LintUsageRefusal('TOOL_WIKI_REQUIRE_CERTIFIED must be 0 or 1');
+}
+
 /** Caller-selected lookup authority, captured independently of the provider being verified. */
 export interface LintExecutableContext extends Omit<
   LintContext,
-  'runtime' | 'stdout' | 'stderr' | 'reportDiagnostic' | 'subscribeInterrupts'
+  'runtime' | 'required' | 'stdout' | 'stderr' | 'reportDiagnostic' | 'subscribeInterrupts'
 > {
   readonly lookup: { readonly directory: string; readonly path: string | undefined };
+  /** Raw or typed admission setting, normalized inside the executable owner before prerequisite IO. */
+  readonly required: boolean | string | undefined;
 }
 
 /**
  * Run a typed installed lint operation with executable-owned signals, output and diagnostics.
+ * Raw required admission is normalized inside this owner before prerequisite IO.
  * Runtime construction occurs inside that owner; it never reads stdin or reparses user argv.
  * The root must perform its mode-specific terminal exit only after this owner returns, since
  * unconfirmed preflight cleanup or abandoned native output may retain refs independently of
@@ -274,18 +376,53 @@ export function runInstalledLint(
   request: LintRequest,
   context: LintExecutableContext,
 ): Promise<number> {
+  return runInstalledOperation(request, context);
+}
+
+/** Execute current audit inside the existing lint owner; no caller-required value can disable it. */
+export function runInstalledPushAudit(
+  request: PushAuditRequest,
+  context: Omit<LintExecutableContext, 'required'>,
+): Promise<number> {
+  return runInstalledOperation(request, { ...context, required: true });
+}
+
+/** Both typed operations share runtime construction, output/signals and exactly one owner. */
+function runInstalledOperation(
+  request: LintRequest | PushAuditRequest,
+  context: LintExecutableContext,
+): Promise<number> {
   // Proof: typed-runtime-inside-owner; moving runtime construction before this owner failed `contains runtime construction failure through the executable bounded reporter`; restoration passed.
   // Proof: typed-no-stdin; reading Bun.stdin.stream here failed `owns typed installed execution without stdin or argv re-entry and preserves binary verdict37`; restoration passed.
-  return runLintOperation(({ outputs, subscribeInterrupts }) => {
+  return runLintOperation(async ({ outputs, subscribeInterrupts }) => {
+    let required: boolean;
+    try {
+      required = readRequiredSetting(context.required);
+    } catch (cause) {
+      // Proof: removing this filter changed the undefined-accessor control's exact
+      // undefined diagnostic to a cause.message TypeError (N5); status 1 already passed.
+      if (!(cause instanceof LintUsageRefusal)) throw cause;
+      // Proof: removing await made the modeled SIGINT diagnostic-write control
+      // return 64 instead of 130 (N3), without an OS-delivery or native-flush claim.
+      const written = await outputs.stderr(Buffer.from('tool-wiki lint: ' + cause.message + '\n'));
+      // Proof: omitting this returned mapping made the same modeled SIGINT control
+      // return 64 instead of 130 (N4); SIGTERM has ordinary coverage only.
+      return written.kind === 'cancelled'
+        ? written.signal === 'SIGINT'
+          ? 130
+          : 143
+        : cause.status;
+    }
     // Proof: typed-lookup-origin; rebasing lookup onto the provider failed `freezes relative Git lookup at the independently captured origin instead of provider directories`; restoration passed.
     const path = context.lookup.path;
     // Proof: root-lint-empty-path; `preserves explicitly empty root lint PATH as the selected trusted directory` failed under its recorded production fault and passed after restoration.
     // Proof: root-lint-path-refusal; `reports absent root lint PATH inside its bounded executable reporter` failed under its recorded production fault and passed after restoration.
     if (path === undefined) throw new Error('trusted executable PATH is required for Burokrat');
     const runtime = readLintRuntime(path, context.lookup.directory);
-    return executeLint(request, {
+    const execution = {
       // Proof: typed-required-setting; overriding required to false failed `preserves required admission status78 through the typed executable owner`; restoration passed.
       ...context,
+      required,
       runtime,
       // Proof: typed-output-wiring; routing stdout to stderr failed `owns typed installed execution without stdin or argv re-entry and preserves binary verdict37`; restoration passed.
       stdout: outputs.stdout,
@@ -293,6 +430,9 @@ export function runInstalledLint(
       reportDiagnostic: outputs.reportDiagnostic,
       // Proof: typed-native-cancellation; replacing the subscription with a no-op failed `delivers actual native cancellation through the typed owner and removes its live stage`; restoration passed.
       subscribeInterrupts,
-    });
+    };
+    return request.command === 'lint'
+      ? executeLint(request, execution)
+      : executePushAudit(request, execution);
   }, false);
 }

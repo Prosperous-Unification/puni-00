@@ -5,14 +5,17 @@ import { dirname, isAbsolute, join, sep } from 'node:path';
 
 import {
   buildPuniAssets,
+  buildLocalPuniAssets,
   captureCommittedSource,
+  captureWorkingSource,
   readBuildFile,
   readBuildSource,
+  readWorkingBuildSource,
   readCapturedBuildFile,
   ToolkitBuildFailure,
 } from '@puni/burokrat/packaging';
 
-import { packageVersion } from '../version';
+import { createPackageMetadata } from './metadata';
 
 interface Request {
   readonly repository: string;
@@ -38,14 +41,28 @@ function hashBytes(bytes: Uint8Array): string {
 /**
  * Assemble a local package from one explicit commit and independently admitted installation.
  * The caller owns diagnostic/terminal lifetime. One interruption subscription spans capture,
- * seven-program production and metadata delivery; original and release failures outrank late
+ * required-program production and metadata delivery; original and release failures outrank late
  * cancellation. Metadata has no install hooks, and documentation comes from the same capture.
  * Native package placement derives from the delivered toolkit, including relative operands.
  * Every failed write retains package/work roots. No clean-release/publication claim follows.
  */
-export async function buildPackage(request: Request, context: Context) {
+export function buildPackage(request:Request,context:Context){
+  return assemblePackage({kind:'committed',request},context);
+}
+
+/**
+ * Assemble local development assets from exact tracked/nonignored working bytes and modes.
+ * The real base remains a reference, while the complete working identity is delivered through
+ * toolkit, profile, assets and selection. The committed package path retains its own admission;
+ * both paths share the same source materializer, compiler, package layout and retained owners.
+ */
+export function buildWorkingPackage(request:Omit<Request,'revision'>,context:Context){
+  return assemblePackage({kind:'working',request},context);
+}
+
+async function assemblePackage(capture:{readonly kind:'committed';readonly request:Request}|{readonly kind:'working';readonly request:Omit<Request,'revision'>},context:Context){
   // Proof: c28-assembly-input-capture; injected fault failed `captures package request caller and runtime fields before subscription aliases mutate`; restoration passed.
-  const selected = { ...request },
+  const selected = capture.kind==='committed'?{...capture.request,kind:'committed' as const}:{...capture.request,kind:'working' as const},
     callerDirectory = context.callerDirectory;
   const captureContext = {
     repository: selected.repository,
@@ -72,14 +89,13 @@ export async function buildPackage(request: Request, context: Context) {
     // Proof: c28-assembly-prior-cancel; injected fault failed `returns prior package cancellation before malformed revision or absent authority IO`; restoration passed.
     if (prior !== undefined) return prior;
     // Proof: c28-assembly-early-revision; Ordering control asserts Git marker absent before checking the early grammar diagnostic.; injected fault failed `refuses malformed package revision before any Git query capture install read or output`; restoration passed.
-    if (!/^[0-9a-f]{40}$/u.test(selected.revision))
+    if (selected.kind==='committed' && !/^[0-9a-f]{40}$/u.test(selected.revision))
       throw new Error('PUNI package revision must be a full commit identity');
     const caller = realpathSync.native(callerDirectory);
     // Proof: c28-assembly-preflight-wire; Preflight wiring/order; otherwise the absent installation is read and loses supported-Git admission.; injected fault failed `requires supported Git before source capture install reads or package output`; restoration passed.
-    const selection = await readBuildSource(
-      { repository: selected.repository, revision: selected.revision },
-      { ...captureContext, callerDirectory: caller },
-    );
+    const selection = selected.kind==='committed'
+      ? await readBuildSource({ repository:selected.repository, revision:selected.revision },{...captureContext,callerDirectory:caller})
+      : await readWorkingBuildSource({repository:selected.repository},{...captureContext,callerDirectory:caller});
     if (selection.kind === 'cancelled') {
       const interrupted = cancellation();
       // Proof: c28-assembly-owner-preflight; May produce a later TypeError or undefined outcome; exact assertion establishes controlled-owner refusal, not successful IO admission.; injected fault failed `refuses preflight cancellation without the owning package broker`; restoration passed.
@@ -93,11 +109,17 @@ export async function buildPackage(request: Request, context: Context) {
         ? selected.installationDirectory
         : caller + (caller.endsWith(sep) ? '' : sep) + selected.installationDirectory,
     );
-    const captured = await captureCommittedSource(selected.revision, {
-      ...captureContext,
+    const captured = await (async()=>{
+      const sourceContext={...captureContext,
       // Proof: c28-assembly-capture-root; Relative interior caller/runtime distinction in actual capture, not a cleanliness/release claim.; injected fault failed `packs and installs the captured PUNI package outside its checkout with protected startup and all three providers`; restoration passed.
-      repository: selection.directory,
-    });
+        repository:selection.directory};
+      if(selected.kind==='working'){
+        const observed=await captureWorkingSource(sourceContext);
+        return observed.kind==='cancelled'?observed:{kind:'working' as const,source:observed.source};
+      }
+      const observed=await captureCommittedSource(selected.revision,sourceContext);
+      return observed.kind==='cancelled'?observed:{kind:'committed' as const,source:observed.source};
+    })();
     if (captured.kind === 'cancelled') {
       const interrupted = cancellation();
       // Proof: c28-assembly-owner-capture; May produce a later TypeError or undefined outcome; exact assertion establishes controlled-owner refusal, not successful IO admission.; injected fault failed `refuses capture cancellation without the owning package broker`; restoration passed.
@@ -111,8 +133,10 @@ export async function buildPackage(request: Request, context: Context) {
       path,
       bytes: readCapturedBuildFile(captured.source, sourcePath),
     }));
-    const built = await buildPuniAssets(
-      captured.source,
+    const produceAssets=captured.kind==='committed'
+      ? buildPuniAssets.bind(undefined,captured.source)
+      : buildLocalPuniAssets.bind(undefined,captured.source);
+    const built = await produceAssets(
       { work: selected.work, destination: selected.destination },
       {
         callerDirectory,
@@ -133,22 +157,7 @@ export async function buildPackage(request: Request, context: Context) {
       return interrupted;
     }
     const packageDirectory = dirname(dirname(built.toolkit.directory));
-    const metadata = Buffer.from(
-      JSON.stringify(
-        {
-          name: 'puni',
-          version: packageVersion,
-          type: 'module',
-          description: 'PUNI Navigator, Burokrat and Dash',
-          license: 'MIT',
-          bin: { puni: 'dist/puni.mjs' },
-          files: ['dist/', 'README.md', 'LICENSE', 'NOTICE'],
-          engines: { bun: Bun.version },
-        },
-        null,
-        2,
-      ) + '\n',
-    );
+    const metadata = createPackageMetadata(Bun.version);
     for (const file of [{ path: 'package.json', bytes: metadata }, ...documents]) {
       const interrupted = cancellation();
       // Proof: c28-assembly-before-files; injected fault failed `stops metadata delivery after producer cancellation while retaining its owned roots` and 1 additional named controls; restoration passed.

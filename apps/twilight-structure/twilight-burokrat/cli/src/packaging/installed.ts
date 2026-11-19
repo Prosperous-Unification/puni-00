@@ -6,13 +6,19 @@ import { parseOrThrow, parseSecretsOrThrow } from '@shared/validation';
 import { readJson, readOperatorFile } from '../policy/preparation-inputs';
 import {
   type BunToolkit,
+  type BunExecutionToolkit,
+  readSelectedBunToolkit,
   readBunToolkit,
   readToolkit,
   type Toolkit,
   type VerifiedToolkit,
 } from '../policy/toolkit';
 import { PackageManifest } from './manifest';
-import { PuniManifest, puniVersion } from './puni-manifest';
+import { PuniManifest } from './puni-manifest';
+import { PuniTestLevelManifest } from './puni-test-levels';
+import { readRequiredTestLevelAssets } from './test-level-asset-files';
+
+const PuniInstalledManifest = PuniManifest.or(PuniTestLevelManifest);
 
 /** Decode the installed package boundary before selecting or reading any toolkit. */
 function readPackageManifest(distDirectory: string): typeof PackageManifest.infer {
@@ -96,7 +102,7 @@ export function readInstalledBunToolkit(
   return toolkit;
 }
 
-function readPuniPackageManifest(directory: string): typeof PuniManifest.infer {
+function readPuniPackageManifest(directory: string): typeof PuniInstalledManifest.infer {
   const path = join(directory, 'package-manifest.json');
   let bytes: Uint8Array;
   try {
@@ -114,7 +120,7 @@ function readPuniPackageManifest(directory: string): typeof PuniManifest.infer {
     throw new Error('installed PUNI package manifest is malformed: ' + path, { cause });
   }
   try {
-    return parseSecretsOrThrow(PuniManifest, input);
+    return parseSecretsOrThrow(PuniInstalledManifest, input);
   } catch (cause) {
     // Proof: c28-profile-invalid-context; Invalid field boundary diagnostic, not admission.; injected fault failed `refuses undeclared current package fields with an otherwise valid native toolkit`; restoration passed.
     throw new Error('installed PUNI package manifest is invalid: ' + path, { cause });
@@ -122,7 +128,7 @@ function readPuniPackageManifest(directory: string): typeof PuniManifest.infer {
 }
 
 /**
- * Require PUNI's current package profile and toolkit2 before current operation admission.
+ * Require the explicitly claimed closed PUNI profile and its matching toolkit before admission.
  * The descriptor digest, captured source revision and release tag must agree with separately
  * selected package metadata. Historical0.2.1/profile execution readers remain separate.
  * Native package/toolkit selection preserves symlink-parent meaning; later physical placement
@@ -133,11 +139,14 @@ function readPuniPackageManifest(directory: string): typeof PuniManifest.infer {
 export function readInstalledPuniToolkit(
   distDirectory: string,
   toolkitDirectory: string,
-): BunToolkit {
+): BunExecutionToolkit {
   // Proof: c28-profile-native-package; injected fault failed `preserves native symlink-parent selection of a different valid PUNI installation`; restoration passed.
   const manifest = readPuniPackageManifest(realpathSync.native(distDirectory));
   // Proof: c28-profile-native-toolkit; injected fault failed `preserves native symlink-parent selection of a different valid PUNI installation`; restoration passed.
-  const toolkit = readBunToolkit(realpathSync.native(toolkitDirectory));
+  const selected=manifest.packageVersion==='0.4.0'
+    ?{kind:'selected' as const,toolkit:readSelectedBunToolkit(realpathSync.native(toolkitDirectory),manifest.sourceSelection)}
+    :{kind:'historical' as const,toolkit:readBunToolkit(realpathSync.native(toolkitDirectory))};
+  const toolkit=selected.toolkit;
   // Proof: c28-profile-digest; injected fault failed `refuses a self-consistent toolkit whose descriptor differs from the selected package identity`; restoration passed.
   if (toolkit.digest !== manifest.toolkitIdentity)
     throw new Error('installed toolkit differs from PUNI package manifest');
@@ -145,7 +154,9 @@ export function readInstalledPuniToolkit(
   if (toolkit.sourceRevision !== manifest.sourceRevision)
     throw new Error('installed toolkit source differs from PUNI package manifest');
   // Proof: c28-profile-tag; injected fault failed `refuses package-bound toolkit with a different release tag`; restoration passed.
-  if (toolkit.tag !== 'puni-v' + puniVersion)
+  if (toolkit.tag !== 'puni-v' + manifest.packageVersion)
     throw new Error('installed toolkit release differs from PUNI package version');
+  if (selected.kind === 'selected')
+    readRequiredTestLevelAssets(distDirectory, selected.toolkit);
   return toolkit;
 }

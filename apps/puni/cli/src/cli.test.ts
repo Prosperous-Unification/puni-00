@@ -424,3 +424,197 @@ it('formats an operation error as one plain line without nested cause messages',
     diagnostic: 'error: first second line\n',
   });
 });
+
+for (const namespace of ['burokrat', 'bur', 'b']) {
+  it(namespace + ' discovers audit-push help without runtime lookup or authority IO', async () => {
+    const root = createRoot();
+    const captured = createContext(root);
+    expect(
+      await main([namespace, 'audit-push', '--help'], {
+        ...captured.context,
+        installation: { directory: '/absent/install', entrypoint: '/absent/puni.mjs' },
+        lookup: { directory: '/absent/lookup', path: undefined },
+        callerDirectory: '/absent/caller',
+        temporaryDirectory: '/absent/scratch',
+      }),
+    ).toEqual({ kind: 'drain', status: 0 });
+    expect(text(captured.stdout)).toContain('audit-push');
+    expect(text(captured.stderr)).toBe('');
+  });
+  for (const required of ['0', 'invalid']) {
+    it(
+      namespace + ' forwards typed audit-push once without a caller required override: ' + required,
+      () => {
+        const root = createRoot();
+        const program = [
+          'import{mock}from"bun:test";',
+          'let calls=0;let observation;let completed=false;',
+          'mock.module("@puni/burokrat/runtime",()=>({runInstalledPushAudit:async(request,context)=>{calls++;observation={request,installedDirectory:context.installedDirectory,callerDirectory:context.callerDirectory,lookup:context.lookup,activationRoot:context.activationRoot,trustedNodeModules:context.trustedNodeModules,scratchDirectory:context.scratchDirectory,hasRequired:Object.hasOwn(context,"required"),launch:context.launch("/external/current/launcher.mjs")};await Bun.sleep(1);completed=true;return 37;},runInstalledLint:()=>{throw new Error("audit entered ordinary lint");},executeCurrentRequest:()=>{throw new Error("audit entered ordinary validator");}}));',
+          'const{main}=await import(' +
+            JSON.stringify(new URL('./entrypoint.ts', import.meta.url).href) +
+            ');',
+          'const context=' +
+            JSON.stringify({
+              installation: {
+                directory: root + '/external installation',
+                entrypoint: root + '/external installation/puni.mjs',
+              },
+              lookup: { directory: root + '/trusted lookup', path: '/usr/bin:/bin' },
+              callerDirectory: root + '/caller',
+              runtime: process.execPath,
+              temporaryDirectory: root + '/scratch',
+              environment: {
+                TOOL_WIKI_ACTIVATION_ROOT: '../archive',
+                TOOL_WIKI_TRUSTED_NODE_MODULES: '../closure',
+                TOOL_WIKI_REQUIRE_CERTIFIED: required,
+              },
+            }) +
+            ';context.stdout=()=>{throw new Error("unexpected root output");};context.stderr=()=>{throw new Error("unexpected root diagnostic");};',
+          'process.argv=[process.execPath,"misleading-entry","b","lint","working","wrong","HEAD"];',
+          'const completion=await main(' +
+            JSON.stringify([namespace, 'audit-push', '../candidate with spaces', 'HEAD~1']) +
+            ',context);',
+          'process.stdout.write(JSON.stringify({completion,calls,completed,observation}));',
+        ].join('\n');
+        const child = Bun.spawnSync(
+          [process.execPath, '--no-env-file', '--config=/dev/null', '--eval', program],
+          {
+            cwd: import.meta.dir,
+            env: { PATH: '/usr/bin:/bin' },
+            stdout: 'pipe',
+            stderr: 'pipe',
+            timeout: 10000,
+          },
+        );
+        expect(child.exitCode, child.stderr.toString()).toBe(0);
+        expect(JSON.parse(child.stdout.toString())).toEqual({
+          completion: { kind: 'exit', status: 37 },
+          calls: 1,
+          completed: true,
+          observation: {
+            request: {
+              command: 'audit-push',
+              repository: '../candidate with spaces',
+              revision: 'HEAD~1',
+            },
+            installedDirectory: root + '/external installation',
+            callerDirectory: root + '/caller',
+            lookup: { directory: root + '/trusted lookup', path: '/usr/bin:/bin' },
+            activationRoot: '../archive',
+            trustedNodeModules: '../closure',
+            scratchDirectory: root + '/scratch',
+            hasRequired: false,
+            launch: [
+              '/usr/bin/env',
+              '-u',
+              'BUN_OPTIONS',
+              '-u',
+              'BUN_INSPECT_PRELOAD',
+              '-u',
+              'NODE_OPTIONS',
+              '-u',
+              'BUN_BE_BUN',
+              process.execPath,
+              '--no-env-file',
+              '--config=/dev/null',
+              '/external/current/launcher.mjs',
+            ],
+          },
+        });
+      },
+    );
+  }
+}
+
+for (const namespace of ['dash', 'd']) {
+  it(
+    namespace + ' resolves configured development ports through the actual PUNI root',
+    async () => {
+      const root = createRoot();
+      const repository = join(root, 'consumer repository with spaces');
+      const apps = join(repository, 'apps/wbs');
+      mkdirSync(join(apps, 'be-01'), { recursive: true });
+      mkdirSync(join(apps, 'gw-01'));
+      mkdirSync(join(apps, 'mcp-01'));
+      const configured = join(apps, 'be-01/.env');
+      writeFileSync(configured, 'PORT=43117\nOTHER=value\nPORT=43119  \n');
+      writeFileSync(join(apps, 'gw-01/.env'), 'OTHER=value\n');
+      expect(readFileSync(configured, 'utf8')).toBe('PORT=43117\nOTHER=value\nPORT=43119  \n');
+      expect(readdirSync(join(apps, 'mcp-01'))).toEqual([]);
+      const { context, stdout, stderr } = createContext(repository);
+      const completion = await main(
+        [namespace, 'dev-ports', 'resolve', '--repository', repository],
+        { ...context, environment: { PORT: '44221' } },
+      );
+      expect(completion).toEqual({ kind: 'drain', status: 0 });
+      expect(text(stdout)).toBe('be-01:43119\nfe-01:44221\n');
+      expect(text(stderr)).toBe(
+        'gw-01: ' +
+          join(apps, 'gw-01/.env') +
+          ' sets no PORT, so it has no configured port to check\n' +
+          'mcp-01: no ' +
+          join(apps, 'mcp-01/.env') +
+          ', so it has no configured port to check\n',
+      );
+    },
+  );
+
+  it(
+    namespace +
+      ' refuses a real IPv4 development listener without releasing it through the actual PUNI root',
+    async () => {
+      const root = createRoot();
+      const repository = join(root, 'consumer repository with spaces');
+      mkdirSync(repository);
+      const server = Bun.serve({
+        hostname: '127.0.0.1',
+        port: 0,
+        fetch: () => new Response('owned dev-port fixture'),
+      });
+      let primary: { readonly cause: unknown } | undefined;
+      try {
+        const url = 'http://127.0.0.1:' + String(server.port);
+        expect(await (await fetch(url)).text()).toBe('owned dev-port fixture');
+        const { context, stdout, stderr } = createContext(repository);
+        const completion = await main(
+          [
+            namespace,
+            'dev-ports',
+            'check',
+            '--repository',
+            repository,
+            'be-01:' + String(server.port),
+          ],
+          context,
+        );
+        expect(completion).toEqual({ kind: 'drain', status: 1 });
+        expect(text(stdout)).toBe('');
+        expect(text(stderr)).toContain(
+          'be-01 cannot start: port ' + String(server.port) + ' is already being served\n',
+        );
+        expect(text(stderr)).toContain(
+          'refusing to start the dev stack with 1 port(s) already served\n',
+        );
+        expect(text(stderr)).not.toContain('usage:');
+        expect(await (await fetch(url)).text()).toBe('owned dev-port fixture');
+      } catch (cause: unknown) {
+        primary = { cause };
+      }
+      let cleanup: { readonly cause: unknown } | undefined;
+      try {
+        await server.stop(true);
+      } catch (cause: unknown) {
+        cleanup = { cause };
+      }
+      if (primary !== undefined && cleanup !== undefined)
+        throw new AggregateError(
+          [primary.cause, cleanup.cause],
+          'dev-port fixture and server stop failed',
+          { cause: primary.cause },
+        );
+      if (primary !== undefined) throw primary.cause;
+      if (cleanup !== undefined)
+        throw new Error('dev-port fixture server stop failed', { cause: cleanup.cause });
+    },
+  );
+}

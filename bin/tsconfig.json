@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["tool-wiki-lint.ts", "dev-ports.ts", "dev.ts"]
+}

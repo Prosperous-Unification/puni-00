@@ -3,7 +3,7 @@ import { mkdir, open, symlink } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
 import type { LintInterrupt, SubscribeLintInterrupts } from '../lint-interrupts';
-import type { CommittedSource } from './committed-source';
+import type { SourceFiles } from './source-files';
 import { reserveProtectedDirectory, selectPreparationPaths } from './preparation-directory';
 import type { PreparationSource } from './preparation-source';
 
@@ -80,7 +80,7 @@ function isWithin(root: string, path: string): boolean {
  * source build, activation or archive is performed here.
  */
 export async function materializeProtectedSource(
-  source: CommittedSource,
+  source: SourceFiles,
   destination: string,
   context: ProtectedMaterializationContext,
 ): Promise<MaterializationOutcome> {
@@ -254,7 +254,7 @@ export async function materializeProtectedSource(
 
 /** Preserve preparation's complete authority enumeration over the shared captured-byte writer. */
 export async function materializeSource(
-  source: CommittedSource,
+  source: SourceFiles,
   destination: string,
   context: MaterializationContext,
 ): Promise<MaterializationOutcome> {

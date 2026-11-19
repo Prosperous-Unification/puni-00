@@ -18,7 +18,7 @@ import { collectAuthorityHost } from './installed-authority-supervision';
 import { assertSame, readClosed, readString } from './managed-cohort';
 import { decodeSolverPins, type SolverPins } from './solver-host';
 import { SOLVER_EDGE_STATE, solverHostPorts } from './solver-host';
-import { decodeSourceDevPins, type SourceDevPins } from './source-startup-manifest';
+import { decodeSourceStartupRequest, type SourceStartupRequest } from './source-startup-profile';
 import type { Color } from './state';
 
 /** Installed dormant profile only. The request supplies pins, never successful observations or live authority. */
@@ -32,11 +32,7 @@ export interface CompleteDependencyActivationRequest {
     readonly backend: { readonly color: Color; readonly image: string };
     readonly gateway: { readonly color: Color; readonly image: string };
   };
-  readonly source: {
-    readonly pins: SourceDevPins;
-    readonly manifestContents: string;
-    readonly runtimeReference: string;
-  };
+  readonly source: SourceStartupRequest;
   readonly authorities: {
     readonly pins: InstalledAuthorityPins;
     readonly writerManifestContents: string;
@@ -96,15 +92,8 @@ export function decodeCompleteDependencyActivationRequest(
     if (color !== 'blue' && color !== 'green') throw new Error('activation selected color differs');
     return { color, image: assertDigestPinnedRef(readString(fields['image']), tier) };
   }
-  const source = readClosed(request['source'], ['pins', 'manifestContents', 'runtimeReference']);
-  const pins = decodeSourceDevPins(source['pins']);
-  const manifestContents = readString(source['manifestContents']);
-  const runtimeReference = readString(source['runtimeReference']);
-  if (
-    Buffer.byteLength(manifestContents) > 64 * 1024 * 1024 ||
-    !/^(?:[a-z0-9][a-z0-9._:-]*\/)*[a-z0-9][a-z0-9._-]*@sha256:[a-f0-9]{64}$/.test(runtimeReference)
-  )
-    throw new Error('activation source reference or manifest differs');
+  const source = decodeSourceStartupRequest(request['source']);
+  const pins = source.pins;
   const authorities = readClosed(request['authorities'], ['pins', 'writerManifestContents']);
   const authorityPins = decodeInstalledAuthorityPins(authorities['pins']);
   const writerManifestContents = readString(authorities['writerManifestContents']);
@@ -133,7 +122,7 @@ export function decodeCompleteDependencyActivationRequest(
     activate,
     solver,
     prod: { backend, gateway },
-    source: { pins, manifestContents, runtimeReference },
+    source,
     authorities: { pins: authorityPins, writerManifestContents },
     migrations,
   });

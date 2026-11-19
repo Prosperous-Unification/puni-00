@@ -133,3 +133,56 @@ export async function runImageProbe(
     signal,
   );
 }
+
+interface CurrentImageNative {
+  readonly code: number | null;
+  readonly signal: unknown;
+  readonly failure: unknown;
+}
+/** Current-only transport joins both readable streams and both native status observations even when one arm rejects. */
+async function runCurrentImageIdentity(
+  root: string,
+  command: string[],
+  signal?: AbortSignal,
+): Promise<{ stdout: string; stderr: string; code: number }> {
+  if (!/^\/tmp\/source-image-[A-Za-z0-9]+$/.test(root) || (await realpath(root)) !== root ||
+      (await readFile(join(root, 'fixture-owned'), 'utf8')) !== 'source-image-probe-test-only-v1\n')
+    throw new Error('foreign current image identity fixture');
+  const native = Promise.withResolvers<CurrentImageNative>();
+  const child = Bun.spawn([
+    'bwrap', '--die-with-parent', '--new-session', '--unshare-user', '--uid', '1000', '--gid', '1000',
+    '--ro-bind', '/', '/', '--ro-bind', join(root, 'passwd'), '/etc/passwd', '--dev', '/dev', '--proc', '/proc', '--', ...command,
+  ], {
+    stdout: 'pipe', stderr: 'pipe', signal, killSignal: 'SIGKILL',
+    onExit(_child, code, observedSignal, failure) { native.resolve({ code, signal: observedSignal, failure }); },
+  });
+  const [stdout, stderr, code, observed] = await Promise.allSettled([
+    new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited, native.promise,
+  ]);
+  const failures: unknown[] = [];
+  for (const settled of [stdout, stderr, code, observed]) if (settled.status === 'rejected') failures.push(settled.reason);
+  if (failures.length !== 0) throw new AggregateError(failures, 'current image pipe/native settlement failed; owned fixture retained');
+  if (stdout.status !== 'fulfilled' || stderr.status !== 'fulfilled' || code.status !== 'fulfilled' || observed.status !== 'fulfilled')
+    throw new Error('current image settlement classification differs; owned fixture retained');
+  if (observed.value.failure !== undefined || observed.value.signal !== null || observed.value.code === null ||
+      observed.value.code !== code.value || !Number.isInteger(code.value) || code.value < 0)
+    throw new Error('current image native settlement is not confirmed normal; owned fixture retained', { cause: observed.value.failure });
+  return { stdout: stdout.value, stderr: stderr.value, code: code.value };
+}
+/** Current image probe transports only its fixed Bun program into the existing isolated numeric-user fixture. */
+export async function runCurrentImageProbe(
+  program: string,
+  root: string,
+  home: 'absent' | 'present',
+  signal?: AbortSignal,
+): Promise<{ stdout: string; stderr: string; code: number }> {
+  const marker = "const SOURCE_ROOT = '/src';";
+  if (program.split(marker).length !== 2) throw new Error('current image probe source mapping differs');
+  const translated = program.replace(marker, () => 'const SOURCE_ROOT = ' + JSON.stringify(join(root, 'src')) + ';');
+  return runCurrentImageIdentity(root, [
+    '/usr/bin/env', '-i', 'PATH=/usr/local/bin:/usr/bin:/bin',
+    'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0',
+    ...(home === 'present' ? ['HOME=' + join(root, 'image-home')] : []),
+    process.execPath, '--no-env-file', '--config=/dev/null', '--eval', translated,
+  ], signal);
+}

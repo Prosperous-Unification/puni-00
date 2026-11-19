@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
-import type { BunToolkit } from './policy/toolkit';
+import type { BunExecutionToolkit } from './policy/toolkit';
 
 function isWithin(root: string, path: string): boolean {
   const offset = relative(root, path);
@@ -23,7 +23,7 @@ export function assertExternal(candidate: string, path: string, subject: string)
 export function assertInstalledPlacement(
   candidate: string,
   directory: string,
-  toolkit: BunToolkit,
+  toolkit: BunExecutionToolkit,
 ): void {
   // Proof: placement-installation; the injected fault fails independently refuses a local installation with all asset targets external; restoration passes.
   assertExternal(candidate, directory, 'installation');

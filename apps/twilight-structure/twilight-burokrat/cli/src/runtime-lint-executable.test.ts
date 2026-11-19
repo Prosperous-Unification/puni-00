@@ -166,3 +166,186 @@ it('delivers actual native cancellation through the typed owner and removes its 
   }
   expect(absence).toMatchObject({ code: 'ESRCH' });
 });
+
+for (const entry of [
+  { required: undefined, status: 0 },
+  { required: '0', status: 0 },
+  { required: false, status: 0 },
+  { required: '1', status: 78 },
+  { required: true, status: 78 },
+] as const) {
+  it(
+    'normalizes executable required setting ' +
+      JSON.stringify(entry.required) +
+      ' without changing its admission verdict',
+    () => {
+      const fixture = createFixture('process.stdout.write("uncertified boundary report");');
+      const child = runFixture(fixture, { required: entry.required });
+      expect(child.exitCode, child.stderr.toString()).toBe(entry.status);
+      expect(child.stdout.toString()).toBe('uncertified boundary report');
+      expect(child.stderr).toEqual(
+        Buffer.from(
+          entry.status === 78
+            ? 'tool-wiki lint: required admission did not return certified enforce output\n'
+            : '',
+        ),
+      );
+      expect(readdirSync(fixture.scratch)).toEqual([]);
+    },
+  );
+}
+
+for (const required of ['', 'true', 'false', '2', ' 1 ']) {
+  it(
+    'refuses raw executable required setting ' +
+      JSON.stringify(required) +
+      ' with one owned usage diagnostic',
+    () => {
+      const fixture = createFixture(
+        'throw new Error("invalid required setting reached validator");',
+      );
+      const child = runFixture(fixture, { required });
+      expect(child.exitCode, child.stderr.toString()).toBe(64);
+      expect(child.stdout.length).toBe(0);
+      expect(child.stderr).toEqual(
+        Buffer.from('tool-wiki lint: TOOL_WIKI_REQUIRE_CERTIFIED must be 0 or 1\n'),
+      );
+      expect(readdirSync(fixture.scratch)).toEqual([]);
+    },
+  );
+}
+
+it('refuses a malformed required setting before runtime lookup or candidate IO', () => {
+  const fixture = createFixture('throw new Error("invalid required setting reached validator");');
+  const child = runFixture(fixture, {
+    required: 'true',
+    lookup: { directory: join(fixture.root, 'absent lookup'), path: undefined },
+  });
+  expect(child.exitCode, child.stderr.toString()).toBe(64);
+  expect(child.stdout.length).toBe(0);
+  expect(child.stderr).toEqual(
+    Buffer.from('tool-wiki lint: TOOL_WIKI_REQUIRE_CERTIFIED must be 0 or 1\n'),
+  );
+  expect(readdirSync(fixture.scratch)).toEqual([]);
+});
+
+/** Isolated child reuses the real owner/broker and existing FileSink seam; no parent writer changes. */
+function runRequiredDiagnosticCancellation(
+  fixture: ReturnType<typeof createFixture>,
+  signal: 'SIGINT' | 'SIGTERM',
+) {
+  const observations = join(fixture.root, 'required-diagnostic.json');
+  const configuration = {
+    installedDirectory: fixture.installedDirectory,
+    callerDirectory: fixture.root,
+    lookup: { directory: join(fixture.root, 'absent lookup'), path: undefined },
+    activationRoot: fixture.archive,
+    trustedNodeModules: undefined,
+    required: 'true',
+    scratchDirectory: fixture.scratch,
+  };
+  const program = [
+    'import{writeFileSync}from"node:fs";',
+    'import{runInstalledLint}from ' +
+      JSON.stringify(new URL('./runtime-facade.ts', import.meta.url).href) +
+      ';',
+    'import{createLaunch}from ' + JSON.stringify(import.meta.resolve('@shared/bun-startup')) + ';',
+    'const blocked=Promise.withResolvers();let diagnostic="",writes=0,flushes=0,unrefs=0;',
+    'Bun.stderr.writer=()=>({write(bytes){writes++;diagnostic+=Buffer.from(bytes).toString();process.emit(' +
+      JSON.stringify(signal) +
+      ');return blocked.promise;},flush(){flushes++;return 0;},unref(){unrefs++;}});',
+    'const status=await runInstalledLint(' +
+      JSON.stringify(fixture.invocation.request) +
+      ',{...' +
+      JSON.stringify(configuration) +
+      ',launch:entrypoint=>createLaunch(process.execPath,entrypoint)});',
+    'writeFileSync(' +
+      JSON.stringify(observations) +
+      ',JSON.stringify({status,diagnostic,writes,flushes,unrefs}));process.stdout.write(String(status));process.exit(status);',
+  ].join('\n');
+  const entrypoint = join(fixture.root, 'required-diagnostic.ts');
+  writeFileSync(entrypoint, program);
+  const child = Bun.spawnSync([...createLaunch(process.execPath, entrypoint)], {
+    cwd: fixture.root,
+    env: { PATH: '/usr/bin:/bin' },
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 10000,
+  });
+  return { child, observations };
+}
+
+for (const [signal, status] of [
+  ['SIGINT', 130],
+  ['SIGTERM', 143],
+] as const) {
+  it(
+    'preserves modeled ' + signal + ' cancellation while awaiting the invalid-setting diagnostic',
+    () => {
+      const fixture = createFixture('throw new Error("usage refusal must not execute validator");');
+      const { child, observations } = runRequiredDiagnosticCancellation(fixture, signal);
+      expect(child.exitCode, child.stderr.toString()).toBe(status);
+      expect(child.stdout.toString()).toBe(String(status));
+      expect(child.stderr.length).toBe(0);
+      const observed: unknown = JSON.parse(readFileSync(observations, 'utf8'));
+      expect(observed).toEqual({
+        status,
+        diagnostic: 'tool-wiki lint: TOOL_WIKI_REQUIRE_CERTIFIED must be 0 or 1\n',
+        writes: 1,
+        flushes: 0,
+        unrefs: 1,
+      });
+      expect(readdirSync(fixture.scratch)).toEqual([]);
+    },
+  );
+}
+
+it('preserves an unexpected undefined required accessor failure through the existing executable owner', () => {
+  const fixture = createFixture(
+    'throw new Error("unexpected required accessor must not execute validator");',
+  );
+  const observations = join(fixture.root, 'required-accessor.json');
+  const configuration = {
+    installedDirectory: fixture.installedDirectory,
+    callerDirectory: fixture.root,
+    lookup: { directory: fixture.root, path: '/usr/bin:/bin' },
+    activationRoot: fixture.archive,
+    trustedNodeModules: undefined,
+    required: false,
+    scratchDirectory: fixture.scratch,
+  };
+  const program = [
+    'import{writeFileSync}from"node:fs";',
+    'import{runInstalledLint}from ' +
+      JSON.stringify(new URL('./runtime-facade.ts', import.meta.url).href) +
+      ';',
+    'import{createLaunch}from ' + JSON.stringify(import.meta.resolve('@shared/bun-startup')) + ';',
+    'const context={...' +
+      JSON.stringify(configuration) +
+      ',launch:entrypoint=>createLaunch(process.execPath,entrypoint)};let reads=0;',
+    'Object.defineProperty(context,"required",{get(){reads++;throw undefined;}});',
+    'const status=await runInstalledLint(' +
+      JSON.stringify(fixture.invocation.request) +
+      ',context);',
+    'writeFileSync(' +
+      JSON.stringify(observations) +
+      ',JSON.stringify({reads}));process.exit(status);',
+  ].join('\n');
+  const entrypoint = join(fixture.root, 'required-accessor.ts');
+  writeFileSync(entrypoint, program);
+  const child = Bun.spawnSync([...createLaunch(process.execPath, entrypoint)], {
+    cwd: fixture.root,
+    env: { PATH: '/usr/bin:/bin' },
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 10000,
+  });
+  expect(child.exitCode, child.stderr.toString()).toBe(1);
+  expect(child.stdout.length).toBe(0);
+  expect(child.stderr.toString()).toBe('tool-wiki lint: undefined\n');
+  const observed: unknown = JSON.parse(readFileSync(observations, 'utf8'));
+  expect(observed).toEqual({ reads: 1 });
+  expect(readdirSync(fixture.scratch)).toEqual([]);
+});

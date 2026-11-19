@@ -57,6 +57,7 @@ export interface K3dLabRequest {
   readonly profile: K3dProfile;
   readonly worktreeRoot?: string;
   readonly solverRuntime?: string;
+  readonly puniInstallationRoot?: string;
   readonly resourceEvidence?: 'creation-v1';
   readonly objectStoreArchive?: string;
 }
@@ -118,7 +119,7 @@ export interface K3dLabTeardown {
  * The lab's durable record, read by `tool-devsync:dev-env`
  * (`tools/tool-devsync/src/k3s/dev-environment.ts`, `decodeLabRecord`).
  */
-export interface K3dLabRecord {
+export interface LegacyK3dLabRecord {
   readonly schemaVersion: 1;
   readonly labId: string;
   readonly profile: K3dProfile;
@@ -163,9 +164,44 @@ const K3dLabRecordSchema = type({
   '+': 'reject',
 });
 
+export interface PuniK3dLabRecord extends Omit<LegacyK3dLabRecord, 'schemaVersion'> {
+  readonly schemaVersion: 2;
+  readonly puniInstallationRoot: string;
+  readonly puniInstallationRootIdentity: string;
+}
+export type K3dLabRecord = LegacyK3dLabRecord | PuniK3dLabRecord;
+
+const PuniK3dLabRecordSchema = type({
+  schemaVersion: '2',
+  labId: 'string>0',
+  profile: "'app'|'platform'|'fleet'",
+  network: 'string>0',
+  registry: { host: 'string>0', hostPort: 'number.integer>0', '+': 'reject' },
+  httpPort: 'number.integer>0',
+  worktreeRoot: 'string>0',
+  worktreeRootIdentity: /^\d+:\d+$/,
+  solverRuntime: 'string>0',
+  puniInstallationRoot: 'string>0',
+  puniInstallationRootIdentity: /^\d+:\d+$/,
+  clusters: type({
+    name: 'string>0',
+    role: "'platform'|'workers'",
+    clusterId: 'string>0',
+    context: 'string>0',
+    kubeconfig: 'string>0',
+    apiPort: 'number.integer>0',
+    '+': 'reject',
+  })
+    .array()
+    .atLeastLength(1),
+  '+': 'reject',
+});
+
 /** Validate `lab.json` at its boundary; a malformed record is refused, never repaired. */
 export function decodeK3dLabRecord(text: string): K3dLabRecord {
-  const decoded = K3dLabRecordSchema(JSON.parse(text));
+  const input: unknown = JSON.parse(text);
+  const decoded = typeof input === 'object' && input !== null && 'schemaVersion' in input && input.schemaVersion === 2
+    ? PuniK3dLabRecordSchema(input) : K3dLabRecordSchema(input);
   if (decoded instanceof type.errors) throw new Error(`lab.json is malformed: ${decoded.summary}`);
   return decoded;
 }
@@ -212,6 +248,7 @@ export function parseK3dLabRequest(arguments_: readonly string[]): K3dLabRequest
         '--profile',
         '--worktree-root',
         '--solver-runtime',
+        '--puni-installation-root',
         '--resource-evidence',
         '--object-store-archive',
       ].includes(flag)
@@ -246,12 +283,13 @@ export function parseK3dLabRequest(arguments_: readonly string[]): K3dLabRequest
   }
   const worktreeRoot = flags.get('--worktree-root');
   const solverRuntime = flags.get('--solver-runtime');
+  const puniInstallationRoot = flags.get('--puni-installation-root');
   if (action === 'up' && worktreeRoot === undefined) {
     // The forge mounts worktrees from this prefix only. Guessing it (home, repository parent)
     // would expose unrelated checkouts to the node.
     throw new Error('k3d lab up requires --worktree-root <directory that holds your worktrees>');
   }
-  if (action !== 'up' && (worktreeRoot !== undefined || solverRuntime !== undefined)) {
+  if (action !== 'up' && (worktreeRoot !== undefined || solverRuntime !== undefined || puniInstallationRoot !== undefined)) {
     throw new Error(`k3d lab ${action} does not accept mount flags`);
   }
   const objectStoreArchive = flags.get('--object-store-archive');
@@ -268,6 +306,7 @@ export function parseK3dLabRequest(arguments_: readonly string[]): K3dLabRequest
     profile,
     ...(worktreeRoot === undefined ? {} : { worktreeRoot: resolve(worktreeRoot) }),
     ...(solverRuntime === undefined ? {} : { solverRuntime: resolve(solverRuntime) }),
+    ...(puniInstallationRoot === undefined ? {} : { puniInstallationRoot: resolve(puniInstallationRoot) }),
     ...(resourceEvidence === undefined ? {} : { resourceEvidence }),
     ...(objectStoreArchive === undefined ? {} : { objectStoreArchive }),
   };
@@ -831,6 +870,10 @@ async function upLab(
       ? join(state, 'solver-runtime')
       : await requireOwnedDirectory(request.solverRuntime, 'Solver runtime directory');
   await mkdir(solverRuntime, { recursive: true, mode: 0o700 });
+  const puniInstallationRoot = request.puniInstallationRoot === undefined
+    ? undefined
+    : await requireOwnedDirectory(request.puniInstallationRoot, 'PUNI installation root');
+  const puniInstallationIdentity = puniInstallationRoot === undefined ? undefined : await directoryIdentity(puniInstallationRoot);
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   const nodeImage = `${toolchain.runtimeImages.k3dNode.name}@${toolchain.runtimeImages.k3dNode.digest}`;
   const registryImage = `${toolchain.runtimeImages.registry.name}@${toolchain.runtimeImages.registry.digest}`;
@@ -842,7 +885,8 @@ async function upLab(
   for (const role of profile.clusters) {
     const name = role === 'platform' ? names.platform : names.workers;
     const apiPort = await freeLoopbackPort();
-    const template = await readFile(join(root, `infra/local/${role}.k3d.yaml`), 'utf8');
+    const templateName = role === 'platform' && puniInstallationRoot !== undefined ? 'platform-puni' : role;
+    const template = await readFile(join(root, `infra/local/${templateName}.k3d.yaml`), 'utf8');
     const configPath = join(state, `${name}.k3d.yaml`);
     await writeFile(
       configPath,
@@ -854,6 +898,7 @@ async function upLab(
         HTTP_PORT: String(httpPort),
         WORKTREE_ROOT: worktreeRoot,
         SOLVER_RUNTIME: solverRuntime,
+        ...(puniInstallationRoot === undefined ? {} : { PUNI_INSTALLATION_ROOT: puniInstallationRoot }),
         REGISTRY_HOST: names.registry,
         LAB_ID: request.labId,
       }),
@@ -898,6 +943,9 @@ async function upLab(
         binds: [
           { source: worktreeRoot, destination: '/srv/puni/worktrees' },
           { source: solverRuntime, destination: '/run/puni/solver' },
+          ...(puniInstallationRoot === undefined ? [] : [
+            { source: puniInstallationRoot, destination: '/srv/puni/puni-installations' },
+          ]),
           {
             source: type('string').assert(endpoint).slice('unix://'.length),
             destination: type('string').assert(endpoint).slice('unix://'.length),
@@ -1158,8 +1206,7 @@ async function upLab(
             ? undefined
             : { archive: objectStore.archive, requireNode: (name) => witness.requireNode(name) },
         );
-        const record: K3dLabRecord = {
-          schemaVersion: 1,
+        const commonRecord = {
           labId: request.labId,
           profile: request.profile,
           network: names.network,
@@ -1170,6 +1217,14 @@ async function upLab(
           solverRuntime,
           clusters,
         };
+        if (puniInstallationRoot !== undefined && await directoryIdentity(puniInstallationRoot) !== puniInstallationIdentity)
+          throw new Error("PUNI installation root changed during lab creation; mount identity is unconfirmed");
+        let record: K3dLabRecord;
+        if (puniInstallationRoot === undefined) record = { schemaVersion: 1, ...commonRecord };
+        else {
+          if (puniInstallationIdentity === undefined) throw new Error("PUNI installation mount has no retained creation identity");
+          record = { schemaVersion: 2, ...commonRecord, puniInstallationRoot, puniInstallationRootIdentity: puniInstallationIdentity };
+        }
         if (witness !== undefined) await witness.close();
         await writeFile(join(state, 'lab.json'), `${JSON.stringify(record, null, 2)}\n`, {
           mode: 0o600,

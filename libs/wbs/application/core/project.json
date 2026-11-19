@@ -3,7 +3,12 @@
   "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/wbs/application/core/src",
   "projectType": "library",
-  "tags": ["scope:shared", "ring:application", "runtime:isomorphic", "product:wbs"],
+  "tags": [
+    "scope:shared",
+    "ring:application",
+    "runtime:isomorphic",
+    "product:wbs"
+  ],
   "targets": {
     "lint": {
       "executor": "nx:run-commands",
@@ -23,7 +28,9 @@
         "command": "bun test src --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/application/core"
       },
-      "outputs": ["{projectRoot}/coverage"]
+      "outputs": [
+        "{projectRoot}/coverage"
+      ]
     },
     "test:unit": {
       "executor": "nx:run-commands",
@@ -31,26 +38,37 @@
         "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-core.unit.xml && files=$(find ./src -name '*.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-core:test:unit' >&2; exit 1; fi && bun test $files --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-core.unit.xml --timeout=10000",
         "cwd": "libs/wbs/application/core"
       },
-      "outputs": ["{projectRoot}/coverage"]
+      "outputs": [
+        "{projectRoot}/coverage"
+      ]
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
         "command": "bunx tsc --build --force libs/wbs/application/core/tsconfig.json"
       },
-      "dependsOn": ["typecheck:module"]
+      "dependsOn": [
+        "typecheck:module"
+      ]
     },
     "build:portable": {
       "executor": "nx:run-commands",
-      "inputs": ["default", "^production"],
+      "inputs": [
+        "default",
+        "^production"
+      ],
       "options": {
         "command": "bun build libs/wbs/application/core/testing/portable-composition.ts --target=browser --format=esm --outfile=dist/libs/wbs/application/core/portable-composition.js"
       },
-      "outputs": ["{workspaceRoot}/dist/libs/wbs/application/core/portable-composition.js"]
+      "outputs": [
+        "{workspaceRoot}/dist/libs/wbs/application/core/portable-composition.js"
+      ]
     },
     "test:portable": {
       "executor": "nx:run-commands",
-      "dependsOn": ["build:portable"],
+      "dependsOn": [
+        "build:portable"
+      ],
       "inputs": [
         "default",
         "^production",
@@ -59,15 +77,30 @@
       "options": {
         "command": "bunx playwright test --config=libs/wbs/application/core/playwright.config.ts"
       },
-      "outputs": ["{workspaceRoot}/tmp/core-portable-results"]
+      "outputs": [
+        "{workspaceRoot}/tmp/core-portable-results"
+      ]
     },
     "test:browser:portable:level": {
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "bun tools/tool-devsync/src/browser-level.ts portable",
-        "forwardAllArgs": false
-      }
+        "command": "bun --no-env-file --config=/dev/null apps/puni/cli/src/entrypoint.ts dash browser portable --repository .",
+        "forwardAllArgs": false,
+        "envFile": "tmp/puni-source-test-level.env",
+        "env": {
+          "PUNI_TEST_LEVEL_ROLE": "source"
+        }
+      },
+      "dependsOn": [
+        {
+          "target": "prepare-test-level-assets",
+          "projects": [
+            "puni-cli"
+          ],
+          "params": "ignore"
+        }
+      ]
     },
     "typecheck:module": {
       "executor": "nx:run-commands",

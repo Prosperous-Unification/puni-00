@@ -1,3 +1,4 @@
+import { decodeSourceStartupRequest, type CurrentSourceStartupRequest } from './source-startup-profile';
 import { fenceBackendsUnderOwner, inspectBackendFenceUnderOwner } from './backend-exclusion';
 import {
   type DependencyServingSelection,
@@ -212,7 +213,10 @@ export async function excludeSourceAndManagedUnderOwner<T>(
   namespaceProof: typeof verifyContainerNamespace,
   execDocker: DockerExec,
   expectedServing?: DependencyServingSelection,
+  startup?: CurrentSourceStartupRequest,
 ): Promise<T> {
+  const retained = startup === undefined ? undefined : decodeSourceStartupRequest(startup);
+  if (retained !== undefined && !('expectedProfile' in retained)) throw new Error('current dependency owner source profile differs');
   const { prod, dev } = layouts;
   await fenceDependencyIngress(owner, [prod, dev], runDocker, deadline, expectedServing);
   const value = await withSolverDrainUnderOwner(
@@ -262,7 +266,7 @@ export async function excludeSourceAndManagedUnderOwner<T>(
         } finally {
           await inspect();
         }
-      }),
+      }, retained),
   );
   return value;
 }

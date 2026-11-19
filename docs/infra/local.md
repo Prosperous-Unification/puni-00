@@ -539,3 +539,14 @@ bun tools/tool-fleet/src/lab-raw-allocation-cli.ts /absolute/path/to/disk.raw 85
 The CLI consumes `inspectRawAllocation` in [the Linux adapter](../../tools/tool-fleet/src/lab-raw-allocation.ts). It reads file allocation metadata without disk contents or filesystem synchronization; sparse, unsafe or unstable files refuse evidence. Keep the adjacent `lab-raw-allocation.py` when distributing a built CLI, and provide Python3. A successful inspection establishes allocation only. Creation, conversion, resource admission, guest boot and full platform readiness remain separate operations.
 
 Keep baseline inputs and native receipts under the owner-only ignored `.puni/fleet-labs/observability-baseline` directory so a reboot does not erase them. Missing old receipts never become successful acceptance. The existing platform/fleet profile admission remains unchanged; the separately approved small-component budgets do not establish full-stack sizing.
+
+
+### Current PUNI Forge installation inputs
+
+Current Forge up requires an independently reviewed absolute selection-record path and its independently expected SHA256 through --puni-selection and --puni-selection-sha256. The explicit local puni dash install-puni operation writes puni-selection.json only after owned installation and main verification, preserving its prior stdout. Retain the record digest through your authenticated delivery process; hashing an untrusted adjacent record is not authentication.
+
+Create the lab with explicit --puni-installation-root naming the stable parent of reviewed installation directories. Its schema2 record binds the observed directory identity and read-only node mapping. Current up refuses a historical schema1 lab; status/down keep that historical codec. The retained current record/package is rechecked before admission, Pod creation and supervisor launch. Never modify a consumed installation in place; these are repeated observations, not an atomic filesystem snapshot.
+
+Installation permission is a separate exact-directory allowlist, not worktree-root permission. Existing IfNotPresent trusted-parameter ConfigMaps do not silently acquire the new required owner/installation fields. Recreate a disposable lab with the current manifests, or deliberately transition the complete record using its serialized owner/rollback protocol before current up. Do not synthesize empty current owners for an existing claim.
+
+The supervisor uses the selected protected Bun/PUNI development command, not dev.sh. It permits no successor until the signalled PUNI parent confirms controlled normal completion; hard escalation or unknown settlement ends the supervisor. Actual read-only node/Pod mounting, detached Nx custody and current source-cold-v2 qualification remain required before claiming current operational acceptance. Frozen source-cold-v1 evidence and old runner/CI/script checks remain historical and are not relabelled.

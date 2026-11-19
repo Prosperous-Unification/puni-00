@@ -1,3 +1,4 @@
+import { decodeSourceStartupRequest, type CurrentSourceStartupRequest } from './source-startup-profile';
 import { createHash, randomUUID } from 'node:crypto';
 
 import { type RunDocker, runDockerBefore } from './docker-deadline';
@@ -19,6 +20,7 @@ export interface SourceDevExclusion {
   readonly [identity]: true;
 }
 interface SourceScope {
+  startup?: CurrentSourceStartupRequest;
   owner: DependencyOwner;
   layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout };
   sha: string;
@@ -224,7 +226,7 @@ async function observeMember(
   scope: SourceScope,
   inventory: readonly unknown[],
 ): Promise<SourceDevMember> {
-  const member = decodeSourceDev(findSource(inventory, scope.layouts.dev), scope.layouts.dev);
+  const member = decodeSourceDev(findSource(inventory, scope.layouts.dev), scope.layouts.dev, scope.startup);
   const resolved = (
     await scope.readDocker(
       ['image', 'inspect', '--format', '{{.Id}}', sourceDevContract(scope.layouts.dev).image],
@@ -270,7 +272,10 @@ export async function withSourceDevExcluded<T>(
   runDocker: RunDocker,
   deadline: number,
   action: (exclusion: SourceDevExclusion) => Promise<T>,
+  suppliedStartup?: CurrentSourceStartupRequest,
 ): Promise<T> {
+  const retainedStartup = suppliedStartup === undefined ? undefined : decodeSourceStartupRequest(suppliedStartup);
+  if (retainedStartup !== undefined && !('expectedProfile' in retainedStartup)) throw new Error('current source exclusion expected profile differs');
   layouts = structuredClone(layouts);
   if (layouts.prod.env !== 'prod' || layouts.dev.env !== 'dev' || !/^[a-f0-9]{40}$/.test(sha))
     throw new Error('source dev requires exact prod/dev layouts and full SHA');
@@ -278,6 +283,7 @@ export async function withSourceDevExcluded<T>(
   await assertDependencyOwner(owner, layouts.dev, sha);
   const docker = ownerDockerHashed(owner, layouts.dev, runDocker);
   const scope: SourceScope = {
+    startup: retainedStartup,
     owner,
     layouts,
     sha,
@@ -398,7 +404,7 @@ export async function inspectExcludedSourceMember(
   const raw = findSource(inventory, scope.layouts.dev);
   const observed = await observeMember(scope, inventory);
   const currentRaw = findSource(current, scope.layouts.dev);
-  decodeSourceDev(currentRaw, scope.layouts.dev);
+  decodeSourceDev(currentRaw, scope.layouts.dev, scope.startup);
   assertSame(
     identifySourceInventory(current, currentRaw),
     identifySourceInventory(inventory, raw),
@@ -446,6 +452,7 @@ export async function assertParkedSourceDev(
   deadline: number,
 ): Promise<void> {
   const scope: SourceScope = {
+    startup: expected.startup,
     owner,
     layouts,
     sha,

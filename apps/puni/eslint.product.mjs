@@ -54,5 +54,18 @@ export default ({
     // Proof: c28-packaging-alias; Actual resolved runtime/grammar aliases remain refused from package composition.; injected fault failed `PUNI package composition boundary > changes only the exact packaging allowance in the package composition root` and 2 additional named controls; restoration passed.
     // Proof: c28-packaging-anchors; Effective anchored-policy configuration proof only; no claim of Nx denial for unresolved fabricated aliases.; injected fault failed `PUNI package composition boundary > changes only the exact packaging allowance in the package composition root`; restoration passed.
     allowFacades(['apps/puni/cli/src/packaging/build.ts'], ['^@puni/burokrat/packaging$']),
+    allowFacades(['apps/puni/cli/src/packaging/install.ts'], ['^@puni/burokrat/packaging$']),
+    allowFacades(['apps/puni/cli/src/packaging/selection.ts'], ['^@puni/burokrat/installation$']),
+    allowFacades(['apps/puni/cli/src/packaging/test-levels.ts'], ['^@puni/dash/grammar$', '^@puni/dash/runtime$', '^@puni/burokrat/test-levels$']),
+    allowFacades(['apps/puni/cli/src/packaging/prepare-source-test-levels.ts'], ['^@puni/burokrat/packaging$', '^@puni/burokrat/test-levels$']),
+    allowFacades(['apps/puni/cli/src/packaging/prepare-test-level-assets-cli.ts'], ['^@puni/burokrat/packaging$']),
+    allowFacades(
+      ['tools/tool-devsync/src/k3s/forge-installation.ts'],
+      ['^@wbs/contracts/solver/supervisor-protocol$', '^@wbs/domain$', '^@puni/packaging$'],
+    ),
+    allowFacades(
+      ['tools/tool-remote-scripts/src/lib/source-puni-installation.ts'],
+      ['^@wbs/contracts/solver/supervisor-protocol$', '^@wbs/domain$', '^@puni/packaging$'],
+    ),
   ];
 };

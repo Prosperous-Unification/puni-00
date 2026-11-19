@@ -380,3 +380,60 @@ A canonical FD4 payload status followed by independently observed native keeper 
 - **WHEN** FD4 observation has not settled within its1000ms post-native-end observation budget
 - **THEN** one report is attempted and the actual reader/job/hold remain owned until stream settlement; expiry proves no writer/descendant/resource absence and authorizes no synthetic success
 - **AND** empty EOF, malformed/partial/duplicate bytes, read failure and close-before-end remain distinct from that unconfirmed state
+
+### Requirement: Host job operations may borrow executable control
+
+Run and calibration SHALL optionally borrow a provider-private GateControl subscription while standalone operations retain INT/TERM/HUP ownership. Borrowing SHALL convey cancellation information only, add no native listeners and retire only its registration after required native/FD4/resource/legacy-hold settlement.
+
+#### Scenario: Prior control prevents preflight and preserves provenance
+
+- **WHEN** a borrowed subscription replays prior external cancellation
+- **THEN** the operation refuses130 before catalogue/toolchain/runtime IO with a fixed redacted diagnostic and the parent retains the identical opaque reason
+- **AND** native prestart INT/TERM and standalone HUP retain130/143/129 respectively
+
+#### Scenario: Poststart transport preserves independent outcome authority
+
+- **WHEN** a borrowed operation receives a new control after start
+- **THEN** one current recipient receives each newer sequence once, external control uses TERM transport and the first reason stays stable
+- **AND** the operation preserves qualified FD4 payload status rather than rewriting it to parent cancellation status
+
+#### Scenario: Pending observation retains the borrowed registration
+
+- **WHEN** native or FD4 settlement remains unresolved or synchronous forwarding/reporting fails
+- **THEN** the operation retains its registration through required joins, never throws synchronously into GateControl, and reports retained causes after settlement
+
+#### Scenario: Retirement failure preserves independent operation and delivery causes
+
+- **WHEN** the operation's one retirement attempt throws after required joins
+- **THEN** retained delivery causes are still collected and a sole cause is rethrown unchanged, while concurrent original causes are aggregated by identity
+- **AND** retirement is never retried and the borrowed executable owner is not disposed
+
+#### Scenario: Missing native-lock cancellation provenance withdraws only the known unlaunched admission
+
+- **WHEN** the native-lock dependency returns cancelled without observed control after admission but before preparation or launch
+- **THEN** the operation retains its loud missing-control failure and withdraws only that known unprepared admission through the existing checked API
+- **AND** concurrent withdrawal failure retains both causes; an acquisition throw or unknown native ownership grants no new release authority
+
+
+### Requirement: Current source startup retains explicit PUNI authority
+
+The current source startup branch SHALL require the explicit wbs-source-cold-v2 profile, closed version2 pins, a canonical version2 manifest and exact independently digest-pinned PUNI selection contents. Its manifest SHALL bind the whole read-only external installation mapping and selected relative entrypoint. Current requests SHALL be retained through initial handoff, dependency exclusion, source inputs, database binding and container restoration without inference from container state. The historical version1 request and decoder SHALL retain their existing closed shape and launch rules.
+
+#### Scenario: Current request reaches the complete source boundary
+
+- **WHEN** a current request supplies its explicit profile, canonical manifest and matching independent selection pin
+- **THEN** the complete request decoder retains the current branch and detached selection bytes, while physical/native admission remains owned by its subsequent consumers
+
+#### Scenario: Historical and current source placement cannot be conflated
+
+- **WHEN** current pins omit their complete explicit current request, or a container substitutes another installation mount or mapped entrypoint
+- **THEN** the source boundary refuses instead of inferring a profile or a PUNI directory
+
+### Requirement: Supervisor source identity covers executed dependencies
+
+Before admitting a successor PUNI parent after frozen install, Forge SHALL re-observe its retained compiler-resolved source closure and explicit runtime/asset manifest. It SHALL refuse an unknown required lazy/native/data edge or changed loaded input. A directory-only source fingerprint SHALL NOT be represented as full loaded closure.
+
+#### Scenario: Frozen install changes a captured loaded input
+
+- **WHEN** an owned SDK or runtime asset changes after the supervisor captured its execution identity and before the next parent would start
+- **THEN** Forge refuses that successor and records no successor launch

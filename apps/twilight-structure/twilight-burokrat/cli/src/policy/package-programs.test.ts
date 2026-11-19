@@ -52,10 +52,12 @@ it('builds root five toolkit roles and observation once from captured programs a
   mkdirSync(dirname(metadataPath), { recursive: true });
   writeFileSync(metadataPath, 'module.exports={directory:__dirname,filename:__filename};');
   const rootPath = 'apps/puni/cli/src/entrypoint.ts',
-    observation = dash + 'activation/observation-service-cli.ts';
+    observation = dash + 'activation/observation-service-cli.ts',
+    forge = 'tools/tool-devsync/src/k3s/forge-supervisor-core.ts';
   for (const [path, kind] of [
     [rootPath, 'root-captured-B'],
     [observation, 'observation-captured-B'],
+    [forge, 'forge-captured-B'],
   ] as const) {
     const target = join(fixture.repository, path);
     mkdirSync(dirname(target), { recursive: true });
@@ -63,13 +65,13 @@ it('builds root five toolkit roles and observation once from captured programs a
       target,
       'import metadata from ' +
         JSON.stringify(
-          path === rootPath ? './metadata.cjs' : '../../../../../puni/cli/src/metadata.cjs',
+          path === rootPath ? './metadata.cjs' : path === forge ? '../../../../apps/puni/cli/src/metadata.cjs' : '../../../../../puni/cli/src/metadata.cjs',
         ) +
         ';import{MIGRATIONS}from ' +
         JSON.stringify(
           path === rootPath
             ? '../../../twilight-structure/twilight-dash/cli/src/runs/sqlite/format'
-            : '../runs/sqlite/format',
+            : path === forge ? '../../../../apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/format' : '../runs/sqlite/format',
         ) +
         ';console.log(JSON.stringify({kind:' +
         JSON.stringify(kind) +
@@ -104,7 +106,7 @@ it('builds root five toolkit roles and observation once from captured programs a
   );
   if (materialized.kind !== 'materialized')
     throw new Error('fixture materialization unexpectedly cancelled');
-  for (const path of [rootPath, observation, ...assets]) {
+  for (const path of [rootPath, observation, forge, ...assets]) {
     writeFileSync(join(fixture.repository, path), 'throw new Error("live source must not run");');
     writeFileSync(
       join(materialized.directory, path),
@@ -141,8 +143,11 @@ it('builds root five toolkit roles and observation once from captured programs a
       'prepare-relocation-activation.mjs',
       'puni.mjs',
       'observation-service.mjs',
+      'forge-supervisor.mjs',
+      'performance-judge.mjs',
     ].sort(),
   );
+  expect(built.runtimeAssetLoads).toEqual([]);
   const expected = assets
     .filter((path) => path.endsWith('/migration.sql'))
     .map((path) => {
@@ -160,6 +165,7 @@ it('builds root five toolkit roles and observation once from captured programs a
   for (const [program, kind] of [
     ['puni.mjs', 'root-captured-B'],
     ['observation-service.mjs', 'observation-captured-B'],
+    ['forge-supervisor.mjs', 'forge-captured-B'],
   ] as const) {
     const bytes = built.roleBytes[program],
       entry = join(fixture.root, program);

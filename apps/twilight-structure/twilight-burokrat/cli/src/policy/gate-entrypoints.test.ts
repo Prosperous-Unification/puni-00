@@ -1238,7 +1238,10 @@ await snapshotValidator({ bindingPath, validatorPath, candidateDirectory, destin
     expect(project.targets['lint']).toMatchObject({
       cache: false,
       inputs: ['{workspaceRoot}/**/*'],
-      options: { command: 'bash bin/tool-wiki-lint.sh working . HEAD' },
+      options: {
+        command:
+          '/usr/bin/env -u BUN_OPTIONS -u BUN_INSPECT_PRELOAD -u NODE_OPTIONS -u BUN_BE_BUN bun --no-env-file --config=/dev/null bin/tool-wiki-lint.ts working . HEAD',
+      },
     });
     expect(project.targets['lint:source']?.options?.command).toBe(
       'bunx eslint apps/twilight-structure/twilight-burokrat/cli/src',
@@ -1310,7 +1313,9 @@ await snapshotValidator({ bindingPath, validatorPath, candidateDirectory, destin
     expect(trustedCi).toContain('CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}');
     expect(trustedCi).toContain('committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"');
     expect(trustedCi).not.toContain('"${{ github.event.pull_request.head.sha }}"');
-    expect(lefthook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
+    expect(lefthook).toContain(
+      'run: /usr/bin/env -u BUN_OPTIONS -u BUN_INSPECT_PRELOAD -u NODE_OPTIONS -u BUN_BE_BUN bun --no-env-file --config=/dev/null bin/tool-wiki-lint.ts staged . HEAD',
+    );
     expect(hostSteps).toContain('--exclude=twilight-burokrat');
     expect(hostSteps).toContain('bunx nx run twilight-burokrat:lint:source --skip-nx-cache');
     const runtime = readFileSync(
@@ -1422,7 +1427,9 @@ await snapshotValidator({ bindingPath, validatorPath, candidateDirectory, destin
       );
       expect(step?.if, `${name} must be paused`).toBe(false);
     }
-    expect(hook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
+    expect(hook).toContain(
+      'run: /usr/bin/env -u BUN_OPTIONS -u BUN_INSPECT_PRELOAD -u NODE_OPTIONS -u BUN_BE_BUN bun --no-env-file --config=/dev/null bin/tool-wiki-lint.ts staged . HEAD',
+    );
   });
 
   const provisioningSteps = [

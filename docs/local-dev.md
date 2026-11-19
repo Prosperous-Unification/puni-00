@@ -29,8 +29,9 @@ diagnosed by `bun run dev:setup`: add `HOSTNAME=000000000000` to it.
 
 ## Run all four at once
 
-`bun run dev` (`bin/dev.sh`) runs `nx run-many -t serve --projects=wbs-be-01,wbs-gw-01,wbs-fe-01,wbs-mcp-01`,
-which brings up:
+Set `PUNI_EXECUTABLE` in your operator environment to the absolute delivered entrypoint of a separately provisioned reviewed current PUNI installation. Standard external Bun package installation supplies cold start; an existing PUNI can use the [explicit authenticated-local-archive operation](../apps/puni/cli/README.md) to provision another installation. A SHA supplied beside an unauthenticated archive does not establish provenance. No source/PATH/registry default is selected.
+
+`bun run --shell=bun dev` uses the fixed-purpose Bun adapter `bin/dev.ts` to invoke that delivered PUNI's `dash dev` purpose. `bun run --shell=bun dev:local-solver` selects only the complete local-solver target. The addressed local Nx receives `run-many -t serve --projects=wbs-be-01,wbs-gw-01,wbs-fe-01,wbs-mcp-01`, which brings up:
 
 | App      | URL                     | Notes                                |
 | -------- | ----------------------- | ------------------------------------ |
@@ -39,7 +40,7 @@ which brings up:
 | `fe-01`  | <http://localhost:4200> | Vite dev server with HMR             |
 | `mcp-01` | <http://localhost:3300> | MCP endpoint `/mcp`; see below       |
 
-Logs are interleaved. `Ctrl-C` stops all four.
+Logs are interleaved. Default native descriptors remain inherited; `Ctrl-C` is forwarded by the PUNI-owned foreground parent. That parent intentionally differs from the old Bash exec PID. Nonempty `WBS_DEV_LOG` selects merged capture, relative to caller cwd; terminal bytes remain intact and the file strips CSI. Nx failure is retained after capture settlement. Unified usage errors return1, while the retained historical Bash interface returned2. No old shell is invoked by the package aliases.
 
 ## Run one at a time
 
@@ -230,20 +231,20 @@ up the locally-running apps. Day-to-day dev does not need it.
   stopped (a day earlier, as the pre-checkpoint mtime showed). No test writes
   this file: every `*.db.test.ts` opens its own `mkdtempSync` copy, so a
   changed `local.db` is always a real process or a client, never a gate.
-- **Port already in use** — `bun run dev` refuses before nx starts and names the
-  port, the tier and the process holding it, with the `kill` line to free it
-  (`bin/dev-ports.sh`; ask it on its own with `bun run dev:ports`, and clear it
-  with `bun run dev:kill`, which ends only holders whose working directory is
-  this checkout and reports anything else rather than killing it — that path
-  needs `lsof`, since a process with no readable working directory is one whose
-  owner cannot be established). The usual
-  cause is a dev server from an earlier session that outlived its terminal —
-  fe-01 is the one that hides, because vite sets `strictPort` and so exits in
-  under a second while nx lists it as a task that _completed_ beside three
-  Continuous ones. To move a tier instead of freeing the port, edit `PORT=` in
-  the relevant `apps/wbs/*/.env`; all URLs in peer `.env` files update by
-  convention, not by magic, so change both ends. `WBS_DEV_PORTS='fe-01:4300'`
-  overrides which ports are checked.
+- **Port already in use** — check this checkout with
+  `bun run --shell=bun dev:ports`, or release its own holders with
+  `bun run --shell=bun dev:kill`. Set `PUNI_EXECUTABLE` to the absolute entrypoint
+  of a separately provisioned, reviewed current PUNI installation. These commands
+  use the embedded Dash development-port operation; they do not select a binary
+  from PATH or fall back to the old shell implementation. Release requires `lsof`
+  and readable listener working directories within this checkout; foreign holders
+  are left alone. The observation covers IPv4 loopback, not an IPv6-only free-port
+  guarantee. `WBS_DEV_PORTS='fe-01:4300'` overrides which ports are checked; a
+  present-empty value visibly selects none. To move a tier instead, edit `PORT=`
+  in the relevant `apps/wbs/*/.env` and update peer URLs too.
+  `bun run dev` still uses `bin/dev.sh`'s legacy preflight and foreground/capture
+  supervisor. Its coherent Bun conversion remains separate; the new aliases do
+  not establish that the full start path is converted.
 - **`@/` imports fail in fe-01 tests** — run them via `bunx nx test wbs-fe-01`
   (Vitest resolves the alias); root `bun test` does not.
 - **gw-01 refuses the WS upgrade** — check the configured authentication mode.

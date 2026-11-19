@@ -6,7 +6,7 @@ import type { SubscribeLintInterrupts } from './lint-interrupts';
 import type { LintInvocation } from './lint-request';
 import { type LintRuntime } from './lint-runtime';
 import { readInstalledPuniToolkit } from './packaging/installed';
-import type { BunToolkit } from './policy/toolkit';
+import type { BunExecutionToolkit } from './policy/toolkit';
 import { readLintCandidate } from './run-lint';
 
 export interface InstalledLintContext {
@@ -19,7 +19,7 @@ export type InstalledLint =
   | { readonly kind: 'cancelled'; readonly status: 130 | 143 }
   | {
       readonly kind: 'ready';
-      readonly toolkit: BunToolkit;
+      readonly toolkit: BunExecutionToolkit;
       readonly runtime: LintRuntime;
       readonly candidateDirectory: string;
     };

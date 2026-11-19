@@ -36,10 +36,11 @@ pre-commit:
       run: bun run tools/tool-git-hooks/src/hooks/doc-caps.ts
       glob: 'LLM_README.md'
 
+    # Historical Bash adapter proof follows; the new Bun/PUNI vector has separate owning controls.
     # Proof: deleting this whole-tree command made gate-entrypoints.test.ts fail at the exact
     # staged adapter invocation; the other hook commands only inspect their staged file lists.
     tool-wiki:
-      run: bash bin/tool-wiki-lint.sh staged . HEAD
+      run: /usr/bin/env -u BUN_OPTIONS -u BUN_INSPECT_PRELOAD -u NODE_OPTIONS -u BUN_BE_BUN bun --no-env-file --config=/dev/null bin/tool-wiki-lint.ts staged . HEAD
 
 # Stamp agent-authored commits without replacing lefthook's generated wrapper.
 # Both stages are required: normal git commits invoke prepare-commit-msg, while

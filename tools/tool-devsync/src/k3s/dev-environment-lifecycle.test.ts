@@ -102,7 +102,8 @@ async function invoke(
     'alpha',
     '--cluster',
     'puni-review-platform',
-    ...(action === 'up' ? ['--worktree', '/worktrees/alpha'] : []),
+    // The earlier surviving-resource refusal must precede reading this deliberately absent selection.
+    ...(action === 'up' ? ['--worktree', '/worktrees/alpha', '--puni-selection', join(root, 'absent-selection.json'), '--puni-selection-sha256', 'd'.repeat(64)] : []),
   ];
   const child = Bun.spawn(
     [

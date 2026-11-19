@@ -4,10 +4,10 @@ import { join } from 'node:path';
 import ts from 'typescript';
 
 import { hashBytes } from '../evidence/content-manifest';
-import type { CommittedSource } from './committed-source';
+import type { SourceFiles } from './source-files';
 import { readJson, readOperatorFile, readSourceFile } from './preparation-inputs';
 import { assertPinnedTypeScript, assertReleaseRuntime } from './release';
-import { buildModuleNames, hashSelectedModules, packageDirectory } from './trusted-modules';
+import { buildModuleNames, puniModuleNames, hashSelectedModules, packageDirectory } from './trusted-modules';
 
 /** A pre-copy byte identity of a stable operator-owned installation, not lockfile provenance. */
 export interface BuildDependencies {
@@ -58,9 +58,10 @@ function readCompilerPin(manifest: unknown): string | undefined {
  * No package manager, candidate helper or ambient installation discovery executes here.
  * @throws for absent, nonregular, unreadable, mismatched or malformed authority and dependencies.
  */
-export function readBuildDependencies(
-  source: CommittedSource,
+function readSelectedBuildDependencies(
+  source: SourceFiles,
   installationRoot: string,
+  readModuleNames: (directory: string) => readonly string[],
 ): BuildDependencies {
   const installation = realpathSync.native(installationRoot);
   // Proof: c27-dependency-install-directory; diagnostic/order: missing directory admission later reaches ENOTDIR; injected fault failed `refuses a regular file selected as the trusted installation with its named boundary`; restoration passed.
@@ -93,7 +94,7 @@ export function readBuildDependencies(
   // Proof: c27-dependency-compiler-version; diagnostic/order: sparse controlled install later lacks the fixed roster; injected fault failed `refuses an installed compiler version different from the producer before roster expansion`; restoration passed.
   if (compilerVersion !== ts.version)
     throw new Error('build compiler differs from producer TypeScript ' + ts.version);
-  const names = buildModuleNames(directory);
+  const names = readModuleNames(directory);
   return {
     directory,
     identity: hashSelectedModules(directory, names),
@@ -106,4 +107,14 @@ export function readBuildDependencies(
       ...[manifest, lock, pin].map((authority) => authority.native),
     ],
   };
+}
+
+/** Admit the unchanged historical/compiler role closure. */
+export function readBuildDependencies(source: SourceFiles, installationRoot: string): BuildDependencies {
+  return readSelectedBuildDependencies(source, installationRoot, buildModuleNames);
+}
+
+/** Admit actual PUNI execution dependencies from the same captured/host-matched authority before private copying. */
+export function readPuniBuildDependencies(source: SourceFiles, installationRoot: string): BuildDependencies {
+  return readSelectedBuildDependencies(source, installationRoot, puniModuleNames);
 }

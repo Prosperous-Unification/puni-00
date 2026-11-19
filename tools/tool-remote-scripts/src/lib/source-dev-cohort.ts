@@ -1,3 +1,5 @@
+import { decodeSourceStartupRequest, type CurrentSourceStartupRequest } from './source-startup-profile';
+import { decodeSourcePuniSelection } from './source-puni-installation';
 import { identifyInventory, orderMounts } from './docker-inventory';
 import { type EnvLayout, sourceDevContract } from './env';
 import {
@@ -14,6 +16,8 @@ import {
 
 /** Bound source participant, including exact effective configuration and namespace membership. */
 export interface SourceDevMember {
+  /** Present only after explicit current-request decoding; absent retains the historical container contract. */
+  readonly startup?: CurrentSourceStartupRequest;
   id: string;
   image: string;
   path: string;
@@ -27,10 +31,10 @@ export interface SourceDevMember {
 }
 
 /** Validates the fixed source target set using the shared full-native mount ordering. */
-export function orderSourceMounts(raw: unknown): unknown[] {
+export function orderSourceMounts(raw: unknown, startup?: CurrentSourceStartupRequest): unknown[] {
   const mounts = orderMounts(raw);
   assertSame(
-    ['/data', '/run/wbs-solver', '/src'],
+    startup === undefined ? ['/data', '/run/wbs-solver', '/src'] : ['/data', '/opt/puni-dev', '/run/wbs-solver', '/src'],
     mounts.map((mount) => readString(mount['Destination'])),
     'source dev mount targets',
   );
@@ -42,9 +46,18 @@ export function orderSourceMounts(raw: unknown): unknown[] {
  * namespace extinction supplies exclusion. Omission remains absent in the captured host;
  * changing its presence or value is identity drift. Managed namespace scanners still require init:true.
  */
-export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMember {
+export function decodeSourceDev(raw: unknown, layout: EnvLayout, suppliedStartup?: CurrentSourceStartupRequest): SourceDevMember {
+  const retained = suppliedStartup === undefined ? undefined : decodeSourceStartupRequest(suppliedStartup);
+  if (retained !== undefined && !('expectedProfile' in retained)) throw new Error('current source container lost its explicit expected profile');
+  const startup = retained;
   const container = readFields(raw);
-  const contract = sourceDevContract(layout);
+  const historical = sourceDevContract(layout);
+  const selected = startup === undefined ? undefined : decodeSourcePuniSelection({ contents: startup.puniSelectionContents, sha256: startup.pins.puniSelectionSha256 });
+  const contract = {
+    ...historical,
+    mounts: [...historical.mounts, ...(selected === undefined ? [] : [{ source: selected.record.installationDirectory, target: '/opt/puni-dev', writable: false }])],
+  };
+  const command = startup === undefined ? ['bun', 'run', 'dev'] : ['bun', '--no-env-file', '--config=/dev/null', 'run', '--shell=bun', 'dev'];
   if (container['Name'] !== `/${contract.name}`) throw new Error('source dev name differs');
   const config = readFields(container['Config']);
   const labels = readFields(config['Labels']);
@@ -56,7 +69,14 @@ export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMembe
   )
     throw new Error('source dev fixed config differs');
   readNonempty(labels['com.docker.compose.project']);
-  assertSame(['bun', 'run', 'dev'], config['Cmd'], 'source dev command');
+  assertSame(command, config['Cmd'], 'source dev command');
+  if (selected !== undefined) {
+    const assignments = config['Env'];
+    if (!Array.isArray(assignments)) throw new Error('current source environment is absent');
+    const expected = 'PUNI_EXECUTABLE=/opt/puni-dev/' + selected.record.entrypoint;
+    if (assignments.filter((assignment: unknown) => typeof assignment === 'string' && assignment.startsWith('PUNI_EXECUTABLE=')).length !== 1 || !assignments.includes(expected))
+      throw new Error('current source selected mapped entrypoint differs');
+  }
   const entrypoint = config['Entrypoint'];
   if (!(
     entrypoint === null ||
@@ -69,9 +89,7 @@ export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMembe
     ...(Array.isArray(entrypoint)
       ? entrypoint.map((argument: unknown) => readString(argument))
       : []),
-    'bun',
-    'run',
-    'dev',
+    ...command,
   ];
   const path = readNonempty(container['Path']);
   assertSame(argv[0], path, 'source dev effective executable');
@@ -97,7 +115,7 @@ export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMembe
   if (host['NetworkMode'] !== layout.network || Object.keys(networks).length !== 1)
     throw new Error('source dev network differs');
   readIdentity(readFields(networks[layout.network])['NetworkID']);
-  const mounts = orderSourceMounts(container['Mounts']);
+  const mounts = orderSourceMounts(container['Mounts'], startup);
   // Proof: replacing expected mounts with observed mounts admitted a foreign source; unsupported mount negative failed.
   assertSame(
     [...contract.mounts].sort((left, right) => left.target.localeCompare(right.target)),
@@ -159,6 +177,7 @@ export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMembe
   )
     throw new Error('source dev timestamp lifecycle incoherent');
   return {
+    ...(startup === undefined ? {} : { startup }),
     id: readIdentity(container['Id']),
     path,
     args: argv.slice(1),

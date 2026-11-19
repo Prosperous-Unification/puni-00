@@ -376,6 +376,70 @@ describe('composed validation and process isolation', () => {
 it('prints the current PUNI package version through offline root discovery', () => {
   expect(parseArguments(['--version'])).toEqual({
     invocation: { kind: 'printed' },
-    output: '0.3.0',
+    output: '0.4.0',
   });
 });
+
+for (const namespace of ['dash', 'd']) {
+  it(
+    namespace + ' selects typed authenticated local PUNI installation without operation IO',
+    () => {
+      const parsed: unknown = parseArguments([
+        namespace,
+        'install-puni',
+        '/absent reviewed artifact/puni.tgz',
+        '--sha256',
+        'a'.repeat(64),
+        '--destination',
+        '/absent external client',
+      ]);
+      expect(parsed).toEqual({
+        invocation: {
+          kind: 'command',
+          command: {
+            tool: 'dash',
+            request: {
+              command: 'install-puni',
+              archive: '/absent reviewed artifact/puni.tgz',
+              sha256: 'a'.repeat(64),
+              destination: '/absent external client',
+            },
+          },
+        },
+        output: '',
+      });
+    },
+  );
+}
+
+it('keeps local PUNI installation in composed PUNI help without advertising it in legacy Dash', () => {
+  const standalone = Bun.spawnSync(
+    [
+      process.execPath,
+      '--no-env-file',
+      '--config=/dev/null',
+      fileURLToPath(
+        new URL('../../../twilight-structure/twilight-dash/cli/src/entrypoint.ts', import.meta.url),
+      ),
+      '--help',
+    ],
+    { env: { PATH: '/usr/bin:/bin' }, stdout: 'pipe', stderr: 'pipe', timeout: 10000 },
+  );
+  expect(standalone.signalCode).toBeUndefined();
+  expect(standalone.exitCode, standalone.stderr.toString()).toBe(0);
+  expect(standalone.stderr.length).toBe(0);
+  expect(standalone.stdout.toString()).toContain('Usage: twilight-dash ');
+  expect(standalone.stdout.toString()).not.toContain('install-puni');
+  const discovered = parseArguments(['dash', '--help']);
+  expect(discovered.invocation).toEqual({ kind: 'printed' });
+  expect(discovered.output).toContain('install-puni');
+});
+
+for (const namespace of ['dash', 'd'])
+  it(namespace + ' selects the closed installed Forge supervision purpose after an existing namespace premise', () => {
+    expect(parseArguments([namespace, 'bootstrap-authority', '/owned repository']).invocation.kind).toBe('command');
+    expect<unknown>(parseArguments([namespace, 'dev-env', 'supervise', '--repository', '/owned repository', '--termination-log', '/owned termination.log'])).toEqual({
+      invocation: { kind: 'command', command: { tool: 'dash', request: { command: 'dev-env', action: 'supervise', repository: '/owned repository', terminationLog: '/owned termination.log' } } },
+      output: '',
+    });
+  });

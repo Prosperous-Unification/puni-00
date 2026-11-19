@@ -92,3 +92,6 @@ export function planBunToolkit(request: BunToolkitRequest): BunToolkitPlan {
   // Proof: bun-plan-final-lf; `plans exactly the current Bun roster and original-byte identity consumable by the strict reader` failed under the recorded production fault and passed after restoration.
   return { descriptor, checksums: new TextEncoder().encode(lines.join('\n') + '\n'), digests };
 }
+
+/** Shared claimed metadata boundary; the historical serializer body and bytes stay unchanged. */
+export {Metadata as BunToolkitMetadata};

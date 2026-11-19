@@ -19,6 +19,7 @@
 ## 3. Trusted client bootstrap and packaged scripts
 
 - [ ] 3.1 Port tool-wiki lint/package-lint/push-audit, toolkit launcher/bootstrap/activation payloads, tool-bootstrap configure/install and CI Burokrat bootstrap/admit into Bun. Coordinate new trusted roles/descriptor/release identity with `puni-cli` 2.3. Tests: installed consumer-bootstrap, policy release/activation and adversarial candidate/closure tests on delivered Bun bytes; negative: remove trusted-byte/role/path/environment checks and observe candidate-controlled or substituted launcher tests fail. Historical fixture bytes stay modeled inputs, never an active-runtime exemption.
+- [ ] 3.1a Implement the bounded current embedded push-audit foundation specified by [`puni-cli` task 3.1a](../puni-cli/tasks.md) and its installed push-audit requirement, after the actual grammar RED. Reuse existing PUNI lint for normal/package-backed lint and its existing owner for audit; do not port a parallel shell validator or mutate launcher.sh bytes still consumed by legacy producers. Record ordinary and later separately authorized fault evidence without inferring caller/default/pin/bootstrap/host or parent 3.1/3.2 closure.
 - [ ] 3.2 Embed the converted client operations under the owning typed PUNI namespaces and share their implementation with repo/CI callers. Tests: `puni-cli` installed client-surface suite without checkout/Bash/Node plus tool-bootstrap tests against controlled external utilities; negative: retain a checkout script dependency, omit an embedded command or execute an old active shell body and observe the relevant installed operation fail.
 
 ## 4. Infrastructure, operator and verification coverage
@@ -52,3 +53,45 @@ Root and same Astra accepted bounded private C34 closing v3 before this import (
 ### C34 bounded integration accepted
 
 Root and same Astra accepted the current C34 source, fresh local artifact and closed-API composition, including the F1 correction that separates25 installed helper controls from2 named source-boundary controls. Only2.2d.5 closes. The earlier pending statements above retain their authoring epochs. The accepted packet is `/tmp/puni-c34-live-integration-review-package-v2.json` (SHA256 `9e83854454430335af2e551c742e74702eac056a6c01025a80ef802077b4a987`); the final scoped review is `/tmp/puni-c34-live-integration-f1-astra-review.json` (SHA256 `1ab50306d07a5991dff0608c84701a2fd8a1f8293a210e1a43a1f369600bc571`). Parent2.2, enrolled admission, full fixed gate steps, caller/default changes, host gates and the whole migration remain open.
+
+## C35 borrowed host-job control (bounded2.2e)
+
+- [x] 2.2e.1 Add the optional private control seam and connected run/calibration duplicate-owner RED.
+- [x] 2.2e.2 Adapt standalone/borrowed leases, early replay, provenance and prestart refusals.
+- [x] 2.2e.3 Cover actual native startup, pool/native queue cancellation, poststart deduplication and independent payload status.
+- [x] 2.2e.4 Cover retained native/FD4 settlement and deferred observer failures; retire only the operation registration.
+- [ ] 2.2e.5 Run bounded ordinary checks and source/API review before a separate finite R5 decision; installed compatibility remains separately qualified. Parent2.2 remains open.
+
+The2.2e.1–4 ticks record ordinary source implementation and positive controls only. Independent source/API review, finite R5 qualification, any installed-compatibility receipt and task2.2e.5 remain open. No new Proof comment or commit is authorized by this record.
+
+## Bounded2.2e ordinary review repair round1
+
+- [x] F1 Observe actual-operation cause-loss RED before repair; collect retirement and retained delivery failures after required joins, preserve sole/concurrent cause identities, attempt retirement once and leave parent independence intact.
+- [x] F2 Observe the checked-unlaunched-withdrawal RED before repair; retain missing provenance and concurrent withdrawal failure while preserving an independent holder. The synthetic cancelled outcome is dependency emulation, not a target native termination receipt.
+- [ ] Return the exact reviewed-source successor delta and complete BASE patch for independent source/API review; finite R5 and installed readiness remain separate. Task2.2e.5 and parent2.2 stay open.
+
+### Ordered development-port client slice (under open2.3/3.2)
+
+- [ ] 2.3a.1 Observe actual root-only resolve/check grammar/operation absence through canonical Dash and d with valid .env and real IPv4 listener prerequisites.
+- [ ] 2.3a.2 Implement typed Bun resolve/check/release with explicit repository, current resolution precedence, unreadable-before-probe and same-checkout native release ownership; test canonical/alias and malformed requests.
+- [ ] 2.3a.3 Observe real own/foreign/unreadable/unnameable holder controls, TERM witness, ignored-TERM escalation, final socket verification and cancellation/inspection failure; freeze finite effects and run each scoped negative before Proof comments.
+- [ ] 2.3a.4 Convert actual package/start/runbook consumers without shell fallback; prove no Nx after busy/unreadable refusal, preserve remaining supervisor semantics, then exercise fresh installed delivery and final quality. Parent2.3/3.2 remain open.
+
+### Complete development-start conversion (continuing open2.3)
+
+- [x] 2.3d.1 Observe actual typed-root missing-dev behavior after independently owned Bun prerequisites; implement full default/local-solver/capture through embedded PUNI with one native owner and required shared preflight.
+- [ ] 2.3d.2 Qualify one physical merged channel, native exit versus EOF, native signals/repeated escalation, capture IO failure/drain/line semantics and actual Nx graph; retain primary plus cleanup causes and finite R5 observations.
+- [ ] 2.3d.3 Move actual package/dev-container/old script and verification callers to Bun/PUNI only after their explicit installation, foreground and output contracts pass; no Bun wrapper around Bash or narrow preflight-only completion.
+
+- [x] 2.3d.3a Implement the source package projection and record its finite source/ABI controls plus the bounded real installed-session join. Preserve distinct epochs, explicit bootstrap/temporary-storage premises and all artifact/native-control exclusions. This is a partial client slice only;2.3d.3 remains open for Forge, runner/CI, container and shell retirement.
+
+
+- [ ] 2.3d.3b Co-land retained independently pinned local PUNI selection/provisioner record, explicit lab2 read-only mapping, separate installation admission and actual Bun Forge supervisor after their recorded first REDs. Verify current profile/constructor/renderer/native positive and negative owners without changing frozen lab1/source-cold-v1 codecs.
+- [ ] 2.3d.3c Qualify current source-cold-v2 and the full loaded source closure, actual ConfigMap upgrade/rollback and mounted Pod/PUNI/Nx lifetimes before retiring dev.sh/dev.test.sh and their remaining verification/CI/shellcheck consumers. Preserve full four-tier/two-MCP-preparation and binary/capture/signal contracts; parent2.3d.3 remains open.
+
+- [ ] 2.3d.3c.1 Route an explicitly expected current source-cold-v2 request through the current canonical manifest producer, independently pinned external PUNI mapping, complete exclusion/initial handoff/source input/database/container consumers, with the historical cold-v1 leaf unchanged. Observe the current request feature RED, then actual healthy clean-tree/installation and changed source/config/installation owners plus current Bun image preflight before claiming this subtask.
+- [ ] 2.3d.3c.2 Bind the actual loaded supervisor closure through producer-owned compiler/metafile inputs and a closed runtime/asset manifest; observe an SDK/asset change during frozen install refusing the next PUNI launch. Unknown executed edges refuse; directory watch alone is insufficient. Keep runtime asset mutation, native custody and host/container owners distinct.
+- [ ] 2.3d.3c.3 Port/remove remaining owned dev.sh/dev.test.sh, CI/shellcheck/verification consumers only after every retained live flush/binary/capture/signal/default/installed contract has a Bun owner. Current source profile routing and the prior installed joins do not complete retirement or parent2.3d.3c.
+
+
+- [ ] 2.3d.3c.4 Deliver the actual same-capture Forge core plus closed runtime manifest, PUNI-only supervised-entry grammar and constructor vector together. Preserve distinct explicit source observation versus shipped installed execution, and run loaded-source/packed/native owners before qualifying this conversion.

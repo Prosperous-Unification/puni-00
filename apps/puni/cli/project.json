@@ -3,7 +3,13 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/puni/cli/src",
   "projectType": "application",
-  "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:puni"],
+  "tags": [
+    "scope:app",
+    "type:app",
+    "runtime:bun",
+    "ring:adapter",
+    "product:puni"
+  ],
   "targets": {
     "test": {
       "executor": "nx:run-commands",
@@ -14,11 +20,23 @@
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint apps/puni/cli/src" }
+      "options": {
+        "command": "bunx eslint apps/puni/cli/src"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --build --force apps/puni/cli/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --build --force apps/puni/cli/tsconfig.json"
+      }
+    },
+    "prepare-test-level-assets": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun --no-env-file --config=/dev/null apps/puni/cli/src/packaging/prepare-test-level-assets-cli.ts",
+        "forwardAllArgs": false
+      }
     }
   }
 }

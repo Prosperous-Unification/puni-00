@@ -264,3 +264,43 @@ describe('typed Burokrat policy requests', () => {
     });
   }
 });
+
+for (const namespace of ['burokrat', 'bur', 'b']) {
+  it(namespace + ' types audit-push as an installed request before operation IO', () => {
+    const repository = '/absent/push candidate with spaces';
+    const revision = 'HEAD~1';
+    const invocation = readInvocation([namespace, 'audit-push', repository, revision], () => {
+      throw new Error('an audit operation unexpectedly printed discovery');
+    });
+    expect(invocation).toEqual({
+      kind: 'command',
+      command: {
+        tool: 'burokrat',
+        request: { command: 'audit-push', repository, revision },
+      },
+    });
+  });
+}
+
+for (const namespace of ['burokrat', 'bur', 'b']) {
+  for (const operands of [
+    [],
+    ['/absent/candidate'],
+    ['/absent/candidate', 'HEAD', '--required', 'false'],
+    [' \t ', 'HEAD'],
+    ['/absent/candidate', ''],
+  ]) {
+    it(
+      namespace +
+        ' refuses malformed audit-push operands before operation IO: ' +
+        JSON.stringify(operands),
+      () => {
+        expect(() =>
+          readInvocation([namespace, 'audit-push', ...operands], () => {
+            throw new Error('malformed audit unexpectedly printed discovery');
+          }),
+        ).toThrow(UsageRefusal);
+      },
+    );
+  }
+}

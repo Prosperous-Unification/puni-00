@@ -1,5 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "outDir": "../../../dist/out-tsc", "types": ["bun-types"] },
-  "include": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  "include": [
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "../../../bin/tool-wiki-lint.ts",
+    "../../../bin/dev-ports.ts",
+    "../../../bin/dev.ts"
+  ]
 }

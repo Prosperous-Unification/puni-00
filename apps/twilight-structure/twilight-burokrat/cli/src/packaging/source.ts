@@ -1,6 +1,6 @@
 import type { SubscribeLintInterrupts } from '../lint-interrupts';
 import type { LintRuntime } from '../lint-runtime';
-import { readLintCandidate } from '../run-lint';
+import { readLintCandidate,readRepositoryRoot } from '../run-lint';
 
 /**
  * Establish supported Git and the native actual worktree root through the existing child owner.
@@ -30,4 +30,12 @@ export function readBuildSource(
     context.runtime,
     context.subscribeInterrupts,
   );
+}
+
+/** Select actual supported Git and native working root without manufacturing a revision or clean-release claim. */
+export function readWorkingBuildSource(
+  request:{readonly repository:string},
+  context:{readonly callerDirectory:string;readonly runtime:LintRuntime;readonly subscribeInterrupts:SubscribeLintInterrupts},
+){
+  return readRepositoryRoot({repository:request.repository,callerDirectory:context.callerDirectory},context.runtime,context.subscribeInterrupts);
 }

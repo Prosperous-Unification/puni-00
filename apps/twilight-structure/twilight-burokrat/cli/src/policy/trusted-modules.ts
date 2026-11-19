@@ -149,6 +149,23 @@ export function buildModuleNames(modulesRoot: string): string[] {
   ]);
 }
 
+/** PUNI-owned Linux x64 GNU execution roots; candidate imports never extend this admitted runtime set. */
+export function puniModuleNames(modulesRoot: string): string[] {
+  return collectModuleNames(modulesRoot, [
+    ...buildModuleNames(modulesRoot),
+    '@playwright/test',
+    'nx', '@nx/js', '@nx/workspace',
+    '@swc-node/register', '@swc/core', '@swc/core-linux-x64-gnu',
+    '@nx/nx-linux-x64-gnu',
+    '@vitejs/plugin-react', '@tailwindcss/vite',
+    '@rolldown/binding-linux-x64-gnu', '@tailwindcss/oxide-linux-x64-gnu',
+    'lightningcss-linux-x64-gnu',
+    '@elysiajs/openapi', '@elysiajs/opentelemetry',
+    '@opentelemetry/sdk-node', '@opentelemetry/exporter-trace-otlp-proto', '@opentelemetry/sdk-trace-base',
+    '@aws-sdk/client-s3', 'mmdb-lib', 'whoiser',
+  ]);
+}
+
 function collectModuleNames(modulesRoot: string, roots: readonly string[]): string[] {
   const names = new Set<string>();
   // Check the compiler first so a missing installation keeps the established compiler refusal.

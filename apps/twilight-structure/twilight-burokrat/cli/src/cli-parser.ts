@@ -531,6 +531,24 @@ export const installedGrammar = {
 /** A parsed installed command line, discriminated by `command`. */
 export type InstalledCommand = InferValue<typeof installedGrammar.parser>;
 
+const auditPush = typed(
+  'audit-push',
+  'Audit a committed candidate with required configured archive authority.',
+  {
+    repository: operand('REPOSITORY'),
+    revision: operand('REVISION'),
+  },
+);
+
+/** Current PUNI installed operations, distinct from the unchanged legacy installed grammar. */
+export const puniGrammar = {
+  parser: or(installedGrammar.parser, auditPush),
+  commands: [...installedGrammar.commands, auditPush],
+};
+
+/** A current PUNI operation; historical InstalledCommand remains unchanged. */
+export type PuniCommand = InferValue<typeof puniGrammar.parser>;
+
 /** The top-level command names a grammar accepts, in help order. */
 export function commandNamesOf(grammar: Grammar<Parser>): string[] {
   return grammar.commands.flatMap(commandNames);

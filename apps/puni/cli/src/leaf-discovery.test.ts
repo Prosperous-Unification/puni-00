@@ -36,6 +36,7 @@ function findOptions(terms: Usage): string[] {
 const expectedLeaves = {
   navigator: ['admit-progress', 'plan-reference', 'receipt-to-commands'],
   burokrat: [
+    'audit-push',
     'check',
     'check-indexes',
     'check-root-migration',
@@ -94,7 +95,12 @@ const expectedLeaves = {
     'account-outcomes',
     'bootstrap-authority',
     'bootstrap-observation',
+    'browser',
+    'dev',
+    'dev-env supervise',
+    'dev-ports',
     'inspect-authority',
+    'install-puni',
     'mcp token',
     'migrate-observation',
     'ops job admission',
@@ -114,6 +120,7 @@ const expectedLeaves = {
     'ops pool switch-mode',
     'ops release plan',
     'ops release run',
+    'performance',
     'plan-enrollment',
     'pool import',
     'record-progress',

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "installationDirectory": "/reviewed/puni-installations/current",
+  "archive": {
+    "path": "authenticated-puni.tgz",
+    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "entrypoint": "consumer/node_modules/puni/dist/puni.mjs"
+}

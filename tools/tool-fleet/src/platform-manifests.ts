@@ -253,7 +253,10 @@ const TrustedWorkloadImages = type({
     namespace: "'wbs-solver'",
     'annotations?': 'Record<string, string>',
   },
-  data: { solverImages: 'string', forgeImage: 'string', forgeWorktreeRoots: 'string' },
+  data: {
+    solverImages: 'string', forgeImage: 'string', forgeWorktreeRoots: 'string',
+    forgePuniInstallationRoots: 'string',
+  },
 });
 const pinnedImage = /^[a-z0-9.-]+(?::[0-9]+)?\/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$/;
 

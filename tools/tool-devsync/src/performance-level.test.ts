@@ -74,12 +74,14 @@ const declaration = {
   cases: [performanceCase],
 };
 
-function healthyScratchDescriptors() {
+interface ScratchService {command:string;cwd:string;url:string;env:Record<string,string>;bunArguments:readonly ['--eval',string]}
+function healthyScratchDescriptors():ScratchService[] {
   return (['be-01', 'gw-01', 'fe-01'] as const).map((app, index) => {
     const port = [3100, 3200, 4200][index] + TEST_SHIFT;
     return {
       command:
         'bun --eval "Bun.serve({port:Number(process.env.PORT),fetch(){return new Response(\'ready\')}})"',
+      bunArguments:['--eval',"Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"],
       cwd: `apps/wbs/${app}`,
       url: `http://localhost:${String(port)}${app === 'fe-01' ? '' : '/health'}`,
       env: { PORT: String(port) },
@@ -943,15 +945,6 @@ describe('Performance level target production boundary', () => {
     expect(await readFile(fixture.preloadSentinel, 'utf8')).toBe('candidate preload ran');
   }, 60_000);
 
-  it('runs Burokrat identity in an external empty cwd without candidate preload', async () => {
-    const fixture = await committedPerformanceFixture();
-    const revision = Bun.spawnSync(['git', '-C', fixture.root, 'rev-parse', 'HEAD'])
-      .stdout.toString()
-      .trim();
-    expect(readIdentity(fixture.root, revision)).toMatch(/^[0-9a-f]{64}$/);
-    await expectFailure(readFile(fixture.preloadSentinel), 'ENOENT');
-  });
-
   it('isolates the subreaper supervisor from the Bun test process', async () => {
     const fixture = await committedPerformanceFixture();
     const libc = dlopen('libc.so.6', {
@@ -968,6 +961,15 @@ describe('Performance level target production boundary', () => {
       libc.close();
     }
   }, 60_000);
+
+  it('runs Burokrat identity in an external empty cwd without candidate preload', async () => {
+    const fixture = await committedPerformanceFixture();
+    const revision = Bun.spawnSync(['git', '-C', fixture.root, 'rev-parse', 'HEAD'])
+      .stdout.toString()
+      .trim();
+    expect(await readIdentity(fixture.root, revision)).toMatch(/^[0-9a-f]{64}$/);
+    await expectFailure(readFile(fixture.preloadSentinel), 'ENOENT');
+  });
 
   it('publishes distinct immutable passing bundles across sequential invocations', async () => {
     const fixture = await committedPerformanceFixture();
@@ -1042,13 +1044,14 @@ describe('Performance level target production boundary', () => {
     process.env['E2E_PORT_SHIFT'] = String(TEST_SHIFT);
     const service = (app: string, port: number) => ({
       command: `bun --eval "Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"`,
+      bunArguments:['--eval',"Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"] as const,
       cwd: `apps/wbs/${app}`,
       url: `http://localhost:${String(port)}${app === 'fe-01' ? '' : '/health'}`,
       env: { PORT: String(port) },
     });
     const descriptors = [
       service('be-01', 3100 + TEST_SHIFT),
-      { ...service('gw-01', 3200 + TEST_SHIFT), command: 'bun --eval "process.exit(23)"' },
+      { ...service('gw-01', 3200 + TEST_SHIFT), command: 'bun --eval "process.exit(23)"', bunArguments:['--eval','process.exit(23)'] as const },
       service('fe-01', 4200 + TEST_SHIFT),
     ];
     try {
@@ -1069,6 +1072,7 @@ describe('Performance level target production boundary', () => {
     descriptors[0] = {
       ...descriptors[0],
       command: `bun --eval "const {existsSync}=require('node:fs'); if(!existsSync('../../../tmp')) process.exit(27); Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"`,
+      bunArguments:['--eval',"const {existsSync}=require('node:fs'); if(!existsSync('../../../tmp')) process.exit(27); Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"],
     };
     await runPerformanceLevel(fixture.root, fixture.policyPath, descriptors);
     expect(await Bun.file(join(fixture.root, currentPath)).exists()).toBe(true);
@@ -1258,6 +1262,7 @@ describe('Performance level target production boundary', () => {
       return {
         ...descriptor,
         command: `bun --eval '${script}'`,
+        bunArguments:['--eval',script] as const,
         env: { ...descriptor.env, CI: '0', E2E_PORT_SHIFT: '9999' },
       };
     });

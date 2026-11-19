@@ -299,9 +299,9 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **AND** every emitted role, notice, descriptor and checksum is read back as regular planned bytes before final descriptor-identity verification; cancellation stops before later delivery or verification and failure retains all owned roots
 - **AND** both actual produced preparers can complete current archive workflows, while public package/default cutover and clean-release admission remain separate requirements
 
-#### Scenario: Current installed execution selects a distinct PUNI package profile
+#### Scenario: Historical current0.3 execution retains its distinct PUNI package profile
 
-- **WHEN** the current PUNI root executes ordinary Burokrat, selected lint or either preparation command
+- **WHEN** the explicit historical0.3 PUNI profile executes ordinary Burokrat, selected lint or either preparation command
 - **THEN** it requires the closed schema1 PUNI0.3.0 package profile and toolkit2, verifies the descriptor digest, and requires package/descriptor source revision and `puni-v0.3.0` tag agreement before operation inputs or executable roles
 - **AND** historical0.2.1 package bytes and verification remain explicit independent paths, without a version-union fallback or a clean-release inference
 - **AND** native installation selection precedes deriving the toolkit child, every verified role/closure obeys physical placement, and independently frozen caller runtime authority is retained
@@ -334,3 +334,329 @@ Installed lint SHALL execute its verified package launcher, verify the selected 
 - **THEN** runtime identity uses that actual installed validator file, including its native path and bytes; omitted, changed or unrelated same-bytes references refuse
 - **AND** a snapshot's authenticated original artifact manifest takes precedence over standalone output identity, preserving the original reference spelling and hash without inlining a union/source manifest into the base bundle
 - **AND** unmarked source execution retains its existing source closure, the standalone marker is producer-defined only for validator roles, and both root and standalone preparation workflows retain real full semantic certification before archive creation
+
+### Requirement: Installed push audit retains archive compatibility and required certification
+
+The installed command `puni burokrat audit-push REPOSITORY REVISION` SHALL parse one typed request through `burokrat`, `bur` and `b` without operation IO. Execution SHALL share the current installed lint owner, preflight, verified launcher and selected snapshotter/captured-validator path; it SHALL NOT reparse public argv, invoke the public lint operation recursively, discover a checkout or fall back to a legacy runtime. Current installation/toolkit integrity, supported Git, actual candidate and external placement checks SHALL precede any inactive outcome.
+
+Only an undefined or empty activation setting SHALL produce status 0 with the existing push report's schemaVersion 1, status inactive, certified false and reason `external activation marker is not provisioned`, followed by LF. Every nonempty configured activation SHALL be required: missing, unreadable, malformed or mismatched authority refuses 78. The operation SHALL force complete enforce certification for the committed selection; a false or invalid caller `TOOL_WIKI_REQUIRE_CERTIFIED` value SHALL NOT disable that obligation. Normal nonzero validator statuses and original output bytes SHALL remain unchanged.
+
+A configured audit SHALL read `toolkit-release` from the physically verified configured archive root beside `selected.json`, not the selected version directory. It SHALL require a readable regular file physically contained in that external root and the complete exact UTF-8 record `TAG DIGEST` plus one LF, where TAG and DIGEST are the verified installed current toolkit's tag and descriptor digest. Missing final LF, extra records, altered identities and candidate/outside-root symlink targets SHALL refuse78 before snapshotter or validator execution. This compatibility assertion SHALL NOT replace current activation 4 selection/artifact verification or configured archive closure validation, nor authorize fallback to the installed closure.
+
+#### Scenario: Every Burokrat spelling selects the same audit operation
+
+- **WHEN** each of `puni burokrat`, `puni bur` and `puni b` parses `audit-push /absent/candidate HEAD`
+- **THEN** it returns the same audit-push repository/revision request without loading a runtime or reading operands
+
+#### Scenario: Optional absence follows installed preflight
+
+- **WHEN** installation, Git, actual candidate and placement preflight succeeds and activation is undefined or empty
+- **THEN** audit returns the explicit non-certifying inactive report and starts no activation role
+- **AND** failed preflight remains failure even when activation is absent
+
+#### Scenario: Configured authority cannot degrade into inactivity
+
+- **WHEN** a nonempty activation path is missing or its marker, selection, release record, artifact set or closure cannot be verified
+- **THEN** audit refuses 78 rather than returning an inactive success or selecting another profile
+
+#### Scenario: The archive root binds the verified installed toolkit
+
+- **WHEN** the configured root's release record exactly names the verified installed current toolkit with one final LF
+- **THEN** audit retains current activation 4 and selected-archive closure verification before its authenticated roles
+- **AND WHEN** the record instead exists only below the selected version, lacks LF, has trailing records, mismatches tag/digest or resolves outside that configured root
+- **THEN** audit refuses 78 before either role executes
+
+#### Scenario: Configured zero status requires a complete enforce certificate
+
+- **WHEN** configured committed audit's captured validator returns zero without the complete existing enforce certificate
+- **THEN** audit refuses 78 even if caller configuration tries to disable required certification
+- **AND WHEN** the validator returns a normal nonzero verdict
+- **THEN** its exact status and output are retained through existing owned settlement
+
+### Requirement: Repository lint callers use an explicitly selected delivered PUNI main
+
+Current Nx and staged-hook Tool Wiki lint callers SHALL use a Bun adapter with the shared protected initial startup controls. The adapter SHALL require an absolute `PUNI_EXECUTABLE` selecting a separately provisioned reviewed current PUNI entrypoint; it SHALL NOT select a default registry coordinate, search PATH for PUNI, import a checkout provider runtime as fallback, or change activation availability semantics.
+
+The delivered ESM entrypoint SHALL export callable `main(args, context)` and importing it SHALL NOT dispatch ambient argv. Before its first import await, the adapter SHALL capture original operands, actual selected entrypoint/directory, caller cwd, Bun runtime, temporary directory, explicit lookup PATH/environment and native byte-output functions. It SHALL invoke `['bur','lint',...operands]` in the same process. The root SHALL retain its installed-toolkit, placement, activation and native-lifetime ownership; the adapter SHALL NOT add a child process or competing escalation policy. Returned completion SHALL contain `kind:'drain'|'exit'` and integer `status` in0..255; the caller SHALL honor drain versus terminal exit. Missing selection, an unreadable installation, unusable main export or malformed completion SHALL reject the reusable adapter call without a source fallback. Its executable failure boundary SHALL make one shared bounded terminal diagnostic attempt and exit1 even when failed imported code retains a timer. Diagnostic abandonment SHALL remain failure; terminating this executable SHALL NOT be described as arbitrary module-resource cleanup or native flush.
+
+#### Scenario: A delivered import preserves the real lint outcome
+
+- **WHEN** a source-built current installed fixture is imported while ambient argv requests another root operation, then its main is called with a valid lint request
+- **THEN** import performs no ambient dispatch and the real installed lint chain retains exact binary stdout/stderr, verdict and terminal completion
+
+#### Scenario: The actual Nx caller delegates without Bash or Node
+
+- **WHEN** the uncached whole-workspace Nx vector runs under protected Bun startup with an explicit valid external PUNI selection
+- **THEN** it forwards working/repository/HEAD through the installed bur lint route without executing Bash or Node, and the staged hook forwards staged/repository/HEAD through the same adapter
+
+#### Scenario: An unusable delivered contract cannot become success
+
+- **WHEN** selection is missing or relative, the selected module has no callable main, or main returns an invalid completion
+- **THEN** the caller fails with an operator provisioning instruction and never invokes a source/provider fallback
+
+#### Scenario: Import-time global changes do not replace caller context
+
+- **WHEN** a controlled delivered module changes cwd, argv and environment while its import is awaited
+- **THEN** main receives the original explicit operands and captured caller paths/environment
+
+These local controls do not establish native cancellation during module import, complete packaged client-operation coverage, a public registry/default pin, CI reactivation or deployment activation. Those existing whole-change obligations remain open.
+
+#### Scenario: Failed delivered code cannot retain the caller through a timer
+
+- **WHEN** a selected controlled module retains a timer then throws during import or returns an invalid completion
+- **THEN** the ready witness is reached and the executable attempts its bounded diagnostic before normal exit1, rather than waiting for the outer timeout; unrelated native resources are not claimed cleaned
+
+### Requirement: Explicit local PUNI artifact installation
+
+The installed PUNI surface SHALL expose `puni dash install-puni ARCHIVE --sha256 SHA256 --destination DIRECTORY` and its existing `d` namespace alias as one typed Optique operation. ARCHIVE SHALL name an explicit local PUNI package archive and SHA256 SHALL be a caller-supplied independent expected byte identity, not a digest recovered from that archive, an unverified sidecar or a registry default. Supplied digest agreement SHALL NOT itself be called release provenance or registry ownership. Cold start MAY use the external Bun package manager with an already authenticated local artifact; no owned standalone bootstrap script or self-update route is introduced.
+
+The operation SHALL capture its request, caller and runtime authority before asynchronous work. It SHALL retain and authenticate regular archive bytes once and install the same protected owned copy, without reopening the original pathname for installation. Destination SHALL be fresh and native-external to the full real caller repository, controlling PUNI installation, selected runtime and archive authority. Occupied targets, including symlinks, SHALL refuse without installing over them. Missing/unreadable/nonregular inputs, unknown tool or custody state SHALL fail rather than default. The initial client purpose is invoked from an actual consumer Git repository; outside-repository cold start remains the external Bun operation.
+
+Bun package installation SHALL use protected startup, a fresh private environment/home/cache and disabled lifecycle scripts. Only the current fixed PUNI profile is supported, without registry/dependency resolution or an arbitrary-package framework. The installed package, delivered main and current toolkit/role/closure/profile joins SHALL be verified before success. No source-provider or candidate-nominated executable fallback is permitted. Child and output ownership SHALL settle before terminal completion; partial owned output and original/cleanup failures SHALL remain visible. First controlled cancellation SHALL retain130/143; unresolved native custody SHALL never become success or automatic deletion.
+
+Successful stdout SHALL contain exactly one LF-terminated JSON object `{schemaVersion:1,archiveSha256:SHA256,entrypoint:ABSOLUTE_NATIVE_PATH}`. The entrypoint SHALL resolve inside the new destination and be usable as an explicit `PUNI_EXECUTABLE`; no shell-eval/export program or global default is emitted. The operation SHALL leave the controlling installation and input archive unchanged. Digest mismatch SHALL return78 with empty stdout and `puni install-puni: archive digest mismatch` plus LF; an occupied destination SHALL return78 with empty stdout and `puni install-puni: destination already exists` plus LF. Other unexpected failures remain nonzero and retain their causes.
+
+The `install-puni` grammar SHALL be exposed by composed PUNI Dash help/request parsing only. The legacy standalone Dash parser/help/runtime SHALL retain its existing supported surface without advertising an unimplemented operation. Before invoking Bun installation, authenticated package metadata SHALL be admitted as dependency-free/hook-free current PUNI metadata; post-install verification alone SHALL NOT justify no-registry or no-lifecycle claims. Successful output SHALL use exactly `JSON.stringify({schemaVersion:1,archiveSha256,entrypoint})` in that field order plus LF, with entrypoint equal to its native canonical spelling.
+
+#### Scenario: Real local artifact provisions an external client
+
+- **GIVEN** the existing local producer built, packed and independently installed the actual current package, and the operator supplied that local archive's expected digest
+- **WHEN** the installed `dash install-puni` operation receives a fresh spaced external destination
+- **THEN** it returns only the closed selection after validating the new installation, and the actual repository Nx caller can select its delivered entrypoint with no Bash/Node or source-provider fallback
+- **AND** optional inactive lint remains inactive rather than certified; public pin/default/CI/activation and all configured semantic certification remain separate
+
+#### Scenario: Explicit bytes and freshness refuse before installation
+
+- **WHEN** the supplied digest differs or the selected destination already exists
+- **THEN** the modeled78 diagnostic is returned without a selection; digest rejection creates no destination, and destination reuse preserves the previously delivered entrypoint bytes
+- **AND** these ordinary controls receive no R5 necessity credit until the actual local checks are separately removed or their production dependencies broken and observed
+
+### Requirement: Development ports execute as a closed PUNI Dash operation
+
+PUNI SHALL expose `dash dev-ports <resolve|check|release> --repository DIRECTORY [--apps-dir DIRECTORY] [TIER:PORT ...]`, including the existing `d` alias, through its typed root grammar. Standalone legacy Dash SHALL remain unchanged. The operation SHALL use the explicit repository and captured caller/environment authority, never infer a client checkout from its installed artifact directory or require installation/Git verification for a local port query. Production SHALL run in Bun without invoking an owned shell script or arbitrary command operand.
+
+#### Scenario: Current configured ports resolve visibly
+
+- **WHEN** resolve addresses a repository, optionally an explicit apps directory
+- **THEN** it reads the last decimal `PORT=` line of each backend/gateway/MCP `.env`, defaults the apps root to `apps/wbs`, uses captured frontend `PORT` or4200 when empty/unset, and prints tier:port lines; a missing/no-PORT tier is visibly omitted, while an unreadable environment file refuses
+
+#### Scenario: Resolution precedes an IPv4 check
+
+- **WHEN** check selects explicit pairs, otherwise present WBS_DEV_PORTS, otherwise configured ports
+- **THEN** a present-empty override is visibly empty; resolution failure prevents probes; a127.0.0.1 listener produces refusal1 and remains alive, while a refused connection alone is the observed unserved result; unknown probe failures refuse rather than certify a free port
+- **AND** malformed/out-of-range operation pairs return2, structural grammar refusal retains Dash's ordinary usage1, and IPv6-only listeners are outside this observation
+
+#### Scenario: Explicit release keeps foreign holders alive
+
+- **WHEN** release encounters a served port
+- **THEN** required lsof inspection must retain a named listener and actual readable cwd within the selected repository, foreign/unreadable/unnameable holders or a changed selected listener PID refuse without signaling them, fixed lsof discovery selects the probed IPv4 loopback or wildcard listener, TERM precedes up to50 polling waits of100ms, and a still-serving same owner is requalified before KILL followed by up to50 further waits
+- **AND** socket absence rather than a successful signal decides release; a still-served port refuses, and unknown native inspection errors are not success; fixed inspection uses a10s SIGKILL timeout and finite1MiB output cap, without claiming atomic PID-generation authority
+
+#### Scenario: Client callers share the embedded operation
+
+- **WHEN** current development callers are converted
+- **THEN** package scripts and the actual pre-Nx start path select this embedded implementation using their retained checkout, and refuse before Nx on a busy port or unreadable environment; there is no shell implementation fallback
+
+### Requirement: Repository development-port callers retain explicit delivered selection
+
+The repository development-port adapter SHALL select only absolute PUNI_EXECUTABLE supplied by the operator and invoke that delivered module's callable main export in the same Bun process. It SHALL capture its own checkout, independent caller cwd, arguments, environment including present-empty WBS_DEV_PORTS, runtime, output functions and native diagnostic factories before import. The closed vector SHALL select dash dev-ports with the retained repository; installation dirname SHALL NOT supply repository authority. No PATH/source fallback, arbitrary command prefix, extra child or competing signal owner is permitted.
+
+#### Scenario: Real package aliases select embedded check and release
+
+- **WHEN** dev:ports or dev:kill runs through Bun's explicit internal package-script shell with a provisioned selected PUNI
+- **THEN** it invokes the embedded check or release purpose, retains an explicitly empty override, and executes no owned Bash development-port implementation
+
+#### Scenario: Invalid selection or ABI refuses visibly
+
+- **WHEN** the selection is absent, nonabsolute, unreadable, missing, noncallable or returns a completion without a valid drain/exit kind and integer status0–255
+- **THEN** reusable invocation rejects; the executable attempts one bounded diagnostic through native factories captured before import and terminates1, including when failed module code retains a timer
+- **AND** this does not promise arbitrary imported-resource cleanup or flush of an abandoned sink
+
+#### Scenario: Completion remains owned by the root
+
+- **WHEN** delivered main completes normally
+- **THEN** the adapter preserves binary stdout/stderr and the returned status, terminates for exit completion only after main settles, and otherwise drains; failures remain distinct from ordinary completion
+
+### Requirement: PUNI owns the complete foreground development purpose
+
+PUNI SHALL expose root-only `dash dev --repository DIRECTORY [--local-solver]`, including `d`, through typed Optique composition. Standalone legacy Dash SHALL remain unchanged. One REQUIRED PUNI-root-supplied port preflight SHALL run under the already-created Dash control owner before a native Nx launch. The provider SHALL NOT import PUNI, default the callback or invoke an owned shell/Node script. The addressed workspace's installed local Nx SHALL receive one fixed four-project run-many vector through Bun, without registry or PATH Node fallback.
+
+Reusable main SHALL return terminal Completion rather than replace/exit its caller. The owned Bun parent PID intentionally differs from legacy Bash exec; native signals, terminal failure, stdin and output ownership remain required. Unified dev parse/usage failures SHALL use existing Dash status1, explicitly differing from legacy Bash status2. Runtime Nx failures SHALL retain their actual status after required native/IO settlement.
+
+Nonempty WBS_DEV_LOG SHALL resolve relative to the captured caller cwd and select capture; absent/empty SHALL retain default mode. Capture SHALL use one physical merged stdout/stderr channel before the terminal/file split. It SHALL preserve terminal bytes, strip only the legacy CSI pattern across native chunks for the file, preserve other binary/UTF8/OSC bytes, and preserve legacy awk final-record LF normalization. Two independent pipe readers SHALL NOT be claimed to retain identical native cross-stream order. Capture, EOF and native exit SHALL settle separately before success; operation, delivery and cleanup failure causes SHALL remain visible.
+
+#### Scenario: Default and local-solver retain the complete development vector
+
+- **WHEN** a valid addressed workspace runs either mode
+- **THEN** one owned local Bun Nx child receives run-many with all four namespaced projects and target serve or serve-local-solver
+- **AND** separate actual Nx graph checks establish real target resolution rather than borrowing controlled dependency-fixture evidence
+
+#### Scenario: Port admission prevents a supervisor launch
+
+- **WHEN** the actual configured IPv4 port is serving
+- **THEN** the required existing preflight names its tier/port and refuses before any Nx child starts, leaving that listener alive
+
+#### Scenario: Capture drains a failed child before returning
+
+- **WHEN** Nx emits both streams with split CSI and exits nonzero
+- **THEN** terminal bytes are unchanged, the file contains the stripped line copy including final output, and the command retains failure only after native status, stream EOF and capture close settlement
+
+#### Scenario: Native control or capture failure keeps one owner
+
+- **WHEN** native interruption or a capture delivery/close failure occurs
+- **THEN** one current child/session recipient is signalled with bounded escalation as required, native/IO joins precede retirement, and primary plus cleanup causes remain reported
+
+#### Scenario: Client conversion does not leave an owned shell wrapper
+
+- **WHEN** the real package aliases, dev container and installed client operation are qualified for cutover
+- **THEN** they share the embedded Bun purpose with explicit installation selection and tested foreground/signal behavior, rather than wrapping old dev.sh or silently assuming provisioning
+
+### Requirement: Development executable IO is explicit and settled
+
+The actual PUNI executable SHALL supply a lazy development-only IO capability captured before dispatch awaits. Its default native path SHALL inherit the explicit standard descriptors, preserving child terminal flags and input. Captured mode SHALL await its native sink write and flush before terminal exit, retaining the one physical child merge. Ownership SHALL NOT be inferred from installation paths or ambient terminal detection. Existing Context.stdout/stderr callback signatures SHALL remain unchanged; reusable main without this capability SHALL return Completion and leave caller global exit state untouched.
+
+One actual JobControl SHALL supply child control and output cancellation. A cancelled output outcome SHALL NOT authorize capture writes or a flush claim; 129/130/143 and interruption provenance SHALL come from the actual control observation, not a mapped output transport signal. Required root preflight diagnostics SHALL be queued and settled under that owner before launch or refusal. Native output failures SHALL wake peer API waits and owned termination deadlines. Original failures, reporting loss and teardown failures SHALL remain retained, including thrown primitives. Only an already-attempted matching native development diagnostic may suppress the root's duplicate generic callback writer; unrelated command/error paths SHALL remain unchanged.
+
+#### Scenario: Captured executable bytes survive a slow consumer
+
+- **WHEN** the actual source or installed root captures a finite binary producer while its outward consumer reads slowly
+- **THEN** native/status/producer observations complete and the full terminal and stripped file match their exact expected lengths and digests before success
+
+#### Scenario: Default executable keeps actual TTY input and one control route
+
+- **WHEN** a Root-owned PTY invokes actual PUNI development with the known input line and one Ctrl-C
+- **THEN** the controlled child observes all three terminal descriptors, the exact line and one forwarded signal, while Root's controlled130 remains distinct from the child's normal0 handler exit
+
+#### Scenario: Reusable invocation is not an executable replacement
+
+- **WHEN** an existing callback caller awaits main without the executable IO capability
+- **THEN** main returns its Completion, preserves caller global exit state and delivers the exact callback bytes
+
+### Requirement: Repository development callers select delivered PUNI coherently
+
+The actual dev and dev:local-solver package aliases SHALL use a fixed-purpose Bun projection to delivered main with the closed dash/dev vector and retained physical checkout. It SHALL capture independent caller cwd/environment/runtime/output functions and lazy native executable-IO factories before import, preserve present-empty overrides, and supply the existing explicit IO capability. PUNI SHALL remain the sole preflight/process/signal/capture owner; the projection SHALL NOT invoke old shell, add a child/broker or copy supervisor logic. Absolute externally selected PUNI_EXECUTABLE SHALL be required with no source/PATH/registry fallback. Reusable projection SHALL return valid Completion or preserve a thrown failure; its executable SHALL honor exit/drain and make bounded terminal failure reporting from captured factories.
+
+Package-default conversion SHALL co-land dev-image/Compose startup with protected Bun internal-shell vectors and explicit external whole-installation delivery. Compose SHALL require an absolute operator-owned host installation directory and mapped absolute container entrypoint, mount the complete installation read-only, and refuse implicit host-path creation. Selection presence SHALL NOT be described as authentication or public/default certification. Existing source/data/solver mounts, four continuous Nx tiers and MCP prepare to backend prepare-mcp-document dependencies SHALL remain. Historical shell/runner evidence SHALL remain until its remaining consumers and owning controls are migrated.
+
+#### Scenario: Package callers retain the complete development vector
+
+- **WHEN** actual dev or dev:local-solver script bytes run through an explicitly selected delivered main
+- **THEN** no owned Bash executes, the local Nx receives the exact four-project serve or serve-local-solver vector once, and its status and default/captured bytes remain owned
+
+#### Scenario: Missing delivered selection refuses before development effects
+
+- **WHEN** the repository projection lacks a usable absolute PUNI selection
+- **THEN** it gives an operator instruction and refuses without selecting a checkout/PATH substitute or launching Nx
+
+#### Scenario: Source-development container requires external artifact delivery
+
+- **WHEN** the image/Compose startup is configured for the converted package default
+- **THEN** both operator installation inputs are mandatory and the complete reviewed installation is mounted read-only with its mapped entrypoint explicitly selected
+
+
+### Requirement: Forge retains an independently selected complete PUNI installation
+
+The explicit local install purpose SHALL retain its current schema1 stdout unchanged and, only after successful owned install, delivered-main probe and archive/package verification, write canonical puni-selection.json inside its fresh destination. The closed record SHALL name schemaVersion1, the canonical absolute installationDirectory, relative retained archive path and SHA256, and the relative delivered entrypoint. It SHALL be JSON with two-space indentation and one LF, written without replacing an existing file. Producing a digest beside these bytes SHALL NOT itself authenticate them.
+
+Current Forge up SHALL require an absolute --puni-selection record and independently expected --puni-selection-sha256. Bounded regular-record acquisition and exact digest SHALL precede decoding. Verification SHALL admit raw archive members before normalized decoding, require exact current dependency-free metadata, compare the complete authenticated payload membership and bytes with the retained archive, require only the additional Bun-generated root .bun-tag regular file with its exact retained-archive SHA512 SRI, and verify the current installed profile. There SHALL be no registry, PATH, checkout or historical-profile fallback. The retained observation SHALL be checked again before admission, Pod creation and each supervisor launch. Repeated observations do not freeze files against an independently trusted host writer.
+
+#### Scenario: Provisioner record follows actual successful installation
+
+- **WHEN** the explicit local archive installs and its selected delivered-main probe succeeds
+- **THEN** the canonical record names exactly that owned directory, retained archive SHA and native entrypoint, while the existing stdout schema and bytes remain unchanged
+
+#### Scenario: Explicit installation mapping is owned by a new lab record
+
+- **WHEN** lab creation receives --puni-installation-root
+- **THEN** it records schema2 with the observed canonical root identity, includes the read-only native node mapping in its creation plan and binds the whole selected installation read-only at /opt/puni-dev
+- **AND** historical lab schema1 stays separately decodable, but cannot authorize current Forge up or imply a missing installation mapping
+
+#### Scenario: Installation admission is separate from worktree admission
+
+- **WHEN** an environment claims, releases or restores one selected installation
+- **THEN** the closed current ConfigMap retains installation owners and exact delimiter-safe installation roots separately from worktree roots, without dropping another environment's claim
+- **AND** only those exact installation directories are admitted; their mounts are read-only for ordinary, init and ephemeral containers
+
+#### Scenario: Forge owns the selected PUNI parent through restart
+
+- **WHEN** a restart input changes or an actual stop arrives
+- **THEN** Forge signals the PUNI parent, permits its existing native child/session owner to settle, and admits no successor until a normal signal-derived parent completion is confirmed
+- **AND** a transport failure, hard escalation or unconfirmed native stop reports failure and forbids the successor; Forge does not infer detached Nx custody from the PUNI process-group absence
+
+#### Scenario: Historical startup evidence stays frozen
+
+- **WHEN** current PUNI startup is qualified
+- **THEN** the historical source-cold-v1 decoder and its captured bytes remain unchanged; a distinct current source profile/producer and actual mounted runtime observations are required before current certification or shell retirement
+
+
+### Requirement: Installed Forge supervision has a shipped closed runtime
+
+The PUNI-only typed operation SHALL be `puni dash|d dev-env supervise --repository DIRECTORY --termination-log PATH`. Both placements SHALL be explicit absolute paths. Legacy standalone Dash SHALL retain its original grammar. The executable SHALL report terminal completion only after the supervisor owner settles; reusable main SHALL return Completion without exiting its caller.
+
+The captured package producer SHALL emit `dist/forge-supervisor.mjs` in the same sealed source/dependency session as the PUNI root and toolkit. Its sibling `forge-supervisor.json` SHALL contain exactly format `puni-forge-runtime`, version1, entrypoint `forge-supervisor.mjs`, its SHA256 and the captured sourceRevision. The selected archive/payload verification SHALL authenticate the complete runtime before loading it and before any successor. The revision SHALL agree with the current package manifest. The executing root SHALL be the independently selected delivered entrypoint. The installed operation SHALL NOT compile or locate unshipped checkout TypeScript or fall back to source execution.
+
+The closed core SHALL retain the Linux Bun/native executable mappings and refuse missing, unreadable, replaced or newly required unknown native edges. Its bundled JavaScript, explicit selected archive/package data and target worktree are distinct owners: the former is hash-bound to the selected installation, the archive/package is reverified, and the worktree uses the retained restart-input contract. Repeated reads require a stable trusted publisher and SHALL NOT be described as an atomic filesystem snapshot or arbitrary in-process sandbox.
+
+#### Scenario: Real installed core survives checkout removal
+
+- **GIVEN** the actual captured package has been installed outside its checkout and the producer checkout/output have been removed
+- **WHEN** the selected PUNI root supervises an owned repository using the retained independently pinned selection
+- **THEN** it loads only the shipped hash-bound core and preserves the real frozen-install native outcome and termination message
+- **AND** absent or inconsistent core/manifest/package/native state refuses before admitting a successor
+
+The separate source compiler API SHALL remain internal, SHALL own its actual source/bootstrap/runtime/data observations and SHALL NOT certify an installed core or serve as any client fallback. All client, Pod and advertised invocation routes SHALL select only the shipped/hash-bound runtime. No source/packed byte or sourceRevision equivalence is implied.
+
+#### Scenario: Internal source supervision observes its actual loaded inputs
+
+- **GIVEN** an explicitly trusted source library caller, a healthy native baseline and an actual emitted core with its SDK contribution
+- **WHEN** a retained required SDK/configuration/package/native input changes after frozen install
+- **THEN** the mandatory execution observation refuses a fresh development acquisition, with missing/unreadable/malformed required state throwing and changed captured state requiring reload
+- **AND** the source compiler records its compiler/bootstrap/input/configuration/package observations separately from installed operation and never serves as its fallback
+
+
+### Requirement: Producer admits only the closed retained Forge asset loader
+
+The captured producer SHALL preserve generic macro, alias and opaque-load refusal. Its only Forge runtime exception SHALL authenticate the exact producer-owned loader source at its exact captured path, identify exactly one emitted ImportKeyword call in that source's AST and exempt only that node. The captured role graph SHALL establish that only the fixed puni.mjs root role reaches the loader; package mode or pathname alone SHALL NOT grant the exception. Source mismatch, additional opaque calls, aliases and other role reachability SHALL refuse before any Bun role build.
+
+The runtime loader SHALL copy already archive-authenticated bytes, require exact computed SHA256 equality and construct only a hash-qualified JavaScript data URL from the retained copy. It SHALL NOT reopen a source pathname during import, accept a caller URL, locate a checkout or relax the caller's independent archive/manifest/native inspection. Same-byte module caching and changed-byte separation SHALL remain explicit; the SHA256 media-type parameter is not independently claimed necessary when the data URL already contains the bytes.
+
+The producer SHALL record the audited source and emitted digests, canonical path, exclusive root role, one-import boundary and payload/cache profile as runtimeAssetLoads alongside its existing compiler transforms. The package SHALL retain the record in dist/runtime-asset-loads.json with its sourceRevision. This build observation grants no public release provenance. Genuine emitted-core execution outside the checkout SHALL qualify data-URL builtin/native/context compatibility before installed closure is claimed.
+
+#### Scenario: Producer refuses a wider runtime-load capability
+
+- **GIVEN** real captured source and dependency authority and a healthy actual producer baseline
+- **WHEN** the audited source is changed, an extra opaque call or require alias is introduced, or another role reaches the loader
+- **THEN** the actual producer refuses before any Bun role build and keeps every other generic safety check
+
+#### Scenario: Retained bytes decide execution
+
+- **GIVEN** an independently authenticated artifact supplies retained runtime bytes and its exact digest
+- **WHEN** the runtime is loaded after its original pathname changes or disappears
+- **THEN** only the retained data-URL snapshot can execute; mismatched retained bytes refuse before new module side effects
+- **AND** the actual packed supervisor still reaches its real owned native outcome through the shipped core after checkout removal
+
+
+### Requirement: Explicit current test-level tool source
+
+PUNI0.4.0 SHALL require a new selected-source toolkit3, required testLevelIdentity and matching top-level sourceSelection in the package profile, installed selection record2 and test-level asset descriptor. Source selection SHALL be the closed committed{revision,tree} or working{base,identity} union. Existing sourceRevision SHALL equal revision or base respectively and SHALL be only a compatibility/display reference for working input. Historical0.2.1/profile0.3.0/toolkit1/2 and record1 byte contracts SHALL remain separately readable without relabelling old bytes.
+
+#### Scenario: Working source cannot claim committed tool provenance
+
+- **WHEN** a release, certification, activation or deployment consumer receives a valid new working selection
+- **THEN** it refuses committed-source admission before candidate effects; a valid base commit or unchanged legacy sourceRevision does not grant it
+
+#### Scenario: A claimed current capability has complete independent assets
+
+- **WHEN** an actual selected0.4 installation is consumed for Browser, Performance or an ordinary current operation
+- **THEN** its toolkit, profile, descriptor, worker, captured source manifest and full authenticated archive/membership agree; required assets and full sourceSelection cannot be omitted, mismatched or downgraded to record1
+
+#### Scenario: Actual source root consumes separately authenticated installed assets
+
+- **WHEN** explicit source composition is requested
+- **THEN** the actual root main and complete current nonignored relative paths, bytes, modes and links match the produced source manifest through the existing owned Git capture before engine execution; a role flag, suffix, copied bundle or producer temporary absolute root is insufficient
+
+#### Scenario: Explicit local provisioning supports edited tool source
+
+- **WHEN** the uncached PUNI prerequisite prepares the four Browser/Performance Nx clients
+- **THEN** actual current working bytes use the same compiler/package/install owners, retain the real base plus independent working identity without creating a source commit, and publish an explicit byte-preserving selection consumed by direct actual source-root commands; no external global PUNI, registry discovery, source forwarding runner or runtime repair of missing selection is used
+- **AND** existing clean evidence-candidate checks remain; a target addressing a dirty workspace as its candidate refuses rather than weakening those checks

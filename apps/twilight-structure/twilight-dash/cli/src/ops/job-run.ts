@@ -28,11 +28,13 @@ import {
   toolchainOf,
 } from './catalogue';
 import { checkDockerAvailable, ContainerWatch, dockerContainerEvidence } from './containers';
+import type { SubscribeControl } from './gate-control';
 import {
   encodeGatedEnvironment,
   type GatedStatus,
   parseGatedStatus,
 } from './gated-payload-protocol';
+import { createJobControl, type JobControl, type JobInterruption } from './job-control';
 import { readTermination } from './native-exit';
 import { causeText, type OpsExitCode, OpsRefusal } from './refusal';
 import { HostJobRunRecords, type RunSample } from './run-records';
@@ -57,6 +59,8 @@ export interface JobRunRequest {
 
 /** Everything `ops job run` reaches outside its arguments. */
 export interface JobRunDependencies {
+  /** Borrow cancellation only; the executable owner retains native listener disposal. */
+  readonly control?: { readonly subscribe: SubscribeControl };
   /** Fully Dash-namespaced protected selected installation; captured before admission waits. */
   readonly helperPrefix: readonly string[];
   readonly clock: WallClock;
@@ -471,16 +475,27 @@ function readSample(
 }
 
 /** The exit code a launcher interrupted before its payload started returns, as a shell's. */
-function interruptedCode(signal: NodeJS.Signals): 129 | 130 | 143 {
-  if (signal === 'SIGHUP') return 129;
-  return signal === 'SIGINT' ? 130 : 143;
+function interruptedCode(interruption: JobInterruption): 129 | 130 | 143 {
+  if (interruption.kind === 'external') return 130;
+  if (interruption.signal === 'SIGHUP') return 129;
+  return interruption.signal === 'SIGINT' ? 130 : 143;
 }
 
-/** A signal the launcher received before its payload started, and the abort it raised. */
-interface Interruption {
-  readonly signal: AbortSignal;
-  received(): NodeJS.Signals | null;
+/** External reasons are opaque and never interpolated into job diagnostics. */
+function interruptionText(interruption: JobInterruption): string {
+  return interruption.kind === 'external'
+    ? 'externally cancelled'
+    : `interrupted by ${interruption.signal}`;
 }
+
+/** Expected cancellation must retain an observed control; queue wake alone supplies no provenance. */
+function requireInterruption(interruption: JobInterruption | null): JobInterruption {
+  if (interruption === null) throw new Error('host job cancellation lacks an observed control');
+  return interruption;
+}
+
+/** The operation's first interruption and queue wake, without owner disposal authority. */
+type Interruption = Pick<JobControl, 'signal' | 'received'>;
 
 /**
  * Run one host job measured (`dash-host-jobs` J7, J8, J16): read the catalogue at the checkout's
@@ -489,8 +504,14 @@ interface Interruption {
  * persisting the leader's identity and the gate sample before the gate opens; sample every
  * interval and at exit; record the exit, settle on terminal evidence and return the payload's
  * own status. A signal before the gate opens refuses 129/130/143 with the payload never run; one
- * after is forwarded to the payload's session. A failure to read telemetry or to write a record
- * after the gate opened is recorded and reported, never substituted for the payload's status.
+ * after is forwarded to the payload's session. Borrowed external cancellation refuses130 before
+ * start with a redacted diagnostic and uses TERM transport afterward, preserving the parent's
+ * reason and the payload's qualified status. The operation retires only its control lease after
+ * native/FD/resource settlement; synchronous delivery failures surface after those joins. A failure
+ * to read telemetry or to write a record after the gate opened is recorded and reported, never
+ * substituted for the payload's status. Retirement is attempted once after required joins; its
+ * failure never skips retained delivery causes. A sole operation/retirement/delivery cause is
+ * rethrown unchanged, while concurrent causes retain their identities in an AggregateError.
  * @throws OpsRefusal for every refusal before the payload runs (64, 70, 73, 75, 129, 130, 143).
  */
 export function runHostJob(request: JobRunRequest, deps: JobRunDependencies): Promise<number> {
@@ -515,6 +536,7 @@ async function executeHostJob(
   deps: JobRunDependencies,
   isCalibration: boolean,
 ): Promise<number> {
+  const subscribe = deps.control?.subscribe;
   const prefix = [...deps.helperPrefix];
   if (prefix.length === 0 || prefix.some((word) => word === '' || word.includes('\0')))
     throw new OpsRefusal(70, 'ops job run: selected protected helper prefix is invalid');
@@ -525,6 +547,46 @@ async function executeHostJob(
     cwd: deps.cwd,
   };
   request = { ...request, argv: Object.freeze([...request.argv]) };
+  const control = createJobControl(subscribe),
+    failures: unknown[] = [];
+  let execution: { kind: 'completed'; status: number } | { kind: 'failed'; cause: unknown };
+  try {
+    const prior = control.received();
+    if (prior !== null)
+      throw new OpsRefusal(
+        interruptedCode(prior),
+        'ops job run: ' + interruptionText(prior) + ' before the gate opened',
+      );
+    execution = {
+      kind: 'completed',
+      status: await executeControlledHostJob(request, deps, isCalibration, control),
+    };
+  } catch (cause) {
+    execution = { kind: 'failed', cause };
+  } finally {
+    try {
+      control.close();
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+  try {
+    control.throwIfFailed();
+  } catch (cause) {
+    failures.push(cause);
+  }
+  if (execution.kind === 'completed' && failures.length === 0) return execution.status;
+  const causes = execution.kind === 'failed' ? [execution.cause, ...failures] : failures;
+  if (causes.length === 1) throw causes[0];
+  throw new AggregateError(causes, 'host job operation or control settlement failed');
+}
+
+async function executeControlledHostJob(
+  request: JobRunRequest,
+  deps: JobRunDependencies,
+  isCalibration: boolean,
+  interruption: JobControl,
+): Promise<number> {
   const catalogued = readCataloguedJob(deps.cwd, request.type, request.argv);
   // One total wait (J12): the pool's admission and, in observe mode, the shell lock's queue.
   const arrivedAt = deps.clock.read();
@@ -553,19 +615,6 @@ async function executeHostJob(
     runtime.close();
     throw new OpsRefusal(70, `ops job run: ${causeText(cause)}`, { cause });
   }
-  const abort = new AbortController();
-  const received: { signal: NodeJS.Signals | null } = { signal: null };
-  const forward: { to: ((signal: NodeJS.Signals) => void) | null } = { to: null };
-  // Until the gate opens a signal only aborts: admission withdraws its ticket, and a launch in
-  // progress refuses at the gate. After it opens, the signal goes to the payload's session.
-  const onSignal = (signal: NodeJS.Signals): void => {
-    received.signal ??= signal;
-    if (forward.to !== null) forward.to(signal);
-    else abort.abort();
-  };
-  const interruption: Interruption = { signal: abort.signal, received: () => received.signal };
-  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
-  for (const signal of signals) process.on(signal, onSignal);
   try {
     const docker =
       catalogued.descriptor.containers === 'none'
@@ -587,17 +636,17 @@ async function executeHostJob(
       },
       {
         pollMs: request.pollSeconds * 1000,
-        signal: abort.signal,
+        signal: interruption.signal,
         report: (line) => {
           deps.report(line);
         },
       },
     );
     if (admission.kind === 'cancelled') {
-      const signal = received.signal ?? 'SIGTERM';
+      const received = requireInterruption(interruption.received());
       throw new OpsRefusal(
-        interruptedCode(signal),
-        `ops job run: ${typeId} ${request.label} interrupted by ${signal} while waiting; its ticket is withdrawn`,
+        interruptedCode(received),
+        `ops job run: ${typeId} ${request.label} ${interruptionText(received)} while waiting; its ticket is withdrawn`,
       );
     }
     if (admission.kind === 'refused') throw new OpsRefusal(admission.exitCode, admission.reason);
@@ -628,8 +677,8 @@ async function executeHostJob(
           toolchain,
           deps,
           interruption,
-          (handler) => {
-            forward.to = handler;
+          (recipient) => {
+            interruption.setRecipient(recipient);
           },
         ),
       };
@@ -652,7 +701,6 @@ async function executeHostJob(
     if (execution.kind === 'failed') throw execution.cause;
     return execution.status;
   } finally {
-    for (const signal of signals) process.removeListener(signal, onSignal);
     records.close();
     runtime.close();
   }
@@ -665,7 +713,10 @@ async function executeHostJob(
  * its immutable child token and Ready handoff are corroborated. A refusal or an interruption there withdraws the job, which was never prepared
  * or launched, releasing its reservation at once.
  * @throws OpsRefusal 75 when the shell lock gives no turn within the budget left, 129/130/143
- * when interrupted while queued there, 70 for any other refusal of the shell lock.
+ * when interrupted while queued there, 70 for any other refusal of the shell lock. A cancelled
+ * outcome without observed control throws after checked withdrawal of this known unprepared
+ * admission; concurrent provenance/withdrawal causes are aggregated. Native acquisition throws
+ * or retained ownership do not authorize this withdrawal path.
  */
 async function queueOnLegacyLock(
   runtime: ResourceRuntime,
@@ -694,22 +745,39 @@ async function queueOnLegacyLock(
     deps.environment,
   );
   if (outcome.kind === 'held') return outcome.hold;
-  const signal = interruption.received();
-  const [code, reason]: [OpsExitCode, string] =
-    outcome.kind === 'cancelled'
-      ? [
-          interruptedCode(signal ?? 'SIGTERM'),
-          `interrupted by ${signal ?? 'SIGTERM'} while queued on the shell lock (observe mode)`,
-        ]
-      : outcome.exitCode === 75
-        ? [
-            75,
-            `the shell lock gave no turn within the ${String(remaining)}s left of its wait budget (observe mode)`,
-          ]
-        : [
-            70,
-            `the shell lock refused it with exit ${String(outcome.exitCode)}: ${outcome.reason} (observe mode)`,
-          ];
+  let refusal: [OpsExitCode, string];
+  if (outcome.kind === 'cancelled') {
+    let received: JobInterruption;
+    try {
+      received = requireInterruption(interruption.received());
+    } catch (cause) {
+      try {
+        runtime.withdrawUnlaunchedHostJob(job.id, causeText(cause));
+      } catch (withdrawalCause) {
+        throw new AggregateError(
+          [cause, withdrawalCause],
+          'host job cancellation provenance and unlaunched withdrawal failed',
+          { cause: withdrawalCause },
+        );
+      }
+      throw cause;
+    }
+    refusal = [
+      interruptedCode(received),
+      interruptionText(received) + ' while queued on the shell lock (observe mode)',
+    ];
+  } else if (outcome.exitCode === 75) {
+    refusal = [
+      75,
+      `the shell lock gave no turn within the ${String(remaining)}s left of its wait budget (observe mode)`,
+    ];
+  } else {
+    refusal = [
+      70,
+      `the shell lock refused it with exit ${String(outcome.exitCode)}: ${outcome.reason} (observe mode)`,
+    ];
+  }
+  const [code, reason] = refusal;
   // Proof: without the withdrawal `a legacy deadline withdraws the Dash job`
   // (host-pool-mode.test.ts) left the job starting with its cores reserved (2026-11-02, Slice 6b).
   runtime.withdrawUnlaunchedHostJob(job.id, reason);
@@ -840,14 +908,14 @@ async function runAdmitted(
   };
   /** The interruption refusal, when a signal arrived before the gate opened. */
   const refuseIfInterrupted = async (): Promise<void> => {
-    const signal = interruption.received();
+    const received = interruption.received();
     // Proof: without this check `a SIGINT while the scope starts refuses 130, the payload
     // never runs` (job-run.test.ts) refuse 70 "did not start scope" instead of 130
     // (2026-11-02, Slice 3 review F4).
-    if (signal !== null)
+    if (received !== null)
       await refuseAtGate(
-        interruptedCode(signal),
-        `interrupted by ${signal} before the gate opened`,
+        interruptedCode(received),
+        `${interruptionText(received)} before the gate opened`,
       );
   };
   try {
@@ -977,7 +1045,14 @@ async function runAdmitted(
     try {
       killSession(pid, signal);
     } catch (cause) {
-      deps.report(`ops job: forwarding ${signal} to ${unit} failed: ${causeText(cause)}`);
+      try {
+        deps.report(`ops job: forwarding ${signal} to ${unit} failed: ${causeText(cause)}`);
+      } catch (reportCause) {
+        throw new AggregateError([cause, reportCause], 'host job forwarding and reporting failed', {
+          cause: reportCause,
+        });
+      }
+      throw cause;
     }
   });
   let startControlFailed = false;

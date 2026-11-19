@@ -12,20 +12,22 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { createShebang } from '@shared/bun-startup';
 import ts from 'typescript';
 
+import { hashBytes } from '../evidence/content-manifest';
 import type { LintInterrupt, SubscribeLintInterrupts } from '../lint-interrupts';
 import { embedDashAssets } from '../packaging/dash-assets';
 import { type PreparationCompiler, prepareCompiler } from '../packaging/preparation-compiler';
 import { boundSource } from '../relationships/typescript-compiler';
 import type { BuildDependencies } from './build-dependencies';
 import { type BunToolkitRole, bunToolkitRoles } from './bun-release';
-import type { CommittedSource } from './committed-source';
+import type { SourceFiles } from './source-files';
+import { type AuditedForgeLoader, type ForgeRuntimeLoad, forgeRuntimeLoaderPath, readForgeLoaderBoundary, readForgeLoaderImport } from './forge-loader-boundary';
 import type { PreparationNotice } from './prepared-activation';
-import { type BunToolkit, readBunToolkit } from './toolkit';
+import { type CommittedBunExecutionToolkit, readCommittedBunToolkit } from './toolkit';
 import { copyTrustedModules, hashTrustedModules } from './trusted-modules';
 
 interface Context {
   readonly materializedDirectory: string;
-  readonly toolkit: BunToolkit;
+  readonly toolkit: CommittedBunExecutionToolkit;
   readonly validatorEntry: string;
   readonly launcherEntry: string;
   readonly subscribeInterrupts: SubscribeLintInterrupts;
@@ -108,7 +110,7 @@ function createImportKey(importer: string, specifier: string, kind: string): str
   return JSON.stringify([importer, specifier, kind]);
 }
 
-function assertNoOpaqueLoads(path: string, module: Module, vendor: boolean): void {
+function assertNoOpaqueLoads(path: string, module: Module, vendor: boolean, audited?: AuditedForgeLoader): ForgeRuntimeLoad | undefined {
   if (module.loader === 'json') return;
   const parsed = ts.createSourceFile(
     path,
@@ -117,6 +119,7 @@ function assertNoOpaqueLoads(path: string, module: Module, vendor: boolean): voi
     true,
     ts.ScriptKind.JS,
   );
+  const allowedImport = audited === undefined ? undefined : readForgeLoaderImport(parsed);
   function visit(node: ts.Node): void {
     if (
       // Proof: c26-build-alias-loader; injected fault failed `refuses an aliased first-party opaque loader alongside the admitted compiler`; the same named test(s) passed after restoration.
@@ -138,7 +141,7 @@ function assertNoOpaqueLoads(path: string, module: Module, vendor: boolean): voi
           call.name.text === 'resolve');
       const specifier = node.arguments.at(0);
       // Proof: c26-build-opaque; injected fault failed `refuses an opaque runtime import rather than claiming a closed build`; the same named test(s) passed after restoration.
-      if (isLoader && (specifier === undefined || !ts.isStringLiteralLike(specifier)))
+      if (isLoader && (specifier === undefined || !ts.isStringLiteralLike(specifier)) && node !== allowedImport)
         throw new Error(
           'preparation refuses an opaque ' +
             (vendor ? 'vendor' : 'first-party') +
@@ -149,6 +152,10 @@ function assertNoOpaqueLoads(path: string, module: Module, vendor: boolean): voi
     ts.forEachChild(node, visit);
   }
   visit(parsed);
+  if (audited === undefined) return undefined;
+  return { kind: 'retained-forge-core', sourcePath: forgeRuntimeLoaderPath,
+    sourceSha256: audited.sourceSha256, emittedSha256: hashBytes(module.bytes), role: 'puni.mjs',
+    importCalls: 1, payloadFormat: 'puni-forge-runtime', payloadVersion: 1, cacheIdentity: 'sha256-data-url' };
 }
 
 interface RoleBuildContext<Role extends string> {
@@ -165,12 +172,13 @@ type BuiltRoles<Role extends string> =
       readonly kind: 'built';
       readonly roleBytes: Readonly<Record<Role, Uint8Array>>;
       readonly compilerTransforms: readonly PreparationCompiler['manifest'][];
+      readonly runtimeAssetLoads: readonly ForgeRuntimeLoad[];
       readonly notices: readonly PreparationNotice[];
     };
 
 /** The three-role relocation adapter reauthenticates its selected toolkit inside the owned build. */
 export async function buildPreparationRoles(
-  source: CommittedSource,
+  source: SourceFiles,
   context: Context,
 ): Promise<PreparationRoles> {
   const toolkitDirectory = context.toolkit.directory,
@@ -185,7 +193,7 @@ export async function buildPreparationRoles(
     executableRoles: ['launcher'],
     subscribeInterrupts: context.subscribeInterrupts,
     readDependencies: () => {
-      const verified = readBunToolkit(toolkitDirectory);
+      const verified = readCommittedBunToolkit(toolkitDirectory);
       // Proof: c26-build-toolkit; injected fault failed `refuses a changed selected toolkit identity before copying dependencies`; the same named test(s) passed after restoration.
       if (verified.digest !== toolkitIdentity)
         throw new Error('preparation toolkit identity changed before build');
@@ -219,7 +227,7 @@ export async function buildPreparationRoles(
  * no candidate import extends its roster. Input arrays and fields are captured before callbacks.
  */
 export function buildToolkitRoles(
-  source: CommittedSource,
+  source: SourceFiles,
   context: {
     readonly materializedDirectory: string;
     readonly dependencies: BuildDependencies;
@@ -247,17 +255,17 @@ export function buildToolkitRoles(
   });
 }
 
-export type PuniProgram = BunToolkitRole | 'puni.mjs' | 'observation-service.mjs';
+export type PuniProgram = BunToolkitRole | 'puni.mjs' | 'observation-service.mjs' | 'forge-supervisor.mjs' | 'performance-judge.mjs';
 
 /**
- * Build the PUNI root, five toolkit roles and pure observation service in one sealed session.
+ * Build the PUNI root, five toolkit roles, observation service and Forge core in one sealed session.
  * Entry paths and data embedding belong to the producer, never captured configuration. All
  * programs share one captured source/dependency identity and compiler notices; stable virtual
  * module paths avoid global literal rewriting while whitespace minification removes comments.
  * This produces bytes only, without package assembly, clean-release admission or publication.
  */
 export function buildPuniPrograms(
-  source: CommittedSource,
+  source: SourceFiles,
   context: {
     readonly materializedDirectory: string;
     readonly dependencies: BuildDependencies;
@@ -282,6 +290,8 @@ export function buildPuniPrograms(
       ['prepare-relocation-activation.mjs', provider + 'policy/prepare-relocation-entry.ts'],
       // Proof: c28-programs-root-entry; injected fault failed `builds root five toolkit roles and observation once from captured programs and SQL after live source changes`; restoration passed.
       ['puni.mjs', 'apps/puni/cli/src/entrypoint.ts'],
+      ['forge-supervisor.mjs', 'tools/tool-devsync/src/k3s/forge-supervisor-core.ts'],
+      ['performance-judge.mjs', provider + 'performance-judge.ts'],
       [
         'observation-service.mjs',
         // Proof: c28-programs-observation-entry; injected fault failed `builds root five toolkit roles and observation once from captured programs and SQL after live source changes`; restoration passed.
@@ -304,10 +314,12 @@ export function buildPuniPrograms(
  * Candidate helpers/plugins never execute: configuration is bounded and a sealed namespace
  * supplies captured modules, closed imports and the pinned compiler transform. Macro attributes
  * refuse before Bun's API. The caller owns the fresh view and retains it on failure/cancellation.
+ * Only the exact-source/AST-validated loader exclusive to the PUNI root receives Bun's empty
+ * unresolved-import pattern; every other role retains an empty allowlist.
  * Every in-process build settles before cancellation returns; this API owns no child group.
  */
 async function buildSelectedRoles<Role extends string>(
-  source: CommittedSource,
+  source: SourceFiles,
   context: RoleBuildContext<Role>,
 ): Promise<BuiltRoles<Role>> {
   const packagePrograms = context.packagePrograms === true;
@@ -552,6 +564,9 @@ async function buildSelectedRoles<Role extends string>(
     if (roleEntries.some(([, path]) => isWithin(modules, path)))
       throw new Error('preparation executable role must be selected first-party source');
     const compilerTransforms: PreparationCompiler['manifest'][] = [];
+    const runtimeAssetLoads: ForgeRuntimeLoad[] = [];
+    const auditedModules = new Map<string, ForgeRuntimeLoad>();
+    const moduleEdges = new Map<string, Set<string>>();
     const notices: PreparationNotice[] = [];
     const captured = new Map<string, Module>(),
       imports = new Map<string, { path: string; isExternal: boolean }>(),
@@ -582,6 +597,7 @@ async function buildSelectedRoles<Role extends string>(
         original = { bytes: Buffer.from(prepared.source), loader: original.loader };
       }
       assertNoMacros(path, original);
+      const audited = readForgeLoaderBoundary(relative(directory, path).split(sep).join('/'), original.bytes, packagePrograms);
       const options = readConfiguration(path);
       let module: Module = original;
       if (original.loader !== 'json') {
@@ -636,16 +652,43 @@ async function buildSelectedRoles<Role extends string>(
           loader: 'js',
         };
       }
-      assertNoOpaqueLoads(path, module, isWithin(modules, path));
+      const runtimeLoad = assertNoOpaqueLoads(path, module, isWithin(modules, path), audited);
+      if (runtimeLoad !== undefined) auditedModules.set(path, runtimeLoad);
       captured.set(path, module);
+      moduleEdges.set(path, new Set<string>());
       if (module.loader === 'json') continue;
       for (const imported of new Bun.Transpiler({ loader: module.loader }).scanImports(
         module.bytes,
       )) {
         const selected = resolveImport(imported.path, path, imported.kind);
         imports.set(createImportKey(path, imported.path, imported.kind), selected);
-        if (!selected.isExternal && !captured.has(selected.path)) pending.push(selected.path);
+        if (!selected.isExternal) {
+          const outgoing = moduleEdges.get(path);
+          if (outgoing === undefined) throw new Error('captured module has no import-edge owner: ' + path);
+          outgoing.add(selected.path);
+          if (!captured.has(selected.path)) pending.push(selected.path);
+        }
       }
+    }
+    for (const [loaderPath, manifest] of auditedModules) {
+      const owners: string[] = [];
+      for (const [role, entry] of roleEntries) {
+        const pendingPaths = [entry], visited = new Set<string>();
+        while (pendingPaths.length !== 0) {
+          const selected = pendingPaths.pop();
+          if (selected === undefined) throw new Error('Forge loader role graph queue is unexpectedly empty');
+          if (visited.has(selected)) continue;
+          visited.add(selected);
+          const outgoing = moduleEdges.get(selected);
+          if (!captured.has(selected) || outgoing === undefined)
+            throw new Error('Forge loader role graph reaches an uncaptured module: ' + selected);
+          for (const dependency of outgoing) pendingPaths.push(dependency);
+        }
+        if (visited.has(loaderPath)) owners.push(role);
+      }
+      if (owners.length !== 1 || owners.at(0) !== 'puni.mjs')
+        throw new Error('audited Forge runtime loader is not exclusive to the PUNI root role: ' + owners.join(', '));
+      runtimeAssetLoads.push(manifest);
     }
     const buildConfig = join(directory, '.puni-build-options.json');
     writeFileSync(
@@ -687,7 +730,7 @@ async function buildSelectedRoles<Role extends string>(
         format: 'esm',
         env: 'disable',
         minify: packagePrograms ? { whitespace: true } : false,
-        allowUnresolved: [],
+        allowUnresolved: role === 'puni.mjs' && runtimeAssetLoads.length > 0 ? [''] : [],
         tsconfig: buildConfig,
         // Proof: c26-build-pin; injected fault failed `delivers the producer Bun pin and one protected launcher hashbang in selected roles`; the same named test(s) passed after restoration.
         define: {
@@ -755,6 +798,7 @@ async function buildSelectedRoles<Role extends string>(
       // those captured entries one-to-one; Object.fromEntries widens that discharged key set.
       roleBytes: Object.fromEntries(roleBytes) as Readonly<Record<Role, Uint8Array>>,
       compilerTransforms: compilerTransforms.map((manifest) => ({ ...manifest })),
+      runtimeAssetLoads: runtimeAssetLoads.map((manifest) => ({ ...manifest })),
       notices: notices.map((notice) => ({ path: notice.path, bytes: notice.bytes.slice() })),
     };
   }
