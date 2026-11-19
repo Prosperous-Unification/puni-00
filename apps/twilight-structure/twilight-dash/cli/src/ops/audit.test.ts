@@ -2,11 +2,14 @@ import { describe, expect, test } from 'bun:test';
 
 import { auditDrift } from './audit';
 import type { CommittedCatalogue } from './catalogue';
+import { proposeEnvelope } from './propose';
 import {
   CATALOGUE_PATH,
   committedCatalogue,
   type FixtureRun,
+  HOST_CLASS,
   runRecord,
+  TOOLCHAIN,
 } from './run-record.test.fixture';
 import type { RunRecord } from './run-records';
 
@@ -299,5 +302,86 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
       `not judged: runs of release-build, which ${CATALOGUE_PATH} at HEAD does not name`,
       'not judged beyond throttling: 1 runs without an outcome: running',
     ]);
+  });
+  describe('tmp lower bounds (task 6.23, A-TMP-TELEMETRY-1)', () => {
+    const PATH = 'wbs-shared-process-XYrBbJ/inaccessible';
+
+    test('a run with unreadable tmp subtrees gets one note listing them', () => {
+      expect(
+        audit([
+          { id: 'fixture', memoryGib: 5, cpuCores: 3, tmpGib: 5, tmpUnreadable: [PATH, 'b'] },
+        ]),
+      ).toEqual({
+        drifts: [],
+        notes: [
+          `tmp lower bound only in run fixture: 3 samples saw unreadable subtrees: ${PATH}, b`,
+        ],
+        kinds: [],
+      });
+    });
+
+    test('tmp lower bounds are not waste', () => {
+      const small = (count: number, tmpUnreadable?: string[]) =>
+        Array.from({ length: count }, (_, index) => ({
+          id: `small-${String(index + 1)}`,
+          type: 'release-build',
+          memoryGib: 1.5,
+          cpuCores: 0.75,
+          tmpGib: 0.5,
+          ...(tmpUnreadable === undefined ? {} : { tmpUnreadable }),
+        }));
+      expect(audit(small(10)).drifts).toEqual([
+        `release-build waste tmpDiskGib: p95 0.5 below half the envelope 2 over 10 complete runs (${CATALOGUE_PATH} at ${'a'.repeat(40)})`,
+      ]);
+      expect(audit(small(10, [PATH])).drifts).toEqual([]);
+    });
+
+    test('a lower-bound tmp entry is not waste-checkable', () => {
+      // The entry `ops job propose` prints from three lower-bound calibrations of release-build.
+      const proposal = proposeEnvelope(
+        'release-build',
+        atRun,
+        [1, 2, 3].map((index) =>
+          runRecord(atRun, {
+            id: `calibration-${String(index)}`,
+            type: 'release-build',
+            calibration: true,
+            memoryGib: 1,
+            cpuCores: 2,
+            tmpGib: index,
+            seconds: 600,
+            tmpUnreadable: [PATH],
+          }),
+        ),
+        { argumentProfile: '', hostClass: HOST_CLASS, toolchain: TOOLCHAIN },
+        NOW,
+      );
+      if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+      const head = committedCatalogue(types, (jobs) =>
+        jobs.map((job) => (job.id === 'release-build' ? proposal.entry : job)),
+      );
+      // Ten complete runs of the proposed entry, tmp measured at 0.5 of its 4 GiB.
+      const runs = Array.from({ length: 10 }, (_, index) =>
+        runRecord(head, {
+          id: `small-${String(index + 1)}`,
+          type: 'release-build',
+          memoryGib: 1.5,
+          cpuCores: 1.5,
+          tmpGib: 0.5,
+          startedAt: 1_800_000_000_000 + index * 3_600_000,
+        }),
+      );
+      const { drifts, notes } = auditDrift(runs, head, NOW);
+      expect(drifts).toEqual([]);
+      expect(notes).toEqual([
+        `release-build tmp entry is a lower bound; waste cannot fire for tmpDiskGib (${CATALOGUE_PATH} at ${'a'.repeat(40)})`,
+      ]);
+    });
+
+    test('a lower bound above the envelope is still an overrun', () => {
+      expect(
+        audit([{ id: 'big', memoryGib: 5, cpuCores: 3, tmpGib: 9, tmpUnreadable: [PATH] }]).kinds,
+      ).toEqual(['overrun']);
+    });
   });
 });

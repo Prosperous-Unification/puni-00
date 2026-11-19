@@ -79,6 +79,33 @@ describe('the job catalogue shape', () => {
     );
   });
 
+  test('marks a calibrated tmp p95 as a lower bound with true alone (Dash task 6.23)', () => {
+    const calibrated = (marker: Record<string, unknown>): unknown => {
+      const job = gateJob();
+      job['provenance'] = {
+        kind: 'calibrated',
+        hostClass: 'h4claw',
+        calibratedAt: '2026-11-20T10:00:00.000Z',
+        recordCount: 3,
+        p95: { cpuCores: 3.1, memoryGib: 4.2, tmpDiskGib: 5 },
+        recordIds: ['r1', 'r2', 'r3'],
+        ...marker,
+      };
+      return catalogueWith([job]);
+    };
+    expect(
+      parseJobCatalogue(calibrated({ tmpDiskGibLowerBound: true })).jobs[0]?.provenance,
+    ).toMatchObject({
+      tmpDiskGibLowerBound: true,
+    });
+    expect(parseJobCatalogue(calibrated({})).jobs[0]?.provenance).not.toHaveProperty(
+      'tmpDiskGibLowerBound',
+    );
+    expect(() => parseJobCatalogue(calibrated({ tmpDiskGibLowerBound: false }))).toThrow(
+      /tmpDiskGibLowerBound/,
+    );
+  });
+
   test('refuses an impossible until date', () => {
     const job = gateJob();
     job['provenance'] = { kind: 'estimated', basis: 'fixture', until: '2026-02-30' };

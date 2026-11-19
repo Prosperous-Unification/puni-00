@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { type ContainerVerdict, HostJobRunRecords, type RunOutcome } from './run-records';
@@ -45,6 +46,8 @@ describe('run record container verdicts (task 6.22, A-ATTR-HOSTSVC-1)', () => {
         observedAt: 1_800_000_000_000,
         counters: null,
         tmpBytes: null,
+        tmpUnreadable: [],
+        tmpUnreadableOmitted: 0,
         containers: null,
         failure: 'not read',
       },
@@ -86,5 +89,51 @@ describe('run record container verdicts (task 6.22, A-ATTR-HOSTSVC-1)', () => {
     }).toThrow();
     expect(records.inspect('run-one')?.endedAt).toBeNull();
     records.close();
+  });
+  describe('unreadable tmp subtrees (task 6.23)', () => {
+    test('a sample keeps the unreadable paths it saw', () => {
+      const records = begun();
+      records.sample('run-one', {
+        kind: 'interval',
+        observedAt: 1_800_000_000_500,
+        counters: null,
+        tmpBytes: 4096,
+        tmpUnreadable: ['wbs-shared-process-XYrBbJ/inaccessible'],
+        tmpUnreadableOmitted: 2,
+        containers: null,
+        failure: null,
+      });
+      expect(records.inspect('run-one')?.samples.at(-1)).toMatchObject({
+        tmpBytes: 4096,
+        tmpUnreadable: ['wbs-shared-process-XYrBbJ/inaccessible'],
+        tmpUnreadableOmitted: 2,
+      });
+      records.close();
+    });
+
+    test('a sample recorded before task 6.23 loads with no unreadable paths', () => {
+      const records = begun();
+      const root = roots.at(-1);
+      if (root === undefined) throw new Error('no records root');
+      const db = new Database(HostJobRunRecords.pathOf(root));
+      db.query('INSERT INTO samples(job_id, sample) VALUES (?, ?)').run(
+        'run-one',
+        JSON.stringify({
+          kind: 'interval',
+          observedAt: 1_800_000_000_500,
+          counters: null,
+          tmpBytes: 4096,
+          containers: null,
+          failure: null,
+        }),
+      );
+      db.close();
+      expect(records.inspect('run-one')?.samples.at(-1)).toMatchObject({
+        tmpBytes: 4096,
+        tmpUnreadable: [],
+        tmpUnreadableOmitted: 0,
+      });
+      records.close();
+    });
   });
 });

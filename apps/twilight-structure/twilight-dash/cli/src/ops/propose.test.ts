@@ -254,6 +254,8 @@ describe('ops job propose (task 4.1, J9)', () => {
         memoryHighEvents: 0,
       },
       tmpBytes: 0,
+      tmpUnreadable: [],
+      tmpUnreadableOmitted: 0,
       containers: null,
       failure: null,
     });
@@ -263,5 +265,99 @@ describe('ops job propose (task 4.1, J9)', () => {
     );
     expect(peakCpuCores([sample(0, 0), sample(4, 6e6)])).toBe(1.5);
     expect(peakCpuCores([sample(0, 0)])).toBeNull();
+  });
+});
+
+describe('ops job propose with tmp lower bounds (task 6.23, A-TMP-TELEMETRY-1)', () => {
+  const PATH = 'wbs-shared-process-XYrBbJ/inaccessible';
+  const lowerBounds = (runs: FixtureRun[]): FixtureRun[] =>
+    runs.map((run) => ({ ...run, tmpUnreadable: [PATH] }));
+
+  test('three records whose only defect is unreadable tmp subtrees propose memory, cpu and duration; tmp is a lower bound only', () => {
+    const proposal = propose('gate', lowerBounds(calibrations(4.1, 4.4, 4.3)));
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    // 600, 660 and 720 s of ten-second samples, each after the gate sample.
+    for (const [id, samples] of [
+      ['calibration-1', 60],
+      ['calibration-2', 66],
+      ['calibration-3', 72],
+    ] as const)
+      expect(proposal.lines).toContain(
+        `used as a lower bound calibration ${id} in tmpDiskGib: tmp lower bound only: ${String(samples)} samples saw unreadable subtrees (${PATH})`,
+      );
+    expect(proposal.lines).not.toContainEqual(expect.stringContaining('excluded'));
+    expect(proposal.lines).toContain(
+      'memoryGib: 6 (p95 4.4 GiB over 3 uncapped, unthrottled records: calibration-1, calibration-2, calibration-3)',
+    );
+    expect(proposal.lines).toContain(
+      'cpuCores: 4 (p95 3 cores over 3 calibration records: calibration-1, calibration-2, calibration-3)',
+    );
+    expect(proposal.lines).toContain(
+      'durationSeconds: reported only, the catalogue has no duration field (p95 720 s over 3 calibration records: calibration-1, calibration-2, calibration-3)',
+    );
+    // The lower bounds' 4 GiB would lower the entry's 8: it stays.
+    expect(proposal.lines).toContain(
+      "tmpDiskGib: 8 (lower bound only, at least the entry's 8, provenance tmpDiskGibLowerBound: p95 3 GiB over 3 records: calibration-1, calibration-2, calibration-3)",
+    );
+    expect(proposal.entry.envelope).toEqual({
+      cpuCores: 4,
+      memoryGib: 6,
+      tmpDiskGib: 8,
+      exclusive: ['gate_tree'],
+    });
+    expect(proposal.entry.provenance).toMatchObject({
+      recordCount: 3,
+      recordIds: ['calibration-1', 'calibration-2', 'calibration-3'],
+      tmpDiskGibLowerBound: true,
+    });
+  });
+
+  test('two measured records and one lower bound make a mixed lower bound', () => {
+    const runs = calibrations(4.1, 4.4, 4.3);
+    const proposal = propose('gate', [...runs.slice(0, 2), ...lowerBounds(runs.slice(2))]);
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      "tmpDiskGib: 8 (lower bound from 2 measured + 1 lower bounds, at least the entry's 8, provenance tmpDiskGibLowerBound: p95 3 GiB over 3 records: calibration-1, calibration-2, calibration-3)",
+    );
+    expect(proposal.entry.provenance).toMatchObject({ tmpDiskGibLowerBound: true });
+  });
+
+  test('a lower bound above the entry raises its tmp disk', () => {
+    // release-build declares 2 GiB; the lower bounds' p95 of 3 GiB needs at least 4.
+    const proposal = propose('release-build', lowerBounds(calibrations(1, 1, 1)));
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.entry.envelope.tmpDiskGib).toBe(4);
+  });
+
+  test('two records do not propose from lower bounds either', () => {
+    const proposal = propose('gate', lowerBounds(calibrations(4.1, 4.4)));
+    expect(proposal.kind).toBe('refused');
+  });
+
+  test('a record with unreadable tmp subtrees beside three measured ones is not cited', () => {
+    const proposal = propose('gate', [
+      ...calibrations(4.1, 4.4, 4.3),
+      ...lowerBounds([
+        {
+          id: 'fixture-run',
+          calibration: true,
+          memoryGib: 4,
+          cpuCores: 2,
+          tmpGib: 9,
+          seconds: 600,
+        },
+      ]),
+    ]);
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      'tmpDiskGib: 4 (p95 3 GiB over 3 records: calibration-1, calibration-2, calibration-3)',
+    );
+    expect(proposal.lines).toContain(
+      `excluded calibration fixture-run from tmpDiskGib: tmp lower bound only: 60 samples saw unreadable subtrees (${PATH})`,
+    );
+    expect(proposal.entry.provenance).toMatchObject({
+      recordIds: ['calibration-1', 'calibration-2', 'calibration-3'],
+    });
+    expect(proposal.entry.provenance).not.toHaveProperty('tmpDiskGibLowerBound');
   });
 });

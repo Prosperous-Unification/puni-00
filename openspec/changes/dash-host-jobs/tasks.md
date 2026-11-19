@@ -438,3 +438,17 @@
       `unlabelled`; `puni.job` wins. Tests: `containers.test.ts`, `run-records.test.ts`,
       `audit.test.ts`, `propose.test.ts`, `job-run.test.ts`; negatives: each new check removed
       in turn (verify.md, 2026-11-19). Changing the host scripts follows the merge (S22-A2).
+- [x] 6.23 tmp telemetry tolerates unreadable subtrees; completeness per dimension
+      (A-TMP-TELEMETRY-1; PR #953): the gate's own be-01 test leaves a mode-0 `inaccessible`
+      directory under `TMPDIR`, so the tmp walk's EACCES voided h4claw's first complete BuildKit
+      calibration e15a97eb whole. The walk now lists unreadable subtrees (`tmpUnreadable`, at
+      most 32, the rest counted) and counts the rest as a lower bound; the tmp directory itself
+      absent or unreadable is still a telemetry failure. `dimensionStandings` (`measures.ts`)
+      makes such a record complete for memory, CPU and duration and a tmp lower bound;
+      `ops job propose` names it `tmp lower bound only` and falls back to lower bounds for
+      tmp only below three measured records, never lowering the entry and marking the
+      provenance `tmpDiskGibLowerBound: true` (Burokrat `JobType`); `ops job audit` notes the
+      paths, keeps them out of `waste` and never judges tmp waste for a marked entry. Old
+      samples load with no paths. Tests: `scope.test.ts`, `measures.test.ts`,
+      `propose.test.ts`, `audit.test.ts`, `run-records.test.ts`, `job-run.test.ts`,
+      Burokrat `job-catalogue.test.ts`; negatives: each new check removed in turn (verify.md, 2026-11-19).

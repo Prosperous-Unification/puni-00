@@ -353,6 +353,8 @@ init` refuses a unit any same-user process has as cwd, and orphaned test fixture
    changed. Then it restarts the watch, which runs from the same checkout, only if it was
    running. Otherwise it exits 75 and the next hour retries. A checkout with edited tracked
    files is refused 65, never moved over. A failed fetch, checkout, install or restart is 70.
+   Because it moves only an idle checkout, a calibration series already running keeps the code
+   it started with until it ends; restart the series' runner after the refresh (task 6.23).
    Read the most recent run's outcome with
    `systemctl --user show -p ExecMainStatus,ExecMainExitTimestamp gate-launcher-refresh.service`
    (on h4claw the journal is unreadable over ssh, as in step 5). It shows only the latest

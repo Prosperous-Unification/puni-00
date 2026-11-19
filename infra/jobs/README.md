@@ -41,7 +41,10 @@ is a different profile. Dash refuses arguments that do not match (`parseJobArgum
   supplies; Burokrat reads no clock. Every envelope here is estimated until 2026-12-01.
 - `calibrated`: proposed from measured runs, with `hostClass`, `calibratedAt`, `recordCount`,
   the `p95` per dimension and the `recordIds` it came from. `JOB-CATALOGUE` fails an envelope
-  below its own p95 in any dimension.
+  below its own p95 in any dimension. `tmpDiskGibLowerBound: true`, present only then, says
+  `p95.tmpDiskGib` is a lower bound: some record it came from could not read part of its tmp
+  directory (Dash task 6.23). `ops job audit` then cannot judge tmp waste for the entry and says
+  so in a note.
 
 ## Heuristics (provisional)
 

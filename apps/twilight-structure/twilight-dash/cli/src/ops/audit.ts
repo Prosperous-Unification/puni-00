@@ -6,6 +6,7 @@ import {
   incompleteness,
   measuresOf,
   nearestRankP95,
+  tmpLowerBoundOf,
 } from './measures';
 import { type HostServiceBound, isAttributed, type RunRecord } from './run-records';
 
@@ -100,7 +101,10 @@ function hostServicesOf(record: RunRecord): string | null {
  *   other one a bounded host service (slice 4 assumption S4-A8, task 6.22).
  *
  * A run beside which declared host services started containers gets a note listing them with
- * their declared bounds (task 6.22); they are attributed, not drift.
+ * their declared bounds (task 6.22); they are attributed, not drift. A run whose tmp samples saw
+ * unreadable subtrees gets one note listing those paths (task 6.23): its tmp peak is a lower
+ * bound, which still proves an overrun but never waste. An entry whose calibrated provenance
+ * marks `tmpDiskGibLowerBound` is never judged for tmp waste, and a note says so.
  */
 export function auditDrift(
   records: readonly RunRecord[],
@@ -127,6 +131,13 @@ export function auditDrift(
     }
     const services = hostServicesOf(record);
     if (services !== null) notes.push(services);
+    const lowerBound = tmpLowerBoundOf(record);
+    // Proof: dropping this note made `a run with unreadable tmp subtrees gets one note listing
+    // them` (audit.test.ts) find no note (2026-11-19, task 6.23).
+    if (lowerBound !== null)
+      notes.push(
+        `tmp lower bound only in run ${record.jobId}: ${String(lowerBound.samples)} samples saw unreadable subtrees: ${lowerBound.paths.join(', ')}${lowerBound.omitted > 0 ? ` (and ${String(lowerBound.omitted)} more unlisted)` : ''}`,
+      );
     const measures = measuresOf(record);
     const envelope = descriptorOf(record).envelope;
     const at = new Date(record.startedAt).toISOString();
@@ -187,6 +198,16 @@ export function auditDrift(
         type: head.id,
         line: `${head.id} estimate_expired: provenance estimated until ${head.provenance.until}, now ${new Date(now).toISOString()} (${location})`,
       });
+    // A lower-bound tmp entry may be above the job's real need with nothing to show it.
+    // Proof: dropping the skip below made `a lower-bound tmp entry is not waste-checkable`
+    // (audit.test.ts) name a tmpDiskGib waste; dropping the note made it find no note
+    // (2026-11-19, review S2-1).
+    const tmpUnjudged =
+      head.provenance.kind === 'calibrated' && head.provenance.tmpDiskGibLowerBound === true;
+    if (tmpUnjudged)
+      notes.push(
+        `${head.id} tmp entry is a lower bound; waste cannot fire for tmpDiskGib (${location})`,
+      );
     const digest = descriptorDigestOf(head);
     const runs = records.filter(
       (record) =>
@@ -196,6 +217,7 @@ export function auditDrift(
     );
     if (runs.length < HEURISTICS.wasteRuns) continue;
     for (const dimension of ENVELOPE_DIMENSIONS) {
+      if (dimension === 'tmpDiskGib' && tmpUnjudged) continue;
       // A zero tmp envelope needs no skip: no p95 is below half of zero.
       const declared = head.envelope[dimension];
       const values = runs.flatMap((record) => {
@@ -204,6 +226,10 @@ export function auditDrift(
           measures.memoryHighEvents === 0 &&
           (record.calibration === true || descriptorOf(record).enforcement !== 'cap');
         if (dimension === 'memoryGib' && !unthrottled) return [];
+        // A lower bound below half the envelope does not show the envelope too large.
+        // Proof: counting it made `tmp lower bounds are not waste` (audit.test.ts) name a
+        // tmpDiskGib waste (2026-11-19, task 6.23).
+        if (dimension === 'tmpDiskGib' && tmpLowerBoundOf(record) !== null) return [];
         const value = measures[dimension];
         return value === null ? [] : [value];
       });

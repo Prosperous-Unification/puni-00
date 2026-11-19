@@ -526,7 +526,11 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     (no link followed) and, for a containers bound, the labelled containers' `docker stats`.
     The gated shell keeps the scope alive until the exit sample is stored, so even `true` gets
     a gate and an exit sample. Peak tmp is the largest sample, a lower bound; disk outside
-    `TMPDIR` is not covered;
+    `TMPDIR` is not covered. A subtree the walk may not read (EACCES or EPERM, such as the
+    mode-0 `inaccessible` directory the gate's own be-01 test makes under `TMPDIR`) is skipped
+    and listed in the sample's `tmpUnreadable`, relative to the tmp directory, at most 32 paths
+    with `tmpUnreadableOmitted` counting the rest; that sample's tmp figure is then a lower
+    bound of what was readable. An entry that vanishes mid-walk counts as gone (task 6.23);
   - SIGINT, SIGTERM and SIGHUP before the gate opens refuse the job at the gate (129, 130,
     143); after it opens they are forwarded to the payload's session. Forwarding neither lifts
     `MemoryHigh` nor escalates: an operator ending a job by hand takes the three steps below
@@ -551,7 +555,8 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     per sample interval, so a job can run up to ten seconds past it.
     Apart from that runtime bound, the command exits with the payload's own status, 128 +
     signal when it was signalled. A
-    telemetry failure (a counter unreadable mid-run, a scope torn down before the exit sample)
+    telemetry failure (a counter unreadable mid-run, a scope torn down before the exit sample,
+    the tmp directory itself absent or unreadable; not an unreadable subtree inside it)
     and a ledger write failure are recorded and reported on stderr apart from that status. It
     then settles the job on its terminal evidence, once a second for up to 30 seconds, and prints one
     `ops job: <id> <entry> <state>: <reason>` line per entry; whatever is still charged is
@@ -647,7 +652,17 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
   nearest-rank p95 per dimension:
   - memory from every uncapped, unthrottled record (`memory.events high` 0);
   - CPU, the peak rate of `usage_usec` over a ten-second window, from calibration records alone;
-  - tmp disk from every complete record;
+  - tmp disk from every complete record. A record whose samples listed unreadable tmp
+    subtrees is complete for memory, CPU and duration, but its tmp figure is a lower bound.
+    With three or more records that measured tmp disk, it is left out of tmp disk, its line
+    reading `excluded … from tmpDiskGib: tmp lower bound only`, then how many samples saw
+    unreadable subtrees and the first path. With fewer, but at least three counting the lower
+    bounds, tmp disk is taken from them all: each such record's line reads
+    `used as a lower bound … in tmpDiskGib`, and it is cited. The tmp line then says
+    `lower bound only` or `lower bound from 2 measured + 1 lower bounds`, and that the
+    proposal never lowers the entry's `tmpDiskGib`. The provenance carries
+    `tmpDiskGibLowerBound: true`, so the catalogue entry itself says its tmp p95 is a lower
+    bound (task 6.23, S23-A4);
   - duration from calibration records alone, reported only, because the catalogue has no
     duration field.
 
@@ -689,6 +704,12 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job audit --
     `note: host services beside run` line listing each service with its declared bounds and
     count, for example `goaccess-reports (512 MiB, 1 cpu) ×3`. They are background load the
     operator declared, not drift, and are not added to the job's envelope.
+  - A run whose samples listed unreadable tmp subtrees prints one
+    `note: tmp lower bound only in run <id>: <n> samples saw unreadable subtrees: <paths>` line.
+    Its tmp peak still proves an `overrun`, but never counts toward `waste` (task 6.23). An
+    entry whose provenance carries `tmpDiskGibLowerBound: true` is never judged for tmp waste,
+    and the audit prints `note:` with the id and
+    `tmp entry is a lower bound; waste cannot fire for tmpDiskGib`.
   - Runs of a type the catalogue does not name print a `note: not judged` line. Runs without an
     outcome print a `note: not judged beyond throttling` line, because only `throttled` judges a
     run still in progress.
