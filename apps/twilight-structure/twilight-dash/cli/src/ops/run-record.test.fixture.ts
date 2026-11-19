@@ -36,6 +36,8 @@ export interface FixtureRun {
   /** A steady CPU rate over the whole run. */
   cpuCores?: number;
   tmpGib?: number;
+  /** Paths every sample after the gate saw unreadable under the tmp directory (task 6.23). */
+  tmpUnreadable?: string[];
   seconds?: number;
   memoryHighEvents?: number;
   exitCode?: number;
@@ -88,6 +90,8 @@ export function runRecord(catalogue: CommittedCatalogue, run: FixtureRun): RunRe
       memoryHighEvents: index === 0 ? 0 : (run.memoryHighEvents ?? 0),
     },
     tmpBytes: index === 0 ? 0 : tmp,
+    tmpUnreadable: index === 0 ? [] : (run.tmpUnreadable ?? []),
+    tmpUnreadableOmitted: 0,
     containers: null,
     failure: null,
   }));

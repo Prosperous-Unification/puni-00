@@ -137,6 +137,8 @@ if (insideOpsNamespace(import.meta.path))
             memoryHighEvents: 0,
           },
           tmpBytes: 0,
+          tmpUnreadable: [],
+          tmpUnreadableOmitted: 0,
           containers: null,
           failure: null,
         },
@@ -189,6 +191,8 @@ if (insideOpsNamespace(import.meta.path))
         observedAt: now,
         counters: counters(memoryHighEvents),
         tmpBytes: 0,
+        tmpUnreadable: [],
+        tmpUnreadableOmitted: 0,
         containers: null,
         failure: null,
       });

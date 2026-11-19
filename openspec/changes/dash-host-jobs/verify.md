@@ -4294,3 +4294,95 @@ crons, rejected because h2puni's goaccess cron runs hourly and a gate takes long
   against the pool's allocatable vector. The honest counterpart would be a declared
   host-service reserve in the pool headroom, plus an `ops job audit` drift when an observed
   host-service bound exceeds that reserve; not part of this change.
+
+## 2026-11-19 an unreadable test fixture under TMPDIR voided whole gate records (task 6.23)
+
+Branch `ops/dash-tmp-telemetry-unreadable-subtrees-20261119` from `main` d40d0aee8; laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the evidence
+below was gathered on h4claw by the coordinator before it).
+
+- h4claw's gate calibration e15a97eb, the first complete one with BuildKit, ran 2026-11-19
+  04:53:44Z to 10:09:12Z at `--parallel=1` with `GATE_EXIT=0`, peak memory 9.3 GiB, 7.82
+  cores and 8 GiB of tmp.
+- `ops job propose` excluded it whole, as `incomplete: telemetry failure: interval:` then
+  `tmp directory /home/puni1/.local/share/dash/host-pool/e15a97eb-… unreadable:` then
+  `EACCES: permission denied, scandir '…/wbs-shared-process-XYrBbJ/inaccessible'`.
+- The directory is the gate's own test fixture:
+  `apps/wbs/be-01/src/shared-people-host-restore-process.db.test.ts` makes `inaccessible` inside
+  its `mkdtemp(join(tmpdir(), 'wbs-shared-process-'))` directory (lines 405 and 481), chmods it
+  0 (line 410) and back to 0700 after its assertion; `TMPDIR` is the Dash job's tmp directory.
+- `readSample` (`ops/job-run.ts`) turned the `directoryBytes` throw into the sample's failure,
+  the run's `telemetryFailure`, and `incompleteness` (`ops/measures.ts`) voided every dimension
+  for it. Every gate on both hosts runs that test, so no gate record could be complete.
+
+`directoryUsage` (`ops/scope.ts`) replaces `directoryBytes`: below the tmp directory it skips a
+subtree it may not read (EACCES, EPERM) and lists it, relative and sorted, at most 32 with the
+rest counted; an entry that vanishes between the listing and its `lstat`, or between `lstat`
+and its listing, counts as gone. The tmp directory itself absent or unreadable still throws, so
+it is still a telemetry failure (before, an absent one was silently 0 bytes). A run sample gains
+`tmpUnreadable` and `tmpUnreadableOmitted`; a stored sample without them loads with none.
+`dimensionStandings` and `tmpLowerBoundOf` (`ops/measures.ts`) make a record whose only defect
+is unreadable tmp subtrees complete for memory, CPU and duration and `lower-bound` for tmp disk;
+`incompleteness` is unchanged and answers null for it. `ops job propose` names such a record
+`excluded … from tmpDiskGib: tmp lower bound only: <n> samples saw unreadable subtrees (path)`,
+falls back to the lower bounds for tmp disk only when fewer than three records measured it, then
+never below the entry's `tmpDiskGib`, and cites the records; `ops job audit` prints one note per
+such run listing the paths and keeps its tmp figure out of `waste`, while a lower bound above
+the envelope is still an `overrun`.
+
+| Command                                                                                                                                                                                | Result                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the new tests in `scope.test.ts`, `measures.test.ts`, `propose.test.ts`, `audit.test.ts`, `run-records.test.ts` against `main`'s six source files                                      | 32 pass, 7 fail: five new tests, and `scope.test.ts` and `measures.test.ts`, which do not load (`directoryUsage`, `dimensionStandings` not exported); four new tests passed already, kept as guards: the new fields' round trip, the raise test, the two-record refusal and the lower-bound overrun |
+| the same five files after the change                                                                                                                                                   | 46 pass, 0 fail                                                                                                                                                                                                                                                                                     |
+| `job-run.test.ts -t "TMPDIR\|a gate is measured\|one-second"` inside its `unshare` namespace (`DASH_OPS_TEST_NAMESPACE=1`)                                                             | 3 pass (fake seam), 3 skip (real seam: no systemd user bus on the laptop)                                                                                                                                                                                                                           |
+| `scope`, `measures`, `propose`, `audit`, `run-records`, `status`, `host-job-publication`, `calibrate`, `job-run` and `host-pool-mode` test files together, with the project's preloads | exit 0; `job-run.test.ts` inside: 41 pass, 16 skip (no systemd user bus, no `busybox:1.37.0-musl` image on the laptop); `host-pool-mode.test.ts` inside: 45 pass; `calibrate.test.ts` inside: 18 pass, 1 skip (no user bus); outer 51 pass                                                          |
+| `bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                                                  | exit 0                                                                                                                                                                                                                                                                                              |
+| `bunx eslint` on the 15 changed TypeScript files                                                                                                                                       | exit 0                                                                                                                                                                                                                                                                                              |
+| `bunx prettier --check` on the changed files                                                                                                                                           | all files use Prettier code style                                                                                                                                                                                                                                                                   |
+| `bunx openspec validate --all --json`                                                                                                                                                  | exit 0; 346 items, 346 passed, 0 failed                                                                                                                                                                                                                                                             |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                                                                         | exit 0                                                                                                                                                                                                                                                                                              |
+| a `gate` calibration on h4claw or h2puni with this change                                                                                                                              | not run: no host touched; follows the merge and a launcher update (S23-A3)                                                                                                                                                                                                                          |
+
+| Injected fault                                                                         | Observed                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `directoryUsage` rethrowing EACCES below the tmp directory (the rule before task 6.23) | `a mode-0 subdirectory is listed and the rest is counted` and the bounded-list test threw; over the production path the `job-run.test.ts` fixture test recorded `telemetryFailure` `interval: tmp directory … unreadable: EACCES: permission denied, scandir '…/wbs-shared-process-XYrBbJ/inaccessible'`, as e15a97eb did |
+| EACCES tolerated for the tmp directory itself                                          | `an unreadable tmp directory is still a failure` failed: no throw                                                                                                                                                                                                                                                         |
+| ENOENT tolerated for the tmp directory itself                                          | `an absent tmp directory is still a failure` failed: zero bytes returned                                                                                                                                                                                                                                                  |
+| ENOENT rethrown at an entry's `lstat`, or at its listing                               | `an entry that vanishes mid-walk counts as gone` failed, each in turn                                                                                                                                                                                                                                                     |
+| every unreadable path listed                                                           | `unreadable paths are sorted and bounded, the rest counted` failed: 35 paths                                                                                                                                                                                                                                              |
+| the tmp standing answering the whole record's                                          | `a record whose only defect is unreadable tmp subtrees is a lower bound for tmp alone` failed, and the two propose lower-bound tests                                                                                                                                                                                      |
+| `propose` taking a lower bound as a measured tmp peak                                  | the three-record lower-bound test printed `tmpDiskGib: 4 (p95 3 GiB over 3 records: …)`; the beside-three test failed too                                                                                                                                                                                                 |
+| `propose` never falling back to lower bounds                                           | the three-record and raise tests refused with `0 records for tmpDiskGib`                                                                                                                                                                                                                                                  |
+| lower bounds never cited                                                               | the raise test refused in validation, `provenance.recordCount must be at least 1 (was 0)`; the three-record test failed                                                                                                                                                                                                   |
+| lower bounds always cited                                                              | `a record with unreadable tmp subtrees beside three measured ones is not cited` failed                                                                                                                                                                                                                                    |
+| the entry term dropped from the lower-bound tmp figure                                 | the three-record test proposed `tmpDiskGib` 4 under the entry's 8                                                                                                                                                                                                                                                         |
+| the audit's lower-bound note removed                                                   | `a run with unreadable tmp subtrees gets one note listing them` failed: no note                                                                                                                                                                                                                                           |
+| lower bounds counted toward `waste`                                                    | `tmp lower bounds are not waste` failed: a `tmpDiskGib` waste                                                                                                                                                                                                                                                             |
+| the two sample fields required in the stored shape                                     | `a sample recorded before task 6.23 loads with no unreadable paths` threw on the stored row                                                                                                                                                                                                                               |
+
+Alternatives considered: making the be-01 test reopen the directory before any sample, racy
+by construction against a sampler that reads every ten seconds; running the sampler as root,
+out because the launcher and its scope run as the gate user; skipping tmp measurement, which
+loses the dimension; excluding the record from tmp disk only but never proposing tmp from lower
+bounds, which with the current test suite would refuse every gate proposal forever (S23-A2).
+
+- **S23-A1** A-TMP-TELEMETRY-1, unreadable subtrees as a listed tmp lower bound and
+  completeness per dimension, is assumed and awaits Dany's confirmation; no ADR, the amendment
+  is under J7 in design.md.
+- **S23-A2** The tmp envelope stays provisional, a lower bound, until a run sees no unreadable
+  subtree, which the current test suite never allows: every gate runs
+  `shared-people-host-restore-process.db.test.ts`. Dany may prefer the test to make its
+  inaccessible directory in a dedicated directory outside `TMPDIR`; that changes a WBS test for
+  a Dash measurement and is left to him.
+- **S23-A3** The measured h4claw figures for e15a97eb above (9.3 GiB, 7.82 cores, 8 GiB tmp at
+  `--parallel=1`) are the coordinator's reading of the host record; they are not re-read here,
+  and the record's existing `telemetryFailure` text stays: records written before this change
+  are not rewritten, so e15a97eb stays excluded and a new calibration with this change is
+  needed.
+- **S23-A4** When tmp disk falls back to lower bounds the proposal never lowers the entry's
+  `tmpDiskGib`, only raises it to ⌈1.25 × the lower-bound p95⌉. The Burokrat `JobType`
+  provenance has no lower-bound marker, so its `p95.tmpDiskGib` carries the lower-bound p95;
+  the printed line, not the provenance, says it is a lower bound.
+- **S23-A5** The sampler tolerates EACCES and EPERM below the tmp directory and ENOENT for
+  entries that vanish; any other error (EIO, ELOOP, ENOTDIR from a replaced entry) is still a
+  telemetry failure, as before.

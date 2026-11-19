@@ -155,6 +155,24 @@ scope's `MemoryHigh`, sends SIGTERM to the session and SIGKILLs the whole scope 
 budget (task 6.14). A telemetry failure mid-run and a ledger
 write failure are recorded apart from the payload's outcome.
 
+_Amendment (task 6.23, 2026-11-19, assumption A-TMP-TELEMETRY-1 for Dany)._ The gate's own
+`apps/wbs/be-01/src/shared-people-host-restore-process.db.test.ts` makes a directory
+`inaccessible` with mode 0 inside its `mkdtemp(join(tmpdir(), 'wbs-shared-process-'))`
+fixture, which is under the job's `TMPDIR`, and reopens it later. The tmp walk's `scandir` of
+it failed with EACCES, every such sample became a telemetry failure, and the whole record was
+excluded: the first complete BuildKit calibration on h4claw (e15a97eb) lost its memory, CPU and
+duration with its tmp figure. The walk now skips a subtree it may not read (EACCES, EPERM) and
+an entry that vanishes, counts the rest and lists the skipped paths in the sample
+(`tmpUnreadable`, relative, at most 32, the rest counted); the tmp directory itself absent or
+unreadable stays a telemetry failure. Completeness is per dimension: such a record is complete
+for memory, CPU and duration and a lower bound for tmp disk, which `propose` takes only when
+too few records measured it, never lowering the entry, and which `audit` notes and never
+counts as waste. Rejected: making the test reopen the directory in time, racy by construction
+against a ten-second sampler; running the sampler as root, out because the launcher runs as
+the gate user;
+dropping tmp measurement, which loses the dimension; and moving the fixture outside `TMPDIR`,
+left to Dany (S23-A2) because it changes a WBS test for a Dash measurement.
+
 **J8. What cannot be measured is refused before the payload, never run unmeasured.** No
 `systemd-run`, no user manager, scope counters unreadable at the gate: exit 70 before the
 payload starts, naming the fix (`loginctl enable-linger puni1`; h4claw today). The gate host role

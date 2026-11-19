@@ -473,3 +473,35 @@ job's envelope. A run that saw only host-service containers SHALL NOT clear an e
 - **WHEN** a container labelled `puni.job` with the running job's id and
   `puni.host-service=goaccess-reports` starts with memory above the type's declared bound
 - **THEN** it is recorded `unbounded` by the job-container rules
+
+### Requirement: An unreadable subtree under a job's tmp directory is a listed tmp lower bound
+
+Each sample of a host job SHALL walk the job's tmp directory past any subtree its user may not
+read (EACCES or EPERM) and past entries that vanish mid-walk, recording the readable bytes as a
+lower bound and the unreadable paths, relative to the tmp directory, deduplicated and at most
+32 with a count of the rest. Such a sample SHALL NOT be a telemetry failure; the tmp directory
+itself absent or unreadable SHALL be. A record whose only defect is unreadable tmp subtrees
+SHALL be complete for memory, CPU and duration, and a lower bound for tmp disk: `ops job
+propose` SHALL name it `tmp lower bound only` and leave it out of tmp disk, taking tmp disk from
+lower bounds only when fewer than three records measured it, then never below the entry's
+current `tmpDiskGib`. `ops job audit` SHALL print one note per such run listing the paths, and
+SHALL NOT count its tmp figure toward `waste`.
+
+#### Scenario: A mode-0 test fixture under TMPDIR
+
+- **WHEN** a gate's payload creates `wbs-shared-process-XYrBbJ/inaccessible` under `TMPDIR`
+  with mode 0 and reopens it later
+- **THEN** the samples taken meanwhile list `wbs-shared-process-XYrBbJ/inaccessible`, their
+  tmp bytes count the rest of the directory, and the run records no telemetry failure
+
+#### Scenario: Three calibrations whose only defect is unreadable tmp subtrees
+
+- **WHEN** `ops job propose --type gate` reads three such calibration records
+- **THEN** it proposes memory, CPU and duration from them, prints `tmp lower bound only` for
+  each, and proposes tmp disk as a lower bound only, at least the entry's current figure
+
+#### Scenario: The tmp directory itself unreadable
+
+- **WHEN** a sample finds the job's tmp directory unreadable or absent
+- **THEN** the sample's failure names the tmp directory, and the run records a telemetry
+  failure that leaves it out of every dimension

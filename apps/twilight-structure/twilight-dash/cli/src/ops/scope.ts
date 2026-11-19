@@ -1,5 +1,5 @@
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 
 import type { JobTypeDescriptor } from '../resources/host-pool';
 import { causeText, OpsRefusal } from './refusal';
@@ -207,36 +207,85 @@ export function checkScopeAvailable(
   return systemdRun;
 }
 
+/** The most unreadable paths one tmp sample lists; the rest are only counted. */
+export const UNREADABLE_PATH_LIMIT = 32;
+
+/** What one walk of a directory read: see {@link directoryUsage}. */
+export interface DirectoryUsage {
+  /** Bytes allocated under the directory that the walk could read: a lower bound when `unreadable` is not empty. */
+  bytes: number;
+  /** Paths relative to the directory whose entries could not be read, sorted, at most {@link UNREADABLE_PATH_LIMIT}. */
+  unreadable: string[];
+  /** How many more unreadable paths there were than `unreadable` lists. */
+  unreadableOmitted: number;
+}
+
+function codeOf(cause: unknown): unknown {
+  return cause instanceof Error && 'code' in cause ? cause.code : undefined;
+}
+
+/** EACCES or EPERM: a subtree the sampler's user may not read, not a broken reading. */
+function isDenied(cause: unknown): boolean {
+  const code = codeOf(cause);
+  return code === 'EACCES' || code === 'EPERM';
+}
+
 /**
  * Bytes allocated under `directory` (`du`'s figure: allocated blocks, each hard-linked inode
- * once), walking without following symbolic links. A file that vanishes mid-walk counts as gone.
- * @throws Error when an entry exists but cannot be read.
+ * once), walking without following symbolic links. Below the directory itself, an entry that
+ * vanishes mid-walk counts as gone, and one the walk may not read (EACCES, EPERM: a payload's
+ * mode-0 test fixture, task 6.23) is listed in `unreadable` while the walk goes on, so `bytes`
+ * is then a lower bound.
+ * @throws Error when `directory` itself is absent or unreadable, or an entry fails otherwise.
  */
-export function directoryBytes(directory: string): number {
+export function directoryUsage(directory: string): DirectoryUsage {
   const seen = new Set<string>();
-  let total = 0;
+  const unreadable: string[] = [];
+  let bytes = 0;
   const visit = (path: string): void => {
+    const isRoot = path === directory;
     let identity;
     try {
       identity = lstatSync(path);
     } catch (cause) {
-      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return;
+      // Proof: tolerating ENOENT for the directory itself made `an absent tmp directory is
+      // still a failure` (scope.test.ts) return zero bytes; rethrowing it here or at the listing
+      // below made `an entry that vanishes mid-walk counts as gone` throw (2026-11-19, task 6.23).
+      if (!isRoot && codeOf(cause) === 'ENOENT') return;
+      if (!isRoot && isDenied(cause)) {
+        unreadable.push(relative(directory, path));
+        return;
+      }
       throw cause;
     }
     const key = `${String(identity.dev)}:${String(identity.ino)}`;
     if (seen.has(key)) return;
     seen.add(key);
-    total += identity.blocks * 512;
+    bytes += identity.blocks * 512;
     if (!identity.isDirectory()) return;
     let entries: string[];
     try {
       entries = readdirSync(path);
     } catch (cause) {
-      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return;
+      if (!isRoot && codeOf(cause) === 'ENOENT') return;
+      // Proof: rethrowing EACCES here made `a mode-0 subdirectory is listed and the rest is
+      // counted` (scope.test.ts) throw `EACCES: permission denied, scandir` (2026-11-19, task 6.23);
+      // tolerating it for the root made `an unreadable tmp directory is still a failure` return.
+      if (!isRoot && isDenied(cause)) {
+        unreadable.push(relative(directory, path));
+        return;
+      }
       throw cause;
     }
     for (const entry of entries) visit(join(path, entry));
   };
   visit(directory);
-  return total;
+  unreadable.sort();
+  return {
+    bytes,
+    // Proof: listing every path made `unreadable paths are sorted and bounded, the rest counted`
+    // (scope.test.ts) find 35 paths (2026-11-19, task 6.23).
+    unreadable: unreadable.slice(0, UNREADABLE_PATH_LIMIT),
+    unreadableOmitted: Math.max(0, unreadable.length - UNREADABLE_PATH_LIMIT),
+  };
 }

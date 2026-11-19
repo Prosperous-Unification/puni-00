@@ -105,6 +105,8 @@ if (insideLinuxNamespace(import.meta.path)) {
         observedAt: now,
         counters: null,
         tmpBytes: null,
+        tmpUnreadable: [],
+        tmpUnreadableOmitted: 0,
         containers: null,
         failure: null,
       },

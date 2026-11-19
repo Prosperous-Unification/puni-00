@@ -55,7 +55,15 @@ export interface RunSample {
   kind: 'gate' | 'interval' | 'exit';
   observedAt: number;
   counters: ScopeCounters | null;
+  /** The tmp directory's readable bytes; a lower bound when `tmpUnreadable` is not empty. */
   tmpBytes: number | null;
+  /**
+   * Paths under the tmp directory the walk could not read (task 6.23), relative, at most 32;
+   * empty on a sample recorded before task 6.23.
+   */
+  tmpUnreadable: string[];
+  /** How many more unreadable paths this sample saw than `tmpUnreadable` lists. */
+  tmpUnreadableOmitted: number;
   containers: ContainerSample | null;
   failure: string | null;
 }
@@ -141,6 +149,8 @@ const SampleShape = type({
   observedAt: 'number',
   counters: Counters.or('null'),
   tmpBytes: 'number | null',
+  'tmpUnreadable?': 'string[]',
+  'tmpUnreadableOmitted?': 'number.integer >= 0',
   containers: type({
     labelled: 'number',
     sampled: 'number',
@@ -367,7 +377,19 @@ export class HostJobRunRecords {
         'SELECT sample FROM samples WHERE job_id=? ORDER BY sequence',
       )
       .all(jobId)
-      .map((sample) => SampleShape.assert(JSON.parse(sample.sample)));
+      .map((stored): RunSample => {
+        const { tmpUnreadable, tmpUnreadableOmitted, ...sample } = SampleShape.assert(
+          JSON.parse(stored.sample),
+        );
+        // A sample written before task 6.23 has neither field: its walk listed nothing.
+        // Proof: requiring both fields made `a sample recorded before task 6.23 loads with no
+        // unreadable paths` (run-records.test.ts) throw on the stored row (2026-11-19).
+        return {
+          ...sample,
+          tmpUnreadable: tmpUnreadable ?? [],
+          tmpUnreadableOmitted: tmpUnreadableOmitted ?? 0,
+        };
+      });
     const peaks = samples.flatMap((sample) =>
       sample.counters ? [sample.counters.memoryPeak] : [],
     );

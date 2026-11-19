@@ -2,9 +2,9 @@ import { type CommittedCatalogue, type JobType, parseCatalogueJobs } from './cat
 import {
   descriptorOf,
   type Dimension,
+  dimensionStandings,
   figure,
   HEURISTICS,
-  incompleteness,
   measuresOf,
   nearestRankP95,
 } from './measures';
@@ -50,7 +50,11 @@ function withHeadroom(p95: number, floor: number): number {
  * nearest-rank p95: memory from every uncapped, unthrottled record (`memory.events high` 0),
  * CPU (the peak ten-second interval) and duration from calibration records alone, tmp disk from
  * every record (slice 4 assumption S4-A5). Each p95 is multiplied by 1.25 and rounded up. Every
- * record left out is named with why.
+ * record left out is named with why. A record whose tmp samples saw an unreadable subtree is a
+ * tmp lower bound only (task 6.23): it feeds memory, CPU and duration, and is left out of tmp
+ * disk, named. When fewer than three records measured tmp disk but at least three did with the
+ * lower bounds, tmp disk is proposed from the p95 of them all as a lower bound only, never below
+ * the entry's current `tmpDiskGib`, and the line says so (S23-A4).
  * Refused, naming the count, when any dimension has fewer than three records; duration is
  * reported and counted but the catalogue has no field for it.
  * @throws Error when the catalogue does not name `typeId` (the caller refuses first).
@@ -76,6 +80,8 @@ export function proposeEnvelope(
   };
   /** Records left out of some dimension: not cited in the provenance (S4-A16). */
   const partial = new Set<string>();
+  /** Complete records whose tmp figure is a lower bound only (task 6.23). */
+  const tmpLowerBounds: { id: string; value: number }[] = [];
   for (const record of records) {
     if (record.type !== typeId) continue;
     const kind = record.calibration === true ? 'calibration' : 'run';
@@ -102,14 +108,24 @@ export function proposeEnvelope(
       exclude(`another partition: ${other.join(', ')}`);
       continue;
     }
-    const incomplete = incompleteness(record);
-    if (incomplete !== null) {
-      exclude(`incomplete: ${incomplete}`);
+    const standings = dimensionStandings(record);
+    // Memory's standing is the whole record's: only tmp disk may be a lower bound.
+    if (standings.memoryGib.kind === 'incomplete') {
+      exclude(`incomplete: ${standings.memoryGib.reason}`);
       continue;
     }
     const measures = measuresOf(record);
     const take = (dimension: Dimension): void => {
       const value = measures[dimension];
+      const standing = standings[dimension];
+      // Proof: taking the figure regardless made `three records whose only defect is
+      // unreadable tmp subtrees propose memory, cpu and duration; tmp is a lower bound only`
+      // (propose.test.ts) print `tmpDiskGib: 4 (p95 3 GiB over 3 records` (2026-11-19, task 6.23).
+      if (standing.kind === 'lower-bound' && value !== null) {
+        lines.push(`excluded ${kind} ${record.jobId} from ${dimension}: ${standing.reason}`);
+        tmpLowerBounds.push({ id: record.jobId, value });
+        return;
+      }
       if (value === null) {
         // A record missing from one dimension is not cited, as a throttled one is not (S4-A16).
         // Proof: without it `a record not measured in one dimension is not cited`
@@ -141,6 +157,19 @@ export function proposeEnvelope(
       take('durationSeconds');
     }
   }
+  // Tmp disk falls back to its lower bounds only when the measured records are too few; the
+  // three-record minimum still holds over the records it is then taken from.
+  // Proof: never falling back made the lower-bound tests (propose.test.ts) refuse with `0
+  // records for tmpDiskGib` (2026-11-19, task 6.23).
+  const tmpLowerBoundOnly =
+    sources.tmpDiskGib.length < HEURISTICS.minimumRecords &&
+    sources.tmpDiskGib.length + tmpLowerBounds.length >= HEURISTICS.minimumRecords;
+  if (tmpLowerBoundOnly) sources.tmpDiskGib.push(...tmpLowerBounds);
+  // Proof: never citing them made the same lower-bound test (propose.test.ts) refuse the patch
+  // in validation, `provenance.recordCount must be at least 1 (was 0)`; citing them beside three
+  // measured records made `a record with unreadable tmp subtrees beside three measured ones is
+  // not cited` find it in recordIds (2026-11-19, task 6.23).
+  else for (const lowerBound of tmpLowerBounds) partial.add(lowerBound.id);
   const short = DIMENSIONS.filter(
     (dimension) => sources[dimension].length < HEURISTICS.minimumRecords,
   );
@@ -173,7 +202,12 @@ export function proposeEnvelope(
     ...jobType.envelope,
     cpuCores: withHeadroom(p95.cpuCores, 1),
     memoryGib: withHeadroom(p95.memoryGib, 1),
-    tmpDiskGib: withHeadroom(p95.tmpDiskGib, 0),
+    // A lower bound may raise the entry's tmp disk, never lower it (S23-A4).
+    // Proof: without the entry term the lower-bound test (propose.test.ts) proposed
+    // tmpDiskGib 4 under the entry's 8 (2026-11-19, task 6.23).
+    tmpDiskGib: tmpLowerBoundOnly
+      ? Math.max(jobType.envelope.tmpDiskGib, withHeadroom(p95.tmpDiskGib, 0))
+      : withHeadroom(p95.tmpDiskGib, 0),
   };
   for (const dimension of DIMENSIONS) {
     const used = sources[dimension];
@@ -181,8 +215,12 @@ export function proposeEnvelope(
       dimension === 'durationSeconds'
         ? 'reported only, the catalogue has no duration field'
         : String(envelope[dimension]);
+    const bound =
+      dimension === 'tmpDiskGib' && tmpLowerBoundOnly
+        ? `lower bound only, at least the entry's ${String(jobType.envelope.tmpDiskGib)}: `
+        : '';
     lines.push(
-      `${dimension}: ${proposed} (p95 ${figure(p95[dimension])} ${UNIT[dimension]} over ${String(used.length)} ${SOURCE[dimension]}: ${used.map((source) => source.id).join(', ')})`,
+      `${dimension}: ${proposed} (${bound}p95 ${figure(p95[dimension])} ${UNIT[dimension]} over ${String(used.length)} ${SOURCE[dimension]}: ${used.map((source) => source.id).join(', ')})`,
     );
   }
   // The provenance cites only records that fed every dimension they could: a throttled or

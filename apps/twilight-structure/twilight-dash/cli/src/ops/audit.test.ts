@@ -300,4 +300,43 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
       'not judged beyond throttling: 1 runs without an outcome: running',
     ]);
   });
+  describe('tmp lower bounds (task 6.23, A-TMP-TELEMETRY-1)', () => {
+    const PATH = 'wbs-shared-process-XYrBbJ/inaccessible';
+
+    test('a run with unreadable tmp subtrees gets one note listing them', () => {
+      expect(
+        audit([
+          { id: 'fixture', memoryGib: 5, cpuCores: 3, tmpGib: 5, tmpUnreadable: [PATH, 'b'] },
+        ]),
+      ).toEqual({
+        drifts: [],
+        notes: [
+          `tmp lower bound only in run fixture: 3 samples saw unreadable subtrees: ${PATH}, b`,
+        ],
+        kinds: [],
+      });
+    });
+
+    test('tmp lower bounds are not waste', () => {
+      const small = (count: number, tmpUnreadable?: string[]) =>
+        Array.from({ length: count }, (_, index) => ({
+          id: `small-${String(index + 1)}`,
+          type: 'release-build',
+          memoryGib: 1.5,
+          cpuCores: 0.75,
+          tmpGib: 0.5,
+          ...(tmpUnreadable === undefined ? {} : { tmpUnreadable }),
+        }));
+      expect(audit(small(10)).drifts).toEqual([
+        `release-build waste tmpDiskGib: p95 0.5 below half the envelope 2 over 10 complete runs (${CATALOGUE_PATH} at ${'a'.repeat(40)})`,
+      ]);
+      expect(audit(small(10, [PATH])).drifts).toEqual([]);
+    });
+
+    test('a lower bound above the envelope is still an overrun', () => {
+      expect(
+        audit([{ id: 'big', memoryGib: 5, cpuCores: 3, tmpGib: 9, tmpUnreadable: [PATH] }]).kinds,
+      ).toEqual(['overrun']);
+    });
+  });
 });

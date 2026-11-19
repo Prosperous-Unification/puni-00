@@ -31,7 +31,7 @@ import { causeText, type OpsExitCode, OpsRefusal } from './refusal';
 import { HostJobRunRecords, isAttributed, type RunSample } from './run-records';
 import {
   checkScopeAvailable,
-  directoryBytes,
+  directoryUsage,
   scopeArguments,
   type ScopeTelemetry,
   scopeUnitOf,
@@ -293,9 +293,16 @@ function readSample(
   } catch (cause) {
     failures.push(causeText(cause));
   }
-  let tmpBytes: number | null = null;
+  // An unreadable subtree makes the figure a lower bound, listed, not a telemetry failure: the
+  // gate's own tests leave a mode-0 directory under TMPDIR (task 6.23). The tmp directory itself
+  // unreadable or absent still is one.
+  let tmp: { bytes: number | null; unreadable: string[]; unreadableOmitted: number } = {
+    bytes: null,
+    unreadable: [],
+    unreadableOmitted: 0,
+  };
   try {
-    tmpBytes = directoryBytes(tmpDirectory);
+    tmp = directoryUsage(tmpDirectory);
   } catch (cause) {
     failures.push(`tmp directory ${tmpDirectory} unreadable: ${causeText(cause)}`);
   }
@@ -303,7 +310,9 @@ function readSample(
     kind,
     observedAt,
     counters,
-    tmpBytes,
+    tmpBytes: tmp.bytes,
+    tmpUnreadable: tmp.unreadable,
+    tmpUnreadableOmitted: tmp.unreadableOmitted,
     containers: null,
     failure: failures.length === 0 ? null : failures.join('; '),
   };
